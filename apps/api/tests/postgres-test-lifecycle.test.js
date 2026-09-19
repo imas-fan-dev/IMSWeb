@@ -1,8 +1,6 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import { onTestFinished, test, vi } from 'vitest';
+import {
     DEFAULT_ADMIN_URL,
     assertSafePostgresTestDatabaseName,
     createPostgresTestAllocator,
@@ -11,7 +9,7 @@ const {
     postgresIntegrationEnabled,
     postgresIntegrationSkipReason,
     resolvePostgresTestConfig
-} = require('./postgres-test-lifecycle.js');
+} from './postgres-test-lifecycle.js';
 
 const LOCAL_ADMIN_URL = 'postgresql://tester:secret@127.0.0.1:5432/postgres';
 
@@ -265,10 +263,15 @@ test('database cleanup waits for PostgreSQL backends to drain before force-drop'
     await fixture.allocator.close();
 });
 
-test('database cleanup bounds timeout diagnostics before force-drop', async (t) => {
+test('database cleanup bounds timeout diagnostics before force-drop', async () => {
     let currentTime = 0;
     const warnings = [];
-    t.mock.method(console, 'warn', (message) => warnings.push(message));
+    // The previous runner restored a mocked method after every test; Vitest
+    // does not, so this spy restores itself as soon as the test finishes.
+    const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation((message) => warnings.push(message));
+    onTestFinished(() => warn.mockRestore());
     const fixture = allocatorFixture({
         names: ['ims_test_backend_timeout_1_aaaaaaaaaaaa'],
         databaseDrainTimeoutMs: 50,
@@ -315,9 +318,12 @@ test('database cleanup bounds timeout diagnostics before force-drop', async (t) 
     await fixture.allocator.close();
 });
 
-test('database cleanup still force-drops when backend observation fails', async (t) => {
+test('database cleanup still force-drops when backend observation fails', async () => {
     const warnings = [];
-    t.mock.method(console, 'warn', (message) => warnings.push(message));
+    const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation((message) => warnings.push(message));
+    onTestFinished(() => warn.mockRestore());
     const fixture = allocatorFixture({
         names: ['ims_test_backend_observation_1_aaaaaaaaaaaa'],
         queryFailure: (sql) => sql.includes('FROM pg_stat_activity')

@@ -5,7 +5,7 @@ import {
     cookieCsrfHeaders,
     fixtureSha256Hex
 } from '../fixtures/auth-request';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import {
     fudabaCardInteractionResponseSchema,
     fudabaCardPageSchema,

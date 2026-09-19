@@ -1,16 +1,16 @@
-const assert = require("node:assert/strict");
-const {
+import assert from "node:assert/strict";
+import {
   mkdir,
   mkdtemp,
   readdir,
   readFile,
   rm,
   writeFile,
-} = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
+} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { test } from "vitest";
 
 const projectRoot = path.resolve(__dirname, "..");
 const webRoot = path.resolve(projectRoot, "apps/web");

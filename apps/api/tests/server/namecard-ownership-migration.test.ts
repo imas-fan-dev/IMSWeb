@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createPostgresTestHarness } from '../integration/postgres-harness';
 import { createMigrationCatalogBefore } from '../integration/migration-catalog';
@@ -15,16 +16,16 @@ const { migratePostgres } = require('../../scripts/migration/postgres-migrations
 
 const OWNERSHIP_MIGRATION = '20260816193000_namecard_ownership_foundation.sql';
 
-test('namecard ownership migration preserves historical rows as legacy', async (t) => {
+test('namecard ownership migration preserves historical rows as legacy', async () => {
     // Everything from the ownership migration onward is replayed by the second
     // migratePostgres call, so newer migrations must stay out of this catalog.
-    const previousCatalog = await createMigrationCatalogBefore(t, OWNERSHIP_MIGRATION);
+    const previousCatalog = await createMigrationCatalogBefore(onTestFinished, OWNERSHIP_MIGRATION);
 
     const harness = await createPostgresTestHarness({
         migrationsPath: previousCatalog,
         seedCanonicalAgencies: false
     });
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await seedCanonicalFudabaAgencies(harness.connection);
     await harness.connection.prepare(
         `INSERT INTO platform_accounts

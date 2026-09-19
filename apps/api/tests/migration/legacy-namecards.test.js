@@ -1,9 +1,7 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { test } from 'vitest';
+import {
     helpText,
     normalizeCard,
     normalizeReactions,
@@ -11,7 +9,7 @@ const {
     sourceTimestamp,
     targetFilename,
     targetUrl
-} = require('../../scripts/migration/legacy-namecards');
+} from '../../scripts/migration/legacy-namecards';
 
 test('Legacy namecard migration is read-only by default and normalizes its source', () => {
     const options = parseArguments([

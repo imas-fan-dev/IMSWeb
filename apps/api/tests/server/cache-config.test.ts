@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { parseNodeCacheConfig } from "@/config/cache";
 
 test("cache configuration defaults tests to memory and development to local Valkey", () => {

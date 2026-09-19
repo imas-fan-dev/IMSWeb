@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { describe, test } from "vitest";
 // pi-lens-ignore: ts:2305
 import { wikiTestResponseSchema } from "@imsweb/contracts/wiki";
 import { createWikiFixture } from "./fixture";

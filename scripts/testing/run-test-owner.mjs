@@ -14,10 +14,41 @@ const command = (label, executable, args, cwd = repositoryRoot) =>
   Object.freeze({ label, executable, args: Object.freeze(args), cwd });
 const freezePlan = (steps) => Object.freeze(steps);
 
+const repositoryVitestConfig = path.join(
+  repositoryRoot,
+  "scripts/testing/vitest/vitest.repository.config.mts",
+);
+
+// The root package.json may only declare `husky`, so the repository domain is
+// hosted by the API workspace. `--root ../..` is relative to `apiRoot` (the step
+// cwd) and pins file resolution to the repository root, and the explicit config
+// path keeps a nested invocation from picking up another workspace's config.
+// Every plan still passes its own explicit file list: a test dropping out of an
+// owner stays a visible failure instead of a silently shorter run.
+const repositoryVitestCommand = (label, files) =>
+  command(
+    label,
+    "pnpm",
+    [
+      "--filter",
+      "@imsweb/api",
+      "exec",
+      "vitest",
+      "run",
+      "--root",
+      "../..",
+      "--config",
+      repositoryVitestConfig,
+      ...files,
+    ],
+    apiRoot,
+  );
+
 const governanceNodeTests = Object.freeze([
   "tests/development-environment.test.js",
   "tests/ci-affected-workspaces.test.js",
   "scripts/testing/tests/run-test-owner.test.mjs",
+  "tests/vitest-reporting.test.mjs",
 ]);
 const governancePythonTests = Object.freeze([
   "tests/test_agent_rules.py",
@@ -40,11 +71,7 @@ const apiNodeTests = Object.freeze([
 
 function governancePlan() {
   return freezePlan([
-    command("governance Node contracts", "node", [
-      "--experimental-strip-types",
-      "--test",
-      ...governanceNodeTests,
-    ]),
+    repositoryVitestCommand("governance Node contracts", governanceNodeTests),
     command("governance Python contracts", "python3", [
       "-m",
       "unittest",
@@ -55,9 +82,7 @@ function governancePlan() {
 
 function contractsPlan() {
   return freezePlan([
-    command("contracts", "node", [
-      "--experimental-strip-types",
-      "--test",
+    repositoryVitestCommand("contracts", [
       "tests/contracts/non-json-boundaries.test.mjs",
       "scripts/contracts/tests/compile-route-inventory.test.mjs",
       "scripts/contracts/tests/compile-frontend-route-metadata.test.mjs",
@@ -68,9 +93,7 @@ function contractsPlan() {
 function deliveryPlan(profile) {
   if (profile === "root") {
     return freezePlan([
-      command("root delivery contracts", "node", [
-        "--experimental-strip-types",
-        "--test",
+      repositoryVitestCommand("root delivery contracts", [
         "tests/exchange-map-assets.test.js",
         "tests/tauri-build-configuration.test.js",
         "tests/tauri-device-delivery.test.js",
@@ -84,18 +107,14 @@ function deliveryPlan(profile) {
   }
   if (profile === "repository") {
     return freezePlan([
-      command("repository delivery contracts", "node", [
-        "--experimental-strip-types",
-        "--test",
+      repositoryVitestCommand("repository delivery contracts", [
         "tests/exchange-map-assets.test.js",
       ]),
     ]);
   }
   if (profile === "app") {
     return freezePlan([
-      command("App delivery contracts", "node", [
-        "--experimental-strip-types",
-        "--test",
+      repositoryVitestCommand("App delivery contracts", [
         "tests/tauri-build-configuration.test.js",
         "tests/tauri-device-delivery.test.js",
       ]),
@@ -164,26 +183,21 @@ function apiPlan(profile, buildPrepared = false) {
       );
     }
   }
+  // The `all` profile runs the whole API test tree in one Vitest invocation:
+  // the config's `include` already resolves `tests/**`, so the per-suite
+  // `test:server` / `test:wiki` / `test:migration` steps are subsumed. The
+  // `node` profile still names its five built-artifact files explicitly so a
+  // test dropping out of that plan stays visible.
   plan.push(
-    command(
-      "test prepared API Node artifacts",
-      "node",
-      ["--test", ...apiNodeTests],
-      apiRoot,
-    ),
+    profile === "node"
+      ? command(
+          "test prepared API Node artifacts",
+          "pnpm",
+          ["exec", "vitest", "run", ...apiNodeTests],
+          apiRoot,
+        )
+      : command("test prepared API", "pnpm", ["exec", "vitest", "run"], apiRoot),
   );
-  if (profile === "all") {
-    for (const suite of ["test:server", "test:wiki", "test:migration"]) {
-      plan.push(
-        command(`run API ${suite}`, "pnpm", [
-          "--filter",
-          "@imsweb/api",
-          "run",
-          suite,
-        ]),
-      );
-    }
-  }
   return freezePlan(plan);
 }
 

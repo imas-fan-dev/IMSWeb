@@ -1,10 +1,11 @@
-const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
-const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = require("node:fs");
-const { tmpdir } = require("node:os");
-const { join, resolve } = require("node:path");
-const { test } = require("node:test");
-const { pathToFileURL } = require("node:url");
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { test } from "vitest";
+import * as publication from "../../apps/api/scripts/operations/publish-openmap.js";
 
 const projectRoot = resolve(__dirname, "..");
 const scriptPath = resolve(
@@ -12,11 +13,6 @@ const scriptPath = resolve(
   "scripts/maps/prepare-exchange-map.mjs",
 );
 const subject = import(pathToFileURL(scriptPath).href);
-const publicationScriptPath = resolve(
-  projectRoot,
-  "apps/api/scripts/operations/publish-openmap.js",
-);
-const publication = require(publicationScriptPath);
 
 test("exchange map preparation plans a complete z0-11 same-origin release", async () => {
   const {

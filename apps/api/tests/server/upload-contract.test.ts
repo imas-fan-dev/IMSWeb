@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { test } from "node:test";
+import { test } from "vitest";
 import sharp from "sharp";
 import { normalizeNamecardImage } from "@/domains/community/fudaba/guest-submissions/image";
 import { StreamingUploadParser } from "@/infra/http/busboy/upload-parser";

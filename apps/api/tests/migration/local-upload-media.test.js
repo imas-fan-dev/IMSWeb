@@ -1,13 +1,11 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { test } from 'vitest';
+import {
     helpText,
     parseArguments
-} = require('../../scripts/migration/local-upload-media');
+} from '../../scripts/migration/local-upload-media';
 
 test('local upload media sync is read-only by default and accepts pnpm separators', () => {
     const options = parseArguments(['--', '--source', './uploads'], {

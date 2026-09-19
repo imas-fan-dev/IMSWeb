@@ -1,9 +1,9 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { TestContext } from 'node:test';
+import { onTestFinished } from 'vitest';
 import { createHonoApp } from '@/app';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
@@ -42,7 +42,7 @@ import {
     type ControlledUpload
 } from '../contracts/runtime-contracts.js';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 const SECRET = 'node-contract-secret-at-least-32-bytes';
 const USERNAME = 'node-contract-op';
@@ -168,7 +168,7 @@ function clientAddress(client: string): string {
             : '203.0.113.100';
 }
 
-async function createFixture(t: TestContext): Promise<NodeFixture> {
+async function createFixture(): Promise<NodeFixture> {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-node-contract-'));
     const publicDir = path.join(root, 'public');
     const uploadsDir = path.join(root, 'uploads');
@@ -178,7 +178,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     await Promise.all([publicDir, uploadsDir, chronicleDir, storyDataDir].map((directory) =>
         fs.mkdir(directory, { recursive: true })));
 
-    const connection = await createPostgresTestDatabase(t, 'core-runtime');
+    const connection = await createPostgresTestDatabase('core-runtime');
     const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
     const backofficeAuth = new SqlBackofficeAuthRepository(connection);
     const audit = new SqlAuditRepository(connection);
@@ -350,7 +350,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         config: { cookieSecure: false, clientAddressSource: 'nginx' }
     };
     const app = createHonoApp(() => runtime);
-    t.after(async () => {
+    onTestFinished(async () => {
         await core.close();
         await fs.rm(root, { recursive: true, force: true });
     });
@@ -494,8 +494,8 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     };
 }
 
-test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters', async (t) => {
-    const fixture = await createFixture(t);
+test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters', async () => {
+    const fixture = await createFixture();
     await assertCoreMutationContract({
         runtime: 'Node',
         username: USERNAME,
@@ -506,13 +506,13 @@ test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapter
     });
 });
 
-test('[STATE-01] post-commit media failures preserve Node success semantics', async (t) => {
-    const fixture = await createFixture(t);
+test('[STATE-01] post-commit media failures preserve Node success semantics', async () => {
+    const fixture = await createFixture();
     await assertPostCommitMediaContract({ runtime: 'Node', ...fixture });
 });
 
-test('[STATE-01] event image replacement keeps the published record on publish failure', async (t) => {
-    const fixture = await createFixture(t);
+test('[STATE-01] event image replacement keeps the published record on publish failure', async () => {
+    const fixture = await createFixture();
     const token = await fixture.opToken();
     const headers = {
         Authorization: token,
@@ -573,8 +573,8 @@ test('[STATE-01] event image replacement keeps the published record on publish f
     assert.deepEqual(await fixture.snapshot(), beforeSnapshot);
 });
 
-test('[STATE-01] namecard approval retries object publication before success', async (t) => {
-    const fixture = await createFixture(t);
+test('[STATE-01] namecard approval retries object publication before success', async () => {
+    const fixture = await createFixture();
     const token = await fixture.opToken();
     const approve = () => fixture.request(`/api/admin/cards/approve/${PENDING_CARD_ID}`, {
         method: 'POST',
@@ -595,13 +595,13 @@ test('[STATE-01] namecard approval retries object publication before success', a
     ).length, 1);
 });
 
-test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters', async (t) => {
-    const fixture = await createFixture(t);
+test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters', async () => {
+    const fixture = await createFixture();
     await assertRouteUploadBoundaryContract({ runtime: 'Node', ...fixture });
 });
 
-test('[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing', async (t) => {
-    const fixture = await createFixture(t);
+test('[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing', async () => {
+    const fixture = await createFixture();
     await assertChronicleRateContract({ runtime: 'Node', ...fixture });
 });
 

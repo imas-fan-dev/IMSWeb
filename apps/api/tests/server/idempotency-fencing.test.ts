@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { onTestFinished, test } from 'vitest';
 import { FilesystemIdempotencyStore } from
     '@/infra/cache/filesystem/idempotency-store';
 
-test('filesystem idempotency fences a stale owner after lease takeover', async (t) => {
+test('filesystem idempotency fences a stale owner after lease takeover', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-idempotency-fencing-'));
-    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(directory, { recursive: true, force: true }));
     const staleOwner = new FilesystemIdempotencyStore(directory);
 
     const first = await staleOwner.claim('chronicle:approve', 'overlap', 'same-request');

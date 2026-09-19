@@ -52,6 +52,14 @@ mechanically: global teardown stays in `vitest.config.ts`, no
 `vi.unstubAllGlobals()` returns, and a new unit test does not import
 `MemoryRouter` directly against a shrinking baseline.
 
+The same config owns the domain's reports. CI writes
+`apps/web/reports/junit-web.xml`, and coverage is instrumented only when the run
+owns the whole Web unit suite: the Web lane's `check` sets
+`IMS_TEST_COVERAGE_ENABLED=true`, while the app lane's single-file
+`test:unit` run stays ungated. Thresholds are the floor of the measured
+baseline and may only ratchet upward. A domain must not run two Vitest
+processes at once — they share `reports/` and `coverage/`.
+
 ## Browser tests
 
 Playwright tests live under `apps/web/tests/e2e/` and use `*.spec.ts`. Add or

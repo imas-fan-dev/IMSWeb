@@ -562,7 +562,6 @@ for (const retiredWorkerSurface of [
   "src/infra/security/bcryptjs",
   "tests/worker",
   "tsconfig.worker.json",
-  "vitest.config.mts",
   "worker-configuration.d.ts",
   "wrangler.jsonc",
   ".assetsignore",

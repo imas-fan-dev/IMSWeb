@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { afterAll, onTestFinished, test } from 'vitest';
 import { parsePlatformOAuthConfig, validatePlatformOAuthEndpoint } from '@/config/platform-oauth';
 import { ConfiguredPlatformOAuthClient } from '@/infra/oauth/platform-oauth-client';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
@@ -8,7 +8,13 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled,
 } from '../integration/postgres-harness';
+import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
 import type { PlatformOAuthProviderConfigRecord, PlatformOAuthProviderStore } from '@/ports/oauth';
+
+// This file drives the explicit-close harness adapter instead of `postgresTest`,
+// so it owns the end-of-process allocator cleanup that the Vitest adapter
+// registers for the other PostgreSQL suites.
+afterAll(closeSharedPostgresTestAllocator);
 
 const initializedPostgresSchema: SqlSchemaStrategy = {
     initializeCore: async () => undefined,
@@ -201,14 +207,10 @@ test('OAuth provider writes reject private endpoint addresses', async () => {
 
 test(
     'real PostgreSQL protects providers referenced by an OAuth state',
-    {
-        skip:
-            !postgresIntegrationEnabled() &&
-            'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database',
-    },
-    async (t) => {
+    { skip: !postgresIntegrationEnabled() },
+    async () => {
         const harness = await createPostgresTestHarness();
-        t.after(() => harness.close());
+        onTestFinished(() => harness.close());
         const repository = new SqlPlatformAccountRepository(
             harness.connection,
             initializedPostgresSchema,

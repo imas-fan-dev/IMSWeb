@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
 import {
     platformOAuthLinkListResponseSchema,

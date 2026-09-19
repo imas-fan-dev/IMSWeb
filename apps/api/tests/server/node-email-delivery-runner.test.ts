@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createConnection, type AddressInfo } from 'node:net';
-import { test } from 'node:test';
+import { describe, onTestFinished, test } from 'vitest';
 import {
     shutdownEmailWorker,
     startEmailWorker,
@@ -100,7 +100,7 @@ function acceptedSender(
     };
 }
 
-test('email delivery runner polls immediately and enforces bounded concurrency', async (t) => {
+test('email delivery runner polls immediately and enforces bounded concurrency', async () => {
     const releases = [deferred(), deferred()];
     let claimCalls = 0;
     let activeSends = 0;
@@ -138,7 +138,7 @@ test('email delivery runner polls immediately and enforces bounded concurrency',
             assert.fail(`unexpected runner error: ${error.message}`);
         },
     });
-    t.after(() => runner.close());
+    onTestFinished(() => runner.close());
 
     runner.start();
     await waitFor(() => runner.activeCount() === 2, 'initial claims did not start');
@@ -185,7 +185,7 @@ test('email delivery runner claims with a fresh post-maintenance timestamp', asy
     await runner.close();
 });
 
-test('email delivery runner serializes lease renewals', async (t) => {
+test('email delivery runner serializes lease renewals', async () => {
     const releaseSend = deferred();
     let claimed = false;
     let activeRenewals = 0;
@@ -225,7 +225,7 @@ test('email delivery runner serializes lease renewals', async (t) => {
             },
         },
     );
-    t.after(() => runner.close());
+    onTestFinished(() => runner.close());
 
     runner.start();
     await waitFor(() => renewals >= 3, 'lease was not renewed repeatedly');
@@ -236,7 +236,7 @@ test('email delivery runner serializes lease renewals', async (t) => {
     assert.equal(maximumActiveRenewals, 1);
 });
 
-test('email delivery runner cancels a claim when lease renewal is lost', async (t) => {
+describe('email delivery runner cancels a claim when lease renewal is lost', () => {
     const cases = [
         {
             name: 'false result',
@@ -258,7 +258,7 @@ test('email delivery runner cancels a claim when lease renewal is lost', async (
     ];
 
     for (const entry of cases) {
-        await t.test(entry.name, async () => {
+        test(entry.name, async () => {
             let claimed = false;
             let renewalCalls = 0;
             let activeRenewals = 0;
@@ -347,7 +347,7 @@ test('email delivery runner cancels a claim when lease renewal is lost', async (
     }
 });
 
-test('email delivery runner contains claim failures and continues polling', async (t) => {
+test('email delivery runner contains claim failures and continues polling', async () => {
     let claimCalls = 0;
     let failures = 0;
     let completions = 0;
@@ -388,7 +388,7 @@ test('email delivery runner contains claim failures and continues polling', asyn
             errors.push(error);
         },
     });
-    t.after(() => runner.close());
+    onTestFinished(() => runner.close());
 
     runner.start();
     await waitFor(() => completions === 1, 'polling stopped after a failed claim');
@@ -410,7 +410,7 @@ test('email delivery runner contains claim failures and continues polling', asyn
     );
 });
 
-test('email delivery runner recovers readiness after a failed PostgreSQL poll', async (t) => {
+test('email delivery runner recovers readiness after a failed PostgreSQL poll', async () => {
     let expiryCalls = 0;
     const errors: Error[] = [];
     const store = workerStore({
@@ -433,7 +433,7 @@ test('email delivery runner recovers readiness after a failed PostgreSQL poll', 
             },
         },
     );
-    t.after(() => runner.close());
+    onTestFinished(() => runner.close());
 
     runner.start();
     await waitFor(() => errors.length === 1, 'failed poll was not reported');
@@ -734,7 +734,7 @@ test('shutdownEmailWorker bounds stalled service and active health-server close'
     }
 });
 
-test('email worker health follows runner readiness, stopping, and liveness', async (t) => {
+test('email worker health follows runner readiness, stopping, and liveness', async () => {
     const releaseSend = deferred();
     let claimed = false;
     const runner = new NodeEmailDeliveryRunner(
@@ -771,7 +771,7 @@ test('email worker health follows runner readiness, stopping, and liveness', asy
             close: () => runner.close(),
         }),
     });
-    t.after(() => shutdownEmailWorker(worker));
+    onTestFinished(() => shutdownEmailWorker(worker));
     const port = (worker.server.address() as AddressInfo).port;
     const origin = `http://127.0.0.1:${port}`;
 

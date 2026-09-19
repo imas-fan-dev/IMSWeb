@@ -1,22 +1,27 @@
 
-
-const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { afterAll, onTestFinished, test } from 'vitest';
+import {
     applyMigrations,
     databaseUrl,
     migrationCatalog,
     parseArguments,
     readMigrations,
     validateMigrationFilenames
-} = require('../../scripts/migration/postgres-migrations');
-const {
+} from '../../scripts/migration/postgres-migrations';
+import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
-} = require('../integration/postgres-harness.ts');
+} from '../integration/postgres-harness.ts';
+import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
+
+// The shared test allocator used to be closed by a module-level hook inside the
+// harness module. The harness is runner-neutral now, so this file owns its own
+// process-end cleanup.
+afterAll(() => closeSharedPostgresTestAllocator());
 
 test('released Platform and Fudaba migrations remain byte-for-byte immutable', () => {
     const expected = new Map([
@@ -711,12 +716,12 @@ test('PostgreSQL migration catalog is available without a database connection', 
 
 test('email delivery migration creates the constrained queue and resend policy', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness({
         label: 'email-delivery-schema',
         seedCanonicalAgencies: false
     });
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     const database = harness.connection;
 
     const columns = (await database.prepare(
@@ -798,12 +803,12 @@ test('email delivery migration creates the constrained queue and resend policy',
 
 test('email request cooldown migration creates a narrow bounded anonymous store', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness({
         label: 'email-request-cooldown-schema',
         seedCanonicalAgencies: false
     });
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     const database = harness.connection;
 
     const columns = (await database.prepare(

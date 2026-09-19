@@ -1,0 +1,30 @@
+{
+  "id": "vitest-test-unification",
+  "name": "vitest-test-unification",
+  "title": "统一测试执行到 Vitest 并接入报表与覆盖率",
+  "description": "把 API、根契约与治理的 Node test runner 用例全部迁移到 Vitest，统一执行入口，并接入 JUnit 报表与 v8 覆盖率门禁；Python unittest 与 Playwright 保留。父任务负责需求基线、子任务映射与最终集成验收。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-09-19",
+  "completedAt": null,
+  "branch": "chore/vitest-test-unification",
+  "base_branch": "release/v1.1",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-19-vitest-api-suite",
+    "09-19-vitest-root-suite",
+    "09-19-vitest-reporting-coverage"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

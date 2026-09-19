@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import type { TestContext } from 'node:test';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { SqlPlatformEmailDeliveryRepository } from '@/infra/db/repositories/platform-email-delivery-repository';
 import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platform-email-job-payload';
@@ -21,7 +20,7 @@ import {
     connectPostgresTestDatabase,
     createPostgresTestDatabase,
     postgresTest as test,
-} from './postgres-test-database';
+} from '../postgres-test-database';
 
 const SECRET = 'platform-email-delivery-repository-test-secret-0123456789';
 const cipher = new PlatformEmailJobPayloadCipherAdapter(SECRET);
@@ -214,8 +213,8 @@ async function claimOne(
     return claims[0];
 }
 
-async function useDatabase(t: TestContext, label: string) {
-    const database = await createPostgresTestDatabase(t, label);
+async function useDatabase(label: string) {
+    const database = await createPostgresTestDatabase(label);
     return {
         database,
         repository: new SqlPlatformEmailDeliveryRepository(database),
@@ -223,9 +222,8 @@ async function useDatabase(t: TestContext, label: string) {
     };
 }
 
-test('registration enqueue is atomic, encrypted, and unusable until delivery completes', async (t) => {
+test('registration enqueue is atomic, encrypted, and unusable until delivery completes', async () => {
     const { database, repository, accountRepository } = await useDatabase(
-        t,
         'email-delivery-registration',
     );
     const initial = delivery(
@@ -330,9 +328,8 @@ test('registration enqueue is atomic, encrypted, and unusable until delivery com
     );
 });
 
-test('password reset activation uses acceptance time and remains unusable while queued', async (t) => {
+test('password reset activation uses acceptance time and remains unusable while queued', async () => {
     const { database, repository, accountRepository } = await useDatabase(
-        t,
         'email-delivery-password-reset',
     );
     const email = 'password-reset@example.test';
@@ -388,9 +385,8 @@ test('password reset activation uses acceptance time and remains unusable while 
     );
 });
 
-test('password reset request cooldowns are durable, anonymous, and preserve legacy authority', async (t) => {
+test('password reset request cooldowns are durable, anonymous, and preserve legacy authority', async () => {
     const { database, repository, accountRepository } = await useDatabase(
-        t,
         'email-delivery-password-reset-cooldown',
     );
     await database.prepare(
@@ -586,12 +582,11 @@ test('password reset request cooldowns are durable, anonymous, and preserve lega
     );
 });
 
-test('password reset request cooldown serializes simultaneous first requests', async (t) => {
+test('password reset request cooldown serializes simultaneous first requests', async () => {
     const { database, repository, accountRepository } = await useDatabase(
-        t,
         'email-delivery-password-reset-first-request-race',
     );
-    const siblingDatabase = connectPostgresTestDatabase(t, database);
+    const siblingDatabase = connectPostgresTestDatabase(database);
     const sibling = new SqlPlatformEmailDeliveryRepository(siblingDatabase);
     await database.prepare(
         `UPDATE platform_email_configuration
@@ -654,9 +649,8 @@ test('password reset request cooldown serializes simultaneous first requests', a
     );
 });
 
-test('anonymous cooldown survives account creation and uses the next policy after expiry', async (t) => {
+test('anonymous cooldown survives account creation and uses the next policy after expiry', async () => {
     const { database, repository, accountRepository } = await useDatabase(
-        t,
         'email-delivery-password-reset-account-transition',
     );
     await database.prepare(
@@ -758,8 +752,8 @@ test('anonymous cooldown survives account creation and uses the next policy afte
     );
 });
 
-test('failed resend preserves the active code and missing candidates never retry', async (t) => {
-    const { database, repository } = await useDatabase(t, 'email-delivery-failure');
+test('failed resend preserves the active code and missing candidates never retry', async () => {
+    const { database, repository } = await useDatabase('email-delivery-failure');
     const email = 'resend@example.test';
     const initial = delivery('registration', email, 'resend-active', 1_000);
     await repository.enqueueRegistration(initial.input);
@@ -875,9 +869,8 @@ test('failed resend preserves the active code and missing candidates never retry
     );
 });
 
-test('password reset supersession and terminal failure preserve the active code', async (t) => {
+test('password reset supersession and terminal failure preserve the active code', async () => {
     const { database, repository, accountRepository } = await useDatabase(
-        t,
         'email-delivery-password-reset-supersession',
     );
     await database.prepare(
@@ -1002,9 +995,9 @@ test('password reset supersession and terminal failure preserve the active code'
     );
 });
 
-test('competing claims, lease expiry, renewal, and stale owners are fenced', async (t) => {
-    const { database, repository } = await useDatabase(t, 'email-delivery-leases');
-    const siblingDatabase = connectPostgresTestDatabase(t, database);
+test('competing claims, lease expiry, renewal, and stale owners are fenced', async () => {
+    const { database, repository } = await useDatabase('email-delivery-leases');
+    const siblingDatabase = connectPostgresTestDatabase(database);
     const sibling = new SqlPlatformEmailDeliveryRepository(siblingDatabase);
     const queued = delivery(
         'registration',
@@ -1081,8 +1074,8 @@ test('competing claims, lease expiry, renewal, and stale owners are fenced', asy
     );
 });
 
-test('retry, attempt, deadline, expiry, and retention limits are enforced', async (t) => {
-    const { database, repository } = await useDatabase(t, 'email-delivery-retry');
+test('retry, attempt, deadline, expiry, and retention limits are enforced', async () => {
+    const { database, repository } = await useDatabase('email-delivery-retry');
     const retry = delivery('registration', 'retry@example.test', 'retry-job', 1_000);
     await repository.enqueueRegistration(retry.input);
     const first = await claimOne(repository, 2_000);
@@ -1164,8 +1157,8 @@ test('retry, attempt, deadline, expiry, and retention limits are enforced', asyn
     assert.equal(terminal.length, 1);
 });
 
-test('a 30-second policy supersedes queued, retrying, and running deliveries', async (t) => {
-    const { database, repository } = await useDatabase(t, 'email-delivery-supersession');
+test('a 30-second policy supersedes queued, retrying, and running deliveries', async () => {
+    const { database, repository } = await useDatabase('email-delivery-supersession');
     await database.prepare(
         `UPDATE platform_email_configuration
          SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
@@ -1226,8 +1219,8 @@ test('a 30-second policy supersedes queued, retrying, and running deliveries', a
     }
 });
 
-test('completion-first and supersession-first ordering preserve the intended candidate', async (t) => {
-    const { database, repository } = await useDatabase(t, 'email-delivery-ordering');
+test('completion-first and supersession-first ordering preserve the intended candidate', async () => {
+    const { database, repository } = await useDatabase('email-delivery-ordering');
     await database.prepare(
         'UPDATE platform_email_configuration SET resend_cooldown_seconds=30 WHERE singleton_id=1',
     ).run();

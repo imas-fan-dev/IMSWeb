@@ -1,11 +1,9 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { test } from 'vitest';
+import {
     parseInformationPostMigrationArguments
-} = require('../../scripts/migration/information-to-community-posts.ts');
+} from '../../scripts/migration/information-to-community-posts.ts';
 
 test('Information post migration is dry-run by default', () => {
     const options = parseInformationPostMigrationArguments([]);

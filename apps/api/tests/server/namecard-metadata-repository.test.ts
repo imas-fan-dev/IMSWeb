@@ -1,10 +1,10 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 const WITHDRAWAL_TOKEN_HASH = 'a'.repeat(64);
 
@@ -21,8 +21,8 @@ function guestInput(hashSuffix: string) {
     };
 }
 
-test('PostgreSQL guest namecards persist ordered cross-series idol metadata atomically', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'namecard-metadata');
+test('PostgreSQL guest namecards persist ordered cross-series idol metadata atomically', async () => {
+    const database = await createPostgresTestDatabase('namecard-metadata');
     await seedCanonicalFudabaAgencies(database);
     const repository = new SqlCoreRepository(
         database,
@@ -127,8 +127,8 @@ test('PostgreSQL guest namecards persist ordered cross-series idol metadata atom
     assert.deepEqual(legacy?.favoriteIdols, []);
 });
 
-test('PostgreSQL guest namecards may carry optional profile text', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'namecard-metadata-profile');
+test('PostgreSQL guest namecards may carry optional profile text', async () => {
+    const database = await createPostgresTestDatabase('namecard-metadata-profile');
     await seedCanonicalFudabaAgencies(database);
     const repository = new SqlCoreRepository(
         database,

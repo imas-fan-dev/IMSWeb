@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import type { TestContext } from 'node:test';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
 import type {
@@ -34,7 +34,7 @@ const initializedPostgresSchema: SqlSchemaStrategy = {
     initializeStory: async () => undefined
 };
 
-async function createFixture(t: TestContext): Promise<{
+async function createFixture(): Promise<{
     platform: SqlPlatformAccountRepository;
     setProviderEnabled: (code: string, enabled: boolean) => Promise<void>;
     linkedProviders: (accountId: string) => Promise<string[]>;
@@ -53,7 +53,7 @@ async function createFixture(t: TestContext): Promise<{
         harness.connection,
         initializedPostgresSchema
     );
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await platform.initialize();
     return {
         platform,
@@ -163,8 +163,8 @@ function event(accountId: string): PlatformSecurityEventInput {
     };
 }
 
-test('a disabled provider does not count as a surviving login method', async (t) => {
-    const fixture = await createFixture(t);
+test('a disabled provider does not count as a surviving login method', async () => {
+    const fixture = await createFixture();
     const accountId = 'account-disabled-survivor';
 
     // No password, two links, and the survivor's provider is switched off.
@@ -187,8 +187,8 @@ test('a disabled provider does not count as a surviving login method', async (t)
     assert.deepEqual(await fixture.linkedProviders(accountId), ['github', 'google']);
 });
 
-test('an enabled sibling link lets the other one go', async (t) => {
-    const fixture = await createFixture(t);
+test('an enabled sibling link lets the other one go', async () => {
+    const fixture = await createFixture();
     const accountId = 'account-enabled-survivor';
 
     assert.equal(
@@ -209,8 +209,8 @@ test('an enabled sibling link lets the other one go', async (t) => {
     assert.deepEqual(await fixture.linkedProviders(accountId), ['github']);
 });
 
-test('a password is a login method, so the only link can be unlinked', async (t) => {
-    const fixture = await createFixture(t);
+test('a password is a login method, so the only link can be unlinked', async () => {
+    const fixture = await createFixture();
     const accountId = 'account-with-password';
 
     assert.equal(
@@ -229,8 +229,8 @@ test('a password is a login method, so the only link can be unlinked', async (t)
     assert.deepEqual(await fixture.linkedProviders(accountId), []);
 });
 
-test('the sole link of a password-less account survives its own removal', async (t) => {
-    const fixture = await createFixture(t);
+test('the sole link of a password-less account survives its own removal', async () => {
+    const fixture = await createFixture();
     const accountId = 'account-sole-link';
 
     assert.equal(
@@ -250,8 +250,8 @@ test('the sole link of a password-less account survives its own removal', async 
     assert.deepEqual(await fixture.linkedProviders(accountId), ['google']);
 });
 
-test('another account link is never reachable', async (t) => {
-    const fixture = await createFixture(t);
+test('another account link is never reachable', async () => {
+    const fixture = await createFixture();
     const owner = 'account-link-owner';
     const stranger = 'account-link-stranger';
 

@@ -1,23 +1,27 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import { Client } from 'pg';
+import { afterAll, onTestFinished, test } from 'vitest';
+import {
     isClean,
     legacyMediaObjectKey,
     reconcile,
     summarize
-} = require('../../scripts/migration/namecard-unification-reconcile.js');
-const {
+} from '../../scripts/migration/namecard-unification-reconcile.js';
+import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
-} = require('../integration/postgres-harness.ts');
+} from '../integration/postgres-harness.ts';
+import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
+
+// The shared test allocator used to be closed by a module-level hook inside the
+// harness module. The harness is runner-neutral now, so this file owns its own
+// process-end cleanup.
+afterAll(() => closeSharedPostgresTestAllocator());
 
 function poolClient(harness) {
     // The reconcile() function only ever issues plain read queries, so a
     // bare `pg` client through the harness connection string is enough --
     // no need to route through the application's own SqlDatabase port.
-    const { Client } = require('pg');
     return new Client({ connectionString: harness.databaseUrl });
 }
 
@@ -105,11 +109,11 @@ async function insertUnifiedCompatCard(client, id, cardNumber, overrides = {}) {
 
 test('namecard unification reconciliation reports clean state for matching tables', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
     const client = poolClient(harness);
     await client.connect();
-    t.after(async () => {
+    onTestFinished(async () => {
         await client.end();
         await harness.close();
     });
@@ -151,11 +155,11 @@ test('namecard unification reconciliation reports clean state for matching table
 
 test('namecard unification reconciliation surfaces every drift category', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
     const client = poolClient(harness);
     await client.connect();
-    t.after(async () => {
+    onTestFinished(async () => {
         await client.end();
         await harness.close();
     });

@@ -1,12 +1,15 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { TestContext } from 'node:test';
 
 const POSTGRES_MIGRATIONS = path.resolve(__dirname, '../../migrations/postgresql');
 
+// The cleanup registration is passed in by the caller so this module stays
+// runner-neutral: call sites hand it `onTestFinished` rather than importing the
+// runner here. It may not import a runner entry point directly, because its
+// callers own the lifecycle.
 export async function createMigrationCatalogBefore(
-    t: TestContext,
+    registerCleanup: (cleanup: () => void | Promise<void>) => void,
     boundaryFilename: string
 ): Promise<string> {
     const filenames = await fs.readdir(POSTGRES_MIGRATIONS);
@@ -15,7 +18,7 @@ export async function createMigrationCatalogBefore(
     }
 
     const target = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-pg-catalog-before-'));
-    t.after(() => fs.rm(target, { recursive: true, force: true }));
+    registerCleanup(() => fs.rm(target, { recursive: true, force: true }));
     await Promise.all(filenames
         .filter((filename) => filename.endsWith('.sql') && filename < boundaryFilename)
         .map((filename) => fs.copyFile(

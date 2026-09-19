@@ -1,15 +1,15 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import { PostgresqlIdempotencyStore } from
     '@/infra/cache/postgresql/idempotency-store';
 import {
     connectPostgresTestDatabase,
     createPostgresTestDatabase
-} from './postgres-test-database';
+} from '../postgres-test-database';
 
-test('PostgreSQL idempotency shares replay and fencing across connections', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'request-idempotency');
-    const secondDatabase = connectPostgresTestDatabase(t, database);
+test('PostgreSQL idempotency shares replay and fencing across connections', async () => {
+    const database = await createPostgresTestDatabase('request-idempotency');
+    const secondDatabase = connectPostgresTestDatabase(database);
     let now = 1_000_000;
     const options = { now: () => now, staleAfterMs: 1_000 };
     const first = new PostgresqlIdempotencyStore(database, options);
@@ -87,9 +87,9 @@ test('PostgreSQL idempotency shares replay and fencing across connections', asyn
     );
 });
 
-test('PostgreSQL idempotency serializes concurrent first claims', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'idempotency-claim');
-    const secondDatabase = connectPostgresTestDatabase(t, database);
+test('PostgreSQL idempotency serializes concurrent first claims', async () => {
+    const database = await createPostgresTestDatabase('idempotency-claim');
+    const secondDatabase = connectPostgresTestDatabase(database);
     const stores = [
         new PostgresqlIdempotencyStore(database),
         new PostgresqlIdempotencyStore(secondDatabase)
@@ -102,8 +102,8 @@ test('PostgreSQL idempotency serializes concurrent first claims', async (t) => {
     assert.equal(claims.filter((claim) => claim.kind === 'in-progress').length, 11);
 });
 
-test('PostgreSQL idempotency sweeps only expired terminal records', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'idempotency-sweep');
+test('PostgreSQL idempotency sweeps only expired terminal records', async () => {
+    const database = await createPostgresTestDatabase('idempotency-sweep');
     let now = 10_000;
     const store = new PostgresqlIdempotencyStore(database, {
         now: () => now,

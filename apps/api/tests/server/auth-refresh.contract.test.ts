@@ -1,12 +1,12 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
+import { onTestFinished } from 'vitest';
 import {
     readSetCookieValues as cookieValues,
     serializeCookieHeader as cookieHeader,
     setCookieHeaders as setCookies
 } from '../fixtures/auth-request';
 import { insertUser } from '../fixtures/rows';
-import type { TestContext } from 'node:test';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
 import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
@@ -15,7 +15,7 @@ import { queryOne } from '@/infra/db/sql/query';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import type { RuntimeServices } from '@/ports/runtime-services';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 import { createTestApp, testRequest } from './test-app';
 
 const USERNAME = 'refresh-contract-op';
@@ -35,8 +35,8 @@ function jwtPayload(token: string): Record<string, unknown> {
     return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
-async function createFixture(t: TestContext): Promise<AuthFixture> {
-    const connection = await createPostgresTestDatabase(t, 'auth-refresh');
+async function createFixture(): Promise<AuthFixture> {
+    const connection = await createPostgresTestDatabase('auth-refresh');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const repository = new SqlBackofficeAuthRepository(connection);
     const audit = new SqlAuditRepository(connection);
@@ -105,9 +105,9 @@ async function login(
     };
 }
 
-test('admin login rejects non-op users before creating a refresh session', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('admin login rejects non-op users before creating a refresh session', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const denied = await login(fixture, {
         path: '/api/admin/login',
@@ -130,9 +130,9 @@ test('admin login rejects non-op users before creating a refresh session', async
     assert.equal(regularLogin.response.status, 200);
 });
 
-test('admin login issues a refresh session for op users', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('admin login issues a refresh session for op users', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const session = await login(fixture, { path: '/api/admin/login' });
     assert.equal(session.response.status, 200);
@@ -143,9 +143,9 @@ test('admin login issues a refresh session for op users', async (t) => {
     ]);
 });
 
-test('access JWT login creates a rotating refresh session with CSRF binding', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('access JWT login creates a rotating refresh session with CSRF binding', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const session = await login(fixture);
     assert.equal(session.response.status, 200);
@@ -213,9 +213,9 @@ test('access JWT login creates a rotating refresh session with CSRF binding', as
     assert.equal(revokedSuccessor.status, 401);
 });
 
-test('logout revokes the refresh session and clears all authentication cookies', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('logout revokes the refresh session and clears all authentication cookies', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const session = await login(fixture);
     const csrf = session.cookies.get('csrf_token')!;

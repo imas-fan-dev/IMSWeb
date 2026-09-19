@@ -223,7 +223,7 @@ byte for byte.
 
 - Good: edit `app-icon.svg` (or re-trace one glyph from the pre-flattening source), run `--write`, then
   `--full-icon` plus `--android-background` when the geometry changed, copy the PNGs, run `icon:app`, then run
-  `node --test tests/tauri-build-configuration.test.js`.
+  `node scripts/testing/run-test-owner.mjs delivery app`.
 - Base: changing only `icon.json` needs no rasterization; still run `icon:app` so the derived
   `gen/apple` copy is refreshed.
 - Bad: hand-editing `apps/web/src-tauri/gen/apple/**` (derived output, regenerated), tracing the

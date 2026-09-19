@@ -1,10 +1,10 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import type { ManagedSqlDatabase, SqlResult } from '@/infra/db/sql/database';
 import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { SqlSitePackageRepository } from '@/infra/db/repositories/site-package-repository';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 function revision(packageId: string, id: string, token: string, createdAt: number) {
     const prefix = `site-packages/${packageId}/revisions/${id}`;
@@ -28,8 +28,8 @@ function revision(packageId: string, id: string, token: string, createdAt: numbe
     };
 }
 
-test('PostgreSQL site packages create revisions and atomically switch rollback pointers', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'site-package');
+test('PostgreSQL site packages create revisions and atomically switch rollback pointers', async () => {
+    const database = await createPostgresTestDatabase('site-package');
     const repository = new SqlSitePackageRepository(database);
 
     const packageId = '11111111-1111-4111-8111-111111111111';

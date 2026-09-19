@@ -1,21 +1,25 @@
-'use strict';
-
-const { createNodeSecurityFixture } = require('./node-security/fixture.js');
-const {
+import { afterAll, beforeAll } from 'vitest';
+import { postgresTest } from './postgres-test-database.ts';
+import { createNodeSecurityFixture } from './node-security/fixture.js';
+import {
     registerCompiledListenerStaticAdapterTests
-} = require('./node-security/compiled-listener-static-adapter.owner.js');
-const { registerAuthTests } = require('./node-security/auth.owner.js');
-const { registerFudabaTests } = require('./node-security/fudaba.owner.js');
-const {
+} from './node-security/compiled-listener-static-adapter.owner.js';
+import { registerAuthTests } from './node-security/auth.owner.js';
+import { registerFudabaTests } from './node-security/fudaba.owner.js';
+import {
     registerChronicleEventTests
-} = require('./node-security/chronicle-event.owner.js');
-const { registerNewsTests } = require('./node-security/news.owner.js');
-const { registerInformationTests } = require('./node-security/information.owner.js');
-const {
+} from './node-security/chronicle-event.owner.js';
+import { registerNewsTests } from './node-security/news.owner.js';
+import { registerInformationTests } from './node-security/information.owner.js';
+import {
     registerCompiledEntryEnvironmentTests
-} = require('./node-security/compiled-entry-environment.owner.js');
+} from './node-security/compiled-entry-environment.owner.js';
 
-const fixture = createNodeSecurityFixture();
+const fixture = createNodeSecurityFixture({
+    test: postgresTest,
+    beforeAll,
+    afterAll
+});
 
 registerCompiledListenerStaticAdapterTests(fixture);
 registerAuthTests(fixture);

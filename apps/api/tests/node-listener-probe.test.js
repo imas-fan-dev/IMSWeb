@@ -1,9 +1,7 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const { test } = require('node:test');
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { test } from 'vitest';
 
 const PROBE = path.join(__dirname, 'fixtures/node-listener-probe.js');
 
@@ -34,7 +32,11 @@ test('[RUN-02] loopback listener probe always produces a bounded diagnosis', con
     );
     assert.ok(terminal.elapsedMs < 5000, `probe took ${terminal.elapsedMs}ms`);
 
-    context.diagnostic(
-        `listener probe: phase=${terminal.phase} status=${result.status} elapsed=${terminal.elapsedMs}ms`
-    );
+    // The previous runner attached this as a test diagnostic; the Vitest
+    // equivalent is the test's metadata, which keeps the fields machine-readable.
+    context.task.meta.listenerProbe = {
+        phase: terminal.phase,
+        status: result.status,
+        elapsedMs: terminal.elapsedMs
+    };
 });

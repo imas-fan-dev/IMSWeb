@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { createHonoApp } from '@/app';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
 import { JSON_BODY_MAX_BYTES } from '@/middleware/json-body-limit';

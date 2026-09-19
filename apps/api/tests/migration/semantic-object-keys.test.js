@@ -1,14 +1,12 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import {
     indexedSourcePhysicalKey,
     mediaObjectKey,
     parseArguments,
     semanticPhysicalKey,
     semanticObjectKey
-} = require('../../scripts/migration/semantic-object-keys');
+} from '../../scripts/migration/semantic-object-keys';
 
 test('semantic object migration maps each business namespace', () => {
     assert.equal(

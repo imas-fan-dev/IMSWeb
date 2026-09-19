@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import { ValkeyRateLimiter } from '@/infra/cache/valkey/rate-limiter';
 import { assertConcurrentRateLimiterContract } from '../contracts/runtime-contracts.js';
 import { FakeValkeyRateLimitServer } from './fake-valkey';

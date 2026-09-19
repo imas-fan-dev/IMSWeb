@@ -1,14 +1,13 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { test } from 'vitest';
+import {
     parseArguments,
     syncObjects,
     validateR2Acceptance,
     validateR2Target,
     validateTrueType
-} = require('../../scripts/migration/legacy-brand-assets');
+} from '../../scripts/migration/legacy-brand-assets';
 
 class MemoryStorage {
     constructor() {
@@ -81,7 +80,7 @@ test('brand asset sync plans, writes, and recognizes unchanged objects', async (
         publicPath: '/assets/images/Production/765Haruka.png',
         contentType: 'image/png',
         bytes: body.byteLength,
-        sha256: require('node:crypto').createHash('sha256').update(body).digest('hex'),
+        sha256: crypto.createHash('sha256').update(body).digest('hex'),
         body
     };
     const verifyPublic = async (_storage, entry) => ({

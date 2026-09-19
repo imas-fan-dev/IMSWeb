@@ -1,22 +1,26 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const fs = require('node:fs/promises');
-const os = require('node:os');
-const path = require('node:path');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterAll, onTestFinished, test } from 'vitest';
+import {
     cmsArticleTitleBackfillSummary,
     executeCmsArticleTitleBackfill,
     parseCmsArticleTitleBackfillArguments,
     prependTextToArticleBody,
     splitCmsArticleTitle,
     writeCmsArticleTitleBackfillReport
-} = require('../../scripts/migration/cms-article-title-backfill.ts');
-const {
+} from '../../scripts/migration/cms-article-title-backfill.ts';
+import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
-} = require('../integration/postgres-harness.ts');
+} from '../integration/postgres-harness.ts';
+import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
+
+// The shared test allocator used to be closed by a module-level hook inside the
+// harness module. The harness is runner-neutral now, so this file owns its own
+// process-end cleanup.
+afterAll(() => closeSharedPostgresTestAllocator());
 
 const emptyBody = { type: 'doc', content: [] };
 
@@ -167,9 +171,9 @@ test('CMS article title backfill arguments are dry-run by default and validate i
     );
 });
 
-test('CMS article title backfill writes a restricted report and a content-free summary', async (t) => {
+test('CMS article title backfill writes a restricted report and a content-free summary', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'imsweb-cms-title-report-'));
-    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(directory, { recursive: true, force: true }));
     const target = path.join(directory, 'nested', 'report.json');
     const report = {
         generatedAt: '2026-09-04T00:00:00.000Z',
@@ -222,9 +226,9 @@ test('CMS article title backfill writes a restricted report and a content-free s
 
 test('PostgreSQL dry-run, apply, and repeat preserve the migration contract', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
 
     const existingParagraph = {
         type: 'paragraph',
@@ -333,9 +337,9 @@ test('PostgreSQL dry-run, apply, and repeat preserve the migration contract', {
 
 test('PostgreSQL apply rejects an invalid candidate before writing any article', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     const validId = await insertArticle(harness, {
         title: '【有效标题】有效正文',
         event: true
@@ -362,9 +366,9 @@ test('PostgreSQL apply rejects an invalid candidate before writing any article',
 
 test('PostgreSQL apply reports an update conflict and rolls back earlier rows', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     const firstId = await insertArticle(harness, {
         title: '【第一条】正文一',
         event: true
@@ -407,9 +411,9 @@ test('PostgreSQL apply reports an update conflict and rolls back earlier rows', 
 
 test('PostgreSQL apply rolls back the batch after a late event write failure', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     const firstId = await insertArticle(harness, {
         title: '【成功】正文一',
         event: true

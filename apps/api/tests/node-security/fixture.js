@@ -5,7 +5,6 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { once } = require('node:events');
-const { after, before, test: nodeTest } = require('node:test');
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const sharp = require('sharp');
@@ -23,8 +22,12 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const SERVER_ENTRY = path.join(PROJECT_ROOT, 'dist/server/main.js');
 const LEGACY_SERVER_ENTRY = path.join(PROJECT_ROOT, 'js/server.js');
 
-function createNodeSecurityFixture() {
-    const test = postgresIntegrationEnabled() ? nodeTest : nodeTest.skip;
+// Runner registration is injected by the owning test file
+// (`tests/node-security.test.js`): this helper stays CommonJS, and Vitest's
+// entry point cannot be loaded through `require` from a CommonJS module.
+// `test` arrives already wrapped by the Vitest PostgreSQL adapter, so the
+// disabled run still reports a skip with the shared reason.
+function createNodeSecurityFixture({ test, beforeAll, afterAll }) {
     const TEST_FILE_PREFIX = `security-${process.pid}-${Date.now()}`;
     const APPROVED_FRONT_URL = `/uploads/namecard/original/${TEST_FILE_PREFIX}-approved-front.png`;
     const APPROVED_BACK_URL = `/uploads/namecard/original/${TEST_FILE_PREFIX}-approved-back.png`;
@@ -177,7 +180,7 @@ function createNodeSecurityFixture() {
         test
     };
 
-    before(async () => {
+    beforeAll(async () => {
         if (!postgresIntegrationEnabled()) return;
         process.env.IMS_ENV_FILE = '';
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-node-security-'));
@@ -287,7 +290,7 @@ function createNodeSecurityFixture() {
         baseUrl = `http://127.0.0.1:${server.address().port}`;
     });
 
-    after(async () => {
+    afterAll(async () => {
         const errors = [];
         if (testDatabase) {
             await testDatabase.close().catch((error) => errors.push(error));

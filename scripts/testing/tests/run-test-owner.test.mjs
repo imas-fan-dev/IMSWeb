@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import test from "node:test";
+import { test } from "vitest";
 
 import {
   buildOwnerPlan,
@@ -13,10 +13,84 @@ import {
   runCommand,
 } from "../run-test-owner.mjs";
 
+// The workspace scripts a plan runs: `pnpm --filter <workspace> run <script>`.
+// The `pnpm --filter @imsweb/api exec vitest …` steps use `exec` in the third
+// position and are asserted through their own command/argv/cwd assertions, not
+// through a trailing argument.
 const scripts = (plan) =>
   plan
-    .filter((step) => step.executable === "pnpm")
+    .filter(
+      (step) =>
+        step.executable === "pnpm" &&
+        step.args[0] === "--filter" &&
+        step.args[2] === "run",
+    )
     .map((step) => step.args.at(-1));
+
+// The API node artifacts run in one Vitest invocation that names every file, so
+// a test dropping out of the built-artifact plan is a failing assertion here
+// instead of a silently shorter run.
+const apiNodeCommand = [
+  "exec",
+  "vitest",
+  "run",
+  "tests/hono-app-contract.test.js",
+  "tests/node-listener-probe.test.js",
+  "tests/node-security.test.js",
+  "tests/operation-scripts.test.js",
+  "tests/postgres-test-lifecycle.test.js",
+];
+
+// The API `all` profile collapses the whole API test tree into one bare Vitest
+// run: the config's `include` already resolves `tests/**`, so no suite script
+// and no file list belongs in the argv. Asserting the exact argv keeps a suite
+// step from creeping back in.
+const apiSuiteCommand = ["exec", "vitest", "run"];
+
+const apiRoot = `${repositoryRoot}/apps/api`;
+
+const isApiSuiteStep = (step) =>
+  step.executable === "pnpm" &&
+  step.cwd === apiRoot &&
+  step.args.length === apiSuiteCommand.length &&
+  step.args.every((argument, index) => argument === apiSuiteCommand[index]);
+
+const apiSuiteSteps = (plan) => plan.filter(isApiSuiteStep);
+
+const apiVitestSteps = (plan) =>
+  plan.filter(
+    (step) =>
+      step.executable === "pnpm" &&
+      step.cwd === apiRoot &&
+      step.args[0] === "exec" &&
+      step.args[1] === "vitest",
+  );
+
+// The repository execution domain is hosted by the API workspace because the
+// root package may not declare vitest. Every Node segment of the governance,
+// contracts, and delivery plans is this one explicit Vitest invocation over the
+// plan's own file list.
+const repositoryVitestCommand = [
+  "--filter",
+  "@imsweb/api",
+  "exec",
+  "vitest",
+  "run",
+  "--root",
+  "../..",
+  "--config",
+  `${repositoryRoot}/scripts/testing/vitest/vitest.repository.config.mts`,
+];
+
+const isRepositoryVitestStep = (step) =>
+  step.executable === "pnpm" &&
+  step.cwd === apiRoot &&
+  step.args[0] === "--filter" &&
+  step.args[1] === "@imsweb/api" &&
+  step.args[2] === "exec" &&
+  step.args[3] === "vitest";
+
+const repositoryVitestSteps = (plan) => plan.filter(isRepositoryVitestStep);
 
 const testPaths = (plan) =>
   plan.flatMap((step) =>
@@ -27,29 +101,94 @@ const testPaths = (plan) =>
   );
 
 test("governance, contracts, and delivery keep disjoint source lists", () => {
-  const paths = [
-    buildOwnerPlan({ owner: "governance" }),
-    buildOwnerPlan({ owner: "contracts" }),
-    buildOwnerPlan({ owner: "delivery", profile: "root" }),
-  ].flatMap(testPaths);
+  const plans = {
+    governance: buildOwnerPlan({ owner: "governance" }),
+    contracts: buildOwnerPlan({ owner: "contracts" }),
+    "delivery root": buildOwnerPlan({ owner: "delivery", profile: "root" }),
+  };
+  const paths = Object.values(plans).flatMap(testPaths);
 
   assert.equal(new Set(paths).size, paths.length);
   assert.ok(paths.includes("tests/test_workspace_boundaries.py"));
   assert.ok(paths.includes("tests/contracts/non-json-boundaries.test.mjs"));
+  assert.ok(paths.includes("tests/vitest-reporting.test.mjs"));
   assert.ok(
     paths.includes(
       "scripts/contracts/tests/compile-frontend-route-metadata.test.mjs",
     ),
   );
   assert.ok(paths.includes("tests/tauri-device-delivery.test.js"));
+
+  // Each Node segment is exactly one repository Vitest invocation over the
+  // plan's explicit file list, run from the API workspace. The exhaustive argv
+  // deepEqual below, plus the cwd and the absence of a node:test step, keep the
+  // runner swap and the explicit lists from silently drifting.
+  const nodeFiles = {
+    governance: [
+      "tests/development-environment.test.js",
+      "tests/ci-affected-workspaces.test.js",
+      "scripts/testing/tests/run-test-owner.test.mjs",
+      "tests/vitest-reporting.test.mjs",
+    ],
+    contracts: [
+      "tests/contracts/non-json-boundaries.test.mjs",
+      "scripts/contracts/tests/compile-route-inventory.test.mjs",
+      "scripts/contracts/tests/compile-frontend-route-metadata.test.mjs",
+    ],
+    "delivery root": [
+      "tests/exchange-map-assets.test.js",
+      "tests/tauri-build-configuration.test.js",
+      "tests/tauri-device-delivery.test.js",
+    ],
+  };
+  for (const [owner, plan] of Object.entries(plans)) {
+    const steps = repositoryVitestSteps(plan);
+    assert.equal(steps.length, 1, owner);
+    assert.equal(steps[0].executable, "pnpm");
+    assert.equal(steps[0].cwd, apiRoot);
+    assert.deepEqual(steps[0].args, [
+      ...repositoryVitestCommand,
+      ...nodeFiles[owner],
+    ]);
+    assert.ok(!steps[0].args.includes("--test"), owner);
+    assert.equal(
+      plan.filter((step) => step.executable === "node").length,
+      0,
+      owner,
+    );
+  }
+
+  // The Python segments stay byte-identical and keep their position after the
+  // Vitest step.
+  const governancePython = plans.governance[1];
+  assert.equal(governancePython.executable, "python3");
+  assert.deepEqual(governancePython.args, [
+    "-m",
+    "unittest",
+    "tests/test_agent_rules.py",
+    "tests/test_source_rules.py",
+    "tests/test_docs.py",
+    "tests/test_git_hooks.py",
+    "tests/test_release_activation.py",
+    "tests/test_github_deployment.py",
+    "tests/test_operations_docs.py",
+    "tests/test_compose_deployment.py",
+    "tests/test_workspace_boundaries.py",
+  ]);
+
+  const deliveryPython = plans["delivery root"][1];
+  assert.equal(deliveryPython.executable, "python3");
+  assert.deepEqual(deliveryPython.args, [
+    "-m",
+    "unittest",
+    "tests/test_public_assets.py",
+  ]);
 });
 
-test("the root plan builds API once before every prepared API test group", () => {
+test("the root plan builds API once before its prepared API test group", () => {
   const plan = buildOwnerPlan({ owner: "root" });
   const apiSteps = plan.filter((step) => step.args.includes("@imsweb/api"));
-  const apiNodeIndex = plan.findIndex((step) =>
-    step.args.includes("tests/hono-app-contract.test.js"),
-  );
+  const apiSuiteIndex = plan.findIndex(isApiSuiteStep);
   const apiBuildIndex = plan.findIndex(
     (step) => step.args.includes("@imsweb/api") && step.args.at(-1) === "build",
   );
@@ -59,45 +198,54 @@ test("the root plan builds API once before every prepared API test group", () =>
     "test:assets",
     "syntax",
     "check:architecture",
-    "test:server",
-    "test:wiki",
-    "test:migration",
   ]);
-  assert.ok(apiBuildIndex >= 0 && apiBuildIndex < apiNodeIndex);
-  assert.equal(
-    plan.filter((step) => step.args.includes("tests/hono-app-contract.test.js"))
-      .length,
-    1,
-  );
+  assert.equal(repositoryVitestSteps(plan).length, 3);
+  assert.ok(apiBuildIndex >= 0 && apiBuildIndex < apiSuiteIndex);
+  assert.equal(apiSuiteSteps(plan).length, 1);
   assert.ok(Object.isFrozen(plan));
   assert.ok(
     plan.every((step) => Object.isFrozen(step) && Object.isFrozen(step.args)),
   );
 });
 
-test("the standalone API owner builds once and retains every check and group", () => {
+test("the standalone API owner builds once and runs one API test group", () => {
   const complete = buildOwnerPlan({ owner: "api" });
 
-  assert.deepEqual(scripts(complete), [
-    "check",
-    "test:server",
-    "test:wiki",
-    "test:migration",
-  ]);
-  assert.equal(
-    complete.filter((step) =>
-      step.args.includes("tests/hono-app-contract.test.js"),
-    ).length,
-    1,
-  );
+  assert.deepEqual(scripts(complete), ["check"]);
+  assert.equal(apiSuiteSteps(complete).length, 1);
+});
+
+test("every API profile runs its tests in one explicit Vitest command", () => {
+  const nodeSteps = apiVitestSteps(buildOwnerPlan({ owner: "api", profile: "node" }));
+  assert.equal(nodeSteps.length, 1);
+  assert.equal(nodeSteps[0].executable, "pnpm");
+  assert.deepEqual(nodeSteps[0].args, apiNodeCommand);
+  assert.equal(nodeSteps[0].cwd, apiRoot);
+
+  for (const plan of [
+    buildOwnerPlan({ owner: "api" }),
+    buildOwnerPlan({ owner: "root" }),
+  ]) {
+    const steps = apiSuiteSteps(plan);
+    assert.equal(steps.length, 1);
+    assert.equal(steps[0].executable, "pnpm");
+    assert.deepEqual(steps[0].args, apiSuiteCommand);
+    assert.equal(steps[0].cwd, apiRoot);
+    // The collapsed run must not duplicate the built-artifact file list.
+    for (const file of apiNodeCommand.slice(3)) {
+      assert.ok(!plan.some((step) => step.args.includes(file)));
+    }
+  }
 });
 
 test("the standalone API Node profile builds before using its artifact", () => {
   const plan = buildOwnerPlan({ owner: "api", profile: "node" });
 
   assert.deepEqual(scripts(plan), ["build"]);
+  assert.equal(plan.length, 2);
+  assert.equal(plan[1].executable, "pnpm");
+  assert.deepEqual(plan[1].args.slice(0, 3), ["exec", "vitest", "run"]);
   assert.equal(plan[1].cwd, `${repositoryRoot}/apps/api`);
-  assert.equal(plan[1].args[0], "--test");
 });
 
 test("the integration delivery profile always builds Web and API", () => {

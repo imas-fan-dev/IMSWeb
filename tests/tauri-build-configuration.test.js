@@ -1,9 +1,9 @@
-const assert = require("node:assert/strict");
-const { readFile } = require("node:fs/promises");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
-const zlib = require("node:zlib");
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import zlib from "node:zlib";
+import { test } from "vitest";
 
 const webRoot = path.resolve(__dirname, "../apps/web");
 const routerConfigUrl = pathToFileURL(

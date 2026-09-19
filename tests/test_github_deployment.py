@@ -280,7 +280,52 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertIn("if-no-files-found: ignore", web)
         self.assertIn("retention-days: 7", web)
         self.assertEqual(ci.count(GOOGLE_CHROME_APT_CLEANUP), 2)
-        self.assertEqual(ci.count(UPLOAD_ARTIFACT_ACTION), 2)
+        self.assertEqual(ci.count(UPLOAD_ARTIFACT_ACTION), 5)
+
+        # Every report lane uploads the artifacts its own run wrote, from one
+        # shared step shape. Asserting the whole step keeps a renamed step, a
+        # moved path, or a dropped `always()` visible. The repository domain
+        # uploads JUnit only: it has no coverage gate (see
+        # scripts/testing/vitest/vitest.repository.config.mts).
+        report_uploads = {
+            "repository": (
+                "Upload repository reports",
+                "repository-reports",
+                ("reports/junit-repository.xml",),
+            ),
+            "web": (
+                "Upload Web reports",
+                "web-reports",
+                ("apps/web/reports/junit-web.xml", "apps/web/coverage"),
+            ),
+            "api": (
+                "Upload API reports",
+                "api-reports",
+                ("apps/api/reports/junit-api.xml", "apps/api/coverage"),
+            ),
+        }
+        for job_name, (
+            step_name,
+            artifact,
+            upload_paths,
+        ) in report_uploads.items():
+            self.assertIn(
+                "\n".join(
+                    (
+                        f"      - name: {step_name}",
+                        "        if: always()",
+                        f"        uses: {UPLOAD_ARTIFACT_ACTION}",
+                        "        with:",
+                        f"          name: {artifact}-${{{{ github.run_id }}}}-"
+                        "${{ github.run_attempt }}",
+                        "          path: |",
+                        *(f"            {upload_path}" for upload_path in upload_paths),
+                        "          if-no-files-found: ignore",
+                        "          retention-days: 7",
+                    ),
+                ),
+                jobs[job_name],
+            )
         self.assertIn("pnpm --filter @imsweb/web run test -- ci", web)
         self.assertNotIn("--unit-prepared", web)
 

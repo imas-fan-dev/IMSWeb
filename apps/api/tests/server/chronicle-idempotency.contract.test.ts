@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
-import { test } from 'node:test';
+import { onTestFinished, test, vi } from 'vitest';
 import {
     chronicleActivityListSchema,
     chronicleActivitySchema,
@@ -450,8 +450,9 @@ test('Chronicle uploads without an idempotency key spend write quota per request
     assert.equal(limiter.count(CHRONICLE_UPLOAD_ATTEMPT_LIMIT.bucket), 2);
 });
 
-test('Chronicle upload hides unmarked metadata failures and reports them as server errors', async (t) => {
-    const logged = t.mock.method(console, 'error', () => undefined);
+test('Chronicle upload hides unmarked metadata failures and reports them as server errors', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    onTestFinished(() => logged.mockRestore());
     const { app, storage, uploads } = await fixture();
     uploads.next = {
         fields: { activityId: 'metadata-failure', username: 'producer' },
@@ -470,12 +471,13 @@ test('Chronicle upload hides unmarked metadata failures and reports them as serv
     const body = await response.json() as { success: boolean; error: string };
     assert.deepEqual(body, { success: false, error: '服务器错误' });
     assert.equal(JSON.stringify(body).includes('injected metadata failure'), false);
-    assert.equal(logged.mock.callCount(), 1);
-    assert.equal(logged.mock.calls[0]?.arguments[0], 'Chronicle upload failed');
+    assert.equal(logged.mock.calls.length, 1);
+    assert.equal(logged.mock.calls[0]?.[0], 'Chronicle upload failed');
 });
 
-test('Chronicle upload preserves explicit parser 400 and 413 responses', async (t) => {
-    const logged = t.mock.method(console, 'error', () => undefined);
+test('Chronicle upload preserves explicit parser 400 and 413 responses', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    onTestFinished(() => logged.mockRestore());
     for (const status of [400, 413] as const) {
         const { app, uploads } = await fixture();
         uploads.error = Object.assign(new Error(`parser rejected with ${status}`), { status });
@@ -487,7 +489,7 @@ test('Chronicle upload preserves explicit parser 400 and 413 responses', async (
             error: `parser rejected with ${status}`
         });
     }
-    assert.equal(logged.mock.callCount(), 0);
+    assert.equal(logged.mock.calls.length, 0);
 });
 
 test('Chronicle attempt quota bounds same-key parsing without spending write quota twice', async () => {
@@ -705,8 +707,9 @@ test('Chronicle reject and used-delete operations replay without duplicate side 
     assert.equal(storage.moves.length, movesAfterDelete);
 });
 
-test('Chronicle committed deletions stay successful when cleanup and compensation both fail', async (t) => {
-    const logged = t.mock.method(console, 'error', () => undefined);
+test('Chronicle committed deletions stay successful when cleanup and compensation both fail', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    onTestFinished(() => logged.mockRestore());
     const cases = [
         { label: 'reject-unkeyed', route: 'reject', method: 'POST', bucket: 'upload', status: 'pending', keyed: false },
         { label: 'reject-keyed', route: 'reject', method: 'POST', bucket: 'upload', status: 'pending', keyed: true },
@@ -758,7 +761,7 @@ test('Chronicle committed deletions stay successful when cleanup and compensatio
         }
     }
 
-    assert.equal(logged.mock.callCount(), cases.length);
+    assert.equal(logged.mock.calls.length, cases.length);
 });
 
 test('Chronicle committed deletion compensation still converges on a later request', async () => {

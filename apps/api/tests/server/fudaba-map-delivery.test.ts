@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { bearerTokenHeaders } from '../fixtures/auth-request';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import {
     fudabaMapDeliveryErrorSchema,
     fudabaMapDeliveryMutationSchema,

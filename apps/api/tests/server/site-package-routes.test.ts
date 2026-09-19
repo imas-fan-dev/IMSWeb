@@ -1,4 +1,4 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -28,7 +28,7 @@ import { SqlSitePackageRepository } from '@/infra/db/repositories/site-package-r
 import { queryOne } from '@/infra/db/sql/query';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 function assertWireContract<T>(
     schema: { parse(value: unknown): T },
@@ -156,8 +156,8 @@ function revision(
     };
 }
 
-test('site-package routes share the main origin and enforce manifests, CSP, and revisions', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'site-routes');
+test('site-package routes share the main origin and enforce manifests, CSP, and revisions', async () => {
+    const database = await createPostgresTestDatabase('site-routes');
     const repository = new SqlSitePackageRepository(database);
     const audit = new SqlAuditRepository(database);
     const storage = new MemoryStorage();

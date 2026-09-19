@@ -1,11 +1,9 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const { test } = require('node:test');
-const { brotliDecompressSync, gunzipSync } = require('node:zlib');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { brotliDecompressSync, gunzipSync } from 'node:zlib';
+import { test } from 'vitest';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '../..');
 const REPOSITORY_ROOT = path.resolve(PACKAGE_ROOT, '../..');
@@ -34,7 +32,10 @@ function run(script, environment = process.env) {
     });
 }
 
-test('[AST-01] release clients package the Web build and encoded variants', () => {
+// The previous runner had no default timeout; Vitest's is 5s. This case runs
+// the whole client build plus the manifest check (measured at ~8s), so it keeps
+// a ceiling that fits the work instead of the runner default.
+test('[AST-01] release clients package the Web build and encoded variants', { timeout: 60_000 }, () => {
     assert.ok(fs.existsSync(path.join(WEB_ROOT, 'index.html')), 'Web build must run first');
 
     const build = run(BUILD_SCRIPT);

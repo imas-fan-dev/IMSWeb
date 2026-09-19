@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { CachedPlatformEmailResendPolicyReader } from '@/infra/cache/valkey/platform-email-resend-policy-reader';
 import {
     VALKEY_PLATFORM_EMAIL_RESEND_POLICY_WRITE_SCRIPT,

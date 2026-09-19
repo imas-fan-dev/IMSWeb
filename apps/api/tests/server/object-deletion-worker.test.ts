@@ -1,10 +1,10 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { queryOne } from '@/infra/db/sql/query';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 async function insertJob(
     database: ManagedSqlDatabase,
@@ -21,8 +21,8 @@ async function insertJob(
     ).bind(id, resourceId, target, now, now, now).run();
 }
 
-test('PostgreSQL object deletion worker retries and atomically leases prefix jobs', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'object-deletion-worker');
+test('PostgreSQL object deletion worker retries and atomically leases prefix jobs', async () => {
+    const database = await createPostgresTestDatabase('object-deletion-worker');
     let now = 1_000;
     let failures = 1;
     const deleted: string[] = [];

@@ -1,12 +1,17 @@
-const assert = require("node:assert/strict");
-const path = require("node:path");
-const test = require("node:test");
-const { pathToFileURL } = require("node:url");
+import assert from "node:assert/strict";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { test } from "vitest";
 
 const detectorUrl = pathToFileURL(
   path.resolve(__dirname, "../scripts/ci/detect-affected-workspaces.mjs"),
 ).href;
 const detector = import(detectorUrl);
+
+async function classify(changedPaths) {
+  const { classifyChangedPaths } = await detector;
+  return classifyChangedPaths(changedPaths);
+}
 
 const REPOSITORY_ONLY = Object.freeze({
   repo: true,
@@ -65,15 +70,20 @@ const singlePathCases = [
   ["unclassified/new-file.xyz", ALL_JOBS],
 ];
 
-test("classifies the representative single-path ownership table", async (t) => {
-  const { classifyChangedPaths } = await detector;
-
+// node:test subtests do not exist in Vitest. Keeping the wrapper as a counted
+// test that folds the same cases, plus one test per case, preserves the
+// executed count and the wrapper's name.
+test("classifies the representative single-path ownership table", async () => {
   for (const [changedPath, expected] of singlePathCases) {
-    await t.test(changedPath, () => {
-      assert.deepEqual(classifyChangedPaths([changedPath]), expected);
-    });
+    assert.deepEqual(await classify([changedPath]), expected, changedPath);
   }
 });
+
+for (const [changedPath, expected] of singlePathCases) {
+  test(changedPath, async () => {
+    assert.deepEqual(await classify([changedPath]), expected);
+  });
+}
 
 test("classifies App scripts, App tests, and browser Web configuration", async () => {
   const { classifyChangedPaths } = await detector;

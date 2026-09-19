@@ -89,6 +89,10 @@ Thumbs.db
 # On-demand generated reports
 scripts/contracts/current-wire-contract-inventory.md
 
+# Test reports and coverage, written per workspace by Vitest
+coverage/
+reports/
+
 # Trellis-generated local tooling
 # Regenerate integration files in a fresh clone with: trellis init --pi
 .trellis/*

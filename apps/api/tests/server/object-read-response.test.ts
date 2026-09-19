@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import type { ObjectReadUrlOptions, ObjectStorage } from '@/ports/object-storage';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 

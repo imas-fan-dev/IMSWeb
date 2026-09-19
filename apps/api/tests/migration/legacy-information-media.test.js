@@ -1,16 +1,22 @@
-'use strict';
+// This migration script is CommonJS and pulls in TypeScript modules with plain
+// CJS `require` calls; its production command runs under the tsx loader for
+// exactly that reason. Vitest hands an inlined CommonJS file's own `require`
+// calls to Node, and Node cannot load an ESM-format `.ts` file from this
+// `"type": "commonjs"` package, so the test registers the same tsx CommonJS
+// hook the script ships with. See verification.md, 批次 C.
+import 'tsx/cjs';
 
-const assert = require('node:assert/strict');
-const fs = require('node:fs/promises');
-const os = require('node:os');
-const path = require('node:path');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { onTestFinished, test } from 'vitest';
+import {
     LEGACY_INFORMATION_CARDS,
     nextInformationIndex,
     parseArguments,
     syncLegacyInformation
-} = require('../../scripts/migration/legacy-information-media');
+} from '../../scripts/migration/legacy-information-media';
 
 class MemoryStorage {
     constructor() {
@@ -44,14 +50,14 @@ class MemoryStorage {
     }
 }
 
-async function sourceFixture(t) {
+async function sourceFixture() {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-information-migration-'));
     for (const seed of LEGACY_INFORMATION_CARDS) {
         const target = path.join(directory, seed.source);
         await fs.mkdir(path.dirname(target), { recursive: true });
         await fs.writeFile(target, `image:${seed.id}`);
     }
-    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(directory, { recursive: true, force: true }));
     return directory;
 }
 
@@ -118,8 +124,8 @@ test('legacy Information migration upgrades only the retired hiro page link', ()
     assert.equal(plan.index.cards[0].link, '/sites/hiro2026');
 });
 
-test('legacy Information migration writes and verifies six images plus one stored index', async (t) => {
-    const source = await sourceFixture(t);
+test('legacy Information migration writes and verifies six images plus one stored index', async () => {
+    const source = await sourceFixture();
     const storage = new MemoryStorage();
 
     const audit = await syncLegacyInformation(source, storage, false);

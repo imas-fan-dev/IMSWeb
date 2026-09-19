@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import { onTestFinished, test } from 'vitest';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { createWikiFixture, formFields, postForm } from './fixture';
 
-test('Node Wiki delete journals a failed cleanup and the next compensation scan converges', async (t) => {
+test('Node Wiki delete journals a failed cleanup and the next compensation scan converges', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-wiki-cleanup-'));
     const roots = {
         publicDir: path.join(root, 'public'),
@@ -17,7 +17,7 @@ test('Node Wiki delete journals a failed cleanup and the next compensation scan 
         storyDataDir: path.join(root, 'story-data')
     };
     await Promise.all(Object.values(roots).map((directory) => fs.mkdir(directory, { recursive: true })));
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
 
     const delegate = new FilesystemObjectStorage(roots);
     const compensationDirectory = path.join(root, 'compensation');

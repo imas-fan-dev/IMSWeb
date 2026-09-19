@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
+import { describe, onTestFinished, test, vi } from 'vitest';
 import {
     createWikiFixture,
     formFields,
@@ -953,8 +953,11 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         }
     });
 
-    test('cleanup failure after a successful database delete does not resurrect the row', async (t) => {
-        const logged = t.mock.method(console, 'error', () => undefined);
+    test('cleanup failure after a successful database delete does not resurrect the row', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        // The previous runner restored mocks after every test; Vitest leaves a
+        // spy in place unless it is restored explicitly.
+        onTestFinished(() => logged.mockRestore());
         const fixture = createWikiFixture();
         const original = seedOriginal(fixture);
         fixture.storage.failDeleteKeys.add(original.key);
@@ -967,11 +970,12 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.equal(fixture.story.stories.length, 0);
         assert.ok(fixture.storage.objects.has(original.key), 'failed retryable cleanup may leave the old object');
         assert.deepEqual(fixture.storage.deletes, [original.key]);
-        assert.equal(logged.mock.callCount(), 1);
+        assert.equal(logged.mock.calls.length, 1);
     });
 
-    test('post-commit cleanup still succeeds when object deletion and compensation enqueue both fail', async (t) => {
-        const logged = t.mock.method(console, 'error', () => undefined);
+    test('post-commit cleanup still succeeds when object deletion and compensation enqueue both fail', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        onTestFinished(() => logged.mockRestore());
         const fixture = createWikiFixture();
         const original = seedOriginal(fixture);
         const jobs: Array<{ kind: string; payload: unknown }> = [];
@@ -994,8 +998,8 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.equal(fixture.story.stories.length, 0);
         assert.ok(fixture.storage.objects.has(original.key));
         assert.deepEqual(jobs, [{ kind: 'delete-object', payload: { key: original.key } }]);
-        assert.equal(logged.mock.callCount(), 1);
-        assert.match(String(logged.mock.calls[0]?.arguments[0]), /committed Wiki object/);
+        assert.equal(logged.mock.calls.length, 1);
+        assert.match(String(logged.mock.calls[0]?.[0]), /committed Wiki object/);
     });
 
     test('category cleanup enumerates unreferenced prefix objects and compensates each failed key', async () => {

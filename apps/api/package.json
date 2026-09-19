@@ -7,7 +7,7 @@
     "scripts": {
         "build": "node scripts/build/build-server.js",
         "build:client": "node scripts/build/build-client.js",
-        "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.server.json --noEmit",
+        "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.tests.json --noEmit",
         "dev": "tsx watch --include .env src/main.ts",
         "dev:email-worker": "tsx watch --include .env src/email-worker-main.ts",
         "dev:data:export": "node scripts/development/container-data.js export",
@@ -43,10 +43,10 @@
         "check:assets": "pnpm run build:client && node scripts/build/check-client.js",
         "check": "pnpm run build && pnpm run syntax && pnpm run check:architecture",
         "test:node": "node ../../scripts/testing/run-test-owner.mjs api node",
-        "test:wiki": "node node_modules/typescript/bin/tsc -p tests/wiki/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/wiki/*.test.ts",
-        "test:server": "node node_modules/typescript/bin/tsc -p tests/server/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/server/*.test.ts",
-        "test:migration": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/migration/cms-article-title-backfill.test.js tests/migration/fudaba-media.test.js tests/migration/fudaba-metadata-import.test.js tests/migration/information-to-community-posts.test.js tests/migration/legacy-about-avatars.test.js tests/migration/legacy-brand-assets.test.js tests/migration/legacy-information-media.test.js tests/migration/legacy-namecards.test.js tests/migration/legacy-producer-map.test.js tests/migration/local-upload-media.test.js tests/migration/namecard-thumbnail-backfill.test.js tests/migration/namecard-unification-reconcile.test.js tests/migration/postgres-migrations.test.js tests/migration/public-object-placement.test.js tests/migration/semantic-object-keys.test.js tests/migration/single-bucket-consolidation.test.js tests/migration/wiki-media-sync.test.js tests/migration/wiki-metadata-audit.test.js",
-        "test:assets": "node --test tests/assets/frontend-routing.contract.test.js tests/assets/client-allowlist.test.js",
+        "test:wiki": "vitest run tests/wiki",
+        "test:server": "vitest run tests/server",
+        "test:migration": "vitest run tests/migration",
+        "test:assets": "vitest run tests/assets",
         "test": "node ../../scripts/testing/run-test-owner.mjs api"
     },
     "keywords": [],
@@ -87,9 +87,11 @@
         "@types/sanitize-html": "^2.16.1",
         "@types/yauzl": "^3.4.0",
         "@types/yazl": "^3.3.1",
+        "@vitest/coverage-v8": "^4.1.11",
         "sqlite3": "^6.0.1",
         "tsx": "^4.23.1",
         "typescript": "^7.0.2",
+        "vitest": "^4.1.11",
         "yazl": "^3.3.1"
     }
 }

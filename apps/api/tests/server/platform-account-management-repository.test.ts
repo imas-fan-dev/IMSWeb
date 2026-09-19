@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import type { TestContext } from 'node:test';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { createPostgresTestHarness, type PostgresTestHarness } from '../integration/postgres-harness';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
@@ -139,9 +139,9 @@ interface Fixture {
     second: SqlPlatformAccountRepository;
 }
 
-async function createFixture(t: TestContext): Promise<Fixture> {
+async function createFixture(): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     const platform = new SqlPlatformAccountRepository(
         harness.connection,
         initializedPostgresSchema
@@ -243,8 +243,8 @@ async function liveSessionCount(
 
 // ── OAuth identity binding ────────────────────────────────────────────────
 
-test('linking an identity writes the row and its audit event', async (t) => {
-    const fixture = await createFixture(t);
+test('linking an identity writes the row and its audit event', async () => {
+    const fixture = await createFixture();
     const accountId = 'link-created';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
 
@@ -263,8 +263,8 @@ test('linking an identity writes the row and its audit event', async (t) => {
     assert.equal(events.results.length, 1);
 });
 
-test('re-linking the same subject to the same account is idempotent', async (t) => {
-    const fixture = await createFixture(t);
+test('re-linking the same subject to the same account is idempotent', async () => {
+    const fixture = await createFixture();
     const accountId = 'link-idempotent';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
     await fixture.platform.createOAuthIdentityForAccount(
@@ -286,8 +286,8 @@ test('re-linking the same subject to the same account is idempotent', async (t) 
     assert.equal(Number(events?.total ?? 0), 1);
 });
 
-test('a subject owned by another account is refused without a write', async (t) => {
-    const fixture = await createFixture(t);
+test('a subject owned by another account is refused without a write', async () => {
+    const fixture = await createFixture();
     const owner = 'link-owner';
     const stranger = 'link-stranger';
     await fixture.platform.createOAuthAccount(oauthAccount(owner, 'google', 'shared-subject'));
@@ -307,8 +307,8 @@ test('a subject owned by another account is refused without a write', async (t) 
     assert.deepEqual(rows.results.map((row) => row.account_id), [owner]);
 });
 
-test('a second subject for the same provider on one account is a provider conflict', async (t) => {
-    const fixture = await createFixture(t);
+test('a second subject for the same provider on one account is a provider conflict', async () => {
+    const fixture = await createFixture();
     const accountId = 'link-provider-conflict';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId, 'google', 'first-subject'));
 
@@ -319,8 +319,8 @@ test('a second subject for the same provider on one account is a provider confli
     assert.equal(result.status, 'provider-conflict');
 });
 
-test('linking to a missing or inactive account is not found', async (t) => {
-    const fixture = await createFixture(t);
+test('linking to a missing or inactive account is not found', async () => {
+    const fixture = await createFixture();
 
     const result = await fixture.platform.createOAuthIdentityForAccount(
         linkInput('missing-account', 'github', 'gh-subject')
@@ -329,8 +329,8 @@ test('linking to a missing or inactive account is not found', async (t) => {
     assert.equal(result.status, 'not-found');
 });
 
-test('two concurrent links of one subject resolve to exactly one owner', async (t) => {
-    const fixture = await createFixture(t);
+test('two concurrent links of one subject resolve to exactly one owner', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createOAuthAccount(oauthAccount('race-a'));
     await fixture.platform.createOAuthAccount(oauthAccount('race-b'));
 
@@ -354,8 +354,8 @@ test('two concurrent links of one subject resolve to exactly one owner', async (
     assert.equal(rows.results.length, 1);
 });
 
-test('two unlinks cannot strip every login method', async (t) => {
-    const fixture = await createFixture(t);
+test('two unlinks cannot strip every login method', async () => {
+    const fixture = await createFixture();
     const accountId = 'unlink-race';
     await fixture.platform.createOAuthAccount(
         oauthAccount(accountId, 'google', 'unlink-google')
@@ -392,8 +392,8 @@ test('two unlinks cannot strip every login method', async (t) => {
 
 // ── Email credential binding / migration ──────────────────────────────────
 
-test('binding an email credential consumes the code and survives a password hash', async (t) => {
-    const fixture = await createFixture(t);
+test('binding an email credential consumes the code and survives a password hash', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-bind';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
     const email = 'bind-new@ims.test';
@@ -411,8 +411,8 @@ test('binding an email credential consumes the code and survives a password hash
     assert.equal(await verificationCodeRow(fixture.harness, email), null);
 });
 
-test('binding a second credential for one account is already-bound and keeps the code', async (t) => {
-    const fixture = await createFixture(t);
+test('binding a second credential for one account is already-bound and keeps the code', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-bind-twice';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
     const email = 'bind-second@ims.test';
@@ -431,8 +431,8 @@ test('binding a second credential for one account is already-bound and keeps the
     assert.equal(code.consumed_token, null);
 });
 
-test('binding a taken address reports email-conflict and rolls the code back', async (t) => {
-    const fixture = await createFixture(t);
+test('binding a taken address reports email-conflict and rolls the code back', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-bind-conflict';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
     const email = 'taken@ims.test';
@@ -459,8 +459,8 @@ test('binding a taken address reports email-conflict and rolls the code back', a
     assert.equal(code.consumed_token, null);
 });
 
-test('a wrong binding code leaves the credential unwritten', async (t) => {
-    const fixture = await createFixture(t);
+test('a wrong binding code leaves the credential unwritten', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-bind-invalid';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
     const email = 'invalid@ims.test';
@@ -484,8 +484,8 @@ test('a wrong binding code leaves the credential unwritten', async (t) => {
     );
 });
 
-test('migrating an email keeps the password hash, algorithm and salt', async (t) => {
-    const fixture = await createFixture(t);
+test('migrating an email keeps the password hash, algorithm and salt', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-migrate';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
     const before = await fixture.platform.findEmailCredentialByAccountId(accountId);
@@ -517,8 +517,8 @@ test('migrating an email keeps the password hash, algorithm and salt', async (t)
     assert.equal(await verificationCodeRow(fixture.harness, nextEmail), null);
 });
 
-test('a stale migration expectation reports state-conflict', async (t) => {
-    const fixture = await createFixture(t);
+test('a stale migration expectation reports state-conflict', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-migrate-conflict';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
     const before = await fixture.platform.findEmailCredentialByAccountId(accountId);
@@ -542,8 +542,8 @@ test('a stale migration expectation reports state-conflict', async (t) => {
     assert.equal(result.status, 'state-conflict');
 });
 
-test('migrating without a bound credential reports not-bound', async (t) => {
-    const fixture = await createFixture(t);
+test('migrating without a bound credential reports not-bound', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-migrate-none';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
 
@@ -565,8 +565,8 @@ test('migrating without a bound credential reports not-bound', async (t) => {
     assert.equal(result.status, 'not-bound');
 });
 
-test('two concurrent binds for one account produce exactly one credential', async (t) => {
-    const fixture = await createFixture(t);
+test('two concurrent binds for one account produce exactly one credential', async () => {
+    const fixture = await createFixture();
     const accountId = 'email-bind-race';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
     const first = 'race-one@ims.test';
@@ -611,8 +611,8 @@ test('two concurrent binds for one account produce exactly one credential', asyn
 
 // ── OAuth state for link / app ────────────────────────────────────────────
 
-test('a link state round-trips its account and intent', async (t) => {
-    const fixture = await createFixture(t);
+test('a link state round-trips its account and intent', async () => {
+    const fixture = await createFixture();
     const accountId = 'state-link';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
 
@@ -639,8 +639,8 @@ test('a link state round-trips its account and intent', async (t) => {
     assert.equal(consumed?.client_target, 'web');
 });
 
-test('an app state carries its challenge and survives the read-only return-channel lookup', async (t) => {
-    const fixture = await createFixture(t);
+test('an app state carries its challenge and survives the read-only return-channel lookup', async () => {
+    const fixture = await createFixture();
     const challenge = 'c'.repeat(43);
     await fixture.platform.createOAuthState({
         stateHash: sha('state-app'),
@@ -670,8 +670,8 @@ test('an app state carries its challenge and survives the read-only return-chann
 
 // ── One-time exchange codes ───────────────────────────────────────────────
 
-test('an exchange code is consumed exactly once', async (t) => {
-    const fixture = await createFixture(t);
+test('an exchange code is consumed exactly once', async () => {
+    const fixture = await createFixture();
     const accountId = 'exchange-single';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
 
@@ -692,8 +692,8 @@ test('an exchange code is consumed exactly once', async (t) => {
     );
 });
 
-test('an expired exchange code is not returned', async (t) => {
-    const fixture = await createFixture(t);
+test('an expired exchange code is not returned', async () => {
+    const fixture = await createFixture();
     const accountId = 'exchange-expired';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
     await fixture.platform.createOAuthExchangeCode({
@@ -710,8 +710,8 @@ test('an expired exchange code is not returned', async (t) => {
     );
 });
 
-test('a concurrent exchange redeems the code for exactly one caller', async (t) => {
-    const fixture = await createFixture(t);
+test('a concurrent exchange redeems the code for exactly one caller', async () => {
+    const fixture = await createFixture();
     const accountId = 'exchange-race';
     await fixture.platform.createOAuthAccount(oauthAccount(accountId));
     await fixture.platform.createOAuthExchangeCode({
@@ -732,8 +732,8 @@ test('a concurrent exchange redeems the code for exactly one caller', async (t) 
 
 // ── Admin platform-user management ────────────────────────────────────────
 
-test('admin listing searches by id, email and display name and excludes deleted accounts', async (t) => {
-    const fixture = await createFixture(t);
+test('admin listing searches by id, email and display name and excludes deleted accounts', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createEmailAccount({
         ...emailAccount('admin-email'),
         profile: { ...profile('admin-email'), displayName: 'Ada Admin' }
@@ -829,8 +829,8 @@ test('admin listing searches by id, email and display name and excludes deleted 
     );
 });
 
-test('suspending an account bumps the token version and revokes live sessions atomically', async (t) => {
-    const fixture = await createFixture(t);
+test('suspending an account bumps the token version and revokes live sessions atomically', async () => {
+    const fixture = await createFixture();
     const accountId = 'admin-suspend';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
     await insertRefreshSession(fixture.harness, { id: 'suspend-live', accountId });
@@ -870,8 +870,8 @@ test('suspending an account bumps the token version and revokes live sessions at
     assert.equal((await accountStatus(fixture, accountId))?.token_version, 1);
 });
 
-test('reactivating a suspended account restores it without bumping twice', async (t) => {
-    const fixture = await createFixture(t);
+test('reactivating a suspended account restores it without bumping twice', async () => {
+    const fixture = await createFixture();
     const accountId = 'admin-reactivate';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
     await fixture.platform.setPlatformAccountStatus({
@@ -896,8 +896,8 @@ test('reactivating a suspended account restores it without bumping twice', async
     assert.equal((await accountStatus(fixture, accountId))?.token_version, 1);
 });
 
-test('a stale status revision reports conflict with the current projection', async (t) => {
-    const fixture = await createFixture(t);
+test('a stale status revision reports conflict with the current projection', async () => {
+    const fixture = await createFixture();
     const accountId = 'admin-conflict';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
 
@@ -914,8 +914,8 @@ test('a stale status revision reports conflict with the current projection', asy
     assert.equal(result.account.updated_at, AT);
 });
 
-test('activating a restricted account is unsupported', async (t) => {
-    const fixture = await createFixture(t);
+test('activating a restricted account is unsupported', async () => {
+    const fixture = await createFixture();
     const accountId = 'admin-restricted';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
     await fixture.harness.connection
@@ -934,8 +934,8 @@ test('activating a restricted account is unsupported', async (t) => {
     assert.equal(result.status, 'unsupported');
 });
 
-test('forcing a logout revokes every live session and is idempotent', async (t) => {
-    const fixture = await createFixture(t);
+test('forcing a logout revokes every live session and is idempotent', async () => {
+    const fixture = await createFixture();
     const accountId = 'admin-force-logout';
     await fixture.platform.createEmailAccount(emailAccount(accountId));
     await insertRefreshSession(fixture.harness, { id: 'force-one', accountId });

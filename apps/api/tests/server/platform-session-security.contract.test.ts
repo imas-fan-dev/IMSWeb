@@ -6,8 +6,8 @@ import {
 } from "../fixtures/auth-request";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { test as nodeTest, type TestContext } from "node:test";
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished, test as nodeTest } from "vitest";
+import { postgresTest as test } from '../postgres-test-database';
 import { pathToFileURL } from "node:url";
 import { sign, verify } from "hono/utils/jwt/jwt";
 import { createTestApp, testRequest } from "./test-app";
@@ -23,10 +23,7 @@ import type {
 } from "@/ports/repositories";
 import type { RuntimeServices } from "@/ports/runtime-services";
 import { sha256Hex } from "@/utils/crypto/sha256";
-import {
-    createPostgresTestHarness,
-    postgresIntegrationEnabled,
-} from "../integration/postgres-harness";
+import { createPostgresTestHarness } from "../integration/postgres-harness";
 
 const PLATFORM_SECRET = "shared-realm-test-secret-at-least-thirty-two-bytes";
 const ACCESS_COOKIE = "ims_platform_access";
@@ -176,7 +173,7 @@ function expectedSessionPayload(
     };
 }
 
-async function createFixture(t: TestContext): Promise<Fixture> {
+async function createFixture(): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
     const database = harness.connection;
     const repository = new SqlPlatformAccountRepository(
@@ -292,7 +289,7 @@ async function createFixture(t: TestContext): Promise<Fixture> {
             await harness.close();
         },
     };
-    t.after(() => fixture.close());
+    onTestFinished(() => fixture.close());
     return fixture;
 }
 
@@ -355,8 +352,8 @@ async function eventRows(fixture: Fixture, accountId: string) {
     return result.results;
 }
 
-test("Platform session authenticates active and restricted accounts through a live family", async (t) => {
-    const fixture = await createFixture(t);
+test("Platform session authenticates active and restricted accounts through a live family", async () => {
+    const fixture = await createFixture();
     const active = await fixture.seedSession({ accountId: "platform-active" });
 
     const anonymous = await testRequest(
@@ -435,8 +432,8 @@ test("Platform session authenticates active and restricted accounts through a li
     assert.equal((await sessionRequest(fixture, expired.cookies)).status, 401);
 });
 
-test("refresh-session writes fence the current account token version atomically", async (t) => {
-    const fixture = await createFixture(t);
+test("refresh-session writes fence the current account token version atomically", async () => {
+    const fixture = await createFixture();
     const seeded = await fixture.seedSession({
         accountId: "platform-version-fence",
     });
@@ -516,8 +513,8 @@ test("refresh-session writes fence the current account token version atomically"
     );
 });
 
-test("Platform and Backoffice reject each other even when their test secret is shared", async (t) => {
-    const fixture = await createFixture(t);
+test("Platform and Backoffice reject each other even when their test secret is shared", async () => {
+    const fixture = await createFixture();
     const session = await fixture.seedSession({ accountId: "platform-realm" });
     const backofficeTokens = new HmacBackofficeTokenService(PLATFORM_SECRET);
     const backofficeToken = await backofficeTokens.sign(
@@ -663,8 +660,8 @@ nodeTest("production Platform token service fixes HS256 and all realm/session cl
     await assert.rejects(service.verify(wrongAlgorithm));
 });
 
-test("Platform refresh requires cookie, header, and stored CSRF before rotating state", async (t) => {
-    const fixture = await createFixture(t);
+test("Platform refresh requires cookie, header, and stored CSRF before rotating state", async () => {
+    const fixture = await createFixture();
     const session = await fixture.seedSession({ accountId: "platform-csrf" });
     const before = await sessionRow(fixture, session.sessionId);
     assert.ok(before);
@@ -696,8 +693,8 @@ test("Platform refresh requires cookie, header, and stored CSRF before rotating 
     assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
 });
 
-test("Bearer callers refresh without cookies and only they receive tokens", async (t) => {
-    const fixture = await createFixture(t);
+test("Bearer callers refresh without cookies and only they receive tokens", async () => {
+    const fixture = await createFixture();
     const session = await fixture.seedSession({ accountId: "platform-bearer" });
 
     // The packaged client has no cookie jar: the refresh token travels in a
@@ -767,10 +764,9 @@ test("Bearer callers refresh without cookies and only they receive tokens", asyn
 });
 
 async function assertRotationReplayAndLogout(
-    t: TestContext,
     dialect: "postgresql",
 ): Promise<void> {
-    const fixture = await createFixture(t);
+    const fixture = await createFixture();
     const session = await fixture.seedSession({
         accountId: `${dialect}-rotation`,
     });
@@ -924,8 +920,8 @@ async function assertRotationReplayAndLogout(
     );
 }
 
-test("suspended and deleted Platform accounts are blocked and their family is revoked", async (t) => {
-    const fixture = await createFixture(t);
+test("suspended and deleted Platform accounts are blocked and their family is revoked", async () => {
+    const fixture = await createFixture();
     for (const status of ["suspended", "deleted"] as const) {
         const session = await fixture.seedSession({
             accountId: `platform-${status}`,
@@ -989,8 +985,8 @@ nodeTest("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket",
     assert.equal(response.status, 401);
 });
 
-test("Platform logout is idempotent and Bearer authentication does not require CSRF", async (t) => {
-    const fixture = await createFixture(t);
+test("Platform logout is idempotent and Bearer authentication does not require CSRF", async () => {
+    const fixture = await createFixture();
     const session = await fixture.seedSession({
         accountId: "platform-bearer-logout",
     });
@@ -1015,20 +1011,12 @@ test("Platform logout is idempotent and Bearer authentication does not require C
     assertClearedPlatformCookies(anonymousLogout);
 });
 
-test("real PostgreSQL enforces Platform rotation, replay, logout, and event behavior", {
-    skip:
-        !postgresIntegrationEnabled() &&
-        "set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database",
-}, async (t) => {
-    await assertRotationReplayAndLogout(t, "postgresql");
+test("real PostgreSQL enforces Platform rotation, replay, logout, and event behavior", async () => {
+    await assertRotationReplayAndLogout("postgresql");
 });
 
-test("real PostgreSQL emits refresh success only for the cross-instance CAS winner", {
-    skip:
-        !postgresIntegrationEnabled() &&
-        "set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database",
-}, async (t) => {
-    const fixture = await createFixture(t);
+test("real PostgreSQL emits refresh success only for the cross-instance CAS winner", async () => {
+    const fixture = await createFixture();
     assert.ok(fixture.databaseUrl);
     const session = await fixture.seedSession({
         accountId: "postgresql-cross-instance-cas",

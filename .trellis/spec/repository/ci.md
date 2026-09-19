@@ -94,12 +94,18 @@ Workflow contracts must assert triggers, permissions, concurrency, job graph, de
 Run at least:
 
 ```sh
-node --test tests/ci-affected-workspaces.test.js
+pnpm --filter @imsweb/api exec vitest run --root ../.. --config scripts/testing/vitest/vitest.repository.config.mts tests/ci-affected-workspaces.test.js
 python3 -m unittest tests/test_github_deployment.py
 pnpm --filter @imsweb/web exec prettier --check ../../.github/workflows/ci.yml
 pnpm run check:root
 pnpm run test:infra
 ```
+
+The repository domain is hosted from `apps/api` because the root package may
+declare only `husky`, so a root-level `pnpm exec vitest` has no binary to run.
+`--root` stays relative to the step cwd (`apps/api`) and `--config` resolves
+against `--root`, not the cwd — passing `../../scripts/...` there fails to load
+the config.
 
 Run the command set for every lane selected by the workflow or detector files. For App validation, include the focused App script unit test, App-target build, and complete App Playwright suite on installed Chromium and WebKit.
 

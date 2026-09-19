@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import type { TestContext } from 'node:test';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {
@@ -11,10 +11,7 @@ import type {
     NewFudabaCardInput,
     NewFudabaOfficeInput
 } from '@/ports/repositories';
-import {
-    createPostgresTestHarness,
-    postgresIntegrationEnabled
-} from '../integration/postgres-harness';
+import { createPostgresTestHarness } from '../integration/postgres-harness';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { insertBackofficeAccount, insertPlatformAccount } from '../fixtures/rows';
 
@@ -97,7 +94,6 @@ function card(
 }
 
 async function createFixture(
-    t: TestContext,
     dialect: 'postgresql' = 'postgresql'
 ): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
@@ -105,7 +101,7 @@ async function createFixture(
         harness.connection,
         initializedPostgresSchema
     );
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await repository.initialize();
     await seedCanonicalFudabaAgencies(harness.connection);
     return { database: harness.connection, repository, dialect };
@@ -148,8 +144,8 @@ async function placeCard(
     });
 }
 
-test('office creation and series assignment are atomic', async (t) => {
-    const fixture = await createFixture(t);
+test('office creation and series assignment are atomic', async () => {
+    const fixture = await createFixture();
     await seedPlatformAccount(fixture, 'office-owner');
 
     await assert.rejects(fixture.repository.createOffice(office(
@@ -186,10 +182,9 @@ test('office creation and series assignment are atomic', async (t) => {
 });
 
 async function assertOwnerAndArchiveBoundary(
-    t: TestContext,
     dialect: 'postgresql'
 ): Promise<void> {
-    const fixture = await createFixture(t, dialect);
+    const fixture = await createFixture(dialect);
     for (const accountId of ['owner', 'intruder', 'requester']) {
         await seedPlatformAccount(fixture, `${dialect}-${accountId}`);
     }
@@ -274,10 +269,9 @@ async function assertOwnerAndArchiveBoundary(
 }
 
 async function assertExchangeConstraints(
-    t: TestContext,
     dialect: 'postgresql'
 ): Promise<void> {
-    const fixture = await createFixture(t, dialect);
+    const fixture = await createFixture(dialect);
     const requesterId = `${dialect}-exchange-requester`;
     const recipientId = `${dialect}-exchange-recipient`;
     const otherId = `${dialect}-exchange-other`;
@@ -391,8 +385,8 @@ async function assertExchangeConstraints(
     ).bind(exchangeId).first<string>('status'), 'accepted');
 }
 
-test('media rights and moderation constraints cannot be bypassed', async (t) => {
-    const fixture = await createFixture(t);
+test('media rights and moderation constraints cannot be bypassed', async () => {
+    const fixture = await createFixture();
     await seedPlatformAccount(fixture, 'card-owner');
     const actorId = await seedBackofficeActor(fixture, 'fudaba-moderator');
 
@@ -454,10 +448,9 @@ test('media rights and moderation constraints cannot be bypassed', async (t) => 
 });
 
 async function assertModerationActorRetention(
-    t: TestContext,
     dialect: 'postgresql'
 ): Promise<void> {
-    const fixture = await createFixture(t, dialect);
+    const fixture = await createFixture(dialect);
     const actorId = await seedBackofficeActor(
         fixture,
         `${dialect}-retained-moderator`
@@ -492,23 +485,14 @@ async function assertModerationActorRetention(
     ), actorId);
 }
 
-test('real PostgreSQL enforces Fudaba ownership and archived-office constraints', {
-    skip: !postgresIntegrationEnabled() &&
-        'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
-}, async (t) => {
-    await assertOwnerAndArchiveBoundary(t, 'postgresql');
+test('real PostgreSQL enforces Fudaba ownership and archived-office constraints', async () => {
+    await assertOwnerAndArchiveBoundary('postgresql');
 });
 
-test('real PostgreSQL enforces exchange ownership and final-state constraints', {
-    skip: !postgresIntegrationEnabled() &&
-        'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
-}, async (t) => {
-    await assertExchangeConstraints(t, 'postgresql');
+test('real PostgreSQL enforces exchange ownership and final-state constraints', async () => {
+    await assertExchangeConstraints('postgresql');
 });
 
-test('real PostgreSQL retains actors referenced by resolved moderation cases', {
-    skip: !postgresIntegrationEnabled() &&
-        'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
-}, async (t) => {
-    await assertModerationActorRetention(t, 'postgresql');
+test('real PostgreSQL retains actors referenced by resolved moderation cases', async () => {
+    await assertModerationActorRetention('postgresql');
 });

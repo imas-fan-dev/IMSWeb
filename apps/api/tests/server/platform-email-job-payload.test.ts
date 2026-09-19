@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platform-email-job-payload';
 import { PlatformEmailSecretCipher } from '@/infra/email/smtp/platform-email-secrets';
 import type {

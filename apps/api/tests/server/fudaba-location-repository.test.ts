@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import type { TestContext } from "node:test";
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { SqlAdminAccountRepository } from "@/infra/db/repositories/admin-account-repository";
 import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
 import type {
@@ -11,10 +11,7 @@ import type {
     NewFudabaOfficeInput,
     PlatformAccountStatus,
 } from "@/ports/repositories";
-import {
-    createPostgresTestHarness,
-    postgresIntegrationEnabled,
-} from "../integration/postgres-harness";
+import { createPostgresTestHarness } from "../integration/postgres-harness";
 import { seedCanonicalFudabaAgencies } from "../integration/fudaba-agency-fixture";
 import {
     insertBackofficeAccount,
@@ -43,7 +40,6 @@ interface Fixture {
 }
 
 async function createFixture(
-    t: TestContext,
     dialect: Fixture["dialect"],
 ): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
@@ -51,7 +47,7 @@ async function createFixture(
         harness.connection,
         initializedPostgresSchema,
     );
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await repository.initialize();
     await seedCanonicalFudabaAgencies(harness.connection);
     return { database: harness.connection, repository, dialect };
@@ -165,10 +161,9 @@ async function removeFailingAuditTrigger(fixture: Fixture): Promise<void> {
 }
 
 async function assertLocationRepository(
-    t: TestContext,
     dialect: Fixture["dialect"],
 ): Promise<void> {
-    const fixture = await createFixture(t, dialect);
+    const fixture = await createFixture(dialect);
     const ownerId = `${dialect}-location-owner`;
     const otherId = `${dialect}-location-other`;
     const restrictedId = `${dialect}-location-restricted`;
@@ -580,10 +575,6 @@ async function assertLocationRepository(
     );
 }
 
-test("real PostgreSQL enforces Fudaba location CAS and public map eligibility", {
-    skip:
-        !postgresIntegrationEnabled() &&
-        "set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database",
-}, async (t) => {
-    await assertLocationRepository(t, "postgresql");
+test("real PostgreSQL enforces Fudaba location CAS and public map eligibility", async () => {
+    await assertLocationRepository("postgresql");
 });

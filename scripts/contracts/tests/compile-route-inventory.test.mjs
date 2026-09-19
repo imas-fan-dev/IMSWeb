@@ -3,8 +3,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { test } from "vitest";
 import {
   collectRouteInventory,
   routeInventoryArtifact,
@@ -305,41 +305,60 @@ test("anonymous handler identity preserves distinct handlers and factory calls w
   assert.equal(new Set(routesAt("/factory").map((route) => route.handlerSymbol)).size, 2);
 });
 
-test("route, carrier, policy, response, and non-JSON linkage mutations make JSON stale", async (t) => {
-  const mutations = [
-    ["mounted route", semanticFixture({ path: '"/renamed"' })],
-    ["top-level request carrier", semanticFixture({ requestRead: 'await c.req.json(); c.req.query("mode");' })],
-    ["unknown-key policy", semanticFixture({ schema: "strictRequestObject({})" })],
-    ["response expression", semanticFixture({ response: "c.json({ ok: false })" })],
-    ["non-JSON linkage", semanticFixture({ response: 'c.text("ok")' })],
-  ];
+// node:test subtests do not exist in Vitest. Keeping the wrapper as a counted
+// test that folds the same cases, plus one test per case, preserves the
+// executed count and the wrapper's name while the per-case tests keep the
+// failure localisation the subtests used to provide.
+const linkageMutations = [
+  ["mounted route", semanticFixture({ path: '"/renamed"' })],
+  ["top-level request carrier", semanticFixture({ requestRead: 'await c.req.json(); c.req.query("mode");' })],
+  ["unknown-key policy", semanticFixture({ schema: "strictRequestObject({})" })],
+  ["response expression", semanticFixture({ response: "c.json({ ok: false })" })],
+  ["non-JSON linkage", semanticFixture({ response: 'c.text("ok")' })],
+];
 
-  for (const [name, source] of mutations) {
-    await t.test(name, () => {
-      const root = fixture(semanticFixture());
-      runFixtureCli(root, ["--write"]);
-      fs.writeFileSync(path.join(root, "app.ts"), source);
-      assert.throws(() => runFixtureCli(root, []), /route inventory is stale/);
-    });
+function assertLinkageMutationIsStale(source) {
+  const root = fixture(semanticFixture());
+  runFixtureCli(root, ["--write"]);
+  fs.writeFileSync(path.join(root, "app.ts"), source);
+  assert.throws(() => runFixtureCli(root, []), /route inventory is stale/);
+}
+
+test("route, carrier, policy, response, and non-JSON linkage mutations make JSON stale", () => {
+  for (const [, source] of linkageMutations) {
+    assertLinkageMutationIsStale(source);
   }
 });
 
-test("response changes after the former display cap and inside string whitespace make JSON stale", async (t) => {
-  const prefix = "x".repeat(260);
-  const mutations = [
-    ["long expression suffix", `c.json({ value: "${prefix}a" })`, `c.json({ value: "${prefix}b" })`],
-    ["string whitespace", 'c.json({ value: "a b" })', 'c.json({ value: "a  b" })'],
-  ];
+for (const [name, source] of linkageMutations) {
+  test(name, () => {
+    assertLinkageMutationIsStale(source);
+  });
+}
 
-  for (const [name, before, after] of mutations) {
-    await t.test(name, () => {
-      const root = fixture(semanticFixture({ response: before }));
-      runFixtureCli(root, ["--write"]);
-      fs.writeFileSync(path.join(root, "app.ts"), semanticFixture({ response: after }));
-      assert.throws(() => runFixtureCli(root, []), /route inventory is stale/);
-    });
+const displayCapAndWhitespaceMutations = [
+  ["long expression suffix", `c.json({ value: "${"x".repeat(260)}a" })`, `c.json({ value: "${"x".repeat(260)}b" })`],
+  ["string whitespace", 'c.json({ value: "a b" })', 'c.json({ value: "a  b" })'],
+];
+
+function assertResponseChangeIsStale(before, after) {
+  const root = fixture(semanticFixture({ response: before }));
+  runFixtureCli(root, ["--write"]);
+  fs.writeFileSync(path.join(root, "app.ts"), semanticFixture({ response: after }));
+  assert.throws(() => runFixtureCli(root, []), /route inventory is stale/);
+}
+
+test("response changes after the former display cap and inside string whitespace make JSON stale", () => {
+  for (const [, before, after] of displayCapAndWhitespaceMutations) {
+    assertResponseChangeIsStale(before, after);
   }
 });
+
+for (const [name, before, after] of displayCapAndWhitespaceMutations) {
+  test(name, () => {
+    assertResponseChangeIsStale(before, after);
+  });
+}
 
 test("a new source diagnostic fails closed before write or freshness comparison", () => {
   const root = fixture(semanticFixture());

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
-import test from 'node:test';
+import { test } from 'vitest';
 import {
     errorResponseSchema,
     failureMessageResponseSchema,

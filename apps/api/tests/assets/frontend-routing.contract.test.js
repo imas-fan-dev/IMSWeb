@@ -1,9 +1,8 @@
-
-
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { test } = require('node:test');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { test } from 'vitest';
 
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const REPOSITORY_ROOT = path.resolve(PROJECT_ROOT, '../..');
@@ -26,19 +25,23 @@ requireBuild(
     'pnpm --filter @imsweb/api run build'
 );
 
-const { createHonoApp } = require(path.join(SERVER_ROOT, 'app.js'));
-const { FrontendStaticAssets, NodeStaticAssets } = require(path.join(
+// The compiled server is loaded through the Node CommonJS loader, exactly as
+// the previous `require` calls did, so a missing build fails at the same point
+// with the same message instead of at import resolution time.
+const loadCompiled = createRequire(import.meta.url);
+const { createHonoApp } = loadCompiled(path.join(SERVER_ROOT, 'app.js'));
+const { FrontendStaticAssets, NodeStaticAssets } = loadCompiled(path.join(
     SERVER_ROOT,
     'infra/http/filesystem/static-assets.js'
 ));
-const { resolveFrontendRoute } = require(path.join(
+const { resolveFrontendRoute } = loadCompiled(path.join(
     SERVER_ROOT,
     'routing/frontend-route-policy.js'
 ));
 const {
     FRONTEND_PRERENDERED_ROUTES,
     FRONTEND_SPA_FALLBACK_PATTERNS
-} = require(path.join(
+} = loadCompiled(path.join(
     SERVER_ROOT,
     'routing/frontend-route-delivery.js'
 ));

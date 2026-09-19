@@ -1,7 +1,7 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
+import { onTestFinished } from 'vitest';
 import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
-import type { TestContext } from 'node:test';
 import {
     createEventResponseSchema,
     eventErrorResponseSchema,
@@ -27,7 +27,7 @@ import {
 } from '@/domains/content/events/event-cursor';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 interface EventListItem {
     id: number;
@@ -170,8 +170,8 @@ const eventImages: ImageProcessor = {
     async resizeJpeg(body) { return body; }
 };
 
-async function createFixture(t: TestContext, count: number): Promise<EventFixture> {
-    const connection = await createPostgresTestDatabase(t, 'events-pagination');
+async function createFixture(count: number): Promise<EventFixture> {
+    const connection = await createPostgresTestDatabase('events-pagination');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const repository = new SqlEventRepository(connection);
     for (let id = 1; id <= count; id += 1) {
@@ -211,7 +211,7 @@ async function createFixture(t: TestContext, count: number): Promise<EventFixtur
         }
     };
     const app = createHonoApp(() => runtime);
-    t.after(() => connection.close());
+    onTestFinished(() => connection.close());
     return {
         request(pathname, init) {
             return Promise.resolve(app.request(`http://ims.test${pathname}`, init));
@@ -238,8 +238,8 @@ async function responseJson<T>(response: Response): Promise<T> {
     return response.json() as Promise<T>;
 }
 
-test('legacy event pagination keeps its response shape and validates page and size', async (t) => {
-    const fixture = await createFixture(t, 6);
+test('legacy event pagination keeps its response shape and validates page and size', async () => {
+    const fixture = await createFixture(6);
 
     const defaults = await fixture.request('/api/events');
     assert.equal(defaults.status, 200);
@@ -263,8 +263,8 @@ test('legacy event pagination keeps its response shape and validates page and si
     }
 });
 
-test('cursor event pagination holds an id snapshot while new events are inserted', async (t) => {
-    const fixture = await createFixture(t, 5);
+test('cursor event pagination holds an id snapshot while new events are inserted', async () => {
+    const fixture = await createFixture(5);
 
     const first = await fixture.request('/api/events?limit=2');
     assert.equal(first.status, 200);
@@ -306,8 +306,8 @@ test('cursor event pagination holds an id snapshot while new events are inserted
     assert.equal(refreshedBody.pageInfo.snapshotAt, '6');
 });
 
-test('cursor event pagination returns an explicit empty snapshot', async (t) => {
-    const fixture = await createFixture(t, 0);
+test('cursor event pagination returns an explicit empty snapshot', async () => {
+    const fixture = await createFixture(0);
     const response = await fixture.request('/api/events?limit=20');
     assert.equal(response.status, 200);
     assert.deepEqual(await responseJson<CursorEventPage>(response), {
@@ -316,8 +316,8 @@ test('cursor event pagination returns an explicit empty snapshot', async (t) => 
     });
 });
 
-test('event updates require the expected current image reference', async (t) => {
-    const fixture = await createFixture(t, 1);
+test('event updates require the expected current image reference', async () => {
+    const fixture = await createFixture(1);
     const replacement = {
         title: 'Updated event',
         name: 'Updated organizer',
@@ -355,8 +355,8 @@ test('event updates require the expected current image reference', async (t) => 
     assert.equal(await fixture.references('/uploads/events/new.webp'), 2);
 });
 
-test('event list responses preserve a title with legacy leading or trailing whitespace verbatim', async (t) => {
-    const fixture = await createFixture(t, 0);
+test('event list responses preserve a title with legacy leading or trailing whitespace verbatim', async () => {
+    const fixture = await createFixture(0);
     const legacyTitle = '\u3010Legacy Notice\u3011\r\nLine one\r\nLine two\r\n';
     await fixture.insert(legacyTitle);
 
@@ -375,8 +375,8 @@ test('event list responses preserve a title with legacy leading or trailing whit
     assert.equal(legacyBody.list[0]?.title, legacyTitle);
 });
 
-test('events mounted JSON routes preserve shared schemas and project query and multipart extras', async (t) => {
-    const fixture = await createFixture(t, 1);
+test('events mounted JSON routes preserve shared schemas and project query and multipart extras', async () => {
+    const fixture = await createFixture(1);
     const auth = { Authorization: `Bearer ${fixture.opToken}` };
 
     await assertRawJsonConforms(
@@ -538,7 +538,7 @@ test('events mounted JSON routes preserve shared schemas and project query and m
     );
 });
 
-test('event cursors retain decimal BIGINT ids and reject invalid pagination modes', async (t) => {
+test('event cursors retain decimal BIGINT ids and reject invalid pagination modes', async () => {
     const maxId = '9223372036854775807';
     const cursor = encodeEventCursor({ snapshotId: maxId, afterId: '9007199254740993' });
     assert.deepEqual(decodeEventCursor(cursor), {
@@ -552,7 +552,7 @@ test('event cursors retain decimal BIGINT ids and reject invalid pagination mode
         afterId: '1'
     })).toString('base64url')), null);
 
-    const fixture = await createFixture(t, 1);
+    const fixture = await createFixture(1);
     for (const query of [
         'limit=0',
         'limit=101',

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { afterAll, onTestFinished, test } from 'vitest';
 import { ConfiguredPlatformEmailService } from '@/infra/email/smtp/platform-email-service';
 import { PlatformEmailSecretCipher } from '@/infra/email/smtp/platform-email-secrets';
 import { SqlPlatformEmailConfigurationRepository } from '@/infra/db/repositories/platform-email-configuration-repository';
@@ -7,11 +7,17 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled,
 } from '../integration/postgres-harness';
+import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
 import type {
     PlatformEmailConfigurationRecord,
     PlatformEmailConfigurationStore,
 } from '@/ports/email';
 import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
+
+// This file drives the explicit-close harness adapter instead of `postgresTest`,
+// so it owns the end-of-process allocator cleanup that the Vitest adapter
+// registers for the other PostgreSQL suites.
+afterAll(closeSharedPostgresTestAllocator);
 
 function record(
     overrides: Partial<PlatformEmailConfigurationRecord> = {},
@@ -496,14 +502,10 @@ test('SMTP connections reject non-public and mixed DNS results', async () => {
 
 test(
     'real PostgreSQL stores one SMTP configuration with optimistic concurrency',
-    {
-        skip:
-            !postgresIntegrationEnabled() &&
-            'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database',
-    },
-    async (t) => {
+    { skip: !postgresIntegrationEnabled() },
+    async () => {
         const harness = await createPostgresTestHarness();
-        t.after(() => harness.close());
+        onTestFinished(() => harness.close());
         const repository = new SqlPlatformEmailConfigurationRepository(
             harness.connection,
         );

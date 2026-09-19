@@ -1,26 +1,32 @@
-'use strict';
+// This migration script is CommonJS and pulls in TypeScript modules with plain
+// CJS `require` calls; its production command runs under the tsx loader for
+// exactly that reason. Vitest hands an inlined CommonJS file's own `require`
+// calls to Node, and Node cannot load an ESM-format `.ts` file from this
+// `"type": "commonjs"` package, so the test registers the same tsx CommonJS
+// hook the script ships with. See verification.md, 批次 C.
+import 'tsx/cjs';
 
-const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
-const path = require('node:path');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { test } from 'vitest';
+import {
     parseAboutPageContent,
     serializeAboutPageContent,
     validateAboutPageDraft
-} = require('../../src/domains/content/about/data.ts');
-const {
+} from '../../src/domains/content/about/data.ts';
+import {
     ABOUT_PAGE_OBJECT_KEY,
     publicMediaObjectKey
-} = require('../../src/utils/storage/business-object-keys.ts');
-const {
+} from '../../src/utils/storage/business-object-keys.ts';
+import {
     classifyAvatarUrl,
     helpText,
     parseArguments,
     readBoundedBody,
     stageAboutAvatarPlan,
     syncAboutAvatars
-} = require('../../scripts/migration/legacy-about-avatars');
+} from '../../scripts/migration/legacy-about-avatars';
 
 class MemoryStorage {
     constructor() {

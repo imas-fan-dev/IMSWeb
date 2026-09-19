@@ -1,5 +1,6 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
+import { onTestFinished } from 'vitest';
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import {
     homepageLinkDeleteSchema,
@@ -12,7 +13,7 @@ import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy'
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
 import { SqlHomepageLinkRepository } from '@/infra/db/repositories/homepage-link-repository';
 import { executeSql } from '@/infra/db/sql/query';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 function adminRequest(method: string, pathname: string, body?: unknown): Request {
     return new Request(`http://homepage.test${pathname}`, {
@@ -25,12 +26,12 @@ function adminRequest(method: string, pathname: string, body?: unknown): Request
     });
 }
 
-test('homepage links are database-backed and reorder only complete section inventories', async (t) => {
-    const connection = await createPostgresTestDatabase(t, 'homepage-links');
+test('homepage links are database-backed and reorder only complete section inventories', async () => {
+    const connection = await createPostgresTestDatabase('homepage-links');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const audit = new SqlAuditRepository(connection);
     const repository = new SqlHomepageLinkRepository(connection);
-    t.after(() => connection.close());
+    onTestFinished(() => connection.close());
     await executeSql(connection, 'DELETE FROM homepage_links');
 
     const app = createHonoApp(() => ({

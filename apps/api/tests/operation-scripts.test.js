@@ -1,39 +1,31 @@
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const { test } = require('node:test');
-
-const PROJECT_ROOT = path.resolve(__dirname, '..');
-const ADD_USER_SCRIPT = path.join(
-    PROJECT_ROOT,
-    'scripts/operations/accounts/add-user.js'
-);
-const HASH_PASSWORD_SCRIPT = path.join(
-    PROJECT_ROOT,
-    'scripts/operations/accounts/hash-password.js'
-);
-const CONTAINER_DATA_SCRIPT = path.join(
-    PROJECT_ROOT,
-    'scripts/development/container-data.js'
-);
-const { addUser, databaseUrl } = require(ADD_USER_SCRIPT);
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { test } from 'vitest';
+import { addUser, databaseUrl } from '../scripts/operations/accounts/add-user.js';
+import {
     ARCHIVE_ROOT,
     isNonEmptyFile,
     parseArguments,
     validateArchiveEntries,
     validateArchiveEntryTypes,
     validateManifest
-} = require(CONTAINER_DATA_SCRIPT);
-const {
+} from '../scripts/development/container-data.js';
+import {
     compareInventories,
-    parseArguments: parseRustfsSyncArguments,
+    parseArguments as parseRustfsSyncArguments,
     resolveTargetEnvironment,
     summarizeInventory,
     validateSourceEnvironment
-} = require('../scripts/development/sync-r2-to-rustfs.js');
+} from '../scripts/development/sync-r2-to-rustfs.js';
+
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const HASH_PASSWORD_SCRIPT = path.join(
+    PROJECT_ROOT,
+    'scripts/operations/accounts/hash-password.js'
+);
 
 test('categorized add-user script writes a PostgreSQL backoffice account', async () => {
     const calls = [];

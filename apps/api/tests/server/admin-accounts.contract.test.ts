@@ -1,6 +1,6 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
-import type { TestContext } from 'node:test';
+import { onTestFinished } from 'vitest';
 import {
     adminAccountErrorResponseSchema,
     adminAccountListSchema,
@@ -17,7 +17,7 @@ import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy'
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { AdminRole } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 import { createTestApp, testRequest } from './test-app';
 
 const SECRET = 'admin-accounts-contract-secret-at-least-thirty-two-bytes';
@@ -46,8 +46,8 @@ async function insertAccount(
     });
 }
 
-async function createFixture(t: TestContext): Promise<Fixture> {
-    const connection = await createPostgresTestDatabase(t, 'admin-accounts');
+async function createFixture(): Promise<Fixture> {
+    const connection = await createPostgresTestDatabase('admin-accounts');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const repository = new SqlBackofficeAuthRepository(connection);
     const adminAccounts = new SqlAdminAccountRepository(connection);
@@ -101,9 +101,9 @@ async function authHeaders(
     };
 }
 
-test('only the super administrator can list op accounts', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('only the super administrator can list op accounts', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const regular = await testRequest(fixture.app, '/api/admin/accounts', {
         headers: await authHeaders(fixture, {
@@ -148,9 +148,9 @@ test('only the super administrator can list op accounts', async (t) => {
     ]);
 });
 
-test('audit logs use the shared response contract', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('audit logs use the shared response contract', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
     const response = await testRequest(fixture.app, '/api/admin/logs', {
         headers: await authHeaders(fixture, {
             id: fixture.ids.superAdmin,
@@ -165,9 +165,9 @@ test('audit logs use the shared response contract', async (t) => {
     assert.deepEqual(adminAuditLogListSchema.parse(body), body);
 });
 
-test('super administrator creates only regular op accounts and audits the mutation', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('super administrator creates only regular op accounts and audits the mutation', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
     const headers = await authHeaders(fixture, {
         id: fixture.ids.superAdmin,
         username: 'super-operator',
@@ -227,9 +227,9 @@ test('super administrator creates only regular op accounts and audits the mutati
     assert.equal(logs[0]?.target, 'new-operator');
 });
 
-test('super administrator deletes a regular op and revokes its refresh sessions', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('super administrator deletes a regular op and revokes its refresh sessions', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
     await fixture.repository.createRefreshSession({
         id: 'regular-session',
         accountId: fixture.ids.admin,
@@ -274,9 +274,9 @@ test('super administrator deletes a regular op and revokes its refresh sessions'
         null
     );
 });
-test('administrator deletion preserves resolved Fudaba moderation actors', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('administrator deletion preserves resolved Fudaba moderation actors', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
     const createdAt = '2026-08-02T00:00:00.000Z';
     await fixture.connection.prepare(
         `INSERT INTO fudaba_moderation_cases
@@ -312,9 +312,9 @@ test('administrator deletion preserves resolved Fudaba moderation actors', async
     assert.ok(await fixture.repository.findUserById(fixture.ids.admin));
 });
 
-test('administrator deletion preserves Fudaba public-location reviewers', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('administrator deletion preserves Fudaba public-location reviewers', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
     const submittedAt = '2026-08-03T01:00:00.000Z';
     const reviewedAt = '2026-08-03T02:00:00.000Z';
     await insertPlatformAccount(fixture.connection, 'reviewed-location-owner');

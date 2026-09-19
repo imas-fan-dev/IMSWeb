@@ -1,12 +1,10 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const path = require('node:path');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { test } from 'vitest';
+import {
     applyExistingSemanticMedia,
     parseWikiMetadataAuditArguments
-} = require('../../scripts/migration/wiki-metadata-audit.ts');
+} from '../../scripts/migration/wiki-metadata-audit.ts';
 
 test('Wiki metadata audit stays read-only unless apply is explicit', () => {
     const dryRun = parseWikiMetadataAuditArguments(['--', '--strict']);

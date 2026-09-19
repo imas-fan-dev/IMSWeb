@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
+import { onTestFinished } from 'vitest';
 import { fixtureSha256Hex as hash } from '../fixtures/auth-request';
-import type { TestContext } from 'node:test';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { postgresTest as test } from '../postgres-test-database';
 import type { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {
@@ -15,10 +15,7 @@ import type {
     CreateOwnedFudabaOfficeInput,
     PlatformAccountStatus
 } from '@/ports/repositories';
-import {
-    createPostgresTestHarness,
-    postgresIntegrationEnabled
-} from '../integration/postgres-harness';
+import { createPostgresTestHarness } from '../integration/postgres-harness';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const CREATED_AT = '2026-08-03T01:00:00.000Z';
@@ -117,7 +114,6 @@ class InterleavingOwnerReadDatabase implements ManagedSqlDatabase {
 }
 
 async function createFixture(
-    t: TestContext,
     dialect: Fixture['dialect']
 ): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
@@ -125,7 +121,7 @@ async function createFixture(
         harness.connection,
         initializedPostgresSchema
     );
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await repository.initialize();
     await seedCanonicalFudabaAgencies(harness.connection);
     return { database: harness.connection, repository, dialect };
@@ -562,11 +558,8 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     );
 }
 
-test('real PostgreSQL owner offices enforce receipt and cross-replica CAS', {
-    skip: !postgresIntegrationEnabled() &&
-        'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
-}, async (t) => {
-    await assertOfficeManagement(await createFixture(t, 'postgresql'));
+test('real PostgreSQL owner offices enforce receipt and cross-replica CAS', async () => {
+    await assertOfficeManagement(await createFixture('postgresql'));
 });
 
 async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<void> {
@@ -630,18 +623,12 @@ async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<v
     );
 }
 
-test('real PostgreSQL owner reads keep metadata and series in one snapshot', {
-    skip: !postgresIntegrationEnabled() &&
-        'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
-}, async (t) => {
-    await assertOwnerOfficeReadsUseOneSnapshot(await createFixture(t, 'postgresql'));
+test('real PostgreSQL owner reads keep metadata and series in one snapshot', async () => {
+    await assertOwnerOfficeReadsUseOneSnapshot(await createFixture('postgresql'));
 });
 
-test('real PostgreSQL owner lock keeps office-create receipts atomic', {
-    skip: !postgresIntegrationEnabled() &&
-        'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
-}, async (t) => {
-    const fixture = await createFixture(t, 'postgresql');
+test('real PostgreSQL owner lock keeps office-create receipts atomic', async () => {
+    const fixture = await createFixture('postgresql');
     const ownerId = 'postgresql-receipt-race-owner';
     const officeId = 'postgresql-receipt-race-office';
     const createInput = office(officeId, ownerId);

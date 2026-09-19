@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import type { TestContext } from 'node:test';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import {
     createPostgresTestHarness,
-    postgresIntegrationEnabled,
     type PostgresTestHarness
 } from '../integration/postgres-harness';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
@@ -22,14 +21,12 @@ const { migratePostgres } = require(
 
 const AGENCY_CATALOG_MIGRATION = '0027_fudaba_agency_catalog.sql';
 
-async function createLegacyHarness(
-    t: TestContext
-): Promise<PostgresTestHarness> {
+async function createLegacyHarness(): Promise<PostgresTestHarness> {
     const harness = await createPostgresTestHarness({
-        migrationsPath: await createMigrationCatalogBefore(t, AGENCY_CATALOG_MIGRATION),
+        migrationsPath: await createMigrationCatalogBefore(onTestFinished, AGENCY_CATALOG_MIGRATION),
         seedCanonicalAgencies: false
     });
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await seedCanonicalFudabaAgencies(harness.connection);
     await harness.connection.prepare(
         `INSERT INTO platform_accounts
@@ -53,10 +50,8 @@ async function createLegacyHarness(
     return harness;
 }
 
-test('PostgreSQL 0027 maps associated Fudaba series to canonical agencies', {
-    skip: !postgresIntegrationEnabled()
-}, async (t) => {
-    const harness = await createLegacyHarness(t);
+test('PostgreSQL 0027 maps associated Fudaba series to canonical agencies', async () => {
+    const harness = await createLegacyHarness();
     const mappings = [
         ['765as', '765'],
         ['cinderella', 'cg'],
@@ -141,10 +136,8 @@ test('PostgreSQL 0027 maps associated Fudaba series to canonical agencies', {
     ]);
 });
 
-test('PostgreSQL 0027 blocks associated valiv instead of mapping it to 876', {
-    skip: !postgresIntegrationEnabled()
-}, async (t) => {
-    const harness = await createLegacyHarness(t);
+test('PostgreSQL 0027 blocks associated valiv instead of mapping it to 876', async () => {
+    const harness = await createLegacyHarness();
     await harness.connection.prepare(
         `INSERT INTO fudaba_office_series_tags
             (office_id, series_code, display_order)

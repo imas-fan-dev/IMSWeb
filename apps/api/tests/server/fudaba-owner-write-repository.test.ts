@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import type { TestContext } from 'node:test';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import type {
@@ -13,10 +13,7 @@ import type {
     NewPlatformAccountInput,
     PlatformAccountStatus
 } from '@/ports/repositories';
-import {
-    createPostgresTestHarness,
-    postgresIntegrationEnabled
-} from '../integration/postgres-harness';
+import { createPostgresTestHarness } from '../integration/postgres-harness';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const CREATED_AT = '2026-08-02T03:00:00.000Z';
@@ -40,7 +37,6 @@ interface Fixture {
 }
 
 async function createFixture(
-    t: TestContext,
     dialect: Fixture['dialect']
 ): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
@@ -52,7 +48,7 @@ async function createFixture(
         harness.connection,
         initializedPostgresSchema
     );
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await Promise.all([platform.initialize(), fudaba.initialize()]);
     await seedCanonicalFudabaAgencies(harness.connection);
     return { database: harness.connection, platform, fudaba, dialect };
@@ -462,11 +458,8 @@ async function assertCrossInstanceCas(fixture: Fixture): Promise<void> {
     assert.equal(cardConflict.revision, 1);
 }
 
-test('real PostgreSQL enforces Stage 14 profile and card write fences', {
-    skip: !postgresIntegrationEnabled() &&
-        'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
-}, async (t) => {
-    const fixture = await createFixture(t, 'postgresql');
+test('real PostgreSQL enforces Stage 14 profile and card write fences', async () => {
+    const fixture = await createFixture('postgresql');
     await assertProfileWrites(fixture);
     await assertCardWrites(fixture);
     await assertCrossInstanceCas(fixture);

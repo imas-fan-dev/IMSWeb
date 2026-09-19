@@ -1,30 +1,36 @@
-"use strict";
+// This migration script is CommonJS and pulls in TypeScript modules with plain
+// CJS `require` calls; its production command runs under the tsx loader for
+// exactly that reason. Vitest hands an inlined CommonJS file's own `require`
+// calls to Node, and Node cannot load an ESM-format `.ts` file from this
+// `"type": "commonjs"` package, so the test registers the same tsx CommonJS
+// hook the script ships with. See verification.md, 批次 C.
+import 'tsx/cjs';
 
-const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const sharp = require("sharp");
-const {
-    writeRestrictedJsonFixture: writeJson,
-} = require("./json-fixture-file");
-const {
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import sharp from "sharp";
+import { onTestFinished, test } from "vitest";
+import {
+    writeRestrictedJsonFixture as writeJson,
+} from "./json-fixture-file";
+import {
     FUDABA_COMMIT,
     FUDABA_D1_DATABASE_ID,
     FUDABA_R2_BUCKET,
     SOURCE_TABLES,
     canonicalHash,
     sourceManifestKey,
-} = require("../../scripts/migration/fudaba-metadata");
-const {
+} from "../../scripts/migration/fudaba-metadata";
+import {
     FudabaMediaBlockedError,
     applyMissingTransfers,
     parseArguments,
     r2KeyFromLocator,
     runFudabaMediaMigration,
-} = require("../../scripts/migration/fudaba-media");
+} from "../../scripts/migration/fudaba-media";
 
 const SOURCE_SHA256 = "a".repeat(64);
 const SNAPSHOT_ID = "fixture-media-snapshot";
@@ -51,9 +57,9 @@ function descriptor(table, row, classification = "production-user-content") {
     };
 }
 
-async function createFixture(t) {
+async function createFixture() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "ims-fudaba-media-"));
-    t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+    onTestFinished(() => fs.rmSync(root, { force: true, recursive: true }));
     const snapshotDirectory = path.join(root, "snapshot");
     const sourceRoot = path.join(root, "r2-export");
     fs.mkdirSync(snapshotDirectory);
@@ -338,9 +344,9 @@ function applyConfirmations(report) {
     };
 }
 
-test("restricted JSON fixtures keep pretty output, final newline, and private mode", (t) => {
+test("restricted JSON fixtures keep pretty output, final newline, and private mode", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "ims-json-fixture-"));
-    t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+    onTestFinished(() => fs.rmSync(root, { force: true, recursive: true }));
     const filename = path.join(root, "fixture.json");
     writeJson(filename, { value: "exact" });
     assert.equal(fs.readFileSync(filename, "utf8"), '{\n  "value": "exact"\n}\n');
@@ -379,8 +385,8 @@ test("Fudaba R2 locators reject encoded, traversing, or ambiguous paths", () => 
         );
 });
 
-test("dry-run scaffolds v2 rights and performs no target writes", async (t) => {
-    const fixture = await createFixture(t);
+test("dry-run scaffolds v2 rights and performs no target writes", async () => {
+    const fixture = await createFixture();
     let targetResolutions = 0;
     const report = await runFudabaMediaMigration(migrationOptions(fixture), {
         snapshot: fixture.snapshot,
@@ -413,8 +419,8 @@ test("dry-run scaffolds v2 rights and performs no target writes", async (t) => {
     );
 });
 
-test("approved apply writes private-ready objects, reads back, and converges", async (t) => {
-    const fixture = await createFixture(t);
+test("approved apply writes private-ready objects, reads back, and converges", async () => {
+    const fixture = await createFixture();
     await runFudabaMediaMigration(migrationOptions(fixture), {
         snapshot: fixture.snapshot,
         targetBucket: "imsweb-media-test",
@@ -480,8 +486,8 @@ test("approved apply writes private-ready objects, reads back, and converges", a
     assert.equal(target.puts.length, 2);
 });
 
-test("apply confirmations fail before the target runtime is resolved", async (t) => {
-    const fixture = await createFixture(t);
+test("apply confirmations fail before the target runtime is resolved", async () => {
+    const fixture = await createFixture();
     await runFudabaMediaMigration(migrationOptions(fixture), {
         snapshot: fixture.snapshot,
         targetBucket: "imsweb-media-test",
@@ -504,8 +510,8 @@ test("apply confirmations fail before the target runtime is resolved", async (t)
     assert.equal(resolutions, 0);
 });
 
-test("a public or different existing target is a non-overwriting conflict", async (t) => {
-    const fixture = await createFixture(t);
+test("a public or different existing target is a non-overwriting conflict", async () => {
+    const fixture = await createFixture();
     await runFudabaMediaMigration(migrationOptions(fixture), {
         snapshot: fixture.snapshot,
         targetBucket: "imsweb-media-test",
@@ -652,8 +658,8 @@ test("media apply refuses storage adapters without CAS and fenced deletion", asy
     );
 });
 
-test("inventory bytes and rights bindings are immutable migration inputs", async (t) => {
-    const fixture = await createFixture(t);
+test("inventory bytes and rights bindings are immutable migration inputs", async () => {
+    const fixture = await createFixture();
     const first = await runFudabaMediaMigration(migrationOptions(fixture), {
         snapshot: fixture.snapshot,
         targetBucket: "imsweb-media-test",

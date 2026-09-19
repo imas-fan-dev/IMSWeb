@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import type { TestContext } from 'node:test';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
 import type {
@@ -107,13 +107,13 @@ function event(accountId: string, eventType: PlatformSecurityEventInput['eventTy
     });
 }
 
-async function createFixture(t: TestContext) {
+async function createFixture() {
     const harness = await createPostgresTestHarness();
     const platform = new SqlPlatformAccountRepository(
         harness.connection,
         initializedPostgresSchema
     );
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await platform.initialize();
     return {
         platform,
@@ -161,8 +161,8 @@ async function createFixture(t: TestContext) {
     };
 }
 
-test('admin list searches by id, email and display name and hides deleted accounts', async (t) => {
-    const fixture = await createFixture(t);
+test('admin list searches by id, email and display name and hides deleted accounts', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createEmailAccount(
         emailAccount('list-a', { displayName: 'Alpha Producer', email: 'alpha@ims.test' })
     );
@@ -244,8 +244,8 @@ test('admin list searches by id, email and display name and hides deleted accoun
     }
 });
 
-test('admin list counts only live refresh sessions and reports them without leaking hashes', async (t) => {
-    const fixture = await createFixture(t);
+test('admin list counts only live refresh sessions and reports them without leaking hashes', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createEmailAccount(emailAccount('sessions-a'));
     assert.equal(await fixture.createSession('sessions-a', 0, 'live-1'), true);
     assert.equal(await fixture.createSession('sessions-a', 0, 'live-2'), true);
@@ -261,8 +261,8 @@ test('admin list counts only live refresh sessions and reports them without leak
     assert.equal(record?.last_login_at, AT);
 });
 
-test('suspending bumps token_version, sweeps live sessions and is not affected by a lost race', async (t) => {
-    const fixture = await createFixture(t);
+test('suspending bumps token_version, sweeps live sessions and is not affected by a lost race', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createEmailAccount(emailAccount('suspend-a'));
     assert.equal(await fixture.createSession('suspend-a', 0, 'killed-1'), true);
 
@@ -307,8 +307,8 @@ test('suspending bumps token_version, sweeps live sessions and is not affected b
     assert.equal(await fixture.tokenVersion('suspend-a'), 1);
 });
 
-test('a stale status write reports a conflict and leaves sessions alone', async (t) => {
-    const fixture = await createFixture(t);
+test('a stale status write reports a conflict and leaves sessions alone', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createEmailAccount(emailAccount('stale-a'));
     assert.equal(await fixture.createSession('stale-a', 0, 'survivor'), true);
 
@@ -324,8 +324,8 @@ test('a stale status write reports a conflict and leaves sessions alone', async 
     assert.deepEqual(await fixture.activeSessions('stale-a'), ['survivor']);
 });
 
-test('activating a restricted account is unsupported and unknown ids are not-found', async (t) => {
-    const fixture = await createFixture(t);
+test('activating a restricted account is unsupported and unknown ids are not-found', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createEmailAccount({
         ...emailAccount('restricted-a'),
         status: 'restricted'
@@ -350,8 +350,8 @@ test('activating a restricted account is unsupported and unknown ids are not-fou
     assert.equal(missing.status, 'not-found');
 });
 
-test('force logout revokes every live session, bumps the version and is idempotent', async (t) => {
-    const fixture = await createFixture(t);
+test('force logout revokes every live session, bumps the version and is idempotent', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createEmailAccount(emailAccount('logout-a'));
     assert.equal(await fixture.createSession('logout-a', 0, 'one'), true);
     assert.equal(await fixture.createSession('logout-a', 0, 'two'), true);
@@ -382,8 +382,8 @@ test('force logout revokes every live session, bumps the version and is idempote
     assert.equal(missing.status, 'not-found');
 });
 
-test('the last-credential guard still refuses unlinking an OAuth-only account', async (t) => {
-    const fixture = await createFixture(t);
+test('the last-credential guard still refuses unlinking an OAuth-only account', async () => {
+    const fixture = await createFixture();
     await fixture.platform.createOAuthAccount(oauthAccount('oauth-only', 'github'));
 
     const refused = await fixture.platform.deleteOAuthIdentity({

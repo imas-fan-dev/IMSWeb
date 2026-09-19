@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
-import { test } from "node:test";
+import { onTestFinished, test } from "vitest";
 import {
     brotliCompressSync,
     brotliDecompressSync,
@@ -612,9 +612,9 @@ test("Node database accepts only a validated PostgreSQL configuration", () => {
     );
 });
 
-test("FilesystemObjectStorage maps canonical business keys to owned roots", async (t) => {
+test("FilesystemObjectStorage maps canonical business keys to owned roots", async () => {
     const root = await temporaryDirectory("ims-storage-roots-");
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
     const publicDir = path.join(root, "public");
     const storyDataDir = path.join(root, "story-data");
     const storage = new FilesystemObjectStorage(
@@ -685,9 +685,9 @@ test("FilesystemObjectStorage maps canonical business keys to owned roots", asyn
     );
 });
 
-test("NodeStaticAssets does not open a body for HEAD and opens only the requested byte range", async (t) => {
+test("NodeStaticAssets does not open a body for HEAD and opens only the requested byte range", async () => {
     const root = await temporaryDirectory("ims-static-range-");
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
     const filePath = path.join(root, "runninggame/Build/game.data");
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, Buffer.from("0123456789abcdef"));
@@ -770,9 +770,9 @@ test("NodeStaticAssets does not open a body for HEAD and opens only the requeste
     assert.equal(opened.length, 3);
 });
 
-test("NodeStaticAssets negotiates precompressed assets without exposing encoded files", async (t) => {
+test("NodeStaticAssets negotiates precompressed assets without exposing encoded files", async () => {
     const root = await temporaryDirectory("ims-static-compression-");
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
     const assetPath = path.join(root, "assets/app-abcdef12.js");
     const unhashedAssetPath = path.join(root, "assets/runtime.js");
     const htmlPath = path.join(root, "index.html");
@@ -873,9 +873,9 @@ test("NodeStaticAssets negotiates precompressed assets without exposing encoded 
     assert.equal(encodedPath.status, 404);
 });
 
-test("filesystem idempotency persists replay, rejects fingerprint reuse, and recovers failure", async (t) => {
+test("filesystem idempotency persists replay, rejects fingerprint reuse, and recovers failure", async () => {
     const root = await temporaryDirectory("ims-idempotency-");
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
     const first = new FilesystemIdempotencyStore(root);
     const firstClaim = await first.claim("scope", "key", "fingerprint");
     assert.deepEqual(firstClaim, {
@@ -915,9 +915,9 @@ test("filesystem idempotency persists replay, rejects fingerprint reuse, and rec
     });
 });
 
-test("filesystem compensation journal retries a failed idempotent delete to completion", async (t) => {
+test("filesystem compensation journal retries a failed idempotent delete to completion", async () => {
     const root = await temporaryDirectory("ims-compensation-");
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(root, { recursive: true, force: true }));
     let attempts = 0;
     const storage = {
         async delete() {

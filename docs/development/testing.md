@@ -28,23 +28,37 @@ Root、API 和 Web 的 package script 数量由 `tests/test_workspace_boundaries
 Root `test` 由同一个 runner 进程按顺序运行 `check:root`、governance、contracts、delivery 的
 root 与 integration profile、完整 API owner，最后是 Web unit。
 Delivery integration profile 成功构建 Web 和 API 后，该进程才会运行不再构建的 API 阶段，
-其中仍包含 syntax、architecture、Node、server、Wiki 和 migration。这样 API 测试不会接受
-另一次运行留下的 `dist/server/main.js`。CI API lane 直接运行完整 API owner；Web lane 使用
+该阶段包含 build、syntax、architecture 和一次覆盖整个 `apps/api/tests` 的 Vitest 全量运行；
+Node、server、Wiki、migration 与 assets 已并入这一次运行。这样 API 测试不会接受另一次
+运行留下的 `dist/server/main.js`。CI API lane 直接运行完整 API owner；Web lane 使用
 `ci` profile，在同一个 runner 进程内依次运行 Web `check`（包含 unit）和普通 Playwright。
 Integration job 没有跨 job artifact transfer，因此 `delivery integration` 始终保留自己的
 Web 与 API build。
+
+governance、contracts 和 delivery 的 Node 测试属于仓库域，仓库根不能声明 `vitest`，因此该域由
+`apps/api` 承载：
+
+```sh
+pnpm --filter @imsweb/api exec vitest run --root ../.. \
+  --config scripts/testing/vitest/vitest.repository.config.mts <files>
+```
+
+`--root` 相对该步的 cwd（`apps/api`）解析，`--config` 由 runner 传绝对路径
+（`scripts/testing/run-test-owner.mjs` 里的 `repositoryVitestConfig`），所以不受 cwd 影响。手工运行时
+如果给相对 `--config`，它相对 `--root` 而非 cwd 解析，容易踩空。
 
 ## 测试位置
 
 | 范围                        | 位置                                                                                | 主要工具                             |
 | --------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------ |
-| API Node、数据库、HTTP      | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Node test runner、TypeScript         |
-| Wiki contract 与数据        | `apps/api/tests/wiki/`                                                              | Node test runner、PostgreSQL fixture |
-| API migration 与资产        | `apps/api/tests/migration/`、`apps/api/tests/assets/`                               | Node test runner                     |
+| API Node、数据库、HTTP      | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Vitest、TypeScript                   |
+| Wiki contract 与数据        | `apps/api/tests/wiki/`                                                              | Vitest、PostgreSQL fixture           |
+| API migration 与资产        | `apps/api/tests/migration/`、`apps/api/tests/assets/`                               | Vitest                               |
 | Web 页面、组件和 API client | `apps/web/tests/unit/`                                                              | Vitest、Testing Library              |
 | Web 开发期 mock API         | `apps/web/mocks/`                                                                   | MSW                                  |
 | Web 浏览器流程              | `apps/web/tests/e2e/`                                                               | Playwright desktop/mobile            |
-| 仓库边界、部署和规则        | `tests/`                                                                            | Python `unittest`、Node test runner  |
+| 仓库契约与治理              | `tests/`、`scripts/**/tests/`                                                       | Vitest（由 `apps/api` 承载）         |
+| 仓库边界、部署和规则        | `tests/*.py`                                                                        | Python `unittest`                    |
 
 Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API 测试应靠近受测 workspace，
 但不可把生产实现复制进测试目录。Web 浏览器用例在 CI 预算、瞬时浮层与点击后状态断言上的
@@ -120,10 +134,11 @@ pnpm --filter @imsweb/web run test:e2e
 | `pnpm --filter @imsweb/web run test:unit routes.test.ts` | 类型化 Web 路由清单长度与 prerender 数量 |
 
 这三个测试把仓库级计数写成期望值；新增路由、迁移或页面时必须同步更新，否则提交会在
-pre-commit 阶段被拒绝，而不是等到 CI 或部署。三个守护合计约 10s，相对 `check:pre-commit`
-约 170s 的总时长可以忽略。
+pre-commit 阶段被拒绝，而不是等到 CI 或部署。三个守护实测合计约 16s（contracts 11s、
+API migration 4s、Web routes 1s，均已从 Node test runner 换成 Vitest），相对 `check:pre-commit`
+约 165s 的总时长可以忽略。
 
-`check:pre-commit` 有意不覆盖 governance owner（约 139s）、API/Web owner 的完整套件和浏览器
+`check:pre-commit` 有意不覆盖 governance owner（实测约 144s，主要耗时在 9 个 Python unittest 文件）、API/Web owner 的完整套件和浏览器
 lane；这些仍只由 CI 运行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前如需完全对齐应运行
 `pnpm run test:infra`。
 
@@ -136,6 +151,46 @@ Google Chrome apt source；Playwright 使用自己的固定浏览器版本，不
 
 命令名称以当前 package scripts 为准；添加或删除 script 时同步更新 workspace README 和
 边界测试，不为同一动作创建重复的根转发别名。
+
+## 报告与覆盖率
+
+三个执行域都写 JUnit XML，只有拥有产品源码的 API 与 Web 域设覆盖率门禁。报表由配置产出，不由
+owner plan 传 flag：CI 用写 JUnit 的同一次运行产出覆盖率，`run-test-owner.mjs` 的 plan 形状与断言
+不因此改变。
+
+| 域 | JUnit | 覆盖率 |
+| --- | --- | --- |
+| API | `apps/api/reports/junit-api.xml` | `apps/api/coverage/`，`include: ['src/**']`，阈值 lines 79 / branches 66 / functions 84 / statements 76 |
+| Web | `apps/web/reports/junit-web.xml` | `apps/web/coverage/`，`include: ['app/**']`，阈值 lines 73 / branches 67 / functions 67 / statements 70 |
+| 仓库契约与治理 | 仓库根 `reports/junit-repository.xml` | 不采集，理由见下 |
+
+仓库契约与治理域不采集覆盖率：该 lane 是三次独立调用共用一份配置与同一个 `scripts/**` 分母，最小那次
+只覆盖 1.36% 的行，任何大于 1 的阈值都拦不住回归，却要为 CPU 密集的 contracts 固定付出约 40s。
+
+覆盖率只在「这一次运行覆盖了整个域」时开启：配置读 `IMS_TEST_COVERAGE_ENABLED === 'true'`，只有
+ci.yml 里两个域级步骤设置它（Web lane 的 `test -- ci`、API lane 的 `run test`）。这样过滤运行——App lane
+只跑一个 Web 测试文件、integration lane 只跑 `test:assets`——不会被域级阈值压死：阈值是按域级运行实测
+出来的，部分运行本来就达不到。
+
+本地采集覆盖率：
+
+```sh
+pnpm --filter @imsweb/api exec vitest run --coverage
+```
+
+不要写成 `pnpm --filter @imsweb/api run test -- --coverage`：`pnpm run` 会把 `--` 原样透传，
+`--coverage` 因此变成文件过滤参数，覆盖率不采集也不报错。命令行 `--coverage` 压过配置里的开关。
+
+阈值是 CI 里的硬门禁：低于阈值即退出码非零。两域阈值都取迁移后实测基线的下取整，只允许单调上调，
+上调时把实测值与口径写进提交信息。
+
+CI 每个 lane 上传自己的 artifact（`if: always()`，名称 `<domain>-reports-<run_id>-<run_attempt>`，
+保留 7 天）：API 与 Web lane 上传 JUnit 与 `coverage/`，repository lane 只上传 JUnit，浏览器失败证据
+另有自己的上传步骤。报表消费走 artifact，不引入第三方 JUnit 注解 action。
+
+同一域的两次 Vitest 运行不要并发：它们共用 `coverage.reportsDirectory` 与同一个 JUnit 输出文件，会
+互相删掉临时文件并让其中一次失败（报错形如 `Something removed the coverage directory …`）。owner plan
+内部是顺序执行；确实要并发时换域或先清空该域的 `coverage/`。
 
 ## 测试命名与证据
 

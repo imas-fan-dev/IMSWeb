@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readContractJson as contractJson } from '../contracts/contract-json';
-import { afterEach, test } from 'node:test';
+import { afterEach, test } from 'vitest';
 import {
     liveScheduleErrorResponseSchema,
     liveScheduleListSchema

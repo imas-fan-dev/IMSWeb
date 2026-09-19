@@ -1,11 +1,9 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import {
     parseSingleBucketConsolidationArguments,
     targetPlacement
-} = require('../../scripts/migration/single-bucket-consolidation.ts');
+} from '../../scripts/migration/single-bucket-consolidation.ts';
 
 const environment = {
     IMS_OBJECT_STORAGE: 's3',

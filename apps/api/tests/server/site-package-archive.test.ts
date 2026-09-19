@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
-import test from 'node:test';
+import { test } from 'vitest';
 import { ZipFile } from 'yazl';
 import {
     parseSitePackageArchive,

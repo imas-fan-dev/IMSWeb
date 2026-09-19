@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { createHonoApp } from '@/app';
 
 test('CORS allows loopback development origins', async () => {

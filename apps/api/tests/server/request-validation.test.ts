@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { legacyPassthroughRequestObject, legacyStripRequestObject, strictRequestObject } from '@imsweb/contracts/common';
 import { z } from '@imsweb/contracts/z';
 import { Hono } from 'hono';

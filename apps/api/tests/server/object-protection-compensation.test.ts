@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import type { ObjectStorage } from "@/ports/object-storage";
 import type { RuntimeServices } from "@/ports/runtime-services";
 import { protectObjectWithCompensation } from "@/utils/storage/delete-object";

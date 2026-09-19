@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { toEditorialEventResponse } from '@/domains/content/events/response';
 
 test('editorial event responses serialize PostgreSQL timestamps', () => {

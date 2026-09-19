@@ -85,6 +85,16 @@ jobs:
       - name: Test repository delivery contracts
         run: node scripts/testing/run-test-owner.mjs delivery repository
 
+      - name: Upload repository reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: repository-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/junit-repository.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
   app:
     name: Validate App
     needs: changes
@@ -173,6 +183,22 @@ jobs:
 
       - name: Test Web owner
         run: pnpm --filter @imsweb/web run test -- ci
+        env:
+          # The `ci` profile runs `check`, which ends in the full unit suite, so
+          # this is the one step that may measure coverage against the Web
+          # thresholds.
+          IMS_TEST_COVERAGE_ENABLED: "true"
+
+      - name: Upload Web reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: web-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/web/reports/junit-web.xml
+            apps/web/coverage
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload Web browser failure evidence
         if: failure()
@@ -227,6 +253,22 @@ jobs:
 
       - name: Test API owner
         run: pnpm --filter @imsweb/api run test
+        env:
+          # This step runs the whole API test tree, which is what the API
+          # thresholds were measured against. Filtered runs (the integration
+          # lane's `test:assets`) must not be gated by them.
+          IMS_TEST_COVERAGE_ENABLED: "true"
+
+      - name: Upload API reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: api-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/api/reports/junit-api.xml
+            apps/api/coverage
+          if-no-files-found: ignore
+          retention-days: 7
 
   integration:
     name: Validate Web and API integration

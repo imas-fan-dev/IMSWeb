@@ -1,6 +1,5 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
-import type { TestContext } from 'node:test';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
@@ -15,7 +14,7 @@ import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixtur
 import {
     connectPostgresTestDatabase,
     createPostgresTestDatabase
-} from './postgres-test-database';
+} from '../postgres-test-database';
 
 const CREATED_AT = '2026-08-16T19:30:00.000Z';
 const REVIEWED_AT = '2026-08-16T20:00:00.000Z';
@@ -180,9 +179,9 @@ async function insertBackofficeActor(
     return row.id;
 }
 
-async function fixture(t: TestContext) {
-    const database = await createPostgresTestDatabase(t, 'fudaba-claim-review');
-    const siblingDatabase = connectPostgresTestDatabase(t, database);
+async function fixture() {
+    const database = await createPostgresTestDatabase('fudaba-claim-review');
+    const siblingDatabase = connectPostgresTestDatabase(database);
     // The namecard_legacy_tables_read_only migration locks cards down for
     // the application; this suite's fixtures simulate pre-existing legacy
     // data directly in cards, so they bypass that guard the same way real
@@ -201,8 +200,8 @@ async function fixture(t: TestContext) {
     return { database, platform, fudaba, sibling };
 }
 
-test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows', async (t) => {
-    const { database, platform, fudaba, sibling } = await fixture(t);
+test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows', async () => {
+    const { database, platform, fudaba, sibling } = await fixture();
     const ownerA = 'claim-owner-a';
     const ownerB = 'claim-owner-b';
     const ownerC = 'claim-owner-c';

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { ConfiguredPlatformEmailService } from '@/infra/email/smtp/platform-email-service';
 import type {
     PlatformEmailConfigurationRecord,

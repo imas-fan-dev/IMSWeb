@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { onTestFinished, test } from 'vitest';
 import {
     healthLiveResponseSchema,
     healthReadySuccessResponseSchema,
@@ -7,7 +7,7 @@ import {
 } from '@imsweb/contracts/system';
 import { createHonoApp } from '@/app';
 
-test('request IDs, health probes, and structured request logs stay correlated', async (t) => {
+test('request IDs, health probes, and structured request logs stay correlated', async () => {
     const info: string[] = [];
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -17,7 +17,7 @@ test('request IDs, health probes, and structured request logs stay correlated', 
     console.info = (message?: unknown) => info.push(String(message));
     console.error = (message?: unknown) => errors.push(String(message));
     console.warn = (message?: unknown) => warnings.push(String(message));
-    t.after(() => {
+    onTestFinished(() => {
         console.info = originalInfo;
         console.error = originalError;
         console.warn = originalWarn;

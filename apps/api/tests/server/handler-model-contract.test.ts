@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 
 const domainRoot = path.resolve(__dirname, '../../src/domains');
 const routeMethods = new Set(['all', 'delete', 'get', 'on', 'options', 'patch', 'post', 'put']);

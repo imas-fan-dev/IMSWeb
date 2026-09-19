@@ -1,7 +1,7 @@
 import { reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { Hono } from 'hono';
 import type { AppEnvironment } from '@/app';
 import {

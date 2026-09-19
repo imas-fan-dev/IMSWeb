@@ -1,9 +1,9 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { queryOne } from '@/infra/db/sql/query';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 function signal(): { promise: Promise<void>; resolve: () => void } {
     let resolve!: () => void;
@@ -13,8 +13,8 @@ function signal(): { promise: Promise<void>; resolve: () => void } {
     };
 }
 
-test('object deletion lease fences stale worker failure after takeover', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'object-deletion-fence');
+test('object deletion lease fences stale worker failure after takeover', async () => {
+    const database = await createPostgresTestDatabase('object-deletion-fence');
     let now = 1_000;
     const firstReached = signal();
     const releaseFirst = signal();

@@ -1,10 +1,8 @@
-import { after, test as nodeTest } from 'node:test';
 import {
     PostgresConnection,
     type PostgresConnectionOptions
 } from '@/infra/db/postgresql/connection';
 import {
-    closeSharedPostgresTestAllocator,
     connectionOptions,
     getSharedPostgresTestAllocator,
     postgresIntegrationEnabled as lifecycleEnabled,
@@ -35,10 +33,6 @@ export function postgresIntegrationEnabled(): boolean {
     return lifecycleEnabled();
 }
 
-export const postgresTest: typeof nodeTest = (
-    postgresIntegrationEnabled() ? nodeTest : nodeTest.skip
-) as typeof nodeTest;
-
 function createConnection(database: PostgresTestDatabase): PostgresConnection {
     const options = connectionOptions(
         database.databaseUrl
@@ -61,6 +55,13 @@ async function closeAfterFailure(
     throw error;
 }
 
+/**
+ * Explicit-close adapter: the caller owns the lifecycle and must call
+ * `close()`. It stays runner-neutral by registering no cleanup hook of its own,
+ * so a file that uses it without importing the Vitest adapter must register
+ * `afterAll(closeSharedPostgresTestAllocator)` itself or it leaks a test
+ * database.
+ */
 export async function createPostgresTestHarness(
     options: PostgresTestHarnessOptions = {}
 ): Promise<PostgresTestHarness> {
@@ -91,7 +92,5 @@ export async function createPostgresTestHarness(
         close: () => database.close()
     };
 }
-
-after(() => closeSharedPostgresTestAllocator());
 
 export { postgresIntegrationSkipReason };

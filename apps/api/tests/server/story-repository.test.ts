@@ -1,12 +1,13 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
+import { onTestFinished } from 'vitest';
 import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { executeSql, queryOne } from '@/infra/db/sql/query';
 import {
     connectPostgresTestDatabase,
     createPostgresTestDatabase
-} from './postgres-test-database';
+} from '../postgres-test-database';
 
 const DEFAULT_IMAGE_TRANSFORM = {
     fit: 'cover' as const,
@@ -21,10 +22,10 @@ const DEFAULT_STORY_SOURCE = {
     sourcePlatformId: 2
 };
 
-test('PostgreSQL story lookup selects the requested row within its agency and idol', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'story-lookup');
+test('PostgreSQL story lookup selects the requested row within its agency and idol', async () => {
+    const database = await createPostgresTestDatabase('story-lookup');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     await executeSql(database,
         'INSERT INTO agencies (id, code, name_cn, color) VALUES (?, ?, ?, ?)',
@@ -178,10 +179,10 @@ test('PostgreSQL story lookup selects the requested row within its agency and id
     );
 });
 
-test('PostgreSQL catalog CRUD supports dynamic agencies and multi-group idols', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'catalog');
+test('PostgreSQL catalog CRUD supports dynamic agencies and multi-group idols', async () => {
+    const database = await createPostgresTestDatabase('catalog');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
 
     const agency = await repository.createWikiAgency({
@@ -394,10 +395,10 @@ test('PostgreSQL catalog CRUD supports dynamic agencies and multi-group idols', 
     );
 });
 
-test('PostgreSQL group deletion preserves idols and their normalized stories', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'group-delete');
+test('PostgreSQL group deletion preserves idols and their normalized stories', async () => {
+    const database = await createPostgresTestDatabase('group-delete');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -464,10 +465,10 @@ test('PostgreSQL group deletion preserves idols and their normalized stories', a
     );
 });
 
-test('PostgreSQL normalized stories keep one card and one link per source row', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'normalized-story');
+test('PostgreSQL normalized stories keep one card and one link per source row', async () => {
+    const database = await createPostgresTestDatabase('normalized-story');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -588,7 +589,7 @@ test('PostgreSQL normalized stories keep one card and one link per source row', 
         0
     );
 
-    const concurrentDatabase = connectPostgresTestDatabase(t, database);
+    const concurrentDatabase = connectPostgresTestDatabase(database);
     const concurrentRepository = new SqlStoryRepository(
         concurrentDatabase,
         new PostgresqlSchemaStrategy()
@@ -642,10 +643,10 @@ test('PostgreSQL normalized stories keep one card and one link per source row', 
     );
 });
 
-test('PostgreSQL card source append requires the exact card and current media revision', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'card-source');
+test('PostgreSQL card source append requires the exact card and current media revision', async () => {
+    const database = await createPostgresTestDatabase('card-source');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -711,10 +712,10 @@ test('PostgreSQL card source append requires the exact card and current media re
     ))?.count, 1);
 });
 
-test('PostgreSQL idol deletion preserves rows while hiding the idol and its stories', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'idol-delete');
+test('PostgreSQL idol deletion preserves rows while hiding the idol and its stories', async () => {
+    const database = await createPostgresTestDatabase('idol-delete');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'soft-delete', name: '软删除企划', color: '#123456',
@@ -802,10 +803,10 @@ test('PostgreSQL idol deletion preserves rows while hiding the idol and its stor
     }), null);
 });
 
-test('PostgreSQL category rename is scoped by idol assignment and preserves storage slug', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'category-rename');
+test('PostgreSQL category rename is scoped by idol assignment and preserves storage slug', async () => {
+    const database = await createPostgresTestDatabase('category-rename');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -873,10 +874,10 @@ test('PostgreSQL category rename is scoped by idol assignment and preserves stor
     }), null);
 });
 
-test('PostgreSQL card edit updates shared card metadata without modifying source links', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'card-edit');
+test('PostgreSQL card edit updates shared card metadata without modifying source links', async () => {
+    const database = await createPostgresTestDatabase('card-edit');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -963,10 +964,10 @@ test('PostgreSQL card edit updates shared card metadata without modifying source
     ), null);
 });
 
-test('PostgreSQL story cover assets are agency scoped, versioned, and protected in use', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'cover-assets');
+test('PostgreSQL story cover assets are agency scoped, versioned, and protected in use', async () => {
+    const database = await createPostgresTestDatabase('cover-assets');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'shared', name: '共享素材企划', color: '#123456',
@@ -1058,10 +1059,10 @@ test('PostgreSQL story cover assets are agency scoped, versioned, and protected 
     });
 });
 
-test('PostgreSQL whole-card and category deletion reject stale revisions', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'wiki-delete-cas');
+test('PostgreSQL whole-card and category deletion reject stale revisions', async () => {
+    const database = await createPostgresTestDatabase('wiki-delete-cas');
     const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
-    t.after(() => repository.close());
+    onTestFinished(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'cas', name: 'CAS 企划', color: '#123456',

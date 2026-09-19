@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import test from "node:test";
+import { onTestFinished, test } from "vitest";
 import type {
     CompensationService,
     ObjectCleanupRunner,
@@ -23,7 +23,7 @@ function signal(): { promise: Promise<void>; resolve: () => void } {
     };
 }
 
-test("object cleanup runner stops scheduling and closes only after the active cycle is idle", async (t) => {
+test("object cleanup runner stops scheduling and closes only after the active cycle is idle", async () => {
     const started = signal();
     const release = signal();
     const calls: string[] = [];
@@ -60,7 +60,7 @@ test("object cleanup runner stops scheduling and closes only after the active cy
             },
         },
     );
-    t.after(() => runner.close());
+    onTestFinished(() => runner.close());
 
     runner.start();
     await started.promise;

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished } from 'vitest';
+import { postgresTest as test } from '../postgres-test-database';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createPostgresTestHarness } from '../integration/postgres-harness';
 import { createMigrationCatalogBefore } from '../integration/migration-catalog';
@@ -16,14 +17,14 @@ const { migratePostgres } = require('../../scripts/migration/postgres-migrations
 const RECONCILIATION_MIGRATION =
     '20260821000000_namecard_reaction_reconciliation.sql';
 
-test('namecard reaction reconciliation resyncs namecard_reactions from card_emojis drift', async (t) => {
-    const previousCatalog = await createMigrationCatalogBefore(t, RECONCILIATION_MIGRATION);
+test('namecard reaction reconciliation resyncs namecard_reactions from card_emojis drift', async () => {
+    const previousCatalog = await createMigrationCatalogBefore(onTestFinished, RECONCILIATION_MIGRATION);
 
     const harness = await createPostgresTestHarness({
         migrationsPath: previousCatalog,
         seedCanonicalAgencies: false
     });
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     await seedCanonicalFudabaAgencies(harness.connection);
 
     // A legacy card whose unified row was already backfilled by the

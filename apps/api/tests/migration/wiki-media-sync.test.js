@@ -1,8 +1,6 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import {
     assignedJson,
     buildIdolIndex,
     canonicalAssetUrl,
@@ -12,7 +10,7 @@ const {
     parseArguments,
     runWikiMediaSync,
     safeObjectKey
-} = require('../../scripts/migration/wiki-media-sync');
+} from '../../scripts/migration/wiki-media-sync';
 
 const origin = 'https://idol-master.top';
 const idolIndex = buildIdolIndex([{

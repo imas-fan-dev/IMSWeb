@@ -1,7 +1,7 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
+import { onTestFinished } from 'vitest';
 import { readContractJson as contractJson } from '../contracts/contract-json';
-import type { TestContext } from 'node:test';
 import {
     adminRecommendationListSchema,
     newsErrorResponseSchema,
@@ -17,7 +17,7 @@ import {
     decodeDescendingIdCursor,
     encodeDescendingIdCursor
 } from '@/utils/validation/descending-id-cursor';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 interface CursorNewsPage {
     items: Recommendation[];
@@ -33,8 +33,8 @@ interface NewsFixture {
     insert(title: string): Promise<number>;
 }
 
-async function createFixture(t: TestContext, count: number): Promise<NewsFixture> {
-    const connection = await createPostgresTestDatabase(t, 'news-pagination');
+async function createFixture(count: number): Promise<NewsFixture> {
+    const connection = await createPostgresTestDatabase('news-pagination');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const repository = new SqlNewsRepository(connection);
     for (let id = 1; id <= count; id += 1) {
@@ -48,7 +48,7 @@ async function createFixture(t: TestContext, count: number): Promise<NewsFixture
         });
     }
     const app = createHonoApp(() => ({ news: repository }));
-    t.after(() => connection.close());
+    onTestFinished(() => connection.close());
     return {
         request(pathname) {
             return Promise.resolve(app.request(`http://ims.test${pathname}`));
@@ -66,8 +66,8 @@ async function createFixture(t: TestContext, count: number): Promise<NewsFixture
     };
 }
 
-test('news keeps its legacy array response when pagination is not requested', async (t) => {
-    const fixture = await createFixture(t, 3);
+test('news keeps its legacy array response when pagination is not requested', async () => {
+    const fixture = await createFixture(3);
     const response = await fixture.request('/api/news');
 
     assert.equal(response.status, 200);
@@ -76,8 +76,8 @@ test('news keeps its legacy array response when pagination is not requested', as
     assert.deepEqual(body.map((item) => item.id), [3, 2, 1]);
 });
 
-test('news cursor pagination holds an id snapshot while rows are inserted', async (t) => {
-    const fixture = await createFixture(t, 5);
+test('news cursor pagination holds an id snapshot while rows are inserted', async () => {
+    const fixture = await createFixture(5);
 
     const first = await fixture.request('/api/news?limit=2');
     assert.equal(first.status, 200);
@@ -118,8 +118,8 @@ test('news cursor pagination holds an id snapshot while rows are inserted', asyn
     assert.equal(refreshedBody.pageInfo.snapshotAt, '6');
 });
 
-test('news cursor pagination validates limits, cursors, and empty snapshots', async (t) => {
-    const fixture = await createFixture(t, 0);
+test('news cursor pagination validates limits, cursors, and empty snapshots', async () => {
+    const fixture = await createFixture(0);
     const empty = await fixture.request('/api/news?limit=20');
     assert.equal(empty.status, 200);
     assert.deepEqual(await contractJson(empty, recommendationResponseSchema), {
@@ -148,8 +148,8 @@ test('news cursor pagination validates limits, cursors, and empty snapshots', as
     });
 });
 
-test('news list responses preserve a title with legacy leading or trailing whitespace verbatim', async (t) => {
-    const fixture = await createFixture(t, 0);
+test('news list responses preserve a title with legacy leading or trailing whitespace verbatim', async () => {
+    const fixture = await createFixture(0);
     const legacyTitle = '\u3010Legacy News\u3011\r\nLine one\r\n';
     await fixture.insert(legacyTitle);
 

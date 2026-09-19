@@ -1,14 +1,12 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const test = require('node:test');
-const { writeRestrictedJsonFixture: writeJson } = require('./json-fixture-file');
-const { Pool } = require('pg');
-const sqlite3 = require('sqlite3').verbose();
-const {
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { Pool } from 'pg';
+import sqlite3Module from 'sqlite3';
+import { afterAll, onTestFinished, test } from 'vitest';
+import { writeRestrictedJsonFixture as writeJson } from './json-fixture-file';
+import {
     FUDABA_COMMIT,
     FUDABA_MIGRATIONS,
     SERIES_MAPPINGS,
@@ -21,14 +19,25 @@ const {
     reconcileSnapshot,
     sha256,
     sha256File
-} = require('../../scripts/migration/fudaba-metadata');
-const {
+} from '../../scripts/migration/fudaba-metadata';
+import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
-} = require('../integration/postgres-harness.ts');
-const {
+} from '../integration/postgres-harness.ts';
+import {
+    closeSharedPostgresTestAllocator,
     makePostgresTestConnectionCloseIdempotent
-} = require('../postgres-test-lifecycle.js');
+} from '../postgres-test-lifecycle.js';
+
+// sqlite3.verbose() returns the module itself after extending the statement
+// prototypes with traced wrappers, so the binding keeps the shape the old
+// CommonJS loader produced.
+const sqlite3 = sqlite3Module.verbose();
+
+// The shared test allocator used to be closed by a module-level hook inside the
+// harness module. The harness is runner-neutral now, so this file owns its own
+// process-end cleanup.
+afterAll(() => closeSharedPostgresTestAllocator());
 
 const SOURCE_SCHEMA = `
 PRAGMA foreign_keys = ON;
@@ -340,9 +349,9 @@ async function seedMediaControlPlane(pool, directory) {
     return entries;
 }
 
-async function createSourceFixture(t, options = {}) {
+async function createSourceFixture(options = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-fudaba-metadata-'));
-    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    onTestFinished(() => fs.rmSync(root, { recursive: true, force: true }));
     const source = path.join(root, 'source.sqlite');
     const database = open(source);
     await exec(database, SOURCE_SCHEMA);
@@ -424,8 +433,8 @@ async function createSourceFixture(t, options = {}) {
     return { root, source };
 }
 
-async function createApprovedSnapshot(t, options = {}) {
-    const fixture = await createSourceFixture(t, options);
+async function createApprovedSnapshot(options = {}) {
+    const fixture = await createSourceFixture(options);
     const sourceHashBefore = sha256(fs.readFileSync(fixture.source));
     const result = await extractSnapshot({
         source: fixture.source,
@@ -608,8 +617,8 @@ test('timestamp and series conversion accept only the locked source contract', (
     assert.throws(() => parseTimestamp('now', 'created_at'), /ISO\/SQLite/);
 });
 
-test('extract creates an immutable, classified snapshot without leaking security rows', async (t) => {
-    const fixture = await createSourceFixture(t);
+test('extract creates an immutable, classified snapshot without leaking security rows', async () => {
+    const fixture = await createSourceFixture();
     const sourceHash = sha256(fs.readFileSync(fixture.source));
     await assert.rejects(() => extractSnapshot({
         source: fixture.source,
@@ -669,8 +678,8 @@ test('extract creates an immutable, classified snapshot without leaking security
     ]) assert.equal(auditText.includes(secret), false, secret);
 });
 
-test('planning preserves count provenance and excludes ephemeral auth state', async (t) => {
-    const snapshot = await createApprovedSnapshot(t);
+test('planning preserves count provenance and excludes ephemeral auth state', async () => {
+    const snapshot = await createApprovedSnapshot();
     const plan = await buildImportPlan(snapshot.directory);
     assert.deepEqual(plan.summary, { included: 20, excluded: 2, failed: 0 });
     assert.deepEqual(plan.sourceTables.sessions, {
@@ -702,8 +711,8 @@ test('planning preserves count provenance and excludes ephemeral auth state', as
     }
 });
 
-test('planning handles source-null update times and empty optional avatars exactly', async (t) => {
-    const snapshot = await createApprovedSnapshot(t, {
+test('planning handles source-null update times and empty optional avatars exactly', async () => {
+    const snapshot = await createApprovedSnapshot({
         snapshotId: 'nullable-source-fields',
         emptyAvatar: true,
         nullOfficeUpdatedAt: true
@@ -717,9 +726,9 @@ test('planning handles source-null update times and empty optional avatars exact
     assert.equal(office.row.updated_at, office.row.created_at);
 });
 
-test('planning consumes explicitly retained external avatars and denied optional covers', async (t) => {
+test('planning consumes explicitly retained external avatars and denied optional covers', async () => {
     const externalAvatar = 'https://images.example/alice-retained.png';
-    const snapshot = await createApprovedSnapshot(t, {
+    const snapshot = await createApprovedSnapshot({
         snapshotId: 'optional-media-dispositions',
         externalAvatar,
         omitOfficeCover: true
@@ -734,8 +743,8 @@ test('planning consumes explicitly retained external avatars and denied optional
     assert.equal(office.row.cover_object_key, null);
 });
 
-test('planning rejects public media and a manifest detached from its media plan', async (t) => {
-    const publicSnapshot = await createApprovedSnapshot(t, {
+test('planning rejects public media and a manifest detached from its media plan', async () => {
+    const publicSnapshot = await createApprovedSnapshot({
         snapshotId: 'public-media-rejected'
     });
     const publicFile = path.join(publicSnapshot.directory, 'media-manifest.json');
@@ -750,7 +759,7 @@ test('planning rejects public media and a manifest detached from its media plan'
     assert.equal(publicPlan.blockers.some(({ reason }) =>
         reason.includes('Media is not verified ready')), true);
 
-    const detachedSnapshot = await createApprovedSnapshot(t, {
+    const detachedSnapshot = await createApprovedSnapshot({
         snapshotId: 'detached-media-plan'
     });
     const detachedFile = path.join(detachedSnapshot.directory, 'media-manifest.json');
@@ -763,8 +772,8 @@ test('planning rejects public media and a manifest detached from its media plan'
     );
 });
 
-test('planning recomputes every media-plan binding after a plan reseal', async (t) => {
-    const snapshot = await createApprovedSnapshot(t, {
+test('planning recomputes every media-plan binding after a plan reseal', async () => {
+    const snapshot = await createApprovedSnapshot({
         snapshotId: 'recomputed-media-binding'
     });
     const planFile = path.join(snapshot.directory, 'media-plan.json');
@@ -784,8 +793,8 @@ test('planning recomputes every media-plan binding after a plan reseal', async (
     );
 });
 
-test('extract rejects schema drift and classification keys absent from the source', async (t) => {
-    const schemaDrift = await createSourceFixture(t);
+test('extract rejects schema drift and classification keys absent from the source', async () => {
+    const schemaDrift = await createSourceFixture();
     const database = open(schemaDrift.source);
     await exec(database, 'CREATE TABLE unexpected_application_table (id TEXT)');
     await close(database);
@@ -800,7 +809,7 @@ test('extract rejects schema drift and classification keys absent from the sourc
         fudabaCommit: FUDABA_COMMIT
     }), /Unexpected Fudaba source table/);
 
-    const classificationDrift = await createSourceFixture(t);
+    const classificationDrift = await createSourceFixture();
     await assert.rejects(() => extractSnapshot({
         source: classificationDrift.source,
         snapshotId: 'classification-drift',
@@ -818,11 +827,11 @@ test('extract rejects schema drift and classification keys absent from the sourc
     }), /do not match source rows/);
 });
 
-test('extract rejects migration-ledger, index and trigger provenance drift', async (t) => {
+test('extract rejects migration-ledger, index and trigger provenance drift', async () => {
     const fixtures = await Promise.all([
-        createSourceFixture(t),
-        createSourceFixture(t),
-        createSourceFixture(t)
+        createSourceFixture(),
+        createSourceFixture(),
+        createSourceFixture()
     ]);
     const mutations = [
         "UPDATE d1_migrations SET name = '0001_rewritten.sql' WHERE id = 1",
@@ -848,11 +857,11 @@ test('extract rejects migration-ledger, index and trigger provenance drift', asy
     }
 });
 
-test('extract rejects full table, trigger and ledger DDL rewrites', async (t) => {
+test('extract rejects full table, trigger and ledger DDL rewrites', async () => {
     const fixtures = await Promise.all([
-        createSourceFixture(t),
-        createSourceFixture(t),
-        createSourceFixture(t)
+        createSourceFixture(),
+        createSourceFixture(),
+        createSourceFixture()
     ]);
     const mutations = [
         `
@@ -920,8 +929,8 @@ test('extract rejects full table, trigger and ledger DDL rewrites', async (t) =>
     }
 });
 
-test('apply confirmation seals source.json independently from the source export', async (t) => {
-    const snapshot = await createApprovedSnapshot(t, { snapshotId: 'source-manifest-seal' });
+test('apply confirmation seals source.json independently from the source export', async () => {
+    const snapshot = await createApprovedSnapshot({ snapshotId: 'source-manifest-seal' });
     const confirmations = snapshotConfirmations(snapshot.directory);
     const sourceFile = path.join(snapshot.directory, 'source.json');
     const source = readJson(sourceFile);
@@ -936,8 +945,8 @@ test('apply confirmation seals source.json independently from the source export'
     }), /confirm-source-manifest-sha256/);
 });
 
-test('planning rejects tampered operational-row provenance', async (t) => {
-    const snapshot = await createApprovedSnapshot(t, {
+test('planning rejects tampered operational-row provenance', async () => {
+    const snapshot = await createApprovedSnapshot({
         snapshotId: 'operational-count-provenance'
     });
     const sourceFile = path.join(snapshot.directory, 'source.json');
@@ -950,8 +959,8 @@ test('planning rejects tampered operational-row provenance', async (t) => {
     );
 });
 
-test('planning rejects values that only PostgreSQL would otherwise catch', async (t) => {
-    const invalidLocation = await createApprovedSnapshot(t, {
+test('planning rejects values that only PostgreSQL would otherwise catch', async () => {
+    const invalidLocation = await createApprovedSnapshot({
         snapshotId: 'invalid-location',
         invalidLatitude: true
     });
@@ -960,7 +969,7 @@ test('planning rejects values that only PostgreSQL would otherwise catch', async
     assert.equal(locationPlan.blockers.find(({ sourceTable }) =>
         sourceTable === 'offices').reasonCode, 'source-row-invalid');
 
-    const duplicateProvider = await createApprovedSnapshot(t, {
+    const duplicateProvider = await createApprovedSnapshot({
         snapshotId: 'duplicate-provider',
         duplicateProviderForAccount: true
     });
@@ -968,7 +977,7 @@ test('planning rejects values that only PostgreSQL would otherwise catch', async
     assert.equal(providerPlan.blockers.some(({ sourceTable, reason }) =>
         sourceTable === 'oauth_accounts' && reason.includes('provider')), true);
 
-    const invalidExchange = await createApprovedSnapshot(t, {
+    const invalidExchange = await createApprovedSnapshot({
         snapshotId: 'invalid-exchange',
         invalidExchangeOwnership: true
     });
@@ -979,14 +988,14 @@ test('planning rejects values that only PostgreSQL would otherwise catch', async
 
 test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
     let pool;
-    t.after(async () => {
+    onTestFinished(async () => {
         await pool?.end();
         await harness.close();
     });
-    const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-apply' });
+    const snapshot = await createApprovedSnapshot({ snapshotId: 'postgres-apply' });
     pool = poolFor(harness);
     await seedMediaControlPlane(pool, snapshot.directory);
     const dryRun = await importSnapshot({
@@ -1077,14 +1086,14 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
 
 test('real PostgreSQL blocks missing or drifted media control-plane state', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
     const pool = poolFor(harness);
-    t.after(async () => {
+    onTestFinished(async () => {
         await pool.end();
         await harness.close();
     });
-    const snapshot = await createApprovedSnapshot(t, {
+    const snapshot = await createApprovedSnapshot({
         snapshotId: 'postgres-media-control-plane'
     });
     const cases = [
@@ -1195,14 +1204,14 @@ test('real PostgreSQL blocks missing or drifted media control-plane state', {
 
 test('real PostgreSQL reports alternate unique-key conflicts before writing', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
     const pool = poolFor(harness);
-    t.after(async () => {
+    onTestFinished(async () => {
         await pool.end();
         await harness.close();
     });
-    const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-unique-conflict' });
+    const snapshot = await createApprovedSnapshot({ snapshotId: 'postgres-unique-conflict' });
     await seedMediaControlPlane(pool, snapshot.directory);
     await pool.query(`
         INSERT INTO platform_accounts
@@ -1237,14 +1246,14 @@ test('real PostgreSQL reports alternate unique-key conflicts before writing', {
 
 test('real PostgreSQL imports historical children before restoring an archived office', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
     const pool = poolFor(harness);
-    t.after(async () => {
+    onTestFinished(async () => {
         await pool.end();
         await harness.close();
     });
-    const snapshot = await createApprovedSnapshot(t, {
+    const snapshot = await createApprovedSnapshot({
         snapshotId: 'postgres-archived-office',
         archivedOffice: true
     });
@@ -1285,14 +1294,14 @@ test('real PostgreSQL imports historical children before restoring an archived o
 
 test('real PostgreSQL reconciles a lost commit acknowledgement before reporting success', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
     const pool = poolFor(harness);
-    t.after(async () => {
+    onTestFinished(async () => {
         await pool.end();
         await harness.close();
     });
-    const snapshot = await createApprovedSnapshot(t, {
+    const snapshot = await createApprovedSnapshot({
         snapshotId: 'postgres-commit-acknowledgement'
     });
     await seedMediaControlPlane(pool, snapshot.directory);
@@ -1318,10 +1327,10 @@ test('real PostgreSQL reconciles a lost commit acknowledgement before reporting 
 
 test('real PostgreSQL serializes concurrent identical applies into one exact dataset', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
-    t.after(() => harness.close());
-    const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-concurrent' });
+    onTestFinished(() => harness.close());
+    const snapshot = await createApprovedSnapshot({ snapshotId: 'postgres-concurrent' });
     const seedPool = poolFor(harness);
     await seedMediaControlPlane(seedPool, snapshot.directory);
     await seedPool.end();
@@ -1354,11 +1363,11 @@ test('real PostgreSQL serializes concurrent identical applies into one exact dat
 
 test('real PostgreSQL rolls back the entire import after a late write failure', {
     skip: !postgresIntegrationEnabled()
-}, async (t) => {
+}, async () => {
     const harness = await createPostgresTestHarness();
-    const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-rollback' });
+    const snapshot = await createApprovedSnapshot({ snapshotId: 'postgres-rollback' });
     const pool = poolFor(harness);
-    t.after(async () => {
+    onTestFinished(async () => {
         await pool.end();
         await harness.close();
     });

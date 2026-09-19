@@ -1,20 +1,18 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
-const path = require('node:path');
-const { test } = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { test } from 'vitest';
+import {
     parseProducerMapContent,
     PRODUCER_MAP_PROVINCES,
     serializeProducerMapContent,
     validateProducerMapDraft
-} = require('../../src/domains/content/producer-map/data.ts');
-const {
+} from '../../src/domains/content/producer-map/data.ts';
+import {
     PRODUCER_MAP_OBJECT_KEY,
     producerMapAssetObjectKey
-} = require('../../src/utils/storage/business-object-keys.ts');
-const {
+} from '../../src/utils/storage/business-object-keys.ts';
+import {
     helpText,
     initialProducerMapContent,
     nextProducerMapContent,
@@ -24,7 +22,7 @@ const {
     syncProducerMapData,
     validateR2Acceptance,
     validateR2Target
-} = require('../../scripts/migration/legacy-producer-map');
+} from '../../scripts/migration/legacy-producer-map';
 
 class MemoryStorage {
     constructor() {

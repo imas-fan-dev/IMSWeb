@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { createHonoApp } from '@/app';
 import type { ObjectStorage, StoredObject } from '@/ports/object-storage';
 import { articleAssetObjectKey } from '@/utils/storage/business-object-keys';

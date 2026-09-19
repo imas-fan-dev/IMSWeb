@@ -1,6 +1,6 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from "node:assert/strict";
-import type { TestContext } from "node:test";
+import { onTestFinished } from 'vitest';
 import {
     CopyObjectCommand,
     DeleteObjectCommand,
@@ -20,7 +20,7 @@ import {
 import { S3CompensationService } from "@/infra/oss/s3/compensation-service";
 import { S3UploadStateMachine } from "@/infra/oss/s3/upload-state-machine";
 import type { PostgresConnection } from "@/infra/db/postgresql/connection";
-import { createPostgresTestDatabase } from "./postgres-test-database";
+import { createPostgresTestDatabase } from "../postgres-test-database";
 
 interface FakeObject {
     body: Uint8Array;
@@ -177,7 +177,6 @@ class FakeS3Client {
 }
 
 async function fixture(
-    t: TestContext,
     storageOptions: Partial<S3ObjectStorageOptions> = {},
 ): Promise<{
     client: FakeS3Client;
@@ -190,7 +189,7 @@ async function fixture(
     state: S3UploadStateMachine;
     storage: S3ObjectStorage;
 }> {
-    const connection = await createPostgresTestDatabase(t, "s3-storage");
+    const connection = await createPostgresTestDatabase("s3-storage");
     const state = new S3UploadStateMachine(connection);
     await state.initialize();
     const client = new FakeS3Client();
@@ -221,15 +220,15 @@ async function fixture(
         state,
         compensation,
     );
-    t.after(async () => {
+    onTestFinished(async () => {
         storage.close();
         await connection.close();
     });
     return { client, connection, compensation, signed, state, storage };
 }
 
-test("S3 object storage preserves logical keys across versioned CRUD, copy, and move", async (t) => {
-    const { client, state, storage } = await fixture(t);
+test("S3 object storage preserves logical keys across versioned CRUD, copy, and move", async () => {
+    const { client, state, storage } = await fixture();
     const firstBody = new TextEncoder().encode("first");
     const first = await storage.put(
         "uploads/news/original/a b.webp",
@@ -344,8 +343,8 @@ test("S3 object storage preserves logical keys across versioned CRUD, copy, and 
     );
 });
 
-test("S3 object storage validates checksums and rejects unsafe logical keys", async (t) => {
-    const { client, storage } = await fixture(t);
+test("S3 object storage validates checksums and rejects unsafe logical keys", async () => {
+    const { client, storage } = await fixture();
     await assert.rejects(
         storage.put("uploads/news/original/a.webp", new Uint8Array([1]), {
             sha256: "0".repeat(64),
@@ -357,9 +356,9 @@ test("S3 object storage validates checksums and rejects unsafe logical keys", as
     await assert.rejects(storage.list("uploads//news/"), /Invalid object key/);
 });
 
-test("S3 object storage removes a write when PutObject times out after persistence", async (t) => {
+test("S3 object storage removes a write when PutObject times out after persistence", async () => {
     const { client, compensation, connection, state, storage } =
-        await fixture(t);
+        await fixture();
     const key = "uploads/news/original/timed-out.webp";
     client.putFailuresAfterWriteRemaining = 1;
     client.deleteFailuresRemaining = 1;
@@ -422,8 +421,8 @@ test("S3 object storage removes a write when PutObject times out after persisten
     );
 });
 
-test("S3 object storage keeps owner tokens out of user metadata", async (t) => {
-    const { client, state, storage } = await fixture(t);
+test("S3 object storage keeps owner tokens out of user metadata", async () => {
+    const { client, state, storage } = await fixture();
     const key = "chronicle/media/pending/private.webp";
     await storage.put(key, new Uint8Array([4, 5, 6]), {
         ownerToken: "owner-secret",
@@ -488,8 +487,8 @@ test("S3 physical keys support both an optional custom prefix and no prefix", ()
     );
 });
 
-test("S3 object storage signs GET and HEAD reads without proxying object bodies", async (t) => {
-    const { signed, state, storage } = await fixture(t);
+test("S3 object storage signs GET and HEAD reads without proxying object bodies", async () => {
+    const { signed, state, storage } = await fixture();
     const key = "uploads/news/original/a b.webp";
     await storage.put(key, new Uint8Array([1, 2, 3]), {
         contentType: "image/webp",
@@ -516,8 +515,8 @@ test("S3 object storage signs GET and HEAD reads without proxying object bodies"
     assert.equal(signed.length, 2);
 });
 
-test("S3 public and protected objects share one bucket with distinct read paths", async (t) => {
-    const { client, signed, state, storage } = await fixture(t, {
+test("S3 public and protected objects share one bucket with distinct read paths", async () => {
+    const { client, signed, state, storage } = await fixture({
         publicReadUrlBase: "https://media.example.test/bucket-root",
         prefix: "tenant/site-a",
     });
@@ -619,8 +618,8 @@ test("S3 public and protected objects share one bucket with distinct read paths"
     );
 });
 
-test("S3 deferred public media stays private until publication moves it", async (t) => {
-    const { client, state, storage } = await fixture(t, {
+test("S3 deferred public media stays private until publication moves it", async () => {
+    const { client, state, storage } = await fixture({
         publicReadUrlBase: "https://media.example.test",
     });
     const key = "editorial/events/assets/new-event/poster.webp";
@@ -666,8 +665,8 @@ test("S3 deferred public media stays private until publication moves it", async 
     );
 });
 
-test("ambiguous S3 publication removes an untracked public destination", async (t) => {
-    const { client, state, storage } = await fixture(t, {
+test("ambiguous S3 publication removes an untracked public destination", async () => {
+    const { client, state, storage } = await fixture({
         publicReadUrlBase: "https://media.example.test",
     });
     const key = "community/fudaba/cards/ambiguous/front.webp";
@@ -691,8 +690,8 @@ test("ambiguous S3 publication removes an untracked public destination", async (
     assert.equal(client.hasObject("ims-media-prod", copy.input.Key!), false);
 });
 
-test("S3 protection compensation restores private scope", async (t) => {
-    const { compensation, state, storage } = await fixture(t, {
+test("S3 protection compensation restores private scope", async () => {
+    const { compensation, state, storage } = await fixture({
         publicReadUrlBase: "https://media.example.test",
     });
     const key = "community/fudaba/cards/review-recovery/front.webp";
@@ -712,8 +711,8 @@ test("S3 protection compensation restores private scope", async (t) => {
     assert.equal(await storage.createPublicReadUrl(key), null);
 });
 
-test("stale S3 protection compensation does not privatize a newer version", async (t) => {
-    const { compensation, state, storage } = await fixture(t, {
+test("stale S3 protection compensation does not privatize a newer version", async () => {
+    const { compensation, state, storage } = await fixture({
         publicReadUrlBase: "https://media.example.test",
     });
     const key = "community/fudaba/cards/review-recovery/stale.webp";
@@ -746,8 +745,8 @@ test("stale S3 protection compensation does not privatize a newer version", asyn
     assert.match((await storage.createPublicReadUrl(key)) ?? "", /^https:\/\//);
 });
 
-test("S3 compensation preserves public access scope after a delete failure", async (t) => {
-    const { client, compensation, state, storage } = await fixture(t, {
+test("S3 compensation preserves public access scope after a delete failure", async () => {
+    const { client, compensation, state, storage } = await fixture({
         publicReadUrlBase: "https://media.example.test",
     });
     const key = "wiki/shared/compensation/public.webp";
@@ -769,8 +768,8 @@ test("S3 compensation preserves public access scope after a delete failure", asy
     );
 });
 
-test("S3 deferred publication hides new objects and restores the previous version on rollback", async (t) => {
-    const { storage } = await fixture(t);
+test("S3 deferred publication hides new objects and restores the previous version on rollback", async () => {
+    const { storage } = await fixture();
     const initialKey = "uploads/news/original/initial-deferred.webp";
     const initial = new TextEncoder().encode("initial");
     await storage.put(initialKey, initial, { deferredPublication: true });
@@ -808,8 +807,8 @@ test("S3 deferred publication hides new objects and restores the previous versio
     assert.deepEqual((await storage.get(key))?.body, replacement);
 });
 
-test("S3 listings resolve all readable versions with one metadata query", async (t) => {
-    const { connection, storage } = await fixture(t);
+test("S3 listings resolve all readable versions with one metadata query", async () => {
+    const { connection, storage } = await fixture();
     const prefix = "wiki/agencies/sc/branding/";
     const replacedKey = `${prefix}icon.webp`;
     const readyKey = `${prefix}wordmark.webp`;
@@ -839,8 +838,8 @@ test("S3 listings resolve all readable versions with one metadata query", async 
     ]);
 });
 
-test("S3 ignores objects that have no managed semantic-key index", async (t) => {
-    const { client, storage } = await fixture(t);
+test("S3 ignores objects that have no managed semantic-key index", async () => {
+    const { client, storage } = await fixture();
     const key = "Data/sc/mano/card.webp";
     const physicalKey = `ims/production/${key}`;
     client.setObject("ims-media-prod", physicalKey, {
@@ -854,8 +853,8 @@ test("S3 ignores objects that have no managed semantic-key index", async (t) => 
     assert.deepEqual(await storage.list("Data/sc/"), []);
 });
 
-test("S3 lifecycle fences owner and object identity mutations", async (t) => {
-    const { state, storage } = await fixture(t);
+test("S3 lifecycle fences owner and object identity mutations", async () => {
+    const { state, storage } = await fixture();
     const key = "chronicle/media/pending/a.webp";
     await storage.put(key, new Uint8Array([1, 2, 3]), {
         ownerToken: "owner-a",
@@ -884,9 +883,9 @@ test("S3 lifecycle fences owner and object identity mutations", async (t) => {
     );
 });
 
-test("S3 stale recovery and SQL compensation remove unreferenced physical versions", async (t) => {
+test("S3 stale recovery and SQL compensation remove unreferenced physical versions", async () => {
     const { client, compensation, connection, state, storage } =
-        await fixture(t);
+        await fixture();
     const staleKey = "editorial/events/assets/stale/poster.webp";
     await storage.put(staleKey, new Uint8Array([1]), {
         deferredPublication: true,

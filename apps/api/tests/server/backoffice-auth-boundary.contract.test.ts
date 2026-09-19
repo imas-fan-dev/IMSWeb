@@ -1,12 +1,12 @@
-import { postgresTest as test } from './postgres-test-database';
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
+import { onTestFinished, vi } from 'vitest';
 import {
     readSetCookieValues as cookieValues,
     serializeCookieHeader as cookieHeader,
     setCookieHeaders as setCookies
 } from '../fixtures/auth-request';
 import { insertBackofficeAccount } from '../fixtures/rows';
-import type { TestContext } from 'node:test';
 import { sign as signJwt } from 'hono/utils/jwt/jwt';
 import {
     adminLegacyOperatorLoginErrorResponseSchema,
@@ -23,7 +23,7 @@ import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { RuntimeServices } from '@/ports/runtime-services';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 import { createTestApp, testRequest } from './test-app';
 
 const USERNAME = 'backoffice-boundary-op';
@@ -98,10 +98,9 @@ function assertDeprecated(response: Response, pathName: string): void {
 }
 
 async function createFixture(
-    t: TestContext,
     legacySecret: string | null = LEGACY_SECRET
 ): Promise<Fixture> {
-    const connection = await createPostgresTestDatabase(t, 'backoffice-boundary');
+    const connection = await createPostgresTestDatabase('backoffice-boundary');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const repository = new SqlBackofficeAuthRepository(connection);
     const audit = new SqlAuditRepository(connection);
@@ -140,9 +139,9 @@ async function login(fixture: Fixture, route = '/api/admin/auth/login') {
     });
 }
 
-test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin cookies', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin cookies', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const loginResponse = await login(fixture);
     assert.equal(loginResponse.status, 200);
@@ -194,9 +193,9 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
     assertCanonicalCookies(logout, true);
 });
 
-test('canonical login accepts editor accounts while the legacy admin login remains op-only', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('canonical login accepts editor accounts while the legacy admin login remains op-only', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
     await insertBackofficeAccount(fixture.connection, 'backoffice-boundary-editor', {
         password: 'backoffice-boundary-digest',
         dept: 'editor',
@@ -270,9 +269,9 @@ test('canonical login accepts editor accounts while the legacy admin login remai
     );
 });
 
-test('Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const valid = await fixture.tokens.sign({
         id: 1,
@@ -309,9 +308,9 @@ test('Backoffice JWT verification fixes HS256 and rejects missing or wrong realm
     await assert.rejects(fixture.tokens.verify(wrongAlgorithm), 'HS512');
 });
 
-test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
+test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
 
     const now = Math.floor(Date.now() / 1000);
     const legacyClaims = {
@@ -358,8 +357,8 @@ test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
     );
     assert.equal(platformCookie.status, 401);
 
-    const strictOnlyFixture = await createFixture(t, null);
-    t.after(() => strictOnlyFixture.close());
+    const strictOnlyFixture = await createFixture(null);
+    onTestFinished(() => strictOnlyFixture.close());
     const currentSecretLegacyToken = await signJwt(legacyClaims, SECRET, 'HS256');
     const disabledBridge = await testRequest(
         strictOnlyFixture.app,
@@ -369,9 +368,9 @@ test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
     assert.equal(disabledBridge.status, 401);
 });
 
-test('logout revokes coexisting canonical and legacy refresh sessions', async (t) => {
+test('logout revokes coexisting canonical and legacy refresh sessions', async () => {
     for (const route of ['/api/admin/auth/logout', '/api/logout']) {
-        const fixture = await createFixture(t);
+        const fixture = await createFixture();
         try {
             const canonical = cookieValues(await login(fixture));
             const legacy = cookieValues(await login(fixture, '/api/login'));
@@ -441,10 +440,13 @@ test('logout revokes coexisting canonical and legacy refresh sessions', async (t
     }
 });
 
-test('legacy Backoffice endpoints are deprecated and old cookies only bridge into Backoffice', async (t) => {
-    const fixture = await createFixture(t);
-    t.after(() => fixture.close());
-    const logged = t.mock.method(console, 'warn', () => undefined);
+test('legacy Backoffice endpoints are deprecated and old cookies only bridge into Backoffice', async () => {
+    const fixture = await createFixture();
+    onTestFinished(() => fixture.close());
+    // node:test restores a mocked method after every test; Vitest does not, so
+    // the spy is restored explicitly or the call count would accumulate.
+    const logged = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    onTestFinished(() => logged.mockRestore());
 
     let legacyCookies = new Map<string, string>();
     for (const legacyLoginPath of ['/api/login', '/api/admin/login']) {
@@ -508,7 +510,7 @@ test('legacy Backoffice endpoints are deprecated and old cookies only bridge int
     assertDeprecated(legacyLogout, '/api/logout');
 
     assert.deepEqual(
-        logged.mock.calls.map((call) => JSON.parse(String(call.arguments[0]))),
+        logged.mock.calls.map((call) => JSON.parse(String(call[0]))),
         [
             { event: 'legacy_backoffice_auth_route_used', method: 'POST', path: '/api/login' },
             {

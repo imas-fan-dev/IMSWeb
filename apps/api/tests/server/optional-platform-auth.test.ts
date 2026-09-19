@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { Hono } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { PLATFORM_ACCESS_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';

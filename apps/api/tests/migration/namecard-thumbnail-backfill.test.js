@@ -1,10 +1,8 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import {
     parseNamecardThumbnailBackfillArguments
-} = require('../../scripts/migration/namecard-thumbnail-backfill.ts');
+} from '../../scripts/migration/namecard-thumbnail-backfill.ts';
 
 const environment = {
     IMS_OBJECT_STORAGE: 's3',

@@ -5,8 +5,8 @@ import {
     setCookieHeaders as setCookies,
 } from "../fixtures/auth-request";
 import { createHash, pbkdf2Sync, randomUUID } from "node:crypto";
-import { test as nodeTest, type TestContext } from "node:test";
-import { postgresTest as test } from '../integration/postgres-harness';
+import { onTestFinished, test as nodeTest } from "vitest";
+import { postgresTest as test } from '../postgres-test-database';
 import { successFlagSchema } from "@imsweb/contracts/common";
 import {
     passwordResetIssueResponseSchema,
@@ -42,10 +42,7 @@ import type {
 } from "@/ports/email-delivery";
 import type { CacheStore } from "@/ports/cache";
 import type { RuntimeServices } from "@/ports/runtime-services";
-import {
-    createPostgresTestHarness,
-    postgresIntegrationEnabled,
-} from "../integration/postgres-harness";
+import { createPostgresTestHarness } from "../integration/postgres-harness";
 
 const PLATFORM_SECRET =
     "platform-email-auth-test-secret-at-least-thirty-two-bytes";
@@ -164,9 +161,9 @@ function emailAccount(
     };
 }
 
-async function createFixture(t: TestContext): Promise<Fixture> {
+async function createFixture(): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
-    t.after(() => harness.close());
+    onTestFinished(() => harness.close());
     const repository = new SqlPlatformAccountRepository(
         harness.connection,
         initializedPostgresSchema,
@@ -287,10 +284,9 @@ async function requestVerificationCode(
 }
 
 async function assertFailedResendPreservesOldCode(
-    t: TestContext,
     dialect: "postgresql",
 ): Promise<void> {
-    const fixture = await createFixture(t);
+    const fixture = await createFixture();
     const email = `failed-resend-${dialect}@example.test`;
     const expiredAt = Date.now();
     await fixture.database
@@ -342,7 +338,7 @@ async function assertFailedResendPreservesOldCode(
         initializedPostgresSchema,
     );
     await siblingRepository.initialize();
-    t.after(() => siblingRepository.close().catch(() => undefined));
+    onTestFinished(() => siblingRepository.close().catch(() => undefined));
     const siblingDeliveryRepository = new SqlPlatformEmailDeliveryRepository(
         siblingConnection,
     );
@@ -443,8 +439,8 @@ async function assertFailedResendPreservesOldCode(
     await siblingRepository.close();
 }
 
-async function assertRegistrationAndLogin(t: TestContext): Promise<void> {
-    const fixture = await createFixture(t);
+async function assertRegistrationAndLogin(): Promise<void> {
+    const fixture = await createFixture();
     const { app, database } = fixture;
     const registrationCode = await requestVerificationCode(
         fixture,
@@ -572,8 +568,8 @@ async function assertRegistrationAndLogin(t: TestContext): Promise<void> {
     );
 }
 
-test("bearer callers get tokens from registration and login, cookie callers do not", async (t) => {
-    const fixture = await createFixture(t);
+test("bearer callers get tokens from registration and login, cookie callers do not", async () => {
+    const fixture = await createFixture();
     const bearerHeaders = { "X-IMS-Auth-Mode": "bearer" };
     const email = "bearer-producer@example.test";
     const code = await requestVerificationCode(fixture, email);
@@ -666,8 +662,8 @@ test("bearer callers get tokens from registration and login, cookie callers do n
     assertPlatformCookies(cookieLogin);
 });
 
-test("password reset responses preserve exact JSON and reject invalid API email grammar", async (t) => {
-    const fixture = await createFixture(t);
+test("password reset responses preserve exact JSON and reject invalid API email grammar", async () => {
+    const fixture = await createFixture();
     const email = "reset-wire@example.test";
     const registrationCode = await requestVerificationCode(fixture, email);
     const registered = await fixture.app.request(
@@ -710,8 +706,8 @@ test("password reset responses preserve exact JSON and reject invalid API email 
     await assertRawJsonConforms(malformed, platformHttpErrorSchema);
 });
 
-test("registration verification is hashed, cached, atomically consumed, and single use", async (t) => {
-    const fixture = await createFixture(t);
+test("registration verification is hashed, cached, atomically consumed, and single use", async () => {
+    const fixture = await createFixture();
     const cache = new MemoryCache();
     fixture.app = appWithPlatformEmail(
         fixture.repository,
@@ -832,8 +828,8 @@ test("registration verification is hashed, cached, atomically consumed, and sing
     );
 });
 
-test("verification requests enqueue without SMTP and staged codes remain unusable", async (t) => {
-    const fixture = await createFixture(t);
+test("verification requests enqueue without SMTP and staged codes remain unusable", async () => {
+    const fixture = await createFixture();
     const email = "queued@example.test";
     const response = await fixture.app.request(
         jsonRequest("/api/platform/auth/register/verification-code", { email }),
@@ -899,8 +895,8 @@ test("verification requests enqueue without SMTP and staged codes remain unusabl
     assert.equal(registered.status, 201, await registered.clone().text());
 });
 
-test('durable HTTP enqueue is completed by a fresh worker runner', async (t) => {
-    const fixture = await createFixture(t);
+test('durable HTTP enqueue is completed by a fresh worker runner', async () => {
+    const fixture = await createFixture();
     const email = 'worker-restart@example.test';
     const queued = await fixture.app.request(
         jsonRequest('/api/platform/auth/register/verification-code', { email }),
@@ -937,7 +933,7 @@ test('durable HTTP enqueue is completed by a fresh worker runner', async (t) => 
             },
         },
     );
-    t.after(async () => {
+    onTestFinished(async () => {
         await runner.close();
         await workerDatabase.close();
     });
@@ -962,8 +958,8 @@ test('durable HTTP enqueue is completed by a fresh worker runner', async (t) => 
     assert.equal(registered.status, 201, await registered.clone().text());
 });
 
-test("configured resend intervals and unknown password reset responses come from PostgreSQL", async (t) => {
-    const fixture = await createFixture(t);
+test("configured resend intervals and unknown password reset responses come from PostgreSQL", async () => {
+    const fixture = await createFixture();
     const cache = new MemoryCache();
     fixture.app = appWithPlatformEmail(
         fixture.repository,
@@ -1116,8 +1112,8 @@ test("configured resend intervals and unknown password reset responses come from
     }
 });
 
-test("password reset cooldown is enumeration-safe with missing or failing cache", async (t) => {
-    const fixture = await createFixture(t);
+test("password reset cooldown is enumeration-safe with missing or failing cache", async () => {
+    const fixture = await createFixture();
     await fixture.database.prepare(
         `UPDATE platform_email_configuration
          SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
@@ -1257,8 +1253,8 @@ test("password reset cooldown is enumeration-safe with missing or failing cache"
     }
 });
 
-test("cache failure falls through to SQL cooldown with exact Retry-After", async (t) => {
-    const fixture = await createFixture(t);
+test("cache failure falls through to SQL cooldown with exact Retry-After", async () => {
+    const fixture = await createFixture();
     await fixture.database.prepare(
         `UPDATE platform_email_configuration
          SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
@@ -1304,8 +1300,8 @@ test("cache failure falls through to SQL cooldown with exact Retry-After", async
     );
 });
 
-test("verification enqueue failure returns purpose-specific unavailable response", async (t) => {
-    const fixture = await createFixture(t);
+test("verification enqueue failure returns purpose-specific unavailable response", async () => {
+    const fixture = await createFixture();
     fixture.deliveryRepository.enqueueRegistration = async () => {
         throw new Error("Injected enqueue failure");
     };
@@ -1330,8 +1326,8 @@ test("verification enqueue failure returns purpose-specific unavailable response
     );
 });
 
-test("session fencing returns account unavailable without writing cookies", async (t) => {
-    const fixture = await createFixture(t);
+test("session fencing returns account unavailable without writing cookies", async () => {
+    const fixture = await createFixture();
     const email = "session-fence@example.test";
     const code = await requestVerificationCode(fixture, email);
     fixture.repository.createRefreshSession = async () => false;
@@ -1371,8 +1367,8 @@ test("session fencing returns account unavailable without writing cookies", asyn
     );
 });
 
-test("login returns one generic credential error and rejects blocked account states", async (t) => {
-    const { app, repository } = await createFixture(t);
+test("login returns one generic credential error and rejects blocked account states", async () => {
+    const { app, repository } = await createFixture();
     const passwordHash = await new BcryptPasswordVerifier().hash(PASSWORD);
     for (const status of ["active", "suspended", "deleted"] as const) {
         const result = await repository.createEmailAccount(
@@ -1419,8 +1415,8 @@ test("login returns one generic credential error and rejects blocked account sta
     }
 });
 
-test("migrated PBKDF2 credential logs in once and upgrades with bcrypt CAS", async (t) => {
-    const { app, database, repository } = await createFixture(t);
+test("migrated PBKDF2 credential logs in once and upgrades with bcrypt CAS", async () => {
+    const { app, database, repository } = await createFixture();
     const now = Date.now();
     const accountId = randomUUID();
     await repository.createAccountWithProfile({
@@ -1521,8 +1517,8 @@ test("migrated PBKDF2 credential logs in once and upgrades with bcrypt CAS", asy
     );
 });
 
-test("long migrated PBKDF2 passwords authenticate without unsafe bcrypt upgrade", async (t) => {
-    const { app, database, repository } = await createFixture(t);
+test("long migrated PBKDF2 passwords authenticate without unsafe bcrypt upgrade", async () => {
+    const { app, database, repository } = await createFixture();
     const now = Date.now();
     const accountId = randomUUID();
     const longPassword = "\u5236".repeat(25);
@@ -1599,8 +1595,8 @@ test("long migrated PBKDF2 passwords authenticate without unsafe bcrypt upgrade"
     });
 });
 
-test("bcrypt rejects passwords beyond 72 UTF-8 bytes instead of truncating", async (t) => {
-    const fixture = await createFixture(t);
+test("bcrypt rejects passwords beyond 72 UTF-8 bytes instead of truncating", async () => {
+    const fixture = await createFixture();
     const verifier = new BcryptPasswordVerifier();
     const exact = "a".repeat(72);
     const digest = await verifier.hash(exact);
@@ -1649,8 +1645,8 @@ nodeTest("migrated PBKDF2 accepts only the declared Fudaba parameter contract", 
     assert.equal(isMigratedPbkdf2Parameters("{"), false);
 });
 
-test("email auth strictly validates JSON shapes and credential fields", async (t) => {
-    const { app } = await createFixture(t);
+test("email auth strictly validates JSON shapes and credential fields", async () => {
+    const { app } = await createFixture();
     const invalidRegistrations = [
         null,
         [],
@@ -1902,14 +1898,10 @@ nodeTest("login account limiting shares a normalized digest across rotating IPs 
     );
 });
 
-test("real PostgreSQL keeps registration atomic under normalized email races", {
-    skip:
-        !postgresIntegrationEnabled() &&
-        "set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database",
-}, async (t) => {
-    await assertRegistrationAndLogin(t);
+test("real PostgreSQL keeps registration atomic under normalized email races", async () => {
+    await assertRegistrationAndLogin();
 
-    const fixture = await createFixture(t);
+    const fixture = await createFixture();
     const secondConnection = fixture.connect();
     const secondRepository = new SqlPlatformAccountRepository(
         secondConnection,
@@ -1950,10 +1942,6 @@ test("real PostgreSQL keeps registration atomic under normalized email races", {
     }
 });
 
-test("real PostgreSQL failed resend preserves old code across repository instances", {
-    skip:
-        !postgresIntegrationEnabled() &&
-        "set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database",
-}, async (t) => {
-    await assertFailedResendPreservesOldCode(t, "postgresql");
+test("real PostgreSQL failed resend preserves old code across repository instances", async () => {
+    await assertFailedResendPreservesOldCode("postgresql");
 });

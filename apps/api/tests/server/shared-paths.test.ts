@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import {
     ADMIN_API_PATH_PREFIX,
     ADMIN_EXCHANGE_PATH_PREFIX,
