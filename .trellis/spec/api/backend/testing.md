@@ -14,7 +14,12 @@ the tsx loader for the same reason.
 - `tests/wiki/` covers Wiki and related wire conformance.
 - `tests/migration/` covers migration and reconciliation scripts.
 - Top-level contract tests cover the Node listener, security, and operation
-  scripts. `tests/assets/` covers packaged assets and frontend route ownership.
+  scripts. `tests/assets/` covers packaged assets and frontend route ownership,
+  and it asserts the built Web client (`apps/web/build/client`), so it belongs
+  to the delivery integration profile that builds it. The API plan excludes
+  `tests/assets/**` from its whole-tree run for that reason: the standalone API
+  lane never builds Web, and the root chain already covers the suite in delivery
+  integration before its API phase runs.
 - `tests/postgres-test-lifecycle.js`, `tests/postgres-test-database.ts` and
   `tests/integration/` hold infrastructure that more than one suite imports.
 

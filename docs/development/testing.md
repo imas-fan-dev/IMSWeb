@@ -28,12 +28,14 @@ Root、API 和 Web 的 package script 数量由 `tests/test_workspace_boundaries
 Root `test` 由同一个 runner 进程按顺序运行 `check:root`、governance、contracts、delivery 的
 root 与 integration profile、完整 API owner，最后是 Web unit。
 Delivery integration profile 成功构建 Web 和 API 后，该进程才会运行不再构建的 API 阶段，
-该阶段包含 build、syntax、architecture 和一次覆盖整个 `apps/api/tests` 的 Vitest 全量运行；
-Node、server、Wiki、migration 与 assets 已并入这一次运行。这样 API 测试不会接受另一次
-运行留下的 `dist/server/main.js`。CI API lane 直接运行完整 API owner；Web lane 使用
-`ci` profile，在同一个 runner 进程内依次运行 Web `check`（包含 unit）和普通 Playwright。
-Integration job 没有跨 job artifact transfer，因此 `delivery integration` 始终保留自己的
-Web 与 API build。
+该阶段包含 build、syntax、architecture 和一次覆盖整个 `apps/api/tests`（排除 `tests/assets/`）
+的 Vitest 全量运行；Node、server、Wiki 与 migration 已并入这一次运行。`tests/assets/` 断言的
+是已构建的 Web 客户端（`apps/web/build/client`），只属于先构建 Web 的 delivery integration，
+因此不在 API owner 计划里：CI API lane 从不构建 Web，跑它只会在缺构建产物上失败，而不是暴
+露真实缺陷。这样 API 测试不会接受另一次运行留下的 `dist/server/main.js`。CI API lane 直接运
+行完整 API owner；Web lane 使用 `ci` profile，在同一个 runner 进程内依次运行 Web `check`
+（包含 unit）和普通 Playwright。Integration job 没有跨 job artifact transfer，因此
+`delivery integration` 始终保留自己的 Web 与 API build。
 
 governance、contracts 和 delivery 的 Node 测试属于仓库域，仓库根不能声明 `vitest`，因此该域由
 `apps/api` 承载：
@@ -53,7 +55,8 @@ pnpm --filter @imsweb/api exec vitest run --root ../.. \
 | --------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------ |
 | API Node、数据库、HTTP      | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Vitest、TypeScript                   |
 | Wiki contract 与数据        | `apps/api/tests/wiki/`                                                              | Vitest、PostgreSQL fixture           |
-| API migration 与资产        | `apps/api/tests/migration/`、`apps/api/tests/assets/`                               | Vitest                               |
+| API migration               | `apps/api/tests/migration/`                                                         | Vitest                               |
+| API packaged 资产         | `apps/api/tests/assets/`                                                             | Vitest（由 delivery integration 运行） |
 | Web 页面、组件和 API client | `apps/web/tests/unit/`                                                              | Vitest、Testing Library              |
 | Web 开发期 mock API         | `apps/web/mocks/`                                                                   | MSW                                  |
 | Web 浏览器流程              | `apps/web/tests/e2e/`                                                               | Playwright desktop/mobile            |

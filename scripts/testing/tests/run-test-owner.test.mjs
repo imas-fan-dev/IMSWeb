@@ -41,11 +41,18 @@ const apiNodeCommand = [
   "tests/postgres-test-lifecycle.test.js",
 ];
 
-// The API `all` profile collapses the whole API test tree into one bare Vitest
-// run: the config's `include` already resolves `tests/**`, so no suite script
-// and no file list belongs in the argv. Asserting the exact argv keeps a suite
-// step from creeping back in.
-const apiSuiteCommand = ["exec", "vitest", "run"];
+// The API `all` profile collapses the whole API test tree into one Vitest run:
+// the config's `include` already resolves `tests/**`, so no suite script and no
+// file list belongs in the argv, and the only exclusion is the packaged-Web
+// suite that needs a build this lane never produces. Asserting the exact argv
+// keeps a suite step from creeping back in.
+const apiSuiteCommand = [
+  "exec",
+  "vitest",
+  "run",
+  "--exclude",
+  "tests/assets/**",
+];
 
 const apiRoot = `${repositoryRoot}/apps/api`;
 
@@ -236,6 +243,28 @@ test("every API profile runs its tests in one explicit Vitest command", () => {
       assert.ok(!plan.some((step) => step.args.includes(file)));
     }
   }
+});
+
+test("the API owner leaves the packaged-Web suite to delivery integration", () => {
+  // tests/assets asserts that apps/web/build/client exists. Only delivery
+  // integration builds it, so running this suite from the API lane fails on a
+  // missing build output rather than on a real defect.
+  for (const plan of [
+    buildOwnerPlan({ owner: "api" }),
+    buildOwnerPlan({ owner: "api", profile: "node" }),
+  ]) {
+    assert.ok(!plan.some((step) => step.args.includes("test:assets")));
+  }
+  assert.ok(apiSuiteCommand.includes("--exclude"));
+  assert.ok(apiSuiteCommand.includes("tests/assets/**"));
+
+  // The suite keeps running where Web is built, so the exclusion takes nothing
+  // out of the aggregate: exactly one step owns it.
+  const root = buildOwnerPlan({ owner: "root" });
+  assert.equal(
+    root.filter((step) => step.args.includes("test:assets")).length,
+    1,
+  );
 });
 
 test("the standalone API Node profile builds before using its artifact", () => {

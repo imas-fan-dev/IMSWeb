@@ -30,6 +30,13 @@ export default {
       "tests/**/*.test.{js,mjs,ts}",
       "scripts/**/tests/**/*.test.mjs",
     ],
+    // Vitest's 5s default is a speed budget this domain cannot keep on shared
+    // runners. These suites walk source trees, and the heaviest case in
+    // tests/contracts/non-json-boundaries.test.mjs measures 2.5s locally but
+    // 5142ms on a GitHub runner, where it failed the deploy-preview lane. The
+    // value is a hang ceiling, not a budget, so it only has to outlast the
+    // slowest machine that runs it.
+    testTimeout: 60_000,
     reporters: process.env.CI
       ? [
           ["default", {}],

@@ -68,6 +68,11 @@ const apiNodeTests = Object.freeze([
   "tests/operation-scripts.test.js",
   "tests/postgres-test-lifecycle.test.js",
 ]);
+// `tests/assets` verifies the built Web client (apps/web/build/client), so it
+// needs the delivery integration profile that builds it. The standalone API
+// owner lane never builds Web, and the root chain already covers the suite in
+// delivery integration before its API phase runs.
+const apiSuiteExclude = "tests/assets/**";
 
 function governancePlan() {
   return freezePlan([
@@ -186,8 +191,10 @@ function apiPlan(profile, buildPrepared = false) {
   // The `all` profile runs the whole API test tree in one Vitest invocation:
   // the config's `include` already resolves `tests/**`, so the per-suite
   // `test:server` / `test:wiki` / `test:migration` steps are subsumed. The
-  // `node` profile still names its five built-artifact files explicitly so a
-  // test dropping out of that plan stays visible.
+  // packaged-Web suite stays out of it, because only delivery integration
+  // builds the Web client it asserts. The `node` profile still names its five
+  // built-artifact files explicitly so a test dropping out of that plan stays
+  // visible.
   plan.push(
     profile === "node"
       ? command(
@@ -196,7 +203,12 @@ function apiPlan(profile, buildPrepared = false) {
           ["exec", "vitest", "run", ...apiNodeTests],
           apiRoot,
         )
-      : command("test prepared API", "pnpm", ["exec", "vitest", "run"], apiRoot),
+      : command(
+          "test prepared API",
+          "pnpm",
+          ["exec", "vitest", "run", "--exclude", apiSuiteExclude],
+          apiRoot,
+        ),
   );
   return freezePlan(plan);
 }

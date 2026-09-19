@@ -107,6 +107,12 @@ declare only `husky`, so a root-level `pnpm exec vitest` has no binary to run.
 against `--root`, not the cwd — passing `../../scripts/...` there fails to load
 the config.
 
+The config raises `testTimeout` to 60s. This domain walks source trees, and the
+heaviest case in `tests/contracts/non-json-boundaries.test.mjs` measures about
+2.5s locally but 5142ms on a GitHub runner, where Vitest's 5s default failed the
+contracts step of the deploy-preview lane. The value is a hang ceiling, not a
+speed budget, so it only has to outlast the slowest machine that runs it.
+
 Run the command set for every lane selected by the workflow or detector files. For App validation, include the focused App script unit test, App-target build, and complete App Playwright suite on installed Chromium and WebKit.
 
 ### 7. Wrong vs Correct
