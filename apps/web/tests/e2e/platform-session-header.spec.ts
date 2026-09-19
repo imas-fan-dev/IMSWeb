@@ -3,6 +3,7 @@ import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { installPublicShellMocks } from "./fixtures/homepage"
+import { installPlatformSessionMock } from "./fixtures/platform-auth"
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -150,26 +151,16 @@ test("authenticated header offers account security", async ({
       path: "/",
     },
   ])
-  await api.mockRoute(
-    "**/api/platform/auth/session",
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          success: true,
-          account: { id: "platform-browser", status: "active" },
-          profile: {
-            displayName: "浏览器制作人",
-            avatarUrl: null,
-            homeCity: null,
-            bio: "",
-          },
-        }),
-      })
+  installPlatformSessionMock(api, {
+    success: true,
+    account: { id: "platform-browser", status: "active" },
+    profile: {
+      displayName: "浏览器制作人",
+      avatarUrl: null,
+      homeCity: null,
+      bio: "",
     },
-    "GET"
-  )
+  })
 
   await page.goto("/")
 
