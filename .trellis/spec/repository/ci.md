@@ -109,15 +109,18 @@ config. `--root` stays relative to the step cwd (`apps/api`) and `--config`
 resolves against `--root`, not the cwd — passing `../../scripts/...` there fails
 to load the config.
 
-The panel's root config also carries a single `coverage: { htmlDir: 'coverage' }`
-pointer. The UI registers its `<uiBase>/coverage` route only from the `htmlDir` of
-the config it reads, and in panel mode the per-project coverage options never
-reach that check: drop the pointer and a finished report answers 404 there while
-the client falls back to "Coverage enabled but missing html reporter". It is not
-a gate. Coverage stays off until a run asks for it (`--coverage`), and the
-thresholds stay in the API and Web domain configs, which are the only runs that
-measure a whole domain. `tests/vitest-projects.test.mjs` asserts that block holds
-nothing else.
+The panel's root config also carries `coverage: { enabled: true, htmlDir: 'coverage' }`.
+Both keys serve the panel's own view. `enabled` is on because the aggregated run
+takes no per-project coverage options, so a developer otherwise had to remember a
+flag before the Coverage view had anything to show; the fast path when the report
+is not wanted is `pnpm run test:ui --coverage.enabled=false`. `htmlDir` is what
+lets the UI serve the result: it registers its `<uiBase>/coverage` route only from
+the config it reads, so dropping the key leaves a finished report answering 404
+there while the client falls back to "Coverage enabled but missing html
+reporter". The block stays a view, not a gate — no thresholds, reporter or
+include override, because a panel run is usually a subset of a domain and a
+domain-wide gate would fail it. `tests/vitest-projects.test.mjs` asserts the
+block holds nothing else.
 
 Each root-domain file names its subject once, in a top-level `describe`. No
 second level is added: cases in `tests/` and `scripts/**/tests` rarely share an

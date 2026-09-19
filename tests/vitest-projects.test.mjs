@@ -222,7 +222,7 @@ test("each domain keeps the globs the panel and CI both run", () => {
   }
 });
 
-test("the root panel only points the UI at its aggregated coverage report", () => {
+test("the root panel measures coverage for its own view and sets no gate", () => {
   const source = read(rootConfig);
   const coverageBlock = blockAfter(
     source,
@@ -232,24 +232,27 @@ test("the root panel only points the UI at its aggregated coverage report", () =
     "the root panel",
   );
 
-  // The UI serves coverage out of the `htmlDir` of the config it reads, and in
-  // panel mode the per-project coverage options never reach that check. Without
-  // this pointer the panel registers no coverage route at all: the aggregated
-  // report is finished on disk while `<uiBase>/coverage/index.html` answers 404
-  // and the client can only fall back to "Coverage enabled but missing html
-  // reporter".
+  // `enabled` is on so opening the panel is enough: the aggregated run takes no
+  // per-project coverage options, so with it off a developer had to remember a
+  // flag before the Coverage view had anything to show. `htmlDir` is what lets
+  // the UI serve the result — without it the finished report answers 404 at
+  // `<uiBase>/coverage/index.html` and the client can only fall back to
+  // "Coverage enabled but missing html reporter".
   assert.deepEqual(
     quotedValues(coverageBlock),
     ["coverage"],
     "the root panel names the directory its aggregated run writes",
   );
+  assert.match(coverageBlock, /enabled:\s*true/);
   assert.match(coverageBlock, /htmlDir:/);
 
-  // It stays a pointer. Coverage belongs to the domain runs that measure a whole
-  // domain and only they set `IMS_TEST_COVERAGE_ENABLED`; a gate on the panel
-  // would be measured against whatever subset a developer happened to select.
-  assert.doesNotMatch(coverageBlock, /thresholds|enabled\s*:/);
-  assert.doesNotMatch(coverageBlock, /reportsDirectory|provider|reporter/);
+  // A gate on the panel would be measured against whatever subset a developer
+  // happened to select, and a reporter or include override would change what the
+  // served report means. The domains own the gates and the denominators.
+  assert.doesNotMatch(
+    coverageBlock,
+    /thresholds|reporter|provider|reportsDirectory|include/,
+  );
 });
 
 test("the repository config still declares no coverage gate", () => {

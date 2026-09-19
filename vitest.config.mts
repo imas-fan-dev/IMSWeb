@@ -41,18 +41,27 @@ import { defineConfig } from 'vitest/config';
 // and a few suites resolve fixtures through `process.cwd()` or the tsx hook's
 // tsconfig lookup. See scripts/testing/vitest/panel-workspace-cwd.setup.mts.
 //
-// The `coverage` pointer below is what lets the panel show a coverage report.
-// In panel mode the run aggregates coverage into `./coverage`, and the UI
-// registers its `<uiBase>/coverage` route only from the config it reads: the
-// per-project coverage options never reach that check, so a root config without
-// `htmlDir` serves 404 there while the report sits finished on disk, and the
-// client can only report "Coverage enabled but missing html reporter". It is a
-// pointer, not a gate — `enabled` stays off (a run asks for coverage with
-// `pnpm run test:ui --coverage`) and the thresholds stay with the API and Web
-// domains, which are the only runs that measure a whole domain.
+// The `coverage` block below is the panel's own report, and it carries two keys
+// for two separate reasons.
+//
+// `enabled` is on so that opening the panel is enough: the per-project coverage
+// options never reach the aggregated run, so leaving it off meant a developer had
+// to remember `--coverage` (or `IMS_TEST_COVERAGE_ENABLED`) before the Coverage
+// view had anything to show. It is a view, not a gate: no thresholds here, so a
+// run of a subset reports the subset instead of failing against a domain-wide
+// gate. A full panel run costs the coverage measurement on top of the tests
+// (roughly 4x on the repository domain's CPU-bound contract suites);
+// `pnpm run test:ui --coverage.enabled=false` is the fast path when the report is
+// not wanted.
+//
+// `htmlDir` is what lets the UI serve that report. The run aggregates into
+// `./coverage`, and the UI registers its `<uiBase>/coverage` route only from the
+// config it reads: without the key the route does not exist, so the finished
+// report answers 404 and the client can only fall back to "Coverage enabled but
+// missing html reporter".
 //
 // `tests/vitest-projects.test.mjs` guards that these three entries stay in sync
-// with the domain configs that exist on disk, and that this pointer never grows
+// with the domain configs that exist on disk, and that this block never grows
 // into a second coverage gate.
 const workspaceCwdSetup = fileURLToPath(
     new URL('scripts/testing/vitest/panel-workspace-cwd.setup.mts', import.meta.url),
@@ -62,7 +71,7 @@ const workspaceRoot = (workspace) =>
 
 export default defineConfig({
     test: {
-        coverage: { htmlDir: 'coverage' },
+        coverage: { enabled: true, htmlDir: 'coverage' },
         projects: [
             {
                 extends: 'apps/api/vitest.config.mts',

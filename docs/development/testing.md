@@ -63,15 +63,17 @@ pnpm exec vitest run --project=api   # 只跑某个项目
 `scripts/testing/vitest/vitest.repository.config.mts`）。因此：
 
 - **不参与 CI**：`ci.yml`、`deploy-preview.yml` 仍然只调用 `scripts/testing/run-test-owner.mjs` 与
-  各域脚本；根配置不启用 coverage，覆盖率门禁仍只属于 API 与 Web 的域级 CI 步骤。
-- **面板里看覆盖率**：`pnpm run test:ui --coverage`（不要写成 `pnpm run test:ui -- --coverage`，那个
-  `--` 会被当成位置过滤参数）。面板的覆盖率是聚合结果，写到仓库根 `coverage/`，跑完后左侧栏出现
-  「Show coverage」按钮，也可以直接打开 `<面板地址>/__vitest__/coverage/index.html`。根配置里的
-  `coverage: { htmlDir: 'coverage' }` 只是把这个目录指给 UI：UI 服务端只从自己读到的配置解析
-  `htmlDir`，而面板模式下各项目自己的覆盖率配置传不到那里，缺这个指针时 UI 不注册覆盖率路由，报告
-  已在盘上、同一路径却返回 404，客户端只显示「Coverage enabled but missing html reporter」。覆盖率在
-  单次运行结束时才写盘，因此首次运行完成前该路径本来就是 404。这个指针不是门禁：`enabled` 仍为关，
-  阈值仍只属于测量完整域的 API 与 Web。
+  各域脚本；覆盖率**门禁**仍只属于 API 与 Web 的域级 CI 步骤（根配置不含 thresholds）。
+- **面板默认就测覆盖率**：直接 `pnpm run test:ui` 即可，不用记得加 flag。面板的覆盖率是聚合结果，写到
+  仓库根 `coverage/`，跑完后左侧栏出现「Show coverage」按钮，也可以直接打开
+  `<面板地址>/__vitest__/coverage/index.html`。覆盖率在单次运行结束时才写盘，所以运行没结束前该路径
+  仍是 404。代价是每次运行都多付测量开销（仓库域那几个 CPU 密集契约用例约 5.8s → 25.6s），不想要报告
+  时用快路径：`pnpm run test:ui --coverage.enabled=false`。
+- **面板的覆盖率是视图，不是门禁**：根配置只写 `coverage: { enabled: true, htmlDir: 'coverage' }`
+  两个键，不再加 thresholds／reporter／provider，因为面板里常常只跑一个子集，任何域级阈值都会变成假
+  失败。`htmlDir` 是给 UI 的指针：UI 服务端只从自己读到的配置解析 `htmlDir`，而面板模式下各项目自己的
+  覆盖率配置传不到那里，删掉它会让你在报告已落盘的情况下仍然看到 404，客户端只显示「Coverage enabled
+  but missing html reporter」。
 - **仓库域在面板里一次性跑完三条 CI 调用覆盖的全部文件**（`tests/**` 与 `scripts/**/tests/**`），
   本地面板不分批。
 - **api 与 web 项目把 workspace 恢复为 worker cwd**
