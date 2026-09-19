@@ -80,18 +80,21 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         )
 
     def test_root_dev_dependency_outside_tooling_allowlist_is_rejected(self):
+        # The allowlist has grown (husky, vitest, @vitest/ui) but it is still a
+        # closed list: an unlisted tool must keep failing, or the check stops
+        # meaning anything once a name has been added for a legitimate reason.
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)
             self.make_fixture(root)
             package_path = root / "package.json"
             package = json.loads(package_path.read_text(encoding="utf-8"))
-            package.setdefault("devDependencies", {})["unexpected-tool"] = "1.0.0"
+            package.setdefault("devDependencies", {})["prettier"] = "3.0.0"
             package_path.write_text(json.dumps(package), encoding="utf-8")
             result = self.run_fixture(root)
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "root aggregator must not declare devDependencies: unexpected-tool",
+            "root aggregator must not declare devDependencies: prettier",
             result.stderr,
         )
 
@@ -226,8 +229,9 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         )["scripts"]
 
         # Raise these counts deliberately, and name what the new script is for.
-        # The mock API dev server added `dev:web:mock` (root) and `dev:mock` (web).
-        self.assertEqual(len(root_scripts), 57)
+        # The mock API dev server added `dev:web:mock` (root) and `dev:mock` (web);
+        # the root test tooling added `test:ui`.
+        self.assertEqual(len(root_scripts), 58)
         self.assertEqual(len(api_scripts), 43)
         self.assertEqual(len(web_scripts), 21)
         self.assertTrue(

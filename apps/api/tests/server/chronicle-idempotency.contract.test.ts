@@ -358,595 +358,597 @@ function unreadUploadRequest(app: ReturnType<typeof createHonoApp>, key: string)
     return { response: app.fetch(request), pulls: () => pulls };
 }
 
-test('Chronicle upload replays success and charges every conflicting attempt', async () => {
-    const { app, storage, uploads, images, limiter } = await fixture();
-    uploads.next = {
-        fields: { activityId: '42', username: 'producer' },
-        files: {
-            images: {
-                filename: 'photo.png',
-                contentType: 'image/png',
-                body: new TextEncoder().encode('valid-png')
-            }
-        }
-    };
-
-    const first = await uploadRequest(app, 'upload-key');
-    assert.equal(first.status, 200);
-    assert.deepEqual(await first.json(), { success: true, count: 1 });
-    const uploadKeys = () => [...storage.objects.keys()].filter((key) => key.includes('/pending/'));
-    assert.equal(uploadKeys().length, 1);
-    const putCount = storage.puts.length;
-
-    const replay = await uploadRequest(app, 'upload-key');
-    assert.equal(replay.status, 200);
-    assert.deepEqual(await replay.json(), { success: true, count: 1 });
-    assert.equal(storage.puts.length, putCount);
-    assert.equal(uploadKeys().length, 1);
-
-    uploads.next.fields.username = 'different-producer';
-    const conflict = await uploadRequest(app, 'upload-key');
-    assert.equal(conflict.status, 409);
-    assert.deepEqual(await conflict.json(), { error: '幂等键与请求不匹配' });
-    assert.equal((await uploadRequest(app, 'upload-key')).status, 409);
-    assert.equal(limiter.identities.size, 3, JSON.stringify([...limiter.identities]));
-    assert.equal(images.calls, 1);
-});
-
-test('Chronicle rejects malformed idempotency keys before multipart and image parsing', async () => {
-    const { app, uploads, images, limiter } = await fixture();
-    for (const key of ['', 'x'.repeat(201)]) {
-        const response = await app.fetch(new Request('http://ims.test/eventchronicle/upload', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'multipart/form-data; boundary=fixture',
-                'Idempotency-Key': key
-            },
-            body: '--fixture--'
-        }));
-        assert.equal(response.status, 400);
-        assert.deepEqual(await response.json(), { error: '无效的幂等键' });
-    }
-    assert.equal(uploads.calls, 0);
-    assert.equal(images.calls, 0);
-    assert.equal(limiter.identities.size, 0);
-});
-
-test('Chronicle write-key quota rejects a distinct request without pulling its body', async () => {
-    const { app, storage, uploads, images, limiter } = await fixture();
-    limiter.seed(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket, CHRONICLE_UPLOAD_WRITE_LIMIT.limit);
-    const blocked = unreadUploadRequest(app, 'write-overflow');
-
-    const response = await blocked.response;
-    assert.equal(response.status, 429);
-    assert.deepEqual(await response.json(), { error: 'Too many requests' });
-    assert.equal(blocked.pulls(), 0);
-    assert.equal(uploads.calls, 0);
-    assert.equal(images.calls, 0);
-    assert.equal(storage.puts.length, 0);
-    assert.equal(
-        limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket),
-        CHRONICLE_UPLOAD_WRITE_LIMIT.limit
-    );
-    assert.equal(limiter.count(CHRONICLE_UPLOAD_ATTEMPT_LIMIT.bucket), 1);
-});
-
-test('Chronicle uploads without an idempotency key spend write quota per request', async () => {
-    const { app, uploads, limiter } = await fixture();
-    uploads.next = {
-        fields: { activityId: 'unkeyed-limit', username: 'producer' },
-        files: {
-            images: {
-                filename: 'photo.png',
-                contentType: 'image/png',
-                body: new TextEncoder().encode('valid-png')
-            }
-        }
-    };
-
-    assert.equal((await uploadRequest(app)).status, 200);
-    assert.equal((await uploadRequest(app)).status, 200);
-    assert.equal(limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket), 2);
-    assert.equal(limiter.count(CHRONICLE_UPLOAD_ATTEMPT_LIMIT.bucket), 2);
-});
-
-test('Chronicle upload hides unmarked metadata failures and reports them as server errors', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    onTestFinished(() => logged.mockRestore());
-    const { app, storage, uploads } = await fixture();
-    uploads.next = {
-        fields: { activityId: 'metadata-failure', username: 'producer' },
-        files: {
-            images: {
-                filename: 'photo.png',
-                contentType: 'image/png',
-                body: new TextEncoder().encode('valid-png')
-            }
-        }
-    };
-    storage.failMetaOnce = true;
-
-    const response = await uploadRequest(app);
-    assert.equal(response.status, 500);
-    const body = await response.json() as { success: boolean; error: string };
-    assert.deepEqual(body, { success: false, error: '服务器错误' });
-    assert.equal(JSON.stringify(body).includes('injected metadata failure'), false);
-    assert.equal(logged.mock.calls.length, 1);
-    assert.equal(logged.mock.calls[0]?.[0], 'Chronicle upload failed');
-});
-
-test('Chronicle upload preserves explicit parser 400 and 413 responses', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    onTestFinished(() => logged.mockRestore());
-    for (const status of [400, 413] as const) {
-        const { app, uploads } = await fixture();
-        uploads.error = Object.assign(new Error(`parser rejected with ${status}`), { status });
-
-        const response = await uploadRequest(app);
-        assert.equal(response.status, status);
-        assert.deepEqual(await response.json(), {
-            success: false,
-            error: `parser rejected with ${status}`
-        });
-    }
-    assert.equal(logged.mock.calls.length, 0);
-});
-
-test('Chronicle attempt quota bounds same-key parsing without spending write quota twice', async () => {
-    const { app, storage, uploads, limiter } = await fixture();
-    uploads.next = {
-        fields: { activityId: 'attempt-limit', username: 'producer' },
-        files: {
-            images: {
-                filename: 'photo.png',
-                contentType: 'image/png',
-                body: new TextEncoder().encode('valid-png')
-            }
-        }
-    };
-    assert.equal((await uploadRequest(app, 'attempt-key')).status, 200);
-    assert.equal(limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket), 1);
-    limiter.seed(CHRONICLE_UPLOAD_ATTEMPT_LIMIT.bucket, CHRONICLE_UPLOAD_ATTEMPT_LIMIT.limit);
-    const parserCalls = uploads.calls;
-    const putCount = storage.puts.length;
-    const blocked = unreadUploadRequest(app, 'attempt-key');
-
-    const response = await blocked.response;
-    assert.equal(response.status, 429);
-    assert.deepEqual(await response.json(), { error: 'Too many requests' });
-    assert.equal(blocked.pulls(), 0);
-    assert.equal(uploads.calls, parserCalls);
-    assert.equal(storage.puts.length, putCount);
-    assert.equal(limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket), 1);
-});
-
-test('Chronicle conflict payloads spend quota before image validation', async () => {
-    const { app, uploads, images, limiter } = await fixture();
-    limiter.limit = 1;
-    uploads.next = {
-        fields: { activityId: 'rate-conflict', username: 'first' },
-        files: {
-            images: {
-                filename: 'photo.png',
-                contentType: 'image/png',
-                body: new TextEncoder().encode('same-image')
-            }
-        }
-    };
-    assert.equal((await uploadRequest(app, 'shared-key')).status, 200);
-    assert.equal(images.calls, 1);
-
-    uploads.next.fields.username = 'conflicting-payload';
-    const blocked = await uploadRequest(app, 'shared-key');
-    assert.equal(blocked.status, 429);
-    assert.deepEqual(await blocked.json(), { error: 'Too many requests' });
-    assert.equal(uploads.calls, 2);
-    assert.equal(images.calls, 1);
-});
-
-test('Chronicle used-media queries isolate activity directory prefixes', async () => {
-    const { app, storage } = await fixture();
-    storage.seed(chronicleKey('used', '10/ten.png'), new Uint8Array([10]));
-    storage.seed(chronicleKey('used', '1/one.png'), new Uint8Array([1]));
-    storage.seedMeta('1', []);
-    storage.seedMeta('10', []);
-
-    const detailResponse = await app.request('/eventchronicle/activities/1');
-    assert.equal(detailResponse.status, 200);
-    const detail = await detailResponse.json() as { images: string[] };
-    assert.deepEqual(detail.images, [
-        '/assets/images/eventchronicle/events/used/1/one.png'
-    ]);
-
-    const listResponse = await app.request('/eventchronicle/activities');
-    assert.equal(listResponse.status, 200);
-    const activities = await listResponse.json() as Array<{ id: string; cover: string | null }>;
-    const covers = new Map(activities.map((activity) => [activity.id, activity.cover]));
-    assert.equal(covers.get('1'), '/assets/images/eventchronicle/events/used/1/one.png');
-    assert.equal(covers.get('10'), '/assets/images/eventchronicle/events/used/10/ten.png');
-});
-
-test('Chronicle approval resumes after metadata and rollback failures, then replays success', async () => {
-    const { app, storage, auth } = await fixture();
-    const activityId = '7';
-    const filename = 'pending.png';
-    storage.seed(chronicleKey('upload', `${activityId}/${filename}`), new Uint8Array([1]));
-    storage.seedMeta(activityId, [{ filename, status: 'pending' }]);
-    storage.failMetaOnce = true;
-    storage.failRollbackOnce = true;
-    const url = `/eventchronicle/admin/approve/${activityId}/${filename}`;
-    const request = () => app.request(url, {
-        method: 'POST', headers: { ...auth, 'Idempotency-Key': 'approve-key' }
-    });
-
-    assert.equal((await request()).status, 500);
-    assert.equal(await storage.exists(chronicleKey('upload', `${activityId}/${filename}`)), false);
-    assert.equal(await storage.exists(chronicleKey('used', `${activityId}/${filename}`)), true);
-    assert.equal((await storage.records(activityId))[0]?.status, 'pending');
-
-    const recovered = await request();
-    assert.equal(recovered.status, 200);
-    assert.deepEqual(await recovered.json(), { success: true });
-    assert.equal((await storage.records(activityId))[0]?.status, 'approved');
-    const moveCount = storage.moves.length;
-    const replay = await request();
-    assert.equal(replay.status, 200);
-    assert.deepEqual(await replay.json(), { success: true });
-    assert.equal(storage.moves.length, moveCount);
-
-    const conflict = await app.request(`/eventchronicle/admin/approve/${activityId}/other.png`, {
-        method: 'POST', headers: { ...auth, 'Idempotency-Key': 'approve-key' }
-    });
-    assert.equal(conflict.status, 409);
-});
-
-test('Chronicle takeover barriers preserve the replacement result for every admin mutation', async () => {
-    const cases = [
-        {
-            label: 'approve',
-            method: 'POST',
-            route: 'approve',
-            sourceBucket: 'upload',
-            finalBucket: 'used',
-            initialStatus: 'pending',
-            finalStatus: 'approved'
-        },
-        {
-            label: 'reject',
-            method: 'POST',
-            route: 'reject',
-            sourceBucket: 'upload',
-            finalBucket: null,
-            initialStatus: 'pending',
-            finalStatus: null
-        },
-        {
-            label: 'delete-used',
-            method: 'DELETE',
-            route: 'delete-used',
-            sourceBucket: 'used',
-            finalBucket: null,
-            initialStatus: 'approved',
-            finalStatus: null
-        }
-    ] as const;
-
-    for (const mutation of cases) {
-        const { app, storage, idempotency, auth } = await fixture();
-        const activityId = `takeover-${mutation.label}`;
-        const filename = 'item.png';
-        const source = chronicleKey(mutation.sourceBucket, `${activityId}/${filename}`);
-        storage.seed(source, new Uint8Array([1]));
-        storage.seedMeta(activityId, [{ filename, status: mutation.initialStatus }]);
-        const barrier = idempotency.armOwnershipBarrier();
-        const invoke = () => Promise.resolve(app.request(
-            `/eventchronicle/admin/${mutation.route}/${activityId}/${filename}`,
-            {
-                method: mutation.method,
-                headers: { ...auth, 'Idempotency-Key': `${mutation.label}-takeover-key` }
-            }
-        ));
-
-        const staleResponse = invoke();
-        await barrier.reached;
-        const replacement = await invoke().finally(() => barrier.release());
-        assert.equal(replacement.status, 200, `${mutation.label} replacement`);
-        assert.equal((await staleResponse).status, 500, `${mutation.label} stale owner`);
-        assert.equal((await invoke()).status, 200, `${mutation.label} replay`);
-
-        assert.equal(await storage.exists(source), false, `${mutation.label} source`);
-        const records = await storage.records(activityId);
-        if (mutation.finalStatus) {
-            assert.equal(records[0]?.status, mutation.finalStatus, `${mutation.label} metadata`);
-            assert.equal(
-                await storage.exists(chronicleKey(
-                    mutation.finalBucket,
-                    `${activityId}/${filename}`
-                )),
-                true,
-                `${mutation.label} destination`
-            );
-        } else {
-            assert.deepEqual(records, [], `${mutation.label} metadata`);
-            assert.equal(
-                [...storage.objects.keys()].some((key) => key.startsWith('chronicle/trash/')),
-                false,
-                `${mutation.label} trash`
-            );
-            assert.equal(storage.moves.length, 0, `${mutation.label} does not move before delete`);
-        }
-        assert.equal(
-            storage.moves.some(({ source: movedSource, destination }) =>
-                movedSource.includes('/published/') && destination.includes('/pending/')),
-            false,
-            `${mutation.label} never rolls back a shared destination`
-        );
-    }
-});
-
-test('Chronicle reject and used-delete operations replay without duplicate side effects', async () => {
-    const { app, storage, auth } = await fixture();
-    storage.seed(chronicleKey('upload', '8/reject.png'), new Uint8Array([1]));
-    storage.seedMeta('8', [{ filename: 'reject.png', status: 'pending' }]);
-    const reject = () => app.request('/eventchronicle/admin/reject/8/reject.png', {
-        method: 'POST', headers: { ...auth, 'Idempotency-Key': 'reject-key' }
-    });
-    assert.equal((await reject()).status, 200);
-    const movesAfterReject = storage.moves.length;
-    assert.equal((await reject()).status, 200);
-    assert.equal(storage.moves.length, movesAfterReject);
-
-    storage.seed(chronicleKey('used', '9/delete.png'), new Uint8Array([2]));
-    storage.seedMeta('9', [{ filename: 'delete.png', status: 'approved' }]);
-    const remove = () => app.request('/eventchronicle/admin/delete-used/9/delete.png', {
-        method: 'DELETE', headers: { ...auth, 'Idempotency-Key': 'delete-key' }
-    });
-    assert.equal((await remove()).status, 200);
-    const movesAfterDelete = storage.moves.length;
-    assert.equal((await remove()).status, 200);
-    assert.equal(storage.moves.length, movesAfterDelete);
-});
-
-test('Chronicle committed deletions stay successful when cleanup and compensation both fail', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    onTestFinished(() => logged.mockRestore());
-    const cases = [
-        { label: 'reject-unkeyed', route: 'reject', method: 'POST', bucket: 'upload', status: 'pending', keyed: false },
-        { label: 'reject-keyed', route: 'reject', method: 'POST', bucket: 'upload', status: 'pending', keyed: true },
-        { label: 'delete-used-unkeyed', route: 'delete-used', method: 'DELETE', bucket: 'used', status: 'approved', keyed: false },
-        { label: 'delete-used-keyed', route: 'delete-used', method: 'DELETE', bucket: 'used', status: 'approved', keyed: true }
-    ] as const;
-
-    for (const mutation of cases) {
-        const { app, storage, compensation, auth } = await fixture();
-        const activityId = `cleanup-${mutation.label}`;
-        const filename = 'item.png';
-        const source = chronicleKey(mutation.bucket, `${activityId}/${filename}`);
-        storage.seed(source, new Uint8Array([1]));
-        storage.seedMeta(activityId, [{ filename, status: mutation.status }]);
-        storage.failDeleteAttempts = 1;
-        compensation.failEnqueue = true;
-        const request = () => app.request(
-            `/eventchronicle/admin/${mutation.route}/${activityId}/${filename}`,
-            {
-                method: mutation.method,
-                headers: {
-                    ...auth,
-                    ...(mutation.keyed ? { 'Idempotency-Key': `${mutation.label}-key` } : {})
+test.describe('Chronicle', () => {
+    test('upload replays success and charges every conflicting attempt', async () => {
+        const { app, storage, uploads, images, limiter } = await fixture();
+        uploads.next = {
+            fields: { activityId: '42', username: 'producer' },
+            files: {
+                images: {
+                    filename: 'photo.png',
+                    contentType: 'image/png',
+                    body: new TextEncoder().encode('valid-png')
                 }
             }
-        );
+        };
 
-        const first = await request();
-        assert.equal(first.status, 200, mutation.label);
-        assert.deepEqual(await first.json(), { success: true }, mutation.label);
-        assert.deepEqual(await storage.records(activityId), [], `${mutation.label} metadata`);
-        assert.equal(storage.deletes.length, 1, `${mutation.label} delete attempts`);
-        assert.equal(compensation.enqueues.length, 1, `${mutation.label} enqueue attempts`);
+        const first = await uploadRequest(app, 'upload-key');
+        assert.equal(first.status, 200);
+        assert.deepEqual(await first.json(), { success: true, count: 1 });
+        const uploadKeys = () => [...storage.objects.keys()].filter((key) => key.includes('/pending/'));
+        assert.equal(uploadKeys().length, 1);
+        const putCount = storage.puts.length;
 
-        if (mutation.keyed) {
-            assert.equal(await storage.exists(source), true, `${mutation.label} retained source`);
-            const replay = await request();
-            assert.equal(replay.status, 200, `${mutation.label} replay`);
-            assert.deepEqual(await replay.json(), { success: true }, `${mutation.label} replay body`);
-            assert.equal(storage.deletes.length, 1, `${mutation.label} replay delete attempts`);
-            assert.equal(compensation.enqueues.length, 1, `${mutation.label} replay enqueue attempts`);
-        } else {
-            assert.equal(await storage.exists(source), false, `${mutation.label} source moved`);
-            assert.equal(
-                [...storage.objects.keys()].some((key) => key.startsWith('chronicle/trash/')),
-                true,
-                `${mutation.label} retained trash`
-            );
-        }
-    }
+        const replay = await uploadRequest(app, 'upload-key');
+        assert.equal(replay.status, 200);
+        assert.deepEqual(await replay.json(), { success: true, count: 1 });
+        assert.equal(storage.puts.length, putCount);
+        assert.equal(uploadKeys().length, 1);
 
-    assert.equal(logged.mock.calls.length, cases.length);
-});
-
-test('Chronicle committed deletion compensation still converges on a later request', async () => {
-    const { app, storage, compensation, auth } = await fixture();
-    const activityId = 'cleanup-convergence';
-    const filename = 'item.png';
-    const source = chronicleKey('upload', `${activityId}/${filename}`);
-    storage.seed(source, new Uint8Array([1]));
-    storage.seedMeta(activityId, [{ filename, status: 'pending' }]);
-    storage.failDeleteAttempts = 1;
-    const request = () => app.request(`/eventchronicle/admin/reject/${activityId}/${filename}`, {
-        method: 'POST',
-        headers: { ...auth, 'Idempotency-Key': 'cleanup-convergence-key' }
+        uploads.next.fields.username = 'different-producer';
+        const conflict = await uploadRequest(app, 'upload-key');
+        assert.equal(conflict.status, 409);
+        assert.deepEqual(await conflict.json(), { error: '幂等键与请求不匹配' });
+        assert.equal((await uploadRequest(app, 'upload-key')).status, 409);
+        assert.equal(limiter.identities.size, 3, JSON.stringify([...limiter.identities]));
+        assert.equal(images.calls, 1);
     });
 
-    assert.equal((await request()).status, 200);
-    assert.equal(await storage.exists(source), true);
-    assert.equal(compensation.enqueues.length, 1);
-    assert.equal(compensation.pending.has(source), true);
+    test('rejects malformed idempotency keys before multipart and image parsing', async () => {
+        const { app, uploads, images, limiter } = await fixture();
+        for (const key of ['', 'x'.repeat(201)]) {
+            const response = await app.fetch(new Request('http://ims.test/eventchronicle/upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'multipart/form-data; boundary=fixture',
+                    'Idempotency-Key': key
+                },
+                body: '--fixture--'
+            }));
+            assert.equal(response.status, 400);
+            assert.deepEqual(await response.json(), { error: '无效的幂等键' });
+        }
+        assert.equal(uploads.calls, 0);
+        assert.equal(images.calls, 0);
+        assert.equal(limiter.identities.size, 0);
+    });
 
-    const replay = await request();
-    assert.equal(replay.status, 200);
-    assert.deepEqual(await replay.json(), { success: true });
-    assert.equal(await storage.exists(source), false);
-    assert.equal(compensation.pending.size, 0);
-    assert.equal(compensation.enqueues.length, 1);
-    assert.equal(storage.deletes.length, 2);
-});
+    test('write-key quota rejects a distinct request without pulling its body', async () => {
+        const { app, storage, uploads, images, limiter } = await fixture();
+        limiter.seed(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket, CHRONICLE_UPLOAD_WRITE_LIMIT.limit);
+        const blocked = unreadUploadRequest(app, 'write-overflow');
 
-test('Chronicle activity responses preserve legacy leading or trailing whitespace verbatim', async () => {
-    const { app, storage } = await fixture();
-    const legacyTitle = '\u3010Legacy Chronicle\u3011\r\nLine one\r\n';
-    const legacyDate = ' 2026-09-06 ';
-    const legacyLocation = '\tHangzhou\t';
-    storage.seed(
-        chronicleKey('meta', 'legacy-whitespace.json'),
-        new TextEncoder().encode(JSON.stringify({
-            title: legacyTitle,
-            date: legacyDate,
-            location: legacyLocation,
-            records: []
-        })),
-        'application/json'
-    );
+        const response = await blocked.response;
+        assert.equal(response.status, 429);
+        assert.deepEqual(await response.json(), { error: 'Too many requests' });
+        assert.equal(blocked.pulls(), 0);
+        assert.equal(uploads.calls, 0);
+        assert.equal(images.calls, 0);
+        assert.equal(storage.puts.length, 0);
+        assert.equal(
+            limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket),
+            CHRONICLE_UPLOAD_WRITE_LIMIT.limit
+        );
+        assert.equal(limiter.count(CHRONICLE_UPLOAD_ATTEMPT_LIMIT.bucket), 1);
+    });
 
-    const listBody = await assertRawJsonConforms(
-        await app.request('/eventchronicle/activities'),
-        200,
-        chronicleActivityListSchema
-    );
-    const summary = listBody.find((activity) => activity.id === 'legacy-whitespace');
-    assert.deepEqual(
-        summary && { title: summary.title, date: summary.date, location: summary.location },
-        { title: legacyTitle, date: legacyDate, location: legacyLocation }
-    );
-
-    const activityBody = await assertRawJsonConforms(
-        await app.request('/eventchronicle/activities/legacy-whitespace'),
-        200,
-        chronicleActivitySchema
-    );
-    assert.deepEqual(
-        { title: activityBody.title, date: activityBody.date, location: activityBody.location },
-        { title: legacyTitle, date: legacyDate, location: legacyLocation }
-    );
-});
-
-test('Chronicle mounted JSON responses preserve shared schemas across public and admin routes', async () => {
-    const { app, storage, uploads, token, tokens } = await fixture();
-    const auth = { Authorization: `Bearer ${token}` };
-    const editorToken = await tokens.sign({
-        id: 2,
-        username: 'chronicle-editor',
-        producername: 'Chronicle Editor',
-        dept: 'editor',
-        csrfSecret: 'chronicle-editor-csrf'
-    }, 3600);
-    storage.seed(chronicleKey('upload', 'evidence/pending.png'), Uint8Array.of(1));
-    storage.seed(chronicleKey('used', 'evidence/used.png'), Uint8Array.of(2));
-    storage.seedMeta('evidence', [{
-        filename: 'pending.png',
-        status: 'pending',
-        uploader: 'producer',
-        time: '2026-09-06T00:00:00.000Z'
-    }]);
-
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/activities'),
-        200,
-        chronicleActivityListSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/activities/evidence'),
-        200,
-        chronicleActivitySchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/pending'),
-        401,
-        failureMessageResponseSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/assets/images/eventchronicle/events/upload/evidence/pending.png'),
-        401,
-        failureMessageResponseSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/pending', {
-            headers: { Authorization: `Bearer ${editorToken}` }
-        }),
-        403,
-        messageErrorResponseSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/pending', { headers: auth }),
-        200,
-        pendingChronicleMediaSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/used', { headers: auth }),
-        200,
-        usedChronicleMediaSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/approve/evidence/pending.png', {
-            method: 'POST',
-            headers: {
-                Cookie: `ims_admin_access=${token}; ims_admin_csrf=unused-for-authorization`
+    test('uploads without an idempotency key spend write quota per request', async () => {
+        const { app, uploads, limiter } = await fixture();
+        uploads.next = {
+            fields: { activityId: 'unkeyed-limit', username: 'producer' },
+            files: {
+                images: {
+                    filename: 'photo.png',
+                    contentType: 'image/png',
+                    body: new TextEncoder().encode('valid-png')
+                }
             }
-        }),
-        403,
-        failureMessageResponseSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/approve/missing/nope.png', {
-            method: 'POST',
-            headers: auth
-        }),
-        404,
-        chronicleErrorResponseSchema
-    );
-    storage.seed(chronicleKey('upload', 'conflict/source.png'), Uint8Array.of(3));
-    storage.seed(chronicleKey('used', 'conflict/source.png'), Uint8Array.of(4));
-    storage.seedMeta('conflict', [{ filename: 'source.png', status: 'pending' }]);
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/approve/conflict/source.png', {
-            method: 'POST',
-            headers: { ...auth, 'Idempotency-Key': 'conflict-approval' }
-        }),
-        409,
-        chronicleErrorResponseSchema
-    );
-    await assertRawJsonConforms(
-        await app.request('/eventchronicle/admin/approve/evidence/pending.png', {
-            method: 'POST',
-            headers: { ...auth, 'Idempotency-Key': 'successful-approval' }
-        }),
-        200,
-        successFlagSchema
-    );
+        };
 
-    uploads.error = Object.assign(new Error('invalid multipart'), { status: 400 });
-    await assertRawJsonConforms(
-        await uploadRequest(app),
-        400,
-        chronicleUploadErrorResponseSchema
-    );
-    uploads.error = null;
-    uploads.next = {
-        fields: {
-            activityId: 'upload-evidence',
-            username: 'producer',
-            ignoredLegacyField: 'ignored'
-        },
-        files: {
-            images: {
-                filename: 'upload.png',
-                contentType: 'image/png',
-                body: Uint8Array.of(9)
+        assert.equal((await uploadRequest(app)).status, 200);
+        assert.equal((await uploadRequest(app)).status, 200);
+        assert.equal(limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket), 2);
+        assert.equal(limiter.count(CHRONICLE_UPLOAD_ATTEMPT_LIMIT.bucket), 2);
+    });
+
+    test('upload hides unmarked metadata failures and reports them as server errors', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        onTestFinished(() => logged.mockRestore());
+        const { app, storage, uploads } = await fixture();
+        uploads.next = {
+            fields: { activityId: 'metadata-failure', username: 'producer' },
+            files: {
+                images: {
+                    filename: 'photo.png',
+                    contentType: 'image/png',
+                    body: new TextEncoder().encode('valid-png')
+                }
+            }
+        };
+        storage.failMetaOnce = true;
+
+        const response = await uploadRequest(app);
+        assert.equal(response.status, 500);
+        const body = await response.json() as { success: boolean; error: string };
+        assert.deepEqual(body, { success: false, error: '服务器错误' });
+        assert.equal(JSON.stringify(body).includes('injected metadata failure'), false);
+        assert.equal(logged.mock.calls.length, 1);
+        assert.equal(logged.mock.calls[0]?.[0], 'Chronicle upload failed');
+    });
+
+    test('upload preserves explicit parser 400 and 413 responses', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        onTestFinished(() => logged.mockRestore());
+        for (const status of [400, 413] as const) {
+            const { app, uploads } = await fixture();
+            uploads.error = Object.assign(new Error(`parser rejected with ${status}`), { status });
+
+            const response = await uploadRequest(app);
+            assert.equal(response.status, status);
+            assert.deepEqual(await response.json(), {
+                success: false,
+                error: `parser rejected with ${status}`
+            });
+        }
+        assert.equal(logged.mock.calls.length, 0);
+    });
+
+    test('attempt quota bounds same-key parsing without spending write quota twice', async () => {
+        const { app, storage, uploads, limiter } = await fixture();
+        uploads.next = {
+            fields: { activityId: 'attempt-limit', username: 'producer' },
+            files: {
+                images: {
+                    filename: 'photo.png',
+                    contentType: 'image/png',
+                    body: new TextEncoder().encode('valid-png')
+                }
+            }
+        };
+        assert.equal((await uploadRequest(app, 'attempt-key')).status, 200);
+        assert.equal(limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket), 1);
+        limiter.seed(CHRONICLE_UPLOAD_ATTEMPT_LIMIT.bucket, CHRONICLE_UPLOAD_ATTEMPT_LIMIT.limit);
+        const parserCalls = uploads.calls;
+        const putCount = storage.puts.length;
+        const blocked = unreadUploadRequest(app, 'attempt-key');
+
+        const response = await blocked.response;
+        assert.equal(response.status, 429);
+        assert.deepEqual(await response.json(), { error: 'Too many requests' });
+        assert.equal(blocked.pulls(), 0);
+        assert.equal(uploads.calls, parserCalls);
+        assert.equal(storage.puts.length, putCount);
+        assert.equal(limiter.count(CHRONICLE_UPLOAD_WRITE_LIMIT.bucket), 1);
+    });
+
+    test('conflict payloads spend quota before image validation', async () => {
+        const { app, uploads, images, limiter } = await fixture();
+        limiter.limit = 1;
+        uploads.next = {
+            fields: { activityId: 'rate-conflict', username: 'first' },
+            files: {
+                images: {
+                    filename: 'photo.png',
+                    contentType: 'image/png',
+                    body: new TextEncoder().encode('same-image')
+                }
+            }
+        };
+        assert.equal((await uploadRequest(app, 'shared-key')).status, 200);
+        assert.equal(images.calls, 1);
+
+        uploads.next.fields.username = 'conflicting-payload';
+        const blocked = await uploadRequest(app, 'shared-key');
+        assert.equal(blocked.status, 429);
+        assert.deepEqual(await blocked.json(), { error: 'Too many requests' });
+        assert.equal(uploads.calls, 2);
+        assert.equal(images.calls, 1);
+    });
+
+    test('used-media queries isolate activity directory prefixes', async () => {
+        const { app, storage } = await fixture();
+        storage.seed(chronicleKey('used', '10/ten.png'), new Uint8Array([10]));
+        storage.seed(chronicleKey('used', '1/one.png'), new Uint8Array([1]));
+        storage.seedMeta('1', []);
+        storage.seedMeta('10', []);
+
+        const detailResponse = await app.request('/eventchronicle/activities/1');
+        assert.equal(detailResponse.status, 200);
+        const detail = await detailResponse.json() as { images: string[] };
+        assert.deepEqual(detail.images, [
+            '/assets/images/eventchronicle/events/used/1/one.png'
+        ]);
+
+        const listResponse = await app.request('/eventchronicle/activities');
+        assert.equal(listResponse.status, 200);
+        const activities = await listResponse.json() as Array<{ id: string; cover: string | null }>;
+        const covers = new Map(activities.map((activity) => [activity.id, activity.cover]));
+        assert.equal(covers.get('1'), '/assets/images/eventchronicle/events/used/1/one.png');
+        assert.equal(covers.get('10'), '/assets/images/eventchronicle/events/used/10/ten.png');
+    });
+
+    test('approval resumes after metadata and rollback failures, then replays success', async () => {
+        const { app, storage, auth } = await fixture();
+        const activityId = '7';
+        const filename = 'pending.png';
+        storage.seed(chronicleKey('upload', `${activityId}/${filename}`), new Uint8Array([1]));
+        storage.seedMeta(activityId, [{ filename, status: 'pending' }]);
+        storage.failMetaOnce = true;
+        storage.failRollbackOnce = true;
+        const url = `/eventchronicle/admin/approve/${activityId}/${filename}`;
+        const request = () => app.request(url, {
+            method: 'POST', headers: { ...auth, 'Idempotency-Key': 'approve-key' }
+        });
+
+        assert.equal((await request()).status, 500);
+        assert.equal(await storage.exists(chronicleKey('upload', `${activityId}/${filename}`)), false);
+        assert.equal(await storage.exists(chronicleKey('used', `${activityId}/${filename}`)), true);
+        assert.equal((await storage.records(activityId))[0]?.status, 'pending');
+
+        const recovered = await request();
+        assert.equal(recovered.status, 200);
+        assert.deepEqual(await recovered.json(), { success: true });
+        assert.equal((await storage.records(activityId))[0]?.status, 'approved');
+        const moveCount = storage.moves.length;
+        const replay = await request();
+        assert.equal(replay.status, 200);
+        assert.deepEqual(await replay.json(), { success: true });
+        assert.equal(storage.moves.length, moveCount);
+
+        const conflict = await app.request(`/eventchronicle/admin/approve/${activityId}/other.png`, {
+            method: 'POST', headers: { ...auth, 'Idempotency-Key': 'approve-key' }
+        });
+        assert.equal(conflict.status, 409);
+    });
+
+    test('takeover barriers preserve the replacement result for every admin mutation', async () => {
+        const cases = [
+            {
+                label: 'approve',
+                method: 'POST',
+                route: 'approve',
+                sourceBucket: 'upload',
+                finalBucket: 'used',
+                initialStatus: 'pending',
+                finalStatus: 'approved'
+            },
+            {
+                label: 'reject',
+                method: 'POST',
+                route: 'reject',
+                sourceBucket: 'upload',
+                finalBucket: null,
+                initialStatus: 'pending',
+                finalStatus: null
+            },
+            {
+                label: 'delete-used',
+                method: 'DELETE',
+                route: 'delete-used',
+                sourceBucket: 'used',
+                finalBucket: null,
+                initialStatus: 'approved',
+                finalStatus: null
+            }
+        ] as const;
+
+        for (const mutation of cases) {
+            const { app, storage, idempotency, auth } = await fixture();
+            const activityId = `takeover-${mutation.label}`;
+            const filename = 'item.png';
+            const source = chronicleKey(mutation.sourceBucket, `${activityId}/${filename}`);
+            storage.seed(source, new Uint8Array([1]));
+            storage.seedMeta(activityId, [{ filename, status: mutation.initialStatus }]);
+            const barrier = idempotency.armOwnershipBarrier();
+            const invoke = () => Promise.resolve(app.request(
+                `/eventchronicle/admin/${mutation.route}/${activityId}/${filename}`,
+                {
+                    method: mutation.method,
+                    headers: { ...auth, 'Idempotency-Key': `${mutation.label}-takeover-key` }
+                }
+            ));
+
+            const staleResponse = invoke();
+            await barrier.reached;
+            const replacement = await invoke().finally(() => barrier.release());
+            assert.equal(replacement.status, 200, `${mutation.label} replacement`);
+            assert.equal((await staleResponse).status, 500, `${mutation.label} stale owner`);
+            assert.equal((await invoke()).status, 200, `${mutation.label} replay`);
+
+            assert.equal(await storage.exists(source), false, `${mutation.label} source`);
+            const records = await storage.records(activityId);
+            if (mutation.finalStatus) {
+                assert.equal(records[0]?.status, mutation.finalStatus, `${mutation.label} metadata`);
+                assert.equal(
+                    await storage.exists(chronicleKey(
+                        mutation.finalBucket,
+                        `${activityId}/${filename}`
+                    )),
+                    true,
+                    `${mutation.label} destination`
+                );
+            } else {
+                assert.deepEqual(records, [], `${mutation.label} metadata`);
+                assert.equal(
+                    [...storage.objects.keys()].some((key) => key.startsWith('chronicle/trash/')),
+                    false,
+                    `${mutation.label} trash`
+                );
+                assert.equal(storage.moves.length, 0, `${mutation.label} does not move before delete`);
+            }
+            assert.equal(
+                storage.moves.some(({ source: movedSource, destination }) =>
+                    movedSource.includes('/published/') && destination.includes('/pending/')),
+                false,
+                `${mutation.label} never rolls back a shared destination`
+            );
+        }
+    });
+
+    test('reject and used-delete operations replay without duplicate side effects', async () => {
+        const { app, storage, auth } = await fixture();
+        storage.seed(chronicleKey('upload', '8/reject.png'), new Uint8Array([1]));
+        storage.seedMeta('8', [{ filename: 'reject.png', status: 'pending' }]);
+        const reject = () => app.request('/eventchronicle/admin/reject/8/reject.png', {
+            method: 'POST', headers: { ...auth, 'Idempotency-Key': 'reject-key' }
+        });
+        assert.equal((await reject()).status, 200);
+        const movesAfterReject = storage.moves.length;
+        assert.equal((await reject()).status, 200);
+        assert.equal(storage.moves.length, movesAfterReject);
+
+        storage.seed(chronicleKey('used', '9/delete.png'), new Uint8Array([2]));
+        storage.seedMeta('9', [{ filename: 'delete.png', status: 'approved' }]);
+        const remove = () => app.request('/eventchronicle/admin/delete-used/9/delete.png', {
+            method: 'DELETE', headers: { ...auth, 'Idempotency-Key': 'delete-key' }
+        });
+        assert.equal((await remove()).status, 200);
+        const movesAfterDelete = storage.moves.length;
+        assert.equal((await remove()).status, 200);
+        assert.equal(storage.moves.length, movesAfterDelete);
+    });
+
+    test('committed deletions stay successful when cleanup and compensation both fail', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        onTestFinished(() => logged.mockRestore());
+        const cases = [
+            { label: 'reject-unkeyed', route: 'reject', method: 'POST', bucket: 'upload', status: 'pending', keyed: false },
+            { label: 'reject-keyed', route: 'reject', method: 'POST', bucket: 'upload', status: 'pending', keyed: true },
+            { label: 'delete-used-unkeyed', route: 'delete-used', method: 'DELETE', bucket: 'used', status: 'approved', keyed: false },
+            { label: 'delete-used-keyed', route: 'delete-used', method: 'DELETE', bucket: 'used', status: 'approved', keyed: true }
+        ] as const;
+
+        for (const mutation of cases) {
+            const { app, storage, compensation, auth } = await fixture();
+            const activityId = `cleanup-${mutation.label}`;
+            const filename = 'item.png';
+            const source = chronicleKey(mutation.bucket, `${activityId}/${filename}`);
+            storage.seed(source, new Uint8Array([1]));
+            storage.seedMeta(activityId, [{ filename, status: mutation.status }]);
+            storage.failDeleteAttempts = 1;
+            compensation.failEnqueue = true;
+            const request = () => app.request(
+                `/eventchronicle/admin/${mutation.route}/${activityId}/${filename}`,
+                {
+                    method: mutation.method,
+                    headers: {
+                        ...auth,
+                        ...(mutation.keyed ? { 'Idempotency-Key': `${mutation.label}-key` } : {})
+                    }
+                }
+            );
+
+            const first = await request();
+            assert.equal(first.status, 200, mutation.label);
+            assert.deepEqual(await first.json(), { success: true }, mutation.label);
+            assert.deepEqual(await storage.records(activityId), [], `${mutation.label} metadata`);
+            assert.equal(storage.deletes.length, 1, `${mutation.label} delete attempts`);
+            assert.equal(compensation.enqueues.length, 1, `${mutation.label} enqueue attempts`);
+
+            if (mutation.keyed) {
+                assert.equal(await storage.exists(source), true, `${mutation.label} retained source`);
+                const replay = await request();
+                assert.equal(replay.status, 200, `${mutation.label} replay`);
+                assert.deepEqual(await replay.json(), { success: true }, `${mutation.label} replay body`);
+                assert.equal(storage.deletes.length, 1, `${mutation.label} replay delete attempts`);
+                assert.equal(compensation.enqueues.length, 1, `${mutation.label} replay enqueue attempts`);
+            } else {
+                assert.equal(await storage.exists(source), false, `${mutation.label} source moved`);
+                assert.equal(
+                    [...storage.objects.keys()].some((key) => key.startsWith('chronicle/trash/')),
+                    true,
+                    `${mutation.label} retained trash`
+                );
             }
         }
-    };
-    await assertRawJsonConforms(
-        await uploadRequest(app, 'upload-evidence-key'),
-        200,
-        chronicleUploadResponseSchema
-    );
+
+        assert.equal(logged.mock.calls.length, cases.length);
+    });
+
+    test('committed deletion compensation still converges on a later request', async () => {
+        const { app, storage, compensation, auth } = await fixture();
+        const activityId = 'cleanup-convergence';
+        const filename = 'item.png';
+        const source = chronicleKey('upload', `${activityId}/${filename}`);
+        storage.seed(source, new Uint8Array([1]));
+        storage.seedMeta(activityId, [{ filename, status: 'pending' }]);
+        storage.failDeleteAttempts = 1;
+        const request = () => app.request(`/eventchronicle/admin/reject/${activityId}/${filename}`, {
+            method: 'POST',
+            headers: { ...auth, 'Idempotency-Key': 'cleanup-convergence-key' }
+        });
+
+        assert.equal((await request()).status, 200);
+        assert.equal(await storage.exists(source), true);
+        assert.equal(compensation.enqueues.length, 1);
+        assert.equal(compensation.pending.has(source), true);
+
+        const replay = await request();
+        assert.equal(replay.status, 200);
+        assert.deepEqual(await replay.json(), { success: true });
+        assert.equal(await storage.exists(source), false);
+        assert.equal(compensation.pending.size, 0);
+        assert.equal(compensation.enqueues.length, 1);
+        assert.equal(storage.deletes.length, 2);
+    });
+
+    test('activity responses preserve legacy leading or trailing whitespace verbatim', async () => {
+        const { app, storage } = await fixture();
+        const legacyTitle = '\u3010Legacy Chronicle\u3011\r\nLine one\r\n';
+        const legacyDate = ' 2026-09-06 ';
+        const legacyLocation = '\tHangzhou\t';
+        storage.seed(
+            chronicleKey('meta', 'legacy-whitespace.json'),
+            new TextEncoder().encode(JSON.stringify({
+                title: legacyTitle,
+                date: legacyDate,
+                location: legacyLocation,
+                records: []
+            })),
+            'application/json'
+        );
+
+        const listBody = await assertRawJsonConforms(
+            await app.request('/eventchronicle/activities'),
+            200,
+            chronicleActivityListSchema
+        );
+        const summary = listBody.find((activity) => activity.id === 'legacy-whitespace');
+        assert.deepEqual(
+            summary && { title: summary.title, date: summary.date, location: summary.location },
+            { title: legacyTitle, date: legacyDate, location: legacyLocation }
+        );
+
+        const activityBody = await assertRawJsonConforms(
+            await app.request('/eventchronicle/activities/legacy-whitespace'),
+            200,
+            chronicleActivitySchema
+        );
+        assert.deepEqual(
+            { title: activityBody.title, date: activityBody.date, location: activityBody.location },
+            { title: legacyTitle, date: legacyDate, location: legacyLocation }
+        );
+    });
+
+    test('mounted JSON responses preserve shared schemas across public and admin routes', async () => {
+        const { app, storage, uploads, token, tokens } = await fixture();
+        const auth = { Authorization: `Bearer ${token}` };
+        const editorToken = await tokens.sign({
+            id: 2,
+            username: 'chronicle-editor',
+            producername: 'Chronicle Editor',
+            dept: 'editor',
+            csrfSecret: 'chronicle-editor-csrf'
+        }, 3600);
+        storage.seed(chronicleKey('upload', 'evidence/pending.png'), Uint8Array.of(1));
+        storage.seed(chronicleKey('used', 'evidence/used.png'), Uint8Array.of(2));
+        storage.seedMeta('evidence', [{
+            filename: 'pending.png',
+            status: 'pending',
+            uploader: 'producer',
+            time: '2026-09-06T00:00:00.000Z'
+        }]);
+
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/activities'),
+            200,
+            chronicleActivityListSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/activities/evidence'),
+            200,
+            chronicleActivitySchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/pending'),
+            401,
+            failureMessageResponseSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/assets/images/eventchronicle/events/upload/evidence/pending.png'),
+            401,
+            failureMessageResponseSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/pending', {
+                headers: { Authorization: `Bearer ${editorToken}` }
+            }),
+            403,
+            messageErrorResponseSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/pending', { headers: auth }),
+            200,
+            pendingChronicleMediaSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/used', { headers: auth }),
+            200,
+            usedChronicleMediaSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/approve/evidence/pending.png', {
+                method: 'POST',
+                headers: {
+                    Cookie: `ims_admin_access=${token}; ims_admin_csrf=unused-for-authorization`
+                }
+            }),
+            403,
+            failureMessageResponseSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/approve/missing/nope.png', {
+                method: 'POST',
+                headers: auth
+            }),
+            404,
+            chronicleErrorResponseSchema
+        );
+        storage.seed(chronicleKey('upload', 'conflict/source.png'), Uint8Array.of(3));
+        storage.seed(chronicleKey('used', 'conflict/source.png'), Uint8Array.of(4));
+        storage.seedMeta('conflict', [{ filename: 'source.png', status: 'pending' }]);
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/approve/conflict/source.png', {
+                method: 'POST',
+                headers: { ...auth, 'Idempotency-Key': 'conflict-approval' }
+            }),
+            409,
+            chronicleErrorResponseSchema
+        );
+        await assertRawJsonConforms(
+            await app.request('/eventchronicle/admin/approve/evidence/pending.png', {
+                method: 'POST',
+                headers: { ...auth, 'Idempotency-Key': 'successful-approval' }
+            }),
+            200,
+            successFlagSchema
+        );
+
+        uploads.error = Object.assign(new Error('invalid multipart'), { status: 400 });
+        await assertRawJsonConforms(
+            await uploadRequest(app),
+            400,
+            chronicleUploadErrorResponseSchema
+        );
+        uploads.error = null;
+        uploads.next = {
+            fields: {
+                activityId: 'upload-evidence',
+                username: 'producer',
+                ignoredLegacyField: 'ignored'
+            },
+            files: {
+                images: {
+                    filename: 'upload.png',
+                    contentType: 'image/png',
+                    body: Uint8Array.of(9)
+                }
+            }
+        };
+        await assertRawJsonConforms(
+            await uploadRequest(app, 'upload-evidence-key'),
+            200,
+            chronicleUploadResponseSchema
+        );
+    });
 });

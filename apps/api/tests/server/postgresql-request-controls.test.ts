@@ -1,4 +1,5 @@
 import { postgresTest as test } from '../postgres-test-database';
+import { describe } from 'vitest';
 import assert from 'node:assert/strict';
 import { PostgresqlIdempotencyStore } from
     '@/infra/cache/postgresql/idempotency-store';
@@ -7,134 +8,136 @@ import {
     createPostgresTestDatabase
 } from '../postgres-test-database';
 
-test('PostgreSQL idempotency shares replay and fencing across connections', async () => {
-    const database = await createPostgresTestDatabase('request-idempotency');
-    const secondDatabase = connectPostgresTestDatabase(database);
-    let now = 1_000_000;
-    const options = { now: () => now, staleAfterMs: 1_000 };
-    const first = new PostgresqlIdempotencyStore(database, options);
-    const second = new PostgresqlIdempotencyStore(secondDatabase, options);
+describe('PostgreSQL idempotency', () => {
+    test('shares replay and fencing across connections', async () => {
+        const database = await createPostgresTestDatabase('request-idempotency');
+        const secondDatabase = connectPostgresTestDatabase(database);
+        let now = 1_000_000;
+        const options = { now: () => now, staleAfterMs: 1_000 };
+        const first = new PostgresqlIdempotencyStore(database, options);
+        const second = new PostgresqlIdempotencyStore(secondDatabase, options);
 
-    const initial = await first.claim('chronicle:approve', 'shared-key', 'request');
-    assert.deepEqual(initial, { kind: 'acquired', recovered: false, generation: 1 });
-    assert.deepEqual(
-        await second.claim('chronicle:approve', 'shared-key', 'request'),
-        { kind: 'in-progress' }
-    );
-    if (initial.kind !== 'acquired') return;
+        const initial = await first.claim('chronicle:approve', 'shared-key', 'request');
+        assert.deepEqual(initial, { kind: 'acquired', recovered: false, generation: 1 });
+        assert.deepEqual(
+            await second.claim('chronicle:approve', 'shared-key', 'request'),
+            { kind: 'in-progress' }
+        );
+        if (initial.kind !== 'acquired') return;
 
-    now += 1_001;
-    const replacement = await second.claim(
-        'chronicle:approve',
-        'shared-key',
-        'request'
-    );
-    assert.deepEqual(replacement, { kind: 'acquired', recovered: true, generation: 2 });
-    if (replacement.kind !== 'acquired') return;
+        now += 1_001;
+        const replacement = await second.claim(
+            'chronicle:approve',
+            'shared-key',
+            'request'
+        );
+        assert.deepEqual(replacement, { kind: 'acquired', recovered: true, generation: 2 });
+        if (replacement.kind !== 'acquired') return;
 
-    await assert.rejects(() => first.complete(
-        'chronicle:approve',
-        'shared-key',
-        'request',
-        initial.generation,
-        { status: 200, body: { owner: 'stale' } }
-    ), /lease|claim/i);
-    await first.fail(
-        'chronicle:approve',
-        'shared-key',
-        'request',
-        initial.generation
-    );
-    assert.equal(await second.isCurrent(
-        'chronicle:approve',
-        'shared-key',
-        'request',
-        replacement.generation
-    ), true);
+        await assert.rejects(() => first.complete(
+            'chronicle:approve',
+            'shared-key',
+            'request',
+            initial.generation,
+            { status: 200, body: { owner: 'stale' } }
+        ), /lease|claim/i);
+        await first.fail(
+            'chronicle:approve',
+            'shared-key',
+            'request',
+            initial.generation
+        );
+        assert.equal(await second.isCurrent(
+            'chronicle:approve',
+            'shared-key',
+            'request',
+            replacement.generation
+        ), true);
 
-    await second.complete(
-        'chronicle:approve',
-        'shared-key',
-        'request',
-        replacement.generation,
-        { status: 201, body: { owner: 'replacement' } }
-    );
-    assert.deepEqual(
-        await first.claim('chronicle:approve', 'shared-key', 'request'),
-        {
-            kind: 'replay',
-            response: { status: 201, body: { owner: 'replacement' } }
-        }
-    );
-    assert.deepEqual(
-        await first.claim('chronicle:approve', 'shared-key', 'different'),
-        { kind: 'conflict' }
-    );
+        await second.complete(
+            'chronicle:approve',
+            'shared-key',
+            'request',
+            replacement.generation,
+            { status: 201, body: { owner: 'replacement' } }
+        );
+        assert.deepEqual(
+            await first.claim('chronicle:approve', 'shared-key', 'request'),
+            {
+                kind: 'replay',
+                response: { status: 201, body: { owner: 'replacement' } }
+            }
+        );
+        assert.deepEqual(
+            await first.claim('chronicle:approve', 'shared-key', 'different'),
+            { kind: 'conflict' }
+        );
 
-    const nullBody = await first.claim('chronicle:approve', 'null-body', 'request');
-    assert.equal(nullBody.kind, 'acquired');
-    if (nullBody.kind !== 'acquired') return;
-    await first.complete(
-        'chronicle:approve',
-        'null-body',
-        'request',
-        nullBody.generation,
-        { status: 204, body: null }
-    );
-    assert.deepEqual(
-        await second.claim('chronicle:approve', 'null-body', 'request'),
-        { kind: 'replay', response: { status: 204, body: null } }
-    );
-});
-
-test('PostgreSQL idempotency serializes concurrent first claims', async () => {
-    const database = await createPostgresTestDatabase('idempotency-claim');
-    const secondDatabase = connectPostgresTestDatabase(database);
-    const stores = [
-        new PostgresqlIdempotencyStore(database),
-        new PostgresqlIdempotencyStore(secondDatabase)
-    ];
-    const claims = await Promise.all(Array.from({ length: 12 }, (_, index) =>
-        stores[index % stores.length]!.claim('scope', 'concurrent', 'fingerprint')
-    ));
-
-    assert.equal(claims.filter((claim) => claim.kind === 'acquired').length, 1);
-    assert.equal(claims.filter((claim) => claim.kind === 'in-progress').length, 11);
-});
-
-test('PostgreSQL idempotency sweeps only expired terminal records', async () => {
-    const database = await createPostgresTestDatabase('idempotency-sweep');
-    let now = 10_000;
-    const store = new PostgresqlIdempotencyStore(database, {
-        now: () => now,
-        sweepIntervalMs: 0,
-        terminalRetentionMs: 100
+        const nullBody = await first.claim('chronicle:approve', 'null-body', 'request');
+        assert.equal(nullBody.kind, 'acquired');
+        if (nullBody.kind !== 'acquired') return;
+        await first.complete(
+            'chronicle:approve',
+            'null-body',
+            'request',
+            nullBody.generation,
+            { status: 204, body: null }
+        );
+        assert.deepEqual(
+            await second.claim('chronicle:approve', 'null-body', 'request'),
+            { kind: 'replay', response: { status: 204, body: null } }
+        );
     });
 
-    const completed = await store.claim('scope', 'completed', 'fingerprint');
-    assert.equal(completed.kind, 'acquired');
-    if (completed.kind !== 'acquired') return;
-    await store.complete(
-        'scope',
-        'completed',
-        'fingerprint',
-        completed.generation,
-        { status: 200, body: { ok: true } }
-    );
-    const failed = await store.claim('scope', 'failed', 'fingerprint');
-    assert.equal(failed.kind, 'acquired');
-    if (failed.kind !== 'acquired') return;
-    await store.fail('scope', 'failed', 'fingerprint', failed.generation);
-    assert.equal((await store.claim('scope', 'started', 'fingerprint')).kind, 'acquired');
+    test('serializes concurrent first claims', async () => {
+        const database = await createPostgresTestDatabase('idempotency-claim');
+        const secondDatabase = connectPostgresTestDatabase(database);
+        const stores = [
+            new PostgresqlIdempotencyStore(database),
+            new PostgresqlIdempotencyStore(secondDatabase)
+        ];
+        const claims = await Promise.all(Array.from({ length: 12 }, (_, index) =>
+            stores[index % stores.length]!.claim('scope', 'concurrent', 'fingerprint')
+        ));
 
-    now += 101;
-    await store.claim('scope', 'trigger', 'fingerprint');
-    const rows = await database.prepare(
-        `SELECT idempotency_key, state FROM request_idempotency_records
+        assert.equal(claims.filter((claim) => claim.kind === 'acquired').length, 1);
+        assert.equal(claims.filter((claim) => claim.kind === 'in-progress').length, 11);
+    });
+
+    test('sweeps only expired terminal records', async () => {
+        const database = await createPostgresTestDatabase('idempotency-sweep');
+        let now = 10_000;
+        const store = new PostgresqlIdempotencyStore(database, {
+            now: () => now,
+            sweepIntervalMs: 0,
+            terminalRetentionMs: 100
+        });
+
+        const completed = await store.claim('scope', 'completed', 'fingerprint');
+        assert.equal(completed.kind, 'acquired');
+        if (completed.kind !== 'acquired') return;
+        await store.complete(
+            'scope',
+            'completed',
+            'fingerprint',
+            completed.generation,
+            { status: 200, body: { ok: true } }
+        );
+        const failed = await store.claim('scope', 'failed', 'fingerprint');
+        assert.equal(failed.kind, 'acquired');
+        if (failed.kind !== 'acquired') return;
+        await store.fail('scope', 'failed', 'fingerprint', failed.generation);
+        assert.equal((await store.claim('scope', 'started', 'fingerprint')).kind, 'acquired');
+
+        now += 101;
+        await store.claim('scope', 'trigger', 'fingerprint');
+        const rows = await database.prepare(
+            `SELECT idempotency_key, state FROM request_idempotency_records
          WHERE scope=? ORDER BY idempotency_key`
-    ).bind('scope').all<{ idempotency_key: string; state: string }>();
-    assert.deepEqual(rows.results, [
-        { idempotency_key: 'started', state: 'started' },
-        { idempotency_key: 'trigger', state: 'started' }
-    ]);
+        ).bind('scope').all<{ idempotency_key: string; state: string }>();
+        assert.deepEqual(rows.results, [
+            { idempotency_key: 'started', state: 'started' },
+            { idempotency_key: 'trigger', state: 'started' }
+        ]);
+    });
 });

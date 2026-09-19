@@ -101,85 +101,87 @@ test.beforeEach(async ({ page, api }) => {
   ])
 })
 
-test(
-  "keeps the five App roots usable inside the safe area",
-  {
-    tag: ["@app-landscape", "@app-webkit"],
-  },
-  async ({ page }) => {
+test.describe("app shell", () => {
+  test(
+    "keeps the five App roots usable inside the safe area",
+    {
+      tag: ["@app-landscape", "@app-webkit"],
+    },
+    async ({ page }) => {
+      await page.goto("/")
+      await applySafeArea(page)
+
+      const navigation = page.getByRole("navigation", { name: "主导航" })
+      await expect(navigation).toBeVisible()
+      await expect(navigation.getByRole("link")).toHaveText([
+        "首页",
+        "社区",
+        "交换地图",
+        "资料",
+        "我的",
+      ])
+
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth
+          )
+        )
+        .toBe(true)
+
+      const shellTokens = await page
+        .locator("[data-app-shell]")
+        .evaluate((shell) => {
+          const style = getComputedStyle(shell)
+          return {
+            bottom: style.getPropertyValue("--app-bottom-clearance").trim(),
+            header: style.getPropertyValue("--app-header-inset").trim(),
+            inline: style.getPropertyValue("--app-safe-inline").trim(),
+          }
+        })
+      expect(shellTokens.bottom).toContain("5.25rem")
+      expect(shellTokens.header).toContain("3rem")
+      expect(shellTokens.inline).toContain("1rem")
+
+      await navigation.getByRole("link", { name: "资料" }).click()
+      await expect(page).toHaveURL(/\/apps$/)
+      await expect(
+        navigation.getByRole("link", { name: "资料", exact: true })
+      ).toHaveAttribute("aria-current", "page")
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth
+          )
+        )
+        .toBe(true)
+    }
+  )
+
+  test("renders App community links as a two-column text list", async ({
+    page,
+  }) => {
     await page.goto("/")
     await applySafeArea(page)
 
-    const navigation = page.getByRole("navigation", { name: "主导航" })
-    await expect(navigation).toBeVisible()
-    await expect(navigation.getByRole("link")).toHaveText([
-      "首页",
-      "社区",
-      "交换地图",
-      "资料",
-      "我的",
-    ])
+    const links = page.locator('[aria-labelledby="app-home-friends-heading"]')
+    await expect(links.getByRole("link")).toHaveCount(3)
+    await links.scrollIntoViewIfNeeded()
 
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () => document.documentElement.scrollWidth <= window.innerWidth
-        )
-      )
-      .toBe(true)
+    const layout = await links.evaluate((element) => {
+      const style = getComputedStyle(element)
 
-    const shellTokens = await page
-      .locator("[data-app-shell]")
-      .evaluate((shell) => {
-        const style = getComputedStyle(shell)
-        return {
-          bottom: style.getPropertyValue("--app-bottom-clearance").trim(),
-          header: style.getPropertyValue("--app-header-inset").trim(),
-          inline: style.getPropertyValue("--app-safe-inline").trim(),
-        }
-      })
-    expect(shellTokens.bottom).toContain("5.25rem")
-    expect(shellTokens.header).toContain("3rem")
-    expect(shellTokens.inline).toContain("1rem")
+      return {
+        columns: style.gridTemplateColumns.split(" ").filter(Boolean).length,
+        iconCount: element.querySelectorAll("svg").length,
+        overflowing: element.scrollWidth > element.clientWidth,
+      }
+    })
 
-    await navigation.getByRole("link", { name: "资料" }).click()
-    await expect(page).toHaveURL(/\/apps$/)
-    await expect(
-      navigation.getByRole("link", { name: "资料", exact: true })
-    ).toHaveAttribute("aria-current", "page")
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () => document.documentElement.scrollWidth <= window.innerWidth
-        )
-      )
-      .toBe(true)
-  }
-)
-
-test("renders App community links as a two-column text list", async ({
-  page,
-}) => {
-  await page.goto("/")
-  await applySafeArea(page)
-
-  const links = page.locator('[aria-labelledby="app-home-friends-heading"]')
-  await expect(links.getByRole("link")).toHaveCount(3)
-  await links.scrollIntoViewIfNeeded()
-
-  const layout = await links.evaluate((element) => {
-    const style = getComputedStyle(element)
-
-    return {
-      columns: style.gridTemplateColumns.split(" ").filter(Boolean).length,
-      iconCount: element.querySelectorAll("svg").length,
-      overflowing: element.scrollWidth > element.clientWidth,
-    }
-  })
-
-  expect(layout).toEqual({
-    columns: 2,
-    iconCount: 0,
-    overflowing: false,
+    expect(layout).toEqual({
+      columns: 2,
+      iconCount: 0,
+      overflowing: false,
+    })
   })
 })

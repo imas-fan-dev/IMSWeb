@@ -83,35 +83,37 @@ function fixture(): {
     return { app, verifiedTokens };
 }
 
-test('optional Platform auth stays anonymous when Platform credentials are absent', async () => {
-    const { app, verifiedTokens } = fixture();
-    const response = await app.request('http://ims.test/optional', {
-        headers: { cookie: 'ims_admin_access=backoffice-token' }
+test.describe('optional Platform auth', () => {
+    test('stays anonymous when Platform credentials are absent', async () => {
+        const { app, verifiedTokens } = fixture();
+        const response = await app.request('http://ims.test/optional', {
+            headers: { cookie: 'ims_admin_access=backoffice-token' }
+        });
+        assert.equal(response.status, 200);
+        assert.deepEqual(await response.json(), { viewerId: null });
+        assert.deepEqual(verifiedTokens, []);
     });
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { viewerId: null });
-    assert.deepEqual(verifiedTokens, []);
-});
 
-test('optional Platform auth rejects invalid credentials instead of downgrading', async () => {
-    const { app, verifiedTokens } = fixture();
-    const response = await app.request('http://ims.test/optional', {
-        headers: { cookie: `${PLATFORM_ACCESS_TOKEN_COOKIE}=invalid-platform` }
+    test('rejects invalid credentials instead of downgrading', async () => {
+        const { app, verifiedTokens } = fixture();
+        const response = await app.request('http://ims.test/optional', {
+            headers: { cookie: `${PLATFORM_ACCESS_TOKEN_COOKIE}=invalid-platform` }
+        });
+        assert.equal(response.status, 401);
+        assert.deepEqual(await response.json(), {
+            success: false,
+            code: 'PLATFORM_SESSION_INVALID'
+        });
+        assert.deepEqual(verifiedTokens, ['invalid-platform']);
     });
-    assert.equal(response.status, 401);
-    assert.deepEqual(await response.json(), {
-        success: false,
-        code: 'PLATFORM_SESSION_INVALID'
-    });
-    assert.deepEqual(verifiedTokens, ['invalid-platform']);
-});
 
-test('optional Platform auth exposes only a fully validated Platform viewer', async () => {
-    const { app, verifiedTokens } = fixture();
-    const response = await app.request('http://ims.test/optional', {
-        headers: { authorization: 'Bearer valid-platform' }
+    test('exposes only a fully validated Platform viewer', async () => {
+        const { app, verifiedTokens } = fixture();
+        const response = await app.request('http://ims.test/optional', {
+            headers: { authorization: 'Bearer valid-platform' }
+        });
+        assert.equal(response.status, 200);
+        assert.deepEqual(await response.json(), { viewerId: CLAIMS.id });
+        assert.deepEqual(verifiedTokens, ['valid-platform']);
     });
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { viewerId: CLAIMS.id });
-    assert.deepEqual(verifiedTokens, ['valid-platform']);
 });

@@ -41,6 +41,46 @@ module. Extend the owning suite instead of adding a parallel one:
 | `admin-platform-users.contract` | Admin platform-user endpoints and their middleware chain |
 | `platform-account-management-repository` | Account-management persistence through the Node runtime |
 
+## File and suite layout
+
+A file names its subject once, in a top-level `describe`, instead of repeating
+it in every case title. A second level appears only for a contiguous run of at
+least two cases that share an identical literal prefix of at least three words;
+that phrase moves out of those titles and nesting stops there. No case is
+reordered to form a group, a lone case stays at the subject level, and a phrase
+that carries a case id (`[SEC-01]`) or that also occurs outside the run is left
+alone. Everything the runner reports therefore keeps its words: an old full name
+stays a literal suffix of exactly one new one.
+
+Suites that cover one family share a file, and each former file keeps its own
+`describe` inside a lexical block, because sibling files were often generated
+from one template with identically named fixtures:
+
+```ts
+// platform-email-auth.contract.test.ts
+{
+    describe('platform email auth contract', () => { … });
+}
+```
+
+The merge rewrites nothing inside a contribution except indentation, and helper
+code shared by several suites lives beside them (`tests/postgres-test-database.ts`,
+`tests/integration/`). Extend the owning file instead of adding a parallel one;
+`docs/development/testing.md` records the file-count and script ceilings that
+keep suites and scripts from fragmenting again.
+
+Two rules follow from suites sharing one process. A fixture creates every
+directory its cases write into, because a case that passes only after an earlier
+request happened to create one is order-dependent — the chronicle metadata
+directory in `tests/node-security/fixture.js` was exactly that. And
+`--sequence.shuffle --sequence.seed=<n>` is how that independence gets checked;
+the flag cannot be combined with `--sequence.shuffle.files`, which crashes the
+CLI with `Cannot create property 'files' on boolean 'true'`.
+
+The non-JSON boundary analyser counts `test(`, `it(`, and `postgresTest(` as case
+declarations, so a file that mixes plain cases with the PostgreSQL wrapper keeps
+every focused case visible to `check:rules`.
+
 ## Required coverage
 
 - A new pure function gets a focused unit test when its behavior is not already

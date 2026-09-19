@@ -50,50 +50,54 @@ test.beforeEach(async ({ page, api }) => {
   await installAdminEditorialMock(api, { posts: posts.items })
 })
 
-test("admin article rows keep actions inside the panel", async ({
-  page,
-}, testInfo) => {
-  await page.goto("/admin/events")
+test.describe("admin events", () => {
+  test("admin article rows keep actions inside the panel", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/admin/events")
 
-  const panel = page.getByRole("region", { name: "文章工作台" })
-  await expect(panel.getByRole("article")).toHaveCount(2)
+    const panel = page.getByRole("region", { name: "文章工作台" })
+    await expect(panel.getByRole("article")).toHaveCount(2)
 
-  const longRow = panel.getByRole("article").filter({ hasText: longTitle })
-  const editLink = longRow.getByRole("link", { name: "编辑" })
-  const publicLink = longRow.getByRole("link", {
-    name: `打开${longTitle}的公开页面`,
-  })
-  await expect(editLink).toBeVisible()
-  await expect(publicLink).toBeVisible()
-
-  const panelBox = await panel.boundingBox()
-  const rowBox = await longRow.boundingBox()
-  const editLinkBox = await editLink.boundingBox()
-  const publicLinkBox = await publicLink.boundingBox()
-  expect(panelBox).not.toBeNull()
-  expect(rowBox).not.toBeNull()
-  expect(editLinkBox).not.toBeNull()
-  expect(publicLinkBox).not.toBeNull()
-  const panelRight = panelBox!.x + panelBox!.width
-  const rowRight = rowBox!.x + rowBox!.width
-  expect(rowRight).toBeLessThanOrEqual(panelRight + 1)
-  expect(editLinkBox!.x + editLinkBox!.width).toBeLessThanOrEqual(rowRight + 1)
-  expect(publicLinkBox!.x + publicLinkBox!.width).toBeLessThanOrEqual(
-    rowRight + 1
-  )
-
-  const hasHorizontalOverflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth >
-      document.documentElement.clientWidth
-  )
-  expect(hasHorizontalOverflow).toBe(false)
-
-  await longRow.scrollIntoViewIfNeeded()
-  if (process.env.CAPTURE_ADMIN_EVENTS_QA === "1") {
-    await page.screenshot({
-      path: `/tmp/imsweb-admin-events-${testInfo.project.name}.png`,
-      fullPage: false,
+    const longRow = panel.getByRole("article").filter({ hasText: longTitle })
+    const editLink = longRow.getByRole("link", { name: "编辑" })
+    const publicLink = longRow.getByRole("link", {
+      name: `打开${longTitle}的公开页面`,
     })
-  }
+    await expect(editLink).toBeVisible()
+    await expect(publicLink).toBeVisible()
+
+    const panelBox = await panel.boundingBox()
+    const rowBox = await longRow.boundingBox()
+    const editLinkBox = await editLink.boundingBox()
+    const publicLinkBox = await publicLink.boundingBox()
+    expect(panelBox).not.toBeNull()
+    expect(rowBox).not.toBeNull()
+    expect(editLinkBox).not.toBeNull()
+    expect(publicLinkBox).not.toBeNull()
+    const panelRight = panelBox!.x + panelBox!.width
+    const rowRight = rowBox!.x + rowBox!.width
+    expect(rowRight).toBeLessThanOrEqual(panelRight + 1)
+    expect(editLinkBox!.x + editLinkBox!.width).toBeLessThanOrEqual(
+      rowRight + 1
+    )
+    expect(publicLinkBox!.x + publicLinkBox!.width).toBeLessThanOrEqual(
+      rowRight + 1
+    )
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth
+    )
+    expect(hasHorizontalOverflow).toBe(false)
+
+    await longRow.scrollIntoViewIfNeeded()
+    if (process.env.CAPTURE_ADMIN_EVENTS_QA === "1") {
+      await page.screenshot({
+        path: `/tmp/imsweb-admin-events-${testInfo.project.name}.png`,
+        fullPage: false,
+      })
+    }
+  })
 })

@@ -163,30 +163,32 @@ describe("getCurrentCoordinates", () => {
     expect(mocks.getCurrentPosition).toHaveBeenCalledOnce()
   })
 
-  it("does not request a position when the permission request is denied", async () => {
-    mocks.checkPermissions.mockResolvedValue({
-      location: "prompt",
-      coarseLocation: "prompt-with-rationale",
-    })
-    mocks.requestPermissions.mockResolvedValue({
-      location: "denied",
-      coarseLocation: "denied",
-    })
+  describe("does not request a position when", () => {
+    it("the permission request is denied", async () => {
+      mocks.checkPermissions.mockResolvedValue({
+        location: "prompt",
+        coarseLocation: "prompt-with-rationale",
+      })
+      mocks.requestPermissions.mockResolvedValue({
+        location: "denied",
+        coarseLocation: "denied",
+      })
 
-    await expectFailureKind(getCurrentCoordinates(), "permission-denied")
-    expect(mocks.requestPermissions).toHaveBeenCalledWith(["location"])
-    expect(mocks.getCurrentPosition).not.toHaveBeenCalled()
-  })
-
-  it("does not request a position when native location is denied", async () => {
-    mocks.checkPermissions.mockResolvedValue({
-      location: "denied",
-      coarseLocation: "denied",
+      await expectFailureKind(getCurrentCoordinates(), "permission-denied")
+      expect(mocks.requestPermissions).toHaveBeenCalledWith(["location"])
+      expect(mocks.getCurrentPosition).not.toHaveBeenCalled()
     })
 
-    await expectFailureKind(getCurrentCoordinates(), "permission-denied")
-    expect(mocks.requestPermissions).not.toHaveBeenCalled()
-    expect(mocks.getCurrentPosition).not.toHaveBeenCalled()
+    it("native location is denied", async () => {
+      mocks.checkPermissions.mockResolvedValue({
+        location: "denied",
+        coarseLocation: "denied",
+      })
+
+      await expectFailureKind(getCurrentCoordinates(), "permission-denied")
+      expect(mocks.requestPermissions).not.toHaveBeenCalled()
+      expect(mocks.getCurrentPosition).not.toHaveBeenCalled()
+    })
   })
 
   it("maps a native permission check failure to unavailable", async () => {

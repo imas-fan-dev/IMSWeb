@@ -166,57 +166,63 @@ describe("theme controls", () => {
     })
   })
 
-  it("falls back to a fade when starting a view transition throws", async () => {
-    Object.defineProperty(document.documentElement, "animate", {
-      configurable: true,
-      value: vi.fn(),
-    })
-    Object.defineProperty(document, "startViewTransition", {
-      configurable: true,
-      value: vi.fn(() => {
-        throw new Error("View transitions unavailable")
-      }),
-    })
+  describe("falls back to a fade when", () => {
+    it("starting a view transition throws", async () => {
+      Object.defineProperty(document.documentElement, "animate", {
+        configurable: true,
+        value: vi.fn(),
+      })
+      Object.defineProperty(document, "startViewTransition", {
+        configurable: true,
+        value: vi.fn(() => {
+          throw new Error("View transitions unavailable")
+        }),
+      })
 
-    const user = userEvent.setup()
-    render(<ThemeToggle />, { wrapper: I18nTestProvider })
-    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
+      const user = userEvent.setup()
+      render(<ThemeToggle />, { wrapper: I18nTestProvider })
+      await user.click(
+        screen.getByRole("button", { name: "切换亮色或暗色模式" })
+      )
 
-    expect(themeState.setTheme).toHaveBeenCalledWith("dark")
-    expect(document.documentElement).toHaveAttribute(
-      "data-theme-transition",
-      "fade"
-    )
-  })
-
-  it("falls back to a fade when the view-transition pseudo-element is unsupported", async () => {
-    const animate = vi.fn()
-    const startViewTransition = vi.fn()
-    const supports = vi.fn().mockReturnValue(false)
-    vi.stubGlobal("CSS", { supports })
-    Object.defineProperty(document.documentElement, "animate", {
-      configurable: true,
-      value: animate,
-    })
-    Object.defineProperty(document, "startViewTransition", {
-      configurable: true,
-      value: startViewTransition,
+      expect(themeState.setTheme).toHaveBeenCalledWith("dark")
+      expect(document.documentElement).toHaveAttribute(
+        "data-theme-transition",
+        "fade"
+      )
     })
 
-    const user = userEvent.setup()
-    render(<ThemeToggle />, { wrapper: I18nTestProvider })
-    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
+    it("the view-transition pseudo-element is unsupported", async () => {
+      const animate = vi.fn()
+      const startViewTransition = vi.fn()
+      const supports = vi.fn().mockReturnValue(false)
+      vi.stubGlobal("CSS", { supports })
+      Object.defineProperty(document.documentElement, "animate", {
+        configurable: true,
+        value: animate,
+      })
+      Object.defineProperty(document, "startViewTransition", {
+        configurable: true,
+        value: startViewTransition,
+      })
 
-    expect(themeState.setTheme).toHaveBeenCalledWith("dark")
-    expect(document.documentElement).toHaveAttribute(
-      "data-theme-transition",
-      "fade"
-    )
-    expect(supports).toHaveBeenCalledWith(
-      "selector(::view-transition-new(root))"
-    )
-    expect(startViewTransition).not.toHaveBeenCalled()
-    expect(animate).not.toHaveBeenCalled()
+      const user = userEvent.setup()
+      render(<ThemeToggle />, { wrapper: I18nTestProvider })
+      await user.click(
+        screen.getByRole("button", { name: "切换亮色或暗色模式" })
+      )
+
+      expect(themeState.setTheme).toHaveBeenCalledWith("dark")
+      expect(document.documentElement).toHaveAttribute(
+        "data-theme-transition",
+        "fade"
+      )
+      expect(supports).toHaveBeenCalledWith(
+        "selector(::view-transition-new(root))"
+      )
+      expect(startViewTransition).not.toHaveBeenCalled()
+      expect(animate).not.toHaveBeenCalled()
+    })
   })
 
   it("keeps the circular reveal in an iOS Tauri WebView", async () => {
@@ -341,123 +347,137 @@ describe("theme controls", () => {
     await waitFor(() => expect(themeColor.content).toBe("#171717"))
   })
 
-  it("synchronizes Android system bars without adding a second animation", async () => {
-    const themeColor = document.createElement("meta")
-    themeColor.name = "theme-color"
-    document.head.append(themeColor)
-    nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
-    nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
+  describe("synchronizes Android system bars", () => {
+    it("without adding a second animation", async () => {
+      const themeColor = document.createElement("meta")
+      themeColor.name = "theme-color"
+      document.head.append(themeColor)
+      nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
+      nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
 
-    themeState.resolvedTheme = "dark"
-    const { rerender } = render(<ThemeColorSync />)
+      themeState.resolvedTheme = "dark"
+      const { rerender } = render(<ThemeColorSync />)
 
-    await waitFor(() => {
-      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(true)
+      await waitFor(() => {
+        expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(
+          true
+        )
+      })
+      expect(themeColor.content).toBe("#171717")
+
+      themeState.resolvedTheme = "light"
+      rerender(<ThemeColorSync />)
+
+      await waitFor(() => {
+        expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenLastCalledWith(
+          false
+        )
+      })
+      expect(themeColor.content).toBe("#fdfdfb")
     })
-    expect(themeColor.content).toBe("#171717")
 
-    themeState.resolvedTheme = "light"
-    rerender(<ThemeColorSync />)
+    it("when the circular reveal commits", async () => {
+      let finishAnimation: () => void = () => {}
+      const animationFinished = new Promise<void>((resolve) => {
+        finishAnimation = resolve
+      })
+      const animate = vi.fn().mockReturnValue({ finished: animationFinished })
+      const startViewTransition = vi.fn(
+        (update: () => void | Promise<void>) => {
+          const updateCallbackDone = Promise.resolve(update())
+          return {
+            finished: animationFinished,
+            ready: updateCallbackDone,
+            skipTransition: vi.fn(),
+            types: new Set<string>(),
+            updateCallbackDone,
+          }
+        }
+      )
+      Object.defineProperty(document.documentElement, "animate", {
+        configurable: true,
+        value: animate,
+      })
+      Object.defineProperty(document, "startViewTransition", {
+        configurable: true,
+        value: startViewTransition,
+      })
+      themeState.setTheme.mockImplementation((theme: string) => {
+        document.documentElement.classList.toggle("dark", theme === "dark")
+      })
 
-    await waitFor(() => {
-      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenLastCalledWith(
-        false
+      const { rerender } = render(
+        <>
+          <ThemeToggle />
+          <ThemeColorSync />
+        </>,
+        { wrapper: I18nTestProvider }
+      )
+      nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
+      nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
+      const user = userEvent.setup()
+      await user.click(
+        screen.getByRole("button", { name: "切换亮色或暗色模式" })
+      )
+
+      themeState.resolvedTheme = "dark"
+      rerender(
+        <>
+          <ThemeToggle />
+          <ThemeColorSync />
+        </>
+      )
+
+      await waitFor(() => expect(animate).toHaveBeenCalledOnce())
+      await waitFor(() => {
+        expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(
+          true
+        )
+      })
+
+      finishAnimation()
+      await waitFor(() => {
+        expect(document.documentElement).not.toHaveAttribute(
+          "data-theme-transition"
+        )
+      })
+      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledOnce()
+    })
+
+    it("when the fade fallback commits", async () => {
+      const { rerender } = render(
+        <>
+          <ThemeToggle />
+          <ThemeColorSync />
+        </>,
+        { wrapper: I18nTestProvider }
+      )
+      nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
+      nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
+      const user = userEvent.setup()
+
+      await user.click(
+        screen.getByRole("button", { name: "切换亮色或暗色模式" })
+      )
+
+      themeState.resolvedTheme = "dark"
+      rerender(
+        <>
+          <ThemeToggle />
+          <ThemeColorSync />
+        </>
+      )
+
+      await waitFor(() => {
+        expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(
+          true
+        )
+      })
+      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledOnce()
+      expect(document.documentElement).toHaveAttribute(
+        "data-theme-transition",
+        "fade"
       )
     })
-    expect(themeColor.content).toBe("#fdfdfb")
-  })
-
-  it("synchronizes Android system bars when the circular reveal commits", async () => {
-    let finishAnimation: () => void = () => {}
-    const animationFinished = new Promise<void>((resolve) => {
-      finishAnimation = resolve
-    })
-    const animate = vi.fn().mockReturnValue({ finished: animationFinished })
-    const startViewTransition = vi.fn((update: () => void | Promise<void>) => {
-      const updateCallbackDone = Promise.resolve(update())
-      return {
-        finished: animationFinished,
-        ready: updateCallbackDone,
-        skipTransition: vi.fn(),
-        types: new Set<string>(),
-        updateCallbackDone,
-      }
-    })
-    Object.defineProperty(document.documentElement, "animate", {
-      configurable: true,
-      value: animate,
-    })
-    Object.defineProperty(document, "startViewTransition", {
-      configurable: true,
-      value: startViewTransition,
-    })
-    themeState.setTheme.mockImplementation((theme: string) => {
-      document.documentElement.classList.toggle("dark", theme === "dark")
-    })
-
-    const { rerender } = render(
-      <>
-        <ThemeToggle />
-        <ThemeColorSync />
-      </>,
-      { wrapper: I18nTestProvider }
-    )
-    nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
-    nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
-    const user = userEvent.setup()
-    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
-
-    themeState.resolvedTheme = "dark"
-    rerender(
-      <>
-        <ThemeToggle />
-        <ThemeColorSync />
-      </>
-    )
-
-    await waitFor(() => expect(animate).toHaveBeenCalledOnce())
-    await waitFor(() => {
-      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(true)
-    })
-
-    finishAnimation()
-    await waitFor(() => {
-      expect(document.documentElement).not.toHaveAttribute(
-        "data-theme-transition"
-      )
-    })
-    expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledOnce()
-  })
-
-  it("synchronizes Android system bars when the fade fallback commits", async () => {
-    const { rerender } = render(
-      <>
-        <ThemeToggle />
-        <ThemeColorSync />
-      </>,
-      { wrapper: I18nTestProvider }
-    )
-    nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
-    nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
-    const user = userEvent.setup()
-
-    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
-
-    themeState.resolvedTheme = "dark"
-    rerender(
-      <>
-        <ThemeToggle />
-        <ThemeColorSync />
-      </>
-    )
-
-    await waitFor(() => {
-      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(true)
-    })
-    expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledOnce()
-    expect(document.documentElement).toHaveAttribute(
-      "data-theme-transition",
-      "fade"
-    )
   })
 })

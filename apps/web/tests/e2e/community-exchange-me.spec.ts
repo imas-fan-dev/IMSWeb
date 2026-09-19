@@ -464,249 +464,255 @@ test.beforeEach(async ({ context, page }) => {
   )
 })
 
-test("edits the authenticated profile and card without viewport overflow @mobile", async ({
-  page,
-  isMobile,
-}, testInfo) => {
-  const consoleErrors: string[] = []
-  page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text())
-  })
-  await page.goto("/community/exchange/me")
+test.describe("community exchange me", () => {
+  test("edits the authenticated profile and card without viewport overflow @mobile", async ({
+    page,
+    isMobile,
+  }, testInfo) => {
+    const consoleErrors: string[] = []
+    page.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text())
+    })
+    await page.goto("/community/exchange/me")
 
-  await expect(
-    page.getByRole("heading", { name: "个人档案", exact: true })
-  ).toBeVisible()
-  await expect(page.getByRole("textbox", { name: "显示名称" })).toBeVisible()
-  await expect(page.getByText("浏览器交换名片")).toBeHidden()
-  await page.screenshot({
-    path: `/tmp/imsweb-profile-workspace-profile-${testInfo.project.name}.png`,
-    fullPage: true,
-  })
+    await expect(
+      page.getByRole("heading", { name: "个人档案", exact: true })
+    ).toBeVisible()
+    await expect(page.getByRole("textbox", { name: "显示名称" })).toBeVisible()
+    await expect(page.getByText("浏览器交换名片")).toBeHidden()
+    await page.screenshot({
+      path: `/tmp/imsweb-profile-workspace-profile-${testInfo.project.name}.png`,
+      fullPage: true,
+    })
 
-  const accountTrigger = page.getByRole("button", {
-    name: "帐号：浏览器制作人",
-  })
-  await accountTrigger.click()
-  await expect(page.getByRole("link", { name: "个人档案" })).toHaveAttribute(
-    "href",
-    "/community/exchange/me"
-  )
-  await page.keyboard.press("Escape")
+    const accountTrigger = page.getByRole("button", {
+      name: "帐号：浏览器制作人",
+    })
+    await accountTrigger.click()
+    await expect(page.getByRole("link", { name: "个人档案" })).toHaveAttribute(
+      "href",
+      "/community/exchange/me"
+    )
+    await page.keyboard.press("Escape")
 
-  let avatarPutRequests = 0
-  let avatarDeleteRequests = 0
-  page.on("request", (request) => {
-    if (!request.url().endsWith("/api/platform/me/avatar")) return
-    if (request.method() === "PUT") avatarPutRequests += 1
-    if (request.method() === "DELETE") avatarDeleteRequests += 1
-  })
+    let avatarPutRequests = 0
+    let avatarDeleteRequests = 0
+    page.on("request", (request) => {
+      if (!request.url().endsWith("/api/platform/me/avatar")) return
+      if (request.method() === "PUT") avatarPutRequests += 1
+      if (request.method() === "DELETE") avatarDeleteRequests += 1
+    })
 
-  await page.locator("#exchange-profile-avatar").setInputFiles({
-    name: "avatar.svg",
-    mimeType: "image/svg+xml",
-    buffer: avatarFixture,
-  })
-  const cropDialog = page.getByRole("dialog")
-  await expect(cropDialog).toContainText("使用此头像")
-  const cropCanvas = cropDialog.getByTestId("avatar-crop-canvas")
-  await expect(cropCanvas).toBeVisible()
-  const cropArea = cropDialog.locator(".reactEasyCrop_CropArea")
-  await expect(cropArea).toBeVisible()
-  const [canvasBox, dialogBox, cropBox] = await Promise.all([
-    cropCanvas.boundingBox(),
-    cropDialog.boundingBox(),
-    cropArea.boundingBox(),
-  ])
-  expect(canvasBox).not.toBeNull()
-  expect(dialogBox).not.toBeNull()
-  expect(cropBox).not.toBeNull()
-  expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
-  expect(dialogBox!.y).toBeGreaterThanOrEqual(0)
-  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(
-    (await page.viewportSize())!.width
-  )
-  expect(Math.abs(canvasBox!.width - canvasBox!.height)).toBeLessThanOrEqual(2)
-  expect(Math.abs(cropBox!.width - cropBox!.height)).toBeLessThanOrEqual(2)
-  await expect(cropArea).toHaveCSS("border-radius", "50%")
+    await page.locator("#exchange-profile-avatar").setInputFiles({
+      name: "avatar.svg",
+      mimeType: "image/svg+xml",
+      buffer: avatarFixture,
+    })
+    const cropDialog = page.getByRole("dialog")
+    await expect(cropDialog).toContainText("使用此头像")
+    const cropCanvas = cropDialog.getByTestId("avatar-crop-canvas")
+    await expect(cropCanvas).toBeVisible()
+    const cropArea = cropDialog.locator(".reactEasyCrop_CropArea")
+    await expect(cropArea).toBeVisible()
+    const [canvasBox, dialogBox, cropBox] = await Promise.all([
+      cropCanvas.boundingBox(),
+      cropDialog.boundingBox(),
+      cropArea.boundingBox(),
+    ])
+    expect(canvasBox).not.toBeNull()
+    expect(dialogBox).not.toBeNull()
+    expect(cropBox).not.toBeNull()
+    expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
+    expect(dialogBox!.y).toBeGreaterThanOrEqual(0)
+    expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(
+      (await page.viewportSize())!.width
+    )
+    expect(Math.abs(canvasBox!.width - canvasBox!.height)).toBeLessThanOrEqual(
+      2
+    )
+    expect(Math.abs(cropBox!.width - cropBox!.height)).toBeLessThanOrEqual(2)
+    await expect(cropArea).toHaveCSS("border-radius", "50%")
 
-  const zoom = cropDialog.getByRole("slider", { name: "缩放" })
-  const zoomBox = await zoom.boundingBox()
-  expect(zoomBox).not.toBeNull()
-  expect(zoomBox!.y - (canvasBox!.y + canvasBox!.height)).toBeLessThanOrEqual(
-    64
-  )
-  await expect(zoom).toHaveAttribute("min", "0.5")
-  const zoomBefore = await zoom.inputValue()
-  await zoom.press("ArrowRight")
-  await expect(zoom).not.toHaveValue(zoomBefore)
-  if (isMobile) {
-    for (const control of [
-      cropDialog.getByRole("button", { name: "取消" }),
-      cropDialog.getByRole("button", { name: "使用此头像" }),
-    ]) {
-      await expect(control).toBeVisible()
-      expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    const zoom = cropDialog.getByRole("slider", { name: "缩放" })
+    const zoomBox = await zoom.boundingBox()
+    expect(zoomBox).not.toBeNull()
+    expect(zoomBox!.y - (canvasBox!.y + canvasBox!.height)).toBeLessThanOrEqual(
+      64
+    )
+    await expect(zoom).toHaveAttribute("min", "0.5")
+    const zoomBefore = await zoom.inputValue()
+    await zoom.press("ArrowRight")
+    await expect(zoom).not.toHaveValue(zoomBefore)
+    if (isMobile) {
+      for (const control of [
+        cropDialog.getByRole("button", { name: "取消" }),
+        cropDialog.getByRole("button", { name: "使用此头像" }),
+      ]) {
+        await expect(control).toBeVisible()
+        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth
+        ),
+        "mobile crop dialog overflow"
+      ).toBe(true)
     }
+
+    await cropDialog.getByRole("button", { name: "使用此头像" }).click()
+    await expect(page.getByRole("button", { name: "保存头像" })).toBeVisible()
+    expect(avatarPutRequests).toBe(0)
+    await page.screenshot({
+      path: `/tmp/imsweb-profile-workspace-avatar-staged-${testInfo.project.name}.png`,
+      fullPage: true,
+    })
+
+    await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "PUT" &&
+          request.url().endsWith("/api/platform/me/avatar")
+      ),
+      page.getByRole("button", { name: "保存头像" }).click(),
+    ])
+    expect(avatarPutRequests).toBe(1)
+    await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
+    await expect(
+      accountTrigger.locator('[data-slot="avatar-image"]')
+    ).toHaveAttribute("src", directAvatarUrl)
+    await settleToasts(page)
+    await accountTrigger.click()
+    const accountPopover = page.locator('[data-slot="popover-content"]')
+    await expect(accountPopover).toBeVisible()
+    await expect(
+      accountPopover.locator('[data-slot="avatar-image"]')
+    ).toHaveAttribute("src", directAvatarUrl)
+    await expect(
+      page.locator('aside [data-slot="avatar-image"]')
+    ).toHaveAttribute("src", directAvatarUrl)
+    await page.keyboard.press("Escape")
+    await page.screenshot({
+      path: `/tmp/imsweb-profile-workspace-avatar-saved-${testInfo.project.name}.png`,
+      fullPage: true,
+    })
+
+    await page.getByRole("button", { name: "移除头像" }).click()
+    const removeDialog = page.getByRole("alertdialog")
+    await expect(removeDialog).toBeVisible()
+    await removeDialog.getByRole("button", { name: "取消" }).click()
+    expect(avatarDeleteRequests).toBe(0)
+    await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
+
+    await page.getByRole("button", { name: "移除头像" }).click()
+    await Promise.all([
+      page.waitForRequest(
+        (request) =>
+          request.method() === "DELETE" &&
+          request.url().endsWith("/api/platform/me/avatar")
+      ),
+      page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "确认移除" })
+        .click(),
+    ])
+    expect(avatarDeleteRequests).toBe(1)
+    await expect(
+      accountTrigger.locator('[data-slot="avatar-fallback"]')
+    ).toBeVisible()
+
+    const profileName = page.getByRole("textbox", { name: "显示名称" })
+    await profileName.fill("更新后的浏览器制作人")
+    await page.getByRole("button", { name: "保存资料" }).click()
+    await expect(page.getByText("制作人资料已保存。")).toBeVisible()
+    const profileSavedToast = page.getByText("制作人资料已保存", {
+      exact: true,
+    })
+    await expect(profileSavedToast).toBeVisible()
+    await settleToasts(page)
+    await expect(profileSavedToast).toHaveCount(0)
+
+    await page.getByRole("link", { name: "交换名片", exact: true }).click()
+    await expect(page).toHaveURL(/section=cards/)
+    await expect(page.getByText("浏览器交换名片")).toBeVisible()
+    await expect(page.getByText("素材已核准")).toBeVisible()
+    await expect(
+      page.getByLabel("编辑名片").getByText("草稿", { exact: true })
+    ).toBeVisible()
+    await expect(page.getByRole("textbox", { name: "显示名称" })).toBeHidden()
+    await page.screenshot({
+      path: `/tmp/imsweb-profile-workspace-cards-${testInfo.project.name}.png`,
+      fullPage: true,
+    })
+
+    const cardName = page.getByRole("textbox", { name: "名片标题" })
+    await cardName.fill("更新后的浏览器名片")
+    await page.getByRole("tab", { name: "灰姑娘女孩" }).click()
+    await page.getByRole("searchbox", { name: "" }).fill("凛")
+    await page.getByRole("checkbox", { name: /涩谷凛/ }).click()
+    await expect(
+      page.getByLabel("已选担当偶像").getByText("天海春香")
+    ).toBeVisible()
+    await expect(
+      page.getByLabel("已选担当偶像").getByText("涩谷凛")
+    ).toBeVisible()
+    await page.getByRole("button", { name: "保存名片资料" }).click()
+    await expect(page.getByText("名片资料已保存。")).toBeVisible()
+
+    await page.getByRole("tab", { name: "背面预览" }).click()
+    await expect(
+      page.getByRole("button", { name: "查看更新后的浏览器名片背面" })
+    ).toBeVisible()
+
+    await page.getByRole("link", { name: "事务所与位置", exact: true }).click()
+    await expect(page).toHaveURL(/section=offices/)
+    await expect(
+      page.getByRole("heading", { name: "事务所与地图位置" })
+    ).toBeVisible()
+    await expect(page.getByRole("textbox", { name: "事务所名称" })).toHaveValue(
+      "浏览器交换事务所"
+    )
+    await expect(page.getByText("已公开", { exact: true })).toBeVisible()
+    await expect(page.getByText("区域范围合适")).toBeVisible()
+    await expect(page.getByText("西岸艺术中心入口").first()).toBeVisible()
+    await expect(page.getByRole("spinbutton")).toHaveCount(0)
+
+    await page.getByRole("textbox", { name: "搜索地点" }).fill("首钢园")
+    await page.getByRole("button", { name: "搜索" }).click()
+    await page.getByRole("button", { name: /首钢园.*石景山区/ }).click()
+
+    const officeName = page.getByRole("textbox", { name: "事务所名称" })
+    await officeName.fill("更新后的浏览器事务所")
+    await page.getByRole("button", { name: "保存事务所" }).click()
+    await expect(page.getByText("事务所资料已保存。")).toBeVisible()
+
+    await expect(
+      page.getByText("首钢园，石景山区，北京市，中国").first()
+    ).toBeVisible()
+    await page.getByRole("button", { name: "重新提交审核" }).click()
+    await expect(
+      page.getByText("区域位置已提交审核，审核通过前不会出现在公开地图。")
+    ).toBeVisible()
+    await expect(page.getByText("审核中", { exact: true })).toBeVisible()
+
+    await page.getByRole("button", { name: "撤回公开位置" }).click()
+    await page.getByRole("button", { name: "确认撤回" }).click()
+    await expect(
+      page.getByText("公开位置已撤回，事务所已从区域地图下线。")
+    ).toBeVisible()
+    await expect(page.getByText("当前地址不在地图上")).toBeVisible()
+
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth
       ),
-      "mobile crop dialog overflow"
+      `${isMobile ? "mobile" : "desktop"} exchange-me overflow`
     ).toBe(true)
-  }
 
-  await cropDialog.getByRole("button", { name: "使用此头像" }).click()
-  await expect(page.getByRole("button", { name: "保存头像" })).toBeVisible()
-  expect(avatarPutRequests).toBe(0)
-  await page.screenshot({
-    path: `/tmp/imsweb-profile-workspace-avatar-staged-${testInfo.project.name}.png`,
-    fullPage: true,
+    const accessibility = await new AxeBuilder({ page })
+      .setLegacyMode()
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze()
+    expect(accessibility.violations).toEqual([])
+    expect(consoleErrors).toEqual([])
   })
-
-  await Promise.all([
-    page.waitForRequest(
-      (request) =>
-        request.method() === "PUT" &&
-        request.url().endsWith("/api/platform/me/avatar")
-    ),
-    page.getByRole("button", { name: "保存头像" }).click(),
-  ])
-  expect(avatarPutRequests).toBe(1)
-  await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
-  await expect(
-    accountTrigger.locator('[data-slot="avatar-image"]')
-  ).toHaveAttribute("src", directAvatarUrl)
-  await settleToasts(page)
-  await accountTrigger.click()
-  const accountPopover = page.locator('[data-slot="popover-content"]')
-  await expect(accountPopover).toBeVisible()
-  await expect(
-    accountPopover.locator('[data-slot="avatar-image"]')
-  ).toHaveAttribute("src", directAvatarUrl)
-  await expect(
-    page.locator('aside [data-slot="avatar-image"]')
-  ).toHaveAttribute("src", directAvatarUrl)
-  await page.keyboard.press("Escape")
-  await page.screenshot({
-    path: `/tmp/imsweb-profile-workspace-avatar-saved-${testInfo.project.name}.png`,
-    fullPage: true,
-  })
-
-  await page.getByRole("button", { name: "移除头像" }).click()
-  const removeDialog = page.getByRole("alertdialog")
-  await expect(removeDialog).toBeVisible()
-  await removeDialog.getByRole("button", { name: "取消" }).click()
-  expect(avatarDeleteRequests).toBe(0)
-  await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
-
-  await page.getByRole("button", { name: "移除头像" }).click()
-  await Promise.all([
-    page.waitForRequest(
-      (request) =>
-        request.method() === "DELETE" &&
-        request.url().endsWith("/api/platform/me/avatar")
-    ),
-    page
-      .getByRole("alertdialog")
-      .getByRole("button", { name: "确认移除" })
-      .click(),
-  ])
-  expect(avatarDeleteRequests).toBe(1)
-  await expect(
-    accountTrigger.locator('[data-slot="avatar-fallback"]')
-  ).toBeVisible()
-
-  const profileName = page.getByRole("textbox", { name: "显示名称" })
-  await profileName.fill("更新后的浏览器制作人")
-  await page.getByRole("button", { name: "保存资料" }).click()
-  await expect(page.getByText("制作人资料已保存。")).toBeVisible()
-  const profileSavedToast = page.getByText("制作人资料已保存", { exact: true })
-  await expect(profileSavedToast).toBeVisible()
-  await settleToasts(page)
-  await expect(profileSavedToast).toHaveCount(0)
-
-  await page.getByRole("link", { name: "交换名片", exact: true }).click()
-  await expect(page).toHaveURL(/section=cards/)
-  await expect(page.getByText("浏览器交换名片")).toBeVisible()
-  await expect(page.getByText("素材已核准")).toBeVisible()
-  await expect(
-    page.getByLabel("编辑名片").getByText("草稿", { exact: true })
-  ).toBeVisible()
-  await expect(page.getByRole("textbox", { name: "显示名称" })).toBeHidden()
-  await page.screenshot({
-    path: `/tmp/imsweb-profile-workspace-cards-${testInfo.project.name}.png`,
-    fullPage: true,
-  })
-
-  const cardName = page.getByRole("textbox", { name: "名片标题" })
-  await cardName.fill("更新后的浏览器名片")
-  await page.getByRole("tab", { name: "灰姑娘女孩" }).click()
-  await page.getByRole("searchbox", { name: "" }).fill("凛")
-  await page.getByRole("checkbox", { name: /涩谷凛/ }).click()
-  await expect(
-    page.getByLabel("已选担当偶像").getByText("天海春香")
-  ).toBeVisible()
-  await expect(
-    page.getByLabel("已选担当偶像").getByText("涩谷凛")
-  ).toBeVisible()
-  await page.getByRole("button", { name: "保存名片资料" }).click()
-  await expect(page.getByText("名片资料已保存。")).toBeVisible()
-
-  await page.getByRole("tab", { name: "背面预览" }).click()
-  await expect(
-    page.getByRole("button", { name: "查看更新后的浏览器名片背面" })
-  ).toBeVisible()
-
-  await page.getByRole("link", { name: "事务所与位置", exact: true }).click()
-  await expect(page).toHaveURL(/section=offices/)
-  await expect(
-    page.getByRole("heading", { name: "事务所与地图位置" })
-  ).toBeVisible()
-  await expect(page.getByRole("textbox", { name: "事务所名称" })).toHaveValue(
-    "浏览器交换事务所"
-  )
-  await expect(page.getByText("已公开", { exact: true })).toBeVisible()
-  await expect(page.getByText("区域范围合适")).toBeVisible()
-  await expect(page.getByText("西岸艺术中心入口").first()).toBeVisible()
-  await expect(page.getByRole("spinbutton")).toHaveCount(0)
-
-  await page.getByRole("textbox", { name: "搜索地点" }).fill("首钢园")
-  await page.getByRole("button", { name: "搜索" }).click()
-  await page.getByRole("button", { name: /首钢园.*石景山区/ }).click()
-
-  const officeName = page.getByRole("textbox", { name: "事务所名称" })
-  await officeName.fill("更新后的浏览器事务所")
-  await page.getByRole("button", { name: "保存事务所" }).click()
-  await expect(page.getByText("事务所资料已保存。")).toBeVisible()
-
-  await expect(
-    page.getByText("首钢园，石景山区，北京市，中国").first()
-  ).toBeVisible()
-  await page.getByRole("button", { name: "重新提交审核" }).click()
-  await expect(
-    page.getByText("区域位置已提交审核，审核通过前不会出现在公开地图。")
-  ).toBeVisible()
-  await expect(page.getByText("审核中", { exact: true })).toBeVisible()
-
-  await page.getByRole("button", { name: "撤回公开位置" }).click()
-  await page.getByRole("button", { name: "确认撤回" }).click()
-  await expect(
-    page.getByText("公开位置已撤回，事务所已从区域地图下线。")
-  ).toBeVisible()
-  await expect(page.getByText("当前地址不在地图上")).toBeVisible()
-
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth
-    ),
-    `${isMobile ? "mobile" : "desktop"} exchange-me overflow`
-  ).toBe(true)
-
-  const accessibility = await new AxeBuilder({ page })
-    .setLegacyMode()
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .analyze()
-  expect(accessibility.violations).toEqual([])
-  expect(consoleErrors).toEqual([])
 })

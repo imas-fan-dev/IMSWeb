@@ -6,7 +6,7 @@ import {
 } from "../fixtures/auth-request";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { onTestFinished, test as nodeTest } from "vitest";
+import { describe, onTestFinished, test as nodeTest } from "vitest";
 import { postgresTest as test } from '../postgres-test-database';
 import { pathToFileURL } from "node:url";
 import { sign, verify } from "hono/utils/jwt/jwt";
@@ -352,677 +352,678 @@ async function eventRows(fixture: Fixture, accountId: string) {
     return result.results;
 }
 
-test("Platform session authenticates active and restricted accounts through a live family", async () => {
-    const fixture = await createFixture();
-    const active = await fixture.seedSession({ accountId: "platform-active" });
+describe('platform session security contract', () => {
+    test("Platform session authenticates active and restricted accounts through a live family", async () => {
+        const fixture = await createFixture();
+        const active = await fixture.seedSession({ accountId: "platform-active" });
 
-    const anonymous = await testRequest(
-        fixture.app,
-        "/api/platform/auth/session",
-    );
-    assert.equal(anonymous.status, 401);
-    assert.deepEqual(await anonymous.json(), {
-        success: false,
-        code: "PLATFORM_SESSION_INVALID",
-    });
-
-    const authenticated = await sessionRequest(fixture, active.cookies);
-    assert.equal(authenticated.status, 200);
-    assert.deepEqual(
-        await authenticated.json(),
-        expectedSessionPayload(active.accountId, "active"),
-    );
-
-    await fixture.database
-        .prepare(
-            "UPDATE platform_accounts SET status='restricted', updated_at=? WHERE id=?",
-        )
-        .bind(Date.now(), active.accountId)
-        .run();
-    const restricted = await sessionRequest(fixture, active.cookies);
-    assert.equal(restricted.status, 200);
-    assert.deepEqual(
-        await restricted.json(),
-        expectedSessionPayload(active.accountId, "restricted"),
-    );
-    const restrictedRefresh = await refreshRequest(
-        fixture,
-        active.cookies,
-        active.csrfSecret,
-    );
-    assert.equal(restrictedRefresh.status, 200);
-    assert.deepEqual(
-        await restrictedRefresh.clone().json(),
-        expectedSessionPayload(active.accountId, "restricted"),
-    );
-
-    await fixture.database
-        .prepare(
-            "UPDATE platform_accounts SET token_version=token_version+1, updated_at=? WHERE id=?",
-        )
-        .bind(Date.now(), active.accountId)
-        .run();
-    assert.equal(
-        (await sessionRequest(fixture, cookieValues(restrictedRefresh))).status,
-        401,
-    );
-
-    const revoked = await fixture.seedSession({
-        accountId: "platform-revoked",
-    });
-    await fixture.database
-        .prepare(
-            "UPDATE platform_refresh_sessions SET revoked_at=?, updated_at=? WHERE id=?",
-        )
-        .bind(Date.now(), Date.now(), revoked.sessionId)
-        .run();
-    assert.equal((await sessionRequest(fixture, revoked.cookies)).status, 401);
-
-    const expired = await fixture.seedSession({
-        accountId: "platform-expired",
-    });
-    const past = Date.now() - 1_000;
-    await fixture.database
-        .prepare(
-            `UPDATE platform_refresh_sessions
-         SET created_at=?, updated_at=?, expires_at=? WHERE id=?`,
-        )
-        .bind(past - 60_000, past - 60_000, past, expired.sessionId)
-        .run();
-    assert.equal((await sessionRequest(fixture, expired.cookies)).status, 401);
-});
-
-test("refresh-session writes fence the current account token version atomically", async () => {
-    const fixture = await createFixture();
-    const seeded = await fixture.seedSession({
-        accountId: "platform-version-fence",
-    });
-    const now = Date.now();
-    const event = (id: string) => ({
-        id: `event-${id}`,
-        accountId: seeded.accountId,
-        eventType: "auth.session.created" as const,
-        requestId: null,
-        ipAddress: null,
-        userAgent: null,
-        metadataJson: "{}",
-        createdAt: now,
-    });
-    assert.equal(
-        await fixture.repository.createRefreshSession({
-            id: "version-fence-rejected",
-            accountId: seeded.accountId,
-            accountTokenVersion: 1,
-            tokenHash: "a".repeat(64),
-            csrfHash: "b".repeat(64),
-            expiresAt: now + 60_000,
-            createdAt: now,
-            event: event("rejected"),
-        }),
-        false,
-    );
-    assert.equal(
-        await fixture.repository.findRefreshSessionById(
-            "version-fence-rejected",
-        ),
-        null,
-    );
-
-    assert.equal(
-        await fixture.repository.createRefreshSession({
-            id: "version-fence-created",
-            accountId: seeded.accountId,
-            accountTokenVersion: 0,
-            tokenHash: "c".repeat(64),
-            csrfHash: "d".repeat(64),
-            expiresAt: now + 60_000,
-            createdAt: now,
-            event: event("created"),
-        }),
-        true,
-    );
-    await fixture.database
-        .prepare(
-            "UPDATE platform_accounts SET token_version=1, updated_at=? WHERE id=?",
-        )
-        .bind(now + 1, seeded.accountId)
-        .run();
-    assert.equal(
-        await fixture.repository.rotateRefreshSession({
-            id: "version-fence-created",
-            accountTokenVersion: 0,
-            currentTokenHash: "c".repeat(64),
-            nextTokenHash: "e".repeat(64),
-            nextCsrfHash: "f".repeat(64),
-            nextExpiresAt: now + 120_000,
-            updatedAt: now + 1,
-            event: {
-                ...event("rotate"),
-                eventType: "auth.refresh.succeeded",
-            },
-        }),
-        false,
-    );
-    assert.equal(
-        (
-            await fixture.repository.findRefreshSessionById(
-                "version-fence-created",
-            )
-        )?.token_hash,
-        "c".repeat(64),
-    );
-});
-
-test("Platform and Backoffice reject each other even when their test secret is shared", async () => {
-    const fixture = await createFixture();
-    const session = await fixture.seedSession({ accountId: "platform-realm" });
-    const backofficeTokens = new HmacBackofficeTokenService(PLATFORM_SECRET);
-    const backofficeToken = await backofficeTokens.sign(
-        {
-            id: 42,
-            username: "realm-op",
-            producername: "Realm Op",
-            dept: "op",
-            adminRole: "admin",
-            csrfSecret: "backoffice-csrf",
-        },
-        ACCESS_TTL_SECONDS,
-    );
-    const platformAtBackoffice = await testRequest(
-        fixture.app,
-        "/api/admin/auth/session",
-        {
-            headers: {
-                Cookie: `ims_admin_access=${encodeURIComponent(session.accessToken)}`,
-            },
-        },
-    );
-    assert.equal(platformAtBackoffice.status, 401);
-
-    const backofficeAtPlatform = await testRequest(
-        fixture.app,
-        "/api/platform/auth/session",
-        {
-            headers: {
-                Cookie: `${ACCESS_COOKIE}=${encodeURIComponent(backofficeToken)}`,
-            },
-        },
-    );
-    assert.equal(backofficeAtPlatform.status, 401);
-
-    const now = Math.floor(Date.now() / 1000);
-    const missingAudience = await sign(
-        {
-            iss: "imsweb",
-            kind: "platform",
-            id: session.accountId,
-            tokenVersion: 0,
-            sessionId: session.sessionId,
-            csrfSecret: session.csrfSecret,
-            jti: randomUUID(),
-            iat: now,
-            exp: now + ACCESS_TTL_SECONDS,
-        },
-        PLATFORM_SECRET,
-        "HS256",
-    );
-    const realmLess = new Map(session.cookies);
-    realmLess.set(ACCESS_COOKIE, missingAudience);
-    assert.equal((await sessionRequest(fixture, realmLess)).status, 401);
-});
-
-nodeTest("production Platform token service fixes HS256 and all realm/session claims", async () => {
-    const moduleId = pathToFileURL(
-        path.join(
-            __dirname,
-            "../../src/infra/security/hmac/platform-token-service.ts",
-        ),
-    ).href;
-    const tokenModule = (await import(moduleId)) as {
-        HmacPlatformTokenService?: new (
-            secret: string,
-        ) => {
-            sign(
-                input: {
-                    id: string;
-                    tokenVersion: number;
-                    sessionId: string;
-                    csrfSecret: string;
-                },
-                expiresInSeconds: number,
-            ): Promise<string>;
-            verify(token: string): Promise<PlatformClaims>;
-        };
-    };
-    assert.equal(typeof tokenModule.HmacPlatformTokenService, "function");
-    const service = new tokenModule.HmacPlatformTokenService!(PLATFORM_SECRET);
-    const token = await service.sign(
-        {
-            id: "platform-token-contract",
-            tokenVersion: 7,
-            sessionId: "session-token-contract",
-            csrfSecret: "csrf-token-contract",
-        },
-        ACCESS_TTL_SECONDS,
-    );
-    assert.equal(jwtPart(token, 0).alg, "HS256");
-    assert.deepEqual(
-        await service.verify(token),
-        jwtPart(token, 1) as unknown as PlatformClaims,
-    );
-
-    const now = Math.floor(Date.now() / 1000);
-    const invalidPayloads = [
-        {
-            iss: "imsweb",
-            aud: "ims-backoffice",
-            kind: "backoffice",
-            id: 7,
-            tokenVersion: 7,
-            sessionId: "session-token-contract",
-            csrfSecret: "csrf-token-contract",
-            jti: randomUUID(),
-            iat: now,
-            exp: now + ACCESS_TTL_SECONDS,
-        },
-        {
-            iss: "imsweb",
-            kind: "platform",
-            id: "platform-token-contract",
-            tokenVersion: 7,
-            sessionId: "session-token-contract",
-            csrfSecret: "csrf-token-contract",
-            jti: randomUUID(),
-            iat: now,
-            exp: now + ACCESS_TTL_SECONDS,
-        },
-    ];
-    for (const payload of invalidPayloads) {
-        const invalid = await sign(payload, PLATFORM_SECRET, "HS256");
-        await assert.rejects(service.verify(invalid));
-    }
-    const wrongAlgorithm = await sign(
-        {
-            iss: "imsweb",
-            aud: "ims-platform",
-            kind: "platform",
-            id: "platform-token-contract",
-            tokenVersion: 7,
-            sessionId: "session-token-contract",
-            csrfSecret: "csrf-token-contract",
-            jti: randomUUID(),
-            iat: now,
-            exp: now + ACCESS_TTL_SECONDS,
-        },
-        PLATFORM_SECRET,
-        "HS512",
-    );
-    await assert.rejects(service.verify(wrongAlgorithm));
-});
-
-test("Platform refresh requires cookie, header, and stored CSRF before rotating state", async () => {
-    const fixture = await createFixture();
-    const session = await fixture.seedSession({ accountId: "platform-csrf" });
-    const before = await sessionRow(fixture, session.sessionId);
-    assert.ok(before);
-
-    const missing = await refreshRequest(fixture, session.cookies);
-    assert.equal(missing.status, 403);
-    assert.deepEqual(await missing.json(), {
-        success: false,
-        code: "PLATFORM_CSRF_INVALID",
-    });
-    assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
-
-    const mismatch = await refreshRequest(
-        fixture,
-        session.cookies,
-        "not-the-cookie-value",
-    );
-    assert.equal(mismatch.status, 403);
-    assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
-
-    const forged = new Map(session.cookies);
-    forged.set(CSRF_COOKIE, "matching-header-but-not-stored");
-    const storedMismatch = await refreshRequest(
-        fixture,
-        forged,
-        "matching-header-but-not-stored",
-    );
-    assert.equal(storedMismatch.status, 403);
-    assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
-});
-
-test("Bearer callers refresh without cookies and only they receive tokens", async () => {
-    const fixture = await createFixture();
-    const session = await fixture.seedSession({ accountId: "platform-bearer" });
-
-    // The packaged client has no cookie jar: the refresh token travels in a
-    // header, and CSRF double-submit is neither possible nor needed there.
-    const bearer = await testRequest(
-        fixture.app,
-        "/api/platform/auth/refresh",
-        {
-            method: "POST",
-            headers: {
-                "X-IMS-Auth-Mode": "bearer",
-                "X-IMS-Refresh-Token": session.refreshToken,
-                "X-Request-ID": `request-${randomUUID()}`,
-            },
-        },
-    );
-    assert.equal(bearer.status, 200);
-    const rotated = (await bearer.json()) as {
-        success: boolean;
-        accessToken?: string;
-        refreshToken?: string;
-    };
-    assert.equal(rotated.success, true);
-    assert.equal(typeof rotated.accessToken, "string");
-    assert.equal(typeof rotated.refreshToken, "string");
-    assert.notEqual(rotated.refreshToken, session.refreshToken);
-
-    const claims = await fixture.platformTokens.verify(rotated.accessToken!);
-    assert.equal(claims.id, session.accountId);
-    assert.equal(claims.sessionId, session.sessionId);
-
-    const authorized = await testRequest(
-        fixture.app,
-        "/api/platform/auth/session",
-        { headers: { Authorization: `Bearer ${rotated.accessToken}` } },
-    );
-    assert.equal(authorized.status, 200);
-
-    // The rotated refresh token keeps working through the same header path.
-    const again = await testRequest(
-        fixture.app,
-        "/api/platform/auth/refresh",
-        {
-            method: "POST",
-            headers: {
-                "X-IMS-Auth-Mode": "bearer",
-                "X-IMS-Refresh-Token": rotated.refreshToken!,
-                "X-Request-ID": `request-${randomUUID()}`,
-            },
-        },
-    );
-    assert.equal(again.status, 200);
-
-    // Browsers never send the opt-in header, so their tokens stay in cookies.
-    const cookieSession = await fixture.seedSession({
-        accountId: "platform-cookie-only",
-    });
-    const cookieRefresh = await refreshRequest(
-        fixture,
-        cookieSession.cookies,
-        cookieSession.csrfSecret,
-    );
-    assert.equal(cookieRefresh.status, 200);
-    const cookieBody = (await cookieRefresh.json()) as Record<string, unknown>;
-    assert.equal("accessToken" in cookieBody, false);
-    assert.equal("refreshToken" in cookieBody, false);
-});
-
-async function assertRotationReplayAndLogout(
-    dialect: "postgresql",
-): Promise<void> {
-    const fixture = await createFixture();
-    const session = await fixture.seedSession({
-        accountId: `${dialect}-rotation`,
-    });
-    const other = await fixture.seedSession({
-        accountId: `${dialect}-other-family`,
-    });
-    const concurrent = await fixture.seedSession({
-        accountId: `${dialect}-concurrent-cas`,
-    });
-
-    const concurrentResponses = await Promise.all([
-        refreshRequest(fixture, concurrent.cookies, concurrent.csrfSecret),
-        refreshRequest(fixture, concurrent.cookies, concurrent.csrfSecret),
-    ]);
-    assert.deepEqual(
-        concurrentResponses.map((response) => response.status).sort(),
-        [200, 401],
-    );
-    assert.ok((await sessionRow(fixture, concurrent.sessionId))?.revoked_at);
-
-    const refreshed = await refreshRequest(
-        fixture,
-        session.cookies,
-        session.csrfSecret,
-    );
-    assert.equal(refreshed.status, 200);
-    assert.deepEqual(
-        await refreshed.clone().json(),
-        expectedSessionPayload(session.accountId, "active"),
-    );
-    const refreshedCookies = cookieValues(refreshed);
-    assert.deepEqual([...refreshedCookies.keys()].sort(), [
-        ACCESS_COOKIE,
-        CSRF_COOKIE,
-        REFRESH_COOKIE,
-    ]);
-    assert.notEqual(refreshedCookies.get(ACCESS_COOKIE), session.accessToken);
-    assert.notEqual(refreshedCookies.get(REFRESH_COOKIE), session.refreshToken);
-    assert.notEqual(refreshedCookies.get(CSRF_COOKIE), session.csrfSecret);
-    for (const cookie of setCookies(refreshed)) {
-        assert.match(cookie, /SameSite=Lax/i);
-        if (cookie.startsWith(`${REFRESH_COOKIE}=`)) {
-            assert.match(cookie, /HttpOnly/i);
-            assert.match(cookie, /Path=\/api\/platform\/auth/i);
-            assert.match(cookie, /Max-Age=2592000/i);
-        } else if (cookie.startsWith(`${ACCESS_COOKIE}=`)) {
-            assert.match(cookie, /HttpOnly/i);
-            assert.match(cookie, /Path=\//i);
-            assert.match(cookie, /Max-Age=900/i);
-        } else {
-            assert.match(cookie, /Path=\//i);
-            assert.doesNotMatch(cookie, /HttpOnly/i);
-            assert.match(cookie, /Max-Age=2592000/i);
-        }
-        assert.doesNotMatch(cookie, /;\s*Secure/i);
-    }
-
-    const rotated = await sessionRow(fixture, session.sessionId);
-    assert.ok(rotated);
-    assert.equal(
-        rotated.previous_token_hash,
-        await hashSecret(session.refreshToken),
-    );
-    assert.equal(
-        rotated.token_hash,
-        await hashSecret(refreshedCookies.get(REFRESH_COOKIE)!),
-    );
-    assert.equal(
-        rotated.csrf_hash,
-        await hashSecret(refreshedCookies.get(CSRF_COOKIE)!),
-    );
-    assert.ok(rotated.expires_at >= Date.now() + REFRESH_TTL_MS - 10_000);
-    assert.equal(rotated.revoked_at, null);
-
-    const access = refreshedCookies.get(ACCESS_COOKIE)!;
-    assert.deepEqual(jwtPart(access, 0), { alg: "HS256", typ: "JWT" });
-    const claims = jwtPart(access, 1);
-    assert.equal(claims.iss, "imsweb");
-    assert.equal(claims.aud, "ims-platform");
-    assert.equal(claims.kind, "platform");
-    assert.equal(claims.id, session.accountId);
-    assert.equal(claims.tokenVersion, 0);
-    assert.equal(claims.sessionId, session.sessionId);
-    assert.equal(claims.csrfSecret, refreshedCookies.get(CSRF_COOKIE));
-    assert.equal(typeof claims.jti, "string");
-    assert.equal(Number(claims.exp) - Number(claims.iat), ACCESS_TTL_SECONDS);
-
-    const replay = await refreshRequest(
-        fixture,
-        session.cookies,
-        session.csrfSecret,
-    );
-    assert.equal(replay.status, 401);
-    assertClearedPlatformCookies(replay);
-    assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
-    assert.equal(
-        (await sessionRow(fixture, other.sessionId))?.revoked_at,
-        null,
-    );
-    assert.equal((await sessionRequest(fixture, other.cookies)).status, 200);
-
-    const logoutCookies = new Map(other.cookies);
-    logoutCookies.set("ims_admin_access", "backoffice-access-must-survive");
-    logoutCookies.set("ims_admin_refresh", "backoffice-refresh-must-survive");
-    logoutCookies.set("ims_admin_csrf", "backoffice-csrf-must-survive");
-    const logout = await testRequest(
-        fixture.app,
-        "/api/platform/auth/logout",
-        {
-            method: "POST",
-            headers: {
-                Cookie: cookieHeader(logoutCookies),
-                "X-CSRFToken": other.csrfSecret,
-                "X-Request-ID": `logout-${randomUUID()}`,
-            },
-        },
-    );
-    assert.equal(logout.status, 200);
-    assert.deepEqual(await logout.clone().json(), { success: true });
-    assertClearedPlatformCookies(logout);
-    assert.equal((await sessionRequest(fixture, other.cookies)).status, 401);
-
-    const events = await eventRows(fixture, session.accountId);
-    assert.equal(events.length, 3);
-    assert.deepEqual(
-        new Set(events.map((event) => event.event_type)),
-        new Set([
-            "auth.session.created",
-            "auth.refresh.succeeded",
-            "auth.refresh.replay",
-        ]),
-    );
-    const serialized = JSON.stringify(events);
-    assert.equal(serialized.includes(session.refreshToken), false);
-    assert.equal(serialized.includes(session.csrfSecret), false);
-    assert.equal(serialized.includes(session.accessToken), false);
-    for (const event of events.filter(
-        (item) => item.event_type !== "auth.session.created",
-    )) {
-        assert.ok((event.user_agent?.length ?? 0) <= 1024);
-        assert.doesNotMatch(
-            event.metadata_json,
-            /"(?:access_token|refresh_token|csrf_secret|oauth_access_token|oauth_refresh_token)"\s*:/i,
+        const anonymous = await testRequest(
+            fixture.app,
+            "/api/platform/auth/session",
         );
-    }
-    const otherEvents = await eventRows(fixture, other.accountId);
-    assert.equal(otherEvents.length, 2);
-    assert.deepEqual(
-        new Set(otherEvents.map((event) => event.event_type)),
-        new Set(["auth.session.created", "auth.logout"]),
-    );
-}
-
-test("suspended and deleted Platform accounts are blocked and their family is revoked", async () => {
-    const fixture = await createFixture();
-    for (const status of ["suspended", "deleted"] as const) {
-        const session = await fixture.seedSession({
-            accountId: `platform-${status}`,
-            status,
-        });
-        const response =
-            status === "suspended"
-                ? await refreshRequest(
-                      fixture,
-                      session.cookies,
-                      session.csrfSecret,
-                  )
-                : await sessionRequest(fixture, session.cookies);
-        assert.equal(response.status, 403);
-        assert.deepEqual(await response.json(), {
+        assert.equal(anonymous.status, 401);
+        assert.deepEqual(await anonymous.json(), {
             success: false,
-            code:
-                status === "suspended"
-                    ? "PLATFORM_ACCOUNT_SUSPENDED"
-                    : "PLATFORM_ACCOUNT_UNAVAILABLE",
+            code: "PLATFORM_SESSION_INVALID",
         });
+
+        const authenticated = await sessionRequest(fixture, active.cookies);
+        assert.equal(authenticated.status, 200);
+        assert.deepEqual(
+            await authenticated.json(),
+            expectedSessionPayload(active.accountId, "active"),
+        );
+
+        await fixture.database
+            .prepare(
+                "UPDATE platform_accounts SET status='restricted', updated_at=? WHERE id=?",
+            )
+            .bind(Date.now(), active.accountId)
+            .run();
+        const restricted = await sessionRequest(fixture, active.cookies);
+        assert.equal(restricted.status, 200);
+        assert.deepEqual(
+            await restricted.json(),
+            expectedSessionPayload(active.accountId, "restricted"),
+        );
+        const restrictedRefresh = await refreshRequest(
+            fixture,
+            active.cookies,
+            active.csrfSecret,
+        );
+        assert.equal(restrictedRefresh.status, 200);
+        assert.deepEqual(
+            await restrictedRefresh.clone().json(),
+            expectedSessionPayload(active.accountId, "restricted"),
+        );
+
+        await fixture.database
+            .prepare(
+                "UPDATE platform_accounts SET token_version=token_version+1, updated_at=? WHERE id=?",
+            )
+            .bind(Date.now(), active.accountId)
+            .run();
+        assert.equal(
+            (await sessionRequest(fixture, cookieValues(restrictedRefresh))).status,
+            401,
+        );
+
+        const revoked = await fixture.seedSession({
+            accountId: "platform-revoked",
+        });
+        await fixture.database
+            .prepare(
+                "UPDATE platform_refresh_sessions SET revoked_at=?, updated_at=? WHERE id=?",
+            )
+            .bind(Date.now(), Date.now(), revoked.sessionId)
+            .run();
+        assert.equal((await sessionRequest(fixture, revoked.cookies)).status, 401);
+
+        const expired = await fixture.seedSession({
+            accountId: "platform-expired",
+        });
+        const past = Date.now() - 1_000;
+        await fixture.database
+            .prepare(
+                `UPDATE platform_refresh_sessions
+         SET created_at=?, updated_at=?, expires_at=? WHERE id=?`,
+            )
+            .bind(past - 60_000, past - 60_000, past, expired.sessionId)
+            .run();
+        assert.equal((await sessionRequest(fixture, expired.cookies)).status, 401);
+    });
+
+    test("refresh-session writes fence the current account token version atomically", async () => {
+        const fixture = await createFixture();
+        const seeded = await fixture.seedSession({
+            accountId: "platform-version-fence",
+        });
+        const now = Date.now();
+        const event = (id: string) => ({
+            id: `event-${id}`,
+            accountId: seeded.accountId,
+            eventType: "auth.session.created" as const,
+            requestId: null,
+            ipAddress: null,
+            userAgent: null,
+            metadataJson: "{}",
+            createdAt: now,
+        });
+        assert.equal(
+            await fixture.repository.createRefreshSession({
+                id: "version-fence-rejected",
+                accountId: seeded.accountId,
+                accountTokenVersion: 1,
+                tokenHash: "a".repeat(64),
+                csrfHash: "b".repeat(64),
+                expiresAt: now + 60_000,
+                createdAt: now,
+                event: event("rejected"),
+            }),
+            false,
+        );
+        assert.equal(
+            await fixture.repository.findRefreshSessionById(
+                "version-fence-rejected",
+            ),
+            null,
+        );
+
+        assert.equal(
+            await fixture.repository.createRefreshSession({
+                id: "version-fence-created",
+                accountId: seeded.accountId,
+                accountTokenVersion: 0,
+                tokenHash: "c".repeat(64),
+                csrfHash: "d".repeat(64),
+                expiresAt: now + 60_000,
+                createdAt: now,
+                event: event("created"),
+            }),
+            true,
+        );
+        await fixture.database
+            .prepare(
+                "UPDATE platform_accounts SET token_version=1, updated_at=? WHERE id=?",
+            )
+            .bind(now + 1, seeded.accountId)
+            .run();
+        assert.equal(
+            await fixture.repository.rotateRefreshSession({
+                id: "version-fence-created",
+                accountTokenVersion: 0,
+                currentTokenHash: "c".repeat(64),
+                nextTokenHash: "e".repeat(64),
+                nextCsrfHash: "f".repeat(64),
+                nextExpiresAt: now + 120_000,
+                updatedAt: now + 1,
+                event: {
+                    ...event("rotate"),
+                    eventType: "auth.refresh.succeeded",
+                },
+            }),
+            false,
+        );
+        assert.equal(
+            (
+                await fixture.repository.findRefreshSessionById(
+                    "version-fence-created",
+                )
+            )?.token_hash,
+            "c".repeat(64),
+        );
+    });
+
+    test("Platform and Backoffice reject each other even when their test secret is shared", async () => {
+        const fixture = await createFixture();
+        const session = await fixture.seedSession({ accountId: "platform-realm" });
+        const backofficeTokens = new HmacBackofficeTokenService(PLATFORM_SECRET);
+        const backofficeToken = await backofficeTokens.sign(
+            {
+                id: 42,
+                username: "realm-op",
+                producername: "Realm Op",
+                dept: "op",
+                adminRole: "admin",
+                csrfSecret: "backoffice-csrf",
+            },
+            ACCESS_TTL_SECONDS,
+        );
+        const platformAtBackoffice = await testRequest(
+            fixture.app,
+            "/api/admin/auth/session",
+            {
+                headers: {
+                    Cookie: `ims_admin_access=${encodeURIComponent(session.accessToken)}`,
+                },
+            },
+        );
+        assert.equal(platformAtBackoffice.status, 401);
+
+        const backofficeAtPlatform = await testRequest(
+            fixture.app,
+            "/api/platform/auth/session",
+            {
+                headers: {
+                    Cookie: `${ACCESS_COOKIE}=${encodeURIComponent(backofficeToken)}`,
+                },
+            },
+        );
+        assert.equal(backofficeAtPlatform.status, 401);
+
+        const now = Math.floor(Date.now() / 1000);
+        const missingAudience = await sign(
+            {
+                iss: "imsweb",
+                kind: "platform",
+                id: session.accountId,
+                tokenVersion: 0,
+                sessionId: session.sessionId,
+                csrfSecret: session.csrfSecret,
+                jti: randomUUID(),
+                iat: now,
+                exp: now + ACCESS_TTL_SECONDS,
+            },
+            PLATFORM_SECRET,
+            "HS256",
+        );
+        const realmLess = new Map(session.cookies);
+        realmLess.set(ACCESS_COOKIE, missingAudience);
+        assert.equal((await sessionRequest(fixture, realmLess)).status, 401);
+    });
+
+    nodeTest("production Platform token service fixes HS256 and all realm/session claims", async () => {
+        const moduleId = pathToFileURL(
+            path.join(
+                __dirname,
+                "../../src/infra/security/hmac/platform-token-service.ts",
+            ),
+        ).href;
+        const tokenModule = (await import(moduleId)) as {
+            HmacPlatformTokenService?: new (
+                secret: string,
+            ) => {
+                sign(
+                    input: {
+                        id: string;
+                        tokenVersion: number;
+                        sessionId: string;
+                        csrfSecret: string;
+                    },
+                    expiresInSeconds: number,
+                ): Promise<string>;
+                verify(token: string): Promise<PlatformClaims>;
+            };
+        };
+        assert.equal(typeof tokenModule.HmacPlatformTokenService, "function");
+        const service = new tokenModule.HmacPlatformTokenService!(PLATFORM_SECRET);
+        const token = await service.sign(
+            {
+                id: "platform-token-contract",
+                tokenVersion: 7,
+                sessionId: "session-token-contract",
+                csrfSecret: "csrf-token-contract",
+            },
+            ACCESS_TTL_SECONDS,
+        );
+        assert.equal(jwtPart(token, 0).alg, "HS256");
+        assert.deepEqual(
+            await service.verify(token),
+            jwtPart(token, 1) as unknown as PlatformClaims,
+        );
+
+        const now = Math.floor(Date.now() / 1000);
+        const invalidPayloads = [
+            {
+                iss: "imsweb",
+                aud: "ims-backoffice",
+                kind: "backoffice",
+                id: 7,
+                tokenVersion: 7,
+                sessionId: "session-token-contract",
+                csrfSecret: "csrf-token-contract",
+                jti: randomUUID(),
+                iat: now,
+                exp: now + ACCESS_TTL_SECONDS,
+            },
+            {
+                iss: "imsweb",
+                kind: "platform",
+                id: "platform-token-contract",
+                tokenVersion: 7,
+                sessionId: "session-token-contract",
+                csrfSecret: "csrf-token-contract",
+                jti: randomUUID(),
+                iat: now,
+                exp: now + ACCESS_TTL_SECONDS,
+            },
+        ];
+        for (const payload of invalidPayloads) {
+            const invalid = await sign(payload, PLATFORM_SECRET, "HS256");
+            await assert.rejects(service.verify(invalid));
+        }
+        const wrongAlgorithm = await sign(
+            {
+                iss: "imsweb",
+                aud: "ims-platform",
+                kind: "platform",
+                id: "platform-token-contract",
+                tokenVersion: 7,
+                sessionId: "session-token-contract",
+                csrfSecret: "csrf-token-contract",
+                jti: randomUUID(),
+                iat: now,
+                exp: now + ACCESS_TTL_SECONDS,
+            },
+            PLATFORM_SECRET,
+            "HS512",
+        );
+        await assert.rejects(service.verify(wrongAlgorithm));
+    });
+
+    test("Platform refresh requires cookie, header, and stored CSRF before rotating state", async () => {
+        const fixture = await createFixture();
+        const session = await fixture.seedSession({ accountId: "platform-csrf" });
+        const before = await sessionRow(fixture, session.sessionId);
+        assert.ok(before);
+
+        const missing = await refreshRequest(fixture, session.cookies);
+        assert.equal(missing.status, 403);
+        assert.deepEqual(await missing.json(), {
+            success: false,
+            code: "PLATFORM_CSRF_INVALID",
+        });
+        assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
+
+        const mismatch = await refreshRequest(
+            fixture,
+            session.cookies,
+            "not-the-cookie-value",
+        );
+        assert.equal(mismatch.status, 403);
+        assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
+
+        const forged = new Map(session.cookies);
+        forged.set(CSRF_COOKIE, "matching-header-but-not-stored");
+        const storedMismatch = await refreshRequest(
+            fixture,
+            forged,
+            "matching-header-but-not-stored",
+        );
+        assert.equal(storedMismatch.status, 403);
+        assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
+    });
+
+    test("Bearer callers refresh without cookies and only they receive tokens", async () => {
+        const fixture = await createFixture();
+        const session = await fixture.seedSession({ accountId: "platform-bearer" });
+
+        // The packaged client has no cookie jar: the refresh token travels in a
+        // header, and CSRF double-submit is neither possible nor needed there.
+        const bearer = await testRequest(
+            fixture.app,
+            "/api/platform/auth/refresh",
+            {
+                method: "POST",
+                headers: {
+                    "X-IMS-Auth-Mode": "bearer",
+                    "X-IMS-Refresh-Token": session.refreshToken,
+                    "X-Request-ID": `request-${randomUUID()}`,
+                },
+            },
+        );
+        assert.equal(bearer.status, 200);
+        const rotated = (await bearer.json()) as {
+            success: boolean;
+            accessToken?: string;
+            refreshToken?: string;
+        };
+        assert.equal(rotated.success, true);
+        assert.equal(typeof rotated.accessToken, "string");
+        assert.equal(typeof rotated.refreshToken, "string");
+        assert.notEqual(rotated.refreshToken, session.refreshToken);
+
+        const claims = await fixture.platformTokens.verify(rotated.accessToken!);
+        assert.equal(claims.id, session.accountId);
+        assert.equal(claims.sessionId, session.sessionId);
+
+        const authorized = await testRequest(
+            fixture.app,
+            "/api/platform/auth/session",
+            { headers: { Authorization: `Bearer ${rotated.accessToken}` } },
+        );
+        assert.equal(authorized.status, 200);
+
+        // The rotated refresh token keeps working through the same header path.
+        const again = await testRequest(
+            fixture.app,
+            "/api/platform/auth/refresh",
+            {
+                method: "POST",
+                headers: {
+                    "X-IMS-Auth-Mode": "bearer",
+                    "X-IMS-Refresh-Token": rotated.refreshToken!,
+                    "X-Request-ID": `request-${randomUUID()}`,
+                },
+            },
+        );
+        assert.equal(again.status, 200);
+
+        // Browsers never send the opt-in header, so their tokens stay in cookies.
+        const cookieSession = await fixture.seedSession({
+            accountId: "platform-cookie-only",
+        });
+        const cookieRefresh = await refreshRequest(
+            fixture,
+            cookieSession.cookies,
+            cookieSession.csrfSecret,
+        );
+        assert.equal(cookieRefresh.status, 200);
+        const cookieBody = (await cookieRefresh.json()) as Record<string, unknown>;
+        assert.equal("accessToken" in cookieBody, false);
+        assert.equal("refreshToken" in cookieBody, false);
+    });
+
+    async function assertRotationReplayAndLogout(
+        dialect: "postgresql",
+    ): Promise<void> {
+        const fixture = await createFixture();
+        const session = await fixture.seedSession({
+            accountId: `${dialect}-rotation`,
+        });
+        const other = await fixture.seedSession({
+            accountId: `${dialect}-other-family`,
+        });
+        const concurrent = await fixture.seedSession({
+            accountId: `${dialect}-concurrent-cas`,
+        });
+
+        const concurrentResponses = await Promise.all([
+            refreshRequest(fixture, concurrent.cookies, concurrent.csrfSecret),
+            refreshRequest(fixture, concurrent.cookies, concurrent.csrfSecret),
+        ]);
+        assert.deepEqual(
+            concurrentResponses.map((response) => response.status).sort(),
+            [200, 401],
+        );
+        assert.ok((await sessionRow(fixture, concurrent.sessionId))?.revoked_at);
+
+        const refreshed = await refreshRequest(
+            fixture,
+            session.cookies,
+            session.csrfSecret,
+        );
+        assert.equal(refreshed.status, 200);
+        assert.deepEqual(
+            await refreshed.clone().json(),
+            expectedSessionPayload(session.accountId, "active"),
+        );
+        const refreshedCookies = cookieValues(refreshed);
+        assert.deepEqual([...refreshedCookies.keys()].sort(), [
+            ACCESS_COOKIE,
+            CSRF_COOKIE,
+            REFRESH_COOKIE,
+        ]);
+        assert.notEqual(refreshedCookies.get(ACCESS_COOKIE), session.accessToken);
+        assert.notEqual(refreshedCookies.get(REFRESH_COOKIE), session.refreshToken);
+        assert.notEqual(refreshedCookies.get(CSRF_COOKIE), session.csrfSecret);
+        for (const cookie of setCookies(refreshed)) {
+            assert.match(cookie, /SameSite=Lax/i);
+            if (cookie.startsWith(`${REFRESH_COOKIE}=`)) {
+                assert.match(cookie, /HttpOnly/i);
+                assert.match(cookie, /Path=\/api\/platform\/auth/i);
+                assert.match(cookie, /Max-Age=2592000/i);
+            } else if (cookie.startsWith(`${ACCESS_COOKIE}=`)) {
+                assert.match(cookie, /HttpOnly/i);
+                assert.match(cookie, /Path=\//i);
+                assert.match(cookie, /Max-Age=900/i);
+            } else {
+                assert.match(cookie, /Path=\//i);
+                assert.doesNotMatch(cookie, /HttpOnly/i);
+                assert.match(cookie, /Max-Age=2592000/i);
+            }
+            assert.doesNotMatch(cookie, /;\s*Secure/i);
+        }
+
+        const rotated = await sessionRow(fixture, session.sessionId);
+        assert.ok(rotated);
+        assert.equal(
+            rotated.previous_token_hash,
+            await hashSecret(session.refreshToken),
+        );
+        assert.equal(
+            rotated.token_hash,
+            await hashSecret(refreshedCookies.get(REFRESH_COOKIE)!),
+        );
+        assert.equal(
+            rotated.csrf_hash,
+            await hashSecret(refreshedCookies.get(CSRF_COOKIE)!),
+        );
+        assert.ok(rotated.expires_at >= Date.now() + REFRESH_TTL_MS - 10_000);
+        assert.equal(rotated.revoked_at, null);
+
+        const access = refreshedCookies.get(ACCESS_COOKIE)!;
+        assert.deepEqual(jwtPart(access, 0), { alg: "HS256", typ: "JWT" });
+        const claims = jwtPart(access, 1);
+        assert.equal(claims.iss, "imsweb");
+        assert.equal(claims.aud, "ims-platform");
+        assert.equal(claims.kind, "platform");
+        assert.equal(claims.id, session.accountId);
+        assert.equal(claims.tokenVersion, 0);
+        assert.equal(claims.sessionId, session.sessionId);
+        assert.equal(claims.csrfSecret, refreshedCookies.get(CSRF_COOKIE));
+        assert.equal(typeof claims.jti, "string");
+        assert.equal(Number(claims.exp) - Number(claims.iat), ACCESS_TTL_SECONDS);
+
+        const replay = await refreshRequest(
+            fixture,
+            session.cookies,
+            session.csrfSecret,
+        );
+        assert.equal(replay.status, 401);
+        assertClearedPlatformCookies(replay);
         assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
+        assert.equal(
+            (await sessionRow(fixture, other.sessionId))?.revoked_at,
+            null,
+        );
+        assert.equal((await sessionRequest(fixture, other.cookies)).status, 200);
+
+        const logoutCookies = new Map(other.cookies);
+        logoutCookies.set("ims_admin_access", "backoffice-access-must-survive");
+        logoutCookies.set("ims_admin_refresh", "backoffice-refresh-must-survive");
+        logoutCookies.set("ims_admin_csrf", "backoffice-csrf-must-survive");
+        const logout = await testRequest(
+            fixture.app,
+            "/api/platform/auth/logout",
+            {
+                method: "POST",
+                headers: {
+                    Cookie: cookieHeader(logoutCookies),
+                    "X-CSRFToken": other.csrfSecret,
+                    "X-Request-ID": `logout-${randomUUID()}`,
+                },
+            },
+        );
+        assert.equal(logout.status, 200);
+        assert.deepEqual(await logout.clone().json(), { success: true });
+        assertClearedPlatformCookies(logout);
+        assert.equal((await sessionRequest(fixture, other.cookies)).status, 401);
+
         const events = await eventRows(fixture, session.accountId);
-        assert.equal(events.length, 2);
+        assert.equal(events.length, 3);
         assert.deepEqual(
             new Set(events.map((event) => event.event_type)),
-            new Set(["auth.session.created", "auth.account_blocked"]),
+            new Set([
+                "auth.session.created",
+                "auth.refresh.succeeded",
+                "auth.refresh.replay",
+            ]),
+        );
+        const serialized = JSON.stringify(events);
+        assert.equal(serialized.includes(session.refreshToken), false);
+        assert.equal(serialized.includes(session.csrfSecret), false);
+        assert.equal(serialized.includes(session.accessToken), false);
+        for (const event of events.filter(
+            (item) => item.event_type !== "auth.session.created",
+        )) {
+            assert.ok((event.user_agent?.length ?? 0) <= 1024);
+            assert.doesNotMatch(
+                event.metadata_json,
+                /"(?:access_token|refresh_token|csrf_secret|oauth_access_token|oauth_refresh_token)"\s*:/i,
+            );
+        }
+        const otherEvents = await eventRows(fixture, other.accountId);
+        assert.equal(otherEvents.length, 2);
+        assert.deepEqual(
+            new Set(otherEvents.map((event) => event.event_type)),
+            new Set(["auth.session.created", "auth.logout"]),
         );
     }
-});
 
-nodeTest("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket", async () => {
-    const calls: Array<{
-        bucket: string;
-        limit: number;
-        windowSeconds: number;
-    }> = [];
-    const app = createTestApp(() => ({
-        rateLimiter: {
-            async consume(bucket, _key, limit, windowSeconds) {
-                calls.push({ bucket, limit, windowSeconds });
-                return {
-                    allowed: true,
-                    remaining: limit - 1,
-                    resetAt: Date.now() + 60_000,
-                };
+    test("suspended and deleted Platform accounts are blocked and their family is revoked", async () => {
+        const fixture = await createFixture();
+        for (const status of ["suspended", "deleted"] as const) {
+            const session = await fixture.seedSession({
+                accountId: `platform-${status}`,
+                status,
+            });
+            const response =
+                status === "suspended"
+                    ? await refreshRequest(
+                          fixture,
+                          session.cookies,
+                          session.csrfSecret,
+                      )
+                    : await sessionRequest(fixture, session.cookies);
+            assert.equal(response.status, 403);
+            assert.deepEqual(await response.json(), {
+                success: false,
+                code:
+                    status === "suspended"
+                        ? "PLATFORM_ACCOUNT_SUSPENDED"
+                        : "PLATFORM_ACCOUNT_UNAVAILABLE",
+            });
+            assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
+            const events = await eventRows(fixture, session.accountId);
+            assert.equal(events.length, 2);
+            assert.deepEqual(
+                new Set(events.map((event) => event.event_type)),
+                new Set(["auth.session.created", "auth.account_blocked"]),
+            );
+        }
+    });
+
+    nodeTest("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket", async () => {
+        const calls: Array<{
+            bucket: string;
+            limit: number;
+            windowSeconds: number;
+        }> = [];
+        const app = createTestApp(() => ({
+            rateLimiter: {
+                async consume(bucket, _key, limit, windowSeconds) {
+                    calls.push({ bucket, limit, windowSeconds });
+                    return {
+                        allowed: true,
+                        remaining: limit - 1,
+                        resetAt: Date.now() + 60_000,
+                    };
+                },
             },
-        },
-    }));
-    const response = await testRequest(
-        app,
-        "/api/platform/auth/refresh",
-        {
-            method: "POST",
-        },
-    );
-    assert.deepEqual(calls, [
-        { bucket: "global", limit: 10_000, windowSeconds: 15 * 60 },
-        { bucket: "platform-auth-refresh", limit: 120, windowSeconds: 15 * 60 },
-    ]);
-    assert.equal(response.status, 401);
-});
-
-test("Platform logout is idempotent and Bearer authentication does not require CSRF", async () => {
-    const fixture = await createFixture();
-    const session = await fixture.seedSession({
-        accountId: "platform-bearer-logout",
-    });
-    const bearerLogout = await testRequest(
-        fixture.app,
-        "/api/platform/auth/logout",
-        {
-            method: "POST",
-            headers: { Authorization: `Bearer ${session.accessToken}` },
-        },
-    );
-    assert.equal(bearerLogout.status, 200);
-    assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
-
-    const anonymousLogout = await testRequest(
-        fixture.app,
-        "/api/platform/auth/logout",
-        { method: "POST" },
-    );
-    assert.equal(anonymousLogout.status, 200);
-    assert.deepEqual(await anonymousLogout.clone().json(), { success: true });
-    assertClearedPlatformCookies(anonymousLogout);
-});
-
-test("real PostgreSQL enforces Platform rotation, replay, logout, and event behavior", async () => {
-    await assertRotationReplayAndLogout("postgresql");
-});
-
-test("real PostgreSQL emits refresh success only for the cross-instance CAS winner", async () => {
-    const fixture = await createFixture();
-    assert.ok(fixture.databaseUrl);
-    const session = await fixture.seedSession({
-        accountId: "postgresql-cross-instance-cas",
+        }));
+        const response = await testRequest(
+            app,
+            "/api/platform/auth/refresh",
+            {
+                method: "POST",
+            },
+        );
+        assert.deepEqual(calls, [
+            { bucket: "global", limit: 10_000, windowSeconds: 15 * 60 },
+            { bucket: "platform-auth-refresh", limit: 120, windowSeconds: 15 * 60 },
+        ]);
+        assert.equal(response.status, 401);
     });
 
-    await fixture.database.executeScript(`
+    test("Platform logout is idempotent and Bearer authentication does not require CSRF", async () => {
+        const fixture = await createFixture();
+        const session = await fixture.seedSession({
+            accountId: "platform-bearer-logout",
+        });
+        const bearerLogout = await testRequest(
+            fixture.app,
+            "/api/platform/auth/logout",
+            {
+                method: "POST",
+                headers: { Authorization: `Bearer ${session.accessToken}` },
+            },
+        );
+        assert.equal(bearerLogout.status, 200);
+        assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
+
+        const anonymousLogout = await testRequest(
+            fixture.app,
+            "/api/platform/auth/logout",
+            { method: "POST" },
+        );
+        assert.equal(anonymousLogout.status, 200);
+        assert.deepEqual(await anonymousLogout.clone().json(), { success: true });
+        assertClearedPlatformCookies(anonymousLogout);
+    });
+
+    test("real PostgreSQL enforces Platform rotation, replay, logout, and event behavior", async () => {
+        await assertRotationReplayAndLogout("postgresql");
+    });
+
+    test("real PostgreSQL emits refresh success only for the cross-instance CAS winner", async () => {
+        const fixture = await createFixture();
+        assert.ok(fixture.databaseUrl);
+        const session = await fixture.seedSession({
+            accountId: "postgresql-cross-instance-cas",
+        });
+
+        await fixture.database.executeScript(`
         CREATE OR REPLACE FUNCTION imsweb_test_delay_platform_refresh_success()
         RETURNS trigger
         LANGUAGE plpgsql
@@ -1040,50 +1041,51 @@ test("real PostgreSQL emits refresh success only for the cross-instance CAS winn
         EXECUTE FUNCTION imsweb_test_delay_platform_refresh_success();
     `);
 
-    const siblingDatabase = fixture.connect();
-    try {
-        const siblingRepository = new SqlPlatformAccountRepository(
-            siblingDatabase,
-            initializedPostgresSchema,
-        );
-        await siblingRepository.initialize();
-        const siblingRuntime = {
-            platformAccounts: siblingRepository,
-            platformTokens: fixture.platformTokens,
-            backofficeTokens: new HmacBackofficeTokenService(PLATFORM_SECRET),
-            config: {
-                cookieSecure: false,
-                clientAddressSource: "nginx",
-            },
-        } as unknown as RuntimeServices;
-        const siblingFixture = {
-            ...fixture,
-            app: createTestApp(() => siblingRuntime),
-        };
+        const siblingDatabase = fixture.connect();
+        try {
+            const siblingRepository = new SqlPlatformAccountRepository(
+                siblingDatabase,
+                initializedPostgresSchema,
+            );
+            await siblingRepository.initialize();
+            const siblingRuntime = {
+                platformAccounts: siblingRepository,
+                platformTokens: fixture.platformTokens,
+                backofficeTokens: new HmacBackofficeTokenService(PLATFORM_SECRET),
+                config: {
+                    cookieSecure: false,
+                    clientAddressSource: "nginx",
+                },
+            } as unknown as RuntimeServices;
+            const siblingFixture = {
+                ...fixture,
+                app: createTestApp(() => siblingRuntime),
+            };
 
-        const responses = await Promise.all([
-            refreshRequest(fixture, session.cookies, session.csrfSecret),
-            refreshRequest(siblingFixture, session.cookies, session.csrfSecret),
-        ]);
-        assert.deepEqual(
-            responses.map((response) => response.status).sort(),
-            [200, 401],
-        );
-        assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
+            const responses = await Promise.all([
+                refreshRequest(fixture, session.cookies, session.csrfSecret),
+                refreshRequest(siblingFixture, session.cookies, session.csrfSecret),
+            ]);
+            assert.deepEqual(
+                responses.map((response) => response.status).sort(),
+                [200, 401],
+            );
+            assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
 
-        const events = await eventRows(fixture, session.accountId);
-        assert.equal(
-            events.filter(
-                (event) => event.event_type === "auth.refresh.succeeded",
-            ).length,
-            1,
-        );
-        assert.equal(
-            events.filter((event) => event.event_type === "auth.refresh.replay")
-                .length,
-            1,
-        );
-    } finally {
-        await siblingDatabase.close();
-    }
+            const events = await eventRows(fixture, session.accountId);
+            assert.equal(
+                events.filter(
+                    (event) => event.event_type === "auth.refresh.succeeded",
+                ).length,
+                1,
+            );
+            assert.equal(
+                events.filter((event) => event.event_type === "auth.refresh.replay")
+                    .length,
+                1,
+            );
+        } finally {
+            await siblingDatabase.close();
+        }
+    });
 });

@@ -5,11 +5,12 @@ import { defineConfig } from "vitest/config"
 
 const projectRoot = fileURLToPath(new URL(".", import.meta.url))
 
-// The reporter and coverage shape is written per domain on purpose. The root
-// package may not declare test tooling (scripts/check-workspace-boundaries.mjs
-// allows only husky), so a shared preset would have to sit outside every
-// workspace that can resolve and type-check `vitest/config`. The invariants that
-// must not drift across domains are asserted by the repository reporting test.
+// The reporter and coverage shape is written per domain on purpose. A shared
+// preset would have to sit outside every workspace that could resolve and
+// type-check `vitest/config`, so each domain owns its own file and the root
+// panel (`vitest.config.mts`) points at them instead of restating them. The
+// invariants that must not drift across domains are asserted by the repository
+// reporting and project tests.
 export default defineConfig({
   resolve: {
     alias: {

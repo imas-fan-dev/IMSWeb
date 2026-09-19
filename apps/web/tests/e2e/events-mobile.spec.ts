@@ -328,107 +328,113 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test(
-  "mobile Web keeps community discovery, list, and detail stable",
-  {
-    tag: "@mobile",
-  },
-  async ({ page, isMobile }, testInfo) => {
-    test.skip(!isMobile, "mobile-only event geometry")
-    const { coverRequested, releaseCover } = await mockCommunityApis(page)
+test.describe("events mobile", () => {
+  test(
+    "mobile Web keeps community discovery, list, and detail stable",
+    {
+      tag: "@mobile",
+    },
+    async ({ page, isMobile }, testInfo) => {
+      test.skip(!isMobile, "mobile-only event geometry")
+      const { coverRequested, releaseCover } = await mockCommunityApis(page)
 
-    await page.goto("/")
-    const latest = page.getByRole("region", { name: "站内动态" })
-    const eventsSection = latest.getByRole("region", { name: "社区动态" })
-    const allEventsLink = eventsSection.getByRole("link", {
-      name: "查看全部动态",
-    })
-    await expect(eventsSection.getByText(longTitle)).toBeVisible()
-    await expectMinimumHeight(allEventsLink)
-    await expectNoPageOverflow(page)
-
-    await allEventsLink.click()
-    await expect(page).toHaveURL(/\/events$/)
-    await expect(
-      page.getByRole("heading", {
-        level: 1,
-        name: "社区动态",
-        exact: true,
+      await page.goto("/")
+      const latest = page.getByRole("region", { name: "站内动态" })
+      const eventsSection = latest.getByRole("region", { name: "社区动态" })
+      const allEventsLink = eventsSection.getByRole("link", {
+        name: "查看全部动态",
       })
-    ).toBeVisible()
-    const list = page.getByRole("region", { name: "社区动态列表" })
-    await expect(list.getByRole("heading", { name: longTitle })).toBeVisible()
-    await coverRequested
+      await expect(eventsSection.getByText(longTitle)).toBeVisible()
+      await expectMinimumHeight(allEventsLink)
+      await expectNoPageOverflow(page)
 
-    const firstRow = list.getByRole("listitem").first()
-    const secondRow = list.getByRole("listitem").nth(1)
-    const category = firstRow.getByText("具体活动")
-    await expect(category).toHaveCSS("opacity", "1")
-    if (!isMobile) {
-      await firstRow.getByRole("link").focus()
-      await expect(firstRow.getByRole("link")).toBeFocused()
-    }
-    await expectEventRowLayout(firstRow, 3)
-    await expectEventRowLayout(secondRow, 2)
-    await expect(list.getByText("第 2 条动态摘要")).toHaveCount(0)
-    await page.evaluate(() => document.fonts.ready)
+      await allEventsLink.click()
+      await expect(page).toHaveURL(/\/events$/)
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: "社区动态",
+          exact: true,
+        })
+      ).toBeVisible()
+      const list = page.getByRole("region", { name: "社区动态列表" })
+      await expect(list.getByRole("heading", { name: longTitle })).toBeVisible()
+      await coverRequested
 
-    const before = await stableRowPositions(page)
-    before.forEach((position) => expect(position.height).toBeCloseTo(144, 0))
-    const scrollBefore = await page.evaluate(() => window.scrollY)
-    releaseCover()
-    await expect
-      .poll(() =>
-        firstRow
-          .locator("img")
-          .evaluate((image) => (image as HTMLImageElement).complete)
+      const firstRow = list.getByRole("listitem").first()
+      const secondRow = list.getByRole("listitem").nth(1)
+      const category = firstRow.getByText("具体活动")
+      await expect(category).toHaveCSS("opacity", "1")
+      if (!isMobile) {
+        await firstRow.getByRole("link").focus()
+        await expect(firstRow.getByRole("link")).toBeFocused()
+      }
+      await expectEventRowLayout(firstRow, 3)
+      await expectEventRowLayout(secondRow, 2)
+      await expect(list.getByText("第 2 条动态摘要")).toHaveCount(0)
+      await page.evaluate(() => document.fonts.ready)
+
+      const before = await stableRowPositions(page)
+      before.forEach((position) => expect(position.height).toBeCloseTo(144, 0))
+      const scrollBefore = await page.evaluate(() => window.scrollY)
+      releaseCover()
+      await expect
+        .poll(() =>
+          firstRow
+            .locator("img")
+            .evaluate((image) => (image as HTMLImageElement).complete)
+        )
+        .toBe(true)
+      const after = await stableRowPositions(page)
+      const scrollAfter = await page.evaluate(() => window.scrollY)
+      expect(after).toHaveLength(before.length)
+      after.forEach((position, index) => {
+        expect(Math.abs(position.top - before[index]!.top)).toBeLessThanOrEqual(
+          2
+        )
+        expect(
+          Math.abs(position.height - before[index]!.height)
+        ).toBeLessThanOrEqual(2)
+      })
+      expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(2)
+      await expectNoPageOverflow(page)
+      await page.screenshot({
+        path: `/tmp/imsweb-events-list-${testInfo.project.name}.png`,
+      })
+
+      await page.evaluate(() =>
+        window.scrollTo(0, document.documentElement.scrollHeight)
       )
-      .toBe(true)
-    const after = await stableRowPositions(page)
-    const scrollAfter = await page.evaluate(() => window.scrollY)
-    expect(after).toHaveLength(before.length)
-    after.forEach((position, index) => {
-      expect(Math.abs(position.top - before[index]!.top)).toBeLessThanOrEqual(2)
-      expect(
-        Math.abs(position.height - before[index]!.height)
-      ).toBeLessThanOrEqual(2)
-    })
-    expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(2)
-    await expectNoPageOverflow(page)
-    await page.screenshot({
-      path: `/tmp/imsweb-events-list-${testInfo.project.name}.png`,
-    })
+      await expect(
+        page.getByRole("heading", { name: "社区动态 10" })
+      ).toBeVisible()
+      await expect(
+        list.locator('[role="listitem"][aria-setsize="10"]').last()
+      ).toBeVisible()
 
-    await page.evaluate(() =>
-      window.scrollTo(0, document.documentElement.scrollHeight)
-    )
-    await expect(
-      page.getByRole("heading", { name: "社区动态 10" })
-    ).toBeVisible()
-    await expect(
-      list.locator('[role="listitem"][aria-setsize="10"]').last()
-    ).toBeVisible()
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const firstItem = list.locator('[role="listitem"][aria-posinset="1"]')
+      await expect(firstItem).toBeVisible()
+      await firstItem.getByRole("link").click()
+      await expect(page).toHaveURL(/\/events\/1$/)
+      await expect(
+        page.getByRole("link", { name: "返回社区动态" })
+      ).toBeVisible()
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        "移动端社区动态"
+      )
+      const relatedLink = page.getByRole("link", {
+        name: "打开社区动态相关页面",
+      })
+      await relatedLink.scrollIntoViewIfNeeded()
+      await expectMinimumHeight(relatedLink)
+      await expect(relatedLink).toHaveAttribute("href", longUrl)
+      await expectNoPageOverflow(page)
 
-    await page.evaluate(() => window.scrollTo(0, 0))
-    const firstItem = list.locator('[role="listitem"][aria-posinset="1"]')
-    await expect(firstItem).toBeVisible()
-    await firstItem.getByRole("link").click()
-    await expect(page).toHaveURL(/\/events\/1$/)
-    await expect(page.getByRole("link", { name: "返回社区动态" })).toBeVisible()
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      "移动端社区动态"
-    )
-    const relatedLink = page.getByRole("link", {
-      name: "打开社区动态相关页面",
-    })
-    await relatedLink.scrollIntoViewIfNeeded()
-    await expectMinimumHeight(relatedLink)
-    await expect(relatedLink).toHaveAttribute("href", longUrl)
-    await expectNoPageOverflow(page)
-
-    await page.screenshot({
-      path: `/tmp/imsweb-events-mobile-${testInfo.project.name}.png`,
-      fullPage: true,
-    })
-  }
-)
+      await page.screenshot({
+        path: `/tmp/imsweb-events-mobile-${testInfo.project.name}.png`,
+        fullPage: true,
+      })
+    }
+  )
+})

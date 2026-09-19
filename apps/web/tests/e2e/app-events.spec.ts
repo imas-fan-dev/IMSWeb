@@ -417,224 +417,236 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test(
-  "App community flow respects safe areas and stable list geometry",
-  {
-    tag: "@app-webkit",
-  },
-  async ({ page, api }, testInfo) => {
-    const { coverRequested, releaseCover, eventRequestCount } =
-      await mockCommunityApis(page, api)
-    installSeededPublicApis(api, [
-      { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
-      { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },
-      { path: "/api/community/exchange/series", times: { min: 0, max: 1 } },
-    ])
+test.describe("app events", () => {
+  test(
+    "App community flow respects safe areas and stable list geometry",
+    {
+      tag: "@app-webkit",
+    },
+    async ({ page, api }, testInfo) => {
+      const { coverRequested, releaseCover, eventRequestCount } =
+        await mockCommunityApis(page, api)
+      installSeededPublicApis(api, [
+        { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
+        { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },
+        { path: "/api/community/exchange/series", times: { min: 0, max: 1 } },
+      ])
 
-    await page.goto("/")
-    await applySafeArea(page)
+      await page.goto("/")
+      await applySafeArea(page)
 
-    const latest = page.getByRole("region", { name: "站内动态" })
-    const eventsSection = latest.getByRole("region", { name: "社区动态" })
-    const allEventsLink = eventsSection.getByRole("link", {
-      name: "查看全部动态",
-    })
-    await expect(eventsSection.getByText(longTitle)).toBeVisible()
-    await expectMinimumHeight(allEventsLink)
-    await expectInsideSafeInline(page, latest.locator(".grid").first())
-
-    const highlights = page.getByRole("region", {
-      name: "活动资讯与同人活动",
-    })
-    await highlights.scrollIntoViewIfNeeded()
-    const highlightGrid = highlights.locator("article").first().locator("..")
-    const viewport = page.viewportSize()!
-    const expectedColumns =
-      viewport.width < 360 ? 1 : viewport.width < 768 ? 2 : 3
-    await expect
-      .poll(() =>
-        highlightGrid.evaluate(
-          (element) =>
-            getComputedStyle(element)
-              .gridTemplateColumns.split(" ")
-              .filter(Boolean).length
-        )
-      )
-      .toBe(expectedColumns)
-    await expectInsideSafeInline(page, highlightGrid)
-    await expectNoPageOverflow(page)
-
-    await allEventsLink.click()
-    await expect(page).toHaveURL(/\/events$/)
-    const heading = page.getByRole("heading", {
-      level: 1,
-      name: "社区动态",
-      exact: true,
-    })
-    await expect(heading).toBeVisible()
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
-    await expectInsideSafeViewport(page, heading)
-    const list = page.getByRole("region", { name: "社区动态列表" })
-    await expect(list.getByRole("heading", { name: longTitle })).toBeVisible()
-    const firstRow = list.getByRole("listitem").first()
-    const secondRow = list.getByRole("listitem").nth(1)
-    await expect(firstRow.getByText("具体活动")).toHaveCSS("opacity", "1")
-    await expectInsideSafeInline(page, firstRow.getByRole("link"))
-    await expectEventRowLayout(firstRow, 3)
-    await expectEventRowLayout(secondRow, 2)
-    await expect(list.getByText("第 2 条动态摘要")).toHaveCount(0)
-    await expectNoPageOverflow(page)
-
-    await page.evaluate(() => {
-      window.scrollTo({ top: 0, behavior: "instant" })
-    })
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
-    const requestsBeforeRefresh = eventRequestCount()
-    await dispatchTouch(page, "touchstart", 10)
-    await dispatchTouch(page, "touchmove", 170)
-    await expect(page.getByText("松开立即刷新")).toBeVisible()
-    const refreshComplete = page.getByText("已是最新", { exact: true })
-    const pullSurfacePromise = (async () => {
-      await expect(refreshComplete).toBeVisible()
-      return refreshComplete.evaluateHandle((label) => {
-        const status = label.closest('[role="status"]')
-        const surface = status?.parentElement
-        if (!(surface instanceof HTMLElement)) {
-          throw new Error("Pull-to-refresh status must have a surface element")
-        }
-        return surface
+      const latest = page.getByRole("region", { name: "站内动态" })
+      const eventsSection = latest.getByRole("region", { name: "社区动态" })
+      const allEventsLink = eventsSection.getByRole("link", {
+        name: "查看全部动态",
       })
-    })()
-    await dispatchTouch(page, "touchend", 170)
-    await expect.poll(eventRequestCount).toBeGreaterThan(requestsBeforeRefresh)
+      await expect(eventsSection.getByText(longTitle)).toBeVisible()
+      await expectMinimumHeight(allEventsLink)
+      await expectInsideSafeInline(page, latest.locator(".grid").first())
 
-    const pullSurface = await pullSurfacePromise
-    await expect(refreshComplete).toBeHidden()
-    await expect
-      .poll(() =>
-        pullSurface.evaluate((surface) => {
-          const transform = getComputedStyle(surface).transform
-          if (transform === "none") return true
-          const matrix = new DOMMatrixReadOnly(transform)
-          return (
-            matrix.is2D &&
-            Math.abs(matrix.a - 1) <= 0.001 &&
-            Math.abs(matrix.b) <= 0.001 &&
-            Math.abs(matrix.c) <= 0.001 &&
-            Math.abs(matrix.d - 1) <= 0.001 &&
-            Math.abs(matrix.e) <= 0.001 &&
-            Math.abs(matrix.f) <= 0.001
+      const highlights = page.getByRole("region", {
+        name: "活动资讯与同人活动",
+      })
+      await highlights.scrollIntoViewIfNeeded()
+      const highlightGrid = highlights.locator("article").first().locator("..")
+      const viewport = page.viewportSize()!
+      const expectedColumns =
+        viewport.width < 360 ? 1 : viewport.width < 768 ? 2 : 3
+      await expect
+        .poll(() =>
+          highlightGrid.evaluate(
+            (element) =>
+              getComputedStyle(element)
+                .gridTemplateColumns.split(" ")
+                .filter(Boolean).length
           )
+        )
+        .toBe(expectedColumns)
+      await expectInsideSafeInline(page, highlightGrid)
+      await expectNoPageOverflow(page)
+
+      await allEventsLink.click()
+      await expect(page).toHaveURL(/\/events$/)
+      const heading = page.getByRole("heading", {
+        level: 1,
+        name: "社区动态",
+        exact: true,
+      })
+      await expect(heading).toBeVisible()
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+      await expectInsideSafeViewport(page, heading)
+      const list = page.getByRole("region", { name: "社区动态列表" })
+      await expect(list.getByRole("heading", { name: longTitle })).toBeVisible()
+      const firstRow = list.getByRole("listitem").first()
+      const secondRow = list.getByRole("listitem").nth(1)
+      await expect(firstRow.getByText("具体活动")).toHaveCSS("opacity", "1")
+      await expectInsideSafeInline(page, firstRow.getByRole("link"))
+      await expectEventRowLayout(firstRow, 3)
+      await expectEventRowLayout(secondRow, 2)
+      await expect(list.getByText("第 2 条动态摘要")).toHaveCount(0)
+      await expectNoPageOverflow(page)
+
+      await page.evaluate(() => {
+        window.scrollTo({ top: 0, behavior: "instant" })
+      })
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+      const requestsBeforeRefresh = eventRequestCount()
+      await dispatchTouch(page, "touchstart", 10)
+      await dispatchTouch(page, "touchmove", 170)
+      await expect(page.getByText("松开立即刷新")).toBeVisible()
+      const refreshComplete = page.getByText("已是最新", { exact: true })
+      const pullSurfacePromise = (async () => {
+        await expect(refreshComplete).toBeVisible()
+        return refreshComplete.evaluateHandle((label) => {
+          const status = label.closest('[role="status"]')
+          const surface = status?.parentElement
+          if (!(surface instanceof HTMLElement)) {
+            throw new Error(
+              "Pull-to-refresh status must have a surface element"
+            )
+          }
+          return surface
         })
+      })()
+      await dispatchTouch(page, "touchend", 170)
+      await expect
+        .poll(eventRequestCount)
+        .toBeGreaterThan(requestsBeforeRefresh)
+
+      const pullSurface = await pullSurfacePromise
+      await expect(refreshComplete).toBeHidden()
+      await expect
+        .poll(() =>
+          pullSurface.evaluate((surface) => {
+            const transform = getComputedStyle(surface).transform
+            if (transform === "none") return true
+            const matrix = new DOMMatrixReadOnly(transform)
+            return (
+              matrix.is2D &&
+              Math.abs(matrix.a - 1) <= 0.001 &&
+              Math.abs(matrix.b) <= 0.001 &&
+              Math.abs(matrix.c) <= 0.001 &&
+              Math.abs(matrix.d - 1) <= 0.001 &&
+              Math.abs(matrix.e) <= 0.001 &&
+              Math.abs(matrix.f) <= 0.001
+            )
+          })
+        )
+        .toBe(true)
+      await pullSurface.dispose()
+
+      await coverRequested
+      const before = await stableRowPositions(page)
+      before.forEach((position) => expect(position.height).toBeCloseTo(144, 0))
+      const scrollBefore = await page.evaluate(() => window.scrollY)
+      releaseCover()
+      await expect
+        .poll(() =>
+          firstRow
+            .locator("img")
+            .evaluate((image) => (image as HTMLImageElement).complete)
+        )
+        .toBe(true)
+      const after = await stableRowPositions(page)
+      const scrollAfter = await page.evaluate(() => window.scrollY)
+      expect(after).toHaveLength(before.length)
+      after.forEach((position, index) => {
+        expect(Math.abs(position.top - before[index]!.top)).toBeLessThanOrEqual(
+          2
+        )
+        expect(
+          Math.abs(position.height - before[index]!.height)
+        ).toBeLessThanOrEqual(2)
+      })
+      expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(2)
+      await page.screenshot({
+        path: `/tmp/imsweb-app-events-list-${testInfo.project.name}.png`,
+      })
+
+      await page.evaluate(() =>
+        window.scrollTo(0, document.documentElement.scrollHeight)
       )
-      .toBe(true)
-    await pullSurface.dispose()
+      await expect(
+        page.getByRole("heading", { name: "App 社区动态 10" })
+      ).toBeVisible()
+      await expect(
+        list.locator('[role="listitem"][aria-setsize="10"]').last()
+      ).toBeVisible()
 
-    await coverRequested
-    const before = await stableRowPositions(page)
-    before.forEach((position) => expect(position.height).toBeCloseTo(144, 0))
-    const scrollBefore = await page.evaluate(() => window.scrollY)
-    releaseCover()
-    await expect
-      .poll(() =>
-        firstRow
-          .locator("img")
-          .evaluate((image) => (image as HTMLImageElement).complete)
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const firstItem = list.locator('[role="listitem"][aria-posinset="1"]')
+      await expect(firstItem).toBeVisible()
+      await firstItem.getByRole("link").click()
+      await expect(page).toHaveURL(/\/events\/1$/)
+      await expect(
+        page.getByRole("button", { name: "返回", exact: true })
+      ).toBeVisible()
+      await expect(
+        page.getByRole("link", { name: "返回社区动态" })
+      ).toHaveCount(0)
+      const article = page.getByRole("article")
+      await expectInsideSafeInline(page, article)
+      const articleBox = await article.boundingBox()
+      const detailViewport = page.viewportSize()
+      expect(articleBox).not.toBeNull()
+      expect(detailViewport).not.toBeNull()
+      if (articleBox && detailViewport) {
+        const topInset = detailViewport.width > detailViewport.height ? 0 : 47
+        expect(articleBox.y).toBeGreaterThanOrEqual(topInset - 1)
+      }
+      await expectNoPageOverflow(page)
+
+      const coverButton = page.getByRole("button", {
+        name: `查看${longTitle}封面`,
+      })
+      await coverButton.click()
+      const dialog = page.getByRole("dialog", { name: `${longTitle}封面` })
+      await expect(dialog).toBeVisible()
+      const closePreview = dialog.getByRole("button", {
+        name: "关闭文章封面预览",
+      })
+      await expectInsideSafeViewport(page, closePreview)
+      await expectInsideSafeViewport(
+        page,
+        dialog.getByRole("button", { name: "复位文章封面" })
       )
-      .toBe(true)
-    const after = await stableRowPositions(page)
-    const scrollAfter = await page.evaluate(() => window.scrollY)
-    expect(after).toHaveLength(before.length)
-    after.forEach((position, index) => {
-      expect(Math.abs(position.top - before[index]!.top)).toBeLessThanOrEqual(2)
-      expect(
-        Math.abs(position.height - before[index]!.height)
-      ).toBeLessThanOrEqual(2)
-    })
-    expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(2)
-    await page.screenshot({
-      path: `/tmp/imsweb-app-events-list-${testInfo.project.name}.png`,
-    })
+      await closePreview.click()
 
-    await page.evaluate(() =>
-      window.scrollTo(0, document.documentElement.scrollHeight)
-    )
-    await expect(
-      page.getByRole("heading", { name: "App 社区动态 10" })
-    ).toBeVisible()
-    await expect(
-      list.locator('[role="listitem"][aria-setsize="10"]').last()
-    ).toBeVisible()
+      const relatedLink = page.getByRole("link", {
+        name: "打开 App 社区动态相关页面",
+      })
+      await relatedLink.evaluate((element) =>
+        element.scrollIntoView({ block: "center", behavior: "instant" })
+      )
+      await expectMinimumHeight(relatedLink)
+      await expect(relatedLink).toHaveAttribute("href", longUrl)
+      const navigation = page.getByRole("navigation", { name: "主导航" })
+      const linkBox = await relatedLink.boundingBox()
+      const navigationBox = await navigation.boundingBox()
+      expect(linkBox).not.toBeNull()
+      expect(navigationBox).not.toBeNull()
+      if (!linkBox || !navigationBox) {
+        throw new Error(
+          "Related link and App navigation must have layout boxes"
+        )
+      }
+      expect(linkBox.y + linkBox.height).toBeLessThanOrEqual(
+        navigationBox.y + 1
+      )
 
-    await page.evaluate(() => window.scrollTo(0, 0))
-    const firstItem = list.locator('[role="listitem"][aria-posinset="1"]')
-    await expect(firstItem).toBeVisible()
-    await firstItem.getByRole("link").click()
-    await expect(page).toHaveURL(/\/events\/1$/)
-    await expect(
-      page.getByRole("button", { name: "返回", exact: true })
-    ).toBeVisible()
-    await expect(page.getByRole("link", { name: "返回社区动态" })).toHaveCount(
-      0
-    )
-    const article = page.getByRole("article")
-    await expectInsideSafeInline(page, article)
-    const articleBox = await article.boundingBox()
-    const detailViewport = page.viewportSize()
-    expect(articleBox).not.toBeNull()
-    expect(detailViewport).not.toBeNull()
-    if (articleBox && detailViewport) {
-      const topInset = detailViewport.width > detailViewport.height ? 0 : 47
-      expect(articleBox.y).toBeGreaterThanOrEqual(topInset - 1)
+      await page.screenshot({
+        path: `/tmp/imsweb-app-events-${testInfo.project.name}.png`,
+        fullPage: true,
+      })
+
+      await page.getByRole("button", { name: "返回", exact: true }).click()
+      await expect(page).toHaveURL(/\/events$/)
+      await expect(list).toBeVisible()
+
+      // The events list belongs to Community, so the tree back leaves the
+      // community flow at its root instead of replaying the home-page visit.
+      await page.getByRole("button", { name: "返回", exact: true }).click()
+      await expect(page).toHaveURL(/\/community$/)
     }
-    await expectNoPageOverflow(page)
-
-    const coverButton = page.getByRole("button", {
-      name: `查看${longTitle}封面`,
-    })
-    await coverButton.click()
-    const dialog = page.getByRole("dialog", { name: `${longTitle}封面` })
-    await expect(dialog).toBeVisible()
-    const closePreview = dialog.getByRole("button", {
-      name: "关闭文章封面预览",
-    })
-    await expectInsideSafeViewport(page, closePreview)
-    await expectInsideSafeViewport(
-      page,
-      dialog.getByRole("button", { name: "复位文章封面" })
-    )
-    await closePreview.click()
-
-    const relatedLink = page.getByRole("link", {
-      name: "打开 App 社区动态相关页面",
-    })
-    await relatedLink.evaluate((element) =>
-      element.scrollIntoView({ block: "center", behavior: "instant" })
-    )
-    await expectMinimumHeight(relatedLink)
-    await expect(relatedLink).toHaveAttribute("href", longUrl)
-    const navigation = page.getByRole("navigation", { name: "主导航" })
-    const linkBox = await relatedLink.boundingBox()
-    const navigationBox = await navigation.boundingBox()
-    expect(linkBox).not.toBeNull()
-    expect(navigationBox).not.toBeNull()
-    if (!linkBox || !navigationBox) {
-      throw new Error("Related link and App navigation must have layout boxes")
-    }
-    expect(linkBox.y + linkBox.height).toBeLessThanOrEqual(navigationBox.y + 1)
-
-    await page.screenshot({
-      path: `/tmp/imsweb-app-events-${testInfo.project.name}.png`,
-      fullPage: true,
-    })
-
-    await page.getByRole("button", { name: "返回", exact: true }).click()
-    await expect(page).toHaveURL(/\/events$/)
-    await expect(list).toBeVisible()
-
-    // The events list belongs to Community, so the tree back leaves the
-    // community flow at its root instead of replaying the home-page visit.
-    await page.getByRole("button", { name: "返回", exact: true }).click()
-    await expect(page).toHaveURL(/\/community$/)
-  }
-)
+  )
+})

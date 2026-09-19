@@ -24,101 +24,105 @@ function storageWithPublicUrls(
     };
 }
 
-test('public media URLs resolve legacy business paths to CDN object URLs', async () => {
-    const keys: string[] = [];
-    const storage = storageWithPublicUrls((key) => {
-        keys.push(key);
-        return `https://cdn.example.test/${key}`;
+test.describe('public object url', () => {
+    test('public media URLs resolve legacy business paths to CDN object URLs', async () => {
+        const keys: string[] = [];
+        const storage = storageWithPublicUrls((key) => {
+            keys.push(key);
+            return `https://cdn.example.test/${key}`;
+        });
+
+        assert.equal(
+            await resolvePublicMediaUrl(storage, '/uploads/namecard/original/card-7-front.webp'),
+            'https://cdn.example.test/community/namecards/assets/card-7-front/image.webp'
+        );
+        assert.equal(
+            await resolvePublicMediaUrl(storage, '/uploads/news/thumb/news_thumb.png'),
+            'https://cdn.example.test/editorial/news/assets/news/thumbnail.png'
+        );
+        assert.deepEqual(keys, [
+            'community/namecards/assets/card-7-front/image.webp',
+            'editorial/news/assets/news/thumbnail.png'
+        ]);
     });
 
-    assert.equal(
-        await resolvePublicMediaUrl(storage, '/uploads/namecard/original/card-7-front.webp'),
-        'https://cdn.example.test/community/namecards/assets/card-7-front/image.webp'
-    );
-    assert.equal(
-        await resolvePublicMediaUrl(storage, '/uploads/news/thumb/news_thumb.png'),
-        'https://cdn.example.test/editorial/news/assets/news/thumbnail.png'
-    );
-    assert.deepEqual(keys, [
-        'community/namecards/assets/card-7-front/image.webp',
-        'editorial/news/assets/news/thumbnail.png'
-    ]);
-});
+    test('public URL resolution preserves external, private, and unsupported fallbacks', async () => {
+        const storage = storageWithPublicUrls(() => null);
+        assert.equal(
+            await resolvePublicMediaUrl(storage, 'https://images.example.test/cover.webp'),
+            'https://images.example.test/cover.webp'
+        );
+        assert.equal(
+            await resolvePublicMediaUrl(storage, '/private/unmapped.webp'),
+            '/private/unmapped.webp'
+        );
+        assert.equal(
+            await resolvePublicObjectUrl(storage, 'private/object.webp', '/media/fallback.webp'),
+            '/media/fallback.webp'
+        );
+    });
 
-test('public URL resolution preserves external, private, and unsupported fallbacks', async () => {
-    const storage = storageWithPublicUrls(() => null);
-    assert.equal(
-        await resolvePublicMediaUrl(storage, 'https://images.example.test/cover.webp'),
-        'https://images.example.test/cover.webp'
-    );
-    assert.equal(
-        await resolvePublicMediaUrl(storage, '/private/unmapped.webp'),
-        '/private/unmapped.webp'
-    );
-    assert.equal(
-        await resolvePublicObjectUrl(storage, 'private/object.webp', '/media/fallback.webp'),
-        '/media/fallback.webp'
-    );
-});
+    test.describe('required public URLs', () => {
+        test('fail closed instead of returning an application fallback', async () => {
+            const directStorage = storageWithPublicUrls(
+                (key) => `https://cdn.example.test/${key}`
+            );
+            assert.equal(
+                await requirePublicObjectUrl(directStorage, 'wiki/shared.webp'),
+                'https://cdn.example.test/wiki/shared.webp'
+            );
 
-test('required public URLs fail closed instead of returning an application fallback', async () => {
-    const directStorage = storageWithPublicUrls(
-        (key) => `https://cdn.example.test/${key}`
-    );
-    assert.equal(
-        await requirePublicObjectUrl(directStorage, 'wiki/shared.webp'),
-        'https://cdn.example.test/wiki/shared.webp'
-    );
+            const unavailableStorage = storageWithPublicUrls(() => null);
+            await assert.rejects(
+                requirePublicObjectUrl(unavailableStorage, 'wiki/shared.webp'),
+                (error: Error & { status?: number }) =>
+                    error.status === 503 && /公开对象读取地址/.test(error.message)
+            );
+        });
 
-    const unavailableStorage = storageWithPublicUrls(() => null);
-    await assert.rejects(
-        requirePublicObjectUrl(unavailableStorage, 'wiki/shared.webp'),
-        (error: Error & { status?: number }) =>
-            error.status === 503 && /公开对象读取地址/.test(error.message)
-    );
-});
+        test('can promote a legacy private object before resolving', async () => {
+            let publicAccess = false;
+            let publishes = 0;
+            const storage = {
+                ...storageWithPublicUrls(() => publicAccess
+                    ? 'https://cdn.example.test/platform/avatar.webp'
+                    : null),
+                async publish(key: string) {
+                    assert.equal(key, 'platform/avatar.webp');
+                    publishes += 1;
+                    publicAccess = true;
+                }
+            } satisfies ObjectStorage;
 
-test('required public URLs can promote a legacy private object before resolving', async () => {
-    let publicAccess = false;
-    let publishes = 0;
-    const storage = {
-        ...storageWithPublicUrls(() => publicAccess
-            ? 'https://cdn.example.test/platform/avatar.webp'
-            : null),
-        async publish(key: string) {
-            assert.equal(key, 'platform/avatar.webp');
-            publishes += 1;
-            publicAccess = true;
-        }
-    } satisfies ObjectStorage;
+            assert.equal(
+                await requirePublicObjectUrl(storage, 'platform/avatar.webp', {
+                    publishIfUnavailable: true
+                }),
+                'https://cdn.example.test/platform/avatar.webp'
+            );
+            assert.equal(publishes, 1);
+        });
+    });
 
-    assert.equal(
-        await requirePublicObjectUrl(storage, 'platform/avatar.webp', {
-            publishIfUnavailable: true
-        }),
-        'https://cdn.example.test/platform/avatar.webp'
-    );
-    assert.equal(publishes, 1);
-});
-
-test('public media field rewriting changes only declared string fields', async () => {
-    const storage = storageWithPublicUrls((key) => `https://cdn.example.test/${key}`);
-    const source = {
-        id: 8,
-        image1_url: '/uploads/namecard/original/front.webp',
-        image2_url: '/uploads/namecard/original/back.webp',
-        status: 'approved'
-    };
-    const result = await resolvePublicMediaFields(
-        storage,
-        source,
-        ['image1_url', 'image2_url']
-    );
-    assert.notEqual(result, source);
-    assert.equal(source.image1_url, '/uploads/namecard/original/front.webp');
-    assert.equal(
-        result.image1_url,
-        'https://cdn.example.test/community/namecards/assets/front/image.webp'
-    );
-    assert.equal(result.status, 'approved');
+    test('public media field rewriting changes only declared string fields', async () => {
+        const storage = storageWithPublicUrls((key) => `https://cdn.example.test/${key}`);
+        const source = {
+            id: 8,
+            image1_url: '/uploads/namecard/original/front.webp',
+            image2_url: '/uploads/namecard/original/back.webp',
+            status: 'approved'
+        };
+        const result = await resolvePublicMediaFields(
+            storage,
+            source,
+            ['image1_url', 'image2_url']
+        );
+        assert.notEqual(result, source);
+        assert.equal(source.image1_url, '/uploads/namecard/original/front.webp');
+        assert.equal(
+            result.image1_url,
+            'https://cdn.example.test/community/namecards/assets/front/image.webp'
+        );
+        assert.equal(result.status, 'approved');
+    });
 });

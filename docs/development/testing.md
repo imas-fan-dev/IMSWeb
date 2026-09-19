@@ -21,7 +21,7 @@
 Delivery 的 `PROFILE` 是 `root`、`repository`、`app`、`web` 或 `integration`；每个 CI lane
 只调用自己拥有的 profile。
 
-Root、API 和 Web 的 package script 数量由 `tests/test_workspace_boundaries.py` 钉在 57、43 和
+Root、API 和 Web 的 package script 数量由 `tests/test_workspace_boundaries.py` 钉在 58、43 和
 21；新增 script 要同步这个期望值。不得新增 `test:all`，也不为准备状态增加 package alias 或
 可独立调用的跳过参数。
 
@@ -37,8 +37,7 @@ Delivery integration profile 成功构建 Web 和 API 后，该进程才会运�
 （包含 unit）和普通 Playwright。Integration job 没有跨 job artifact transfer，因此
 `delivery integration` 始终保留自己的 Web 与 API build。
 
-governance、contracts 和 delivery 的 Node 测试属于仓库域，仓库根不能声明 `vitest`，因此该域由
-`apps/api` 承载：
+governance、contracts 和 delivery 的 Node 测试属于仓库域，CI 由 `apps/api` 承载：
 
 ```sh
 pnpm --filter @imsweb/api exec vitest run --root ../.. \
@@ -48,6 +47,50 @@ pnpm --filter @imsweb/api exec vitest run --root ../.. \
 `--root` 相对该步的 cwd（`apps/api`）解析，`--config` 由 runner 传绝对路径
 （`scripts/testing/run-test-owner.mjs` 里的 `repositoryVitestConfig`），所以不受 cwd 影响。手工运行时
 如果给相对 `--config`，它相对 `--root` 而非 cwd 解析，容易踩空。
+
+### 本地测试面板（`test:ui`）
+
+根 package 声明 `vitest` 与 `@vitest/ui`，只为本地开发面板：根 `vitest.config.mts` 用 `test.projects`
+把三个域配置挂进同一块面板，一次 `pnpm run test:ui` 就能跨域浏览、单跑和重跑用例。
+
+```sh
+pnpm run test:ui                     # 启动面板（浏览器界面）
+pnpm exec vitest run --project=api   # 只跑某个项目
+```
+
+面板只做聚合与展示，不改变任何域的执行真源：`include`、`environment`、alias、reporter 与覆盖率
+仍然逐域写在各自的配置里（`apps/api/vitest.config.mts`、`apps/web/vitest.config.ts`、
+`scripts/testing/vitest/vitest.repository.config.mts`）。因此：
+
+- **不参与 CI**：`ci.yml`、`deploy-preview.yml` 仍然只调用 `scripts/testing/run-test-owner.mjs` 与
+  各域脚本；根配置不启用 coverage，覆盖率门禁仍只属于 API 与 Web 的域级 CI 步骤。
+- **仓库域在面板里一次性跑完三条 CI 调用覆盖的全部文件**（`tests/**` 与 `scripts/**/tests/**`），
+  本地面板不分批。
+- **api 与 web 项目把 workspace 恢复为 worker cwd**
+  （`scripts/testing/vitest/panel-workspace-cwd.setup.mts`）。两个域平时都由
+  `pnpm --filter <workspace> run test` 从 workspace 目录启动，少数用例依赖这一点：Web 用
+  `process.cwd()` 读 `app/`、`public/`、`DESIGN.md` 等夹具，API 的
+  `tests/migration/legacy-information-media.test.js` 交给 tsx hook，而 tsconfig 的 `@/*` 路径由
+  cwd 决定。Vitest 给项目自己的 root／environment／pool，但不给单独的 cwd，所以根配置按项目传
+  入 workspace 路径并在 worker 里 `chdir`；这只在面板里生效，CI 不加载根配置。仓库域不需要这
+  一层：它本来就从仓库根跑，且用例按自身文件位置解析路径。
+- **API 项目包含 `apps/api/tests/assets`**，它断言已构建的 Web 客户端。CI 的 API lane 用
+  `--exclude tests/assets/**` 排除这两个文件，面板是它的超集。首次使用前先构建：
+
+  ```sh
+  pnpm run build
+  ```
+
+  未构建时 `frontend-routing.contract.test.js` 在收集阶段就失败（`Required build output is
+  missing`），`client-allowlist.test.js` 的 fs 访问在用例内，属运行期失败；其余用例不受影响。配置
+  层不做 exclude，否则 CI 与面板看到的测试集合就不再是同一个。
+
+根配置只列三条域配置路径，靠 `tests/vitest-projects.test.mjs` 守卫：路径不存在、被替换，或某个域
+配置的 `environment`／`include`、面板条目的 `root`（`include` 相对谁解析）与 api/web 的 cwd 桥漂
+移，都会让治理段失败。`include` 也在守卫范围内，根 UI 面板与 CI owner 用的是同一份 glob。
+
+面板与单域运行的用例集合一致，实测 api 134 文件 / 884 用例（含 `tests/assets`）、web 220 / 1534；
+仓库域是三条 CI 调用覆盖的 10 个文件加本守卫。
 
 ## 测试位置
 
@@ -113,6 +156,7 @@ pnpm run check:pre-commit
 pnpm run test
 pnpm run test:web
 pnpm run test:web-routing
+pnpm run test:ui   # 本地面板，不参与 CI；见上文「本地测试面板」
 ```
 
 聚焦迭代时使用：

@@ -101,11 +101,21 @@ pnpm run check:root
 pnpm run test:infra
 ```
 
-The repository domain is hosted from `apps/api` because the root package may
-declare only `husky`, so a root-level `pnpm exec vitest` has no binary to run.
-`--root` stays relative to the step cwd (`apps/api`) and `--config` resolves
-against `--root`, not the cwd — passing `../../scripts/...` there fails to load
-the config.
+CI hosts the repository domain from `apps/api` so the invocation keeps a pinned
+root and config instead of depending on which workspace owns the root tooling.
+The root package declares `vitest` and `@vitest/ui` (plus `husky`), but only for
+the local `pnpm run test:ui` panel in `vitest.config.mts`; no CI lane loads that
+config. `--root` stays relative to the step cwd (`apps/api`) and `--config`
+resolves against `--root`, not the cwd — passing `../../scripts/...` there fails
+to load the config.
+
+Each root-domain file names its subject once, in a top-level `describe`. No
+second level is added: cases in `tests/` and `scripts/**/tests` rarely share an
+identical literal prefix of three words, so a category would have to be invented
+rather than read out of titles that already exist. Case counts and full names
+stay as they are, and the subject line is what makes a wide file legible --
+`run-test-owner.test.mjs` reads as a list of plan shapes rather than one
+undifferentiated block.
 
 The config raises `testTimeout` to 60s. This domain walks source trees, and the
 heaviest case in `tests/contracts/non-json-boundaries.test.mjs` measures about

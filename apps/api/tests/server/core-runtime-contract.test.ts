@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { onTestFinished } from 'vitest';
+import { describe, onTestFinished } from 'vitest';
 import { createHonoApp } from '@/app';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
@@ -494,130 +494,132 @@ async function createFixture(): Promise<NodeFixture> {
     };
 }
 
-test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters', async () => {
-    const fixture = await createFixture();
-    await assertCoreMutationContract({
-        runtime: 'Node',
-        username: USERNAME,
-        password: PASSWORD,
-        producername: PRODUCER,
-        approvedCardId: APPROVED_CARD_ID,
-        ...fixture
+describe('core runtime contract', () => {
+    test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters', async () => {
+        const fixture = await createFixture();
+        await assertCoreMutationContract({
+            runtime: 'Node',
+            username: USERNAME,
+            password: PASSWORD,
+            producername: PRODUCER,
+            approvedCardId: APPROVED_CARD_ID,
+            ...fixture
+        });
     });
-});
 
-test('[STATE-01] post-commit media failures preserve Node success semantics', async () => {
-    const fixture = await createFixture();
-    await assertPostCommitMediaContract({ runtime: 'Node', ...fixture });
-});
+    test('[STATE-01] post-commit media failures preserve Node success semantics', async () => {
+        const fixture = await createFixture();
+        await assertPostCommitMediaContract({ runtime: 'Node', ...fixture });
+    });
 
-test('[STATE-01] event image replacement keeps the published record on publish failure', async () => {
-    const fixture = await createFixture();
-    const token = await fixture.opToken();
-    const headers = {
-        Authorization: token,
-        'Content-Type': 'multipart/form-data; boundary=contract',
-        'Idempotency-Key': 'event-replacement-contract'
-    };
-    fixture.setUpload({
-        fields: {
-            title: 'Original event',
-            name: 'Original producer',
-            contact: 'original@example.test'
-        },
-        files: {
-            image: {
-                filename: 'original.png',
-                contentType: 'image/png',
-                body: Uint8Array.of(1, 2, 3)
+    test('[STATE-01] event image replacement keeps the published record on publish failure', async () => {
+        const fixture = await createFixture();
+        const token = await fixture.opToken();
+        const headers = {
+            Authorization: token,
+            'Content-Type': 'multipart/form-data; boundary=contract',
+            'Idempotency-Key': 'event-replacement-contract'
+        };
+        fixture.setUpload({
+            fields: {
+                title: 'Original event',
+                name: 'Original producer',
+                contact: 'original@example.test'
+            },
+            files: {
+                image: {
+                    filename: 'original.png',
+                    contentType: 'image/png',
+                    body: Uint8Array.of(1, 2, 3)
+                }
             }
-        }
-    });
-    const created = await fixture.request('/api/events', {
-        method: 'POST',
-        headers,
-        body: '--contract--'
-    });
-    assert.equal(created.status, 200);
-    const id = (await created.json() as { id: number }).id;
-    const before = await fixture.request(`/api/events/${id}`);
-    const beforeBody = await before.json() as Record<string, unknown>;
-    const beforeSnapshot = await fixture.snapshot();
+        });
+        const created = await fixture.request('/api/events', {
+            method: 'POST',
+            headers,
+            body: '--contract--'
+        });
+        assert.equal(created.status, 200);
+        const id = (await created.json() as { id: number }).id;
+        const before = await fixture.request(`/api/events/${id}`);
+        const beforeBody = await before.json() as Record<string, unknown>;
+        const beforeSnapshot = await fixture.snapshot();
 
-    fixture.setUpload({
-        fields: {
-            title: 'Replacement event',
-            name: 'Replacement producer',
-            contact: 'replacement@example.test'
-        },
-        files: {
-            image: {
-                filename: 'replacement.png',
-                contentType: 'image/png',
-                body: Uint8Array.of(4, 5, 6)
+        fixture.setUpload({
+            fields: {
+                title: 'Replacement event',
+                name: 'Replacement producer',
+                contact: 'replacement@example.test'
+            },
+            files: {
+                image: {
+                    filename: 'replacement.png',
+                    contentType: 'image/png',
+                    body: Uint8Array.of(4, 5, 6)
+                }
             }
-        }
-    });
-    fixture.failObjectPublishes(true);
-    const failed = await fixture.request(`/api/events/${id}`, {
-        method: 'PUT',
-        headers,
-        body: '--contract--'
-    });
-    fixture.failObjectPublishes(false);
+        });
+        fixture.failObjectPublishes(true);
+        const failed = await fixture.request(`/api/events/${id}`, {
+            method: 'PUT',
+            headers,
+            body: '--contract--'
+        });
+        fixture.failObjectPublishes(false);
 
-    assert.equal(failed.status, 500);
-    assert.deepEqual(await failed.json(), { error: '服务器错误' });
-    const after = await fixture.request(`/api/events/${id}`);
-    assert.deepEqual(await after.json(), beforeBody);
-    assert.deepEqual(await fixture.snapshot(), beforeSnapshot);
-});
-
-test('[STATE-01] namecard approval retries object publication before success', async () => {
-    const fixture = await createFixture();
-    const token = await fixture.opToken();
-    const approve = () => fixture.request(`/api/admin/cards/approve/${PENDING_CARD_ID}`, {
-        method: 'POST',
-        headers: { Authorization: token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expected_revision: 0 })
+        assert.equal(failed.status, 500);
+        assert.deepEqual(await failed.json(), { error: '服务器错误' });
+        const after = await fixture.request(`/api/events/${id}`);
+        assert.deepEqual(await after.json(), beforeBody);
+        assert.deepEqual(await fixture.snapshot(), beforeSnapshot);
     });
 
-    fixture.failObjectPublishes(true);
-    const failed = await approve();
-    assert.equal(failed.status, 500);
+    test('[STATE-01] namecard approval retries object publication before success', async () => {
+        const fixture = await createFixture();
+        const token = await fixture.opToken();
+        const approve = () => fixture.request(`/api/admin/cards/approve/${PENDING_CARD_ID}`, {
+            method: 'POST',
+            headers: { Authorization: token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expected_revision: 0 })
+        });
 
-    fixture.failObjectPublishes(false);
-    const retried = await approve();
-    assert.equal(retried.status, 200);
-    assert.deepEqual(await retried.json(), { success: true, revision: 2 });
-    assert.equal((await fixture.snapshot()).auditActions.filter(
-        (action) => action === '审核图片通过'
-    ).length, 1);
-});
+        fixture.failObjectPublishes(true);
+        const failed = await approve();
+        assert.equal(failed.status, 500);
 
-test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters', async () => {
-    const fixture = await createFixture();
-    await assertRouteUploadBoundaryContract({ runtime: 'Node', ...fixture });
-});
+        fixture.failObjectPublishes(false);
+        const retried = await approve();
+        assert.equal(retried.status, 200);
+        assert.deepEqual(await retried.json(), { success: true, revision: 2 });
+        assert.equal((await fixture.snapshot()).auditActions.filter(
+            (action) => action === '审核图片通过'
+        ).length, 1);
+    });
 
-test('[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing', async () => {
-    const fixture = await createFixture();
-    await assertChronicleRateContract({ runtime: 'Node', ...fixture });
-});
+    test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters', async () => {
+        const fixture = await createFixture();
+        await assertRouteUploadBoundaryContract({ runtime: 'Node', ...fixture });
+    });
 
-test('[STATE-01] concurrent rate identities remain atomic in memory', async () => {
-    const limiter = new MemoryRateLimiter();
-    const windows = (limiter as unknown as {
-        windows: Map<string, { identities: Set<string> }>;
-    }).windows;
-    await assertConcurrentRateLimiterContract({
-        runtime: 'Node',
-        consume: (client, identity) => limiter.consume(
-            'concurrent-contract', client, 30, 60 * 60,
-            { operation: 'chronicle:upload', identity }
-        ),
-        async count(client) {
-            return windows.get(`concurrent-contract\0${client}`)?.identities.size || 0;
-        }
+    test('[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing', async () => {
+        const fixture = await createFixture();
+        await assertChronicleRateContract({ runtime: 'Node', ...fixture });
+    });
+
+    test('[STATE-01] concurrent rate identities remain atomic in memory', async () => {
+        const limiter = new MemoryRateLimiter();
+        const windows = (limiter as unknown as {
+            windows: Map<string, { identities: Set<string> }>;
+        }).windows;
+        await assertConcurrentRateLimiterContract({
+            runtime: 'Node',
+            consume: (client, identity) => limiter.consume(
+                'concurrent-contract', client, 30, 60 * 60,
+                { operation: 'chronicle:upload', identity }
+            ),
+            async count(client) {
+                return windows.get(`concurrent-contract\0${client}`)?.identities.size || 0;
+            }
+        });
     });
 });

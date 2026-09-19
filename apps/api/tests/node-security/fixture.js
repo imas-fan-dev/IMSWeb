@@ -269,6 +269,11 @@ function createNodeSecurityFixture({ test, beforeAll, afterAll }) {
         process.env.IMS_CLIENT_ADDRESS_SOURCE = 'nginx';
         chronicleBase = path.join(tempDir, 'event-chronicle');
         process.env.IMS_EVENT_BASE_DIR = chronicleBase;
+        // The chronicle cases write their own metadata fixtures, and the suite
+        // only ever created this directory as a side effect of an earlier case
+        // issuing a request. Creating it with the rest of the fixture keeps the
+        // cases independent of the order they run in.
+        fs.mkdirSync(path.join(chronicleBase, 'metadata'), { recursive: true });
 
         const serverModule = require(SERVER_ENTRY);
         server = serverModule.startServer({ host: '127.0.0.1', port: 0 });

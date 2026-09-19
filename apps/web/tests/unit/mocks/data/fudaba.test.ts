@@ -42,81 +42,89 @@ import {
 const officeWithCardsSchema = fudabaOfficeDetailSchema.shape.office
 
 describe("fudaba fixture factories", () => {
-  it("builds a series that matches its contract", () => {
-    const value = makeFudabaSeries()
+  describe("builds a series", () => {
+    it("that matches its contract", () => {
+      const value = makeFudabaSeries()
 
-    assertFactoryCoversSchema(fudabaSeriesSchema, value)
-    expect(fudabaSeriesSchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(fudabaSeriesSchema, value)
+      expect(fudabaSeriesSchema.parse(value)).toEqual(value)
+    })
+
+    it("list that matches its contract", () => {
+      const value = makeFudabaSeriesList()
+
+      assertFactoryCoversSchema(fudabaSeriesListSchema, value)
+      expect(fudabaSeriesListSchema.parse(value)).toEqual(value)
+    })
   })
 
-  it("builds a series list that matches its contract", () => {
-    const value = makeFudabaSeriesList()
+  describe("builds a card", () => {
+    it("that matches its contract", () => {
+      const value = makeFudabaCard()
 
-    assertFactoryCoversSchema(fudabaSeriesListSchema, value)
-    expect(fudabaSeriesListSchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(fudabaCardSchema, value)
+      expect(fudabaCardSchema.parse(value)).toEqual(value)
+    })
+
+    it("page that matches its contract", () => {
+      const value = makeFudabaCardPage()
+
+      assertFactoryCoversSchema(fudabaCardPageSchema, value)
+      expect(fudabaCardPageSchema.parse(value)).toEqual(value)
+    })
   })
 
-  it("builds a card that matches its contract", () => {
-    const value = makeFudabaCard()
+  describe("builds an office", () => {
+    it("that matches its contract", () => {
+      const value = makeFudabaOffice()
 
-    assertFactoryCoversSchema(fudabaCardSchema, value)
-    expect(fudabaCardSchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(fudabaOfficeSchema, value)
+      expect(fudabaOfficeSchema.parse(value)).toEqual(value)
+    })
+
+    it("page that matches its contract", () => {
+      const value = makeFudabaOfficePage()
+
+      assertFactoryCoversSchema(fudabaOfficePageSchema, value)
+      expect(fudabaOfficePageSchema.parse(value)).toEqual(value)
+    })
+
+    it("detail that matches its contract", () => {
+      const value = makeFudabaOfficeDetail()
+
+      assertFactoryCoversSchema(officeWithCardsSchema, value)
+      expect(officeWithCardsSchema.parse(value)).toEqual(value)
+    })
   })
 
-  it("builds a card page that matches its contract", () => {
-    const value = makeFudabaCardPage()
+  describe("builds an owner", () => {
+    it("card list that matches its contract", () => {
+      const value = makeFudabaOwnerCardList()
 
-    assertFactoryCoversSchema(fudabaCardPageSchema, value)
-    expect(fudabaCardPageSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(fudabaOwnerCardListSchema, value)
+      expect(fudabaOwnerCardListSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds an office that matches its contract", () => {
-    const value = makeFudabaOffice()
+    it("office list that matches its contract", () => {
+      const value = makeFudabaOwnerOfficeList()
 
-    assertFactoryCoversSchema(fudabaOfficeSchema, value)
-    expect(fudabaOfficeSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(fudabaOwnerOfficeListSchema, value)
+      expect(fudabaOwnerOfficeListSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds an office page that matches its contract", () => {
-    const value = makeFudabaOfficePage()
+    it("card that matches its contract", () => {
+      const value = makeFudabaOwnerCard()
 
-    assertFactoryCoversSchema(fudabaOfficePageSchema, value)
-    expect(fudabaOfficePageSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(fudabaOwnerCardSchema, value)
+      expect(fudabaOwnerCardSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds an office detail that matches its contract", () => {
-    const value = makeFudabaOfficeDetail()
+    it("office that matches its contract", () => {
+      const value = makeFudabaOwnerOffice()
 
-    assertFactoryCoversSchema(officeWithCardsSchema, value)
-    expect(officeWithCardsSchema.parse(value)).toEqual(value)
-  })
-
-  it("builds an owner card list that matches its contract", () => {
-    const value = makeFudabaOwnerCardList()
-
-    assertFactoryCoversSchema(fudabaOwnerCardListSchema, value)
-    expect(fudabaOwnerCardListSchema.parse(value)).toEqual(value)
-  })
-
-  it("builds an owner office list that matches its contract", () => {
-    const value = makeFudabaOwnerOfficeList()
-
-    assertFactoryCoversSchema(fudabaOwnerOfficeListSchema, value)
-    expect(fudabaOwnerOfficeListSchema.parse(value)).toEqual(value)
-  })
-
-  it("builds an owner card that matches its contract", () => {
-    const value = makeFudabaOwnerCard()
-
-    assertFactoryCoversSchema(fudabaOwnerCardSchema, value)
-    expect(fudabaOwnerCardSchema.parse(value)).toEqual(value)
-  })
-
-  it("builds an owner office that matches its contract", () => {
-    const value = makeFudabaOwnerOffice()
-
-    assertFactoryCoversSchema(fudabaOwnerOfficeSchema, value)
-    expect(fudabaOwnerOfficeSchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(fudabaOwnerOfficeSchema, value)
+      expect(fudabaOwnerOfficeSchema.parse(value)).toEqual(value)
+    })
   })
 
   it("builds a placed card that matches its contract", () => {

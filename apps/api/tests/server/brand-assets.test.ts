@@ -53,39 +53,41 @@ class BrandAssetStorage implements ObjectStorage {
     async deletePrefix(): Promise<void> {}
 }
 
-test('legacy series images and font resolve through canonical object storage', async () => {
-    const storage = new BrandAssetStorage();
-    const app = createHonoApp(() => ({ storage }));
+test.describe('brand assets', () => {
+    test('legacy series images and font resolve through canonical object storage', async () => {
+        const storage = new BrandAssetStorage();
+        const app = createHonoApp(() => ({ storage }));
 
-    for (const asset of BRAND_ASSET_DEFINITIONS) {
-        const response = await app.request(`http://ims.test${asset.publicPath}`, {
-            method: asset.kind === 'font' ? 'HEAD' : 'GET'
-        });
-        assert.equal(response.headers.get('cache-control'), 'public, max-age=300');
-        if (asset.kind === 'font') {
-            assert.equal(response.status, 200);
-            assert.equal(response.headers.get('content-type'), 'font/ttf');
-            assert.equal(response.headers.get('content-length'), '8');
-            assert.equal(response.headers.get('location'), null);
-            assert.equal((await response.arrayBuffer()).byteLength, 0);
-        } else {
-            assert.equal(response.status, 307);
-            assert.equal(
-                response.headers.get('location'),
-                `https://assets.example.test/${encodeURIComponent(asset.objectKey)}`
-            );
+        for (const asset of BRAND_ASSET_DEFINITIONS) {
+            const response = await app.request(`http://ims.test${asset.publicPath}`, {
+                method: asset.kind === 'font' ? 'HEAD' : 'GET'
+            });
+            assert.equal(response.headers.get('cache-control'), 'public, max-age=300');
+            if (asset.kind === 'font') {
+                assert.equal(response.status, 200);
+                assert.equal(response.headers.get('content-type'), 'font/ttf');
+                assert.equal(response.headers.get('content-length'), '8');
+                assert.equal(response.headers.get('location'), null);
+                assert.equal((await response.arrayBuffer()).byteLength, 0);
+            } else {
+                assert.equal(response.status, 307);
+                assert.equal(
+                    response.headers.get('location'),
+                    `https://assets.example.test/${encodeURIComponent(asset.objectKey)}`
+                );
+            }
         }
-    }
 
-    assert.deepEqual(
-        storage.requestedKeys,
-        BRAND_ASSET_DEFINITIONS
-            .filter((asset) => asset.kind === 'image')
-            .map((asset) => asset.objectKey)
-    );
-    assert.deepEqual(storage.readKeys, ['brand/fonts/iris-idol.ttf']);
-    assert.equal(
-        (await app.request('http://ims.test/assets/images/Production/unknown.png')).status,
-        404
-    );
+        assert.deepEqual(
+            storage.requestedKeys,
+            BRAND_ASSET_DEFINITIONS
+                .filter((asset) => asset.kind === 'image')
+                .map((asset) => asset.objectKey)
+        );
+        assert.deepEqual(storage.readKeys, ['brand/fonts/iris-idol.ttf']);
+        assert.equal(
+            (await app.request('http://ims.test/assets/images/Production/unknown.png')).status,
+            404
+        );
+    });
 });

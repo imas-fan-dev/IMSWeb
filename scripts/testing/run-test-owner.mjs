@@ -19,12 +19,14 @@ const repositoryVitestConfig = path.join(
   "scripts/testing/vitest/vitest.repository.config.mts",
 );
 
-// The root package.json may only declare `husky`, so the repository domain is
-// hosted by the API workspace. `--root ../..` is relative to `apiRoot` (the step
-// cwd) and pins file resolution to the repository root, and the explicit config
-// path keeps a nested invocation from picking up another workspace's config.
-// Every plan still passes its own explicit file list: a test dropping out of an
-// owner stays a visible failure instead of a silently shorter run.
+// The repository domain is hosted by the API workspace so the CI call keeps a
+// pinned root and config instead of depending on which workspace happens to own
+// the root tooling: `--root ../..` is relative to `apiRoot` (the step cwd) and
+// pins file resolution to the repository root, and the explicit config path
+// keeps a nested invocation from picking up another workspace's config. The root
+// package declares `vitest` only for the local `test:ui` panel, which never runs
+// in CI. Every plan still passes its own explicit file list: a test dropping out
+// of an owner stays a visible failure instead of a silently shorter run.
 const repositoryVitestCommand = (label, files) =>
   command(
     label,
@@ -49,6 +51,7 @@ const governanceNodeTests = Object.freeze([
   "tests/ci-affected-workspaces.test.js",
   "scripts/testing/tests/run-test-owner.test.mjs",
   "tests/vitest-reporting.test.mjs",
+  "tests/vitest-projects.test.mjs",
 ]);
 const governancePythonTests = Object.freeze([
   "tests/test_agent_rules.py",

@@ -214,58 +214,64 @@ describe("PlatformSessionProvider", () => {
     ).toEqual(otherSession)
   })
 
-  it("does not let a profile update restore state during a deferred reload", async () => {
-    apiMocks.hasSessionHint.mockReturnValue(false)
-    const freshSession = {
-      ...activeSession,
-      profile: { ...activeSession.profile, displayName: "Reloaded Producer" },
-    }
-    let resolveReload!: (session: typeof freshSession) => void
+  describe("does not let a profile update restore state during a deferred", () => {
+    it("reload", async () => {
+      apiMocks.hasSessionHint.mockReturnValue(false)
+      const freshSession = {
+        ...activeSession,
+        profile: { ...activeSession.profile, displayName: "Reloaded Producer" },
+      }
+      let resolveReload!: (session: typeof freshSession) => void
 
-    renderProvider()
-    await userEvent.click(screen.getByRole("button", { name: "accept" }))
-    apiMocks.hasSessionHint.mockReturnValue(true)
-    apiMocks.getSessionSend.mockReturnValue(
-      new Promise<typeof freshSession>((resolve) => {
-        resolveReload = resolve
-      })
-    )
-    await userEvent.click(screen.getByRole("button", { name: "reload" }))
-    await userEvent.click(
-      screen.getByRole("button", { name: "accept-profile" })
-    )
+      renderProvider()
+      await userEvent.click(screen.getByRole("button", { name: "accept" }))
+      apiMocks.hasSessionHint.mockReturnValue(true)
+      apiMocks.getSessionSend.mockReturnValue(
+        new Promise<typeof freshSession>((resolve) => {
+          resolveReload = resolve
+        })
+      )
+      await userEvent.click(screen.getByRole("button", { name: "reload" }))
+      await userEvent.click(
+        screen.getByRole("button", { name: "accept-profile" })
+      )
 
-    expect(screen.getByLabelText("session-status")).toHaveTextContent("loading")
-    expect(screen.getByLabelText("session-json")).toHaveTextContent("none")
-    await act(() => resolveReload(freshSession))
-    expect(screen.getByLabelText("display-name")).toHaveTextContent(
-      "Reloaded Producer"
-    )
-  })
+      expect(screen.getByLabelText("session-status")).toHaveTextContent(
+        "loading"
+      )
+      expect(screen.getByLabelText("session-json")).toHaveTextContent("none")
+      await act(() => resolveReload(freshSession))
+      expect(screen.getByLabelText("display-name")).toHaveTextContent(
+        "Reloaded Producer"
+      )
+    })
 
-  it("does not let a profile update restore state during a deferred logout", async () => {
-    apiMocks.hasSessionHint.mockReturnValue(false)
-    let resolveLogout!: (result: { success: true }) => void
+    it("logout", async () => {
+      apiMocks.hasSessionHint.mockReturnValue(false)
+      let resolveLogout!: (result: { success: true }) => void
 
-    renderProvider()
-    await userEvent.click(screen.getByRole("button", { name: "accept" }))
-    apiMocks.hasSessionHint.mockReturnValue(true)
-    apiMocks.logoutSend.mockReturnValue(
-      new Promise<{ success: true }>((resolve) => {
-        resolveLogout = resolve
-      })
-    )
-    await userEvent.click(screen.getByRole("button", { name: "logout" }))
-    await userEvent.click(
-      screen.getByRole("button", { name: "accept-profile" })
-    )
+      renderProvider()
+      await userEvent.click(screen.getByRole("button", { name: "accept" }))
+      apiMocks.hasSessionHint.mockReturnValue(true)
+      apiMocks.logoutSend.mockReturnValue(
+        new Promise<{ success: true }>((resolve) => {
+          resolveLogout = resolve
+        })
+      )
+      await userEvent.click(screen.getByRole("button", { name: "logout" }))
+      await userEvent.click(
+        screen.getByRole("button", { name: "accept-profile" })
+      )
 
-    expect(screen.getByLabelText("session-status")).toHaveTextContent("loading")
-    await act(() => resolveLogout({ success: true }))
-    expect(screen.getByLabelText("session-status")).toHaveTextContent(
-      "anonymous"
-    )
-    expect(screen.getByLabelText("session-json")).toHaveTextContent("none")
+      expect(screen.getByLabelText("session-status")).toHaveTextContent(
+        "loading"
+      )
+      await act(() => resolveLogout({ success: true }))
+      expect(screen.getByLabelText("session-status")).toHaveTextContent(
+        "anonymous"
+      )
+      expect(screen.getByLabelText("session-json")).toHaveTextContent("none")
+    })
   })
 
   it("drops rejected sessions but surfaces unexpected failures", async () => {

@@ -210,99 +210,101 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
-test("opens the attribution dialog from the bottom navigation below 768px", async ({
-  api,
-  page,
-}) => {
-  installMapMocks(api)
-  await page.setViewportSize({ width: 400, height: 780 })
-  await openWorkspace(page)
-
-  await expect(attributionTrigger(topCard(page))).toBeHidden()
-  await expect(attributionTrigger(discoveryRail(page))).toBeHidden()
-  await openAndCloseAttribution(
+test.describe("community exchange map attribution", () => {
+  test("opens the attribution dialog from the bottom navigation below 768px", async ({
+    api,
     page,
-    attributionTrigger(bottomNavigation(page))
-  )
-})
+  }) => {
+    installMapMocks(api)
+    await page.setViewportSize({ width: 400, height: 780 })
+    await openWorkspace(page)
 
-test("opens the attribution dialog from the top card between 768px and 1023px", async ({
-  api,
-  page,
-}) => {
-  installMapMocks(api)
-  await page.setViewportSize({ width: 900, height: 800 })
-  await openWorkspace(page)
-
-  await expect(attributionTrigger(bottomNavigation(page))).toBeHidden()
-  await expect(attributionTrigger(discoveryRail(page))).toBeHidden()
-  await openAndCloseAttribution(page, attributionTrigger(topCard(page)))
-})
-
-test("opens the attribution dialog from the discovery rail at 1024px and up", async ({
-  api,
-  page,
-}) => {
-  installMapMocks(api)
-  await page.setViewportSize({ width: 1280, height: 800 })
-  await openWorkspace(page)
-
-  await expect(attributionTrigger(bottomNavigation(page))).toBeHidden()
-  await expect(attributionTrigger(topCard(page))).toBeHidden()
-  await openAndCloseAttribution(page, attributionTrigger(discoveryRail(page)))
-})
-
-test("keeps every entry inside 375px with six 44px bottom targets", async ({
-  api,
-  page,
-}) => {
-  installMapMocks(api)
-  await page.setViewportSize({ width: 375, height: 780 })
-  await openWorkspace(page)
-
-  const navigation = bottomNavigation(page)
-  await expect(navigation.getByRole("button")).toHaveCount(5)
-  await expect(navigation.getByRole("link")).toHaveCount(1)
-
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth
+    await expect(attributionTrigger(topCard(page))).toBeHidden()
+    await expect(attributionTrigger(discoveryRail(page))).toBeHidden()
+    await openAndCloseAttribution(
+      page,
+      attributionTrigger(bottomNavigation(page))
     )
-  ).toBeLessThanOrEqual(0)
+  })
 
-  const entries = [
-    ...(await navigation.getByRole("button").all()),
-    ...(await navigation.getByRole("link").all()),
-  ]
-  for (const entry of entries) {
-    const box = await entry.boundingBox()
-    expect(box).not.toBeNull()
-    expect(box?.width).toBeGreaterThanOrEqual(44)
-    expect(box?.height).toBeGreaterThanOrEqual(44)
-  }
-
-  await openAndCloseAttribution(
+  test("opens the attribution dialog from the top card between 768px and 1023px", async ({
+    api,
     page,
-    attributionTrigger(bottomNavigation(page))
-  )
-})
+  }) => {
+    installMapMocks(api)
+    await page.setViewportSize({ width: 900, height: 800 })
+    await openWorkspace(page)
 
-test("renders no entry and no empty dialog when the style carries no notice", async ({
-  api,
-  page,
-}) => {
-  installMapMocks(api, silentStyleUrl)
-  await openWorkspace(page)
+    await expect(attributionTrigger(bottomNavigation(page))).toBeHidden()
+    await expect(attributionTrigger(discoveryRail(page))).toBeHidden()
+    await openAndCloseAttribution(page, attributionTrigger(topCard(page)))
+  })
 
-  // Every visible range of the width spectrum: the bottom navigation below
-  // 768px, the top card between 768px and 1023px, the rail from 1024px up.
-  for (const width of [400, 900, 1280]) {
-    await page.setViewportSize({ width, height: 800 })
-    await expect(
-      page.getByRole("button", { name: "查看地图数据来源" })
-    ).toHaveCount(0)
-    await expect(
-      page.getByRole("dialog", { name: "地图数据来源" })
-    ).toHaveCount(0)
-  }
+  test("opens the attribution dialog from the discovery rail at 1024px and up", async ({
+    api,
+    page,
+  }) => {
+    installMapMocks(api)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await openWorkspace(page)
+
+    await expect(attributionTrigger(bottomNavigation(page))).toBeHidden()
+    await expect(attributionTrigger(topCard(page))).toBeHidden()
+    await openAndCloseAttribution(page, attributionTrigger(discoveryRail(page)))
+  })
+
+  test("keeps every entry inside 375px with six 44px bottom targets", async ({
+    api,
+    page,
+  }) => {
+    installMapMocks(api)
+    await page.setViewportSize({ width: 375, height: 780 })
+    await openWorkspace(page)
+
+    const navigation = bottomNavigation(page)
+    await expect(navigation.getByRole("button")).toHaveCount(5)
+    await expect(navigation.getByRole("link")).toHaveCount(1)
+
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth
+      )
+    ).toBeLessThanOrEqual(0)
+
+    const entries = [
+      ...(await navigation.getByRole("button").all()),
+      ...(await navigation.getByRole("link").all()),
+    ]
+    for (const entry of entries) {
+      const box = await entry.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box?.width).toBeGreaterThanOrEqual(44)
+      expect(box?.height).toBeGreaterThanOrEqual(44)
+    }
+
+    await openAndCloseAttribution(
+      page,
+      attributionTrigger(bottomNavigation(page))
+    )
+  })
+
+  test("renders no entry and no empty dialog when the style carries no notice", async ({
+    api,
+    page,
+  }) => {
+    installMapMocks(api, silentStyleUrl)
+    await openWorkspace(page)
+
+    // Every visible range of the width spectrum: the bottom navigation below
+    // 768px, the top card between 768px and 1023px, the rail from 1024px up.
+    for (const width of [400, 900, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      await expect(
+        page.getByRole("button", { name: "查看地图数据来源" })
+      ).toHaveCount(0)
+      await expect(
+        page.getByRole("dialog", { name: "地图数据来源" })
+      ).toHaveCount(0)
+    }
+  })
 })

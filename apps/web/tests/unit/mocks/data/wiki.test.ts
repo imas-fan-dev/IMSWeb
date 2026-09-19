@@ -54,46 +54,48 @@ describe("wiki fixture factories", () => {
     expect(wikiImageTransformSchema.parse(value)).toEqual(value)
   })
 
-  it("builds a public agency that matches its contract", () => {
-    const value = makeWikiPublicAgency()
+  describe("builds a public", () => {
+    it("agency that matches its contract", () => {
+      const value = makeWikiPublicAgency()
 
-    assertFactoryCoversSchema(wikiPublicAgencySchema, value)
-    expect(wikiPublicAgencySchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiPublicAgencySchema, value)
+      expect(wikiPublicAgencySchema.parse(value)).toEqual(value)
+    })
 
-  it("builds a public idol that matches its contract", () => {
-    const value = makeWikiPublicIdol()
+    it("idol that matches its contract", () => {
+      const value = makeWikiPublicIdol()
 
-    assertFactoryCoversSchema(wikiPublicIdolSchema, value)
-    expect(wikiPublicIdolSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiPublicIdolSchema, value)
+      expect(wikiPublicIdolSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds a public group that matches its contract", () => {
-    const value = makeWikiPublicGroup()
+    it("group that matches its contract", () => {
+      const value = makeWikiPublicGroup()
 
-    assertFactoryCoversSchema(wikiPublicGroupSchema, value)
-    expect(wikiPublicGroupSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiPublicGroupSchema, value)
+      expect(wikiPublicGroupSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds a public story link that matches its contract", () => {
-    const value = makeWikiPublicStoryLink()
+    it("story link that matches its contract", () => {
+      const value = makeWikiPublicStoryLink()
 
-    assertFactoryCoversSchema(wikiPublicStoryLinkSchema, value)
-    expect(wikiPublicStoryLinkSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiPublicStoryLinkSchema, value)
+      expect(wikiPublicStoryLinkSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds a public story card that matches its contract", () => {
-    const value = makeWikiPublicStoryCard()
+    it("story card that matches its contract", () => {
+      const value = makeWikiPublicStoryCard()
 
-    assertFactoryCoversSchema(wikiPublicStoryCardSchema, value)
-    expect(wikiPublicStoryCardSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiPublicStoryCardSchema, value)
+      expect(wikiPublicStoryCardSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds a public catalog that matches its contract", () => {
-    const value = makeWikiPublicCatalog()
+    it("catalog that matches its contract", () => {
+      const value = makeWikiPublicCatalog()
 
-    assertFactoryCoversSchema(wikiPublicCatalogSchema, value)
-    expect(wikiPublicCatalogSchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(wikiPublicCatalogSchema, value)
+      expect(wikiPublicCatalogSchema.parse(value)).toEqual(value)
+    })
   })
 
   it("builds public stories that match their contract", () => {
@@ -103,18 +105,20 @@ describe("wiki fixture factories", () => {
     expect(wikiPublicStoriesSchema.parse(value)).toEqual(value)
   })
 
-  it("builds a random background that matches its contract", () => {
-    const value = makeWikiRandomBackground()
+  describe("builds a random", () => {
+    it("background that matches its contract", () => {
+      const value = makeWikiRandomBackground()
 
-    assertFactoryCoversSchema(wikiRandomBackgroundSchema, value)
-    expect(wikiRandomBackgroundSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiRandomBackgroundSchema, value)
+      expect(wikiRandomBackgroundSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds a random idol that matches its contract", () => {
-    const value = makeWikiRandomIdol()
+    it("idol that matches its contract", () => {
+      const value = makeWikiRandomIdol()
 
-    assertFactoryCoversSchema(wikiRandomIdolSchema, value)
-    expect(wikiRandomIdolSchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(wikiRandomIdolSchema, value)
+      expect(wikiRandomIdolSchema.parse(value)).toEqual(value)
+    })
   })
 
   it("builds a category that matches its contract", () => {
@@ -124,53 +128,57 @@ describe("wiki fixture factories", () => {
     expect(wikiCategorySchema.parse(value)).toEqual(value)
   })
 
-  it("builds an admin agency that matches its contract", () => {
-    const value = makeWikiAdminAgency()
+  describe("builds an admin", () => {
+    it("agency that matches its contract", () => {
+      const value = makeWikiAdminAgency()
 
-    assertFactoryCoversSchema(wikiAdminAgencySchema, value)
-    expect(wikiAdminAgencySchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(wikiAdminAgencySchema, value)
+      expect(wikiAdminAgencySchema.parse(value)).toEqual(value)
+    })
+
+    it("group that matches its contract", () => {
+      const value = makeWikiAdminGroup()
+
+      assertFactoryCoversSchema(wikiAdminGroupSchema, value)
+      expect(wikiAdminGroupSchema.parse(value)).toEqual(value)
+    })
+
+    it("idol that matches its contract", () => {
+      const value = makeWikiAdminIdol()
+
+      assertFactoryCoversSchema(wikiAdminIdolSchema, value)
+      expect(wikiAdminIdolSchema.parse(value)).toEqual(value)
+    })
+
+    it("story that matches its contract", () => {
+      const value = makeWikiAdminStory()
+
+      assertFactoryCoversSchema(wikiAdminStorySchema, value)
+      expect(wikiAdminStorySchema.parse(value)).toEqual(value)
+    })
   })
 
-  it("builds an admin group that matches its contract", () => {
-    const value = makeWikiAdminGroup()
+  describe("builds a story", () => {
+    it("cover asset that matches its contract", () => {
+      const value = makeWikiStoryCoverAsset()
 
-    assertFactoryCoversSchema(wikiAdminGroupSchema, value)
-    expect(wikiAdminGroupSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiStoryCoverAssetSchema, value)
+      expect(wikiStoryCoverAssetSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds an admin idol that matches its contract", () => {
-    const value = makeWikiAdminIdol()
+    it("content type that matches its contract", () => {
+      const value = makeWikiStoryContentType()
 
-    assertFactoryCoversSchema(wikiAdminIdolSchema, value)
-    expect(wikiAdminIdolSchema.parse(value)).toEqual(value)
-  })
+      assertFactoryCoversSchema(wikiStoryContentTypeSchema, value)
+      expect(wikiStoryContentTypeSchema.parse(value)).toEqual(value)
+    })
 
-  it("builds an admin story that matches its contract", () => {
-    const value = makeWikiAdminStory()
+    it("source platform that matches its contract", () => {
+      const value = makeWikiStorySourcePlatform()
 
-    assertFactoryCoversSchema(wikiAdminStorySchema, value)
-    expect(wikiAdminStorySchema.parse(value)).toEqual(value)
-  })
-
-  it("builds a story cover asset that matches its contract", () => {
-    const value = makeWikiStoryCoverAsset()
-
-    assertFactoryCoversSchema(wikiStoryCoverAssetSchema, value)
-    expect(wikiStoryCoverAssetSchema.parse(value)).toEqual(value)
-  })
-
-  it("builds a story content type that matches its contract", () => {
-    const value = makeWikiStoryContentType()
-
-    assertFactoryCoversSchema(wikiStoryContentTypeSchema, value)
-    expect(wikiStoryContentTypeSchema.parse(value)).toEqual(value)
-  })
-
-  it("builds a story source platform that matches its contract", () => {
-    const value = makeWikiStorySourcePlatform()
-
-    assertFactoryCoversSchema(wikiStorySourcePlatformSchema, value)
-    expect(wikiStorySourcePlatformSchema.parse(value)).toEqual(value)
+      assertFactoryCoversSchema(wikiStorySourcePlatformSchema, value)
+      expect(wikiStorySourcePlatformSchema.parse(value)).toEqual(value)
+    })
   })
 
   it("builds an admin catalog that matches its contract", () => {

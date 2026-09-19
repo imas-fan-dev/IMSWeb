@@ -35,110 +35,112 @@ function run(script, environment = process.env) {
 // The previous runner had no default timeout; Vitest's is 5s. This case runs
 // the whole client build plus the manifest check (measured at ~8s), so it keeps
 // a ceiling that fits the work instead of the runner default.
-test('[AST-01] release clients package the Web build and encoded variants', { timeout: 60_000 }, () => {
-    assert.ok(fs.existsSync(path.join(WEB_ROOT, 'index.html')), 'Web build must run first');
+test.describe('client allowlist', () => {
+    test('[AST-01] release clients package the Web build and encoded variants', { timeout: 60_000 }, () => {
+        assert.ok(fs.existsSync(path.join(WEB_ROOT, 'index.html')), 'Web build must run first');
 
-    const build = run(BUILD_SCRIPT);
-    assert.equal(build.status, 0, build.stderr);
-    const check = run(CHECK_SCRIPT);
-    assert.equal(check.status, 0, check.stderr);
+        const build = run(BUILD_SCRIPT);
+        assert.equal(build.status, 0, build.stderr);
+        const check = run(CHECK_SCRIPT);
+        assert.equal(check.status, 0, check.stderr);
 
-    const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
-    assert.equal(manifest.version, 1);
-    assert.equal(manifest.source, '@imsweb/web');
-    assert.deepEqual(manifest.files, [...manifest.files].sort((left, right) =>
-        Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
-    ));
-    const webFiles = walk(WEB_ROOT).sort();
-    assert.deepEqual(
-        manifest.files.filter((file) => !file.endsWith('.br') && !file.endsWith('.gz')),
-        webFiles
-    );
-    assert.deepEqual(walk(CLIENT_ROOT).sort(), manifest.files);
-    assert.deepEqual(walk(NODE_CLIENT_ROOT).sort(), manifest.files);
-    assert.ok(manifest.files.includes('index.html'));
-    assert.ok(manifest.files.includes('__spa-fallback.html'));
-    assert.ok(manifest.files.includes('index.html.br'));
-    assert.ok(manifest.files.includes('index.html.gz'));
-    for (const license of [
-        'emoji/twemoji/LICENSE-GRAPHICS.txt',
-        'emoji/twemoji/NOTICE.txt'
-    ]) {
-        assert.ok(manifest.files.includes(license), `${license} must ship with the graphics`);
+        const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+        assert.equal(manifest.version, 1);
+        assert.equal(manifest.source, '@imsweb/web');
+        assert.deepEqual(manifest.files, [...manifest.files].sort((left, right) =>
+            Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
+        ));
+        const webFiles = walk(WEB_ROOT).sort();
         assert.deepEqual(
-            fs.readFileSync(path.join(CLIENT_ROOT, license)),
-            fs.readFileSync(path.join(WEB_ROOT, license)),
-            license
+            manifest.files.filter((file) => !file.endsWith('.br') && !file.endsWith('.gz')),
+            webFiles
         );
-    }
+        assert.deepEqual(walk(CLIENT_ROOT).sort(), manifest.files);
+        assert.deepEqual(walk(NODE_CLIENT_ROOT).sort(), manifest.files);
+        assert.ok(manifest.files.includes('index.html'));
+        assert.ok(manifest.files.includes('__spa-fallback.html'));
+        assert.ok(manifest.files.includes('index.html.br'));
+        assert.ok(manifest.files.includes('index.html.gz'));
+        for (const license of [
+            'emoji/twemoji/LICENSE-GRAPHICS.txt',
+            'emoji/twemoji/NOTICE.txt'
+        ]) {
+            assert.ok(manifest.files.includes(license), `${license} must ship with the graphics`);
+            assert.deepEqual(
+                fs.readFileSync(path.join(CLIENT_ROOT, license)),
+                fs.readFileSync(path.join(WEB_ROOT, license)),
+                license
+            );
+        }
 
-    for (const relative of manifest.files) {
-        assert.deepEqual(
-            fs.readFileSync(path.join(CLIENT_ROOT, relative)),
-            fs.readFileSync(path.join(NODE_CLIENT_ROOT, relative)),
-            relative
-        );
-    }
-    for (const relative of manifest.files.filter((file) => file.endsWith('.br'))) {
-        const sourceRelative = relative.slice(0, -3);
-        assert.deepEqual(
-            brotliDecompressSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
-            fs.readFileSync(path.join(CLIENT_ROOT, sourceRelative)),
-            relative
-        );
-    }
-    for (const relative of manifest.files.filter((file) => file.endsWith('.gz'))) {
-        const sourceRelative = relative.slice(0, -3);
-        assert.deepEqual(
-            gunzipSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
-            fs.readFileSync(path.join(CLIENT_ROOT, sourceRelative)),
-            relative
-        );
-    }
-});
-
-test('[AST-01] client build permits exact license assets but rejects other text files', () => {
-    const unexpected = path.join(WEB_ROOT, '__unexpected__.txt');
-    fs.writeFileSync(unexpected, 'not publishable', { flag: 'wx' });
-    try {
-        const result = run(BUILD_SCRIPT);
-        assert.notEqual(result.status, 0);
-        assert.match(`${result.stdout}\n${result.stderr}`, /Forbidden client asset: __unexpected__\.txt/);
-    } finally {
-        fs.rmSync(unexpected, { force: true });
-    }
-});
-
-test('[AST-01] client check rejects missing and extra release files', () => {
-    const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
-    const heldRelative = manifest.files.find((file) => file.startsWith('assets/'));
-    assert.ok(heldRelative, 'fixture requires a compiled asset');
-    const heldFile = path.join(NODE_CLIENT_ROOT, heldRelative);
-    const temporaryFile = `${heldFile}.held`;
-    fs.renameSync(heldFile, temporaryFile);
-    try {
-        const result = run(CHECK_SCRIPT);
-        assert.notEqual(result.status, 0);
-        assert.match(`${result.stdout}\n${result.stderr}`, /"missing"/);
-    } finally {
-        fs.renameSync(temporaryFile, heldFile);
-    }
-
-    const extraFile = path.join(CLIENT_ROOT, '__unexpected__.html');
-    fs.writeFileSync(extraFile, '<!doctype html>', { flag: 'wx' });
-    try {
-        const result = run(CHECK_SCRIPT);
-        assert.notEqual(result.status, 0);
-        assert.match(`${result.stdout}\n${result.stderr}`, /"extra"/);
-    } finally {
-        fs.rmSync(extraFile, { force: true });
-    }
-});
-
-test('[AST-01] custom client verification stays manifest-closed', () => {
-    const clean = run(CHECK_SCRIPT, {
-        ...process.env,
-        IMS_CLIENT_OUTPUT_DIR: CLIENT_ROOT
+        for (const relative of manifest.files) {
+            assert.deepEqual(
+                fs.readFileSync(path.join(CLIENT_ROOT, relative)),
+                fs.readFileSync(path.join(NODE_CLIENT_ROOT, relative)),
+                relative
+            );
+        }
+        for (const relative of manifest.files.filter((file) => file.endsWith('.br'))) {
+            const sourceRelative = relative.slice(0, -3);
+            assert.deepEqual(
+                brotliDecompressSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
+                fs.readFileSync(path.join(CLIENT_ROOT, sourceRelative)),
+                relative
+            );
+        }
+        for (const relative of manifest.files.filter((file) => file.endsWith('.gz'))) {
+            const sourceRelative = relative.slice(0, -3);
+            assert.deepEqual(
+                gunzipSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
+                fs.readFileSync(path.join(CLIENT_ROOT, sourceRelative)),
+                relative
+            );
+        }
     });
-    assert.equal(clean.status, 0, clean.stderr);
+
+    test('[AST-01] client build permits exact license assets but rejects other text files', () => {
+        const unexpected = path.join(WEB_ROOT, '__unexpected__.txt');
+        fs.writeFileSync(unexpected, 'not publishable', { flag: 'wx' });
+        try {
+            const result = run(BUILD_SCRIPT);
+            assert.notEqual(result.status, 0);
+            assert.match(`${result.stdout}\n${result.stderr}`, /Forbidden client asset: __unexpected__\.txt/);
+        } finally {
+            fs.rmSync(unexpected, { force: true });
+        }
+    });
+
+    test('[AST-01] client check rejects missing and extra release files', () => {
+        const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+        const heldRelative = manifest.files.find((file) => file.startsWith('assets/'));
+        assert.ok(heldRelative, 'fixture requires a compiled asset');
+        const heldFile = path.join(NODE_CLIENT_ROOT, heldRelative);
+        const temporaryFile = `${heldFile}.held`;
+        fs.renameSync(heldFile, temporaryFile);
+        try {
+            const result = run(CHECK_SCRIPT);
+            assert.notEqual(result.status, 0);
+            assert.match(`${result.stdout}\n${result.stderr}`, /"missing"/);
+        } finally {
+            fs.renameSync(temporaryFile, heldFile);
+        }
+
+        const extraFile = path.join(CLIENT_ROOT, '__unexpected__.html');
+        fs.writeFileSync(extraFile, '<!doctype html>', { flag: 'wx' });
+        try {
+            const result = run(CHECK_SCRIPT);
+            assert.notEqual(result.status, 0);
+            assert.match(`${result.stdout}\n${result.stderr}`, /"extra"/);
+        } finally {
+            fs.rmSync(extraFile, { force: true });
+        }
+    });
+
+    test('[AST-01] custom client verification stays manifest-closed', () => {
+        const clean = run(CHECK_SCRIPT, {
+            ...process.env,
+            IMS_CLIENT_OUTPUT_DIR: CLIENT_ROOT
+        });
+        assert.equal(clean.status, 0, clean.stderr);
+    });
 });

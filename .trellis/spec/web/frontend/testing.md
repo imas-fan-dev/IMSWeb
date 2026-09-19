@@ -448,6 +448,31 @@ change, or asserting the map's own controls and notices.
 - A rewritten viewport-persistence case in `app-map.spec.ts` driven by `canvas.dblclick()` that still
   asserts growing map bounds and a persisted zoom.
 
+## Suite layout
+
+A file names its subject once, in a top-level `describe`, and a case title then
+carries only what the subject does not. Most files under `tests/unit/` keep one
+level. A second level appears only in a file whose single `describe` holds at
+least ten cases and whose cases contain a contiguous run of at least two sharing
+an identical literal prefix of at least three words (`builds a public`,
+`falls back to a fade`, `does not request a position when`); that phrase moves
+out of those titles and nesting stops there. No case is reordered to form a
+group, and the sampling threshold keeps a small file from gaining a level it does
+not need.
+
+Every Playwright spec carries exactly one top-level `test.describe` naming the
+flow, and never a second level: the runner's list joins describe paths with
+` › ` rather than a space, so nesting a phrase would stop the previous title path
+from being a literal suffix of the new one. `app-oauth-sign-in.spec.ts` already
+had one covering the whole file.
+
+The wrap is mechanical, so assertions never move; prettier re-wraps a line that
+the extra indent pushed past 80 columns, and that is the only content change to
+expect. Merging same-family test files is deliberately not applied to this tree:
+the module-level fixtures and `vi.mock` factories most Web unit files declare
+make same-name bindings collide, so a family that merges cleanly is the exception
+rather than the rule.
+
 ## Commands
 
 ```sh

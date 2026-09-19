@@ -79,118 +79,119 @@ test.beforeEach(async ({ page, api }) => {
   })
 })
 
-test("admin edits configured and unconfigured provinces from the real map", async ({
-  page,
-}) => {
-  await page.goto("/admin/producer-map")
+test.describe("admin producer map", () => {
+  test("admin edits configured and unconfigured provinces from the real map", async ({
+    page,
+  }) => {
+    await page.goto("/admin/producer-map")
 
-  await expect(
-    page.getByRole("heading", { name: "制作人地图配置" })
-  ).toBeVisible()
-  await expect(page.getByRole("button", { name: "地图编辑" })).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  )
+    await expect(
+      page.getByRole("heading", { name: "制作人地图配置" })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "地图编辑" })
+    ).toHaveAttribute("aria-pressed", "true")
 
-  const map = page.getByRole("img", {
-    name: "中国省级行政区地点配置地图",
-  })
-  const canvas = map.locator("canvas")
-  await expect(canvas).toBeVisible()
+    const map = page.getByRole("img", {
+      name: "中国省级行政区地点配置地图",
+    })
+    const canvas = map.locator("canvas")
+    await expect(canvas).toBeVisible()
 
-  const canvasBox = await canvas.boundingBox()
-  expect(canvasBox).not.toBeNull()
-  expect(canvasBox!.width).toBeGreaterThan(200)
-  expect(canvasBox!.height).toBeGreaterThan(200)
-  await expect
-    .poll(() =>
-      canvas.evaluate((element) => {
-        if (!(element instanceof HTMLCanvasElement)) return false
-        const context = element.getContext("2d")
-        if (!context || element.width === 0 || element.height === 0)
+    const canvasBox = await canvas.boundingBox()
+    expect(canvasBox).not.toBeNull()
+    expect(canvasBox!.width).toBeGreaterThan(200)
+    expect(canvasBox!.height).toBeGreaterThan(200)
+    await expect
+      .poll(() =>
+        canvas.evaluate((element) => {
+          if (!(element instanceof HTMLCanvasElement)) return false
+          const context = element.getContext("2d")
+          if (!context || element.width === 0 || element.height === 0)
+            return false
+
+          const pixels = context.getImageData(
+            0,
+            0,
+            element.width,
+            element.height
+          ).data
+          for (let offset = 3; offset < pixels.length; offset += 64) {
+            if (pixels[offset] !== 0) return true
+          }
           return false
+        })
+      )
+      .toBe(true)
 
-        const pixels = context.getImageData(
-          0,
-          0,
-          element.width,
-          element.height
-        ).data
-        for (let offset = 3; offset < pixels.length; offset += 64) {
-          if (pixels[offset] !== 0) return true
-        }
-        return false
-      })
+    const provinceSelect = page.getByRole("combobox", { name: "行政区" })
+    await expect(provinceSelect).toContainText("广东省")
+    await canvas.click({
+      position: {
+        x: canvasBox!.width * 0.62,
+        y: canvasBox!.height * 0.74,
+      },
+    })
+    let dialog = page.getByRole("dialog", { name: "编辑地图地点" })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByLabel("行政区")).toHaveValue("广东省")
+    await dialog.getByRole("button", { name: "取消" }).click()
+    await expect(provinceSelect).toBeFocused()
+
+    const editRegionButton = page.getByRole("button", { name: "编辑地点" })
+    await editRegionButton.click()
+
+    dialog = page.getByRole("dialog", { name: "编辑地图地点" })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByLabel("行政区")).toHaveValue("广东省")
+    await expect(dialog.getByLabel("行政区")).toHaveAttribute("readonly")
+    await expect(
+      dialog.getByText(guangdongImageUrl, { exact: true })
+    ).toHaveCount(0)
+    const rawImageUrlControlCount = await dialog
+      .locator("input, textarea")
+      .evaluateAll(
+        (controls, imageUrl) =>
+          controls.filter(
+            (control) =>
+              (control as HTMLInputElement | HTMLTextAreaElement).value ===
+              imageUrl
+          ).length,
+        guangdongImageUrl
+      )
+    expect(rawImageUrlControlCount).toBe(0)
+    await dialog.getByRole("button", { name: "取消" }).click()
+    await expect(editRegionButton).toBeFocused()
+
+    await provinceSelect.click()
+    const beijingOption = page.getByRole("option", {
+      name: "北京市",
+      exact: true,
+    })
+    await expect(beijingOption).toBeVisible()
+    await beijingOption.press("Enter")
+    await expect(provinceSelect).toContainText("北京市")
+
+    await page.getByRole("button", { name: "新增地点" }).click()
+    dialog = page.getByRole("dialog", { name: "新增地图地点" })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByLabel("行政区")).toHaveValue("北京市")
+    await expect(dialog.getByLabel("行政区")).toHaveAttribute("readonly")
+    await dialog.getByRole("button", { name: "取消" }).click()
+
+    await page.getByRole("button", { name: "公开顺序" }).click()
+    await expect(
+      page.getByRole("button", { name: "拖动排序：广东制作人社群" })
+    ).toBeVisible()
+    await expect(
+      page.getByText(guangdongImageUrl, { exact: true })
+    ).toHaveCount(0)
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth
     )
-    .toBe(true)
-
-  const provinceSelect = page.getByRole("combobox", { name: "行政区" })
-  await expect(provinceSelect).toContainText("广东省")
-  await canvas.click({
-    position: {
-      x: canvasBox!.width * 0.62,
-      y: canvasBox!.height * 0.74,
-    },
+    expect(hasHorizontalOverflow).toBe(false)
   })
-  let dialog = page.getByRole("dialog", { name: "编辑地图地点" })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.getByLabel("行政区")).toHaveValue("广东省")
-  await dialog.getByRole("button", { name: "取消" }).click()
-  await expect(provinceSelect).toBeFocused()
-
-  const editRegionButton = page.getByRole("button", { name: "编辑地点" })
-  await editRegionButton.click()
-
-  dialog = page.getByRole("dialog", { name: "编辑地图地点" })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.getByLabel("行政区")).toHaveValue("广东省")
-  await expect(dialog.getByLabel("行政区")).toHaveAttribute("readonly")
-  await expect(
-    dialog.getByText(guangdongImageUrl, { exact: true })
-  ).toHaveCount(0)
-  const rawImageUrlControlCount = await dialog
-    .locator("input, textarea")
-    .evaluateAll(
-      (controls, imageUrl) =>
-        controls.filter(
-          (control) =>
-            (control as HTMLInputElement | HTMLTextAreaElement).value ===
-            imageUrl
-        ).length,
-      guangdongImageUrl
-    )
-  expect(rawImageUrlControlCount).toBe(0)
-  await dialog.getByRole("button", { name: "取消" }).click()
-  await expect(editRegionButton).toBeFocused()
-
-  await provinceSelect.click()
-  const beijingOption = page.getByRole("option", {
-    name: "北京市",
-    exact: true,
-  })
-  await expect(beijingOption).toBeVisible()
-  await beijingOption.press("Enter")
-  await expect(provinceSelect).toContainText("北京市")
-
-  await page.getByRole("button", { name: "新增地点" }).click()
-  dialog = page.getByRole("dialog", { name: "新增地图地点" })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.getByLabel("行政区")).toHaveValue("北京市")
-  await expect(dialog.getByLabel("行政区")).toHaveAttribute("readonly")
-  await dialog.getByRole("button", { name: "取消" }).click()
-
-  await page.getByRole("button", { name: "公开顺序" }).click()
-  await expect(
-    page.getByRole("button", { name: "拖动排序：广东制作人社群" })
-  ).toBeVisible()
-  await expect(page.getByText(guangdongImageUrl, { exact: true })).toHaveCount(
-    0
-  )
-
-  const hasHorizontalOverflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth >
-      document.documentElement.clientWidth
-  )
-  expect(hasHorizontalOverflow).toBe(false)
 })

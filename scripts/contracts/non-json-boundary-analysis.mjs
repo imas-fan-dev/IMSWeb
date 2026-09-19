@@ -363,7 +363,10 @@ export function testEvidence(sourceFile) {
         ? expression.text
         : ts.isPropertyAccessExpression(expression) ? expression.name.text : undefined;
       const callback = node.arguments.find((argument) => ts.isArrowFunction(argument) || ts.isFunctionExpression(argument));
-      if (["test", "it"].includes(name) && callback) {
+      // postgresTest is the API test suite's PostgreSQL wrapper (imported as `test`
+      // in most files, and by its real name where one file mixes both spellings).
+      // It registers the same kind of focused case, so it counts the same way.
+      if (["test", "it", "postgresTest"].includes(name) && callback) {
         cases.set(node.arguments[0].text, { hasAssertion: containsAssertion(callback.body) });
       }
     }

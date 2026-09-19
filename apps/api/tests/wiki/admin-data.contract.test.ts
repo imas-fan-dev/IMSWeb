@@ -464,139 +464,141 @@ describe("Wiki admin dynamic data contract", () => {
         );
     });
 
-    test("deleting a group preserves its idols and stories as ungrouped content", async () => {
-        const fixture = createWikiFixture();
-        const headers = {
-            ...(await fixture.authHeaders("editor")),
-            "Content-Type": "application/json",
-        };
-        const group = fixture.story.groups[5]!;
-        const idol = fixture.story.idols[5]!;
-        group.icon_object_key =
-            "wiki/agencies/sc/groups/sc-main/icons/delete-me.webp";
-        group.icon_media_revision = 1;
-        fixture.storage.seed(group.icon_object_key);
-        fixture.story.seedStory({
-            idol_id: idol.id,
-            category: "enzaP卡",
-            card_name: "【保留剧情】",
+    test.describe('deleting', () => {
+        test("a group preserves its idols and stories as ungrouped content", async () => {
+            const fixture = createWikiFixture();
+            const headers = {
+                ...(await fixture.authHeaders("editor")),
+                "Content-Type": "application/json",
+            };
+            const group = fixture.story.groups[5]!;
+            const idol = fixture.story.idols[5]!;
+            group.icon_object_key =
+                "wiki/agencies/sc/groups/sc-main/icons/delete-me.webp";
+            group.icon_media_revision = 1;
+            fixture.storage.seed(group.icon_object_key);
+            fixture.story.seedStory({
+                idol_id: idol.id,
+                category: "enzaP卡",
+                card_name: "【保留剧情】",
+            });
+
+            const stale = await fixture.app.request(
+                `/api/admin/wiki/groups/${group.id}`,
+                {
+                    method: "DELETE",
+                    headers,
+                    body: JSON.stringify({ expectedRevision: 0 }),
+                },
+            );
+            assert.equal(stale.status, 409);
+            assert.deepEqual(await stale.json(), {
+                status: "error",
+                msg: "栏目图标已被其他编辑更新，请刷新后重试",
+                iconMediaRevision: 1,
+            });
+            assert.ok(
+                fixture.story.groups.some((candidate) => candidate.id === group.id),
+            );
+            assert.ok(fixture.storage.objects.has(group.icon_object_key));
+
+            const response = await fixture.app.request(
+                `/api/admin/wiki/groups/${group.id}`,
+                {
+                    method: "DELETE",
+                    headers,
+                    body: JSON.stringify({ expectedRevision: 1 }),
+                },
+            );
+
+            assert.equal(response.status, 200);
+            assert.deepEqual(await response.json(), { status: "success" });
+            assert.ok(
+                fixture.story.idols.some((candidate) => candidate.id === idol.id),
+            );
+            assert.ok(
+                fixture.story.stories.some((story) => story.idol_id === idol.id),
+            );
+            assert.deepEqual(
+                fixture.story.members.filter(
+                    (member) => member.idol_id === idol.id,
+                ),
+                [],
+            );
+            assert.ok(!fixture.storage.objects.has(group.icon_object_key));
         });
 
-        const stale = await fixture.app.request(
-            `/api/admin/wiki/groups/${group.id}`,
-            {
-                method: "DELETE",
-                headers,
-                body: JSON.stringify({ expectedRevision: 0 }),
-            },
-        );
-        assert.equal(stale.status, 409);
-        assert.deepEqual(await stale.json(), {
-            status: "error",
-            msg: "栏目图标已被其他编辑更新，请刷新后重试",
-            iconMediaRevision: 1,
-        });
-        assert.ok(
-            fixture.story.groups.some((candidate) => candidate.id === group.id),
-        );
-        assert.ok(fixture.storage.objects.has(group.icon_object_key));
+        test("an idol soft deletes its cards and sources while retaining media", async () => {
+            const fixture = createWikiFixture();
+            const headers = {
+                ...(await fixture.authHeaders("editor")),
+                "Content-Type": "application/json",
+            };
+            const idol = fixture.story.idols[5]!;
+            idol.avatar_object_key = "wiki/agencies/sc/idols/sc_idol/avatar.webp";
+            idol.avatar_media_revision = 3;
+            fixture.storage.seed(idol.avatar_object_key);
+            fixture.story.seedStory({
+                idol_id: idol.id,
+                category: "enzaP卡",
+                card_name: "【卡片一】",
+            });
+            fixture.story.seedStory({
+                idol_id: idol.id,
+                category: "enzaP卡",
+                card_name: "【卡片一】",
+            });
+            fixture.story.seedStory({
+                idol_id: idol.id,
+                category: "enzaP卡",
+                card_name: "【卡片二】",
+            });
 
-        const response = await fixture.app.request(
-            `/api/admin/wiki/groups/${group.id}`,
-            {
-                method: "DELETE",
-                headers,
-                body: JSON.stringify({ expectedRevision: 1 }),
-            },
-        );
+            const stale = await fixture.app.request(
+                `/api/admin/wiki/idols/${idol.id}`,
+                {
+                    method: "DELETE",
+                    headers,
+                    body: JSON.stringify({ expectedRevision: 2 }),
+                },
+            );
+            assert.equal(stale.status, 409);
+            assert.equal(fixture.story.deletedIdolIds.has(idol.id), false);
 
-        assert.equal(response.status, 200);
-        assert.deepEqual(await response.json(), { status: "success" });
-        assert.ok(
-            fixture.story.idols.some((candidate) => candidate.id === idol.id),
-        );
-        assert.ok(
-            fixture.story.stories.some((story) => story.idol_id === idol.id),
-        );
-        assert.deepEqual(
-            fixture.story.members.filter(
-                (member) => member.idol_id === idol.id,
-            ),
-            [],
-        );
-        assert.ok(!fixture.storage.objects.has(group.icon_object_key));
-    });
+            const response = await fixture.app.request(
+                `/api/admin/wiki/idols/${idol.id}`,
+                {
+                    method: "DELETE",
+                    headers,
+                    body: JSON.stringify({ expectedRevision: 3 }),
+                },
+            );
+            assert.equal(response.status, 200);
+            assert.deepEqual(await response.json(), {
+                status: "success",
+                softDeleted: { cards: 2, stories: 3 },
+            });
+            assert.equal(fixture.story.deletedIdolIds.has(idol.id), true);
+            assert.ok(
+                fixture.story.idols.some((candidate) => candidate.id === idol.id),
+            );
+            assert.equal(
+                fixture.story.stories.filter((story) => story.idol_id === idol.id)
+                    .length,
+                3,
+            );
+            assert.ok(fixture.storage.objects.has(idol.avatar_object_key));
 
-    test("deleting an idol soft deletes its cards and sources while retaining media", async () => {
-        const fixture = createWikiFixture();
-        const headers = {
-            ...(await fixture.authHeaders("editor")),
-            "Content-Type": "application/json",
-        };
-        const idol = fixture.story.idols[5]!;
-        idol.avatar_object_key = "wiki/agencies/sc/idols/sc_idol/avatar.webp";
-        idol.avatar_media_revision = 3;
-        fixture.storage.seed(idol.avatar_object_key);
-        fixture.story.seedStory({
-            idol_id: idol.id,
-            category: "enzaP卡",
-            card_name: "【卡片一】",
+            const catalog = await fixture.app.request("/api/admin/wiki/catalog", {
+                headers: await cookieFor(fixture),
+            });
+            const agency = ((await catalog.json()) as any).agencies.find(
+                (candidate: any) => candidate.id === idol.agency_id,
+            );
+            assert.ok(
+                !agency.idols.some((candidate: any) => candidate.id === idol.id),
+            );
         });
-        fixture.story.seedStory({
-            idol_id: idol.id,
-            category: "enzaP卡",
-            card_name: "【卡片一】",
-        });
-        fixture.story.seedStory({
-            idol_id: idol.id,
-            category: "enzaP卡",
-            card_name: "【卡片二】",
-        });
-
-        const stale = await fixture.app.request(
-            `/api/admin/wiki/idols/${idol.id}`,
-            {
-                method: "DELETE",
-                headers,
-                body: JSON.stringify({ expectedRevision: 2 }),
-            },
-        );
-        assert.equal(stale.status, 409);
-        assert.equal(fixture.story.deletedIdolIds.has(idol.id), false);
-
-        const response = await fixture.app.request(
-            `/api/admin/wiki/idols/${idol.id}`,
-            {
-                method: "DELETE",
-                headers,
-                body: JSON.stringify({ expectedRevision: 3 }),
-            },
-        );
-        assert.equal(response.status, 200);
-        assert.deepEqual(await response.json(), {
-            status: "success",
-            softDeleted: { cards: 2, stories: 3 },
-        });
-        assert.equal(fixture.story.deletedIdolIds.has(idol.id), true);
-        assert.ok(
-            fixture.story.idols.some((candidate) => candidate.id === idol.id),
-        );
-        assert.equal(
-            fixture.story.stories.filter((story) => story.idol_id === idol.id)
-                .length,
-            3,
-        );
-        assert.ok(fixture.storage.objects.has(idol.avatar_object_key));
-
-        const catalog = await fixture.app.request("/api/admin/wiki/catalog", {
-            headers: await cookieFor(fixture),
-        });
-        const agency = ((await catalog.json()) as any).agencies.find(
-            (candidate: any) => candidate.id === idol.agency_id,
-        );
-        assert.ok(
-            !agency.idols.some((candidate: any) => candidate.id === idol.id),
-        );
     });
 
     test("an empty story category can be added explicitly for one idol", async () => {
@@ -732,101 +734,103 @@ describe("Wiki admin dynamic data contract", () => {
         assert.equal(unknown.status, 404);
     });
 
-    test("story_id edits the selected link while legacy group lookup remains compatible", async () => {
-        const fixture = createWikiFixture();
-        const first = fixture.story.seedStory({
-            idol_id: 6,
-            category: "测试分类",
-            card_name: "【多链接】",
-            up_name: "first",
+    test.describe('story_id', () => {
+        test("edits the selected link while legacy group lookup remains compatible", async () => {
+            const fixture = createWikiFixture();
+            const first = fixture.story.seedStory({
+                idol_id: 6,
+                category: "测试分类",
+                card_name: "【多链接】",
+                up_name: "first",
+            });
+            const second = fixture.story.seedStory({
+                idol_id: 6,
+                category: "测试分类",
+                card_name: "【多链接】",
+                up_name: "second",
+            });
+            const response = await postMultipart(
+                fixture,
+                "/api/wiki/edit_story",
+                {
+                    fields: formFields({
+                        story_id: String(second.id),
+                        category_name: "测试分类",
+                        old_category_name: "测试分类",
+                        card_name: "【多链接】",
+                        old_card_name: "【多链接】",
+                        up_name: "selected-link",
+                    }),
+                    files: {},
+                },
+                await fixture.authHeaders("editor"),
+            );
+            assert.equal(response.status, 200);
+            assert.equal(
+                fixture.story.stories.find((row) => row.id === first.id)?.up_name,
+                "first",
+            );
+            assert.equal(
+                fixture.story.stories.find((row) => row.id === second.id)?.up_name,
+                "selected-link",
+            );
         });
-        const second = fixture.story.seedStory({
-            idol_id: 6,
-            category: "测试分类",
-            card_name: "【多链接】",
-            up_name: "second",
-        });
-        const response = await postMultipart(
-            fixture,
-            "/api/wiki/edit_story",
-            {
-                fields: formFields({
-                    story_id: String(second.id),
-                    category_name: "测试分类",
-                    old_category_name: "测试分类",
-                    card_name: "【多链接】",
-                    old_card_name: "【多链接】",
-                    up_name: "selected-link",
-                }),
-                files: {},
-            },
-            await fixture.authHeaders("editor"),
-        );
-        assert.equal(response.status, 200);
-        assert.equal(
-            fixture.story.stories.find((row) => row.id === first.id)?.up_name,
-            "first",
-        );
-        assert.equal(
-            fixture.story.stories.find((row) => row.id === second.id)?.up_name,
-            "selected-link",
-        );
-    });
 
-    test("story_id derives the old group from the stored row and rejects malformed IDs", async () => {
-        const fixture = createWikiFixture();
-        const selected = fixture.story.seedStory({
-            idol_id: 6,
-            category: "实际分类",
-            card_name: "【实际卡片】",
-            up_name: "selected",
-        });
-        const unrelated = fixture.story.seedStory({
-            idol_id: 6,
-            category: "伪造分类",
-            card_name: "【伪造卡片】",
-            up_name: "unrelated",
-        });
-        const response = await postMultipart(
-            fixture,
-            "/api/wiki/edit_story",
-            {
-                fields: formFields({
-                    story_id: String(selected.id),
-                    category_name: "新分类",
-                    old_category_name: "伪造分类",
-                    card_name: "【新卡片】",
-                    old_card_name: "【伪造卡片】",
-                }),
-                files: {},
-            },
-            await fixture.authHeaders("editor"),
-        );
-        assert.equal(response.status, 200);
-        assert.equal(
-            fixture.story.stories.find((row) => row.id === selected.id)
-                ?.category,
-            "新分类",
-        );
-        assert.equal(
-            fixture.story.stories.find((row) => row.id === unrelated.id)
-                ?.category,
-            "伪造分类",
-        );
+        test("derives the old group from the stored row and rejects malformed IDs", async () => {
+            const fixture = createWikiFixture();
+            const selected = fixture.story.seedStory({
+                idol_id: 6,
+                category: "实际分类",
+                card_name: "【实际卡片】",
+                up_name: "selected",
+            });
+            const unrelated = fixture.story.seedStory({
+                idol_id: 6,
+                category: "伪造分类",
+                card_name: "【伪造卡片】",
+                up_name: "unrelated",
+            });
+            const response = await postMultipart(
+                fixture,
+                "/api/wiki/edit_story",
+                {
+                    fields: formFields({
+                        story_id: String(selected.id),
+                        category_name: "新分类",
+                        old_category_name: "伪造分类",
+                        card_name: "【新卡片】",
+                        old_card_name: "【伪造卡片】",
+                    }),
+                    files: {},
+                },
+                await fixture.authHeaders("editor"),
+            );
+            assert.equal(response.status, 200);
+            assert.equal(
+                fixture.story.stories.find((row) => row.id === selected.id)
+                    ?.category,
+                "新分类",
+            );
+            assert.equal(
+                fixture.story.stories.find((row) => row.id === unrelated.id)
+                    ?.category,
+                "伪造分类",
+            );
 
-        const malformed = await postMultipart(
-            fixture,
-            "/api/wiki/edit_story",
-            {
-                fields: formFields({ story_id: "1.5" }),
-                files: {},
-            },
-            await fixture.authHeaders("editor"),
-        );
-        assert.equal(malformed.status, 400);
-        assert.deepEqual(await malformed.json(), {
-            status: "error",
-            msg: "剧情 ID 无效",
+            const malformed = await postMultipart(
+                fixture,
+                "/api/wiki/edit_story",
+                {
+                    fields: formFields({ story_id: "1.5" }),
+                    files: {},
+                },
+                await fixture.authHeaders("editor"),
+            );
+            assert.equal(malformed.status, 400);
+            assert.deepEqual(await malformed.json(), {
+                status: "error",
+                msg: "剧情 ID 无效",
+            });
         });
     });
 });

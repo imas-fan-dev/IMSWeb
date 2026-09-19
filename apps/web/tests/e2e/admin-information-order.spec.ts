@@ -85,50 +85,56 @@ test.beforeEach(() => {
   }
 })
 
-test("admin reorders homepage spotlight entries", async ({ page, api }) => {
-  installEmptyWikiCatalogMock(api)
-  await installAdminAuthMock(page, api, {
-    csrfToken: "information-order-e2e",
-    user: {
-      username: "information-operator",
-      producername: "活动运营",
-    },
-  })
-  const editorial = await installAdminEditorialMock(api, {
-    posts: posts.items,
-    getSpotlight: () => spotlight.items,
-    onReplaceSpotlight: applySpotlightOrder,
-    postsTimes: 2,
-    spotlightTimes: 2,
-  })
-
-  await page.goto("/admin/events")
-  await page.getByRole("tab", { name: "首页精选" }).click()
-
-  const panel = page.getByRole("region", { name: "首页精选顺序" })
-  await expect(panel.getByText("活动资讯第一项", { exact: true })).toBeVisible()
-  await expect(panel.getByText("同人活动第二项", { exact: true })).toBeVisible()
-
-  await panel.getByRole("button", { name: "下移" }).first().click()
-  const titles = panel.locator("p.font-medium")
-  await expect(titles).toHaveText(["同人活动第二项", "活动资讯第一项"])
-
-  await panel.getByRole("button", { name: "保存精选" }).click()
-  await expect
-    .poll(() => editorial.replacements.at(-1))
-    .toEqual({
-      items: [
-        { postId: 42, category: "fan" },
-        { postId: 41, category: "activity" },
-      ],
+test.describe("admin information order", () => {
+  test("admin reorders homepage spotlight entries", async ({ page, api }) => {
+    installEmptyWikiCatalogMock(api)
+    await installAdminAuthMock(page, api, {
       csrfToken: "information-order-e2e",
+      user: {
+        username: "information-operator",
+        producername: "活动运营",
+      },
     })
-  await expect(titles).toHaveText(["同人活动第二项", "活动资讯第一项"])
+    const editorial = await installAdminEditorialMock(api, {
+      posts: posts.items,
+      getSpotlight: () => spotlight.items,
+      onReplaceSpotlight: applySpotlightOrder,
+      postsTimes: 2,
+      spotlightTimes: 2,
+    })
 
-  const hasHorizontalOverflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth >
-      document.documentElement.clientWidth
-  )
-  expect(hasHorizontalOverflow).toBe(false)
+    await page.goto("/admin/events")
+    await page.getByRole("tab", { name: "首页精选" }).click()
+
+    const panel = page.getByRole("region", { name: "首页精选顺序" })
+    await expect(
+      panel.getByText("活动资讯第一项", { exact: true })
+    ).toBeVisible()
+    await expect(
+      panel.getByText("同人活动第二项", { exact: true })
+    ).toBeVisible()
+
+    await panel.getByRole("button", { name: "下移" }).first().click()
+    const titles = panel.locator("p.font-medium")
+    await expect(titles).toHaveText(["同人活动第二项", "活动资讯第一项"])
+
+    await panel.getByRole("button", { name: "保存精选" }).click()
+    await expect
+      .poll(() => editorial.replacements.at(-1))
+      .toEqual({
+        items: [
+          { postId: 42, category: "fan" },
+          { postId: 41, category: "activity" },
+        ],
+        csrfToken: "information-order-e2e",
+      })
+    await expect(titles).toHaveText(["同人活动第二项", "活动资讯第一项"])
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth
+    )
+    expect(hasHorizontalOverflow).toBe(false)
+  })
 })

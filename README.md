@@ -97,6 +97,7 @@ pnpm run dev:down
 | `pnpm run test`             | 运行基础设施、API、Web 和路由契约测试              |
 | `pnpm run test:web`         | 运行 Web 单元测试与 Playwright 测试                |
 | `pnpm run test:web-routing` | 验证真实前端产物与 Hono 路由所有权                 |
+| `pnpm run test:ui`          | 本地面板：跨域浏览与重跑用例（不参与 CI）          |
 
 根目录只保留跨 workspace 的日常入口和具有明确安全边界的迁移、媒体及运维命令。只操作单个
 workspace 时使用 `pnpm --filter @imsweb/api run <command>`、`pnpm --filter @imsweb/web run <command>`

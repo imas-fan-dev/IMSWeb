@@ -1,17 +1,17 @@
 /**
  * Root contract and governance execution domain.
  *
- * The root package.json may only declare `husky`
- * (scripts/check-workspace-boundaries.mjs:22), so this configuration is hosted
- * by a workspace that declares vitest:
+ * CI hosts this configuration from a workspace that declares vitest, with the
+ * repository root pinned explicitly:
  *
  *   pnpm --filter @imsweb/api exec vitest run --root ../.. \
  *     --config <repository>/scripts/testing/vitest/vitest.repository.config.mts <files>
  *
- * It must stay a plain object export: a `vitest/config` import is resolved from
- * this file's own directory upward, which never reaches a node_modules holding
- * vitest. Losing type checking here is the accepted cost of keeping the root
- * dependency allowlist unchanged.
+ * It stays a plain object export, which `tests/vitest-reporting.test.mjs`
+ * asserts. The root package declares vitest now, but only for the local panel:
+ * the CI call above is hosted by the API workspace and depends on no root
+ * tooling, and typing this small object is not worth coupling the domain config
+ * to it. Losing that type checking is the accepted cost.
  *
  * This domain writes JUnit and nothing else. The measured 2026-09-19 coverage
  * baseline (research/coverage-baseline.md) rules a gate out: the repository lane

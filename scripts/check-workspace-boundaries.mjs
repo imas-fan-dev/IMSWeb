@@ -19,7 +19,7 @@ const defaultScriptNames = [
   "dev:node",
 ];
 const webDefaultScriptNames = new Set(["build", "check", "test"]);
-const allowedRootDevDependencies = new Set(["husky"]);
+const allowedRootDevDependencies = new Set(["husky", "vitest", "@vitest/ui"]);
 
 function relative(absolutePath) {
   return path.relative(repositoryRoot, absolutePath).split(path.sep).join("/");
@@ -577,7 +577,6 @@ for (const forbiddenRoot of [
   "migrations",
   "tsconfig.server.json",
   "tsconfig.worker.json",
-  "vitest.config.mts",
   "worker-configuration.d.ts",
   "wrangler.jsonc",
 ]) {

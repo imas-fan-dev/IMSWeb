@@ -36,32 +36,34 @@ test.beforeEach(async ({ page, api }) => {
   )
 })
 
-test("switches both namecard sides without rebuilding the preview", async ({
-  page,
-}) => {
-  await page.goto("/community/cards")
-  await expect(page).toHaveURL(/\/community\/cards\?page=1&size=12$/)
+test.describe("namecard preview", () => {
+  test("switches both namecard sides without rebuilding the preview", async ({
+    page,
+  }) => {
+    await page.goto("/community/cards")
+    await expect(page).toHaveURL(/\/community\/cards\?page=1&size=12$/)
 
-  const frontTrigger = page.getByRole("button", {
-    name: "查看制作人名片 42 正面",
+    const frontTrigger = page.getByRole("button", {
+      name: "查看制作人名片 42 正面",
+    })
+    await expect(frontTrigger.locator("img")).toBeVisible()
+    await frontTrigger.click()
+
+    const dialog = page.getByRole("dialog")
+    await expect(dialog).toBeVisible()
+    await expect(
+      dialog.getByRole("img", { name: "制作人名片 42 正面" })
+    ).toHaveAttribute("src", FRONT)
+
+    await dialog.getByRole("button", { name: "背面", exact: true }).click()
+    await expect(
+      dialog.getByRole("img", { name: "制作人名片 42 背面" })
+    ).toBeVisible()
+    await expect(page.getByRole("dialog")).toHaveCount(1)
+
+    await dialog.press("ArrowLeft")
+    await expect(
+      dialog.getByRole("img", { name: "制作人名片 42 正面" })
+    ).toBeVisible()
   })
-  await expect(frontTrigger.locator("img")).toBeVisible()
-  await frontTrigger.click()
-
-  const dialog = page.getByRole("dialog")
-  await expect(dialog).toBeVisible()
-  await expect(
-    dialog.getByRole("img", { name: "制作人名片 42 正面" })
-  ).toHaveAttribute("src", FRONT)
-
-  await dialog.getByRole("button", { name: "背面", exact: true }).click()
-  await expect(
-    dialog.getByRole("img", { name: "制作人名片 42 背面" })
-  ).toBeVisible()
-  await expect(page.getByRole("dialog")).toHaveCount(1)
-
-  await dialog.press("ArrowLeft")
-  await expect(
-    dialog.getByRole("img", { name: "制作人名片 42 正面" })
-  ).toBeVisible()
 })
