@@ -93,6 +93,19 @@ export const platformOAuthUnlinkResponseSchema = successEnvelope({
 // It accepts no client input, so the strict empty object rejects stray query keys.
 export const platformOAuthLinkStartQuerySchema = z.object({}).strict();
 
+// The packaged app cannot carry a bearer session across a document navigation,
+// so its link round trip starts with an authenticated JSON call that hands back
+// the provider URL instead of a 303. The challenge is the same ephemeral PKCE
+// binding the login flow uses: its verifier never leaves the app process, so an
+// app that merely claims the same scheme cannot redeem the returned code.
+export const platformOAuthLinkAppStartRequestSchema = z
+  .object({ codeChallenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/) })
+  .strict();
+
+export const platformOAuthLinkAppStartResponseSchema = successEnvelope({
+  authorizationUrl: z.string().min(1).max(4096),
+}).strict();
+
 // The binding code shares platform_email_verification_codes with registration,
 // so the request shape mirrors registration verification while the hash domain
 // keeps the two code spaces disjoint server-side.
@@ -170,6 +183,12 @@ export type PlatformOAuthUnlinkResponse = z.infer<
 >;
 export type PlatformOAuthLinkStartQuery = z.infer<
   typeof platformOAuthLinkStartQuerySchema
+>;
+export type PlatformOAuthLinkAppStartRequest = z.infer<
+  typeof platformOAuthLinkAppStartRequestSchema
+>;
+export type PlatformOAuthLinkAppStartResponse = z.infer<
+  typeof platformOAuthLinkAppStartResponseSchema
 >;
 export type PlatformEmailVerificationCodeRequest = z.infer<
   typeof platformEmailVerificationCodeRequestSchema
