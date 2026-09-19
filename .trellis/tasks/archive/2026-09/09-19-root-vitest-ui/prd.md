@@ -31,12 +31,12 @@
 
 ## Acceptance Criteria
 
-- [ ] **AC1** `pnpm run test:ui` 能启动面板并列出三域用例。
-- [ ] **AC2** 面板内三域的用例数与「单域运行」一致（API 134 文件 / 884 用例、Web 220 / 1534、仓库域按治理段实测）。
-- [ ] **AC3** `pnpm run check:boundaries`、`python3 -m unittest tests.test_workspace_boundaries`、`pnpm run check:root` 全绿。
-- [ ] **AC4** 漂移守卫可被触发：改动任一域配置的 `include` 或 `projects` 路径，守卫测试失败。
-- [ ] **AC5** 根脚本数与文档一致（58 / 43 / 21），`docs/development/testing.md` 说明 `test:ui` 的用途与「仅本地」边界。
-- [ ] **AC6** 推送后 `ci.yml` 与 `deploy-preview.yml` 仍全绿（证明没有把根 UI 卷进 CI）。
+- [x] **AC1** `pnpm run test:ui` 能启动面板并列出三域用例；单进程实测 365 文件 / 2545 用例（api 884、web 1534、repository 127）。
+- [x] **AC2** 面板内三域的用例数与「单域运行」一致（API 134 文件 / 884 用例、Web 220 / 1534、仓库域 127），`vitest list` 收口复测 api 884 / web 1534 / repository 127。
+- [x] **AC3** `pnpm run check:boundaries`、`python3 -m unittest tests.test_workspace_boundaries`、`pnpm run check:root` 全绿。
+- [x] **AC4** 漂移守卫可被触发：反向验证显示删掉 `root: "apps/api"` 后守卫由 5 通过变为失败，因此补上 root 映射与 setupFiles 断言（守卫现为 6 个用例）。
+- [x] **AC5** 根脚本数与文档一致（58 / 43 / 21），`docs/development/testing.md` 说明 `test:ui` 的用途与「仅本地」边界。
+- [x] **AC6** 推送后 `ci.yml` 与 `deploy-preview.yml` 仍全绿（证明没有把根 UI 卷进 CI）。2026-09-20 在推送的 `ddd0fd7e` 上验证：CI run 35457618842（pull_request）与 Deploy preview run 35457615068（push）均 success；Deploy preview 内部执行 `pnpm run check` 与完整 `pnpm run test`。
 
 ## Out of Scope
 

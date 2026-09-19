@@ -46,10 +46,10 @@
 - [x] 5.4 `pnpm run check:root`
 - [x] 5.5 反向验证守卫：`include` 收窄、`projects` 路径改名、`root` 删除、cwd 桥删除四种改动均
   能触发失败；改回后逐字节还原（md5 一致）
-- [ ] 5.6 提交；推送后确认 `ci.yml` 与 `deploy-preview.yml` 全绿（推送前无法验证）
+- [x] 5.6 提交；推送后确认 `ci.yml` 与 `deploy-preview.yml` 全绿（推送前无法验证）。2026-09-20 在推送的 `ddd0fd7e` 上验证：CI run 35457618842（pull_request）与 Deploy preview run 35457615068（push）均 success；Deploy preview 内部执行 `pnpm run check` 与完整 `pnpm run test`。
 
 ## 6. 收尾
 
 - [x] 6.1 写 `verification.md`（计数表、守卫正反向证据、门禁输出）
 - [x] 6.2 更新 `.trellis/spec/repository/ci.md` 的根 UI 说明
-- [ ] 6.3 归档子任务
+- [x] 6.3 归档子任务
