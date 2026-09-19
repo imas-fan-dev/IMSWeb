@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "vitest";
-import * as publication from "../../apps/api/scripts/operations/publish-openmap.js";
+import * as publication from "../apps/api/scripts/operations/publish-openmap.js";
 
 const projectRoot = resolve(__dirname, "..");
 const scriptPath = resolve(
