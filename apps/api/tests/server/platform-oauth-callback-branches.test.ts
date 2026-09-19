@@ -85,7 +85,7 @@ function configureFixture(
         exchangeAuthorizationCode: 0,
         createRefreshSession: 0,
         createOAuthExchangeCode: [] as Array<CreatePlatformOAuthExchangeCodeInput>,
-        findOAuthStateClientTarget: 0,
+        findOAuthStateReturnChannel: 0,
         createOAuthIdentityForAccount: [] as Array<Record<string, unknown>>
     };
     fixture.services.platformTokens = {
@@ -100,9 +100,14 @@ function configureFixture(
         async consumeOAuthState() {
             return consumed;
         },
-        async findOAuthStateClientTarget() {
-            calls.findOAuthStateClientTarget += 1;
-            return consumed?.client_target ?? null;
+        async findOAuthStateReturnChannel() {
+            calls.findOAuthStateReturnChannel += 1;
+            return consumed
+                ? {
+                    clientTarget: consumed.client_target,
+                    intent: consumed.intent
+                }
+                : null;
         },
         async findOAuthIdentity() {
             return identity();
@@ -318,7 +323,7 @@ test('a provider denial on an app state is handed back to the deep link', async 
     assert.equal(location.searchParams.get('error'), 'denied');
     assert.deepEqual([...location.searchParams.keys()], ['error']);
     assert.equal(location.searchParams.has('code'), false);
-    assert.equal(calls.findOAuthStateClientTarget, 1);
+    assert.equal(calls.findOAuthStateReturnChannel, 1);
     assert.equal(calls.exchangeAuthorizationCode, 0);
 });
 

@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "59c09f3d8b40a294bcb7045000aa65e1fe19dbcad7e43ccf91226300d439559a",
+    "semanticDigest": "e3237c85d4e2eb46db2fa396e31812c9fc5e799472215dec06411094ce2aaf71",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 236,
-    "carriers": 298,
-    "reject": 50,
+    "mountedMethodPaths": 237,
+    "carriers": 300,
+    "reject": 51,
     "acceptAndProject": 161,
     "passthrough": 17,
-    "nonObjectApplicable": 70
+    "nonObjectApplicable": 71
   },
   "counts": {
-    "mountedRegistrations": 330,
-    "mountedMethodPaths": 243,
+    "mountedRegistrations": 331,
+    "mountedMethodPaths": 244,
     "noInputRoutes": 87,
-    "requestCarriers": 321,
+    "requestCarriers": 323,
     "policies": {
-      "reject": 50,
+      "reject": 51,
       "accept-and-project": 183,
       "passthrough": 18,
-      "non-object-applicable": 70
+      "non-object-applicable": 71
     },
     "responses": {
-      "total": 656,
-      "json": 592,
+      "total": 658,
+      "json": 594,
       "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 236,
-      "requestCarriers": 298,
+      "mountedMethodPaths": 237,
+      "requestCarriers": 300,
       "policies": {
-        "reject": 50,
+        "reject": 51,
         "accept-and-project": 161,
         "passthrough": 17,
-        "non-object-applicable": 70
+        "non-object-applicable": 71
       }
     },
     "explicitQueryAdditions": [
@@ -132,7 +132,7 @@
       "/api/login": 1,
       "/api/logout": 1,
       "/api/news": 1,
-      "/api/platform": 29,
+      "/api/platform": 30,
       "/api/producer-map": 1,
       "/api/reactions": 3,
       "/api/refresh": 1,
@@ -4705,7 +4705,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link.ts",
           "kind": "non-json",
-          "expression": "authorizationUrl . toString ( )"
+          "expression": "result . authorizationUrl . toString ( )"
         }
       ]
     },
@@ -10535,6 +10535,56 @@
           "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
           "kind": "json",
           "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "handlerSymbol": "handleStartPlatformOAuthLinkApp",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "schemaSymbol": "platformOAuthLinkParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/account-security",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "schemaSymbol": "platformOAuthLinkAppStartRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/account-security",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link-app.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_OAUTH_LINK_UNAVAILABLE\" } satisfies PlatformAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link-app.ts",
+          "kind": "json",
+          "expression": "{ success : true , authorizationUrl : result . authorizationUrl . toString ( ) } satisfies PlatformOAuthLinkAppStartResponse"
         }
       ]
     },
@@ -17213,6 +17263,40 @@
     },
     {
       "method": "POST",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLinkApp",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "schemaSymbol": "platformOAuthLinkParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/account-security",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLinkApp",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "schemaSymbol": "platformOAuthLinkAppStartRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/account-security",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/platform/me/password",
       "handlerSymbol": "handleChangePlatformPassword",
       "kind": "json",
@@ -20060,7 +20144,7 @@
       "handlerSymbol": "handleStartPlatformOAuthLink",
       "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link.ts",
       "kind": "non-json",
-      "expression": "authorizationUrl . toString ( )"
+      "expression": "result . authorizationUrl . toString ( )"
     },
     {
       "method": "GET",
@@ -22149,6 +22233,22 @@
       "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
       "kind": "json",
       "expression": "payload"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLinkApp",
+      "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link-app.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_OAUTH_LINK_UNAVAILABLE\" } satisfies PlatformAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLinkApp",
+      "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link-app.ts",
+      "kind": "json",
+      "expression": "{ success : true , authorizationUrl : result . authorizationUrl . toString ( ) } satisfies PlatformOAuthLinkAppStartResponse"
     },
     {
       "method": "POST",

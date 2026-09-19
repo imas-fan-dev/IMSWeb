@@ -1,13 +1,11 @@
-import { randomBytes } from 'node:crypto';
 import { APP_OAUTH_CALLBACK_URL } from '@imsweb/contracts/paths';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { platformAccountRepository } from '@/middleware/hono-context';
+import { mintPlatformOAuthExchangeCode } from '@/domains/identity/platform-auth/oauth/oauth-exchange-code';
 import type {
     PlatformAccountWithProfile,
     PlatformOAuthStateRecord
 } from '@/ports/repositories';
-import { sha256Hex } from '@/utils/crypto/sha256';
 
 /**
  * OAuth app-return callback branch.
@@ -21,7 +19,6 @@ import { sha256Hex } from '@/utils/crypto/sha256';
  * deep-link handling complete the flow.
  */
 
-const PLATFORM_OAUTH_EXCHANGE_CODE_TTL_MS = 5 * 60_000;
 const PLATFORM_OAUTH_APP_SESSION_STATUSES = ['active', 'restricted'];
 
 export interface PlatformOAuthAppCallbackInput {
@@ -52,14 +49,9 @@ export async function handlePlatformOAuthAppCallback(
     ) {
         return redirectToPlatformOAuthApp(c, 'unavailable', 'error');
     }
-    const code = randomBytes(32).toString('base64url');
-    const createdAt = Date.now();
-    await platformAccountRepository(c).createOAuthExchangeCode({
-        codeHash: await sha256Hex(new TextEncoder().encode(code)),
+    const code = await mintPlatformOAuthExchangeCode(c, {
         accountId: input.identity.account.id,
-        codeChallenge: challenge,
-        expiresAt: createdAt + PLATFORM_OAUTH_EXCHANGE_CODE_TTL_MS,
-        createdAt,
+        codeChallenge: challenge
     });
     return redirectToPlatformOAuthApp(c, code);
 }

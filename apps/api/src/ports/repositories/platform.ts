@@ -154,6 +154,17 @@ export type CreatePlatformOAuthAccountResult =
  */
 export type PlatformOAuthClientTarget = "web" | "app";
 
+/**
+ * The two dimensions the callback needs from a state row before the row is
+ * consumed: which surface started the round trip and which flow owns it. A
+ * read of both in one row keeps the provider-denial early return from having
+ * to guess the flow.
+ */
+export interface PlatformOAuthStateReturnChannel {
+    clientTarget: PlatformOAuthClientTarget;
+    intent: "login" | "link";
+}
+
 export interface PlatformOAuthStateRecord {
     state_hash: string;
     provider_code: PlatformOAuthProviderCode;
@@ -515,15 +526,16 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
     ): Promise<PlatformOAuthStateRecord | null>;
     /**
      * Read-only look at who started a state row, used only when a provider
-     * denies the request before the callback can consume it. The app needs to
-     * be told to stop waiting; the web flow keeps its `/account/login`
-     * redirect. Does not consume the row.
+     * denies the request before the callback can consume it. The return
+     * channel tells an app round trip to stop waiting; `intent` tells a link
+     * round trip to keep its `flow=link` key. The web login flow keeps its
+     * `/account/login` redirect. Does not consume the row.
      */
-    findOAuthStateClientTarget(
+    findOAuthStateReturnChannel(
         stateHash: string,
         providerCode: PlatformOAuthProviderCode,
         now: number,
-    ): Promise<PlatformOAuthClientTarget | null>;
+    ): Promise<PlatformOAuthStateReturnChannel | null>;
     findOAuthIdentity(
         providerCode: PlatformOAuthProviderCode,
         providerSubject: string,

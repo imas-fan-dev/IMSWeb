@@ -4,7 +4,8 @@ import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
 import {
     platformEmailBindingResponseSchema,
     platformEmailCredentialResponseSchema,
-    platformEmailVerificationCodeResponseSchema
+    platformEmailVerificationCodeResponseSchema,
+    platformOAuthLinkAppStartResponseSchema
 } from '@imsweb/contracts/platform/account-security';
 import type { PlatformOAuthProviderSummary } from '@/ports/oauth';
 import {
@@ -26,6 +27,10 @@ const CODE_URL = 'http://ims.test/api/platform/me/email/verification-code';
 const BIND_URL = 'http://ims.test/api/platform/me/email/bind';
 const CHANGE_URL = 'http://ims.test/api/platform/me/email/change';
 const LINK_START_URL = 'http://ims.test/api/platform/me/oauth-links/github/start';
+const LINK_START_UNAVAILABLE_URL =
+    'http://ims.test/api/platform/me/oauth-links/legacy-sso/start';
+const LINK_CALLBACK_URL = 'http://ims.test/api/platform/auth/oauth/github/callback';
+const APP_CHALLENGE = 'c'.repeat(43);
 
 interface ErrorBody {
     code?: string;
@@ -377,4 +382,172 @@ test('OAuth link start demands a session', async () => {
         redirect: 'manual'
     });
     assert.equal(response.status, 401);
+});
+
+test('app OAuth link start returns the provider URL and records an app state', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+
+    const response = await sendJson(fixture, LINK_START_URL, {
+        codeChallenge: APP_CHALLENGE
+    });
+    assert.equal(response.status, 200);
+    // The account-security `/me/*` family adds `private` on top of the
+    // handler's `no-store`, so the effective header is the stricter pair.
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    const body = await assertRawJsonConforms(
+        response,
+        platformOAuthLinkAppStartResponseSchema
+    );
+    assert.deepEqual(body, {
+        success: true,
+        authorizationUrl: 'https://github.example.test/authorize'
+    });
+
+    assert.equal(fixture.oauthStateInputs.length, 1);
+    const state = fixture.oauthStateInputs[0]!;
+    assert.equal(state.intent, 'link');
+    assert.equal(state.linkingAccountId, ACCOUNT_ID);
+    assert.equal(state.returnPath, '/account/security');
+    assert.equal(state.clientTarget, 'app');
+    assert.equal(state.appCodeChallenge, APP_CHALLENGE);
+});
+
+test('app OAuth link start demands a bearer session', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+
+    const response = await sendJson(
+        fixture,
+        LINK_START_URL,
+        { codeChallenge: APP_CHALLENGE },
+        {}
+    );
+    assert.equal(response.status, 401);
+    assert.equal(fixture.oauthStateInputs.length, 0);
+});
+
+test('app OAuth link start rejects an unusable challenge', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+
+    const response = await sendJson(fixture, LINK_START_URL, {
+        codeChallenge: 'too-short'
+    });
+    assert.equal(response.status, 400);
+    assert.equal(
+        ((await response.json()) as ErrorBody).code,
+        'PLATFORM_OAUTH_LINK_INPUT_INVALID'
+    );
+    assert.equal(fixture.oauthStateInputs.length, 0);
+});
+
+test('app OAuth link start rejects an unknown body key', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+
+    // `client` belongs to the login start query; sending it here must be a
+    // rejection rather than a silently ignored field, so the strict policy is
+    // observable at the HTTP boundary, not only in the schema definition.
+    const response = await sendJson(fixture, LINK_START_URL, {
+        codeChallenge: APP_CHALLENGE,
+        client: 'app'
+    });
+    assert.equal(response.status, 400);
+    assert.equal(
+        ((await response.json()) as ErrorBody).code,
+        'PLATFORM_OAUTH_LINK_INPUT_INVALID'
+    );
+    assert.equal(fixture.oauthStateInputs.length, 0);
+});
+
+test('app OAuth link start reports an unavailable provider', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+
+    const response = await sendJson(fixture, LINK_START_UNAVAILABLE_URL, {
+        codeChallenge: APP_CHALLENGE
+    });
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), {
+        success: false,
+        code: 'PLATFORM_OAUTH_LINK_UNAVAILABLE'
+    });
+    assert.equal(fixture.oauthStateInputs.length, 0);
+});
+
+test('an app link callback returns a one-time code with flow=link', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+    fixture.issueOAuthState('link-app-state', {
+        client_target: 'app',
+        app_code_challenge: APP_CHALLENGE
+    });
+
+    const response = await fixture.app.request(
+        `${LINK_CALLBACK_URL}?state=link-app-state&code=provider-code`,
+        { redirect: 'manual' }
+    );
+    assert.equal(response.status, 303);
+    const location = response.headers.get('location')!;
+    assert.match(
+        location,
+        /^imsweb:\/\/oauth\/callback\?code=[A-Za-z0-9_-]{43}&flow=link$/
+    );
+    assert.equal(fixture.oauthExchangeCodeInputs.length, 1);
+    const exchange = fixture.oauthExchangeCodeInputs[0]!;
+    assert.equal(exchange.accountId, ACCOUNT_ID);
+    assert.equal(exchange.codeChallenge, APP_CHALLENGE);
+    // 300s against the 600s state TTL is the deliberate one-time window.
+    assert.equal(exchange.expiresAt - exchange.createdAt, 300_000);
+});
+
+test('a refused app link callback returns an error with flow=link', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+    fixture.issueOAuthState('link-app-conflict', {
+        client_target: 'app',
+        app_code_challenge: APP_CHALLENGE
+    });
+    fixture.oauthLinkResult = { status: 'provider-conflict' };
+
+    const response = await fixture.app.request(
+        `${LINK_CALLBACK_URL}?state=link-app-conflict&code=provider-code`,
+        { redirect: 'manual' }
+    );
+    assert.equal(response.status, 303);
+    assert.equal(
+        response.headers.get('location'),
+        'imsweb://oauth/callback?error=link-already-bound&flow=link'
+    );
+    assert.equal(fixture.oauthExchangeCodeInputs.length, 0);
+});
+
+test('a web link callback still returns to account security with a reason', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+    fixture.issueOAuthState('link-web-state', { client_target: 'web' });
+    fixture.oauthLinkResult = { status: 'provider-conflict' };
+
+    const response = await fixture.app.request(
+        `${LINK_CALLBACK_URL}?state=link-web-state&code=provider-code`,
+        { redirect: 'manual' }
+    );
+    assert.equal(response.status, 303);
+    const location = new URL(response.headers.get('location')!);
+    assert.equal(location.pathname, '/account/security');
+    assert.equal(location.searchParams.get('oauth'), 'link-already-bound');
+    assert.equal(fixture.oauthExchangeCodeInputs.length, 0);
+});
+
+test('a provider denial on a link+app state keeps flow=link', async () => {
+    const fixture = new AccountSecurityFixture({ credential: null });
+    fixture.issueOAuthState('link-app-denied', {
+        client_target: 'app',
+        app_code_challenge: APP_CHALLENGE
+    });
+
+    const response = await fixture.app.request(
+        `${LINK_CALLBACK_URL}?state=link-app-denied&error=access_denied`,
+        { redirect: 'manual' }
+    );
+    assert.equal(response.status, 303);
+    assert.equal(
+        response.headers.get('location'),
+        'imsweb://oauth/callback?error=denied&flow=link'
+    );
+    // The denial early return is read-only; the callback can still consume it.
+    assert.equal(fixture.oauthStateRows.size, 1);
 });

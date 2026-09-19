@@ -35,6 +35,7 @@ import type {
     PlatformOAuthIdentity,
     PlatformOAuthLinkRecord,
     PlatformOAuthStateRecord,
+    PlatformOAuthStateReturnChannel,
     PlatformProfileSaveResult,
     PlatformProfileRecord,
     PlatformRefreshSessionRecord,
@@ -624,18 +625,23 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
         return result.results[0] ?? null;
     }
 
-    async findOAuthStateClientTarget(
+    async findOAuthStateReturnChannel(
         stateHash: string,
         providerCode: PlatformOAuthProviderCode,
         now: number
-    ): Promise<PlatformOAuthClientTarget | null> {
-        const row = await queryOne<{ client_target: PlatformOAuthClientTarget }>(
+    ): Promise<PlatformOAuthStateReturnChannel | null> {
+        const row = await queryOne<{
+            client_target: PlatformOAuthClientTarget;
+            intent: 'login' | 'link';
+        }>(
             this.database,
-            `SELECT client_target FROM platform_oauth_states
+            `SELECT client_target, intent FROM platform_oauth_states
              WHERE state_hash=? AND provider_code=? AND expires_at>?`,
             [stateHash, providerCode, now]
         );
-        return row?.client_target ?? null;
+        return row
+            ? { clientTarget: row.client_target, intent: row.intent }
+            : null;
     }
 
     async findOAuthIdentity(

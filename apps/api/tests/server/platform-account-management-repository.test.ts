@@ -639,7 +639,7 @@ test('a link state round-trips its account and intent', async (t) => {
     assert.equal(consumed?.client_target, 'web');
 });
 
-test('an app state carries its challenge and survives the read-only target lookup', async (t) => {
+test('an app state carries its challenge and survives the read-only return-channel lookup', async (t) => {
     const fixture = await createFixture(t);
     const challenge = 'c'.repeat(43);
     await fixture.platform.createOAuthState({
@@ -655,9 +655,13 @@ test('an app state carries its challenge and survives the read-only target looku
         createdAt: AT
     });
 
-    assert.equal(
-        await fixture.platform.findOAuthStateClientTarget(sha('state-app'), 'google', AT),
-        'app'
+    assert.deepEqual(
+        await fixture.platform.findOAuthStateReturnChannel(
+            sha('state-app'),
+            'google',
+            AT
+        ),
+        { clientTarget: 'app', intent: 'login' }
     );
     // The lookup must not consume the row; the callback still has to redeem it.
     const consumed = await fixture.platform.consumeOAuthState(sha('state-app'), 'google', AT);

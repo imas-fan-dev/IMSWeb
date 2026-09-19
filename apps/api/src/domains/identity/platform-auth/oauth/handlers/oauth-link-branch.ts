@@ -1,6 +1,8 @@
+import { APP_OAUTH_CALLBACK_URL } from '@imsweb/contracts/paths';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { platformSecurityEvent } from '@/domains/identity/platform-auth/contracts/session';
+import { mintPlatformOAuthExchangeCode } from '@/domains/identity/platform-auth/oauth/oauth-exchange-code';
 import { platformAccountRepository } from '@/middleware/hono-context';
 import type { PlatformOAuthClient, PlatformOAuthProviderSummary } from '@/ports/oauth';
 import type { PlatformOAuthStateRecord } from '@/ports/repositories';
@@ -14,6 +16,11 @@ import type { PlatformOAuthStateRecord } from '@/ports/repositories';
  * the caller owns the provider subject (through the state row's PKCE verifier),
  * attaches that subject to `linking_account_id`, and returns to the account
  * security page with a reason.
+ *
+ * `client_target` picks the return channel. A Web state returns to
+ * `/account/security?oauth=...`; an app state cannot carry a cookie back through
+ * a document redirect, so a successful link mints the same one-time exchange
+ * code the login app branch uses and hands it to the custom-scheme deep link.
  *
  * Conflict policy is deliberately narrow. An identity that already belongs to
  * another account is refused with `link-conflict` and no row is written; the
@@ -29,15 +36,54 @@ export interface PlatformOAuthLinkCallbackInput {
     code: string;
 }
 
+/**
+ * The app return channel, whether the round trip succeeded or failed. Always
+ * stamps `flow=link` so the app can tell a binding callback from a login one;
+ * the login branch returns `client_target: 'app'` without a flow key.
+ */
+export function redirectToPlatformOAuthLinkApp(
+    c: Context<AppEnvironment>,
+    value: string,
+    key: 'code' | 'error' = 'code',
+): Response {
+    const query = new URLSearchParams({ [key]: value, flow: 'link' }).toString();
+    c.header('Cache-Control', 'no-store');
+    return c.redirect(`${APP_OAUTH_CALLBACK_URL}?${query}`, 303);
+}
+
 export function redirectToPlatformOAuthLink(
     c: Context<AppEnvironment>,
     state: PlatformOAuthStateRecord,
     reason: string,
 ): Response {
+    if (state.client_target === 'app') {
+        return redirectToPlatformOAuthLinkApp(c, reason, 'error');
+    }
     const destination = new URL(state.return_path, c.req.url);
     destination.searchParams.set('oauth', reason);
     c.header('Cache-Control', 'no-store');
     return c.redirect(destination.toString(), 303);
+}
+
+/**
+ * Mints the one-time code for an app link success. An app row that somehow
+ * lacks a challenge cannot be redeemed, so it falls back to the error channel
+ * rather than writing a code no app could use.
+ */
+async function redirectToPlatformOAuthLinkedApp(
+    c: Context<AppEnvironment>,
+    state: PlatformOAuthStateRecord,
+): Promise<Response> {
+    const challenge = state.app_code_challenge;
+    const accountId = state.linking_account_id;
+    if (!challenge || !accountId) {
+        return redirectToPlatformOAuthLinkApp(c, 'link-failed', 'error');
+    }
+    const code = await mintPlatformOAuthExchangeCode(c, {
+        accountId,
+        codeChallenge: challenge
+    });
+    return redirectToPlatformOAuthLinkApp(c, code);
 }
 
 export async function handlePlatformOAuthLinkCallback(
@@ -74,7 +120,9 @@ export async function handlePlatformOAuthLinkCallback(
         event: platformSecurityEvent(c, accountId, 'auth.oauth.linked', 'oauth_linked_by_owner'),
     });
     if (result.status === 'created' || result.status === 'already-linked') {
-        return redirectToPlatformOAuthLink(c, input.state, 'linked');
+        return input.state.client_target === 'app'
+            ? await redirectToPlatformOAuthLinkedApp(c, input.state)
+            : redirectToPlatformOAuthLink(c, input.state, 'linked');
     }
     if (result.status === 'identity-conflict') {
         return redirectToPlatformOAuthLink(c, input.state, 'link-conflict');

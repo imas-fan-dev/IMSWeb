@@ -9,7 +9,8 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import {
     handlePlatformOAuthLinkCallback,
-    redirectToPlatformOAuthLink
+    redirectToPlatformOAuthLink,
+    redirectToPlatformOAuthLinkApp
 } from '@/domains/identity/platform-auth/oauth/handlers/oauth-link-branch';
 import {
     handlePlatformOAuthAppCallback,
@@ -130,15 +131,20 @@ export async function handlePlatformOAuthCallback(
         // can still be told to stop waiting. Every other failure keeps the web
         // login redirect unchanged.
         if (query.error && state) {
-            const clientTarget = await platformAccountRepository(
+            const returnChannel = await platformAccountRepository(
                 c,
-            ).findOAuthStateClientTarget(
+            ).findOAuthStateReturnChannel(
                 hashOAuthStateValue(state),
                 provider.code,
                 Date.now(),
             );
-            if (clientTarget === 'app') {
-                return redirectToPlatformOAuthApp(c, 'denied', 'error');
+            if (returnChannel?.clientTarget === 'app') {
+                // A link round trip keeps its `flow=link` key (it is not this
+                // module's channel to shape); a login round trip stays
+                // `?error=denied` with no flow key, exactly as before.
+                return returnChannel.intent === 'link'
+                    ? redirectToPlatformOAuthLinkApp(c, 'denied', 'error')
+                    : redirectToPlatformOAuthApp(c, 'denied', 'error');
             }
         }
         return redirectToLogin(c, query.error ? 'denied' : 'invalid');

@@ -14,8 +14,11 @@ import {
     PLATFORM_CSRF_TOKEN_COOKIE
 } from '@/domains/identity/platform-auth/contracts/session';
 import type { PasswordVerifier } from '@/ports/security';
-import type { PlatformOAuthClient, PlatformOAuthProviderSummary } from '@/ports/oauth';
+import type { PlatformOAuthClient, PlatformOAuthIdentityProfile, PlatformOAuthProviderSummary } from '@/ports/oauth';
 import type {
+    CreatePlatformOAuthExchangeCodeInput,
+    CreatePlatformOAuthIdentityForAccountInput,
+    CreatePlatformOAuthIdentityForAccountResult,
     CreateVerifiedEmailCredentialForAccountInput,
     CreateVerifiedEmailCredentialForAccountResult,
     DeletePlatformOAuthIdentityInput,
@@ -26,12 +29,15 @@ import type {
     PlatformAccountRepository,
     PlatformAccountStatus,
     PlatformEmailCredentialRecord,
+    PlatformOAuthIdentity,
     PlatformOAuthLinkRecord,
+    PlatformOAuthStateRecord,
     PlatformRefreshSessionRecord,
     RevokePlatformRefreshSessionsInput,
     UpdatePlatformPasswordInput,
     UpdatePlatformPasswordResult
 } from '@/ports/repositories';
+import { hashOAuthStateValue } from '@/domains/identity/platform-auth/contracts/oauth-pkce';
 import { hashPlatformEmailBindingCode } from '@/domains/identity/platform-account-security/email/email-binding-code';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import {
@@ -161,6 +167,17 @@ export class AccountSecurityFixture {
     readonly emailBindingInputs: CreateVerifiedEmailCredentialForAccountInput[] = [];
     readonly emailMigrationInputs: MigrateEmailCredentialForAccountInput[] = [];
     readonly oauthStateInputs: NewPlatformOAuthStateInput[] = [];
+    readonly oauthStateRows = new Map<string, PlatformOAuthStateRecord>();
+    readonly oauthExchangeCodeInputs: CreatePlatformOAuthExchangeCodeInput[] = [];
+    readonly oauthIdentityInputs: CreatePlatformOAuthIdentityForAccountInput[] = [];
+    /** Overrides the link write outcome; defaults to a fresh `created` link. */
+    oauthLinkResult: CreatePlatformOAuthIdentityForAccountResult | null = null;
+    oauthProfile: PlatformOAuthIdentityProfile = {
+        providerCode: GITHUB_PROVIDER,
+        subject: `subject-${GITHUB_PROVIDER}-987654321`,
+        displayName: 'github person',
+        avatarUrl: null
+    };
     readonly foreignEmails: Set<string>;
     oauthProviders: PlatformOAuthProviderSummary[];
     oauthAuthorizationUrl: URL | null = new URL(
@@ -302,12 +319,51 @@ export class AccountSecurityFixture {
         };
     }
 
+    private oauthIdentity(): PlatformOAuthIdentity {
+        return {
+            ...this.identity(),
+            oauth: {
+                provider_code: GITHUB_PROVIDER,
+                provider_subject: this.oauthProfile.subject,
+                account_id: ACCOUNT_ID,
+                provider_display_name: this.oauthProfile.displayName,
+                provider_avatar_url: this.oauthProfile.avatarUrl ?? '',
+                created_at: 1_000,
+                updated_at: 1_000
+            }
+        };
+    }
+
     readonly passwords: PasswordVerifier = {
         async hash(value: string) { return storedDigest(value); },
         async verify(value: string, digest: string) {
             return storedDigest(value) === digest;
         }
     };
+
+    /**
+     * Seeds the state table with the raw state the callback will present, so a
+     * test can build `?state=<raw>` without knowing the server's PKCE pair.
+     */
+    issueOAuthState(
+        rawState: string,
+        overrides: Partial<PlatformOAuthStateRecord> = {}
+    ): void {
+        const stateHash = hashOAuthStateValue(rawState);
+        this.oauthStateRows.set(stateHash, {
+            state_hash: stateHash,
+            provider_code: GITHUB_PROVIDER,
+            intent: 'link',
+            linking_account_id: ACCOUNT_ID,
+            client_target: 'web',
+            app_code_challenge: null,
+            code_verifier: 'v'.repeat(43),
+            return_path: '/account/security',
+            expires_at: Date.now() + 10 * 60_000,
+            created_at: Date.now(),
+            ...overrides
+        });
+    }
 
     readonly platformAccounts = {
         findRefreshSessionById: async (id: string) => {
@@ -473,6 +529,65 @@ export class AccountSecurityFixture {
         },
         createOAuthState: async (input: NewPlatformOAuthStateInput) => {
             this.oauthStateInputs.push(input);
+            this.oauthStateRows.set(input.stateHash, {
+                state_hash: input.stateHash,
+                provider_code: input.providerCode,
+                intent: input.intent,
+                linking_account_id: input.linkingAccountId,
+                client_target: input.clientTarget,
+                app_code_challenge: input.appCodeChallenge,
+                code_verifier: input.codeVerifier,
+                return_path: input.returnPath,
+                expires_at: input.expiresAt,
+                created_at: input.createdAt
+            });
+        },
+        // Mirrors the real DELETE ... RETURNING: the row is removed only when
+        // it still matches the provider and has not expired.
+        consumeOAuthState: async (
+            stateHash: string,
+            providerCode: string,
+            consumedAt: number
+        ): Promise<PlatformOAuthStateRecord | null> => {
+            const row = this.oauthStateRows.get(stateHash);
+            if (
+                !row ||
+                row.provider_code !== providerCode ||
+                row.expires_at <= consumedAt
+            ) {
+                return null;
+            }
+            this.oauthStateRows.delete(stateHash);
+            return { ...row };
+        },
+        findOAuthStateReturnChannel: async (
+            stateHash: string,
+            providerCode: string,
+            now: number
+        ) => {
+            const row = this.oauthStateRows.get(stateHash);
+            if (
+                !row ||
+                row.provider_code !== providerCode ||
+                row.expires_at <= now
+            ) {
+                return null;
+            }
+            return { clientTarget: row.client_target, intent: row.intent };
+        },
+        createOAuthIdentityForAccount: async (
+            input: CreatePlatformOAuthIdentityForAccountInput
+        ): Promise<CreatePlatformOAuthIdentityForAccountResult> => {
+            this.oauthIdentityInputs.push(input);
+            return this.oauthLinkResult ?? {
+                status: 'created',
+                identity: this.oauthIdentity()
+            };
+        },
+        createOAuthExchangeCode: async (
+            input: CreatePlatformOAuthExchangeCodeInput
+        ) => {
+            this.oauthExchangeCodeInputs.push(input);
         },
         listRefreshSessionsByAccount: async (
             accountId: string,
@@ -659,9 +774,7 @@ export class AccountSecurityFixture {
             platformOAuth: {
                 listProviders: async () => [...this.oauthProviders],
                 createAuthorizationUrl: async () => this.oauthAuthorizationUrl,
-                exchangeAuthorizationCode: async () => {
-                    throw new Error('not used');
-                }
+                exchangeAuthorizationCode: async () => ({ ...this.oauthProfile })
             } as unknown as PlatformOAuthClient
         } as unknown as RuntimeServices;
     }
