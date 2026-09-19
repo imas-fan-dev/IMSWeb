@@ -109,6 +109,16 @@ config. `--root` stays relative to the step cwd (`apps/api`) and `--config`
 resolves against `--root`, not the cwd — passing `../../scripts/...` there fails
 to load the config.
 
+The panel's root config also carries a single `coverage: { htmlDir: 'coverage' }`
+pointer. The UI registers its `<uiBase>/coverage` route only from the `htmlDir` of
+the config it reads, and in panel mode the per-project coverage options never
+reach that check: drop the pointer and a finished report answers 404 there while
+the client falls back to "Coverage enabled but missing html reporter". It is not
+a gate. Coverage stays off until a run asks for it (`--coverage`), and the
+thresholds stay in the API and Web domain configs, which are the only runs that
+measure a whole domain. `tests/vitest-projects.test.mjs` asserts that block holds
+nothing else.
+
 Each root-domain file names its subject once, in a top-level `describe`. No
 second level is added: cases in `tests/` and `scripts/**/tests` rarely share an
 identical literal prefix of three words, so a category would have to be invented

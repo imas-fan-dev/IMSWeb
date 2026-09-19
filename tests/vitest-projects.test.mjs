@@ -222,13 +222,34 @@ test("each domain keeps the globs the panel and CI both run", () => {
   }
 });
 
-test("the root panel declares no coverage gate of its own", () => {
+test("the root panel only points the UI at its aggregated coverage report", () => {
   const source = read(rootConfig);
+  const coverageBlock = blockAfter(
+    source,
+    "coverage: {",
+    "{",
+    "}",
+    "the root panel",
+  );
 
-  // Coverage belongs to the domain runs that measure a whole domain and only
-  // they set `IMS_TEST_COVERAGE_ENABLED`. A gate on the panel would be measured
-  // against whatever subset a developer happened to select.
-  assert.doesNotMatch(source, /^\s*coverage:\s*\{/m);
+  // The UI serves coverage out of the `htmlDir` of the config it reads, and in
+  // panel mode the per-project coverage options never reach that check. Without
+  // this pointer the panel registers no coverage route at all: the aggregated
+  // report is finished on disk while `<uiBase>/coverage/index.html` answers 404
+  // and the client can only fall back to "Coverage enabled but missing html
+  // reporter".
+  assert.deepEqual(
+    quotedValues(coverageBlock),
+    ["coverage"],
+    "the root panel names the directory its aggregated run writes",
+  );
+  assert.match(coverageBlock, /htmlDir:/);
+
+  // It stays a pointer. Coverage belongs to the domain runs that measure a whole
+  // domain and only they set `IMS_TEST_COVERAGE_ENABLED`; a gate on the panel
+  // would be measured against whatever subset a developer happened to select.
+  assert.doesNotMatch(coverageBlock, /thresholds|enabled\s*:/);
+  assert.doesNotMatch(coverageBlock, /reportsDirectory|provider|reporter/);
 });
 
 test("the repository config still declares no coverage gate", () => {
