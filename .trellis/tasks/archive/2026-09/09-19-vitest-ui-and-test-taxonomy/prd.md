@@ -56,7 +56,7 @@
 - [x] **AC3** 根脚本数与文档一致（58 / 43 / 21），且 `test:ui` 已在 `docs/development/testing.md` 说明。
 - [x] **AC4** 漂移守卫能被触发：改动任一域配置的 include 或路径，守卫测试失败。
 - [x] **AC5** 归类后各域用例数与「describe 路径拼接名集合」与基线逐字一致（API 884 / Web 1534 / 仓库域按实测基线）。
-- [ ] **AC6**（只剩 `09-19-root-vitest-ui` 的推送后 CI 验证；四个 owner 与 Web unit 已在本地全绿） 三域 CI（`run-test-owner.mjs` 各 owner）与 `pnpm run check` 仍全绿，覆盖率与阈值不变。
+- [x] **AC6** 三域 CI（`run-test-owner.mjs` 各 owner）与 `pnpm run check` 仍全绿，覆盖率与阈值不变。四个 owner 与 Web unit 本地全绿；2026-09-20 在推送的 `ddd0fd7e` 上验证：CI run 35457618842（pull_request）与 Deploy preview run 35457615068（push）均 success；Deploy preview 内部执行 `pnpm run check` 与完整 `pnpm run test`。
 - [x] **AC7** API 与根域不再存在「一个文件内 0 个 describe 且 ≥5 个用例」的平铺文件（e2e 按 R5 同规则收口）。
 
 ## Out of Scope
