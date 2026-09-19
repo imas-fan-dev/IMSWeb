@@ -79,17 +79,17 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1 未绑定某 provider 的用户完成绑定后，`GET /me/oauth-links` 返回该 provider，`removable` 与实际可解绑性一致
-- [ ] AC1a 绑定已归属其他帐号的 OAuth 身份被拒且无写入；重复绑定自己已绑的 provider 幂等成功；两者均不产生新帐号
-- [ ] AC1b 绑定回调不会退化为登录：只写身份与链接，不创建帐号、不重建会话
-- [ ] AC2 补绑邮箱在验证码校验通过前不产生 `platform_email_credentials` 行；校验失败返回可区分业务错误
-- [ ] AC3 换绑邮箱在当前密码错误时被拒绝，且原邮箱凭据保持不变
-- [ ] AC4 换绑成功后可用原密码登录新邮箱，无需重设密码；迁移前已建立的会话不受影响
-- [ ] AC5 目标邮箱已被占用时返回 `email-conflict` 类错误，且不产生部分写入
-- [ ] AC6 并发解绑与绑定不会产生零凭据帐号：以仓储层原子判定为准，不依赖读-判断-写
-- [ ] AC7 新用途验证码的 hash 域与注册用途不同，同一验证码不能跨用途复用
-- [ ] AC8 新增请求/响应 schema 落在 `packages/contracts/platform/account-security.ts`，请求 strict、响应精确不做 transform
-- [ ] AC9 Web 端 OAuth 区块区分"未绑定（可绑定）"与"已绑定（可解绑）"两种状态，绑定失败有可读反馈
+- [x] AC1 未绑定某 provider 的用户完成绑定后，`GET /me/oauth-links` 返回该 provider，`removable` 与实际可解绑性一致
+- [x] AC1a 绑定已归属其他帐号的 OAuth 身份被拒且无写入；重复绑定自己已绑的 provider 幂等成功；两者均不产生新帐号
+- [x] AC1b 绑定回调不会退化为登录：只写身份与链接，不创建帐号、不重建会话
+- [x] AC2 补绑邮箱在验证码校验通过前不产生 `platform_email_credentials` 行；校验失败返回可区分业务错误
+- [x] AC3 换绑邮箱在当前密码错误时被拒绝，且原邮箱凭据保持不变
+- [x] AC4 换绑成功后可用原密码登录新邮箱，无需重设密码；迁移前已建立的会话不受影响
+- [x] AC5 目标邮箱已被占用时返回 `email-conflict` 类错误，且不产生部分写入
+- [x] AC6 并发解绑与绑定不会产生零凭据帐号：以仓储层原子判定为准，不依赖读-判断-写
+- [x] AC7 新用途验证码的 hash 域与注册用途不同，同一验证码不能跨用途复用
+- [x] AC8 新增请求/响应 schema 落在 `packages/contracts/platform/account-security.ts`，请求 strict、响应精确不做 transform
+- [x] AC9 Web 端 OAuth 区块区分"未绑定（可绑定）"与"已绑定（可解绑）"两种状态，绑定失败有可读反馈
 
 ## Out of Scope
 
