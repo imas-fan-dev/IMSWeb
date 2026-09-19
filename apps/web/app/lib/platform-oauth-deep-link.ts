@@ -13,15 +13,22 @@ import { IS_APP_TARGET } from "~/lib/app-target"
  * into a single subscription the login page can drive.
  */
 
+export type PlatformOAuthDeepLinkFlow = "login" | "link"
+
 export interface PlatformOAuthCallbackPayload {
   code?: string
   error?: string
+  /** Present only on link round trips; a missing key means `login`. */
+  flow?: "link"
 }
 
 /**
  * Strict match against the shared callback URL: scheme, host and path must all
  * agree. Anything else — including a scheme with the same name but a different
  * path — is not ours and returns `null`.
+ *
+ * The `flow` key is only added when the callback says so. The web login route
+ * leaves it out, and callers assert the payload byte-for-byte.
  */
 export function parsePlatformOAuthCallbackUrl(
   value: string
@@ -41,10 +48,11 @@ export function parsePlatformOAuthCallbackUrl(
   ) {
     return null
   }
+  const flow = url.searchParams.get("flow") === "link" ? "link" : undefined
   const code = url.searchParams.get("code")
-  if (code) return { code }
+  if (code) return flow ? { code, flow } : { code }
   const error = url.searchParams.get("error")
-  if (error) return { error }
+  if (error) return flow ? { error, flow } : { error }
   return null
 }
 
@@ -103,8 +111,22 @@ export async function subscribePlatformOAuthCallback(
  * listener is held until a listener takes it.
  */
 let deliveryStarted = false
-let pendingPayload: PlatformOAuthCallbackPayload | null = null
-const payloadListeners = new Set<PlatformOAuthDeepLinkHandler>()
+/** One held payload per flow: the login and link callbacks never coalesce. */
+const pendingPayloads: Record<
+  PlatformOAuthDeepLinkFlow,
+  PlatformOAuthCallbackPayload | null
+> = { login: null, link: null }
+const payloadListeners: Record<
+  PlatformOAuthDeepLinkFlow,
+  Set<PlatformOAuthDeepLinkHandler>
+> = { login: new Set(), link: new Set() }
+
+/** A payload with no `flow` key is a login callback. */
+function platformOAuthPayloadFlow(
+  payload: PlatformOAuthCallbackPayload
+): PlatformOAuthDeepLinkFlow {
+  return payload.flow === "link" ? "link" : "login"
+}
 
 /**
  * Begin delivering callbacks. Idempotent, because a second subscription would
@@ -113,44 +135,52 @@ const payloadListeners = new Set<PlatformOAuthDeepLinkHandler>()
  *
  * `onUnclaimed` runs when a callback arrives with nothing listening: the cold
  * start, where the app sits on an unrelated route and the user has to be sent
- * somewhere that can finish the sign-in.
+ * somewhere that can finish the round trip. The payload is handed over so the
+ * caller can route by flow.
  */
-export function startPlatformOAuthDeepLink(onUnclaimed?: () => void): void {
+export function startPlatformOAuthDeepLink(
+  onUnclaimed?: (payload: PlatformOAuthCallbackPayload) => void
+): void {
   if (deliveryStarted) return
   deliveryStarted = true
   void subscribePlatformOAuthCallback((payload) => {
-    if (payloadListeners.size === 0) {
-      pendingPayload = payload
-      onUnclaimed?.()
+    const flow = platformOAuthPayloadFlow(payload)
+    if (payloadListeners[flow].size === 0) {
+      pendingPayloads[flow] = payload
+      onUnclaimed?.(payload)
       return
     }
-    deliverToListeners(payload)
+    deliverToListeners(flow, payload)
   })
 }
 
-function deliverToListeners(payload: PlatformOAuthCallbackPayload): void {
-  for (const listener of [...payloadListeners]) listener(payload)
+function deliverToListeners(
+  flow: PlatformOAuthDeepLinkFlow,
+  payload: PlatformOAuthCallbackPayload
+): void {
+  for (const listener of [...payloadListeners[flow]]) listener(payload)
 }
 
 /**
- * Receive callbacks, including one that arrived before this listener existed.
- * Resolves to an unsubscribe function.
+ * Receive callbacks for one flow, including one that arrived before this
+ * listener existed. Resolves to an unsubscribe function.
  *
- * The buffered payload is handed over exactly once and to the first listener:
- * it carries a one-time code, so a second receiver would turn a successful
- * sign-in into a spurious failure. A listener that mounts while a payload is
+ * A payload is handed over exactly once and to the first matching listener: it
+ * carries a one-time code, so a second receiver would turn a successful round
+ * trip into a spurious failure. A listener that mounts while a payload is
  * waiting therefore drains it immediately, synchronously, before this returns.
  */
 export function subscribePlatformOAuthPayload(
-  handler: PlatformOAuthDeepLinkHandler
+  handler: PlatformOAuthDeepLinkHandler,
+  flow: PlatformOAuthDeepLinkFlow = "login"
 ): () => void {
-  payloadListeners.add(handler)
-  const buffered = pendingPayload
+  payloadListeners[flow].add(handler)
+  const buffered = pendingPayloads[flow]
   if (buffered) {
-    pendingPayload = null
+    pendingPayloads[flow] = null
     handler(buffered)
   }
   return () => {
-    payloadListeners.delete(handler)
+    payloadListeners[flow].delete(handler)
   }
 }

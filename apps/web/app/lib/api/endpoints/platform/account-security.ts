@@ -7,6 +7,8 @@ import {
   platformEmailCredentialResponseSchema,
   platformEmailVerificationCodeRequestSchema,
   platformEmailVerificationCodeResponseSchema,
+  platformOAuthLinkAppStartRequestSchema,
+  platformOAuthLinkAppStartResponseSchema,
   platformOAuthLinkParamsSchema,
 } from "@imsweb/contracts/platform/account-security"
 import { z } from "@imsweb/contracts/z"
@@ -33,6 +35,16 @@ export type PlatformEmailBindInput = z.input<
 export type PlatformEmailChangeInput = z.input<
   typeof platformEmailChangeRequestSchema
 >
+
+/**
+ * The App-side link start input. The provider selects the path segment and the
+ * challenge is the body; the two are validated against their own contracts. The
+ * type stays Web-local because it is the caller's shape, not a wire body.
+ */
+export interface PlatformOAuthLinkAppStartInput {
+  provider: string
+  codeChallenge: string
+}
 
 /**
  * The account's current email credential, or null when it has none.
@@ -99,4 +111,32 @@ export function changePlatformEmail(input: PlatformEmailChangeInput) {
 export function platformOAuthLinkStartUrl(provider: string): string {
   const code = platformOAuthLinkParamsSchema.shape.provider.parse(provider)
   return platformApiPath(`/me/oauth-links/${encodeURIComponent(code)}/start`)
+}
+
+/**
+ * Start an OAuth link round trip for the packaged app.
+ *
+ * The app cannot carry a bearer session across the document navigation that the
+ * plain `platformOAuthLinkStartUrl` implies, so it asks for the provider URL
+ * over JSON instead and opens that URL in the system browser. The returned
+ * authorization URL is provider-owned, so a document navigation would leak the
+ * API's 401 JSON into the WebView as page content — the defect this replaces.
+ */
+export function startPlatformOAuthLinkApp(
+  input: PlatformOAuthLinkAppStartInput
+) {
+  const code = platformOAuthLinkParamsSchema.shape.provider.parse(
+    input.provider
+  )
+  const submission = platformOAuthLinkAppStartRequestSchema.parse({
+    codeChallenge: input.codeChallenge,
+  })
+  return platformApiClient.Post(
+    platformApiPath(`/me/oauth-links/${encodeURIComponent(code)}/start`),
+    submission,
+    parsed(platformOAuthLinkAppStartResponseSchema, {
+      errorSchema: platformAccountSecurityErrorSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
 }

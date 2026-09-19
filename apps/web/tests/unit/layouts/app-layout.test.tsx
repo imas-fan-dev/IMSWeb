@@ -216,13 +216,38 @@ describe("AppLayout", () => {
     // hand the same one-time code to two consumers.
     expect(deepLink.start).toHaveBeenCalledTimes(1)
     const onUnclaimed = deepLink.start.mock.calls[0]?.[0] as
-      | (() => void)
+      | ((payload: { code?: string; flow?: "link" }) => void)
       | undefined
     expect(typeof onUnclaimed).toBe("function")
 
-    act(() => onUnclaimed?.())
+    act(() => onUnclaimed?.({ code: "login-code" }))
 
     expect(screen.getByText("登录内容")).toBeVisible()
     expect(screen.queryByText("首页内容")).not.toBeInTheDocument()
+  })
+
+  it("sends an unclaimed link callback to the account security screen", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route index element={<main>首页内容</main>} />
+              <Route path="account/login" element={<main>登录内容</main>} />
+              <Route path="account/security" element={<main>安全内容</main>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    const onUnclaimed = deepLink.start.mock.calls[0]?.[0] as
+      | ((payload: { code?: string; flow?: "link" }) => void)
+      | undefined
+
+    act(() => onUnclaimed?.({ code: "link-code", flow: "link" }))
+
+    expect(screen.getByText("安全内容")).toBeVisible()
+    expect(screen.queryByText("登录内容")).not.toBeInTheDocument()
   })
 })

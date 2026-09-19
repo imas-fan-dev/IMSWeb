@@ -5,15 +5,16 @@ import {
   LoaderCircleIcon,
   Unlink2Icon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useSearchParams } from "react-router"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
-import { Alert, AlertDescription } from "~/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import {
   getPlatformOAuthLinks,
   getPlatformOAuthProviders,
@@ -31,6 +32,7 @@ import {
   isRateLimited,
   oauthLinkReasonKey,
 } from "./account-security-model"
+import { usePlatformOAuthAppLink } from "./use-platform-oauth-app-link"
 
 export function OAuthLinkSection({
   readOnly,
@@ -58,9 +60,6 @@ export function OAuthLinkSection({
           : null
       })()
     : null
-  const oauthMessage = oauthNotice
-    ? t(oauthNotice.key, { provider: "" }).trim()
-    : ""
   const [links, setLinks] = useState<PlatformOAuthLink[] | null>(null)
   const [providers, setProviders] = useState<PlatformOAuthProvider[] | null>(
     null
@@ -71,6 +70,30 @@ export function OAuthLinkSection({
   const [feedback, setFeedback] = useState("")
   const [actionError, setActionError] = useState("")
   const [reloadToken, setReloadToken] = useState(0)
+
+  const reloadLinks = useCallback(() => {
+    setLoading(true)
+    setReloadToken((token) => token + 1)
+  }, [setLoading, setReloadToken])
+  // The App link round trip lands as a `flow=link` deep link, not the API's
+  // `?oauth=` return. Its outcome is merged into the same banner the Web path
+  // already uses, so both targets report reasons identically.
+  const appLink = usePlatformOAuthAppLink(reloadLinks)
+  const appNotice = appLink.result
+  const notice = appNotice ?? oauthNotice
+  const providerNameFor = (code: string | null): string =>
+    code
+      ? ((providers ?? []).find((provider) => provider.code === code)
+          ?.displayName ?? "")
+      : ""
+  // The banner names the provider the round trip belonged to; while waiting the
+  // same lookup tells the user which provider they are authorizing.
+  const noticeMessage = notice
+    ? t(notice.key, {
+        provider: appNotice ? providerNameFor(appLink.activeProvider) : "",
+      }).trim()
+    : ""
+  const waitingProviderName = providerNameFor(appLink.activeProvider)
 
   // The reason is consumed once and stripped so a refresh does not replay it.
   const oauthReason = searchParams.get("oauth")
@@ -129,8 +152,7 @@ export function OAuthLinkSection({
       )
       // `removable` on the surviving rows depends on what is left, so the list
       // is re-read rather than patched locally.
-      setLoading(true)
-      setReloadToken((token) => token + 1)
+      reloadLinks()
     } catch (error) {
       if (isLastLoginMethod(error)) {
         setActionError(t("platformAccount.security.oauth.lastLoginMethod"))
@@ -164,21 +186,45 @@ export function OAuthLinkSection({
         {t("platformAccount.security.oauth.description")}
       </p>
 
-      {feedback || (oauthNotice?.success && oauthMessage) ? (
+      {feedback || (notice?.success && noticeMessage) ? (
         <Alert className="mt-4" aria-live="polite">
           <CircleCheckIcon aria-hidden="true" />
-          <AlertDescription>{feedback || oauthMessage}</AlertDescription>
+          <AlertDescription>{feedback || noticeMessage}</AlertDescription>
         </Alert>
       ) : null}
 
-      {actionError || (oauthNotice && !oauthNotice.success) ? (
+      {actionError || (notice && !notice.success) ? (
         <Alert variant="destructive" className="mt-4" aria-live="assertive">
           <CircleAlertIcon aria-hidden="true" />
-          <AlertDescription>{actionError || oauthMessage}</AlertDescription>
+          <AlertDescription>{actionError || noticeMessage}</AlertDescription>
         </Alert>
       ) : null}
 
-      {loading ? (
+      {appLink.waiting ? (
+        <div className="mt-4 space-y-3">
+          <Alert role="status" aria-live="polite">
+            <LoaderCircleIcon
+              className="animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+            <AlertTitle>
+              {t("platformAccount.security.oauth.linkWaiting")}
+            </AlertTitle>
+            {waitingProviderName ? (
+              <AlertDescription>{waitingProviderName}</AlertDescription>
+            ) : null}
+          </Alert>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={appLink.cancel}
+          >
+            {t("platformAccount.security.oauth.linkCancel")}
+          </Button>
+        </div>
+      ) : loading ? (
         <div className="mt-4 space-y-3" aria-busy="true">
           <p className="sr-only" aria-live="polite">
             {t("platformAccount.security.oauth.loading")}
@@ -292,27 +338,45 @@ export function OAuthLinkSection({
                 </p>
               </div>
               {/*
-                A plain document navigation, exactly like the provider buttons
-                on the login page: the API answers /start with a 303 to the
-                provider. No JSON schema exists for a redirect success.
+                Web keeps the plain document navigation, exactly like the
+                provider buttons on the login page: the API answers /start with
+                a 303 to the provider. The App cannot — a document navigation
+                carries no bearer session — so it starts the round trip over
+                JSON and waits for the `flow=link` deep link instead.
               */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                nativeButton={false}
-                disabled={readOnly}
-                aria-label={t("platformAccount.security.oauth.linkLabel", {
-                  provider: provider.displayName,
-                })}
-                render={
-                  <NavigationLink
-                    href={platformOAuthLinkStartUrl(provider.code)}
-                  />
-                }
-              >
-                {t("platformAccount.security.oauth.link")}
-              </Button>
+              {IS_APP_TARGET ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={readOnly}
+                  aria-label={t("platformAccount.security.oauth.linkLabel", {
+                    provider: provider.displayName,
+                  })}
+                  onClick={() => void appLink.start(provider.code)}
+                >
+                  {t("platformAccount.security.oauth.link")}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  nativeButton={false}
+                  disabled={readOnly}
+                  aria-label={t("platformAccount.security.oauth.linkLabel", {
+                    provider: provider.displayName,
+                  })}
+                  render={
+                    <NavigationLink
+                      href={platformOAuthLinkStartUrl(provider.code)}
+                    />
+                  }
+                >
+                  {t("platformAccount.security.oauth.link")}
+                </Button>
+              )}
             </li>
           ))}
         </ul>

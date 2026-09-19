@@ -115,6 +115,7 @@ export type PlatformOAuthLinkReasonKey =
   | "platformAccount.security.oauth.linkAlreadyBound"
   | "platformAccount.security.oauth.linkUnavailable"
   | "platformAccount.security.oauth.linkExpired"
+  | "platformAccount.security.oauth.linkDenied"
   | "platformAccount.security.oauth.linkFailed"
 
 export function oauthLinkReasonKey(
@@ -131,6 +132,11 @@ export function oauthLinkReasonKey(
       return "platformAccount.security.oauth.linkUnavailable"
     case "link-expired":
       return "platformAccount.security.oauth.linkExpired"
+    case "denied":
+      // Only the app link channel delivers this one: a browser refusal on the
+      // web path returns to the login page. Saying "you cancelled" is the
+      // difference between a dead end and an obvious retry.
+      return "platformAccount.security.oauth.linkDenied"
     case "link-invalid":
     case "link-failed":
       return "platformAccount.security.oauth.linkFailed"

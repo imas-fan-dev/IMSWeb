@@ -4,6 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { API_ORIGIN, exchangePlatformOAuthSession, isApiError } from "~/lib/api"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { openSystemUrl } from "~/lib/navigation/system-opener"
+import {
+  clearPlatformOAuthAppVerifier,
+  createPlatformOAuthPkcePair,
+  readPlatformOAuthAppVerifier,
+  writePlatformOAuthAppVerifier,
+} from "~/lib/platform-oauth-app-verifier"
 import { subscribePlatformOAuthPayload } from "~/lib/platform-oauth-deep-link"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 
@@ -26,20 +32,7 @@ export type PlatformOAuthAppErrorKey =
   | "platformAuth.oauth.unavailable"
   | "platformAuth.oauth.failed"
 
-const OAUTH_APP_VERIFIER_KEY = "ims.platform.oauth-app-verifier"
 const OAUTH_APP_CODE_TTL_MS = 5 * 60_000
-/**
- * The API's OAuth state lives for ten minutes, and the verifier is worthless
- * once that state is gone — so it is kept for exactly that long.
- *
- * `localStorage`, not `sessionStorage`, is what makes a killed process
- * survivable. The OS can reclaim the app while the user authorizes in the
- * system browser, and a WebView session store does not outlive that; the
- * returned code then arrives with no verifier to redeem it and the sign-in is
- * silently lost. The verifier never travels through the deep link, so keeping
- * it on disk adds nothing to another app that claims the same scheme.
- */
-const OAUTH_APP_VERIFIER_TTL_MS = 10 * 60_000
 const OAUTH_APP_RETURN_PATH = "/account/me"
 
 export interface PlatformOAuthAppLogin {
@@ -48,73 +41,6 @@ export interface PlatformOAuthAppLogin {
   activeProvider: string | null
   start: (providerCode: string) => Promise<void>
   cancel: () => void
-}
-
-function base64UrlEncode(bytes: Uint8Array): string {
-  let binary = ""
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
-}
-
-async function createCodeVerifier(): Promise<{
-  verifier: string
-  challenge: string
-}> {
-  const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)))
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(verifier)
-  )
-  return { verifier, challenge: base64UrlEncode(new Uint8Array(digest)) }
-}
-
-interface StoredOAuthAppVerifier {
-  verifier: string
-  expiresAt: number
-}
-
-function readStoredVerifier(): string | null {
-  try {
-    const raw = window.localStorage.getItem(OAUTH_APP_VERIFIER_KEY)
-    if (!raw) return null
-    const stored = JSON.parse(raw) as Partial<StoredOAuthAppVerifier> | null
-    if (
-      typeof stored?.verifier !== "string" ||
-      !stored.verifier ||
-      typeof stored.expiresAt !== "number" ||
-      stored.expiresAt <= Date.now()
-    ) {
-      clearStoredVerifier()
-      return null
-    }
-    return stored.verifier
-  } catch {
-    // Unparseable or storage-denied: redeem nothing rather than guess.
-    clearStoredVerifier()
-    return null
-  }
-}
-
-function writeStoredVerifier(verifier: string): void {
-  try {
-    window.localStorage.setItem(
-      OAUTH_APP_VERIFIER_KEY,
-      JSON.stringify({
-        verifier,
-        expiresAt: Date.now() + OAUTH_APP_VERIFIER_TTL_MS,
-      })
-    )
-  } catch {
-    // A storage-denied WebView still keeps the in-memory copy.
-  }
-}
-
-function clearStoredVerifier(): void {
-  try {
-    window.localStorage.removeItem(OAUTH_APP_VERIFIER_KEY)
-  } catch {
-    // Nothing to clear.
-  }
 }
 
 /** Maps the API's exchange errors onto an existing `platformAuth.oauth` key. */
@@ -151,7 +77,6 @@ export function usePlatformOAuthAppLogin(): PlatformOAuthAppLogin {
     null
   )
   const [activeProvider, setActiveProvider] = useState<string | null>(null)
-  const verifierRef = useRef<string | null>(null)
   const timeoutRef = useRef<number | null>(null)
   const handlingRef = useRef(false)
   const mountedRef = useRef(true)
@@ -168,8 +93,7 @@ export function usePlatformOAuthAppLogin(): PlatformOAuthAppLogin {
   }, [])
 
   const forgetVerifier = useCallback(() => {
-    verifierRef.current = null
-    clearStoredVerifier()
+    clearPlatformOAuthAppVerifier("login")
   }, [])
 
   const fail = useCallback(
@@ -188,7 +112,7 @@ export function usePlatformOAuthAppLogin(): PlatformOAuthAppLogin {
     async (code: string) => {
       if (handlingRef.current) return
       handlingRef.current = true
-      const verifier = verifierRef.current ?? readStoredVerifier()
+      const verifier = readPlatformOAuthAppVerifier("login")
       if (!verifier) {
         fail("platformAuth.oauth.expired")
         return
@@ -245,9 +169,8 @@ export function usePlatformOAuthAppLogin(): PlatformOAuthAppLogin {
       }
       setErrorKey(null)
       try {
-        const { verifier, challenge } = await createCodeVerifier()
-        verifierRef.current = verifier
-        writeStoredVerifier(verifier)
+        const { verifier, challenge } = await createPlatformOAuthPkcePair()
+        writePlatformOAuthAppVerifier("login", verifier)
         const returnPath = encodeURIComponent(OAUTH_APP_RETURN_PATH)
         const startPath = platformAuthOAuthPath(
           `/${encodeURIComponent(providerCode)}/start?client=app&codeChallenge=${challenge}&returnPath=${returnPath}`

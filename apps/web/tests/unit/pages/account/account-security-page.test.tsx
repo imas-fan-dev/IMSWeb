@@ -38,6 +38,30 @@ const emailApiMocks = vi.hoisted(() => ({
   changePlatformEmail: vi.fn(),
 }))
 
+const appTarget = vi.hoisted(() => ({ IS_APP_TARGET: false }))
+
+const appLinkMocks = vi.hoisted(() => ({
+  usePlatformOAuthAppLink: vi.fn(),
+  start: vi.fn(),
+  cancel: vi.fn(),
+}))
+
+// The build target is a module constant, so the App case flips it through a
+// live getter instead of a second copy of the page test.
+vi.mock("~/lib/app-target", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/app-target")>()
+  return {
+    ...actual,
+    get IS_APP_TARGET() {
+      return appTarget.IS_APP_TARGET
+    },
+  }
+})
+
+vi.mock("~/pages/account/security/use-platform-oauth-app-link", () => ({
+  usePlatformOAuthAppLink: appLinkMocks.usePlatformOAuthAppLink,
+}))
+
 vi.mock("~/components/platform/platform-session-provider", () => ({
   usePlatformSession: sessionMocks.usePlatformSession,
 }))
@@ -204,6 +228,14 @@ async function submitPasswordChange(user: ReturnType<typeof userEvent.setup>) {
 describe("AccountSecurityPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    appTarget.IS_APP_TARGET = false
+    appLinkMocks.usePlatformOAuthAppLink.mockReturnValue({
+      waiting: false,
+      activeProvider: null,
+      result: null,
+      start: appLinkMocks.start,
+      cancel: appLinkMocks.cancel,
+    })
     sessionMocks.usePlatformSession.mockReturnValue(authenticatedSession())
     apiMocks.changePlatformPassword.mockReturnValue({
       send: apiMocks.sendPasswordChange,
@@ -609,6 +641,25 @@ describe("AccountSecurityPage", () => {
       within(googleRow as HTMLElement).queryByText("尚未绑定的第三方登录方式。")
     ).toBeVisible()
     expect(screen.queryByRole("button", { name: "绑定 GitHub" })).toBeNull()
+  })
+
+  // The defect this guards: the App used to render the same document-navigation
+  // link, so the WebView rendered the API's 401 JSON as the page. In the App the
+  // entry must be a command that starts the bearer-authenticated link flow.
+  it("starts the app link flow from a button instead of a document navigation", async () => {
+    appTarget.IS_APP_TARGET = true
+    const user = userEvent.setup()
+    renderPage()
+
+    const googleRow = (await screen.findByText("Google")).closest("li")
+    const bind = within(googleRow as HTMLElement).getByRole("button", {
+      name: "绑定 Google",
+    })
+    expect(bind.tagName).toBe("BUTTON")
+    expect(bind).not.toHaveAttribute("href")
+
+    await user.click(bind)
+    expect(appLinkMocks.start).toHaveBeenCalledWith("google")
   })
 
   it("maps the oauth return reason to a readable error", async () => {

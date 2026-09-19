@@ -47,15 +47,19 @@ export default function AppLayout() {
   // The OAuth return deep link belongs to the app, not to the sign-in screen.
   // A cold start delivers it while the app sits on whatever route it launched
   // with, so delivery starts here — at the shell, once — and a callback nothing
-  // is listening for sends the user to the screen that can redeem it.
+  // is listening for sends the user to the screen that can finish it. Login and
+  // link share the channel, so the flow decides the destination.
   const navigate = useNavigation()
   const navigateRef = useRef(navigate)
   useEffect(() => {
     navigateRef.current = navigate
   }, [navigate])
   useEffect(() => {
-    startPlatformOAuthDeepLink(() => {
-      navigateRef.current("/account/login", { replace: true })
+    startPlatformOAuthDeepLink((payload) => {
+      navigateRef.current(
+        payload.flow === "link" ? "/account/security" : "/account/login",
+        { replace: true }
+      )
     })
   }, [])
 

@@ -11,6 +11,7 @@ import {
   getPlatformEmailCredential,
   platformOAuthLinkStartUrl,
   sendPlatformEmailVerificationCode,
+  startPlatformOAuthLinkApp,
 } from "~/lib/api/endpoints/platform/account-security"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
@@ -153,6 +154,66 @@ describe("Platform email binding API contracts", () => {
       "/api/platform/me/oauth-links/github/start"
     )
     expect(() => platformOAuthLinkStartUrl("Not A Provider")).toThrow()
+  })
+
+  it("posts the app link start with the challenge, CSRF, and no redirect", async () => {
+    setCsrfCookie("platform", "binding-csrf")
+    const challenge = "a".repeat(43)
+    const requests = captureRequests(() => ({
+      success: true,
+      authorizationUrl: "https://provider.example/authorize",
+    }))
+
+    await expect(
+      startPlatformOAuthLinkApp({
+        provider: "github",
+        codeChallenge: challenge,
+      }).send()
+    ).resolves.toEqual({
+      success: true,
+      authorizationUrl: "https://provider.example/authorize",
+    })
+
+    expect(requests).toEqual([
+      {
+        path: "/api/platform/me/oauth-links/github/start",
+        method: "POST",
+        csrf: "binding-csrf",
+        body: { codeChallenge: challenge },
+      },
+    ])
+  })
+
+  it("rejects an invalid provider or challenge before any request", () => {
+    expect(() =>
+      startPlatformOAuthLinkApp({
+        provider: "Not A Provider",
+        codeChallenge: "a".repeat(43),
+      })
+    ).toThrow()
+    expect(() =>
+      startPlatformOAuthLinkApp({ provider: "github", codeChallenge: "short" })
+    ).toThrow()
+  })
+
+  it("surfaces the unavailable-provider error code from the app link start", async () => {
+    setCsrfCookie("platform", "binding-csrf")
+    installFetchMock(async () =>
+      Response.json(
+        { success: false, code: "PLATFORM_OAUTH_LINK_UNAVAILABLE" },
+        { status: 404 }
+      )
+    )
+
+    await expect(
+      startPlatformOAuthLinkApp({
+        provider: "google",
+        codeChallenge: "a".repeat(43),
+      }).send()
+    ).rejects.toMatchObject({
+      status: 404,
+      code: "PLATFORM_OAUTH_LINK_UNAVAILABLE",
+    })
   })
 
   it("rejects a response that carries fields the contract does not allow", async () => {

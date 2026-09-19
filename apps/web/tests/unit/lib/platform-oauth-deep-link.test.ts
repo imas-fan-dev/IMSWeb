@@ -47,6 +47,27 @@ describe("parsePlatformOAuthCallbackUrl", () => {
       parsePlatformOAuthCallbackUrl("IMSWEB://oauth/callback?code=abc")
     ).toEqual({ code: "abc" })
   })
+
+  it("tags a link callback with its flow", () => {
+    expect(
+      parsePlatformOAuthCallbackUrl(
+        "imsweb://oauth/callback?code=abc123&flow=link"
+      )
+    ).toEqual({ code: "abc123", flow: "link" })
+    expect(
+      parsePlatformOAuthCallbackUrl(
+        "imsweb://oauth/callback?error=linked&flow=link"
+      )
+    ).toEqual({ error: "linked", flow: "link" })
+  })
+
+  it("leaves a flow value it does not own out of the payload", () => {
+    expect(
+      parsePlatformOAuthCallbackUrl(
+        "imsweb://oauth/callback?code=abc123&flow=login"
+      )
+    ).toEqual({ code: "abc123" })
+  })
 })
 
 describe("subscribePlatformOAuthCallback", () => {
@@ -170,5 +191,49 @@ describe("app-wide callback delivery", () => {
     const handler = vi.fn()
     deepLink.subscribePlatformOAuthPayload(handler)
     expect(handler).not.toHaveBeenCalled()
+  })
+
+  it("routes a link callback only to link listeners", async () => {
+    const { deepLink } = await startedDelivery()
+    const login = vi.fn()
+    const link = vi.fn()
+    deepLink.subscribePlatformOAuthPayload(login)
+    deepLink.subscribePlatformOAuthPayload(link, "link")
+
+    mocks.emit?.(["imsweb://oauth/callback?code=link-code&flow=link"])
+
+    expect(link).toHaveBeenCalledWith({ code: "link-code", flow: "link" })
+    expect(login).not.toHaveBeenCalled()
+  })
+
+  it("does not hand a login callback to a link listener", async () => {
+    const { deepLink } = await startedDelivery()
+    const login = vi.fn()
+    const link = vi.fn()
+    deepLink.subscribePlatformOAuthPayload(login)
+    deepLink.subscribePlatformOAuthPayload(link, "link")
+
+    mocks.emit?.(["imsweb://oauth/callback?code=login-code"])
+
+    expect(login).toHaveBeenCalledWith({ code: "login-code" })
+    expect(link).not.toHaveBeenCalled()
+  })
+
+  it("holds each flow separately until its own listener arrives", async () => {
+    const { deepLink, unclaimed } = await startedDelivery()
+
+    mocks.emit?.(["imsweb://oauth/callback?code=login-code"])
+    mocks.emit?.(["imsweb://oauth/callback?code=link-code&flow=link"])
+    expect(unclaimed).toHaveBeenCalledTimes(2)
+
+    const login = vi.fn()
+    const link = vi.fn()
+    deepLink.subscribePlatformOAuthPayload(login)
+    deepLink.subscribePlatformOAuthPayload(link, "link")
+
+    expect(login).toHaveBeenCalledTimes(1)
+    expect(login).toHaveBeenCalledWith({ code: "login-code" })
+    expect(link).toHaveBeenCalledTimes(1)
+    expect(link).toHaveBeenCalledWith({ code: "link-code", flow: "link" })
   })
 })
