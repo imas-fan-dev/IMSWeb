@@ -56,7 +56,7 @@
   `linkingAccountId: string | null`（与绑定任务共享）、`clientTarget`、`appCodeChallenge`。
 - 新增 `PlatformOAuthExchangeCodeRecord`、`NewPlatformOAuthExchangeCodeInput`。
 - 仓储接口加 `createOAuthExchangeCode` / `consumeOAuthExchangeCode` /
-  `findOAuthStateClientTarget`。
+  `findOAuthStateClientTarget`（批次 2 改名为 `findOAuthStateReturnChannel`，见 `design.md` 第 12.3 节）。
 
 2.3 仓储 `apps/api/src/infra/db/repositories/platform-account-repository.ts`
 - `createOAuthState`（`:498-521`）：INSERT 列表加 `client_target` / `app_code_challenge`；
@@ -293,3 +293,93 @@ pnpm run app android --release
 仅一项：是否接受「跳出去再回来」的外部浏览器体验（方案 A/C 固有）。其余前提已拍定，
 `design.md` 第 11 节风险表中列出的 iOS 回跳行为需真机结论，若不可接受则切换到 HTTPS 中转页方案，
 不需要改动本计划的第 1–5 步。
+
+---
+
+## 12. 批次 2：app 内 OAuth 绑定（link）回跳
+
+> 追加于 2026-09-20。触发缺陷：app 内账号安全页点「绑定」把 WebView 整页导航到
+> `/api/platform/me/oauth-links/<provider>/start`，document 导航带不出 bearer，API 回
+> 401 `PLATFORM_SESSION_INVALID`，WebView 把 JSON 渲染成页面。
+> 登录通道（批次 1）不变；这里补齐 link 的 app 回跳通道。绑定语义/端点仍归
+> `09-18-account-oauth-email-binding`。
+
+### 契约（先落，其余依赖）
+
+12.1 `packages/contracts/src/platform/account-security.ts`
+- 新增 `platformOAuthLinkAppStartRequestSchema`：`{ codeChallenge: /^[A-Za-z0-9_-]{43}$/ }`，`.strict()`。
+- 新增 `platformOAuthLinkAppStartResponseSchema`：`successEnvelope({ authorizationUrl: z.string().min(1).max(4096) }).strict()`。
+- 导出对应类型。根 namespace 不变（同子路径）。
+- 验证：`pnpm --filter @imsweb/contracts run build`。
+
+### API
+
+12.2 共享 start 核心：`oauth-links/oauth-link-round-trip.ts`（capability 根，用途命名模块）
+- 从 `handlers/start-oauth-link.ts` 抽出「provider 解析 → 服务端 PKCE → 授权 URL → 建 state」，
+  GET 与 POST 两个 handler 共用；GET 行为逐字节不变（`clientTarget: 'web'`、`appCodeChallenge: null`）。
+
+12.3 `oauth-links/routes.ts` + `handlers/start-oauth-link-app.ts`
+- 新增 `POST /oauth-links/:provider/start`：
+  `platformAuth → activePlatformMutation → platformCsrf → platformOAuthLinkRateLimit →
+   requirePlatformJson → paramSchemaValidator(platformOAuthLinkParamsSchema…)
+   → jsonSchemaValidator(platformOAuthLinkAppStartRequestSchema, { errorBody }) → handler`。
+- handler：`clientTarget: 'app'`、`appCodeChallenge = body.codeChallenge`、`linkingAccountId = claims.id`、
+  `intent: 'link'`、`returnPath: '/account/security'`；成功 200 返回 `{ success: true, authorizationUrl }`
+  （`Cache-Control: no-store`）；provider 不可用 404 `PLATFORM_OAUTH_LINK_UNAVAILABLE`。
+- 非法 body 的错误体构造器放 handler 模块（route 模块禁止箭头函数）。
+
+12.4 回调分流：`handlers/oauth-link-branch.ts`
+- 失败回跳 `redirectToPlatformOAuthLink`：`client_target === 'app'` → 303
+  `imsweb://oauth/callback?error=<reason>&flow=link`；否则维持 `return_path?oauth=<reason>`。
+- 成功：`client_target === 'app'` 时不回 SPA，改为铸造一次性码（`createOAuthExchangeCode`，
+  `accountId = linking_account_id`、`codeChallenge = app_code_challenge`）→ 303
+  `imsweb://oauth/callback?code=<code>&flow=link`；否则维持 `?oauth=linked`。
+
+12.5 provider 拒绝早退路径：`handlers/oauth-login.ts`
+- `findOAuthStateClientTarget` 需要同时知道 `intent`，才能给 link 方补 `flow=link`。
+  端口/仓储改为一次只读返回 `{ clientTarget, intent }`（重命名并更新唯一调用点与夹具）。
+
+12.6 测试 `apps/api/tests/server/platform-email-binding.contract.test.ts`（夹具 `AccountSecurityFixture`）
+- app start 200 + `authorizationUrl`、state 落 `clientTarget='app'` + challenge、无 bearer 401、非法 body 400、不可用 provider 404。
+- 回调成功 → `Location: imsweb://oauth/callback?code=…&flow=link`；回调各类失败 → `?error=<reason>&flow=link`；web 断言不变。
+- 契约符合性：请求体拒绝未知键、响应与 `platformOAuthLinkAppStartResponseSchema` 逐字节一致。
+- 路由清单：`node scripts/contracts/compile-route-inventory.mjs --write` 后跑一次新鲜度检查。
+
+### Web
+
+12.7 PKCE/verifier 复用：`apps/web/app/lib/platform-oauth-app-verifier.ts`（新）
+- 抽出 `createPlatformOAuthPkcePair()` 与按用途分键的 verifier 存取（`login` / `link` 两个 key），
+  登录 hook 改为调用它，行为不变（含 localStorage TTL 语义）。
+
+12.8 端点：`apps/web/app/lib/api/endpoints/platform/account-security.ts`
+- 新增 `startPlatformOAuthLinkApp({ provider, codeChallenge })`，`platformApiClient.Post` +
+  `parsed(platformOAuthLinkAppStartResponseSchema, { errorSchema: platformAccountSecurityErrorSchema, meta: withPlatformCsrf() })`。
+- `~/lib/api` barrel 导出。
+
+12.9 深链 flow 分流：`apps/web/app/lib/platform-oauth-deep-link.ts`
+- `parsePlatformOAuthCallbackUrl` 读 `flow`：`link` 时返回 `{ ...payload, flow: 'link' }`，缺省不出现 `flow` 键
+  （`{code}` / `{error}` 的既有断言保持不变）。
+- `subscribePlatformOAuthPayload(handler, flow = 'login')` 按 flow 注册；投递只给同 flow 监听者，
+  没有同 flow 监听者才缓存 + `onUnclaimed(payload)`；缓存按 flow 各留一份。
+- `app-layout.tsx` 的 `onUnclaimed` 按 payload 的 flow 落到 `/account/security` 或 `/account/login`。
+
+12.10 页面 hook + UI：`pages/account/security/use-platform-oauth-app-link.ts`（新）+ `oauth-link-section.tsx`
+- `start(provider)`：生成 verifier/challenge → 存 verifier → POST app start → `openSystemUrl(authorizationUrl)`
+  → 等待态 + 300 秒超时；`cancel()` 清 verifier 与等待态。
+- 订阅 `flow='link'`：`code` → `exchangePlatformOAuthSession` → `acceptSession` → 重拉列表 → 提示 `linked`；
+  `error` → `oauthLinkReasonKey` 映射文案；两者都结束等待态。
+- 「绑定」按钮：`IS_APP_TARGET` 下改为普通 button 调 `start`（不再 `NavigationLink`）；web 分支 JSX 不动。
+- i18n：`platformAccount.security.oauth.linkWaiting` / `linkCancel`（中英各一处）。
+
+12.11 Web 测试
+- 深链单测：`flow=link` 解析、按 flow 投递、无同 flow 监听者才缓存。
+- 新 hook 单测：start 的请求体/href、深链 code → exchange + 重拉 + 提示、error 映射、cancel、超时。
+- 账号安全页 app 态单测：绑定是 button 且点击调用 start（不是文档导航）。
+- `app-layout.test.tsx`：`onUnclaimed` 按 flow 路由。
+- 验证：`pnpm --filter @imsweb/web exec vitest run tests/unit`、`format`、`lint`。
+
+### 闸门与回滚
+
+- 闸门：契约构建 → API 测试 + 路由清单新鲜度 → Web 单测/format/lint → `pnpm run check:rules`。
+- 回滚：删 POST 路由 + handler + 契约 schema，link 回跳恢复为单一 web 行为（`client_target` 仍是 web）；
+  Web 侧移除 app hook 分支与 `flow` 解析即回到现状。批次 1 的登录通道不受影响。

@@ -88,6 +88,18 @@ provider 只看到我们那个 **HTTPS 回调**；app 回跳发生在我们自�
 - MR9 `?oauth=<reason>` 失败原因在登录页可见
 - MR10 授权页在外部浏览器打开期间，app 内给出等待态与取消入口
 
+### 追加范围：app 内 OAuth 绑定（link）回跳
+
+登录通道打通后，账号安全页的绑定入口在 app 内仍是一个指向会话保护的 API 的整页文档导航,
+WebView 拿不到 bearer 会话，直接把 401 的 JSON 渲染成页面。绑定本身由子任务
+`09-18-account-oauth-email-binding` 负责，本节只补 app 侧的回跳通道。
+
+- MR11 app 内绑定入口不再做整页文档导航；点击后走带 bearer 的 JSON start，拿到 provider 授权地址
+- MR12 app 发起的绑定，回调以 `flow=link` 的深链回跳：成功带一次性码（复用既有 exchange），失败带 `error=<reason>`
+- MR13 深链投递按 flow 分流，登录与绑定互不消费对方的回调；无监听者的冷启动按 flow 落到 `/account/login` 或 `/account/security`
+- MR14 app 内绑定有等待态与取消入口，完成后刷新已绑定列表并展示 reason 映射的结果
+- MR15 Web 绑定链路保持 `client_target='web'` + 303 回 `return_path`，行为逐字节不变
+
 ## Acceptance Criteria
 
 - [ ] AC1 iOS 与 Android app 内均能看到 OAuth 登录入口
@@ -100,11 +112,18 @@ provider 只看到我们那个 **HTTPS 回调**；app 回跳发生在我们自�
 - [ ] AC8 provider 列表加载失败时入口显示失败态与重试，不静默消失
 - [ ] AC9 登录失败时登录页展示由 `?oauth=<reason>` 映射出的原因
 - [ ] AC10 provider 表结构与 `validatePlatformOAuthRedirectUri` 的 HTTPS 校验均未变更
+- [ ] AC11 app 内点绑定不再导航到 API（不再出现裸 JSON）；系统浏览器打开授权页，app 内出现等待态
+- [ ] AC12 授权完成后深链带 `code` 与 `flow=link`，app 换取会话后列表刷新并提示已绑定
+- [ ] AC13 `link-conflict` / `link-already-bound` / `link-unavailable` / `link-expired` 在 app 内可见
+- [ ] AC14 登录深链与绑定深链互不串流（含冷启动缓存投递）
+- [ ] AC15 Web 绑定行为与改动前一致，既有测试不回归
+- [ ] AC16 app 绑定复用的一次性码重放仍被拒
 
 ## Out of Scope
 
 - 用 Google Identity Services / Sign in with Apple 原生 SDK 换取更优体验（需要 Tauri 原生插件，另评估）
-- OAuth 绑定（link）流程本身——由子任务 `09-18-account-oauth-email-binding` 负责；本子任务的回调分流需要与之协调 `intent` 字段
+- OAuth 绑定（link）的绑定语义与端点——由子任务 `09-18-account-oauth-email-binding` 负责。
+  本子任务只补 app 侧回跳通道：link start 的 app 变体、回调按 `client_target` 分流、深链按 flow 分流
 - 内嵌 in-app 浏览器（WebView 内完成授权）方案
 - 桌面端（非移动）行为调整
 

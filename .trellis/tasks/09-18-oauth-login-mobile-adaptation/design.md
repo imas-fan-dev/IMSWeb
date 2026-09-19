@@ -178,7 +178,8 @@ else:
 ```
 
 **app 失败态回跳。** provider 拒绝（`query.error`）时 state 尚未消费。为让 app 等待态确定性地结束
-（AC7），回调在 `state` 存在时调用新增的只读 `findOAuthStateClientTarget(hashValue(state), provider.code, now)`；
+（AC7），回调在 `state` 存在时调用新增的只读 `findOAuthStateClientTarget(hashValue(state), provider.code, now)`
+（批次 2 因 link 也需要 `intent` 而改名为 `findOAuthStateReturnChannel`，见第 12.3 节）；
 若为 `app` 则 303 到 `APP_OAUTH_CALLBACK_URL + ?error=denied`，否则维持
 `/account/login?oauth=denied`。state 已过期时无从得知发起方，走原 web 重定向，由 app 侧超时兜底。
 
@@ -282,7 +283,7 @@ DROP TABLE public.platform_oauth_exchange_codes;
   `createOAuthState` 模式）。
 - `consumeOAuthExchangeCode(codeHash, consumedAt)` — `DELETE ... RETURNING account_id, code_challenge`。
 - `findOAuthStateClientTarget(stateHash, providerCode, now)` — 只读 `SELECT client_target`，供失败
-  回跳分派，不消费。
+  回跳分派，不消费。批次 2 改名为 `findOAuthStateReturnChannel`，返回 `{ clientTarget, intent }`。
 
 ## 8. Tauri 侧改动
 
@@ -411,3 +412,56 @@ intent-filter，则不手改 `gen/`，而是新增 `apps/web/scripts/android-oau
 **需要产品拍板的新决策（仅一项）：** 是否接受「跳出去再回来」的外部浏览器体验（方案 A/C 固有），
 或要求「不离开 app」（方案 D，成本高一个量级）。其余（iOS/Android 同期、scheme + verifier、
 不改 provider）已在前提中拍定。
+
+---
+
+## 12. 追加设计：app 内绑定（link）回跳
+
+登录通道（第 1–9 节）没覆盖绑定。账号安全页在 app 构建里同样渲染绑定入口，而它是一条
+指向会话保护 API 的整页文档导航：`resolve-navigation.ts` 把 `/api` 前缀解析为「导航到 API
+origin」，document 导航带不出 bearer，`platformAuth` 回 401 `PLATFORM_SESSION_INVALID`，
+WebView 把 JSON 当页面渲染。
+
+### 12.1 为什么不复用 GET /start
+
+GET `/me/oauth-links/:provider/start` 依赖浏览器会话（cookie 或文档导航携带的凭据），
+app 两者都没有。`redirect: 'manual'` 拿不到 `Location`（opaque redirect），
+`credentials: 'include'` 跨源不成立。所以 app 需要一个返回授权地址的**带会话 JSON** 入口：
+`POST /me/oauth-links/:provider/start`，body `{ codeChallenge }`，响应
+`{ success: true, authorizationUrl }`；provider 不可用 404 `PLATFORM_OAUTH_LINK_UNAVAILABLE`。
+Web 的 GET 保持逐字节不变，两者共用 `oauth-link-round-trip.ts`（provider 解析、服务端 PKCE、
+授权 URL、state 写入），避免两条运输方式漂移。
+
+### 12.2 回跳沿用既有一次性码，而不是只回传一个 reason
+
+`client_target='app'` 的 state 由数据库约束要求必须带 `app_code_challenge`。绑定成功时按登录
+app 分支同一套原语铸造 5 分钟一次性码（`platform_oauth_exchange_codes`，绑定
+`linking_account_id` + challenge），303 到 `imsweb://oauth/callback?code=…&flow=link`；
+app 用 login 流程同一个 exchange 端点换取会话。这样「绑定完成」是密码学绑定的信号而不是
+可伪造的提示，且复用已经过测试的防重放通道。换取到的会话属于 `linking_account_id`
+（即 app 当前帐号），`acceptSession` 只是刷新令牌。
+
+失败（冲突、不可用、过期、provider 拒绝）没有可兑换的东西，走
+`imsweb://oauth/callback?error=<reason>&flow=link`，app 把 reason 经既有的
+`oauthLinkReasonKey` 映射成文案，并重拉绑定列表作为权威状态。
+
+### 12.3 flow 维度
+
+深链只有一个 scheme 承载两种流程，所以回调带 `flow=link` 标识；缺省视为登录。
+`subscribePlatformOAuthPayload(handler, flow)` 按 flow 注册，投递只到同 flow 监听者，
+缓存也按 flow 各留一份——登录与绑定不会互相消费对方的一次性码。无监听者的冷启动由
+`startPlatformOAuthDeepLink` 把 payload 交给 shell，按 flow 落到 `/account/security`
+或 `/account/login`。
+
+`findOAuthStateClientTarget` 改名 `findOAuthStateReturnChannel`，一次只读返回
+`{ clientTarget, intent }`：provider 在消费前拒绝时，回调既要知道是不是 app，
+也要知道是不是 link，才能给出带 `flow=link` 的深链。
+
+### 12.4 未覆盖
+
+绑定成功那一跳的真实回前台行为（iOS 对 303 → 自定义 scheme 的处理）仍需真机证据，
+与第 11 节风险表同一条；本次只把 web 与单元层面的链路补齐。
+
+冷启动且会话已失效时，`flow=link` 的 payload 会留在按 flow 的缓冲里，安全页的匿名分支只给
+「去登录」按钮，不会提示有一笔待完成的授权。用户在 5 分钟内重新登录并回到
+`/account/security` 仍会消费它，但在此之前没有任何提示——已知 UX 缺口，不在本次范围。

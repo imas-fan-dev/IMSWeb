@@ -318,8 +318,14 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
    关于页头图、制作人地图、直播、编年史封面）跨源后仍会失效。
 2. **Backoffice realm**：令牌通道只做了 Platform。app 产物已排除全部 admin 路由，
    所以这不阻塞打包客户端；若将来要在移动端进入后台，需要同样的改造。
-3. **Platform OAuth**：当前 callback 建立 cookie session，并重定向到 API origin 下的页面；
-   这与 App 的 Bearer token 和本地 WebView 返回地址不兼容。App 暂不显示 OAuth provider，
-   后续需要 deep link 与一次性 token exchange 后才能开放。
+3. **Platform OAuth**：登录与帐号绑定（link）在 App 内均已走「系统浏览器授权 →
+   `imsweb://oauth/callback` 深链回流 → 一次性码」通道
+   （`apps/web/app/lib/platform-oauth-deep-link.ts`、
+   `apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-app-branch.ts`、
+   `.../oauth-link-branch.ts`）。Web 侧仍是 cookie session + 303 回 `return_path`；
+   两条通道由 state 行的 `client_target` 分流，provider 配置未变。深链回调的
+   `flow=link` 标识把绑定与登录分开投递（冷启动无监听者时按 flow 落到
+   `/account/security` 或 `/account/login`）。iOS 从 303 跳自定义 scheme 的回前台行为
+   仍需真机结论（见第 4 项）。
 4. **真机验证**：Platform 登录到拉取列表的完整链路仍需纳入发布前设备门禁；站点包的本地
    LAN 访问和系统浏览器跳转已由构建、组件与浏览器回归测试覆盖。
