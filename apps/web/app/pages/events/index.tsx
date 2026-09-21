@@ -9,11 +9,14 @@ import {
 } from "react"
 
 import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
+import { PublicFeedHeader } from "~/components/shared/public-feed-header"
 import { PullToRefresh } from "~/components/shared/pull-to-refresh"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { useInfiniteScroll } from "~/lib/use-infinite-scroll"
+import { usePublicFeedColumnCount } from "~/lib/use-public-feed-column-count"
+import { cn } from "~/lib/utils"
 import { EventRow, EventsSkeleton } from "./components/events-list"
 import { useEventsFeed } from "./hooks/use-events-feed"
 
@@ -59,6 +62,8 @@ export function EventsCenter() {
   } = useEventsFeed()
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
+  const columnCount = usePublicFeedColumnCount()
+  const virtualRowCount = Math.ceil(items.length / columnCount)
 
   const sentinelRef = useInfiniteScroll({
     hasNextPage: pageInfo.hasNextPage,
@@ -67,14 +72,14 @@ export function EventsCenter() {
   })
 
   const getItemKey = useCallback(
-    (index: number) => items[index]?.id ?? index,
-    [items]
+    (rowIndex: number) => items[rowIndex * columnCount]?.id ?? rowIndex,
+    [columnCount, items]
   )
   const virtualizer = useWindowVirtualizer({
     // Let Router reset the previous document before the App list binds the
     // window. An empty loading view must not capture the source page's offset.
     enabled: !IS_APP_TARGET || (phase === "ready" && items.length > 0),
-    count: items.length,
+    count: virtualRowCount,
     estimateSize: () => 144,
     getItemKey,
     overscan: 6,
@@ -82,11 +87,16 @@ export function EventsCenter() {
     useFlushSync: false,
   })
   const virtualItems = virtualizer.getVirtualItems()
+  const measureVirtualizer = virtualizer.measure
 
   const attachList = useCallback((node: HTMLDivElement | null) => {
     listRef.current = node
     if (node) setScrollMargin(node.offsetTop)
   }, [])
+
+  useEffect(() => {
+    measureVirtualizer()
+  }, [columnCount, items, measureVirtualizer])
 
   useEffect(() => {
     const updateScrollMargin = () => {
@@ -103,47 +113,41 @@ export function EventsCenter() {
           <h1 className="text-xl font-semibold">社区动态</h1>
         </div>
       ) : (
-        <section className="border-b bg-muted/25">
-          <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-            <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-              <div className="max-w-2xl">
-                <p className="text-xs font-semibold text-primary">COMMUNITY</p>
-                <h1 className="mt-2 text-3xl font-semibold">社区动态</h1>
-                <p className="mt-3 leading-7 text-muted-foreground">
-                  汇集制作人社区近期发布的公告、招募、企划与具体活动。
-                </p>
+        <PublicFeedHeader
+          eyebrow="COMMUNITY"
+          title="社区动态"
+          description="汇集制作人社区近期发布的公告、招募、企划与具体活动。"
+          actions={
+            phase === "ready" && items.length ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm text-muted-foreground">
+                  已加载 {items.length} 条
+                </span>
+                {/* Touch viewports refresh by pulling the list. A mouse has
+                    no such gesture, so the pointer layout keeps a button. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void refresh()}
+                  disabled={refreshing}
+                  aria-label="刷新社区动态列表"
+                  title="刷新社区动态列表"
+                  className="max-sm:hidden"
+                >
+                  {refreshing ? (
+                    <LoaderCircleIcon
+                      aria-hidden="true"
+                      className="animate-spin motion-reduce:animate-none"
+                    />
+                  ) : (
+                    <RefreshCwIcon aria-hidden="true" />
+                  )}
+                  刷新
+                </Button>
               </div>
-              {phase === "ready" && items.length ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">
-                    已加载 {items.length} 条
-                  </span>
-                  {/* Touch viewports refresh by pulling the list. A mouse has
-                      no such gesture, so the pointer layout keeps a button. */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void refresh()}
-                    disabled={refreshing}
-                    aria-label="刷新社区动态列表"
-                    title="刷新社区动态列表"
-                    className="max-sm:hidden"
-                  >
-                    {refreshing ? (
-                      <LoaderCircleIcon
-                        aria-hidden="true"
-                        className="animate-spin motion-reduce:animate-none"
-                      />
-                    ) : (
-                      <RefreshCwIcon aria-hidden="true" />
-                    )}
-                    刷新
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
+            ) : undefined
+          }
+        />
       )}
 
       <PullToRefresh
@@ -154,7 +158,7 @@ export function EventsCenter() {
           className={
             IS_APP_TARGET
               ? "w-full px-(--app-safe-inline) py-3"
-              : "mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8"
+              : "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
           }
           aria-labelledby="events-list-heading"
         >
@@ -201,23 +205,42 @@ export function EventsCenter() {
                 className="relative w-full"
                 style={{ height: virtualizer.getTotalSize() }}
               >
-                {virtualItems.map((virtualItem) => {
-                  const event = items[virtualItem.index]
-                  if (!event) return null
+                {virtualItems.map((virtualRow) => {
+                  const firstItemIndex = virtualRow.index * columnCount
+                  const rowItems = items.slice(
+                    firstItemIndex,
+                    firstItemIndex + columnCount
+                  )
+                  if (rowItems.length === 0) return null
+
                   return (
                     <div
-                      key={virtualItem.key}
+                      key={virtualRow.key}
                       ref={virtualizer.measureElement}
-                      role="listitem"
-                      aria-posinset={virtualItem.index + 1}
-                      aria-setsize={items.length}
-                      data-index={virtualItem.index}
-                      className="absolute top-0 left-0 w-full"
+                      role="presentation"
+                      data-index={virtualRow.index}
+                      className={cn(
+                        "absolute top-0 left-0 grid w-full grid-cols-1",
+                        columnCount === 2 && "grid-cols-2 gap-x-6"
+                      )}
                       style={{
-                        transform: `translateY(${virtualItem.start - scrollMargin}px)`,
+                        transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                       }}
                     >
-                      <EventRow event={event} />
+                      {rowItems.map((event, columnIndex) => {
+                        const itemIndex = firstItemIndex + columnIndex
+                        return (
+                          <div
+                            key={event.id}
+                            role="listitem"
+                            aria-posinset={itemIndex + 1}
+                            aria-setsize={items.length}
+                            className="min-w-0"
+                          >
+                            <EventRow event={event} />
+                          </div>
+                        )
+                      })}
                     </div>
                   )
                 })}

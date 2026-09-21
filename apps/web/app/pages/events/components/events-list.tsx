@@ -8,6 +8,8 @@ import {
 import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Skeleton } from "~/components/ui/skeleton"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 import type { EventListItem } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -126,11 +128,17 @@ export function EventRow({ event }: { event: EventListItem }) {
 
 export function EventsSkeleton() {
   return (
-    <div className="divide-y" aria-label="正在加载活动">
+    <div
+      className={cn(
+        "grid grid-cols-1",
+        !IS_APP_TARGET && "lg:grid-cols-2 lg:gap-x-6"
+      )}
+      aria-label="正在加载活动"
+    >
       {[0, 1, 2, 3].map((item) => (
         <div
           key={item}
-          className="grid h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-2 p-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4"
+          className="grid h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-2 border-b p-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4"
         >
           <Skeleton className="aspect-4/3 w-full self-center" />
           <div className="flex min-w-0 flex-col justify-center overflow-hidden">

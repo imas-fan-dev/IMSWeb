@@ -1,8 +1,10 @@
 import { ArrowUpRightIcon, ImageIcon } from "lucide-react"
 
-import { Skeleton } from "~/components/ui/skeleton"
-import { resolveSafeMediaUrl, type Recommendation } from "~/lib/api"
 import { NavigationLink } from "~/components/navigation/navigation-link"
+import { Skeleton } from "~/components/ui/skeleton"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { resolveSafeMediaUrl, type Recommendation } from "~/lib/api"
+import { cn } from "~/lib/utils"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -73,11 +75,17 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
 
 export function RecommendationsSkeleton() {
   return (
-    <div className="divide-y" aria-label="正在加载推荐">
+    <div
+      className={cn(
+        "grid grid-cols-1",
+        !IS_APP_TARGET && "lg:grid-cols-2 lg:gap-x-6"
+      )}
+      aria-label="正在加载推荐"
+    >
       {[0, 1, 2, 3].map((item) => (
         <div
           key={item}
-          className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6"
+          className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 border-b py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6"
         >
           <Skeleton className="aspect-4/3 w-full" />
           <div className="space-y-3 py-1">
