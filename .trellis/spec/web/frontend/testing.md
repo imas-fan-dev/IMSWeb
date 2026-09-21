@@ -71,6 +71,12 @@ Check keyboard operation, semantic roles, overflow, fixed controls, dialog
 bounds, and safe areas where applicable. Use AxeBuilder in an existing
 accessibility suite when the changed page is already covered there.
 
+Axe covers only part of a role contract. Its `listitem` rule inspects `ul` and `ol`,
+so it does not report a `div[role="list"]` whose listitems are separated by a generic
+wrapper. When a change alters list ownership, assert the roles and the per-item
+`aria-posinset` / `aria-setsize` in a unit test as well; a green axe run on that page
+is not evidence of correct ownership.
+
 MapLibre success-path coverage requires WebGL and belongs to the Chromium
 desktop and mobile projects. GitHub's headless Firefox runner does not expose a
 stable canvas path, so Firefox skips that one success case while retaining the

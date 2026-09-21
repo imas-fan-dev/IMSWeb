@@ -15,7 +15,7 @@ index and do not replace those files.
 | --- | --- |
 | [Architecture](./architecture.md) | Route descriptors, pages, layouts, shared modules, app shell |
 | [API, state, and contracts](./api-state-and-contracts.md) | Endpoints, parsing, CSRF, session transport, App OAuth code exchange, request state |
-| [Components and UX](./components-and-ux.md) | Ownership, stylesheet layers and design tokens, accessibility, account-security sections, provider buttons, bounded namecard columns, pagination, preview lifecycle, popup geometry |
+| [Components and UX](./components-and-ux.md) | Ownership, stylesheet layers and design tokens, accessibility, account-security sections, provider buttons, bounded namecard columns, responsive virtualized feed columns, pagination, preview lifecycle, popup geometry |
 | [App navigation](./app-navigation.md) | Section ownership, queued tab input, scroll continuity, back behavior, directories, shell-owned OAuth routing, and native tab verification |
 | [Tauri mobile integration](./tauri-mobile-integration.md) | Native plugin, capability, permission, deep-link return, and platform metadata contracts |
 | [Testing](./testing.md) | Unit, component, browser, and routing tests |

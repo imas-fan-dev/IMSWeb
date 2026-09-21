@@ -251,6 +251,37 @@ rows can sit above the viewport and return negative `DOMRect` values; clamping t
 values to zero creates false overflow failures. Compare relative centers, edges, and
 adjacent row bounds directly.
 
+### Multi-column virtualized rows
+
+CSS grid cannot reflow absolutely positioned virtual items into columns, so a
+responsive multi-column virtualized feed packs consecutive items into virtual rows
+instead. Below the desktop breakpoint and on the App target, one item is one virtual
+row; at `lg` and above, two consecutive items share a row, and an odd trailing item
+occupies only the first column.
+
+Express the virtualizer `count`, stable item keys, `estimateSize`, and
+`getTotalSize()` in virtual rows, not raw items. The row container stays the sole
+`measureElement` target and keeps the row-level `data-index`, while each rendered
+item keeps `role="listitem"`, source order, `aria-posinset`, and the item total.
+Call the virtualizer's `measure()` when the column count or the item array changes,
+so no stale row height survives a breakpoint crossing, a refresh, or an appended
+page.
+
+A `role="list"` must own `listitem` elements, and a row wrapper between them breaks
+that ownership. Give the wrapper `role="presentation"` so the generic element is
+flattened out of the accessibility tree and the listitems become the list's owned
+children again. Axe does not catch this: its `listitem` rule only inspects `ul` and
+`ol`, so a green accessibility run is not evidence that a `div[role="list"]` owns
+its items.
+
+Derive the column count from one source that the loading state can mirror.
+Subscribing to `(min-width: 1024px)` with `useSyncExternalStore`, a no-op subscribe
+when `window.matchMedia` is missing, and a single-column server snapshot keeps SSR
+and the App target on one column; a skeleton switching on `lg:` then agrees with the
+same 1024px threshold. When a `divide-y` skeleton container becomes a grid, move the
+separator onto each cell (`border-b`) to match the real row, or the loading state
+silently loses the border hierarchy the loaded list has.
+
 ### App navigation
 
 Follow [App navigation](./app-navigation.md) for section ownership, queued tab
