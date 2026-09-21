@@ -446,6 +446,9 @@ export async function expectNamecardReactionDensity(page: Page) {
     .poll(() =>
       groups.evaluateAll((elements) => {
         const mobile = !matchMedia("(min-width: 48rem)").matches
+        // Mobile controls keep a 44px touch target; the desktop chip is a
+        // compact 32px pill (`md:h-8`) that grows with its count.
+        const minTarget = mobile ? 43.5 : 31.5
         return elements.every((group) => {
           const card = group.closest("[data-namecard-item]")!
           const cardBox = card.getBoundingClientRect()
@@ -471,8 +474,8 @@ export async function expectNamecardReactionDensity(page: Page) {
               const imageBox = image?.getBoundingClientRect()
               return (
                 (!mobile || rows.get(row)! <= 4) &&
-                box.width >= 43.5 &&
-                box.height >= 43.5 &&
+                box.width >= minTarget &&
+                box.height >= minTarget &&
                 box.left >= cardBox.left - 0.5 &&
                 box.right <= cardBox.right + 0.5 &&
                 button.scrollWidth <= button.clientWidth &&

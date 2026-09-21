@@ -274,9 +274,23 @@ describe("CommunityCardsPage", () => {
       </MemoryRouter>
     )
 
-    expect(
-      await screen.findByRole("button", { name: "认领这张旧名片" })
-    ).toBeVisible()
+    const claimButton = await screen.findByRole("button", {
+      name: "认领这张旧名片",
+    })
+    expect(claimButton).toBeVisible()
+    expect(claimButton).toHaveClass(
+      "h-auto",
+      "min-h-11",
+      "md:col-start-2",
+      "md:row-start-2",
+      "md:h-8",
+      "md:min-h-8",
+      "md:mr-4",
+      "md:self-center",
+      "md:justify-self-end",
+      "md:whitespace-nowrap"
+    )
+    expect(claimButton).not.toHaveClass("md:h-7")
   })
 
   it("opens the complete reaction picker and updates the selected count", async () => {
@@ -319,7 +333,10 @@ describe("CommunityCardsPage", () => {
     expect(reaction).toHaveClass(
       "min-h-11",
       "min-w-[max(2.75rem,25%)]",
-      "md:min-w-11"
+      "md:h-8",
+      "md:min-h-8",
+      "md:min-w-0",
+      "md:rounded-full"
     )
     expect(reaction.querySelector("img")).toHaveClass("size-4", "md:size-5")
 
@@ -425,9 +442,12 @@ describe("CommunityCardsPage", () => {
         "text-xs",
         "tabular-nums",
         "max-md:focus-visible:ring-inset",
-        "md:min-w-11",
+        "md:h-8",
+        "md:min-h-8",
+        "md:min-w-0",
         "md:gap-1.5",
-        "md:px-2.5",
+        "md:rounded-full",
+        "md:px-3",
         "md:text-sm"
       )
       expect(chip).not.toHaveClass("w-11", "w-1/4", "basis-1/4", "truncate")
@@ -440,8 +460,12 @@ describe("CommunityCardsPage", () => {
       "min-w-[max(2.75rem,25%)]",
       "shrink-0",
       "max-md:focus-visible:ring-inset",
-      "md:w-11",
-      "md:min-w-11"
+      "md:size-8",
+      "md:min-h-8",
+      "md:min-w-8",
+      "md:rounded-full",
+      "md:border-dashed",
+      "md:bg-transparent"
     )
   })
 
@@ -504,6 +528,7 @@ describe("CommunityCardsPage", () => {
   it("groups each namecard in one visible Card with both faces in API order and guarded masonry", async () => {
     const result = pageResult([42, 43, 44, 45])
     result.list[0].claimStatus = "claimed"
+    result.list[1].claimStatus = "pending"
     apiMocks.sendPage.mockResolvedValue(result)
     renderPage()
 
@@ -547,7 +572,14 @@ describe("CommunityCardsPage", () => {
         "rounded-lg",
         "overflow-hidden",
         "self-start",
+        "md:grid",
+        "md:grid-cols-[minmax(0,1fr)_auto]",
+        "md:content-start",
+        "md:gap-x-4",
+        "md:gap-y-0",
         "md:h-full",
+        "md:self-stretch",
+        "md:bg-muted/50",
         "max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start)",
         "max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end)",
         "max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column)",
@@ -557,7 +589,8 @@ describe("CommunityCardsPage", () => {
         "h-full",
         "nth-[2n+4]:translate-y-6",
         "ring-0",
-        "bg-transparent"
+        "bg-transparent",
+        "md:gap-4"
       )
       expect(item.querySelectorAll('[data-slot="card"]')).toHaveLength(0)
       expect(item.querySelector("time")?.closest('[data-slot="card"]')).toBe(
@@ -568,6 +601,10 @@ describe("CommunityCardsPage", () => {
       ).toBe(item)
       expect(item.querySelector('[data-slot="card-header"]')).toHaveClass(
         "px-2",
+        "md:col-start-1",
+        "md:row-start-2",
+        "md:min-h-8",
+        "md:items-center",
         "md:px-4"
       )
       const faces = within(item).getAllByRole("button", {
@@ -577,7 +614,13 @@ describe("CommunityCardsPage", () => {
       expect(faces[0].parentElement).toHaveClass(
         "grid",
         "gap-1",
-        "md:grid-cols-2"
+        "md:col-span-2",
+        "md:col-start-1",
+        "md:row-start-1",
+        "md:mb-4",
+        "md:grid-cols-2",
+        "md:border-b",
+        "md:bg-border"
       )
       for (const face of faces) {
         expect(face).not.toHaveClass("hidden")
@@ -591,14 +634,46 @@ describe("CommunityCardsPage", () => {
         "border-0",
         "p-2",
         "pt-0",
-        "md:bg-muted/50",
-        "md:border-t",
-        "md:p-4"
+        "md:contents"
+      )
+      expect(within(item).getByLabelText("名片反应").parentElement).toHaveClass(
+        "md:col-span-2",
+        "md:col-start-1",
+        "md:row-start-3",
+        "md:px-4",
+        "md:pt-3",
+        "md:pb-4"
       )
     }
     expect(
       screen.getByText("已由注册用户认领").closest('[data-slot="card"]')
     ).toBe(items[0])
+    const claimedBadge = screen
+      .getByText("已由注册用户认领")
+      .closest('[data-slot="badge"]')!
+    const claimPlacement = [
+      "md:col-start-2",
+      "md:row-start-2",
+      "md:mr-4",
+      "md:self-center",
+      "md:justify-self-end",
+    ]
+    expect(claimedBadge).toHaveClass(
+      "h-auto",
+      "min-h-5",
+      "max-w-full",
+      "whitespace-normal",
+      "border-border",
+      "md:h-6",
+      "md:px-2.5",
+      "md:whitespace-nowrap",
+      "md:text-muted-foreground",
+      ...claimPlacement
+    )
+    expect(claimedBadge).not.toHaveClass("bg-secondary")
+    expect(
+      screen.getByText("认领审核中").closest('[data-slot="badge"]')!
+    ).toHaveClass(...claimPlacement)
     expect(
       screen.queryByRole("group", { name: "名片显示面" })
     ).not.toBeInTheDocument()

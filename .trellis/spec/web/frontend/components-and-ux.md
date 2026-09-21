@@ -206,6 +206,33 @@ full-width Card edges and restore desktop padding and gaps. Browser coverage
 must prove four short-count entries at 402px, narrow-screen wrapping, six-digit
 counts without overflow, and unchanged picker sizing.
 
+Desktop list chips are compact pills rather than squares: `md:h-8` with
+`md:min-h-8`, natural width (`md:min-w-0`), `md:rounded-full`, and `md:px-3`,
+keeping 20px graphics and 14px counts. The add button matches that height as a
+32px dashed outline circle (`md:size-8`, `md:bg-transparent`), so an existing
+reaction and the add affordance stay distinguishable.
+
+On desktop the Card is a grid (`md:grid-cols-[minmax(0,1fr)_auto]`,
+`md:content-start`) with three rows: the faces, the metadata row, and the
+reaction row. The submission date and the claim control share the metadata row —
+date left, claim right-aligned — so the area below the faces carries two bands
+instead of three. The footer turns into `md:contents` at that breakpoint so its
+chips and its claim can land in different rows: paint the panel on the Card
+(`md:bg-muted/50`) and the separator on the faces row, because a
+`display: contents` element renders no background, border, or padding. Keep the
+claim at `md:mr-4` so it lines up with the chips' `md:px-4` inset, and hold the
+metadata row at `md:min-h-8` so every card in a row is the same height and the
+grid's stretch leaves no filler above the panel. Center the metadata with
+`md:items-center` on the header: padding the header instead moves the date off
+the claim's optical center.
+
+The mobile floor is a `min-height`, so a desktop override needs both `md:h-*`
+and `md:min-h-*`; `md:h-7` alone left the claim button 44px tall. Branch the
+browser geometry helper on the breakpoint instead of applying one target size to
+both: mobile keeps at least 44px, while the desktop pill may be 32px because it
+grows with its count. A touch device at desktop width receives the desktop pill —
+the 44px rule is a mobile-branch contract, not a global one.
+
 ### Continuous namecard previews
 
 Keep one `NamecardPreview` Dialog mounted while changing cards. The page-private

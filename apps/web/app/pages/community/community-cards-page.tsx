@@ -177,7 +177,7 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
         <Button
           key={emoji}
           type="button"
-          className="min-h-11 min-w-[max(2.75rem,25%)] gap-0.5 px-0.5 text-xs tabular-nums max-md:focus-visible:ring-inset md:min-w-11 md:gap-1.5 md:border-border md:bg-background md:px-2.5 md:text-sm md:dark:border-input md:dark:bg-input/30 md:dark:hover:bg-input/50"
+          className="min-h-11 min-w-[max(2.75rem,25%)] gap-0.5 px-0.5 text-xs tabular-nums max-md:focus-visible:ring-inset md:h-8 md:min-h-8 md:min-w-0 md:gap-1.5 md:rounded-full md:border-border md:bg-background md:px-3 md:text-sm md:dark:border-input md:dark:bg-input/30 md:dark:hover:bg-input/50"
           variant="ghost"
           disabled={busy !== null}
           aria-label={`${emoji}，${count} 次反应`}
@@ -194,7 +194,7 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
             <Button
               type="button"
               size="icon"
-              className="h-11 min-h-11 w-auto min-w-[max(2.75rem,25%)] max-md:focus-visible:ring-inset md:w-11 md:min-w-11 md:border-border md:bg-background md:dark:border-input md:dark:bg-input/30 md:dark:hover:bg-input/50"
+              className="h-11 min-h-11 w-auto min-w-[max(2.75rem,25%)] max-md:focus-visible:ring-inset md:size-8 md:min-h-8 md:min-w-8 md:rounded-full md:border-dashed md:border-border md:bg-transparent md:text-muted-foreground md:hover:border-solid md:hover:text-foreground md:dark:border-input md:dark:hover:bg-input/50"
               variant="ghost"
               title="添加反应"
               aria-label="添加反应"
@@ -252,9 +252,9 @@ function NamecardItem({
   return (
     <Card
       data-namecard-item
-      className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:h-full md:gap-4 md:self-stretch md:rounded-xl"
+      className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:grid md:h-full md:grid-cols-[minmax(0,1fr)_auto] md:content-start md:gap-x-4 md:gap-y-0 md:self-stretch md:rounded-xl md:bg-muted/50"
     >
-      <div className="grid gap-1 md:grid-cols-2 md:gap-px md:bg-border">
+      <div className="grid gap-1 md:col-span-2 md:col-start-1 md:row-start-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
         {(["front", "back"] as const).map((side) => {
           const thumbnail =
             side === "front"
@@ -279,7 +279,7 @@ function NamecardItem({
           )
         })}
       </div>
-      <CardHeader className="px-2 md:px-4">
+      <CardHeader className="px-2 md:col-start-1 md:row-start-2 md:min-h-8 md:items-center md:px-4">
         <CardDescription className="flex items-start gap-1.5 text-xs/5 whitespace-nowrap tabular-nums">
           <CalendarDaysIcon
             aria-hidden="true"
@@ -298,12 +298,14 @@ function NamecardItem({
           )}
         </CardDescription>
       </CardHeader>
-      <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-2 pt-0 md:mt-auto md:gap-3 md:border-t md:bg-muted/50 md:p-4">
-        <NamecardReactionBar cardId={card.id} />
+      <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-2 pt-0 md:contents">
+        <div className="md:col-span-2 md:col-start-1 md:row-start-3 md:px-4 md:pt-3 md:pb-4">
+          <NamecardReactionBar cardId={card.id} />
+        </div>
         {card.claimStatus === "claimed" ? (
           <Badge
-            variant="secondary"
-            className="h-auto min-h-5 max-w-full whitespace-normal md:h-5 md:whitespace-nowrap"
+            variant="outline"
+            className="h-auto min-h-5 max-w-full whitespace-normal md:col-start-2 md:row-start-2 md:mr-4 md:h-6 md:self-center md:justify-self-end md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
           >
             <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
             已由注册用户认领
@@ -311,7 +313,7 @@ function NamecardItem({
         ) : card.claimStatus === "pending" ? (
           <Badge
             variant="outline"
-            className="h-auto min-h-5 max-w-full whitespace-normal md:h-5 md:whitespace-nowrap"
+            className="h-auto min-h-5 max-w-full whitespace-normal md:col-start-2 md:row-start-2 md:mr-4 md:h-6 md:self-center md:justify-self-end md:px-2.5 md:whitespace-nowrap"
           >
             认领审核中
           </Badge>
@@ -320,7 +322,7 @@ function NamecardItem({
             type="button"
             variant="outline"
             size="sm"
-            className="h-auto min-h-11 max-w-full self-start text-left whitespace-normal md:h-7 md:whitespace-nowrap"
+            className="h-auto min-h-11 max-w-full self-start text-left whitespace-normal md:col-start-2 md:row-start-2 md:mr-4 md:h-8 md:min-h-8 md:self-center md:justify-self-end md:whitespace-nowrap"
             onClick={() => onClaim(card)}
           >
             <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
