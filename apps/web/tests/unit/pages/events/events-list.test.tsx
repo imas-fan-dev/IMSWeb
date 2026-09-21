@@ -139,6 +139,7 @@ describe("EventRow", () => {
       "h-36",
       "grid-cols-[6.5rem_minmax(0,1fr)]",
       "gap-2",
+      "border-b",
       "p-3",
       "sm:grid-cols-[9rem_minmax(0,1fr)]",
       "sm:gap-4",

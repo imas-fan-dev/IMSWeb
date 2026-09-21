@@ -44,6 +44,7 @@ vi.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: (options: { estimateSize: () => number }) => ({
     getTotalSize: () => options.estimateSize(),
     getVirtualItems: () => [{ index: 0, key: "1", start: 0 }],
+    measure: vi.fn(),
     measureElement: vi.fn(),
   }),
 }))

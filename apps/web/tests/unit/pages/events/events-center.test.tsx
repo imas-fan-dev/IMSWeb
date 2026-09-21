@@ -8,9 +8,13 @@ import { EventsCenter } from "~/pages/events/index"
 import { cacheEventFeed } from "~/lib/api"
 import type { EventListItem } from "~/lib/api"
 
-const { virtualizerOptions } = vi.hoisted(() => ({
+const { measureVirtualizer, virtualizerOptions } = vi.hoisted(() => ({
+  measureVirtualizer: vi.fn(),
   virtualizerOptions: vi.fn(),
 }))
+
+let mediaMatches = true
+let mediaChangeListener: (() => void) | undefined
 
 vi.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: (options: {
@@ -29,6 +33,7 @@ vi.mock("@tanstack/react-virtual", () => ({
           key: options.getItemKey(index),
           start: index * estimatedSize,
         })),
+      measure: measureVirtualizer,
       measureElement: vi.fn(),
     }
   },
@@ -56,8 +61,22 @@ function cachedEvent(id: number): EventListItem {
 
 describe("EventsCenter", () => {
   beforeEach(() => {
+    mediaMatches = true
+    mediaChangeListener = undefined
+    measureVirtualizer.mockClear()
+    virtualizerOptions.mockClear()
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation(() => ({
+        matches: mediaMatches,
+        addEventListener: (_event: string, listener: () => void) => {
+          mediaChangeListener = listener
+        },
+        removeEventListener: vi.fn(),
+      }))
+    )
   })
 
   it("loads cursor pages by scroll alone and deduplicates rows", async () => {
@@ -227,17 +246,73 @@ describe("EventsCenter", () => {
 
     expect(await screen.findByText("已加载 65 条")).toBeVisible()
     await waitFor(() =>
-      expect(screen.getAllByRole("listitem")).toHaveLength(12)
+      expect(screen.getAllByRole("listitem")).toHaveLength(24)
     )
     expect(fetchMock).not.toHaveBeenCalled()
     expect(virtualizerOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        count: 65,
+        count: 33,
         overscan: 6,
         useFlushSync: false,
       })
     )
     expect(virtualizerOptions.mock.lastCall?.[0].estimateSize()).toBe(144)
+  })
+
+  it("packs desktop items into virtual rows and returns to one column below lg", async () => {
+    await cacheEventFeed({
+      items: Array.from({ length: 5 }, (_, index) => cachedEvent(5 - index)),
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "5",
+      },
+    })
+
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(5))
+    expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(3)
+    expect(
+      screen.getAllByRole("listitem").map((item) => ({
+        position: item.getAttribute("aria-posinset"),
+        size: item.getAttribute("aria-setsize"),
+      }))
+    ).toEqual([
+      { position: "1", size: "5" },
+      { position: "2", size: "5" },
+      { position: "3", size: "5" },
+      { position: "4", size: "5" },
+      { position: "5", size: "5" },
+    ])
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-2",
+      "gap-x-6"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveAttribute(
+      "role",
+      "presentation"
+    )
+
+    act(() => {
+      mediaMatches = false
+      mediaChangeListener?.()
+    })
+
+    await waitFor(() =>
+      expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(5)
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-1"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).not.toHaveClass(
+      "grid-cols-2"
+    )
+    expect(measureVirtualizer).toHaveBeenCalled()
   })
 
   it("bypasses the Alova snapshot when the user refreshes", async () => {

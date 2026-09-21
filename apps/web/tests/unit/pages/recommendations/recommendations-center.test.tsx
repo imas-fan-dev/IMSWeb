@@ -7,25 +7,32 @@ import { RecommendationsCenter } from "~/pages/recommendations/index"
 import { cacheRecommendationFeed, parseRecommendationPage } from "~/lib/api"
 import type { Recommendation } from "~/lib/api"
 
-const { virtualizerOptions } = vi.hoisted(() => ({
+const { measureVirtualizer, virtualizerOptions } = vi.hoisted(() => ({
+  measureVirtualizer: vi.fn(),
   virtualizerOptions: vi.fn(),
 }))
+
+let mediaMatches = true
+let mediaChangeListener: (() => void) | undefined
 
 vi.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: (options: {
     count: number
+    estimateSize: () => number
     getItemKey: (index: number) => string | number
   }) => {
     virtualizerOptions(options)
     const renderedCount = Math.min(options.count, 12)
+    const estimatedSize = options.estimateSize()
     return {
-      getTotalSize: () => options.count * 176,
+      getTotalSize: () => options.count * estimatedSize,
       getVirtualItems: () =>
         Array.from({ length: renderedCount }, (_, index) => ({
           index,
           key: options.getItemKey(index),
-          start: index * 176,
+          start: index * estimatedSize,
         })),
+      measure: measureVirtualizer,
       measureElement: vi.fn(),
     }
   },
@@ -51,8 +58,22 @@ function cachedRecommendation(id: number): Recommendation {
 
 describe("RecommendationsCenter", () => {
   beforeEach(() => {
+    mediaMatches = true
+    mediaChangeListener = undefined
+    measureVirtualizer.mockClear()
+    virtualizerOptions.mockClear()
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation(() => ({
+        matches: mediaMatches,
+        addEventListener: (_event: string, listener: () => void) => {
+          mediaChangeListener = listener
+        },
+        removeEventListener: vi.fn(),
+      }))
+    )
   })
 
   it("rejects imprecise numeric IDs while accepting PostgreSQL bigint strings", () => {
@@ -89,7 +110,19 @@ describe("RecommendationsCenter", () => {
         })
       )
 
-    render(<RecommendationsCenter />)
+    const { container } = render(<RecommendationsCenter />)
+
+    expect(
+      container.querySelector('[aria-label="正在加载推荐"] > div')
+    ).toHaveClass(
+      "min-h-36",
+      "grid-cols-[6.5rem_minmax(0,1fr)]",
+      "gap-4",
+      "border-b",
+      "py-5",
+      "sm:grid-cols-[9rem_minmax(0,1fr)]",
+      "sm:gap-6"
+    )
 
     // No click anywhere. With IntersectionObserver stubbed out, the scroll
     // fallback is what carries the list, and it runs once on mount so a first
@@ -217,16 +250,71 @@ describe("RecommendationsCenter", () => {
 
     expect(await screen.findByText("已加载 65 条")).toBeVisible()
     await waitFor(() =>
-      expect(screen.getAllByRole("listitem")).toHaveLength(12)
+      expect(screen.getAllByRole("listitem")).toHaveLength(24)
     )
     expect(fetchMock).not.toHaveBeenCalled()
     expect(virtualizerOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        count: 65,
+        count: 33,
         overscan: 6,
         useFlushSync: false,
       })
     )
+    expect(virtualizerOptions.mock.lastCall?.[0].estimateSize()).toBe(176)
+  })
+
+  it("packs desktop items into virtual rows and returns to one column below lg", async () => {
+    await cacheRecommendationFeed({
+      items: Array.from({ length: 5 }, (_, index) =>
+        cachedRecommendation(5 - index)
+      ),
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "5",
+      },
+    })
+
+    render(<RecommendationsCenter />)
+
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(5))
+    expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(3)
+    expect(
+      screen.getAllByRole("listitem").map((item) => ({
+        position: item.getAttribute("aria-posinset"),
+        size: item.getAttribute("aria-setsize"),
+      }))
+    ).toEqual([
+      { position: "1", size: "5" },
+      { position: "2", size: "5" },
+      { position: "3", size: "5" },
+      { position: "4", size: "5" },
+      { position: "5", size: "5" },
+    ])
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-2",
+      "gap-x-6"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveAttribute(
+      "role",
+      "presentation"
+    )
+
+    act(() => {
+      mediaMatches = false
+      mediaChangeListener?.()
+    })
+
+    await waitFor(() =>
+      expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(5)
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-1"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).not.toHaveClass(
+      "grid-cols-2"
+    )
+    expect(measureVirtualizer).toHaveBeenCalled()
   })
 
   it("bypasses the Alova snapshot when the user refreshes", async () => {
