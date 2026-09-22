@@ -11,6 +11,7 @@ import {
 import { WikiStorySourceIcon } from "~/components/wiki/wiki-story-source-icon"
 import type { WikiPublicStoryCard, WikiPublicStoryCategory } from "~/lib/api"
 import { safeExternalStoryUrl } from "~/pages/wiki/wiki-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 interface ClassicStoryDialogProps {
   selected: {
@@ -46,7 +47,12 @@ export function ClassicStoryDialog({
             selected.card.links.map((link) => {
               const href = safeExternalStoryUrl(link.url)
               return href ? (
-                <a key={link.id} href={href} target="_blank" rel="noreferrer">
+                <NavigationLink
+                  key={link.id}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   <WikiStorySourceIcon
                     contentType={link.contentType}
                     iconName={link.contentTypeIcon}
@@ -60,7 +66,7 @@ export function ClassicStoryDialog({
                     <small>来源：{link.up || "未知投稿者"}</small>
                   </span>
                   <ExternalLinkIcon />
-                </a>
+                </NavigationLink>
               ) : (
                 <div key={link.id} className="is-unavailable">
                   来源：{link.up || "未知投稿者"} · 链接不可用

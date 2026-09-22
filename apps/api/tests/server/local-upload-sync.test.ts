@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { test, type TestContext } from 'node:test';
+import { onTestFinished, test } from 'vitest';
 import type {
     ListedObject,
     ObjectStorage,
@@ -65,61 +65,63 @@ class MemoryObjectStorage implements ObjectStorage {
     }
 }
 
-async function fixture(t: TestContext): Promise<string> {
+async function fixture(): Promise<string> {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-upload-sync-'));
     await fs.mkdir(path.join(directory, 'event/original'), { recursive: true });
     await fs.mkdir(path.join(directory, 'news/thumb'), { recursive: true });
     await fs.writeFile(path.join(directory, 'event/original/activity.png'), 'activity');
     await fs.writeFile(path.join(directory, 'news/thumb/recommendation.jpg'), 'recommendation');
     await fs.writeFile(path.join(directory, '.DS_Store'), 'ignored');
-    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    onTestFinished(() => fs.rm(directory, { recursive: true, force: true }));
     return directory;
 }
 
-test('local upload sync maps only mutable business media to stable logical keys', async (t) => {
-    const directory = await fixture(t);
-    const files = await listLocalUploadFiles(directory);
-    assert.deepEqual(files.map((file) =>
-        path.relative(directory, file).split(path.sep).join('/')
-    ), [
-        'event/original/activity.png',
-        'news/thumb/recommendation.jpg'
-    ]);
-});
+test.describe('local upload sync', () => {
+    test('maps only mutable business media to stable logical keys', async () => {
+        const directory = await fixture();
+        const files = await listLocalUploadFiles(directory);
+        assert.deepEqual(files.map((file) =>
+            path.relative(directory, file).split(path.sep).join('/')
+        ), [
+            'event/original/activity.png',
+            'news/thumb/recommendation.jpg'
+        ]);
+    });
 
-test('local upload sync is read-only by default, verifies writes, and is idempotent', async (t) => {
-    const directory = await fixture(t);
-    const storage = new MemoryObjectStorage();
+    test('is read-only by default, verifies writes, and is idempotent', async () => {
+        const directory = await fixture();
+        const storage = new MemoryObjectStorage();
 
-    const audit = await syncLocalUploads(directory, storage, false);
-    assert.equal(audit.summary.wouldUpload, 2);
-    assert.equal(audit.summary.verified, 0);
-    assert.equal(storage.objects.size, 0);
+        const audit = await syncLocalUploads(directory, storage, false);
+        assert.equal(audit.summary.wouldUpload, 2);
+        assert.equal(audit.summary.verified, 0);
+        assert.equal(storage.objects.size, 0);
 
-    const applied = await syncLocalUploads(directory, storage, true);
-    assert.equal(applied.summary.uploaded, 2);
-    assert.equal(applied.summary.verified, 2);
-    assert.equal(storage.objects.get(
-        'editorial/events/assets/activity/poster.png'
-    )?.contentType, 'image/png');
+        const applied = await syncLocalUploads(directory, storage, true);
+        assert.equal(applied.summary.uploaded, 2);
+        assert.equal(applied.summary.verified, 2);
+        assert.equal(storage.objects.get(
+            'editorial/events/assets/activity/poster.png'
+        )?.contentType, 'image/png');
 
-    const repeated = await syncLocalUploads(directory, storage, true);
-    assert.equal(repeated.summary.unchanged, 2);
-    assert.equal(repeated.summary.uploaded, 0);
+        const repeated = await syncLocalUploads(directory, storage, true);
+        assert.equal(repeated.summary.unchanged, 2);
+        assert.equal(repeated.summary.uploaded, 0);
 
-    await fs.writeFile(path.join(directory, 'event/original/activity.png'), 'changed');
-    const changed = await syncLocalUploads(directory, storage, false);
-    assert.equal(changed.summary.wouldReplace, 1);
-    const replaced = await syncLocalUploads(directory, storage, true);
-    assert.equal(replaced.summary.replaced, 1);
-    assert.equal(replaced.summary.verified, 2);
-});
+        await fs.writeFile(path.join(directory, 'event/original/activity.png'), 'changed');
+        const changed = await syncLocalUploads(directory, storage, false);
+        assert.equal(changed.summary.wouldReplace, 1);
+        const replaced = await syncLocalUploads(directory, storage, true);
+        assert.equal(replaced.summary.replaced, 1);
+        assert.equal(replaced.summary.verified, 2);
+    });
 
-test('local upload sync refuses symlinks in the migration source', async (t) => {
-    const directory = await fixture(t);
-    await fs.symlink(
-        path.join(directory, 'event/original/activity.png'),
-        path.join(directory, 'event/original/linked.png')
-    );
-    await assert.rejects(listLocalUploadFiles(directory), /must not contain symlinks/);
+    test('refuses symlinks in the migration source', async () => {
+        const directory = await fixture();
+        await fs.symlink(
+            path.join(directory, 'event/original/activity.png'),
+            path.join(directory, 'event/original/linked.png')
+        );
+        await assert.rejects(listLocalUploadFiles(directory), /must not contain symlinks/);
+    });
 });

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/contracts/shared/quality.md", "reason": "消费端同步与 HTTP 一致性测试的验收标准"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "测试归属、覆盖要求与 PostgreSQL 测试 harness"}
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "管理端页面的组件、响应式与可访问性检查"}
+{"file": ".trellis/spec/api/backend/observability-and-security.md", "reason": "鉴权、审计与日志不得泄露敏感字段"}
+{"file": ".trellis/tasks/09-18-admin-platform-user-management/research/02-audit-write-pattern.md", "reason": "审计表无 result 列的取舍与双写校验依据"}

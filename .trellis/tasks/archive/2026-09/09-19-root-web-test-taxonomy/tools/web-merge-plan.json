@@ -1,0 +1,637 @@
+{
+  "generatedAt": null,
+  "rule": "同目录 + basename 首个 kebab 段成族；目标名取族内成员的最长 kebab 公共前缀",
+  "caps": {
+    "cases": 120,
+    "seconds": 20
+  },
+  "before": {
+    "files": 220,
+    "cases": 1251
+  },
+  "after": {
+    "files": 151
+  },
+  "merges": [
+    {
+      "target": "routes.test.ts",
+      "dir": ".",
+      "ext": "ts",
+      "family": "routes",
+      "members": [
+        "routes-app-target.test.ts",
+        "routes.test.ts"
+      ],
+      "files": 2,
+      "cases": 7,
+      "seconds": null,
+      "risk": []
+    },
+    {
+      "target": "components/app/app.test.tsx",
+      "dir": "components/app",
+      "ext": "tsx",
+      "family": "app",
+      "members": [
+        "components/app/app-cold-start-mask.test.tsx",
+        "components/app/app-navigation-provider.test.tsx",
+        "components/app/app-tab-bar.test.tsx",
+        "components/app/app-tab-model.test.ts",
+        "components/app/app-top-bar.test.tsx"
+      ],
+      "files": 5,
+      "cases": 48,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "components/platform/platform.test.tsx",
+      "dir": "components/platform",
+      "ext": "tsx",
+      "family": "platform",
+      "members": [
+        "components/platform/platform-account-menu.test.tsx",
+        "components/platform/platform-oauth-button-theme.test.ts",
+        "components/platform/platform-session-provider.test.tsx"
+      ],
+      "files": 3,
+      "cases": 21,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "components/shared/series.test.tsx",
+      "dir": "components/shared",
+      "ext": "tsx",
+      "family": "series",
+      "members": [
+        "components/shared/series-accent-strip.test.tsx",
+        "components/shared/series-browser-icon.test.tsx",
+        "components/shared/series-icon-background.test.tsx"
+      ],
+      "files": 3,
+      "cases": 10,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "components/wiki/wiki.test.tsx",
+      "dir": "components/wiki",
+      "ext": "tsx",
+      "family": "wiki",
+      "members": [
+        "components/wiki/wiki-mobile-search.test.tsx",
+        "components/wiki/wiki-view-switch-icon.test.tsx"
+      ],
+      "files": 2,
+      "cases": 4,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "layouts/app.test.tsx",
+      "dir": "layouts",
+      "ext": "tsx",
+      "family": "app",
+      "members": [
+        "layouts/app-layout.test.tsx",
+        "layouts/app-shell-styles.test.ts"
+      ],
+      "files": 2,
+      "cases": 7,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "lib/app.test.ts",
+      "dir": "lib",
+      "ext": "ts",
+      "family": "app",
+      "members": [
+        "lib/app-navigation-state.test.ts",
+        "lib/app-shell-scroll.test.ts"
+      ],
+      "files": 2,
+      "cases": 17,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "lib/native.test.tsx",
+      "dir": "lib",
+      "ext": "tsx",
+      "family": "native",
+      "members": [
+        "lib/native-glass-controls.test.tsx",
+        "lib/native-glass-panel.test.ts",
+        "lib/native-glass.test.ts",
+        "lib/native-tab-bar-suppression.test.ts"
+      ],
+      "files": 4,
+      "cases": 25,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "lib/api/platform.test.ts",
+      "dir": "lib/api",
+      "ext": "ts",
+      "family": "platform",
+      "members": [
+        "lib/api/platform-api.test.ts",
+        "lib/api/platform-bearer.test.ts"
+      ],
+      "files": 2,
+      "cases": 14,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "lib/api/endpoints/fudaba.test.ts",
+      "dir": "lib/api/endpoints",
+      "ext": "ts",
+      "family": "fudaba",
+      "members": [
+        "lib/api/endpoints/fudaba-card-claims.test.ts",
+        "lib/api/endpoints/fudaba-location-review.test.ts",
+        "lib/api/endpoints/fudaba-map-delivery.test.ts",
+        "lib/api/endpoints/fudaba.test.ts"
+      ],
+      "files": 4,
+      "cases": 25,
+      "seconds": null,
+      "risk": []
+    },
+    {
+      "target": "lib/api/endpoints/platform.test.ts",
+      "dir": "lib/api/endpoints",
+      "ext": "ts",
+      "family": "platform",
+      "members": [
+        "lib/api/endpoints/platform-account-security.test.ts",
+        "lib/api/endpoints/platform-admin-email.test.ts",
+        "lib/api/endpoints/platform-admin-users.test.ts",
+        "lib/api/endpoints/platform-admin.test.ts",
+        "lib/api/endpoints/platform-email-binding.test.ts",
+        "lib/api/endpoints/platform.test.ts"
+      ],
+      "files": 6,
+      "cases": 34,
+      "seconds": null,
+      "risk": []
+    },
+    {
+      "target": "pages/account/account.test.tsx",
+      "dir": "pages/account",
+      "ext": "tsx",
+      "family": "account",
+      "members": [
+        "pages/account/account-auth-app-layout.test.tsx",
+        "pages/account/account-auth-mobile-web.test.tsx",
+        "pages/account/account-auth-page.test.tsx",
+        "pages/account/account-me-page.test.tsx",
+        "pages/account/account-me-section-page.test.tsx",
+        "pages/account/account-security-page.test.tsx"
+      ],
+      "files": 6,
+      "cases": 52,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/account/use-platform-oauth-app.test.tsx",
+      "dir": "pages/account",
+      "ext": "tsx",
+      "family": "use-platform-oauth-app",
+      "members": [
+        "pages/account/use-platform-oauth-app-link.test.tsx",
+        "pages/account/use-platform-oauth-app-login.test.tsx"
+      ],
+      "files": 2,
+      "cases": 22,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/admin/recommendations/recommendation.test.tsx",
+      "dir": "pages/admin/recommendations",
+      "ext": "tsx",
+      "family": "recommendation",
+      "members": [
+        "pages/admin/recommendations/recommendation-draft-preview.test.tsx",
+        "pages/admin/recommendations/recommendation-manager.test.tsx"
+      ],
+      "files": 2,
+      "cases": 4,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/admin/stories/components/story.test.tsx",
+      "dir": "pages/admin/stories/components",
+      "ext": "tsx",
+      "family": "story",
+      "members": [
+        "pages/admin/stories/components/story-category-editor-dialog.test.tsx",
+        "pages/admin/stories/components/story-cover-asset-dialog.test.tsx",
+        "pages/admin/stories/components/story-editor-dialog.test.tsx",
+        "pages/admin/stories/components/story-manager.test.tsx",
+        "pages/admin/stories/components/story-outline.test.tsx",
+        "pages/admin/stories/components/story-source-catalog-dialog.test.tsx"
+      ],
+      "files": 6,
+      "cases": 11,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/admin/stories/components/wiki.test.tsx",
+      "dir": "pages/admin/stories/components",
+      "ext": "tsx",
+      "family": "wiki",
+      "members": [
+        "pages/admin/stories/components/wiki-entity-editor-sheet.test.tsx",
+        "pages/admin/stories/components/wiki-hierarchy-explorer.test.tsx"
+      ],
+      "files": 2,
+      "cases": 5,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/community/community.test.tsx",
+      "dir": "pages/community",
+      "ext": "tsx",
+      "family": "community",
+      "members": [
+        "pages/community/community-app-page.test.tsx",
+        "pages/community/community-cards-page.test.tsx",
+        "pages/community/community-exchange-app-page.test.tsx",
+        "pages/community/community-exchange-map-section.test.tsx",
+        "pages/community/community-exchange-page.test.tsx",
+        "pages/community/community-office-page.test.tsx",
+        "pages/community/community-page.test.tsx"
+      ],
+      "files": 7,
+      "cases": 42,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/community/exchange.test.tsx",
+      "dir": "pages/community",
+      "ext": "tsx",
+      "family": "exchange",
+      "members": [
+        "pages/community/exchange-boundary-compliance.test.ts",
+        "pages/community/exchange-components.test.tsx",
+        "pages/community/exchange-map-model.test.ts",
+        "pages/community/exchange-style-asset.test.ts"
+      ],
+      "files": 4,
+      "cases": 40,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/community/components/namecard.test.tsx",
+      "dir": "pages/community/components",
+      "ext": "tsx",
+      "family": "namecard",
+      "members": [
+        "pages/community/components/namecard-reaction-emoji.test.tsx",
+        "pages/community/components/namecard-thumbnail.test.tsx"
+      ],
+      "files": 2,
+      "cases": 11,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/community/exchange/community-exchange.test.tsx",
+      "dir": "pages/community/exchange",
+      "ext": "tsx",
+      "family": "community-exchange",
+      "members": [
+        "pages/community/exchange/community-exchange-me-page.test.tsx",
+        "pages/community/exchange/community-exchange-session.test.tsx"
+      ],
+      "files": 2,
+      "cases": 16,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/community/exchange/exchange.test.tsx",
+      "dir": "pages/community/exchange",
+      "ext": "tsx",
+      "family": "exchange",
+      "members": [
+        "pages/community/exchange/exchange-card-interactions.test.tsx",
+        "pages/community/exchange/exchange-map-attribution.test.ts",
+        "pages/community/exchange/exchange-map-styles.test.ts",
+        "pages/community/exchange/exchange-office-map.test.tsx"
+      ],
+      "files": 4,
+      "cases": 29,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/community/hooks/use-namecard.test.tsx",
+      "dir": "pages/community/hooks",
+      "ext": "tsx",
+      "family": "use-namecard",
+      "members": [
+        "pages/community/hooks/use-namecard-masonry.test.tsx",
+        "pages/community/hooks/use-namecard-pagination-visibility.test.tsx",
+        "pages/community/hooks/use-namecard-preview-navigation.test.ts",
+        "pages/community/hooks/use-namecard-preview-return.test.ts"
+      ],
+      "files": 4,
+      "cases": 39,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/events/events.test.tsx",
+      "dir": "pages/events",
+      "ext": "tsx",
+      "family": "events",
+      "members": [
+        "pages/events/events-app-header.test.tsx",
+        "pages/events/events-center.test.tsx",
+        "pages/events/events-list.test.tsx"
+      ],
+      "files": 3,
+      "cases": 15,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/home/home.test.tsx",
+      "dir": "pages/home",
+      "ext": "tsx",
+      "family": "home",
+      "members": [
+        "pages/home/home-app-target.test.tsx",
+        "pages/home/home-browser-brand.test.tsx",
+        "pages/home/home-content.test.ts",
+        "pages/home/home-feed.test.tsx",
+        "pages/home/home-sections.test.tsx"
+      ],
+      "files": 5,
+      "cases": 12,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/recommendations/recommendations.test.tsx",
+      "dir": "pages/recommendations",
+      "ext": "tsx",
+      "family": "recommendations",
+      "members": [
+        "pages/recommendations/recommendations-app-header.test.tsx",
+        "pages/recommendations/recommendations-center.test.tsx"
+      ],
+      "files": 2,
+      "cases": 8,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/sites/site-detail.test.tsx",
+      "dir": "pages/sites",
+      "ext": "tsx",
+      "family": "site-detail",
+      "members": [
+        "pages/sites/site-detail-app-page.test.tsx",
+        "pages/sites/site-detail-page.test.tsx"
+      ],
+      "files": 2,
+      "cases": 3,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/tier-list/tier-list.test.tsx",
+      "dir": "pages/tier-list",
+      "ext": "tsx",
+      "family": "tier-list",
+      "members": [
+        "pages/tier-list/tier-list-export.test.ts",
+        "pages/tier-list/tier-list-layout.test.tsx",
+        "pages/tier-list/tier-list-model.test.ts",
+        "pages/tier-list/tier-list-storage.test.ts"
+      ],
+      "files": 4,
+      "cases": 34,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    },
+    {
+      "target": "pages/wiki/modern/story-page.test.tsx",
+      "dir": "pages/wiki/modern",
+      "ext": "tsx",
+      "family": "story-page",
+      "members": [
+        "pages/wiki/modern/story-page-app-layout.test.tsx",
+        "pages/wiki/modern/story-page.test.tsx"
+      ],
+      "files": 2,
+      "cases": 10,
+      "seconds": null,
+      "risk": []
+    },
+    {
+      "target": "pages/wiki/modern/components/wiki.test.tsx",
+      "dir": "pages/wiki/modern/components",
+      "ext": "tsx",
+      "family": "wiki",
+      "members": [
+        "pages/wiki/modern/components/wiki-agency-dial-app.test.tsx",
+        "pages/wiki/modern/components/wiki-agency-dial-drag.test.tsx",
+        "pages/wiki/modern/components/wiki-agency-dial.test.tsx",
+        "pages/wiki/modern/components/wiki-group-filter.test.tsx"
+      ],
+      "files": 4,
+      "cases": 6,
+      "seconds": null,
+      "risk": [
+        "新文件名"
+      ]
+    }
+  ],
+  "kept": [
+    "vite-config.test.ts",
+    "components/admin/admin-image-upload-field.test.tsx",
+    "components/admin/confirm-action-dialog.test.tsx",
+    "components/community/idol-multi-select.test.tsx",
+    "components/community/namecard-upload-dialog.test.tsx",
+    "components/editorial/community-post-detail.test.tsx",
+    "components/editorial/editorial-cover.test.ts",
+    "components/navigation/navigation-link.test.tsx",
+    "components/producer-map/china-community-map.test.tsx",
+    "components/shared/admin-return-shortcut.test.tsx",
+    "components/shared/back-to-top.test.tsx",
+    "components/shared/brand-wordmark.test.tsx",
+    "components/shared/cover-image-preview.test.tsx",
+    "components/shared/glass-sheen-tracker.test.tsx",
+    "components/shared/image-loading-indicator.test.tsx",
+    "components/shared/namecard-preview.test.tsx",
+    "components/shared/page-shell.test.tsx",
+    "components/shared/pull-to-refresh.test.tsx",
+    "components/shared/site-header.test.tsx",
+    "components/shared/tauri-interaction-guard.test.tsx",
+    "components/shared/theme-toggle.test.tsx",
+    "components/shared/wiki-transformed-image.test.tsx",
+    "components/ui/button.test.tsx",
+    "components/ui/dialog.test.tsx",
+    "components/ui/overlay-safe-area.test.tsx",
+    "e2e/api-dispatcher.test.ts",
+    "e2e/e2e-source-policy.test.ts",
+    "e2e/playwright-app-config.test.ts",
+    "e2e/unit-source-policy.test.ts",
+    "i18n/language.test.ts",
+    "i18n/provider.test.tsx",
+    "layouts/admin-layout.test.tsx",
+    "layouts/public-layout.test.tsx",
+    "lib/geolocation.test.ts",
+    "lib/glass-material.test.ts",
+    "lib/hosted-site-opener.test.ts",
+    "lib/platform-oauth-deep-link.test.ts",
+    "lib/series-colors.test.ts",
+    "lib/stylesheet-layers.test.ts",
+    "lib/api/api.test.ts",
+    "lib/api/bundle-client.test.ts",
+    "lib/api/cache-policy.test.ts",
+    "lib/api/editorial.test.ts",
+    "lib/api/media-urls.test.ts",
+    "lib/api/origin.test.ts",
+    "lib/api/endpoints/admin.test.ts",
+    "lib/api/endpoints/chronicle.test.ts",
+    "lib/api/endpoints/community.test.ts",
+    "lib/api/endpoints/content-admin-errors.test.ts",
+    "lib/api/endpoints/editorial.test.ts",
+    "lib/api/endpoints/events.test.ts",
+    "lib/api/endpoints/homepage-links.test.ts",
+    "lib/api/endpoints/site-packages.test.ts",
+    "lib/api/endpoints/wiki.test.ts",
+    "lib/media/crop-avatar-image.test.ts",
+    "lib/media/native-image.test.ts",
+    "lib/media/use-app-prepared-image.test.tsx",
+    "lib/navigation/resolve-navigation.test.ts",
+    "lib/navigation/system-opener.test.ts",
+    "mocks/data/about.test.ts",
+    "mocks/data/chronicle.test.ts",
+    "mocks/data/community.test.ts",
+    "mocks/data/editorial.test.ts",
+    "mocks/data/events.test.ts",
+    "mocks/data/fudaba.test.ts",
+    "mocks/data/homepage-links.test.ts",
+    "mocks/data/information.test.ts",
+    "mocks/data/live.test.ts",
+    "mocks/data/namecards.test.ts",
+    "mocks/data/platform.test.ts",
+    "mocks/data/producer-map.test.ts",
+    "mocks/data/recommendations.test.ts",
+    "mocks/data/schema-conformance.test.ts",
+    "mocks/data/site-packages.test.ts",
+    "mocks/data/wiki.test.ts",
+    "mocks/handlers/media.test.ts",
+    "mocks/handlers/public.test.ts",
+    "pages/about/about-page.test.tsx",
+    "pages/account/platform-oauth-app-section.test.tsx",
+    "pages/account/session-device-model.test.ts",
+    "pages/admin/about/about-manager.test.tsx",
+    "pages/admin/accounts/admin-accounts-page.test.tsx",
+    "pages/admin/chronicle/admin-chronicle-page.test.tsx",
+    "pages/admin/community/exchange/admin-community-exchange-page.test.tsx",
+    "pages/admin/events/admin-events-page.test.tsx",
+    "pages/admin/homepage/homepage-link-manager.test.tsx",
+    "pages/admin/hooks/use-confirm-action.test.tsx",
+    "pages/admin/information/information-manager.test.tsx",
+    "pages/admin/login/admin-login-page.test.tsx",
+    "pages/admin/platform-email/admin-platform-email-page.test.tsx",
+    "pages/admin/platform-oauth/admin-platform-oauth-page.test.tsx",
+    "pages/admin/platform-users/admin-platform-users-page.test.tsx",
+    "pages/admin/producer-map/producer-map-manager.test.tsx",
+    "pages/admin/site-packages/site-package-manager.test.tsx",
+    "pages/admin/stories/story-management-page.test.tsx",
+    "pages/admin/stories/components/agency-icon-manager.test.tsx",
+    "pages/admin/stories/components/image-composition-editor.test.tsx",
+    "pages/admin/system/admin-system-page.test.tsx",
+    "pages/apps/apps-page.test.tsx",
+    "pages/chronicle/chronicle-index-page.test.tsx",
+    "pages/community/namecard-submission-page.test.tsx",
+    "pages/community/exchange/components/exchange-mobile-navigation.test.tsx",
+    "pages/community/exchange/me/office-location-workspace.test.tsx",
+    "pages/community/exchange/me/profile-workspace-navigation.test.tsx",
+    "pages/community/exchange/me/components/avatar-upload-editor.test.tsx",
+    "pages/events/event-detail-app-page.test.tsx",
+    "pages/home/birthday-calendar.test.tsx",
+    "pages/information/html-document.test.ts",
+    "pages/information/information-document-frame.test.tsx",
+    "pages/live/live-page.test.tsx",
+    "pages/producer-map/producer-map-page.test.tsx",
+    "pages/tier-list/import-dialog.test.tsx",
+    "pages/wiki/cg-voiced-idols.test.ts",
+    "pages/wiki/wiki-model.test.ts",
+    "pages/wiki/classic/classic-wiki-pages.test.tsx",
+    "pages/wiki/modern/wiki-index-page.test.tsx",
+    "pages/works/content.test.ts",
+    "pages/works/work-detail-app-layout.test.tsx",
+    "pages/works/works-page.test.tsx",
+    "scripts/build-app.test.ts",
+    "scripts/canonicalize-icns.test.ts",
+    "scripts/sync-ios-app-icon.test.ts"
+  ]
+}

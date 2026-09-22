@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+import { test } from 'vitest';
+import {
+    producerMapAdminSnapshotSchema,
+    producerMapAdminUpdateSchema,
+    producerMapContentSchema,
+    producerMapErrorResponseSchema,
+    producerMapImageUploadSchema
+} from '@imsweb/contracts/producer-map';
+import {
+    failureMessageResponseSchema,
+    messageErrorResponseSchema
+} from '@imsweb/contracts/common';
 import { createHonoApp } from '@/app';
-import type { ProducerMapContent } from '@/domains/producer-map/data';
+import type { ProducerMapContent } from '@/domains/content/producer-map/data';
 import { producerMapAssetObjectKey } from '@/utils/storage/business-object-keys';
 import type {
     ListedObject,
@@ -129,7 +141,7 @@ function producerMapContent(): ProducerMapContent {
     };
 }
 
-function fixture() {
+function fixture(dept = 'op') {
     const storage = new MemoryStorage();
     const audit: AuditLogInput[] = [];
     const services: RuntimeServices = {
@@ -140,14 +152,14 @@ function fixture() {
             async insertAuditLog(input) { audit.push(input); },
             async listRecentAuditLogs() { return []; }
         },
-        tokens: {
+        backofficeTokens: {
             async sign() { return 'producer-map-token'; },
             async verify() {
                 return {
                     id: 1,
                     username: 'map-editor',
                     producername: 'Map Producer',
-                    dept: 'op',
+                    dept,
                     csrfSecret: 'producer-map-csrf'
                 };
             }
@@ -159,188 +171,284 @@ function fixture() {
     return { request, audit, storage };
 }
 
-test('producer map images are authenticated, audited, and publicly readable', async () => {
-    const { request, audit } = fixture();
-    const unauthorizedForm = new FormData();
-    unauthorizedForm.append(
-        'image',
-        new Blob([Uint8Array.of(1)], { type: 'image/png' }),
-        'community.png'
-    );
-    const unauthorized = await request('/api/admin/producer-map/images', {
-        method: 'POST',
-        body: unauthorizedForm
-    });
-    assert.equal(unauthorized.status, 401);
+test.describe('producer map content', () => {
+    test('producer map images are authenticated, audited, and publicly readable', async () => {
+        const { request, audit } = fixture();
+        const unauthorizedForm = new FormData();
+        unauthorizedForm.append(
+            'image',
+            new Blob([Uint8Array.of(1)], { type: 'image/png' }),
+            'community.png'
+        );
+        const unauthorized = await request('/api/admin/producer-map/images', {
+            method: 'POST',
+            body: unauthorizedForm
+        });
+        await assertRawJsonConforms(unauthorized, 401, failureMessageResponseSchema);
 
-    const form = new FormData();
-    form.append(
-        'image',
-        new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/png' }),
-        'community-contact.png'
-    );
-    const response = await request('/api/admin/producer-map/images', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer producer-map-token' },
-        body: form
-    });
-    assert.equal(response.status, 200);
-    const uploaded = await response.json() as { success: true; url: string };
-    assert.equal(uploaded.success, true);
-    assert.match(
-        uploaded.url,
-        /^\/uploads\/producer-map\/community-contact-\d+-[a-f0-9]{12}\.webp$/
-    );
-    assert.equal(audit.at(-1)?.action, '上传制作人地图图片');
-    assert.equal(audit.at(-1)?.target, uploaded.url);
+        const form = new FormData();
+        form.append(
+            'image',
+            new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/png' }),
+            'community-contact.png'
+        );
+        const response = await request('/api/admin/producer-map/images', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer producer-map-token' },
+            body: form
+        });
+        const uploaded = await assertRawJsonConforms(
+            response,
+            200,
+            producerMapImageUploadSchema
+        );
+        assert.equal(uploaded.success, true);
+        assert.match(
+            uploaded.url,
+            /^\/uploads\/producer-map\/community-contact-\d+-[a-f0-9]{12}\.webp$/
+        );
+        assert.equal(audit.at(-1)?.action, '上传制作人地图图片');
+        assert.equal(audit.at(-1)?.target, uploaded.url);
 
-    const publicResponse = await request(uploaded.url);
-    assert.equal(publicResponse.status, 200);
-    assert.equal(publicResponse.headers.get('content-type'), 'image/webp');
-    assert.deepEqual(
-        new Uint8Array(await publicResponse.arrayBuffer()),
-        Uint8Array.of(0x52, 0x49, 0x46, 0x46, 1, 2, 3)
-    );
-});
-
-test('producer map media is served from semantic object storage', async () => {
-    const { request, storage } = fixture();
-    const body = Uint8Array.from([137, 80, 78, 71]);
-    await storage.put(producerMapAssetObjectKey('community-u149.png'), body, {
-        contentType: 'image/png'
+        const publicResponse = await request(uploaded.url);
+        assert.equal(publicResponse.status, 200);
+        assert.equal(publicResponse.headers.get('content-type'), 'image/webp');
+        assert.deepEqual(
+            new Uint8Array(await publicResponse.arrayBuffer()),
+            Uint8Array.of(0x52, 0x49, 0x46, 0x46, 1, 2, 3)
+        );
     });
 
-    const response = await request('/uploads/producer-map/community-u149.png');
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get('content-type'), 'image/png');
-    assert.equal(
-        response.headers.get('cache-control'),
-        'public, max-age=31536000, immutable'
-    );
-    assert.deepEqual(new Uint8Array(await response.arrayBuffer()), body);
+    test('producer map media is served from semantic object storage', async () => {
+        const { request, storage } = fixture();
+        const body = Uint8Array.from([137, 80, 78, 71]);
+        await storage.put(producerMapAssetObjectKey('community-u149.png'), body, {
+            contentType: 'image/png'
+        });
 
-    const head = await request('/uploads/producer-map/community-u149.png', {
-        method: 'HEAD'
+        const response = await request('/uploads/producer-map/community-u149.png');
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('content-type'), 'image/png');
+        assert.equal(
+            response.headers.get('cache-control'),
+            'public, max-age=31536000, immutable'
+        );
+        assert.deepEqual(new Uint8Array(await response.arrayBuffer()), body);
+
+        const head = await request('/uploads/producer-map/community-u149.png', {
+            method: 'HEAD'
+        });
+        assert.equal(head.status, 200);
+        assert.equal(head.headers.get('content-length'), String(body.byteLength));
+        assert.equal((await head.arrayBuffer()).byteLength, 0);
+        assert.equal((await request('/uploads/producer-map/missing.png')).status, 404);
     });
-    assert.equal(head.status, 200);
-    assert.equal(head.headers.get('content-length'), String(body.byteLength));
-    assert.equal((await head.arrayBuffer()).byteLength, 0);
-    assert.equal((await request('/uploads/producer-map/missing.png')).status, 404);
-});
 
-test('producer map reports unconfigured content without serving defaults', async () => {
-    const { request } = fixture();
-    const response = await request('/api/producer-map');
-    assert.equal(response.status, 404);
-    assert.equal(response.headers.get('cache-control'), 'no-cache');
-    assert.deepEqual(await response.json(), { error: '制作人地图尚未配置' });
-});
+    test('producer map reports unconfigured content without serving defaults', async () => {
+        const { request } = fixture();
+        const response = await request('/api/producer-map');
+        assert.equal(response.headers.get('cache-control'), 'no-cache');
+        assert.deepEqual(
+            await assertRawJsonConforms(response, 404, producerMapErrorResponseSchema),
+            { error: '制作人地图尚未配置' }
+        );
+    });
 
-test('producer map admin updates are authenticated, audited, and revision guarded', async () => {
-    const { request, audit } = fixture();
-    assert.equal((await request('/api/admin/producer-map')).status, 401);
+    test('producer map admin updates are authenticated, audited, and revision guarded', async () => {
+        const { request, audit } = fixture();
+        assert.equal((await request('/api/admin/producer-map')).status, 401);
 
-    const headers = {
-        Authorization: 'Bearer producer-map-token',
-        'Content-Type': 'application/json'
-    };
-    const initialResponse = await request('/api/admin/producer-map', { headers });
-    assert.equal(initialResponse.status, 200);
-    const initial = await initialResponse.json() as {
-        content: ProducerMapContent | null;
-        revision: string | null;
-    };
-    assert.deepEqual(initial, { content: null, revision: null });
-    const edited = {
-        ...producerMapContent(),
-        introduction: '更新后的全国制作人社群入口。',
-        regions: [
+        const headers = {
+            Authorization: 'Bearer producer-map-token',
+            'Content-Type': 'application/json'
+        };
+        const initialResponse = await request('/api/admin/producer-map', { headers });
+        assert.equal(initialResponse.status, 200);
+        const initial = await initialResponse.json() as {
+            content: ProducerMapContent | null;
+            revision: string | null;
+        };
+        assert.deepEqual(initial, { content: null, revision: null });
+        const edited = {
+            ...producerMapContent(),
+            introduction: '更新后的全国制作人社群入口。',
+            regions: [
+                {
+                    id: 'guangdong',
+                    province: '广东省',
+                    name: '广东制作人社群',
+                    summary: '珠三角与粤东西北制作人交流信息。',
+                    contact: '公开联系信息',
+                    linkUrl: 'https://example.com/guangdong',
+                    imageUrl: '/maps/guangdong-contact.png',
+                    series: 'all' as const,
+                    enabled: true
+                }
+            ]
+        };
+        const savedResponse = await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ content: edited, revision: initial.revision })
+        });
+        assert.equal(savedResponse.status, 200);
+        const saved = await savedResponse.json() as {
+            content: ProducerMapContent;
+            revision: string;
+        };
+        assert.match(saved.revision, /revision-1/);
+        assert.equal(saved.content.regions[0]?.province, '广东省');
+        assert.ok(saved.content.updatedAt);
+        assert.equal(audit.at(-1)?.action, '更新制作人地图');
+
+        const publicContent = await (await request('/api/producer-map')).json() as typeof saved.content;
+        assert.equal(publicContent.introduction, edited.introduction);
+
+        const stale = await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ content: edited, revision: null })
+        });
+        assert.equal(stale.status, 409);
+        assert.match((await stale.json() as { error: string }).error, /刷新后重试/);
+    });
+
+    test('producer map rejects unsafe links and duplicate provinces', async () => {
+        const { request } = fixture();
+        const headers = {
+            Authorization: 'Bearer producer-map-token',
+            'Content-Type': 'application/json'
+        };
+        const unsafe = producerMapContent();
+        unsafe.communities[0]!.linkUrl = 'javascript:alert(1)';
+        const unsafeResponse = await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ content: unsafe, revision: null })
+        });
+        assert.equal(unsafeResponse.status, 400);
+        assert.match((await unsafeResponse.json() as { error: string }).error, /链接无效/);
+
+        const duplicate = producerMapContent();
+        duplicate.regions = [
             {
-                id: 'guangdong',
+                id: 'guangdong-a',
                 province: '广东省',
-                name: '广东制作人社群',
-                summary: '珠三角与粤东西北制作人交流信息。',
-                contact: '公开联系信息',
-                linkUrl: 'https://example.com/guangdong',
-                imageUrl: '/maps/guangdong-contact.png',
-                series: 'all' as const,
+                name: '广东 A',
+                summary: '',
+                contact: '',
+                linkUrl: null,
+                imageUrl: null,
+                series: 'all',
+                enabled: true
+            },
+            {
+                id: 'guangdong-b',
+                province: '广东省',
+                name: '广东 B',
+                summary: '',
+                contact: '',
+                linkUrl: null,
+                imageUrl: null,
+                series: 'all',
                 enabled: true
             }
-        ]
-    };
-    const savedResponse = await request('/api/admin/producer-map', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ content: edited, revision: initial.revision })
+        ];
+        const duplicateResponse = await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ content: duplicate, revision: null })
+        });
+        assert.equal(duplicateResponse.status, 400);
+        assert.match((await duplicateResponse.json() as { error: string }).error, /行政区不能重复/);
     });
-    assert.equal(savedResponse.status, 200);
-    const saved = await savedResponse.json() as {
-        content: ProducerMapContent;
-        revision: string;
-    };
-    assert.match(saved.revision, /revision-1/);
-    assert.equal(saved.content.regions[0]?.province, '广东省');
-    assert.ok(saved.content.updatedAt);
-    assert.equal(audit.at(-1)?.action, '更新制作人地图');
 
-    const publicContent = await (await request('/api/producer-map')).json() as typeof saved.content;
-    assert.equal(publicContent.introduction, edited.introduction);
+    test('producer map mounted JSON responses preserve shared schemas and project unknown update fields', async () => {
+        const { request } = fixture();
+        const headers = {
+            Authorization: 'Bearer producer-map-token',
+            'Content-Type': 'application/json'
+        };
 
-    const stale = await request('/api/admin/producer-map', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ content: edited, revision: null })
+        await assertRawJsonConforms(
+            await request('/api/admin/producer-map'),
+            401,
+            failureMessageResponseSchema
+        );
+        await assertRawJsonConforms(
+            await fixture('editor').request('/api/admin/producer-map', { headers }),
+            403,
+            messageErrorResponseSchema
+        );
+        await assertRawJsonConforms(
+            await request('/api/admin/producer-map', { headers }),
+            200,
+            producerMapAdminSnapshotSchema
+        );
+        await assertRawJsonConforms(
+            await request('/api/admin/producer-map', {
+                method: 'PUT',
+                headers: {
+                    Cookie: 'ims_admin_access=producer-map-token; ims_admin_csrf=producer-map-csrf',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content: producerMapContent(), revision: null })
+            }),
+            403,
+            failureMessageResponseSchema
+        );
+        await assertRawJsonConforms(
+            await request('/api/admin/producer-map', {
+                method: 'PUT',
+                headers,
+                body: '{'
+            }),
+            400,
+            producerMapErrorResponseSchema
+        );
+
+        const content = producerMapContent() as ProducerMapContent & { ignored?: string };
+        content.ignored = 'legacy editor state';
+        const saved = await assertRawJsonConforms(
+            await request('/api/admin/producer-map', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({
+                    content,
+                    revision: null,
+                    ignoredEnvelopeField: true
+                })
+            }),
+            200,
+            producerMapAdminUpdateSchema
+        );
+        assert.equal('ignored' in saved.content, false);
+        await assertRawJsonConforms(
+            await request('/api/producer-map'),
+            200,
+            producerMapContentSchema
+        );
+        await assertRawJsonConforms(
+            await request('/api/admin/producer-map', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ content: producerMapContent(), revision: null })
+            }),
+            409,
+            producerMapErrorResponseSchema
+        );
+
+        const form = new FormData();
+        form.append('ignored-text-field', 'ignored');
+        form.append('image', new Blob([Uint8Array.of(7)], { type: 'image/png' }), 'proof.png');
+        await assertRawJsonConforms(
+            await request('/api/admin/producer-map/images', {
+                method: 'POST',
+                headers: { Authorization: 'Bearer producer-map-token' },
+                body: form
+            }),
+            200,
+            producerMapImageUploadSchema
+        );
     });
-    assert.equal(stale.status, 409);
-    assert.match((await stale.json() as { error: string }).error, /刷新后重试/);
-});
-
-test('producer map rejects unsafe links and duplicate provinces', async () => {
-    const { request } = fixture();
-    const headers = {
-        Authorization: 'Bearer producer-map-token',
-        'Content-Type': 'application/json'
-    };
-    const unsafe = producerMapContent();
-    unsafe.communities[0]!.linkUrl = 'javascript:alert(1)';
-    const unsafeResponse = await request('/api/admin/producer-map', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ content: unsafe, revision: null })
-    });
-    assert.equal(unsafeResponse.status, 400);
-    assert.match((await unsafeResponse.json() as { error: string }).error, /链接无效/);
-
-    const duplicate = producerMapContent();
-    duplicate.regions = [
-        {
-            id: 'guangdong-a',
-            province: '广东省',
-            name: '广东 A',
-            summary: '',
-            contact: '',
-            linkUrl: null,
-            imageUrl: null,
-            series: 'all',
-            enabled: true
-        },
-        {
-            id: 'guangdong-b',
-            province: '广东省',
-            name: '广东 B',
-            summary: '',
-            contact: '',
-            linkUrl: null,
-            imageUrl: null,
-            series: 'all',
-            enabled: true
-        }
-    ];
-    const duplicateResponse = await request('/api/admin/producer-map', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ content: duplicate, revision: null })
-    });
-    assert.equal(duplicateResponse.status, 400);
-    assert.match((await duplicateResponse.json() as { error: string }).error, /行政区不能重复/);
 });

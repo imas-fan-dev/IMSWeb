@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "native-glass",
+  "description": "Allows the iOS app shell to install and synchronize the native Liquid Glass tab bar",
+  "windows": ["main"],
+  "platforms": ["iOS"],
+  "permissions": ["native-glass:default"]
+}

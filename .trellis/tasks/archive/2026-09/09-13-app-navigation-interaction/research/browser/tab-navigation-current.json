@@ -1,0 +1,47 @@
+[
+  {
+    "action": "首页滚动到 600px",
+    "path": "/",
+    "scrollY": 600,
+    "historyIndex": 0,
+    "active": [
+      "首页"
+    ]
+  },
+  {
+    "action": "点击社区动态",
+    "path": "/events",
+    "scrollY": 0,
+    "historyIndex": 1,
+    "active": [
+      "社区动态"
+    ]
+  },
+  {
+    "action": "点击站内应用",
+    "path": "/apps",
+    "scrollY": 0,
+    "historyIndex": 2,
+    "active": [
+      "站内应用"
+    ]
+  },
+  {
+    "action": "点击首页",
+    "path": "/",
+    "scrollY": 0,
+    "historyIndex": 3,
+    "active": [
+      "首页"
+    ]
+  },
+  {
+    "action": "浏览器后退一次",
+    "path": "/apps",
+    "scrollY": 0,
+    "historyIndex": 2,
+    "active": [
+      "站内应用"
+    ]
+  }
+]

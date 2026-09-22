@@ -1,0 +1,4 @@
+{"file":".trellis/spec/web/frontend/testing.md","reason":"真实浏览器字体加载验收"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Web、R2、自定义域与测试边界"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/r2-font-cors.md","reason":"生产资源归属、当前响应、权限和回滚流程"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/r2-test-bucket-addendum.md","reason":"测试桶目标、当前宽策略和test-first授权边界"}

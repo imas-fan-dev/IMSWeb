@@ -1,0 +1,4 @@
+{"file":"apps/web/.rules","reason":"Checks workspace validation commands and UI regression expectations."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Reviews responsive behavior, semantics and virtualized-row measurement against the documented contracts."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Reviews required unit and browser evidence for the altered public feeds."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reviews whether the introduced shared header is justified and narrowly owned."}

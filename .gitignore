@@ -5,6 +5,7 @@ node_modules/
 coverage/
 dist/
 .wrangler/
+.vitest
 
 # Local environment and secrets
 .env
@@ -62,6 +63,7 @@ __pycache__/
 # Mutable application data (back up and migrate outside Git)
 data/**
 !data/.gitignore
+apps/*/data/
 **/public/uploads/
 **/public/Data/
 **/public/assets/images/eventchronicle/events/upload/
@@ -83,3 +85,20 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# On-demand generated reports
+scripts/contracts/current-wire-contract-inventory.md
+
+# Test reports and coverage, written per workspace by Vitest
+coverage/
+reports/
+
+# Trellis-generated local tooling
+# Regenerate integration files in a fresh clone with: trellis init --pi
+.trellis/*
+!.trellis/tasks/
+!.trellis/spec/
+!.trellis/workspace/
+!.trellis/.gitignore
+.agents/
+.pi/

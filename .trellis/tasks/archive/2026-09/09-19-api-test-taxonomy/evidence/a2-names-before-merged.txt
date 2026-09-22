@@ -1,0 +1,125 @@
+tests/server/about-page-content.test.ts	about hero uploads are authenticated, audited, and publicly readable
+tests/server/about-page-content.test.ts	about member avatar uploads are authenticated, audited, and publicly readable
+tests/server/about-page-content.test.ts	about mounted JSON responses preserve shared schemas and project unknown update fields
+tests/server/about-page-content.test.ts	about page admin updates are authenticated, audited, and revision guarded
+tests/server/about-page-content.test.ts	about page does not backfill removed static artwork paths
+tests/server/about-page-content.test.ts	about page only persists member avatars returned by the upload endpoint
+tests/server/about-page-content.test.ts	about page rejects invalid hero layout and gradient values
+tests/server/about-page-content.test.ts	about page rejects unsafe image links before persistence
+tests/server/about-page-content.test.ts	about page rejects unsafe profile links before persistence
+tests/server/about-page-content.test.ts	about page reports unconfigured content without serving defaults
+tests/server/client-address.test.ts	client address resolution direct mode validates the connection peer and ignores forwarding headers
+tests/server/client-address.test.ts	client address resolution nginx mode accepts one IPv4 or IPv6 address and prefers X-Forwarded-For
+tests/server/client-address.test.ts	client address resolution nginx mode rejects missing, invalid, empty, and multi-value headers
+tests/server/client-address.test.ts	client address resolution request adapters apply the configured trust source
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions are listed for anonymous visitors
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions increment and decrement anonymously
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions reject unsupported emoji and unknown cards
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions share the namecard reaction rate limit
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions stay hidden when public read is disabled
+tests/server/fudaba-card-review-handlers.test.ts	claimed media lands where the public namecard wall can read it
+tests/server/fudaba-card-review-handlers.test.ts	new claimed-card media is public before the final database transition
+tests/server/fudaba-card-review-handlers.test.ts	partial legacy-media copy cleans the first object and rolls the claim back
+tests/server/fudaba-card-review-handlers.test.ts	put-after-write failure cleans the uncertain destination and prior copy
+tests/server/fudaba-card-review-handlers.test.ts	registered-card publish failure re-protects both objects before rollback
+tests/server/fudaba-card-review-handlers.test.ts	uncertain claimed-card completion preserves committed public media
+tests/server/fudaba-card-review-handlers.test.ts	uncertain registered-card completion reconciles committed state without protection
+tests/server/fudaba-claim-review-repository.test.ts	PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows
+tests/server/fudaba-domain-repository.test.ts	media rights and moderation constraints cannot be bypassed
+tests/server/fudaba-domain-repository.test.ts	office creation and series assignment are atomic
+tests/server/fudaba-domain-repository.test.ts	real PostgreSQL enforces Fudaba ownership and archived-office constraints
+tests/server/fudaba-domain-repository.test.ts	real PostgreSQL enforces exchange ownership and final-state constraints
+tests/server/fudaba-domain-repository.test.ts	real PostgreSQL retains actors referenced by resolved moderation cases
+tests/server/fudaba-location-repository.test.ts	real PostgreSQL enforces Fudaba location CAS and public map eligibility
+tests/server/fudaba-location-routes.test.ts	admin review ignores rollout flags but requires Backoffice op, CSRF, CAS, and audit
+tests/server/fudaba-location-routes.test.ts	map and location routes enforce dedicated IP and account limits
+tests/server/fudaba-location-routes.test.ts	map config and offices require both flags and expose strict regional DTOs
+tests/server/fudaba-location-routes.test.ts	map query rejects missing, duplicate, unknown, invalid, and antimeridian input
+tests/server/fudaba-location-routes.test.ts	mounted claim routes authenticate reads, reject unknown mutation fields, and preserve business errors
+tests/server/fudaba-location-routes.test.ts	owner locations enforce Platform auth, active account, CSRF, quantization, and CAS
+tests/server/fudaba-location-routes.test.ts	place search requires auth, validates input, caches results, and rate limits the provider
+tests/server/fudaba-map-delivery.test.ts	map delivery manages a dynamic source collection with CAS and legacy fallback
+tests/server/fudaba-map-delivery.test.ts	map delivery validates raw JSON responses without projecting emitted fields
+tests/server/fudaba-office-management-repository.test.ts	real PostgreSQL owner lock keeps office-create receipts atomic
+tests/server/fudaba-office-management-repository.test.ts	real PostgreSQL owner offices enforce receipt and cross-replica CAS
+tests/server/fudaba-office-management-repository.test.ts	real PostgreSQL owner reads keep metadata and series in one snapshot
+tests/server/fudaba-office-management-routes.test.ts	cover cleanup preserves objects while the database still or possibly references them
+tests/server/fudaba-office-management-routes.test.ts	cover failures release the reservation and uncertain commits reconcile
+tests/server/fudaba-office-management-routes.test.ts	cover upload consumes IP and account limits before multipart parsing
+tests/server/fudaba-office-management-routes.test.ts	cover upload is active-only, reserves before put, and serves private previews
+tests/server/fudaba-office-management-routes.test.ts	cover upload reconciles withdrawal and unknown reads after object storage succeeds
+tests/server/fudaba-office-management-routes.test.ts	metadata and status routes fence stale, hidden, and non-owner writes
+tests/server/fudaba-office-management-routes.test.ts	office creation requires persistent idempotency and replays one resource
+tests/server/fudaba-office-management-routes.test.ts	owner office reads ignore public/write flags and never expose object keys
+tests/server/fudaba-owner-routes.test.ts	Fudaba public-read and owner-write flags remain independent
+tests/server/fudaba-owner-routes.test.ts	a compatibility card replacement keeps the namecards media layout
+tests/server/fudaba-owner-routes.test.ts	an exchange card replacement keeps the versioned owner layout
+tests/server/fudaba-owner-routes.test.ts	both card-side uploads commit through owner CAS without leaking keys
+tests/server/fudaba-owner-routes.test.ts	card creation cleans confirmed failures but preserves uncertain repository writes
+tests/server/fudaba-owner-routes.test.ts	card creation rejects decoded image type mismatches before object writes
+tests/server/fudaba-owner-routes.test.ts	card creation rejects empty idol selections before object writes
+tests/server/fudaba-owner-routes.test.ts	card creation sniffs both images and writes only protected owner objects
+tests/server/fudaba-owner-routes.test.ts	card creation uses IP and account upload limits before multipart parsing
+tests/server/fudaba-owner-routes.test.ts	card metadata writes enforce owner revision fencing
+tests/server/fudaba-owner-routes.test.ts	committed create and card-side writes recover after the repository throws
+tests/server/fudaba-owner-routes.test.ts	cookie writes require the full CSRF triad while Bearer writes bypass CSRF
+tests/server/fudaba-owner-routes.test.ts	failed confirmation reads preserve objects that ambiguous mutations may reference
+tests/server/fudaba-owner-routes.test.ts	media CAS conflicts clean the new object and old-object failures enqueue compensation
+tests/server/fudaba-owner-routes.test.ts	owner card list and detail hide non-owner cards and raw object keys
+tests/server/fudaba-owner-routes.test.ts	owner card upload rejects an unknown side with compatibility text
+tests/server/fudaba-owner-routes.test.ts	owner media is protected, private, and inaccessible through another account card
+tests/server/fudaba-owner-routes.test.ts	owner routes require Platform auth and reject Backoffice tokens
+tests/server/fudaba-owner-routes.test.ts	restricted Platform accounts retain owner reads but cannot mutate or parse uploads
+tests/server/fudaba-owner-routes.test.ts	single-side uploads retain their IP and account pre-parse limits
+tests/server/fudaba-owner-routes.test.ts	soft deletion fences the owner write and removes protected card media
+tests/server/fudaba-owner-write-repository.test.ts	real PostgreSQL enforces Stage 14 profile and card write fences
+tests/server/fudaba-public-read-repository.test.ts	PostgreSQL exposes the same Fudaba public read models
+tests/server/fudaba-public-routes.test.ts	Fudaba public queries reject duplicate, out-of-range, and mismatched cursor input
+tests/server/fudaba-public-routes.test.ts	Fudaba public read feature gate hides every route by default
+tests/server/fudaba-public-routes.test.ts	Fudaba public series fails closed when icon storage is unavailable
+tests/server/fudaba-public-routes.test.ts	Fudaba public surface registers no mutation routes
+tests/server/fudaba-public-routes.test.ts	anonymous Fudaba discovery exposes only public projections and stable cursors
+tests/server/fudaba-public-routes.test.ts	invalid or blocked Platform credentials never downgrade to anonymous
+tests/server/fudaba-public-routes.test.ts	office visibility, query validation, and public media fail closed
+tests/server/fudaba-public-routes.test.ts	valid Platform auth adds viewer flags while Backoffice remains anonymous
+tests/server/handler-model-contract.test.ts	capability domains compose named capabilities from their root routes
+tests/server/handler-model-contract.test.ts	exported request contracts define concrete validated fields across all domains
+tests/server/handler-model-contract.test.ts	route handler inventory remains explicit and complete for all 18 domains
+tests/server/handler-model-contract.test.ts	route handlers adopt field-level JSON DTOs or explicit non-JSON response boundaries
+tests/server/handler-model-contract.test.ts	route handlers use validated request models and named multipart parsers
+tests/server/handler-validation-compatibility.test.ts	About and Producer Map validate content before stale revision reads after auth and CSRF
+tests/server/handler-validation-compatibility.test.ts	Admin Accounts DELETE validates aliases after auth, super-admin, and CSRF checks
+tests/server/handler-validation-compatibility.test.ts	Fudaba guest submission media requires the private receipt token
+tests/server/handler-validation-compatibility.test.ts	Fudaba owns anonymous uploads
+tests/server/handler-validation-compatibility.test.ts	News DELETE preserves Number aliases after auth and CSRF at the stub repository boundary
+tests/server/handler-validation-compatibility.test.ts	Wiki JSON field validation rejects before the route handler reads its repository
+tests/server/handler-validation-compatibility.test.ts	Wiki admin authentication precedes shared numeric param validation
+tests/server/handler-validation-compatibility.test.ts	a valid Fudaba anonymous receipt can read and withdraw only the pending revision
+tests/server/handler-validation-compatibility.test.ts	approve and reject surface 用户已撤回 (410) once the user withdraws
+tests/server/handler-validation-compatibility.test.ts	event creation rejects a missing idempotency key before parsing uploads
+tests/server/handler-validation-compatibility.test.ts	guest namecard image replacement and resubmission routes are not exposed
+tests/server/handler-validation-compatibility.test.ts	guest submission detail and withdrawal preserve legacy request projection and exact envelopes
+tests/server/handler-validation-compatibility.test.ts	invalid event IDs preserve legacy 404 bodies without repository side effects
+tests/server/handler-validation-compatibility.test.ts	invalid namecard IDs preserve public/admin responses after auth and CSRF checks
+tests/server/handler-validation-compatibility.test.ts	legacy Information reads remain available while the retired admin write API is gone
+tests/server/handler-validation-compatibility.test.ts	legacy anonymous upload and receipt routes are not exposed
+tests/server/handler-validation-compatibility.test.ts	legacy reaction aliases retain their separate mutation envelopes and strip extra keys
+tests/server/handler-validation-compatibility.test.ts	namecard approval heals legacy uploads whose thumbnails were never stored
+tests/server/handler-validation-compatibility.test.ts	namecard approval publishes originals and thumbnails before the final CAS transition
+tests/server/handler-validation-compatibility.test.ts	namecard public and admin pagination preserve parseInt aliases and fallbacks
+tests/server/handler-validation-compatibility.test.ts	reject namecard soft-rejects a pending submission and audits it
+tests/server/homepage-links.test.ts	homepage links are database-backed and reorder only complete section inventories
+tests/server/idempotency-fencing.test.ts	filesystem idempotency fences a stale owner after lease takeover
+tests/server/information-data.test.ts	information index defaults empty and strips HTML from public summaries
+tests/server/information-data.test.ts	information index rejects hosted cover images missing from the asset manifest
+tests/server/information-html-document.test.ts	information HTML documents escape metadata and keep managed body markup
+tests/server/information-public-response.test.ts	public information details rewrite cover and managed HTML images to direct URLs
+tests/server/information-reorder.test.ts	Information admin reordering is retired after community post unification
+tests/server/live-schedule.test.ts	loads requested months, deduplicates records, and caches each month
+tests/server/live-schedule.test.ts	normalizes only live events and preserves brand identity
+tests/server/live-schedule.test.ts	returns stale data when a refresh fails
+tests/server/live-schedule.test.ts	uses the official Japanese date across the UTC and month boundaries
+tests/server/local-upload-sync.test.ts	local upload sync is read-only by default, verifies writes, and is idempotent
+tests/server/local-upload-sync.test.ts	local upload sync maps only mutable business media to stable logical keys
+tests/server/local-upload-sync.test.ts	local upload sync refuses symlinks in the migration source
+tests/server/media-article-assets.test.ts	article body assets are served from their public upload URLs

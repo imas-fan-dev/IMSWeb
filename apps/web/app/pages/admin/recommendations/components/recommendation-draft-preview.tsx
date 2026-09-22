@@ -1,5 +1,6 @@
 import { ArrowUpRightIcon, ImageIcon } from "lucide-react"
 import { useEffect, useMemo } from "react"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function safeHttpUrl(value: string) {
   if (!value) return null
@@ -90,9 +91,14 @@ export function RecommendationDraftPreview({
         <p className="mt-1 text-xs text-muted-foreground">公开推荐列表</p>
       </div>
       {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className={className}>
+        <NavigationLink
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className={className}
+        >
           {content}
-        </a>
+        </NavigationLink>
       ) : (
         <article className={className}>{content}</article>
       )}

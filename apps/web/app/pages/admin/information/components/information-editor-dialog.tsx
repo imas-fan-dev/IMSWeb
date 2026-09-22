@@ -87,7 +87,7 @@ export function InformationEditorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="max-h-[calc(100svh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-5xl"
+        className="grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-5xl"
       >
         <form className="contents" onSubmit={submit}>
           <DialogHeader className="pr-8">
@@ -184,7 +184,7 @@ export function InformationEditorDialog({
               <AdminImageUploadField
                 id="information-cover"
                 label="封面图片"
-                description="必填；PNG、JPEG、WebP 或 AVIF，上传后转换为 WebP 并托管。"
+                description="必填；PNG、JPEG、WebP、AVIF、HEIC 或 HEIF，上传后转换为 WebP 并托管。"
                 uploading={coverUploading}
                 required
                 resetAfterSelect

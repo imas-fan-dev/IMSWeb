@@ -1,0 +1,4 @@
+{"file":".trellis/spec/api/backend/testing.md","reason":"PostgreSQL 测试归属和 API 验证门禁"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"共享 lifecycle 核心与薄适配器边界"}
+{"file":".trellis/spec/repository/ci.md","reason":"CI 的数据库环境和 lane 隔离契约"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/api-test-infrastructure.md","reason":"三套 lifecycle、55 个调用点和启用策略证据"}

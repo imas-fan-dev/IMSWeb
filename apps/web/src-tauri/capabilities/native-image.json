@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/ios-schema.json",
+  "identifier": "native-image",
+  "description": "Allows the iOS app to select, prepare, and read upload images from its cache",
+  "windows": ["main"],
+  "platforms": ["iOS"],
+  "permissions": [
+    "fs:allow-read-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$CACHE/native-image/**" }]
+    },
+    "native-image:default"
+  ]
+}

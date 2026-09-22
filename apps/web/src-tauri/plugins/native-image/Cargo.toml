@@ -1,0 +1,19 @@
+[package]
+name = "tauri-plugin-native-image"
+version = "0.1.0"
+authors = ["IMSWeb contributors"]
+description = "Native image preparation for IMSWeb mobile uploads"
+edition = "2021"
+rust-version = "1.77.2"
+exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
+links = "tauri-plugin-native-image"
+
+[dependencies]
+tauri = { version = "2.11.3" }
+tauri-plugin-dialog = "2"
+serde = "1.0"
+thiserror = "2"
+webp = { version = "0.3.1", default-features = false }
+
+[build-dependencies]
+tauri-plugin = { version = "2.6.3", features = ["build"] }

@@ -17,11 +17,13 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         )
         files = {
             "package.json": json.dumps(root_package),
-            "pnpm-workspace.yaml": "packages:\n  - apps/api\n  - apps/web\n",
+            "pnpm-workspace.yaml": (
+                "packages:\n  - apps/api\n  - apps/web\n  - packages/contracts\n"
+            ),
             ".npmrc": "registry=https://registry.npmjs.org/\n",
             ".nvmrc": "22.13.0\n",
             "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
-            "apps/api/.env.example": "IMS_JWT_SECRET=\n",
+            "apps/api/.env.example": "IMS_BACKOFFICE_JWT_SECRET=\n",
             "apps/web/.env.example": "IMS_API_ORIGIN=http://127.0.0.1:3000\n",
             "deploy/.env.example": "IMS_POSTGRES_IMAGE=postgres:18.4-alpine\n",
             "apps/api/package.json": (
@@ -30,10 +32,14 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "apps/web/package.json": (
                 PROJECT_ROOT / "apps/web/package.json"
             ).read_text(encoding="utf-8"),
+            "packages/contracts/package.json": (
+                PROJECT_ROOT / "packages/contracts/package.json"
+            ).read_text(encoding="utf-8"),
             "apps/api/src/app.ts": "export {};\n",
             "apps/api/src/main.ts": "export {};\n",
             "data/.gitignore": "*\n!.gitignore\n",
             "deploy/compose.yaml": "services: {}\n",
+            "deploy/compose.preview.yaml": "name: imsweb-preview\nvolumes: {}\n",
         }
         for relative_path, content in files.items():
             destination = root / relative_path
@@ -52,7 +58,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             text=True,
         )
 
-    def test_two_workspace_fixture_passes(self):
+    def test_workspace_fixture_passes(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)
             self.make_fixture(root)
@@ -60,19 +66,35 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_missing_preview_compose_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / "deploy/compose.preview.yaml").unlink()
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "expected only deploy/compose.preview.yaml and deploy/compose.yaml",
+            result.stderr,
+        )
+
     def test_root_dev_dependency_outside_tooling_allowlist_is_rejected(self):
+        # The allowlist has grown (husky, vitest, @vitest/ui) but it is still a
+        # closed list: an unlisted tool must keep failing, or the check stops
+        # meaning anything once a name has been added for a legitimate reason.
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)
             self.make_fixture(root)
             package_path = root / "package.json"
             package = json.loads(package_path.read_text(encoding="utf-8"))
-            package.setdefault("devDependencies", {})["unexpected-tool"] = "1.0.0"
+            package.setdefault("devDependencies", {})["prettier"] = "3.0.0"
             package_path.write_text(json.dumps(package), encoding="utf-8")
             result = self.run_fixture(root)
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "root aggregator must not declare devDependencies: unexpected-tool",
+            "root aggregator must not declare devDependencies: prettier",
             result.stderr,
         )
 
@@ -206,9 +228,12 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
         )["scripts"]
 
-        self.assertLessEqual(len(root_scripts), 50)
-        self.assertLessEqual(len(api_scripts), 35)
-        self.assertLessEqual(len(web_scripts), 13)
+        # Raise these counts deliberately, and name what the new script is for.
+        # The mock API dev server added `dev:web:mock` (root) and `dev:mock` (web);
+        # the root test tooling added `test:ui`.
+        self.assertEqual(len(root_scripts), 58)
+        self.assertEqual(len(api_scripts), 43)
+        self.assertEqual(len(web_scripts), 21)
         self.assertTrue(
             {
                 "build",
@@ -240,6 +265,46 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         ):
             with self.subTest(package="api", deprecated=deprecated):
                 self.assertNotIn(deprecated, api_scripts)
+        for package_name, scripts in (
+            ("root", root_scripts),
+            ("api", api_scripts),
+            ("web", web_scripts),
+        ):
+            with self.subTest(package=package_name, deprecated="test:all"):
+                self.assertNotIn("test:all", scripts)
+
+    def test_test_owners_use_one_entry_without_skippable_preconditions(self):
+        root_scripts = json.loads(
+            (PROJECT_ROOT / "package.json").read_text(encoding="utf-8")
+        )["scripts"]
+        api_scripts = json.loads(
+            (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
+        )["scripts"]
+        web_scripts = json.loads(
+            (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
+        )["scripts"]
+
+        self.assertEqual(
+            root_scripts["test:web-routing"],
+            "node scripts/testing/run-test-owner.mjs delivery integration",
+        )
+        self.assertEqual(
+            root_scripts["test"],
+            "node scripts/testing/run-test-owner.mjs root",
+        )
+        self.assertEqual(
+            api_scripts["test"],
+            "node ../../scripts/testing/run-test-owner.mjs api",
+        )
+        self.assertEqual(
+            web_scripts["test"],
+            "node ../../scripts/testing/run-test-owner.mjs web",
+        )
+        commands = "\n".join(
+            [*root_scripts.values(), *api_scripts.values(), *web_scripts.values()]
+        )
+        self.assertNotIn("--prepared", commands)
+        self.assertNotIn("--unit-prepared", commands)
 
     def test_nested_alias_cannot_hide_legacy_filter(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
@@ -271,6 +336,32 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("non-official tarball", result.stderr)
+
+    def test_npmmirror_registry_is_allowed(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / ".npmrc").write_text(
+                "registry=https://registry.npmmirror.com/\n"
+                "disturl=https://npmmirror.com/mirrors/node\n",
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_unapproved_registry_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / ".npmrc").write_text(
+                "registry=https://packages.example.test/\n",
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("every configured registry must be one of", result.stderr)
 
     def test_nested_web_repository_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:

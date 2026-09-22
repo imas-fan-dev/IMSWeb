@@ -1,7 +1,10 @@
 import { ArrowUpRightIcon, ImageIcon } from "lucide-react"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Skeleton } from "~/components/ui/skeleton"
-import type { Recommendation } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { resolveSafeMediaUrl, type Recommendation } from "~/lib/api"
+import { cn } from "~/lib/utils"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -17,25 +20,9 @@ function formatDate(value?: string | null) {
     : dateFormatter.format(date)
 }
 
-function safeHttpUrl(value?: string | null) {
-  if (!value) return null
-  try {
-    const origin =
-      typeof window === "undefined"
-        ? "https://imsweb.invalid"
-        : window.location.origin
-    const url = new URL(value, origin)
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.href
-      : null
-  } catch {
-    return null
-  }
-}
-
 export function RecommendationRow({ item }: { item: Recommendation }) {
-  const href = safeHttpUrl(item.content)
-  const thumbnail = safeHttpUrl(item.thumbnail)
+  const href = resolveSafeMediaUrl(item.content)
+  const thumbnail = resolveSafeMediaUrl(item.thumbnail)
 
   const content = (
     <>
@@ -53,7 +40,7 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
       </div>
       <div className="min-w-0 py-0.5">
         <p className="text-xs font-medium text-primary">推荐 #{item.id}</p>
-        <h2 className="mt-1.5 text-base/6 font-semibold group-hover:text-primary sm:text-lg/7">
+        <h2 className="mt-1.5 text-base/6 font-semibold wrap-anywhere group-hover:text-primary sm:text-lg/7">
           {item.title}
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">
@@ -70,12 +57,17 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
   )
 
   const className =
-    "group grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)_auto] gap-4 border-b py-5 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:gap-6"
+    "group grid min-h-36 min-w-0 max-w-full grid-cols-[6.5rem_minmax(0,1fr)_auto] gap-4 border-b py-5 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:gap-6"
 
   return href ? (
-    <a href={href} target="_blank" rel="noreferrer" className={className}>
+    <NavigationLink
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={className}
+    >
       {content}
-    </a>
+    </NavigationLink>
   ) : (
     <article className={className}>{content}</article>
   )
@@ -83,11 +75,17 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
 
 export function RecommendationsSkeleton() {
   return (
-    <div className="divide-y" aria-label="正在加载推荐">
+    <div
+      className={cn(
+        "grid grid-cols-1",
+        !IS_APP_TARGET && "lg:grid-cols-2 lg:gap-x-6"
+      )}
+      aria-label="正在加载推荐"
+    >
       {[0, 1, 2, 3].map((item) => (
         <div
           key={item}
-          className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6"
+          className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 border-b py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6"
         >
           <Skeleton className="aspect-4/3 w-full" />
           <div className="space-y-3 py-1">

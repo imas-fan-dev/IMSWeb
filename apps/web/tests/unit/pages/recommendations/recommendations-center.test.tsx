@@ -1,40 +1,42 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import { RecommendationsCenter } from "~/pages/recommendations/index"
 import { cacheRecommendationFeed, parseRecommendationPage } from "~/lib/api"
 import type { Recommendation } from "~/lib/api"
 
-const { virtualizerOptions } = vi.hoisted(() => ({
+const { measureVirtualizer, virtualizerOptions } = vi.hoisted(() => ({
+  measureVirtualizer: vi.fn(),
   virtualizerOptions: vi.fn(),
 }))
+
+let mediaMatches = true
+let mediaChangeListener: (() => void) | undefined
 
 vi.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: (options: {
     count: number
+    estimateSize: () => number
     getItemKey: (index: number) => string | number
   }) => {
     virtualizerOptions(options)
     const renderedCount = Math.min(options.count, 12)
+    const estimatedSize = options.estimateSize()
     return {
-      getTotalSize: () => options.count * 176,
+      getTotalSize: () => options.count * estimatedSize,
       getVirtualItems: () =>
         Array.from({ length: renderedCount }, (_, index) => ({
           index,
           key: options.getItemKey(index),
-          start: index * 176,
+          start: index * estimatedSize,
         })),
+      measure: measureVirtualizer,
       measureElement: vi.fn(),
     }
   },
 }))
-
-function jsonResponse(value: unknown) {
-  return new Response(JSON.stringify(value), {
-    headers: { "content-type": "application/json" },
-  })
-}
 
 function requestUrl(input: RequestInfo | URL) {
   return input instanceof Request ? input.url : String(input)
@@ -56,12 +58,22 @@ function cachedRecommendation(id: number): Recommendation {
 
 describe("RecommendationsCenter", () => {
   beforeEach(() => {
+    mediaMatches = true
+    mediaChangeListener = undefined
+    measureVirtualizer.mockClear()
+    virtualizerOptions.mockClear()
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation(() => ({
+        matches: mediaMatches,
+        addEventListener: (_event: string, listener: () => void) => {
+          mediaChangeListener = listener
+        },
+        removeEventListener: vi.fn(),
+      }))
+    )
   })
 
   it("rejects imprecise numeric IDs while accepting PostgreSQL bigint strings", () => {
@@ -75,9 +87,8 @@ describe("RecommendationsCenter", () => {
     ).toBe("9223372036854775807")
   })
 
-  it("loads cursor pages, deduplicates rows, and exposes a manual fallback", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+  it("loads cursor pages by scroll alone and deduplicates rows", async () => {
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [recommendation(3), recommendation(2)],
@@ -98,18 +109,32 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
-    const user = userEvent.setup()
 
-    render(<RecommendationsCenter />)
+    const { container } = render(<RecommendationsCenter />)
 
+    expect(
+      container.querySelector('[aria-label="正在加载推荐"] > div')
+    ).toHaveClass(
+      "min-h-36",
+      "grid-cols-[6.5rem_minmax(0,1fr)]",
+      "gap-4",
+      "border-b",
+      "py-5",
+      "sm:grid-cols-[9rem_minmax(0,1fr)]",
+      "sm:gap-6"
+    )
+
+    // No click anywhere. With IntersectionObserver stubbed out, the scroll
+    // fallback is what carries the list, and it runs once on mount so a first
+    // page shorter than the viewport still advances.
     expect(await screen.findByRole("heading", { name: "推荐 3" })).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "加载更多推荐" }))
-
     expect(await screen.findByRole("heading", { name: "推荐 1" })).toBeVisible()
     expect(screen.getAllByRole("heading", { name: "推荐 2" })).toHaveLength(1)
     expect(screen.getAllByRole("listitem")).toHaveLength(3)
     expect(screen.getByText("已显示本批次的全部推荐")).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: /加载更多/ })
+    ).not.toBeInTheDocument()
 
     const firstUrl = new URL(
       requestUrl(fetchMock.mock.calls[0]![0]),
@@ -125,8 +150,7 @@ describe("RecommendationsCenter", () => {
   })
 
   it("recovers from the initial error into the empty state", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockRejectedValueOnce(new TypeError("offline"))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -138,7 +162,6 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<RecommendationsCenter />)
@@ -178,8 +201,7 @@ describe("RecommendationsCenter", () => {
       }
     }
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver)
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [recommendation(2)],
@@ -200,7 +222,6 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     render(<RecommendationsCenter />)
 
@@ -223,23 +244,77 @@ describe("RecommendationsCenter", () => {
         snapshotAt: "65",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     render(<RecommendationsCenter />)
 
     expect(await screen.findByText("已加载 65 条")).toBeVisible()
     await waitFor(() =>
-      expect(screen.getAllByRole("listitem")).toHaveLength(12)
+      expect(screen.getAllByRole("listitem")).toHaveLength(24)
     )
     expect(fetchMock).not.toHaveBeenCalled()
     expect(virtualizerOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        count: 65,
+        count: 33,
         overscan: 6,
         useFlushSync: false,
       })
     )
+    expect(virtualizerOptions.mock.lastCall?.[0].estimateSize()).toBe(176)
+  })
+
+  it("packs desktop items into virtual rows and returns to one column below lg", async () => {
+    await cacheRecommendationFeed({
+      items: Array.from({ length: 5 }, (_, index) =>
+        cachedRecommendation(5 - index)
+      ),
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "5",
+      },
+    })
+
+    render(<RecommendationsCenter />)
+
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(5))
+    expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(3)
+    expect(
+      screen.getAllByRole("listitem").map((item) => ({
+        position: item.getAttribute("aria-posinset"),
+        size: item.getAttribute("aria-setsize"),
+      }))
+    ).toEqual([
+      { position: "1", size: "5" },
+      { position: "2", size: "5" },
+      { position: "3", size: "5" },
+      { position: "4", size: "5" },
+      { position: "5", size: "5" },
+    ])
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-2",
+      "gap-x-6"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveAttribute(
+      "role",
+      "presentation"
+    )
+
+    act(() => {
+      mediaMatches = false
+      mediaChangeListener?.()
+    })
+
+    await waitFor(() =>
+      expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(5)
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-1"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).not.toHaveClass(
+      "grid-cols-2"
+    )
+    expect(measureVirtualizer).toHaveBeenCalled()
   })
 
   it("bypasses the Alova snapshot when the user refreshes", async () => {
@@ -251,7 +326,7 @@ describe("RecommendationsCenter", () => {
         snapshotAt: "1",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+    const fetchMock = installFetchMock().mockResolvedValueOnce(
       jsonResponse({
         items: [recommendation(1)],
         pageInfo: {
@@ -261,7 +336,6 @@ describe("RecommendationsCenter", () => {
         },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<RecommendationsCenter />)

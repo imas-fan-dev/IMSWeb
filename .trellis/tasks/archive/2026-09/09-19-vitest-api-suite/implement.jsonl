@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-19-vitest-api-suite/design.md", "reason": "本子任务的映射表、生命周期目标形状与批次边界，实现直接依据"}
+{"file": ".trellis/tasks/09-19-vitest-test-unification/design.md", "reason": "父设计 §2：模块解析、进程模型、类型门禁与脚本替换的权威依据"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "PostgreSQL 生命周期 Signatures/Contracts 与 Tests Required 必须在改写后逐条保留"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "API 脚本与 owner 命令形状约束，脚本替换不得越界"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "226 处回调与两个包装器改写时复核是否引入重复抽象"}

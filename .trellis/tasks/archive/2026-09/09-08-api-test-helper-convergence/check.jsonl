@@ -1,0 +1,3 @@
+{"file":".trellis/spec/api/backend/testing.md","reason":"检查受影响领域和 API 全量门禁"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查 abstraction 消费者和有意差异"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/api-test-infrastructure.md","reason":"逐项核对重复定义和保留理由"}

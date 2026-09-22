@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Git-ignored local runtime configuration and generated Tauri output"
+paths = [
+  '''^apps/api/\.env$''',
+  '''^deploy/\.env$''',
+  '''^deploy/\.env\.r2-test$''',
+  '''^apps/web/src-tauri/target/''',
+]

@@ -1,0 +1,7 @@
+{"file":".trellis/spec/api/backend/index.md","reason":"API middleware 结构、开发前检查和质量门禁"}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"客户端地址、审计数据和运行时配置的安全边界"}
+{"file":".trellis/spec/api/backend/testing.md","reason":"API 运行时与跨域变更的测试范围和命令"}
+{"file":".trellis/spec/repository/index.md","reason":"部署脚本与仓库级验证约束"}
+{"file":".trellis/spec/repository/ci.md","reason":"根级治理测试和 CI 所有权规则"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"API 与部署边界的端到端追踪方法"}
+{"file":".trellis/tasks/09-15-preview-client-ip/research/preview-client-ip-flow.md","reason":"已确认的 Preview 请求链、根因、Nginx 信任契约和受影响消费者"}

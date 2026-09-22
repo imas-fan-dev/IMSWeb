@@ -1,0 +1,17 @@
+[package]
+name = "tauri-plugin-native-glass"
+version = "0.1.0"
+authors = ["IMSWeb contributors"]
+description = "Native mobile WebView integration for IMSWeb"
+edition = "2021"
+rust-version = "1.77.2"
+exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
+links = "tauri-plugin-native-glass"
+
+[dependencies]
+tauri = { version = "2.11.3" }
+serde = "1.0"
+thiserror = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "2.6.3", features = ["build"] }

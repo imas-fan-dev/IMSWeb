@@ -1,9 +1,10 @@
 import { ArrowUpRightIcon, RefreshCwIcon } from "lucide-react"
-import { Link } from "react-router"
 
-import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Button } from "~/components/ui/button"
+import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import type { WikiRandomBackground } from "~/lib/api"
+import { webOnly } from "~/lib/navigation/navigation-target"
 
 export function WikiHero({
   background,
@@ -13,7 +14,7 @@ export function WikiHero({
 }: {
   background: WikiRandomBackground | null
   loading: boolean
-  classicHref: string
+  classicHref?: string
   onRefresh: () => void
 }) {
   const source = [background?.agency_name, background?.idol_name]
@@ -57,21 +58,23 @@ export function WikiHero({
           </div>
           <div className="flex flex-wrap gap-2">
             {cardHref ? (
-              <Link
+              <NavigationLink
                 to={cardHref}
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white bg-white px-2.5 text-sm font-medium text-neutral-950 transition-colors hover:bg-white/85 focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none"
               >
                 <ArrowUpRightIcon className="size-4" />
                 查看对应卡片
-              </Link>
+              </NavigationLink>
             ) : null}
-            <Link
-              to={classicHref}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/35 bg-black/30 px-2.5 text-sm font-medium text-white transition-colors hover:bg-white/15 focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none"
-            >
-              <WikiViewSwitchIcon tone="light" />
-              经典视图
-            </Link>
+            {classicHref ? (
+              <NavigationLink
+                to={webOnly(classicHref)}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/35 bg-black/30 px-2.5 text-sm font-medium text-white transition-colors hover:bg-white/15 focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none"
+              >
+                <WikiViewSwitchIcon tone="light" />
+                经典视图
+              </NavigationLink>
+            ) : null}
             <Button
               type="button"
               variant="outline"

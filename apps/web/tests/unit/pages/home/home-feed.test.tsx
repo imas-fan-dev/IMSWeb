@@ -1,7 +1,9 @@
 import { useRequest } from "alova/client"
 import { act, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router"
+import { describe, expect, it, vi } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import { getHomeNews } from "~/lib/api"
 import { HomeFeed } from "~/pages/home/components/home-feed"
 
@@ -28,13 +30,17 @@ function NewsProbe({ onSuccess }: { onSuccess: (data: unknown) => void }) {
   return <p>{data.items.map((item) => item.title).join(", ") || "empty"}</p>
 }
 
-describe("home feed alova integration", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+function renderHomeFeed() {
+  return render(
+    <MemoryRouter>
+      <HomeFeed />
+    </MemoryRouter>
+  )
+}
 
+describe("home feed alova integration", () => {
   it("updates React state with parsed news data", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    const fetchMock = installFetchMock().mockResolvedValue(
       new Response(
         JSON.stringify([
           {
@@ -48,7 +54,6 @@ describe("home feed alova integration", () => {
         { headers: { "content-type": "application/json" } }
       )
     )
-    vi.stubGlobal("fetch", fetchMock)
     const onSuccess = vi.fn()
 
     render(<NewsProbe onSuccess={onSuccess} />)
@@ -92,7 +97,7 @@ describe("home feed alova integration", () => {
       content: `https://example.com/news/${index + 1}`,
       date: "2026-07-24T00:00:00.000Z",
     }))
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    const fetchMock = installFetchMock((input) => {
       const url = input instanceof Request ? input.url : String(input)
       if (url.includes("/api/events")) {
         return Promise.resolve(
@@ -115,16 +120,15 @@ describe("home feed alova integration", () => {
         })
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
-    const { container } = render(<HomeFeed />)
+    const { container } = renderHomeFeed()
 
     expect(await screen.findByText("首页活动 4")).toBeVisible()
     expect(screen.queryByText("首页活动 5")).not.toBeInTheDocument()
     expect(screen.queryByText(/条活动/)).not.toBeInTheDocument()
     expect(screen.queryByText(/显示其余/)).not.toBeInTheDocument()
     expect(screen.queryByRole("group")).not.toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "查看全部活动" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "查看全部动态" })).toHaveAttribute(
       "href",
       "/events"
     )
@@ -136,7 +140,14 @@ describe("home feed alova integration", () => {
     expect(screen.queryByText("首页资讯 5")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: /首页活动 1/ })).toHaveAttribute(
       "href",
-      "/events"
+      "/events/1"
+    )
+    expect(screen.getByRole("link", { name: /首页活动 1/ })).toHaveClass(
+      "min-h-11",
+      "min-w-0"
+    )
+    expect(screen.getByRole("link", { name: "查看全部动态" })).toHaveClass(
+      "min-h-11"
     )
     expect(screen.getByText("首页活动 1")).toHaveClass("line-clamp-2")
     expect(screen.getByText("首页活动 1")).toHaveAttribute(
@@ -144,9 +155,13 @@ describe("home feed alova integration", () => {
       "首页活动 1"
     )
     expect(screen.getAllByTitle("测试发布者 · 2026/07/24")[0]).toHaveClass(
-      "truncate"
+      "line-clamp-1",
+      "wrap-anywhere"
     )
-    expect(screen.getByText(longContact)).toHaveClass("truncate")
+    expect(screen.getByText(longContact)).toHaveClass(
+      "line-clamp-1",
+      "break-all"
+    )
     expect(screen.getByText(longContact)).toHaveAttribute("title", longContact)
     expect(screen.getByText("首页资讯 1")).toHaveClass("line-clamp-2")
     expect(container.querySelector('a[href="/Event.html"]')).toBeNull()
@@ -202,7 +217,7 @@ describe("home feed alova integration", () => {
       content: `https://example.com/narrow/${index + 1}`,
       date: null,
     }))
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    const fetchMock = installFetchMock((input) => {
       const url = input instanceof Request ? input.url : String(input)
       if (url.includes("/api/events")) {
         return Promise.resolve(
@@ -233,9 +248,8 @@ describe("home feed alova integration", () => {
         )
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
-    render(<HomeFeed />)
+    renderHomeFeed()
 
     expect(await screen.findByText("窄屏活动 3")).toBeVisible()
     expect(screen.queryByText("窄屏活动 4")).not.toBeInTheDocument()
