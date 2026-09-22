@@ -14,6 +14,7 @@ function card(id: number): Namecard {
     favoriteIdols: [],
     claimStatus: "unclaimed",
     viewerClaimState: null,
+    claimerName: null,
     image1_url: `/front-${id}.jpg`,
     image2_url: `/back-${id}.jpg`,
     image1_thumbnail_url: `/front-${id}-thumbnail.jpg`,

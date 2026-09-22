@@ -312,7 +312,8 @@ import { describe, onTestFinished, test } from 'vitest';
                     display_order: 0
                 }],
                 claim_status: 'pending',
-                viewer_claim_state: 'pending'
+                viewer_claim_state: 'pending',
+                claimer_name: null
             });
             assert.equal(publicCard.seriesCode, '765');
             assert.deepEqual(publicCard.favoriteIdols, [{
@@ -322,6 +323,7 @@ import { describe, onTestFinished, test } from 'vitest';
             }]);
             assert.equal(publicCard.claimStatus, 'pending');
             assert.equal(publicCard.viewerClaimState, 'pending');
+            assert.equal(publicCard.claimerName, null);
 
             const historicalCard = toPublicNamecardResponse({
                 id: 8,
@@ -333,6 +335,18 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(historicalCard.seriesCode, null);
             assert.deepEqual(historicalCard.favoriteIdols, []);
             assert.equal(historicalCard.claimStatus, 'unclaimed');
+            assert.equal(historicalCard.claimerName, null);
+
+            const claimedCard = toPublicNamecardResponse({
+                id: 9,
+                image1_url: '/uploads/namecard/original/front.webp',
+                image2_url: '/uploads/namecard/original/back.webp',
+                status: 'approved',
+                created_at: null,
+                claim_status: 'claimed',
+                claimer_name: '  Producer primary  '
+            });
+            assert.equal(claimedCard.claimerName, 'Producer primary');
 
             const claim: FudabaCardClaimRecord = {
                 id: 'claim-1',
@@ -2560,6 +2574,9 @@ import { describe, onTestFinished, test } from 'vitest';
             const legacyId = await insertLegacyCard(database, 'a');
             const matchingCardId = String(legacyId);
             await fudaba.createCard(registeredCard(matchingCardId, ownerA));
+            await database.prepare(
+                'UPDATE fudaba_cards SET producer_name=?, display_name=? WHERE id=?'
+            ).bind('P Name A', 'Card title A', matchingCardId).run();
             await fudaba.createCard(registeredCard(`0${legacyId}`, ownerA));
 
             const createdEnvelopes = await fudaba.ensureSameIdLegacyCardEnvelopes({
@@ -2619,7 +2636,8 @@ import { describe, onTestFinished, test } from 'vitest';
             ), [{
                 legacy_card_id: legacyId,
                 claim_status: 'pending',
-                viewer_claim_state: 'pending'
+                viewer_claim_state: 'pending',
+                claimer_name: null
             }]);
             const adminClaim = await fudaba.findAdminCardClaim(claimId);
             assert.equal(adminClaim?.claimant_display_name, 'Producer claim-owner-a');
@@ -2688,7 +2706,8 @@ import { describe, onTestFinished, test } from 'vitest';
             ), [{
                 legacy_card_id: legacyId,
                 claim_status: 'claimed',
-                viewer_claim_state: 'approved'
+                viewer_claim_state: 'approved',
+                claimer_name: 'P Name A'
             }]);
             const ownerAEnvelopes = await fudaba.listClaimEnvelopesForOwner(ownerA, 20);
             const approvedEnvelope = ownerAEnvelopes.find(

@@ -25,6 +25,7 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     favoriteIdols: [],
     claimStatus: "unclaimed",
     viewerClaimState: null,
+    claimerName: null,
     // The grid's images pass through resolvePublicMediaUrl, which leaves the
     // path alone on local disk and returns an absolute object-storage URL
     // otherwise.

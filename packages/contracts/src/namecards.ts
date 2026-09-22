@@ -26,6 +26,7 @@ export const namecardMetadataSchema = {
   viewerClaimState: z
     .enum(["pending", "approving", "approved", "rejected", "cancelled"])
     .nullable(),
+  claimerName: z.string().min(1).nullable(),
 }
 
 export const namecardSchema = exactJsonResponse({

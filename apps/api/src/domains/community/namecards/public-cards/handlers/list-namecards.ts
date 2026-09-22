@@ -36,7 +36,8 @@ export async function handleListNamecards(
             return toPublicNamecardResponse({
                 ...card,
                 claim_status: status?.claim_status,
-                viewer_claim_state: status?.viewer_claim_state
+                viewer_claim_state: status?.viewer_claim_state,
+                claimer_name: status?.claimer_name
             });
         });
         const storage = services(c).storage;

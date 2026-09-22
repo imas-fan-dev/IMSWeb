@@ -14,6 +14,7 @@ const card = {
   favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   claimStatus: "unclaimed" as const,
   viewerClaimState: null,
+  claimerName: null,
   image1_url: "/uploads/front.webp",
   image2_url: "/uploads/back.webp",
   image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",

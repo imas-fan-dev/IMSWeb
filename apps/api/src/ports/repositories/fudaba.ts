@@ -308,6 +308,7 @@ export interface LegacyNamecardClaimStatusRecord {
     legacy_card_id: number;
     claim_status: "unclaimed" | "pending" | "claimed";
     viewer_claim_state: FudabaCardClaimState | null;
+    claimer_name: string | null;
 }
 
 export interface CreateFudabaCardClaimInput {

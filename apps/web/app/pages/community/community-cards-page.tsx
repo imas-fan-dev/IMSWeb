@@ -177,7 +177,7 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
         <Button
           key={emoji}
           type="button"
-          className="min-h-11 min-w-[max(2.75rem,25%)] gap-0.5 px-0.5 text-xs tabular-nums max-md:focus-visible:ring-inset md:h-8 md:min-h-8 md:min-w-0 md:gap-1.5 md:rounded-full md:border-border md:bg-background md:px-3 md:text-sm md:dark:border-input md:dark:bg-input/30 md:dark:hover:bg-input/50"
+          className="min-h-11 min-w-10 gap-0.5 px-0.5 text-xs tabular-nums max-md:focus-visible:ring-inset md:h-8 md:min-h-8 md:min-w-0 md:gap-1.5 md:rounded-full md:border-border md:bg-background md:px-3 md:text-sm md:dark:border-input md:dark:bg-input/30 md:dark:hover:bg-input/50"
           variant="ghost"
           disabled={busy !== null}
           aria-label={`${emoji}，${count} 次反应`}
@@ -194,7 +194,7 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
             <Button
               type="button"
               size="icon"
-              className="h-11 min-h-11 w-auto min-w-[max(2.75rem,25%)] max-md:focus-visible:ring-inset md:size-8 md:min-h-8 md:min-w-8 md:rounded-full md:border-dashed md:border-border md:bg-transparent md:text-muted-foreground md:hover:border-solid md:hover:text-foreground md:dark:border-input md:dark:hover:bg-input/50"
+              className="h-11 min-h-11 w-10 min-w-10 max-md:focus-visible:ring-inset md:size-8 md:min-h-8 md:min-w-8 md:rounded-full md:border-dashed md:border-border md:bg-transparent md:text-muted-foreground md:hover:border-solid md:hover:text-foreground md:dark:border-input md:dark:hover:bg-input/50"
               variant="ghost"
               title="添加反应"
               aria-label="添加反应"
@@ -308,7 +308,7 @@ function NamecardItem({
             className="h-auto min-h-5 max-w-full whitespace-normal md:col-start-2 md:row-start-2 md:mr-4 md:h-6 md:self-center md:justify-self-end md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
           >
             <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
-            已由注册用户认领
+            {card.claimerName ?? "已由注册用户认领"}
           </Badge>
         ) : card.claimStatus === "pending" ? (
           <Badge
@@ -322,11 +322,11 @@ function NamecardItem({
             type="button"
             variant="outline"
             size="sm"
-            className="h-auto min-h-11 max-w-full self-start text-left whitespace-normal md:col-start-2 md:row-start-2 md:mr-4 md:h-8 md:min-h-8 md:self-center md:justify-self-end md:whitespace-nowrap"
+            className="h-auto min-h-11 max-w-full self-start text-left whitespace-normal max-md:w-full max-md:justify-center md:col-start-2 md:row-start-2 md:mr-4 md:h-8 md:min-h-8 md:self-center md:justify-self-end md:whitespace-nowrap"
             onClick={() => onClaim(card)}
           >
             <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
-            认领这张旧名片
+            认领这张名片
           </Button>
         ) : null}
       </CardFooter>

@@ -120,6 +120,7 @@ test.describe("activity cover preview", () => {
           favoriteIdols: [],
           claimStatus: "unclaimed",
           viewerClaimState: null,
+          claimerName: null,
           image1_url: coverUrl,
           image2_url: "/brand/series/wall/shiny-colors.webp",
           image1_thumbnail_url: coverUrl,

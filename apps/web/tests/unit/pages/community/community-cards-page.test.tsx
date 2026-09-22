@@ -57,6 +57,7 @@ function pageResult(ids = [42]): NamecardPage {
       favoriteIdols: [],
       claimStatus: "unclaimed",
       viewerClaimState: null,
+      claimerName: null,
       image1_url: `/front-${id}.jpg`,
       image2_url: `/back-${id}.jpg`,
       image1_thumbnail_url: `/front-${id}-thumbnail.jpg`,
@@ -232,6 +233,7 @@ describe("CommunityCardsPage", () => {
           created_at: null,
           claimStatus: "unclaimed",
           viewerClaimState: null,
+          claimerName: null,
         },
       ],
       page: 1,
@@ -248,7 +250,7 @@ describe("CommunityCardsPage", () => {
 
     await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     expect(
-      screen.queryByRole("button", { name: "认领这张旧名片" })
+      screen.queryByRole("button", { name: "认领这张名片" })
     ).not.toBeInTheDocument()
 
     sessionMocks.useOptionalPlatformSession.mockReturnValue({
@@ -275,12 +277,14 @@ describe("CommunityCardsPage", () => {
     )
 
     const claimButton = await screen.findByRole("button", {
-      name: "认领这张旧名片",
+      name: "认领这张名片",
     })
     expect(claimButton).toBeVisible()
     expect(claimButton).toHaveClass(
       "h-auto",
       "min-h-11",
+      "max-md:w-full",
+      "max-md:justify-center",
       "md:col-start-2",
       "md:row-start-2",
       "md:h-8",
@@ -332,7 +336,7 @@ describe("CommunityCardsPage", () => {
     )
     expect(reaction).toHaveClass(
       "min-h-11",
-      "min-w-[max(2.75rem,25%)]",
+      "min-w-10",
       "md:h-8",
       "md:min-h-8",
       "md:min-w-0",
@@ -405,7 +409,7 @@ describe("CommunityCardsPage", () => {
     expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
   })
 
-  it("reserves at least one quarter row per compact reaction including plus without fixing count widths", async () => {
+  it("packs four short-count reactions including plus into one mobile row without fixing count widths", async () => {
     apiMocks.sendPage.mockResolvedValue(pageResult())
     apiMocks.sendReactions.mockResolvedValue({
       "❤️": 12,
@@ -435,7 +439,7 @@ describe("CommunityCardsPage", () => {
     for (const chip of chips) {
       expect(chip).toHaveClass(
         "min-h-11",
-        "min-w-[max(2.75rem,25%)]",
+        "min-w-10",
         "shrink-0",
         "gap-0.5",
         "px-0.5",
@@ -456,8 +460,8 @@ describe("CommunityCardsPage", () => {
     expect(within(group).getByRole("button", { name: "添加反应" })).toHaveClass(
       "h-11",
       "min-h-11",
-      "w-auto",
-      "min-w-[max(2.75rem,25%)]",
+      "w-10",
+      "min-w-10",
       "shrink-0",
       "max-md:focus-visible:ring-inset",
       "md:size-8",
@@ -528,7 +532,9 @@ describe("CommunityCardsPage", () => {
   it("groups each namecard in one visible Card with both faces in API order and guarded masonry", async () => {
     const result = pageResult([42, 43, 44, 45])
     result.list[0].claimStatus = "claimed"
+    result.list[0].claimerName = "风晓星落P"
     result.list[1].claimStatus = "pending"
+    result.list[3].claimStatus = "claimed"
     apiMocks.sendPage.mockResolvedValue(result)
     renderPage()
 
@@ -645,11 +651,12 @@ describe("CommunityCardsPage", () => {
         "md:pb-4"
       )
     }
-    expect(
-      screen.getByText("已由注册用户认领").closest('[data-slot="card"]')
-    ).toBe(items[0])
+    expect(screen.getByText("风晓星落P").closest('[data-slot="card"]')).toBe(
+      items[0]
+    )
+    expect(screen.queryByText("已由 风晓星落P 认领")).not.toBeInTheDocument()
     const claimedBadge = screen
-      .getByText("已由注册用户认领")
+      .getByText("风晓星落P")
       .closest('[data-slot="badge"]')!
     const claimPlacement = [
       "md:col-start-2",
@@ -671,6 +678,9 @@ describe("CommunityCardsPage", () => {
       ...claimPlacement
     )
     expect(claimedBadge).not.toHaveClass("bg-secondary")
+    expect(
+      screen.getByText("已由注册用户认领").closest('[data-slot="card"]')
+    ).toBe(items[3])
     expect(
       screen.getByText("认领审核中").closest('[data-slot="badge"]')!
     ).toHaveClass(...claimPlacement)

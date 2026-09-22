@@ -24,15 +24,15 @@ all of them, which is how this stylesheet used to behave and why the shape is no
 pinned by a test rather than by convention:
 
 - `base` — token declarations and element defaults. A utility class may override
-these, which is the point.
+  these, which is the point.
 - `components` — component and material classes (`.glass-*`, `.media-hover`,
-`.series-icon-*`). A utility class may still override these.
+  `.series-icon-*`). A utility class may still override these.
 - `overrides` — only the rules that must win against a utility class on the same
-element: the capability fallbacks (`prefers-reduced-motion`,
-`prefers-reduced-transparency`, `forced-colors`), attribute-driven hiding such
-as the native-glass twins, and the wiki mobile-search lift. Choose this layer
-only when the element really carries a competing utility; reaching for it
-otherwise hides the real cascade from the next reader.
+  element: the capability fallbacks (`prefers-reduced-motion`,
+  `prefers-reduced-transparency`, `forced-colors`), attribute-driven hiding such
+  as the native-glass twins, and the wiki mobile-search lift. Choose this layer
+  only when the element really carries a competing utility; reaching for it
+  otherwise hides the real cascade from the next reader.
 
 `@property`, `@keyframes`, `@theme`, and `@custom-variant` stay at the top level
 because they do not participate in the cascade.
@@ -91,10 +91,10 @@ still answers 200, which is what makes the gap invisible to a route check.
 The same provider list renders differently per target, and the difference is the
 action, not the styling:
 
-| Target | Control | Behavior |
-| --- | --- | --- |
-| Web | Link to `platformAuthOAuthPath('/<code>/start?returnPath=…')` | Whole-document navigation; the API 303s back |
-| App | Button | Opens the authorization page in the system browser, then shows a waiting state |
+| Target | Control                                                       | Behavior                                                                       |
+| ------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Web    | Link to `platformAuthOAuthPath('/<code>/start?returnPath=…')` | Whole-document navigation; the API 303s back                                   |
+| App    | Button                                                        | Opens the authorization page in the system browser, then shows a waiting state |
 
 Share the visual identity (`platformOAuthButtonStyle(color)` for the brand
 background, `PlatformOAuthProviderIcon` for the glyph) so the two targets
@@ -129,7 +129,7 @@ generic failure.
   file input its shrink-to-fit width instead: the avatar uploader measured 361px
   and made every App account section 56px wider than a 320px viewport. Keep the
   override at `w-px`, and assert `document.documentElement.scrollWidth ===
-  window.innerWidth` at 320px for pages that host hidden inputs.
+window.innerWidth` at 320px for pages that host hidden inputs.
 - Preserve Tauri safe areas for app-target fixed UI.
 - Keep essential labels and actions visible by default. A hover-only presentation may
   hide them only under the combined `hover: hover` and `pointer: fine` media query;
@@ -198,13 +198,21 @@ Browser tests must load all icons in both targets and verify their dimensions;
 allow subpixel rounding when comparing DOMRect values to CSS pixels.
 
 Mobile list chips use 16px graphics and 12px counts while the picker and desktop
-keep 20px graphics. Include the add button in the four-entry row limit. Each
-mobile control keeps at least 44px and one quarter of the row width, with natural
-width growth for long counts; do not force six-digit counts into a fixed 25%
-box. A narrower Card can wrap to fewer entries. Preserve inset focus rings at
-full-width Card edges and restore desktop padding and gaps. Browser coverage
-must prove four short-count entries at 402px, narrow-screen wrapping, six-digit
-counts without overflow, and unchanged picker sizing.
+keep 20px graphics. Include the add button in the four-entry row limit. Mobile
+chips are 40px wide and 44px tall (`min-w-10` / `min-h-11`) so four short-count
+entries, add button included, share one row from about a 350px viewport. The
+width floor is deliberately 40px rather than 44px: a 44px floor puts the add
+button onto a second, almost empty row at a 390px viewport, which cost every
+card 44px. The height keeps the full 44px touch target, and longer counts still
+grow the chip naturally and wrap. A narrower Card wraps to fewer entries.
+Preserve inset focus rings at full-width Card edges and restore desktop padding
+and gaps. Browser coverage must prove four short-count entries at 402px,
+narrow-screen wrapping, six-digit counts without overflow, and unchanged picker
+sizing.
+
+On mobile the claim control spans the footer as a full-width action
+(`max-md:w-full max-md:justify-center`); the date and the claim cannot share one
+row there, because a 148px card at 320px leaves no room for both.
 
 Desktop list chips are compact pills rather than squares: `md:h-8` with
 `md:min-h-8`, natural width (`md:min-w-0`), `md:rounded-full`, and `md:px-3`,
@@ -222,15 +230,18 @@ chips and its claim can land in different rows: paint the panel on the Card
 `display: contents` element renders no background, border, or padding. Keep the
 claim at `md:mr-4` so it lines up with the chips' `md:px-4` inset, and hold the
 metadata row at `md:min-h-8` so every card in a row is the same height and the
-grid's stretch leaves no filler above the panel. Center the metadata with
-`md:items-center` on the header: padding the header instead moves the date off
-the claim's optical center.
+grid's stretch leaves no filler above the panel. A claimed badge renders the
+linked card's producer name directly; API resolution falls back to the claiming
+platform profile's display name, then to `已由注册用户认领` when neither name is
+available. Keep the shield icon to retain the claimed-state meaning without a
+text prefix. Center the metadata with `md:items-center` on the header: padding
+the header instead moves the date off the claim's optical center.
 
 The mobile floor is a `min-height`, so a desktop override needs both `md:h-*`
 and `md:min-h-*`; `md:h-7` alone left the claim button 44px tall. Branch the
 browser geometry helper on the breakpoint instead of applying one target size to
-both: mobile keeps at least 44px, while the desktop pill may be 32px because it
-grows with its count. A touch device at desktop width receives the desktop pill —
+both: mobile asserts 40px wide by 44px tall, the desktop pill 32px in both
+directions. A touch device at desktop width receives the desktop pill —
 the 44px rule is a mobile-branch contract, not a global one.
 
 ### Continuous namecard previews
@@ -413,14 +424,14 @@ DialogBody({ className, …props }) // data-slot="dialog-body"
 
 ### 4. Validation & Error Matrix
 
-| Condition | Required result |
-| --- | --- |
-| Caller passes `max-h-[90svh]` | The primitive's `--overlay-safe-height` still wins |
-| `layout="pinned"` with no `DialogBody` | Defect, not a supported shape: content is clipped with no scroller |
-| Wrapper form missing `flex min-h-0 flex-1 flex-col` | Body cannot shrink; clipped with no scroller |
-| Long content at 320 × 568 | Only the body scrolls; `document.scrollingElement.scrollTop` stays 0 |
-| An inner element needs its own limit | Keep that `max-h`: only `DialogContent` sizes are primitive-owned |
-| Short dialog, no `layout` prop | Default `scroll` behaviour, unchanged |
+| Condition                                           | Required result                                                      |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| Caller passes `max-h-[90svh]`                       | The primitive's `--overlay-safe-height` still wins                   |
+| `layout="pinned"` with no `DialogBody`              | Defect, not a supported shape: content is clipped with no scroller   |
+| Wrapper form missing `flex min-h-0 flex-1 flex-col` | Body cannot shrink; clipped with no scroller                         |
+| Long content at 320 × 568                           | Only the body scrolls; `document.scrollingElement.scrollTop` stays 0 |
+| An inner element needs its own limit                | Keep that `max-h`: only `DialogContent` sizes are primitive-owned    |
+| Short dialog, no `layout` prop                      | Default `scroll` behaviour, unchanged                                |
 
 ### 5. Good / Base / Bad Cases
 

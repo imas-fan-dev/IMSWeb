@@ -145,6 +145,7 @@ test.describe("namecard claim workflow", () => {
                 favoriteIdols: [favoriteIdol],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
+                claimerName: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -173,7 +174,7 @@ test.describe("namecard claim workflow", () => {
       page.getByRole("button", { name: "查看制作人名片 42 正面" })
     ).toBeVisible()
     await expect(
-      page.getByRole("button", { name: "认领这张旧名片" })
+      page.getByRole("button", { name: "认领这张名片" })
     ).toHaveCount(0)
   })
 
@@ -213,6 +214,7 @@ test.describe("namecard claim workflow", () => {
                 favoriteIdols: [favoriteIdol],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
+                claimerName: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -271,7 +273,7 @@ test.describe("namecard claim workflow", () => {
     )
 
     await page.goto("/community/cards")
-    await page.getByRole("button", { name: "认领这张旧名片" }).click()
+    await page.getByRole("button", { name: "认领这张名片" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()
     await expect(
@@ -339,6 +341,7 @@ test.describe("namecard claim workflow", () => {
                 favoriteIdols: [favoriteIdol],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
+                claimerName: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -365,7 +368,7 @@ test.describe("namecard claim workflow", () => {
 
   async function openClaimDialog(page: Page) {
     await page.goto("/community/cards")
-    await page.getByRole("button", { name: "认领这张旧名片" }).click()
+    await page.getByRole("button", { name: "认领这张名片" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()
     await settleDialog(dialog)

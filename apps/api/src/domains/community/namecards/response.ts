@@ -34,6 +34,7 @@ interface NamecardRow {
     favorite_idols?: unknown;
     claim_status?: unknown;
     viewer_claim_state?: unknown;
+    claimer_name?: unknown;
 }
 
 function responseId(value: unknown): NamecardResponseId {
@@ -78,10 +79,16 @@ function responseViewerClaimState(value: unknown): FudabaCardClaimState | null {
         : null;
 }
 
+function responseClaimerName(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const name = value.trim();
+    return name ? name : null;
+}
+
 export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardResponse {
     const image1Url = responseString(row.image1_url, 'image1_url');
     const image2Url = responseString(row.image2_url, 'image2_url');
-    return {
+    const response = {
         id: responseId(row.id),
         seriesCode: responseSeriesCode(row.series_code),
         favoriteIdols: responseFavoriteIdols(row.favorite_idols),
@@ -94,6 +101,9 @@ export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardRespon
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };
+    return Object.assign(response, {
+        claimerName: responseClaimerName(row.claimer_name)
+    });
 }
 
 export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse {

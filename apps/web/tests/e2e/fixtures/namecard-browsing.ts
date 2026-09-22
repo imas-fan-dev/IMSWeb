@@ -114,6 +114,7 @@ export async function mockNamecardBrowsing(
                 favoriteIdols: [],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
+                claimerName: null,
                 image1_url: `/__namecard-qa/front-${id}.png`,
                 image2_url: `/__namecard-qa/back-${id}.png`,
                 image1_thumbnail_url: `/__namecard-qa/front-thumb-${id}.png`,
@@ -446,9 +447,11 @@ export async function expectNamecardReactionDensity(page: Page) {
     .poll(() =>
       groups.evaluateAll((elements) => {
         const mobile = !matchMedia("(min-width: 48rem)").matches
-        // Mobile controls keep a 44px touch target; the desktop chip is a
-        // compact 32px pill (`md:h-8`) that grows with its count.
-        const minTarget = mobile ? 43.5 : 31.5
+        // Mobile chips are 40px wide and 44px tall (`min-w-10` / `min-h-11`) so
+        // four short-count entries share one row; the desktop chip is a compact
+        // 32px pill (`md:min-w-0` / `md:h-8`) that grows with its count.
+        const minWidth = mobile ? 39.5 : 31.5
+        const minHeight = mobile ? 43.5 : 31.5
         return elements.every((group) => {
           const card = group.closest("[data-namecard-item]")!
           const cardBox = card.getBoundingClientRect()
@@ -474,8 +477,8 @@ export async function expectNamecardReactionDensity(page: Page) {
               const imageBox = image?.getBoundingClientRect()
               return (
                 (!mobile || rows.get(row)! <= 4) &&
-                box.width >= minTarget &&
-                box.height >= minTarget &&
+                box.width >= minWidth &&
+                box.height >= minHeight &&
                 box.left >= cardBox.left - 0.5 &&
                 box.right <= cardBox.right + 0.5 &&
                 button.scrollWidth <= button.clientWidth &&

@@ -130,6 +130,7 @@ describe("community API contracts", () => {
               image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
               claimStatus: requestCount === 1 ? "unclaimed" : "pending",
               viewerClaimState: requestCount === 1 ? null : "pending",
+              claimerName: null,
             },
           ],
           total: 1,

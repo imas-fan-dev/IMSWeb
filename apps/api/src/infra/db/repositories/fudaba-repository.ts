@@ -2925,8 +2925,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                           AND claim.claimant_account_id=?
                         ORDER BY claim.created_at DESC, claim.id DESC
                         LIMIT 1
-                    ) AS viewer_claim_state
+                    ) AS viewer_claim_state,
+                    COALESCE(
+                        NULLIF(BTRIM(claimed.producer_name), ''),
+                        NULLIF(BTRIM(claimant_profile.display_name), '')
+                    ) AS claimer_name
              FROM cards legacy
+             LEFT JOIN fudaba_cards claimed
+                    ON claimed.legacy_card_id=legacy.id
+             LEFT JOIN platform_profiles claimant_profile
+                    ON claimant_profile.account_id=claimed.owner_account_id
              WHERE legacy.id IN (${placeholders})`,
             [viewerAccountId, ...legacyCardIds],
         );

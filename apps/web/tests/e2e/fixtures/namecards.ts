@@ -20,6 +20,7 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     favoriteIdols: [],
     claimStatus: "unclaimed",
     viewerClaimState: null,
+    claimerName: null,
     image1_url: defaultFrontImage,
     image2_url: defaultBackImage,
     image1_thumbnail_url: defaultFrontImage,
