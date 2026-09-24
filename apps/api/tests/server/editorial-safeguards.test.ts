@@ -183,6 +183,29 @@ test.describe('Editorial', () => {
         assert.equal(updatedRegistrationUrl, '/events/signup');
     });
 
+    test('editorial updates attribute cover changes to the backoffice account', async () => {
+        let updatedBy: number | undefined;
+        let updatedCoverTransform: unknown;
+        const repository = editorialRepositoryStub({
+            async findAdminEvent() { return currentEvent; },
+            async updateEditorialEvent(_id: number, input: { userId: number; coverTransform: unknown }) {
+                updatedBy = input.userId;
+                updatedCoverTransform = input.coverTransform;
+                return { status: 'updated', revision: 1 } as const;
+            }
+        });
+        const app = createApp(repository);
+
+        const response = await app.request('/api/admin/community-posts/11', requestOptions({
+            ...currentEvent,
+            coverTransform: { focalX: 0.2, focalY: 0.8, zoom: 1.5 }
+        }));
+
+        assert.equal(response.status, 200);
+        assert.equal(updatedBy, 1);
+        assert.deepEqual(updatedCoverTransform, { focalX: 0.2, focalY: 0.8, zoom: 1.5 });
+    });
+
     test('invalid spotlight entries are rejected without reporting success', async () => {
         const repository = {
             async replaceHomepageSpotlightEntries() {

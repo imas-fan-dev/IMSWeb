@@ -545,6 +545,18 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
     }
   }
 
+  function openSavedPreview() {
+    if (!article || dirty) {
+      toast.error("请先保存草稿，再查看已保存预览")
+      return
+    }
+    window.open(
+      `/admin/events/${encodeURIComponent(String(article.id))}/preview`,
+      "_blank",
+      "noopener,noreferrer"
+    )
+  }
+
   function updateRelatedLink(
     index: number,
     key: keyof EditorialRelatedLink,
@@ -634,7 +646,15 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
             onClick={() => void openPreview()}
           >
             <EyeIcon data-icon="inline-start" />
-            预览
+            临时预览
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={saving}
+            onClick={openSavedPreview}
+          >
+            已保存预览
           </Button>
           {isPublished ? (
             <Button
@@ -1115,7 +1135,7 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
         />
       ) : null}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-    <DialogContent className="max-w-6xl overflow-y-auto p-0">
+        <DialogContent className="max-w-6xl overflow-y-auto p-0">
           <DialogHeader className="border-b p-5">
             <DialogTitle>公开文章预览</DialogTitle>
             <DialogDescription>

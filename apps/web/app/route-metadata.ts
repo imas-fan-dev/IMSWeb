@@ -354,6 +354,13 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     WEB_TARGET,
     "spa"
   ),
+  route(
+    "admin/events/:eventId/preview",
+    "pages/admin/events/preview-page.tsx",
+    "public",
+    WEB_TARGET,
+    "spa"
+  ),
   route("about", "pages/admin/about/index.tsx", "admin", WEB_TARGET, "spa"),
   route(
     "homepage",
