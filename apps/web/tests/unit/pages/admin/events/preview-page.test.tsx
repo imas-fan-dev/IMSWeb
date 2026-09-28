@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import type { ComponentProps } from "react"
-import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { makeEditorialArticle } from "@/mocks/data/editorial"
+import { renderPage as renderHarnessPage } from "@/tests/unit/support/harness"
 import AdminEventPreviewPage from "~/pages/admin/events/preview-page"
 
 const mocks = vi.hoisted(() => ({ useRequest: vi.fn() }))
@@ -17,10 +17,9 @@ function renderPage() {
   const props = {
     params: { eventId: "43" },
   } as ComponentProps<typeof AdminEventPreviewPage>
-  return render(
-    <MemoryRouter>
-      <AdminEventPreviewPage {...props} />
-    </MemoryRouter>
+  return renderHarnessPage(
+    <AdminEventPreviewPage {...props} />,
+    { route: "/admin/events/43/preview" }
   )
 }
 
@@ -72,5 +71,6 @@ describe("AdminEventPreviewPage", () => {
 
     expect(screen.getByRole("heading", { name: "草稿文章预览" })).toBeVisible()
     expect(screen.getByText("已保存的正文")).toBeVisible()
+    expect(screen.getByRole("link", { name: "返回社区动态" })).toBeVisible()
   })
 })

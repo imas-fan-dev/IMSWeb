@@ -22,7 +22,6 @@ import { toast } from "sonner"
 
 import { AdminEmptyState, adminControlClass } from "~/components/admin/admin-ui"
 import { defaultEditorialCoverTransform } from "~/components/editorial/editorial-cover"
-import { CommunityPostDetail } from "~/components/editorial/community-post-detail"
 import { RichTextEditor } from "~/components/editorial/rich-text-editor"
 import { Button } from "~/components/ui/button"
 import {
@@ -38,7 +37,6 @@ import { adminErrorMessage } from "~/lib/admin-error"
 import {
   createAdminCommunityPost,
   getAdminCommunityPost,
-  previewAdminCommunityPost,
   setAdminCommunityPostStatus,
   updateAdminCommunityPost,
   uploadEditorialAsset,
@@ -364,8 +362,6 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
   const [saving, setSaving] = useState(false)
   const [coverUploading, setCoverUploading] = useState(false)
   const [cropOpen, setCropOpen] = useState(false)
-  const [preview, setPreview] = useState<EditorialArticle | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
   const [dirty, setDirty] = useState(isNew)
 
   useEffect(() => {
@@ -525,29 +521,9 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
     }
   }
 
-  async function openPreview() {
-    if (!article) {
-      toast.error("请先保存草稿，再使用服务端预览")
-      return
-    }
-    setSaving(true)
-    try {
-      const result = await previewAdminCommunityPost(
-        Number(article.id),
-        payload(article.revision)
-      ).send()
-      setPreview(result)
-      setPreviewOpen(true)
-    } catch (error) {
-      toast.error(adminErrorMessage(error))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function openSavedPreview() {
+  function openPreview() {
     if (!article || dirty) {
-      toast.error("请先保存草稿，再查看已保存预览")
+      toast.error("请先保存草稿，再预览文章")
       return
     }
     window.open(
@@ -643,18 +619,10 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
             variant="outline"
             size="sm"
             disabled={saving}
-            onClick={() => void openPreview()}
+            onClick={openPreview}
           >
             <EyeIcon data-icon="inline-start" />
-            临时预览
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={saving}
-            onClick={openSavedPreview}
-          >
-            已保存预览
+            预览
           </Button>
           {isPublished ? (
             <Button
@@ -1134,21 +1102,6 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
           }}
         />
       ) : null}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-6xl overflow-y-auto p-0">
-          <DialogHeader className="border-b p-5">
-            <DialogTitle>公开文章预览</DialogTitle>
-            <DialogDescription>
-              使用与用户侧详情页相同的展示结构；预览不会保存草稿。
-            </DialogDescription>
-          </DialogHeader>
-          {preview ? (
-            <div className="p-6 sm:p-10">
-              <CommunityPostDetail article={preview} />
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

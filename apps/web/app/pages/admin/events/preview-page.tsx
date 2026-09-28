@@ -52,7 +52,7 @@ export default function AdminEventPreviewPage({
           </EmptyHeader>
         </Empty>
       ) : null}
-      {data ? <CommunityPostDetail article={data} /> : null}
+      {data ? <CommunityPostDetail article={data} showBackLink /> : null}
     </PageShell>
   )
 }
