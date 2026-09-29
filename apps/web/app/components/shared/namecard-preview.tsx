@@ -43,13 +43,13 @@ export function NamecardPreview({
   side,
   onSideChange,
   onOpenChange,
-  onReturnFocus,
+  finalFocus,
 }: {
   card: Namecard | null
   side: NamecardSide
   onSideChange: (side: NamecardSide) => void
   onOpenChange: (open: boolean) => void
-  onReturnFocus?: () => void
+  finalFocus?: () => HTMLElement | null
 }) {
   const [view, setView] = useState<ViewState>({
     scale: 1,
@@ -217,14 +217,7 @@ export function NamecardPreview({
       }}
     >
       <DialogContent
-        finalFocus={
-          onReturnFocus
-            ? () => {
-                onReturnFocus()
-                return false
-              }
-            : undefined
-        }
+        finalFocus={finalFocus}
         showCloseButton={false}
         safeArea="viewport"
         overlayClassName="bg-background/85 supports-backdrop-filter:bg-background/45 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150"

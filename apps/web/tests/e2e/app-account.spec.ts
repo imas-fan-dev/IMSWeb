@@ -438,6 +438,8 @@ test.describe("app account", () => {
       await expect(avatarUpdatedToast).toBeVisible()
       await settleToasts(page)
       await expect(avatarUpdatedToast).toHaveCount(0)
+      await expect(backButton).toBeVisible()
+      await expect(backButton).toBeEnabled()
       if (process.env.CAPTURE_APP_QA === "1") {
         await page.screenshot({
           path: `/tmp/imsweb-app-avatar-saved-${testInfo.project.name}.png`,
@@ -522,6 +524,8 @@ test.describe("app account", () => {
       await settleToasts(page)
       await expect(avatarRemovedToast).toHaveCount(0)
       const backButton = page.getByRole("button", { name: "返回" })
+      await expect(backButton).toBeVisible()
+      await expect(backButton).toBeEnabled()
       await backButton.click()
       await expect(page).toHaveURL(/\/account\/me$/)
       await expect(

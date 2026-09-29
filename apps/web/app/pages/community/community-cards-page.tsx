@@ -373,9 +373,7 @@ export default function CommunityCardsPage() {
         onOpenChange={(open) => {
           if (!open) closePreview()
         }}
-        onReturnFocus={() =>
-          previewReturnTarget?.focus({ preventScroll: true })
-        }
+        finalFocus={() => previewReturnTarget}
       />
       <NamecardDetailDialog
         card={detail.card}

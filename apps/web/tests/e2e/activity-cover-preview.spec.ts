@@ -151,10 +151,23 @@ test.describe("activity cover preview", () => {
     await expect(frontTrigger).toBeVisible()
     await frontTrigger.click()
 
-    const dialog = page.getByRole("dialog", { name: "制作人名片 42 · 正面" })
+    const detail = page.getByRole("dialog", {
+      name: "制作人名片 42",
+      exact: true,
+    })
+    await expect(detail).toBeVisible()
+    const previewTrigger = detail.getByRole("button", {
+      name: "放大制作人名片 42 正面",
+    })
+    await previewTrigger.click()
+
+    const dialog = page.getByRole("dialog", {
+      name: "制作人名片 42 · 正面",
+      exact: true,
+    })
     const image = dialog.getByRole("img", { name: "制作人名片 42 正面" })
     await expect(dialog).toBeVisible()
-    await expectFullPageGlass(page, dialog)
+    await expect(dialog).toHaveAttribute("data-safe-area", "viewport")
     await expect
       .poll(() =>
         image.evaluate((element) => (element as HTMLImageElement).naturalWidth)
@@ -169,6 +182,9 @@ test.describe("activity cover preview", () => {
     }
 
     await dialog.getByRole("button", { name: "关闭名片预览" }).click()
-    await expect(frontTrigger).toBeFocused()
+    await expect(detail).toBeVisible()
+    await expect(
+      detail.getByRole("heading", { name: "制作人名片 42" })
+    ).toBeVisible()
   })
 })

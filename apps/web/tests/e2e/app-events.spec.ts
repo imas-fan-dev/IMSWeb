@@ -611,13 +611,12 @@ test.describe("app events", () => {
         dialog.getByRole("button", { name: "复位文章封面" })
       )
       await closePreview.click()
+      await expect(dialog).toBeHidden()
 
       const relatedLink = page.getByRole("link", {
         name: "打开 App 社区动态相关页面",
       })
-      await relatedLink.evaluate((element) =>
-        element.scrollIntoView({ block: "center", behavior: "instant" })
-      )
+      await relatedLink.click()
       await expectMinimumHeight(relatedLink)
       await expect(relatedLink).toHaveAttribute("href", longUrl)
       const navigation = page.getByRole("navigation", { name: "主导航" })
@@ -639,7 +638,15 @@ test.describe("app events", () => {
         fullPage: true,
       })
 
-      await page.getByRole("button", { name: "返回", exact: true }).click()
+      const returnButton = page.getByRole("button", {
+        name: "返回",
+        exact: true,
+      })
+      await returnButton.evaluate((button) =>
+        button.scrollIntoView({ block: "center", behavior: "instant" })
+      )
+      await expect(returnButton).toBeVisible()
+      await returnButton.click()
       await expect(page).toHaveURL(/\/events$/)
       await expect(list).toBeVisible()
 
