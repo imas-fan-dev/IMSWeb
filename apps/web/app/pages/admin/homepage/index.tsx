@@ -1,8 +1,14 @@
 import { useRequest } from "alova/client"
-import { LoaderCircleIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
+import {
+  ArrowRightIcon,
+  LoaderCircleIcon,
+  RefreshCwIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Button } from "~/components/ui/button"
 import {
   AlertDialog,
@@ -218,12 +224,20 @@ export function HomepageLinkManager() {
       <AdminPageHeader
         eyebrow="HOMEPAGE CONTENT"
         title="首页板块"
-        description="维护站点导航、友情链接与网站支持内容。"
+        description="维护站点导航、友情链接与网站支持内容；首页精选在文章工作台统一编排。"
         actions={
-          <Button type="button" variant="outline" onClick={() => refresh()}>
-            <RefreshCwIcon data-icon="inline-start" />
-            刷新
-          </Button>
+          <>
+            <NavigationLink href="/admin/events#homepage-spotlight">
+              <Button type="button" variant="outline">
+                管理首页精选
+                <ArrowRightIcon data-icon="inline-end" />
+              </Button>
+            </NavigationLink>
+            <Button type="button" variant="outline" onClick={() => refresh()}>
+              <RefreshCwIcon data-icon="inline-start" />
+              刷新
+            </Button>
+          </>
         }
       />
 

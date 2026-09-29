@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useLocation } from "react-router"
 import { toast } from "sonner"
 
 import {
@@ -93,7 +94,11 @@ export function meta() {
 }
 
 export default function AdminEventsPage() {
-  const [tab, setTab] = useState<Tab>("articles")
+  const location = useLocation()
+  const [tab, setTab] = useState<Tab>(() =>
+    location.hash === "#homepage-spotlight" ? "spotlight" : "articles"
+  )
+
   const [posts, setPosts] = useState<EditorialArticle[]>([])
   const [spotlight, setSpotlight] = useState<CommunitySpotlightEntry[]>([])
   const [query, setQuery] = useState("")

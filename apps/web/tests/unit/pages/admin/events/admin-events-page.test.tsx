@@ -32,9 +32,9 @@ const posts = {
   ],
 }
 
-function renderPage() {
+function renderPage(initialEntry = "/admin/events") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <AdminEventsPage />
     </MemoryRouter>
   )
@@ -91,5 +91,22 @@ describe("AdminEventsPage", () => {
         .selected
     ).toBe(true)
     expect(screen.getByRole("button", { name: "保存精选" })).toBeEnabled()
+  })
+
+  it("opens homepage spotlight from the management deep link", async () => {
+    installFetchMock((input) => {
+      const url = input instanceof Request ? input.url : String(input)
+      return Promise.resolve(
+        jsonResponse(url.includes("/spotlight") ? { items: [] } : posts)
+      )
+    })
+
+    renderPage("/admin/events#homepage-spotlight")
+
+    expect(await screen.findByText("广州交流活动")).toBeVisible()
+    expect(screen.getByRole("tab", { name: "首页精选" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
   })
 })

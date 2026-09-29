@@ -192,6 +192,6 @@ export async function articleFields(
         bodyHtml: renderArticleBody(validated.document),
         coverTransform: coverTransform(payload.coverTransform, current),
         revision: revision(payload.revision ?? current?.revision),
-        userId: c.get('user')?.id || 0
+        userId: c.get('backofficeUser')!.id
     };
 }
