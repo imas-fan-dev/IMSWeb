@@ -26,6 +26,7 @@ import {
   ownerClaimListSchema,
   registeredCardReviewListSchema,
   reviewMutationSchema,
+  type FudabaLegacyCardClaimRequestInput,
 } from "@imsweb/contracts/fudaba/card-claims"
 
 export {
@@ -87,12 +88,7 @@ export function getFudabaOwnerCardClaims() {
 
 export function createFudabaLegacyCardClaim(
   legacyCardId: number,
-  input: {
-    targetCardId: string | null
-    seriesCode: string
-    favoriteIdolIds: number[]
-    message: string
-  }
+  input: FudabaLegacyCardClaimRequestInput
 ) {
   const submission = fudabaLegacyCardClaimRequestSchema.parse(input)
   return platformApiClient.Post(

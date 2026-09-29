@@ -7,7 +7,7 @@ type ReturnTarget = {
   left: number
 }
 
-export function useNamecardPreviewReturn(listContext: string) {
+export function useNamecardDetailReturn(listContext: string) {
   const fallbackRef = useRef<HTMLElement | null>(null)
   const targetRef = useRef<ReturnTarget | null>(null)
   const pendingRef = useRef<ReturnTarget | null>(null)

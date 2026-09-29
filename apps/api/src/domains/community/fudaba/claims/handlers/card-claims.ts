@@ -185,6 +185,13 @@ export async function handleCreateFudabaLegacyCardClaim(
             createdAt: now,
             updatedAt: now
         });
+        if (result.status === 'series-required') {
+            return c.json({
+                success: false,
+                code: 'FUDABA_CLAIM_SERIES_REQUIRED',
+                message: '请选择主企划后再提交认领'
+            }, 409);
+        }
         if (result.status === 'unavailable') {
             return c.json({ success: false, code: 'FUDABA_LEGACY_CARD_UNAVAILABLE' }, 404);
         }

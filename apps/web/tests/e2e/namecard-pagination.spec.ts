@@ -43,7 +43,7 @@ test.describe("namecard pagination", () => {
         await route.fulfill({ contentType: "application/json", body: "{}" })
       },
       "GET",
-      3
+      2
     )
 
     await page.goto("/community/cards")

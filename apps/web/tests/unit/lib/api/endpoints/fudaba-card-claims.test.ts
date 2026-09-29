@@ -146,6 +146,31 @@ describe("Fudaba card claim API", () => {
     })
   })
 
+  it("accepts a claim that leaves 企划 and 担当偶像 unset", async () => {
+    setCsrfCookie("platform", "platform-claim-csrf")
+    let request: Request | null = null
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      request = requestOf(input, init)
+      return Response.json({ success: true, claim })
+    })
+
+    await expect(
+      createFudabaLegacyCardClaim(42, {
+        targetCardId: null,
+        seriesCode: null,
+        favoriteIdolIds: [],
+        message: "",
+      }).send()
+    ).resolves.toMatchObject({ claim: { legacyCardId: 42 } })
+
+    await expect(request!.json()).resolves.toEqual({
+      targetCardId: null,
+      seriesCode: null,
+      favoriteIdolIds: [],
+      message: "",
+    })
+  })
+
   it("validates exact Backoffice errors on the admin review queue", async () => {
     installFetchMock()
       .mockResolvedValueOnce(

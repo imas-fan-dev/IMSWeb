@@ -151,7 +151,7 @@ test.describe('route inventory compiler', () => {
         passthrough: 18,
         "non-object-applicable": 71,
       },
-      responses: { total: 658, json: 594, nonJson: 64 },
+      responses: { total: 659, json: 595, nonJson: 64 },
       unresolved: 0,
     });
     assert.deepEqual(current, artifact);

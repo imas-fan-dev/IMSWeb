@@ -151,7 +151,7 @@ test.describe("app navigation", () => {
       has: page.getByRole("button", { name: "查看制作人名片 13 正面" }),
     })
     const reactions = firstCard.getByRole("button", { name: /次反应$/ })
-    await expect(reactions).toHaveCount(6)
+    await expect(reactions).toHaveCount(3)
     const top = await readCards(page)
     const sourceHeight = await page.evaluate(
       () => document.documentElement.scrollHeight
@@ -169,7 +169,7 @@ test.describe("app navigation", () => {
       // Exercise growth beyond the former two-second restoration deadline.
       await page.clock.runFor(2300)
       release()
-      await expect(reactions).toHaveCount(6)
+      await expect(reactions).toHaveCount(3)
       await expect
         .poll(() => page.evaluate(() => document.documentElement.scrollHeight))
         .toBe(sourceHeight)

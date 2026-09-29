@@ -69,7 +69,7 @@ describe("NamecardReactionEmoji", () => {
       expect(image).toHaveAttribute("aria-hidden", "true")
       expect(image).toHaveAttribute("draggable", "false")
       expect(image).toHaveClass("size-5", "shrink-0")
-      expect(image).not.toHaveClass("size-4", "md:size-5")
+      expect(image).not.toHaveClass("size-3.5", "md:size-5")
       expect(container.textContent).toBe("")
     }
   )
@@ -80,13 +80,13 @@ describe("NamecardReactionEmoji", () => {
       <NamecardReactionEmoji emoji={emoji} compact />
     )
     const image = container.querySelector("img")!
-    expect(image).toHaveClass("size-4", "md:size-5", "shrink-0")
+    expect(image).toHaveClass("size-3.5", "md:size-5", "shrink-0")
     expect(image).toHaveAttribute("src", "/emoji/twemoji/2764.svg")
     expect(image).toHaveAttribute("aria-hidden", "true")
 
     rerender(<NamecardReactionEmoji emoji={emoji} compact={false} />)
     expect(image).toHaveClass("size-5", "shrink-0")
-    expect(image).not.toHaveClass("size-4", "md:size-5")
+    expect(image).not.toHaveClass("size-3.5", "md:size-5")
 
     rerender(<NamecardReactionEmoji emoji={emoji} compact />)
     fireEvent.error(image)
@@ -94,7 +94,7 @@ describe("NamecardReactionEmoji", () => {
     expect(container.querySelector("img")).not.toBeInTheDocument()
     expect(fallback).toHaveClass(
       "lucide-smile",
-      "size-4",
+      "size-3.5",
       "md:size-5",
       "shrink-0"
     )
@@ -103,7 +103,7 @@ describe("NamecardReactionEmoji", () => {
 
     rerender(<NamecardReactionEmoji emoji={emoji} />)
     expect(fallback).toHaveClass("size-5", "shrink-0")
-    expect(fallback).not.toHaveClass("size-4", "md:size-5")
+    expect(fallback).not.toHaveClass("size-3.5", "md:size-5")
   })
 
   it("keeps unknown compact input decorative with the same responsive fallback size", () => {
@@ -113,7 +113,7 @@ describe("NamecardReactionEmoji", () => {
     expect(container.querySelector("img")).not.toBeInTheDocument()
     expect(container.querySelector("svg")).toHaveClass(
       "lucide-smile",
-      "size-4",
+      "size-3.5",
       "md:size-5",
       "shrink-0"
     )

@@ -293,15 +293,17 @@ test.describe('run-test-owner plan', () => {
     );
   });
 
-  test("every Web profile runs units before browser tests", () => {
-    assert.deepEqual(scripts(buildOwnerPlan({ owner: "web" })), [
+  test("local Web tests run units while CI requires check and browsers", () => {
+    const local = buildOwnerPlan({ owner: "web" });
+    assert.deepEqual(scripts(local), ["test:unit"]);
+    assert.equal(local.length, 1);
+    assert.deepEqual(scripts(buildOwnerPlan({ owner: "web", profile: "all" })), [
       "test:unit",
-      "test:e2e",
     ]);
-    assert.deepEqual(scripts(buildOwnerPlan({ owner: "web", profile: "ci" })), [
-      "check",
-      "test:e2e",
-    ]);
+
+    const ci = buildOwnerPlan({ owner: "web", profile: "ci" });
+    assert.deepEqual(scripts(ci), ["check", "test:e2e"]);
+    assert.equal(ci.length, 2);
   });
 
   test("skip flags and ambiguous profiles fail closed", () => {

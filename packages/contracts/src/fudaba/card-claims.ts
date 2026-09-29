@@ -110,9 +110,13 @@ export const reviewMutationSchema = successEnvelope({ revision: revisionSchema }
 
 export const fudabaLegacyCardClaimRequestSchema = z.object({
   targetCardId: ownerCardIdSchema.nullable(),
-  seriesCode: seriesCodeSchema.max(64),
-  favoriteIdolIds: z.array(z.number().int().positive()).min(1).max(20)
-    .refine((ids) => new Set(ids).size === ids.length),
+  // Both are optional: the API derives the series from the card the claim binds
+  // to, then the selected idols' agency, then the legacy card itself, and only
+  // asks the claimant when none of those resolve.
+  seriesCode: seriesCodeSchema.max(64).nullable().optional(),
+  favoriteIdolIds: z.array(z.number().int().positive()).max(20)
+    .refine((ids) => new Set(ids).size === ids.length)
+    .optional(),
   message: ownerCardTextSchema(1000),
 }).strict()
 export const fudabaClaimEnvelopeActionRequestSchema = z.object({
@@ -171,6 +175,9 @@ export type FudabaAdminCardClaimListResponse = z.infer<
 >
 export type FudabaReviewMutationResponse = z.infer<typeof reviewMutationSchema>
 export type FudabaCardClaimError = z.infer<typeof fudabaCardClaimErrorSchema>
+export type FudabaLegacyCardClaimRequestInput = z.input<
+  typeof fudabaLegacyCardClaimRequestSchema
+>
 export type FudabaAdminCardClaimHttpError = z.infer<
   typeof fudabaAdminCardClaimHttpErrorSchema
 >

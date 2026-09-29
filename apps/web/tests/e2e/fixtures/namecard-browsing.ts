@@ -330,13 +330,22 @@ export async function expectNamecardGalleryGeometry(page: Page) {
       expect(back!.y).toBeCloseTo(front!.y, 0)
     }
   }
-  const pagination = await page
-    .getByRole("button", { name: "上一页", exact: true })
-    .boundingBox()
-  expect(pagination).not.toBeNull()
-  expect(
-    Math.max(...geometry.map((card) => card.box.bottom))
-  ).toBeLessThanOrEqual(pagination!.y)
+  const pagination = page.getByRole("button", {
+    name: "上一页",
+    exact: true,
+  })
+  await expect(pagination).toBeAttached()
+  await expect
+    .poll(async () => {
+      const paginationBox = await pagination.boundingBox()
+      const cardBottom = await cards.evaluateAll((elements) =>
+        Math.max(
+          ...elements.map((element) => element.getBoundingClientRect().bottom)
+        )
+      )
+      return paginationBox ? paginationBox.y - cardBottom : -1
+    })
+    .toBeGreaterThanOrEqual(0)
   const viewport = page.viewportSize()!
   if (viewport.width === 390 && viewport.height === 844) {
     const availableBottom = await page.evaluate(() => {
@@ -360,6 +369,20 @@ export async function expectNamecardGalleryGeometry(page: Page) {
 export async function expectNamecardPaginationGeometry(page: Page) {
   const pagination = page.getByRole("navigation", { name: "名片分页" })
   await pagination.scrollIntoViewIfNeeded()
+  await expect
+    .poll(() =>
+      pagination.evaluate((element) => {
+        const visible = Array.from(
+          element.querySelectorAll("button,#namecard-target-page")
+        ).filter((control) => control.getClientRects().length > 0)
+        if (visible.length !== 5) return false
+        const tops = visible.map(
+          (control) => control.getBoundingClientRect().top
+        )
+        return Math.max(...tops) - Math.min(...tops) < 80
+      })
+    )
+    .toBe(true)
   const controls = await pagination.evaluate((element) =>
     Array.from(element.querySelectorAll("button,#namecard-target-page"))
       .filter((control) => control.getClientRects().length > 0)
@@ -391,20 +414,31 @@ export async function expectNamecardPaginationGeometry(page: Page) {
     }
   }
   if (page.viewportSize()!.width < 768) {
-    const input = await pagination
-      .getByRole("spinbutton", { name: "跳至" })
-      .boundingBox()
-    for (const name of ["上一页", "跳转", "下一页"]) {
-      const button = await pagination
-        .getByRole("button", { name, exact: true })
-        .boundingBox()
-      expect(button!.y).toBeCloseTo(input!.y, 0)
-    }
-    const size = await pagination
-      .getByRole("combobox", { name: "每页显示" })
-      .boundingBox()
-    expect(size!.y).toBeGreaterThanOrEqual(input!.y + input!.height + 7)
-    expect((await pagination.boundingBox())!.height).toBeLessThanOrEqual(120)
+    // Read all rects in one layout snapshot. Separate boundingBox calls can
+    // straddle a masonry reflow and compare positions from different frames.
+    await expect
+      .poll(() =>
+        pagination.evaluate((element) => {
+          const rect = (selector: string) => {
+            const box = element.querySelector(selector)?.getBoundingClientRect()
+            return box ? { y: box.y, height: box.height } : null
+          }
+          const input = rect("#namecard-target-page")
+          const previous = rect('button[aria-label="上一页"]')
+          const jump = rect('button[type="submit"]')
+          const next = rect('button[aria-label="下一页"]')
+          const size = rect("#namecard-page-size")
+          if (!input || !previous || !jump || !next || !size) return false
+          return (
+            [previous, jump, next].every(
+              (button) => Math.abs(button.y - input.y) < 0.5
+            ) &&
+            size.y >= input.y + input.height + 7 &&
+            element.getBoundingClientRect().height <= 120
+          )
+        })
+      )
+      .toBe(true)
   }
   await expectNamecardNoOverflow(page)
 }
@@ -435,23 +469,25 @@ export async function expectNamecardPaginationHitTargets(page: Page) {
             )
           })
           .map((control) => control.getAttribute("aria-label") ?? control.id)
+          .filter(Boolean)
       )
     )
     .toEqual([])
 }
 
 export async function expectNamecardReactionDensity(page: Page) {
-  const groups = page.locator('[data-namecard-item] [aria-label="名片反应"]')
+  const groups = page.locator(
+    '[data-namecard-item] [aria-label="名片反应摘要"]'
+  )
   await expect(groups.first()).toBeVisible()
   await expect
     .poll(() =>
       groups.evaluateAll((elements) => {
         const mobile = !matchMedia("(min-width: 48rem)").matches
-        // Mobile chips are 40px wide and 44px tall (`min-w-10` / `min-h-11`) so
-        // four short-count entries share one row; the desktop chip is a compact
-        // 32px pill (`md:min-w-0` / `md:h-8`) that grows with its count.
-        const minWidth = mobile ? 39.5 : 31.5
-        const minHeight = mobile ? 43.5 : 31.5
+        // Mobile summaries show at most three 32px-high natural-width pills
+        // with 14px graphics. Desktop shows every reaction with 20px graphics.
+        const minWidth = 31.5
+        const minHeight = 31.5
         return elements.every((group) => {
           const card = group.closest("[data-namecard-item]")!
           const cardBox = card.getBoundingClientRect()
@@ -467,16 +503,16 @@ export async function expectNamecardReactionDensity(page: Page) {
               date.right > cardBox.right)
           )
             return false
-          const rows = new Map<number, number>()
-          return Array.from(group.querySelectorAll("button")).every(
-            (button) => {
+          const buttons = Array.from(group.querySelectorAll("button")).filter(
+            (button) => button.getClientRects().length > 0
+          )
+          return (
+            (!mobile || buttons.length <= 3) &&
+            buttons.every((button) => {
               const box = button.getBoundingClientRect()
-              const row = Math.round(box.y)
-              rows.set(row, (rows.get(row) ?? 0) + 1)
               const image = button.querySelector("img")
               const imageBox = image?.getBoundingClientRect()
               return (
-                (!mobile || rows.get(row)! <= 4) &&
                 box.width >= minWidth &&
                 box.height >= minHeight &&
                 box.left >= cardBox.left - 0.5 &&
@@ -485,12 +521,12 @@ export async function expectNamecardReactionDensity(page: Page) {
                 (!image ||
                   (image.complete &&
                     image.naturalWidth > 0 &&
-                    Math.abs(imageBox!.width - (mobile ? 16 : 20)) < 0.1 &&
-                    Math.abs(imageBox!.height - (mobile ? 16 : 20)) < 0.1 &&
+                    Math.abs(imageBox!.width - (mobile ? 14 : 20)) < 0.1 &&
+                    Math.abs(imageBox!.height - (mobile ? 14 : 20)) < 0.1 &&
                     getComputedStyle(button).fontSize ===
-                      (mobile ? "12px" : "14px")))
+                      (mobile ? "11px" : "14px")))
               )
-            }
+            })
           )
         })
       })
@@ -525,7 +561,9 @@ export async function expectNamecardReactionGraphics(page: Page) {
 }
 
 export async function expectNamecardPreviewGeometry(page: Page) {
-  const dialog = page.getByRole("dialog")
+  const dialog = page.getByRole("dialog", {
+    name: /制作人名片 \d+ · (正面|背面)/,
+  })
   await expect(dialog).toBeVisible()
   await dialog.evaluate(async (element) => {
     await Promise.allSettled(

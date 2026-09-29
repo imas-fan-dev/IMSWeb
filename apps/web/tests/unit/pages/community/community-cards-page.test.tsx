@@ -126,6 +126,11 @@ describe("CommunityCardsPage", () => {
       list: [
         {
           id: 459,
+          seriesCode: null,
+          favoriteIdols: [],
+          claimStatus: "unclaimed",
+          viewerClaimState: null,
+          claimerName: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -225,15 +230,17 @@ describe("CommunityCardsPage", () => {
       list: [
         {
           id: 42,
+          seriesCode: "765",
+          favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+          claimStatus: "unclaimed",
+          viewerClaimState: null,
+          claimerName: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
           image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
           status: "approved",
           created_at: null,
-          claimStatus: "unclaimed",
-          viewerClaimState: null,
-          claimerName: null,
         },
       ],
       page: 1,
@@ -276,25 +283,19 @@ describe("CommunityCardsPage", () => {
       </MemoryRouter>
     )
 
-    const claimButton = await screen.findByRole("button", {
+    const frontTrigger = await screen.findByRole("button", {
+      name: "查看制作人名片 42 正面",
+    })
+    expect(
+      screen.queryByRole("button", { name: "认领这张名片" })
+    ).not.toBeInTheDocument()
+    await userEvent.setup().click(frontTrigger)
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const claimButton = within(detail).getByRole("button", {
       name: "认领这张名片",
     })
     expect(claimButton).toBeVisible()
-    expect(claimButton).toHaveClass(
-      "h-auto",
-      "min-h-11",
-      "max-md:w-full",
-      "max-md:justify-center",
-      "md:col-start-2",
-      "md:row-start-2",
-      "md:h-8",
-      "md:min-h-8",
-      "md:mr-4",
-      "md:self-center",
-      "md:justify-self-end",
-      "md:whitespace-nowrap"
-    )
-    expect(claimButton).not.toHaveClass("md:h-7")
+    expect(claimButton).toHaveClass("min-h-11")
   })
 
   it("opens the complete reaction picker and updates the selected count", async () => {
@@ -303,6 +304,11 @@ describe("CommunityCardsPage", () => {
       list: [
         {
           id: 42,
+          seriesCode: null,
+          favoriteIdols: [],
+          claimStatus: "unclaimed",
+          viewerClaimState: null,
+          claimerName: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -324,27 +330,53 @@ describe("CommunityCardsPage", () => {
       </MemoryRouter>
     )
 
+    const reaction = (
+      await screen.findAllByRole("button", { name: "❤️，4 次反应" })
+    )[0]!
+    expect(reaction).toBeVisible()
     expect(
-      await screen.findByRole("button", { name: "❤️，4 次反应" })
+      screen.getAllByRole("button", { name: "🐵，2 次反应" })[0]
     ).toBeVisible()
-    expect(screen.getByRole("button", { name: "🐵，2 次反应" })).toBeVisible()
-    const reaction = screen.getByRole("button", { name: "❤️，4 次反应" })
     expect(reaction).toHaveTextContent(/^4$/)
     expect(reaction.querySelector("img")).toHaveAttribute(
       "src",
       "/emoji/twemoji/2764.svg"
     )
     expect(reaction).toHaveClass(
-      "min-h-11",
-      "min-w-10",
-      "md:h-8",
-      "md:min-h-8",
-      "md:min-w-0",
-      "md:rounded-full"
+      "h-8",
+      "min-h-8",
+      "min-w-8",
+      "gap-0.5",
+      "rounded-full",
+      "px-1",
+      "text-[11px]",
+      "md:min-w-0"
     )
-    expect(reaction.querySelector("img")).toHaveClass("size-4", "md:size-5")
+    expect(reaction.querySelector("img")).toHaveClass("size-3.5", "md:size-5")
 
-    await user.click(screen.getByRole("button", { name: "添加反应" }))
+    expect(
+      screen.queryByRole("button", { name: "添加反应" })
+    ).not.toBeInTheDocument()
+    await user.click(
+      screen.getAllByRole("button", { name: "❤️，4 次反应" })[0]!
+    )
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const reactionGroup = within(detail).getByLabelText("名片全部反应")
+    const addButton = within(detail).getByRole("button", {
+      name: "添加反应",
+    })
+    expect(reactionGroup).toBeVisible()
+    expect(reactionGroup.lastElementChild).toBe(addButton)
+    expect(addButton).toHaveAttribute("title", "添加反应")
+    expect(addButton).toHaveClass("size-11", "rounded-full")
+    const visibleCircle = addButton.querySelector("span")
+    expect(visibleCircle).toHaveClass("size-8", "rounded-full", "border-dashed")
+    expect(addButton.querySelector("svg")).toHaveAttribute(
+      "aria-hidden",
+      "true"
+    )
+    expect(addButton).toHaveTextContent("")
+    await user.click(addButton)
 
     expect(screen.getByText("选择反应")).toBeVisible()
     expect(
@@ -409,76 +441,168 @@ describe("CommunityCardsPage", () => {
     expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
   })
 
-  it("packs four short-count reactions including plus into one mobile row without fixing count widths", async () => {
+  it("preserves counts read during a pending reaction mutation", async () => {
+    let resolveReactions!: (value: Record<string, number>) => void
+    let resolveMutation!: (value: { ok: true }) => void
+    apiMocks.sendPage.mockResolvedValue(pageResult())
+    apiMocks.sendReactions.mockReturnValue(
+      new Promise<Record<string, number>>((resolve) => {
+        resolveReactions = resolve
+      })
+    )
+    apiMocks.sendAddReaction.mockReturnValue(
+      new Promise<{ ok: true }>((resolve) => {
+        resolveMutation = resolve
+      })
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
+    )
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    await user.click(within(detail).getByRole("button", { name: "添加反应" }))
+    await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
+    expect(
+      within(detail).getByRole("button", { name: "添加反应" })
+    ).toBeDisabled()
+    await act(async () => resolveReactions({ "👍": 4, "😂": 2 }))
+    await act(async () => resolveMutation({ ok: true }))
+
+    expect(
+      within(detail).getByRole("button", { name: "👍，4 次反应" })
+    ).toBeVisible()
+    expect(
+      within(detail).getByRole("button", { name: "😂，2 次反应" })
+    ).toBeVisible()
+    expect(
+      within(detail).getByRole("button", { name: "❤️，1 次反应" })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "👍，4 次反应" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "😂，2 次反应" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "❤️，1 次反应" })).toBeVisible()
+  })
+
+  it("merges an older reaction read with a successful mutation", async () => {
+    let resolveReactions!: (value: Record<string, number>) => void
+    apiMocks.sendPage.mockResolvedValue(pageResult())
+    apiMocks.sendReactions.mockReturnValue(
+      new Promise<Record<string, number>>((resolve) => {
+        resolveReactions = resolve
+      })
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
+    )
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    await user.click(within(detail).getByRole("button", { name: "添加反应" }))
+    await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
+    expect(
+      await within(detail).findByRole("button", { name: "❤️，1 次反应" })
+    ).toBeVisible()
+
+    await act(async () => resolveReactions({ "👍": 4, "😂": 2, "❤️": 0 }))
+
+    expect(apiMocks.sendReactions).toHaveBeenCalledOnce()
+    expect(
+      within(detail).getByRole("button", { name: "❤️，1 次反应" })
+    ).toBeVisible()
+    expect(
+      within(detail).getByRole("button", { name: "👍，4 次反应" })
+    ).toBeVisible()
+    expect(
+      within(detail).getByRole("button", { name: "😂，2 次反应" })
+    ).toBeVisible()
+  })
+
+  it("sorts the mobile top three stably and exposes all desktop summaries", async () => {
     apiMocks.sendPage.mockResolvedValue(pageResult())
     apiMocks.sendReactions.mockResolvedValue({
       "❤️": 12,
-      "👍": 34,
-      "😂": 56,
-      "🤣": 123456,
+      "👍": 56,
+      "😂": 34,
+      "🤣": 56,
     })
     renderPage()
 
-    await screen.findByRole("button", { name: "🤣，123456 次反应" })
-    const group = screen.getByLabelText("名片反应")
+    const group = await screen.findByLabelText("名片反应摘要")
+    await within(group).findAllByRole("button", { name: "🤣，56 次反应" })
     expect(group).toHaveClass(
-      "-mx-2",
       "flex",
       "flex-wrap",
-      "gap-0",
-      "md:mx-0",
+      "min-h-8",
+      "gap-0.75",
       "md:gap-1.5"
     )
+    expect(group).not.toHaveClass("-mx-2", "md:mx-0")
     const chips = within(group).getAllByRole("button", { name: /次反应$/ })
-    expect(chips.map((chip) => chip.textContent)).toEqual([
+    const mobileChips = chips.filter((chip) =>
+      chip.classList.contains("md:hidden")
+    )
+    const desktopChips = chips.filter((chip) =>
+      chip.classList.contains("max-md:hidden")
+    )
+    expect(mobileChips.map((chip) => chip.textContent)).toEqual([
+      "56",
+      "56",
+      "34",
+    ])
+    expect(desktopChips.map((chip) => chip.textContent)).toEqual([
       "12",
+      "56",
       "34",
       "56",
-      "123456",
     ])
     for (const chip of chips) {
       expect(chip).toHaveClass(
-        "min-h-11",
-        "min-w-10",
+        "h-8",
+        "min-h-8",
+        "min-w-8",
         "shrink-0",
         "gap-0.5",
-        "px-0.5",
-        "text-xs",
+        "rounded-full",
+        "border-border",
+        "bg-background",
+        "px-1",
+        "text-[11px]",
         "tabular-nums",
         "max-md:focus-visible:ring-inset",
-        "md:h-8",
-        "md:min-h-8",
         "md:min-w-0",
         "md:gap-1.5",
-        "md:rounded-full",
         "md:px-3",
         "md:text-sm"
       )
-      expect(chip).not.toHaveClass("w-11", "w-1/4", "basis-1/4", "truncate")
-      expect(chip.querySelector("img")).toHaveClass("size-4", "md:size-5")
+      expect(chip).not.toHaveClass(
+        "min-h-11",
+        "h-9",
+        "w-11",
+        "w-1/4",
+        "basis-1/4",
+        "truncate"
+      )
+      expect(chip).toHaveClass("max-w-14", "md:max-w-none", "grow")
+      expect(chip.querySelector("img")).toHaveClass("size-3.5", "md:size-5")
     }
-    expect(within(group).getByRole("button", { name: "添加反应" })).toHaveClass(
-      "h-11",
-      "min-h-11",
-      "w-10",
-      "min-w-10",
-      "shrink-0",
-      "max-md:focus-visible:ring-inset",
-      "md:size-8",
-      "md:min-h-8",
-      "md:min-w-8",
-      "md:rounded-full",
-      "md:border-dashed",
-      "md:bg-transparent"
-    )
+    expect(
+      within(group).queryByRole("button", { name: "添加反应" })
+    ).not.toBeInTheDocument()
   })
 
-  it("opens both namecard sides in one preview dialog", async () => {
+  it("opens detail from the list and then previews both sides", async () => {
     const user = userEvent.setup()
     apiMocks.sendPage.mockResolvedValue({
       list: [
         {
           id: 42,
+          seriesCode: null,
+          favoriteIdols: [],
+          claimStatus: "unclaimed",
+          viewerClaimState: null,
+          claimerName: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -509,21 +633,42 @@ describe("CommunityCardsPage", () => {
 
     await user.click(frontTrigger)
 
-    const dialog = screen.getByRole("dialog")
-    expect(dialog).toBeVisible()
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    expect(detail).toBeVisible()
+    expect(within(detail).getByText("企划")).toBeVisible()
     expect(
-      screen.getByRole("img", { name: "制作人名片 42 正面" })
+      within(detail).queryByRole("button", { name: /[上下]一张名片/ })
+    ).not.toBeInTheDocument()
+    expect(
+      within(detail).queryByText(/第 \d+ \/ \d+ 张/)
+    ).not.toBeInTheDocument()
+    await user.click(
+      within(detail).getByRole("button", {
+        name: "放大制作人名片 42 正面",
+      })
+    )
+    const preview = screen.getByRole("dialog", {
+      name: "制作人名片 42 · 正面",
+    })
+    expect(
+      within(preview).getByRole("img", { name: "制作人名片 42 正面" })
     ).toHaveAttribute("src", "/uploads/front.webp")
     expect(screen.getByLabelText("名片查看区域")).toBeVisible()
+    expect(
+      within(preview).queryByRole("button", { name: /[上下]一张名片/ })
+    ).not.toBeInTheDocument()
+    expect(
+      within(preview).queryByText(/第 \d+ \/ \d+ 张/)
+    ).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "背面" }))
+    await user.click(within(preview).getByRole("button", { name: "背面" }))
 
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
     ).toBeVisible()
     expect(screen.getAllByRole("dialog")).toHaveLength(1)
 
-    fireEvent.keyDown(dialog, { key: "ArrowLeft" })
+    fireEvent.keyDown(preview, { key: "ArrowLeft" })
     expect(
       screen.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()
@@ -578,12 +723,8 @@ describe("CommunityCardsPage", () => {
         "rounded-lg",
         "overflow-hidden",
         "self-start",
-        "md:grid",
-        "md:grid-cols-[minmax(0,1fr)_auto]",
-        "md:content-start",
-        "md:gap-x-4",
-        "md:gap-y-0",
         "md:h-full",
+        "md:gap-0",
         "md:self-stretch",
         "md:bg-muted/50",
         "max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start)",
@@ -596,23 +737,30 @@ describe("CommunityCardsPage", () => {
         "nth-[2n+4]:translate-y-6",
         "ring-0",
         "bg-transparent",
-        "md:gap-4"
+        "md:gap-4",
+        "md:grid"
       )
       expect(item.querySelectorAll('[data-slot="card"]')).toHaveLength(0)
       expect(item.querySelector("time")?.closest('[data-slot="card"]')).toBe(
         item
       )
       expect(
-        within(item).getByLabelText("名片反应").closest('[data-slot="card"]')
+        within(item)
+          .getByLabelText("名片反应摘要")
+          .closest('[data-slot="card"]')
       ).toBe(item)
-      expect(item.querySelector('[data-slot="card-header"]')).toHaveClass(
-        "px-2",
-        "md:col-start-1",
-        "md:row-start-2",
+      const header = item.querySelector('[data-slot="card-header"]')!
+      expect(header).toHaveClass(
+        "flex",
+        "flex-wrap",
+        "items-center",
+        "gap-x-2",
+        "gap-y-1",
+        "px-1.5",
         "md:min-h-8",
-        "md:items-center",
         "md:px-4"
       )
+      expect(header.querySelector("svg")).toHaveClass("max-md:hidden")
       const faces = within(item).getAllByRole("button", {
         name: /^查看制作人名片/,
       })
@@ -620,9 +768,6 @@ describe("CommunityCardsPage", () => {
       expect(faces[0].parentElement).toHaveClass(
         "grid",
         "gap-1",
-        "md:col-span-2",
-        "md:col-start-1",
-        "md:row-start-1",
         "md:mb-4",
         "md:grid-cols-2",
         "md:border-b",
@@ -635,20 +780,17 @@ describe("CommunityCardsPage", () => {
         expect(face.closest('[data-slot="card"]')).toBe(item)
         expect(face.querySelector("img")).toHaveClass("object-contain")
       }
-      expect(item.querySelector("[data-slot=card-footer]")).toHaveClass(
+      const footer = item.querySelector("[data-slot=card-footer]")!
+      expect(footer).toHaveClass(
         "bg-transparent",
         "border-0",
-        "p-2",
-        "pt-0",
-        "md:contents"
-      )
-      expect(within(item).getByLabelText("名片反应").parentElement).toHaveClass(
-        "md:col-span-2",
-        "md:col-start-1",
-        "md:row-start-3",
+        "p-1.5",
         "md:px-4",
         "md:pt-3",
         "md:pb-4"
+      )
+      expect(within(item).getByLabelText("名片反应摘要").parentElement).toBe(
+        footer
       )
     }
     expect(screen.getByText("风晓星落P").closest('[data-slot="card"]')).toBe(
@@ -659,13 +801,7 @@ describe("CommunityCardsPage", () => {
       .getByText("风晓星落P")
       .closest('[data-slot="badge"]')!
     const claimPlacement = [
-      "md:col-start-2",
-      "md:row-start-2",
-      "md:mr-4",
-      "md:self-center",
-      "md:justify-self-end",
-    ]
-    expect(claimedBadge).toHaveClass(
+      "ml-auto",
       "h-auto",
       "min-h-5",
       "max-w-full",
@@ -674,10 +810,16 @@ describe("CommunityCardsPage", () => {
       "md:h-6",
       "md:px-2.5",
       "md:whitespace-nowrap",
-      "md:text-muted-foreground",
-      ...claimPlacement
+    ]
+    expect(claimedBadge).toHaveClass(
+      ...claimPlacement,
+      "md:text-muted-foreground"
     )
     expect(claimedBadge).not.toHaveClass("bg-secondary")
+    // The claim control shares the metadata row on mobile and desktop alike.
+    expect(claimedBadge.closest('[data-slot="card-header"]')).toBe(
+      items[0].querySelector('[data-slot="card-header"]')
+    )
     expect(
       screen.getByText("已由注册用户认领").closest('[data-slot="card"]')
     ).toBe(items[3])
@@ -699,7 +841,7 @@ describe("CommunityCardsPage", () => {
     { label: "正面", source: "/front-42.jpg" },
     { label: "背面", source: "/back-42.jpg" },
   ])(
-    "opens the $label trigger directly in the corresponding original-image preview",
+    "opens the $label list trigger in detail before the original-image preview",
     async ({ label, source }) => {
       const user = userEvent.setup()
       apiMocks.sendPage.mockResolvedValue(pageResult())
@@ -711,12 +853,21 @@ describe("CommunityCardsPage", () => {
         })
       )
 
-      const dialog = screen.getByRole("dialog")
+      const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+      expect(within(detail).getByText("全部反应")).toBeVisible()
+      await user.click(
+        within(detail).getByRole("button", {
+          name: `放大制作人名片 42 ${label}`,
+        })
+      )
+      const preview = screen.getByRole("dialog", {
+        name: `制作人名片 42 · ${label}`,
+      })
       expect(
-        within(dialog).getByRole("img", { name: `制作人名片 42 ${label}` })
+        within(preview).getByRole("img", { name: `制作人名片 42 ${label}` })
       ).toHaveAttribute("src", source)
       expect(
-        within(dialog).getByRole("button", { name: label })
+        within(preview).getByRole("button", { name: label })
       ).toHaveAttribute("aria-pressed", "true")
       expect(screen.getByLabelText("列表地址")).toHaveTextContent(
         "?page=1&size=12"
@@ -927,6 +1078,11 @@ describe("CommunityCardsPage", () => {
       list: [
         {
           id: 42,
+          seriesCode: null,
+          favoriteIdols: [],
+          claimStatus: "unclaimed",
+          viewerClaimState: null,
+          claimerName: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",

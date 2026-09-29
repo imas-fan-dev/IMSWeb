@@ -12,6 +12,7 @@ vi.mock("~/lib/app-target", () => ({
 }))
 
 const marker = "data-namecard-pagination-visible"
+const shellMarker = "data-namecard-pagination-visible"
 let rect: DOMRect
 let observers: ObserverMock[]
 
@@ -44,10 +45,12 @@ class ObserverMock {
 function Pagination({ mounted = true, identity = "page-1" }) {
   const ref = useNamecardPaginationVisibility()
   return (
-    <div data-testid="scroll-container">
-      {mounted ? (
-        <nav key={identity} ref={ref} aria-label="Pagination" />
-      ) : null}
+    <div data-app-shell data-testid="shell">
+      <div data-testid="scroll-container">
+        {mounted ? (
+          <nav key={identity} ref={ref} aria-label="Pagination" />
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -73,12 +76,15 @@ describe("useNamecardPaginationVisibility", () => {
     render(<Pagination />)
 
     expect(navigation()).toHaveAttribute(marker)
+    expect(screen.getByTestId("shell")).toHaveAttribute(shellMarker)
     expect(observers).toHaveLength(1)
     expect(observers[0].observe).toHaveBeenCalledWith(navigation())
     act(() => observers[0].intersect(navigation(), false))
     expect(navigation()).not.toHaveAttribute(marker)
+    expect(screen.getByTestId("shell")).not.toHaveAttribute(shellMarker)
     act(() => observers[0].intersect(navigation(), true))
     expect(navigation()).toHaveAttribute(marker)
+    expect(screen.getByTestId("shell")).toHaveAttribute(shellMarker)
   })
 
   it("attaches when navigation mounts after loading and cleans up when the list disappears", () => {
@@ -117,9 +123,11 @@ describe("useNamecardPaginationVisibility", () => {
   it("clears the marker and ignores pending callbacks on unmount", () => {
     const { unmount } = render(<Pagination />)
     const node = navigation()
+    const shell = screen.getByTestId("shell")
     unmount()
     expect(observers[0].disconnect).toHaveBeenCalledOnce()
     expect(node).not.toHaveAttribute(marker)
+    expect(shell).not.toHaveAttribute(shellMarker)
     act(() => observers[0].intersect(node, true))
     expect(node).not.toHaveAttribute(marker)
   })
@@ -166,6 +174,7 @@ describe("useNamecardPaginationVisibility", () => {
 
   it("uses captured ancestor scroll and resize events without IntersectionObserver", () => {
     vi.stubGlobal("IntersectionObserver", undefined)
+    rect = new DOMRect(16, 644, 358, 96)
     const removeEventListener = vi.spyOn(window, "removeEventListener")
     const { unmount } = render(<Pagination />)
     const node = navigation()

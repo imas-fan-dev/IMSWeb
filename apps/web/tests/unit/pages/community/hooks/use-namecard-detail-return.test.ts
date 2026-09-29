@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { useNamecardPreviewReturn } from "~/pages/community/hooks/use-namecard-preview-return"
+import { useNamecardDetailReturn } from "~/pages/community/hooks/use-namecard-detail-return"
 
 const scrollToDescriptor = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
@@ -30,7 +30,7 @@ function setup() {
   outer.scrollLeft = 40
   inner.scrollTop = 125
   inner.scrollLeft = 15
-  const hook = renderHook(({ context }) => useNamecardPreviewReturn(context), {
+  const hook = renderHook(({ context }) => useNamecardDetailReturn(context), {
     initialProps: { context: "page=2&size=12" },
   })
   hook.result.current.fallbackRef.current = root
@@ -39,7 +39,7 @@ function setup() {
   return { ...hook, outer, inner, trigger, focus, fallbackFocus }
 }
 
-describe("useNamecardPreviewReturn", () => {
+describe("useNamecardDetailReturn", () => {
   beforeEach(() => {
     frames.length = 0
     scrollElement.mockClear()
@@ -174,7 +174,7 @@ describe("useNamecardPreviewReturn", () => {
     expect(scrollWindow).toHaveBeenCalledOnce()
   })
 
-  it("discards a queued return when another preview opens before the frame", () => {
+  it("discards a queued return when another detail opens before the frame", () => {
     const { result, trigger, focus, inner } = setup()
     result.current.remember(trigger)
     result.current.prepareRestore()

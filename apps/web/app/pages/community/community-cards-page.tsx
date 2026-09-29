@@ -3,7 +3,6 @@ import {
   ArrowRightIcon,
   CalendarDaysIcon,
   ImagesIcon,
-  PlusIcon,
   ShieldCheckIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -37,12 +36,6 @@ import {
 import { FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTitle,
-  PopoverTrigger,
-} from "~/components/ui/popover"
-import {
   Select,
   SelectContent,
   SelectGroup,
@@ -51,25 +44,22 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { Skeleton } from "~/components/ui/skeleton"
-import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
+import {
+  NamecardDetailDialog,
+  NamecardReactionSummary,
+  type NamecardReactionState,
+} from "~/pages/community/components/namecard-detail-dialog"
 import { NamecardThumbnail } from "~/pages/community/components/namecard-thumbnail"
 import { useNamecardMasonry } from "~/pages/community/hooks/use-namecard-masonry"
 import { useNamecardPaginationVisibility } from "~/pages/community/hooks/use-namecard-pagination-visibility"
-import { useNamecardPreviewNavigation } from "~/pages/community/hooks/use-namecard-preview-navigation"
-import { useNamecardPreviewReturn } from "~/pages/community/hooks/use-namecard-preview-return"
-import {
-  addNamecardReaction,
-  getNamecardPage,
-  getNamecardReactions,
-  NAMECARD_REACTIONS,
-} from "~/lib/api"
-import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
+import { useNamecardDetailSession } from "~/pages/community/hooks/use-namecard-detail-session"
+import { useNamecardDetailReturn } from "~/pages/community/hooks/use-namecard-detail-return"
+import { getNamecardPage, getNamecardReactions } from "~/lib/api"
+import type { Namecard, NamecardPage } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
-const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
-const SESSION_REACTION_LIMIT = 10
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -121,140 +111,22 @@ export function meta() {
   return [{ title: "制作人名片墙 | IMSWeb" }]
 }
 
-function NamecardReactionBar({ cardId }: { cardId: number }) {
-  const [reactions, setReactions] = useState<NamecardReactions>({})
-  const [busy, setBusy] = useState<string | null>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const sessionCounts = useRef(new Map<string, number>())
-
-  useEffect(() => {
-    let active = true
-    void getNamecardReactions(cardId)
-      .send()
-      .then((next) => {
-        if (active) setReactions(next)
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-    }
-  }, [cardId])
-
-  async function react(emoji: string) {
-    if (busy !== null) return
-    const sessionCount = sessionCounts.current.get(emoji) ?? 0
-    if (sessionCount >= SESSION_REACTION_LIMIT) {
-      toast.error("这个反应点得太多了")
-      return
-    }
-
-    setBusy(emoji)
-    try {
-      await addNamecardReaction(cardId, emoji).send()
-      sessionCounts.current.set(emoji, sessionCount + 1)
-      setReactions((current) => ({
-        ...current,
-        [emoji]: (current[emoji] ?? 0) + 1,
-      }))
-      setPickerOpen(false)
-    } catch {
-      toast.error("暂时无法添加反应")
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const activeReactions = Object.entries(reactions).filter(
-    ([emoji, count]) => count > 0 && NAMECARD_REACTION_SET.has(emoji)
-  )
-
-  return (
-    <div
-      className="-mx-2 flex min-h-11 min-w-0 flex-wrap gap-0 md:mx-0 md:gap-1.5"
-      aria-label="名片反应"
-    >
-      {activeReactions.map(([emoji, count]) => (
-        <Button
-          key={emoji}
-          type="button"
-          className="min-h-11 min-w-10 gap-0.5 px-0.5 text-xs tabular-nums max-md:focus-visible:ring-inset md:h-8 md:min-h-8 md:min-w-0 md:gap-1.5 md:rounded-full md:border-border md:bg-background md:px-3 md:text-sm md:dark:border-input md:dark:bg-input/30 md:dark:hover:bg-input/50"
-          variant="ghost"
-          disabled={busy !== null}
-          aria-label={`${emoji}，${count} 次反应`}
-          onClick={() => void react(emoji)}
-        >
-          <NamecardReactionEmoji emoji={emoji} compact />
-          {count}
-        </Button>
-      ))}
-
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              type="button"
-              size="icon"
-              className="h-11 min-h-11 w-10 min-w-10 max-md:focus-visible:ring-inset md:size-8 md:min-h-8 md:min-w-8 md:rounded-full md:border-dashed md:border-border md:bg-transparent md:text-muted-foreground md:hover:border-solid md:hover:text-foreground md:dark:border-input md:dark:hover:bg-input/50"
-              variant="ghost"
-              title="添加反应"
-              aria-label="添加反应"
-              disabled={busy !== null}
-            />
-          }
-        >
-          <PlusIcon aria-hidden="true" />
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          sideOffset={6}
-          style={{ animation: "none" }}
-          className="max-h-(--available-height) w-72 max-w-(--available-width) overflow-y-auto"
-        >
-          <PopoverTitle className="mb-2">选择反应</PopoverTitle>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1">
-            {NAMECARD_REACTIONS.map((emoji) => (
-              <Button
-                key={emoji}
-                type="button"
-                size="icon"
-                variant={reactions[emoji] ? "secondary" : "ghost"}
-                className="size-11 text-base"
-                disabled={busy !== null}
-                aria-label={`${emoji}，添加反应`}
-                onClick={() => void react(emoji)}
-              >
-                <NamecardReactionEmoji emoji={emoji} />
-              </Button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
-}
-
 function NamecardItem({
   card,
-  canClaim,
-  onPreview,
-  onClaim,
+  reactions,
+  onOpenDetail,
 }: {
   card: Namecard
-  canClaim: boolean
-  onPreview: (
-    card: Namecard,
-    side: NamecardSide,
-    trigger: HTMLButtonElement
-  ) => void
-  onClaim: (card: Namecard) => void
+  reactions: NamecardReactionState
+  onOpenDetail: (card: Namecard, trigger: HTMLButtonElement) => void
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
   return (
     <Card
       data-namecard-item
-      className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:grid md:h-full md:grid-cols-[minmax(0,1fr)_auto] md:content-start md:gap-x-4 md:gap-y-0 md:self-stretch md:rounded-xl md:bg-muted/50"
+      className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:h-full md:gap-0 md:self-stretch md:rounded-xl md:bg-muted/50"
     >
-      <div className="grid gap-1 md:col-span-2 md:col-start-1 md:row-start-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
+      <div className="grid gap-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
         {(["front", "back"] as const).map((side) => {
           const thumbnail =
             side === "front"
@@ -267,8 +139,8 @@ function NamecardItem({
               type="button"
               className="relative aspect-3/2 min-h-11 w-full overflow-hidden rounded-none bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               aria-label={`查看制作人名片 ${card.id} ${side === "front" ? "正面" : "背面"}`}
-              title="查看大图"
-              onClick={(event) => onPreview(card, side, event.currentTarget)}
+              title="查看名片详情"
+              onClick={(event) => onOpenDetail(card, event.currentTarget)}
             >
               <NamecardThumbnail
                 key={`${thumbnail}:${original}`}
@@ -279,11 +151,11 @@ function NamecardItem({
           )
         })}
       </div>
-      <CardHeader className="px-2 md:col-start-1 md:row-start-2 md:min-h-8 md:items-center md:px-4">
+      <CardHeader className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 md:min-h-8 md:px-4">
         <CardDescription className="flex items-start gap-1.5 text-xs/5 whitespace-nowrap tabular-nums">
           <CalendarDaysIcon
             aria-hidden="true"
-            className="mt-0.5 size-3.5 shrink-0"
+            className="mt-0.5 size-3.5 shrink-0 max-md:hidden"
           />
           {createdAt ? (
             <time
@@ -297,15 +169,10 @@ function NamecardItem({
             <span title="提交时间缺失或无效">日期待补</span>
           )}
         </CardDescription>
-      </CardHeader>
-      <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-2 pt-0 md:contents">
-        <div className="md:col-span-2 md:col-start-1 md:row-start-3 md:px-4 md:pt-3 md:pb-4">
-          <NamecardReactionBar cardId={card.id} />
-        </div>
         {card.claimStatus === "claimed" ? (
           <Badge
             variant="outline"
-            className="h-auto min-h-5 max-w-full whitespace-normal md:col-start-2 md:row-start-2 md:mr-4 md:h-6 md:self-center md:justify-self-end md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
+            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
           >
             <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
             {card.claimerName ?? "已由注册用户认领"}
@@ -313,22 +180,17 @@ function NamecardItem({
         ) : card.claimStatus === "pending" ? (
           <Badge
             variant="outline"
-            className="h-auto min-h-5 max-w-full whitespace-normal md:col-start-2 md:row-start-2 md:mr-4 md:h-6 md:self-center md:justify-self-end md:px-2.5 md:whitespace-nowrap"
+            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap"
           >
             认领审核中
           </Badge>
-        ) : canClaim ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-auto min-h-11 max-w-full self-start text-left whitespace-normal max-md:w-full max-md:justify-center md:col-start-2 md:row-start-2 md:mr-4 md:h-8 md:min-h-8 md:self-center md:justify-self-end md:whitespace-nowrap"
-            onClick={() => onClaim(card)}
-          >
-            <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
-            认领这张名片
-          </Button>
         ) : null}
+      </CardHeader>
+      <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-1.5 md:px-4 md:pt-3 md:pb-4">
+        <NamecardReactionSummary
+          {...reactions}
+          onOpen={(trigger) => onOpenDetail(card, trigger)}
+        />
       </CardFooter>
     </Card>
   )
@@ -345,6 +207,15 @@ export default function CommunityCardsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [claimCard, setClaimCard] = useState<Namecard | null>(null)
+  const [previewSide, setPreviewSide] = useState<NamecardSide | null>(null)
+  const [previewReturnTarget, setPreviewReturnTarget] =
+    useState<HTMLButtonElement | null>(null)
+  const [reactionsByCard, setReactionsByCard] = useState<
+    Record<number, NamecardReactionState>
+  >({})
+  const reactionRequests = useRef(new Set<number>())
+  const reactionVersions = useRef(new Map<number, number>())
+  const reactionEmojiVersions = useRef(new Map<number, Map<string, number>>())
   const [reload, setReload] = useState(0)
   const listContext = `${page}:${pageSize}`
   const [loadedContext, setLoadedContext] = useState(listContext)
@@ -355,13 +226,13 @@ export default function CommunityCardsPage() {
     setResult(null)
     setTargetPage(String(page))
   }
-  const preview = useNamecardPreviewNavigation(searchParams.toString())
+  const detail = useNamecardDetailSession(searchParams.toString())
   const paginationRef = useNamecardPaginationVisibility()
   const galleryRef = useNamecardMasonry(
     !loading && !error ? result?.list : undefined
   )
   const { fallbackRef, remember, prepareRestore, restore } =
-    useNamecardPreviewReturn(searchParams.toString())
+    useNamecardDetailReturn(searchParams.toString())
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
@@ -395,6 +266,47 @@ export default function CommunityCardsPage() {
     }
   }, [page, pageSize, reload])
 
+  useEffect(() => {
+    if (!result) return
+    for (const card of result.list) {
+      if (
+        reactionsByCard[card.id] !== undefined ||
+        reactionRequests.current.has(card.id)
+      )
+        continue
+      reactionRequests.current.add(card.id)
+      const version = reactionVersions.current.get(card.id) ?? 0
+      void getNamecardReactions(card.id)
+        .send()
+        .then((reactions) => {
+          setReactionsByCard((current) => {
+            const merged = { ...reactions }
+            for (const [emoji, changedAt] of reactionEmojiVersions.current.get(
+              card.id
+            ) ?? []) {
+              if (changedAt > version) {
+                merged[emoji] = current[card.id]?.reactions[emoji] ?? 0
+              }
+            }
+            return {
+              ...current,
+              [card.id]: { reactions: merged, loading: false },
+            }
+          })
+        })
+        .catch(() => {
+          setReactionsByCard((current) => ({
+            ...current,
+            [card.id]: {
+              reactions: current[card.id]?.reactions ?? {},
+              loading: false,
+            },
+          }))
+        })
+        .finally(() => reactionRequests.current.delete(card.id))
+    }
+  }, [result, reactionsByCard])
+
   function changePage(nextPage: number) {
     setTargetPage(String(nextPage))
     if (nextPage === page) return
@@ -417,26 +329,25 @@ export default function CommunityCardsPage() {
     setSearchParams(next)
   }
 
-  function openPreview(
-    card: Namecard,
-    side: NamecardSide,
-    trigger: HTMLButtonElement
-  ) {
+  function openDetail(card: Namecard, trigger: HTMLButtonElement) {
     if (!result) return
     remember(trigger)
-    preview.open({
-      result,
-      page,
-      pageSize,
-      index: result.list.findIndex((item) => item.id === card.id),
-      side,
-    })
+    detail.open(card)
   }
 
-  function handlePreviewOpenChange(open: boolean) {
-    if (open) return
+  function closeDetail() {
+    if (previewSide !== null) return
     prepareRestore()
-    preview.close()
+    detail.close()
+  }
+
+  function openPreview(side: NamecardSide, trigger: HTMLButtonElement) {
+    setPreviewReturnTarget(trigger)
+    setPreviewSide(side)
+  }
+
+  function closePreview() {
+    setPreviewSide(null)
   }
 
   function jumpToPage(event: SubmitEvent<HTMLFormElement>) {
@@ -456,11 +367,50 @@ export default function CommunityCardsPage() {
       className={!IS_APP_TARGET ? "py-3 sm:py-3 md:py-8" : undefined}
     >
       <NamecardPreview
-        card={preview.card}
-        side={preview.side}
-        onSideChange={preview.changeSide}
-        onOpenChange={handlePreviewOpenChange}
-        navigation={preview.navigation}
+        card={previewSide === null ? null : detail.card}
+        side={previewSide ?? "front"}
+        onSideChange={setPreviewSide}
+        onOpenChange={(open) => {
+          if (!open) closePreview()
+        }}
+        onReturnFocus={() =>
+          previewReturnTarget?.focus({ preventScroll: true })
+        }
+      />
+      <NamecardDetailDialog
+        card={detail.card}
+        canClaim={canClaim}
+        reactions={
+          detail.card
+            ? (reactionsByCard[detail.card.id] ?? {
+                reactions: {},
+                loading: true,
+              })
+            : { reactions: {}, loading: false }
+        }
+        onOpenChange={(open) => {
+          if (!open) closeDetail()
+        }}
+        onOpenPreview={openPreview}
+        onClaim={setClaimCard}
+        onReactionChange={(cardId, emoji) => {
+          const version = (reactionVersions.current.get(cardId) ?? 0) + 1
+          reactionVersions.current.set(cardId, version)
+          const emojiVersions =
+            reactionEmojiVersions.current.get(cardId) ?? new Map()
+          emojiVersions.set(emoji, version)
+          reactionEmojiVersions.current.set(cardId, emojiVersions)
+          setReactionsByCard((current) => ({
+            ...current,
+            [cardId]: {
+              reactions: {
+                ...(current[cardId]?.reactions ?? {}),
+                [emoji]: (current[cardId]?.reactions[emoji] ?? 0) + 1,
+              },
+              loading: false,
+            },
+          }))
+        }}
         onReturnFocus={restore}
       />
       <NamecardClaimDialog
@@ -471,22 +421,22 @@ export default function CommunityCardsPage() {
         }}
         onSubmitted={() => {
           if (!claimCard) return
+          const update = (card: Namecard): Namecard => ({
+            ...card,
+            claimStatus: "pending",
+            viewerClaimState: "pending",
+          })
           setResult((current) =>
             current
               ? {
                   ...current,
                   list: current.list.map((card) =>
-                    card.id === claimCard.id
-                      ? {
-                          ...card,
-                          claimStatus: "pending",
-                          viewerClaimState: "pending",
-                        }
-                      : card
+                    card.id === claimCard.id ? update(card) : card
                   ),
                 }
               : current
           )
+          detail.updateCard(claimCard.id, update)
         }}
       />
 
@@ -576,9 +526,13 @@ export default function CommunityCardsPage() {
                 <NamecardItem
                   key={card.id}
                   card={card}
-                  canClaim={canClaim}
-                  onPreview={openPreview}
-                  onClaim={setClaimCard}
+                  reactions={
+                    reactionsByCard[card.id] ?? {
+                      reactions: {},
+                      loading: true,
+                    }
+                  }
+                  onOpenDetail={openDetail}
                 />
               ))}
             </div>

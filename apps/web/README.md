@@ -57,14 +57,15 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 | `pnpm test:unit`    | 运行 Vitest 单元与组件测试               |
 | `pnpm test:e2e`     | 运行网站目标的 Playwright 测试           |
 | `pnpm test:e2e:app` | 运行 App 安全区与底栏 Playwright 矩阵    |
-| `pnpm test`         | 依次运行单元测试与端到端测试             |
+| `pnpm test`         | 运行单元测试                             |
 | `pnpm check`        | 运行 lint、类型检查、单元测试和生产构建  |
 | `pnpm format`       | 使用 Prettier 格式化 TypeScript/TSX 文件 |
 | `pnpm app:doctor`   | 检查 iOS/Android 打包与安装前置依赖      |
 | `pnpm app`          | 设备安装入口，参数选目标、配置与设备     |
 
-Web test owner 默认依次运行 unit 与普通 Playwright。CI 使用 runner 的 `ci` profile，在同一
-进程中依次运行 `check`（包含 unit）和普通 Playwright，不重复 unit suite，也不暴露可绕过
+Web test owner 本地默认只运行 unit。需要本地运行浏览器套件时，显式执行 `pnpm test:e2e`；
+App 浏览器矩阵使用 `pnpm test:e2e:app`。CI 使用 runner 的 `ci` profile，在同一进程中依次
+运行 `check`（包含 unit）和完整普通 Playwright 套件，不重复 unit suite，也不暴露可绕过
 unit 的独立参数。
 
 `app` 是唯一的设备入口，目标与配置都是参数：

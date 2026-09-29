@@ -14,7 +14,7 @@
 | governance | 源码、文档、workspace、Git hook 和 CI 配置规则    | `node scripts/testing/run-test-owner.mjs governance`       |
 | contracts  | wire ownership、non-JSON 边界和 mounted inventory | `node scripts/testing/run-test-owner.mjs contracts`        |
 | API        | Node、HTTP、server、Wiki 和 migration             | `pnpm --filter @imsweb/api run test`                       |
-| Web        | Vitest unit 和普通 Web Playwright                 | `pnpm --filter @imsweb/web run test`                       |
+| Web        | 本地默认 Vitest unit；CI 另跑普通 Web Playwright | `pnpm --filter @imsweb/web run test`                       |
 | delivery   | App、公开静态资产和 Web/API packaged routing      | `node scripts/testing/run-test-owner.mjs delivery PROFILE` |
 | root       | 只按顺序调度 owner，不复述测试文件清单            | `pnpm run test`                                            |
 
@@ -33,8 +33,8 @@ Delivery integration profile 成功构建 Web 和 API 后，该进程才会运�
 是已构建的 Web 客户端（`apps/web/build/client`），只属于先构建 Web 的 delivery integration，
 因此不在 API owner 计划里：CI API lane 从不构建 Web，跑它只会在缺构建产物上失败，而不是暴
 露真实缺陷。这样 API 测试不会接受另一次运行留下的 `dist/server/main.js`。CI API lane 直接运
-行完整 API owner；Web lane 使用 `ci` profile，在同一个 runner 进程内依次运行 Web `check`
-（包含 unit）和普通 Playwright。Integration job 没有跨 job artifact transfer，因此
+行完整 API owner；本地 Web owner 默认只运行 unit；Web lane 使用 `ci` profile，在同一个 runner
+进程内依次运行 Web `check`（包含 unit）和完整普通 Playwright 套件。Integration job 没有跨 job artifact transfer，因此
 `delivery integration` 始终保留自己的 Web 与 API build。
 
 governance、contracts 和 delivery 的 Node 测试属于仓库域，CI 由 `apps/api` 承载：
@@ -164,7 +164,7 @@ shell syntax check；不能用 `bash -n file1 file2` 代替逐文件检查。
 pnpm run check:root
 pnpm run check:pre-commit
 pnpm run test
-pnpm run test:web
+pnpm run test:web             # 本地默认仅运行 Web unit
 pnpm run test:web-routing
 pnpm run test:ui   # 本地面板，不参与 CI；见上文「本地测试面板」
 ```
@@ -179,10 +179,22 @@ pnpm --filter @imsweb/web run test:unit
 pnpm --filter @imsweb/web run test:e2e
 ```
 
+### 本地 pre-commit 与 PostgreSQL 集成测试
+
+本地 pre-commit 会设置 `IMS_TEST_POSTGRES_ENABLED=false` 后运行 API migration 套件。纯解析、迁移目录
+顺序和校验和等测试仍运行，需要真实 PostgreSQL 的集成用例会跳过。开发者可单独启动本地 PostgreSQL，
+再运行 `pnpm --filter @imsweb/api run test:migration`（不设置该变量）验证这些用例。普通 Web/App
+Playwright E2E 不在 pre-commit hook 中；本地显式执行 `pnpm --filter @imsweb/web run test:e2e` 或
+`pnpm --filter @imsweb/web run test:e2e:app`，GitHub Actions 的 Web/App lane 仍强制执行各自套件。
+
+这个 opt-out 只用于本地 hook。CI 和 preview deployment workflow 不设置
+`IMS_TEST_POSTGRES_ENABLED=false`，数据库集成测试仍是强制检查；默认值仍为启用。要在 CI job 里
+意外跳过 PostgreSQL 测试时，测试必须失败而非显示为成功。
+
 ### pre-commit 覆盖边界
 
-`check:pre-commit` 在 `git diff --cached --check` 之后先运行三个不依赖基础设施的仓库级期望值
-守护，再执行其余静态检查：
+`check:pre-commit` 在 `git diff --cached --check` 之后先运行三个仓库级期望值守护，再执行静态检查。API
+migration 套件会运行非数据库测试，PostgreSQL 集成用例只在本地 hook 中跳过：
 
 | 守护 | 固定内容 |
 | --- | --- |
@@ -192,12 +204,11 @@ pnpm --filter @imsweb/web run test:e2e
 
 这三个测试把仓库级计数写成期望值；新增路由、迁移或页面时必须同步更新，否则提交会在
 pre-commit 阶段被拒绝，而不是等到 CI 或部署。三个守护实测合计约 16s（contracts 11s、
-API migration 4s、Web routes 1s，均已从 Node test runner 换成 Vitest），相对 `check:pre-commit`
-约 165s 的总时长可以忽略。
+API migration 4s、Web routes 1s，均已从 Node test runner 换成 Vitest）。
 
 `check:pre-commit` 有意不覆盖 governance owner（实测约 144s，主要耗时在 9 个 Python unittest 文件）、API/Web owner 的完整套件和浏览器
-lane；这些仍只由 CI 运行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前如需完全对齐应运行
-`pnpm run test:infra`。
+lane；CI 强制运行这些检查，本地可显式执行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前可运行
+`pnpm run test:infra`，并按需执行对应的 Web/App E2E 命令。
 
 Root `test:web-routing` 调用 delivery integration owner；该 owner 在当前 job 内构建两个
 workspace 后运行 frontend routing 与 packaged-client asset contracts。CI 的 Web lane 运行

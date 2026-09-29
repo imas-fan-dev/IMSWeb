@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/index.md","reason":"行为归属、复用与跨层边界复核"}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web 预开发清单、组件归属与质量检查"}
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"页面、页面私有组件与 hook 的归属规则"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"名片列布局、反应样式、连续预览与 Dialog 尺寸契约"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Vitest 与 Playwright 的落位、断言和等待规范"}

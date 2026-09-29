@@ -76,7 +76,6 @@ export function NamecardClaimDialog({
         if (!active) return
         setCatalog(catalogResult)
         setOwnerCards(cardsResult.items)
-        setSeriesCode(catalogResult.agencies[0]?.code ?? "")
         setLoadError(false)
       })
       .catch(() => {
@@ -101,21 +100,16 @@ export function NamecardClaimDialog({
     : favoriteIdolIds
   const authenticated = platform.status === "authenticated"
   const restricted = platform.status === "restricted"
-  const ready = Boolean(
-    card &&
-    authenticated &&
-    catalog &&
-    effectiveSeriesCode &&
-    effectiveIdolIds.length > 0
-  )
+  // 企划 and 担当偶像 are not mandatory: they can be left unset here and filled
+  // in from the owner card editor after the claim is approved. The API derives
+  // the series for the claim record when neither is chosen.
+  const ready = Boolean(card && authenticated && catalog)
 
   function selectTarget(value: unknown) {
     const next = String(value ?? NEW_CARD_VALUE)
     setTargetCardId(next)
-    const target = ownerCards.find((item) => item.id === next)
-    if (!target) return
-    setSeriesCode(target.seriesCode)
-    setFavoriteIdolIds(target.favoriteIdols.map((idol) => idol.id))
+    // The existing card supplies its own values only while it is selected.
+    // Keep the new-card draft intact when switching targets.
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -125,7 +119,7 @@ export function NamecardClaimDialog({
     try {
       const result = await createFudabaLegacyCardClaim(card.id, {
         targetCardId: targetCardId === NEW_CARD_VALUE ? null : targetCardId,
-        seriesCode: effectiveSeriesCode,
+        seriesCode: effectiveSeriesCode || null,
         favoriteIdolIds: effectiveIdolIds,
         message: message.trim(),
       }).send()
@@ -157,126 +151,129 @@ export function NamecardClaimDialog({
 
           <DialogBody className="space-y-5">
             {!authenticated ? (
-            <Alert>
-              <CircleAlertIcon aria-hidden="true" />
-              <AlertTitle>
-                {restricted ? "帐号当前受限" : "请先登录"}
-              </AlertTitle>
-              <AlertDescription className="space-y-3">
-                <p>
-                  {restricted
-                    ? "受限帐号可以查看名片，但不能提交认领。"
-                    : "只有注册用户可以认领历史名片。"}
-                </p>
-                {!restricted ? (
-                  <NavigationLink
-                    to="/community/exchange"
-                    className={buttonVariants({ variant: "outline" })}
-                  >
-                    前往登录或注册
-                  </NavigationLink>
-                ) : null}
-              </AlertDescription>
-            </Alert>
-          ) : loadError ? (
-            <Alert variant="destructive">
-              <CircleAlertIcon aria-hidden="true" />
-              <AlertTitle>认领资料载入失败</AlertTitle>
-              <AlertDescription>请关闭对话框后重新打开。</AlertDescription>
-            </Alert>
-          ) : catalog ? (
-            <>
-              <Field>
-                <FieldLabel htmlFor="claim-target-card">绑定方式</FieldLabel>
-                <Select value={targetCardId} onValueChange={selectTarget}>
-                  <SelectTrigger id="claim-target-card" className="w-full">
-                    <SelectValue>
-                      {existingTarget
-                        ? `绑定到 ${existingTarget.displayName}`
-                        : "创建一张可管理的注册名片"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectGroup>
-                      <SelectItem value={NEW_CARD_VALUE}>
-                        创建一张可管理的注册名片
-                      </SelectItem>
-                      {ownerCards.map((ownerCard) => (
-                        <SelectItem key={ownerCard.id} value={ownerCard.id}>
-                          绑定到 {ownerCard.displayName}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              {existingTarget ? (
-                <Alert>
-                  <ShieldCheckIcon aria-hidden="true" />
-                  <AlertTitle>将绑定现有注册名片</AlertTitle>
-                  <AlertDescription>
-                    {existingTarget.displayName} · {existingTarget.favoriteIdol}
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <>
-                  <Field>
-                    <FieldLabel htmlFor="claim-series">主企划</FieldLabel>
-                    <Select
-                      value={seriesCode}
-                      onValueChange={(value) =>
-                        setSeriesCode(String(value ?? ""))
-                      }
+              <Alert>
+                <CircleAlertIcon aria-hidden="true" />
+                <AlertTitle>
+                  {restricted ? "帐号当前受限" : "请先登录"}
+                </AlertTitle>
+                <AlertDescription className="space-y-3">
+                  <p>
+                    {restricted
+                      ? "受限帐号可以查看名片，但不能提交认领。"
+                      : "只有注册用户可以认领历史名片。"}
+                  </p>
+                  {!restricted ? (
+                    <NavigationLink
+                      to="/community/exchange"
+                      className={buttonVariants({ variant: "outline" })}
                     >
-                      <SelectTrigger id="claim-series" className="w-full">
-                        <SelectValue placeholder="选择主企划" />
-                      </SelectTrigger>
-                      <SelectContent align="start">
-                        <SelectGroup>
-                          {series.map((item) => (
-                            <SelectItem key={item.code} value={item.code}>
-                              {item.displayName}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <IdolMultiSelect
-                    id="claim-idols"
-                    series={series}
-                    idols={catalog.searchEntries}
-                    selectedIds={favoriteIdolIds}
-                    disabled={submitting}
-                    onChange={setFavoriteIdolIds}
-                  />
-                </>
-              )}
+                      前往登录或注册
+                    </NavigationLink>
+                  ) : null}
+                </AlertDescription>
+              </Alert>
+            ) : loadError ? (
+              <Alert variant="destructive">
+                <CircleAlertIcon aria-hidden="true" />
+                <AlertTitle>认领资料载入失败</AlertTitle>
+                <AlertDescription>请关闭对话框后重新打开。</AlertDescription>
+              </Alert>
+            ) : catalog ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="claim-target-card">绑定方式</FieldLabel>
+                  <Select value={targetCardId} onValueChange={selectTarget}>
+                    <SelectTrigger id="claim-target-card" className="w-full">
+                      <SelectValue>
+                        {existingTarget
+                          ? `绑定到 ${existingTarget.displayName}`
+                          : "创建一张可管理的注册名片"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      <SelectGroup>
+                        <SelectItem value={NEW_CARD_VALUE}>
+                          创建一张可管理的注册名片
+                        </SelectItem>
+                        {ownerCards.map((ownerCard) => (
+                          <SelectItem key={ownerCard.id} value={ownerCard.id}>
+                            绑定到 {ownerCard.displayName}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
 
-              <Field>
-                <FieldLabel htmlFor="claim-message">认领说明</FieldLabel>
-                <Textarea
-                  id="claim-message"
-                  value={message}
-                  maxLength={500}
-                  placeholder="可填写能帮助管理员确认归属的信息"
-                  className="min-h-24"
-                  onChange={(event) => setMessage(event.currentTarget.value)}
+                {existingTarget ? (
+                  <Alert>
+                    <ShieldCheckIcon aria-hidden="true" />
+                    <AlertTitle>将绑定现有注册名片</AlertTitle>
+                    <AlertDescription>
+                      {existingTarget.displayName} ·{" "}
+                      {existingTarget.favoriteIdol}
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="claim-series">
+                        主企划（选填）
+                      </FieldLabel>
+                      <Select
+                        value={seriesCode}
+                        onValueChange={(value) =>
+                          setSeriesCode(String(value ?? ""))
+                        }
+                      >
+                        <SelectTrigger id="claim-series" className="w-full">
+                          <SelectValue placeholder="留空则按偶像或历史名片推断" />
+                        </SelectTrigger>
+                        <SelectContent align="start">
+                          <SelectGroup>
+                            {series.map((item) => (
+                              <SelectItem key={item.code} value={item.code}>
+                                {item.displayName}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <IdolMultiSelect
+                      id="claim-idols"
+                      series={series}
+                      idols={catalog.searchEntries}
+                      selectedIds={favoriteIdolIds}
+                      disabled={submitting}
+                      onChange={setFavoriteIdolIds}
+                    />
+                  </>
+                )}
+
+                <Field>
+                  <FieldLabel htmlFor="claim-message">认领说明</FieldLabel>
+                  <Textarea
+                    id="claim-message"
+                    value={message}
+                    maxLength={500}
+                    placeholder="可填写能帮助管理员确认归属的信息"
+                    className="min-h-24"
+                    onChange={(event) => setMessage(event.currentTarget.value)}
+                  />
+                </Field>
+              </>
+            ) : (
+              <div
+                className="flex h-40 items-center justify-center text-sm text-muted-foreground"
+                aria-label="正在载入认领资料"
+              >
+                <LoaderCircleIcon
+                  className="mr-2 size-4 animate-spin motion-reduce:animate-none"
+                  aria-hidden="true"
                 />
-              </Field>
-            </>
-          ) : (
-            <div
-              className="flex h-40 items-center justify-center text-sm text-muted-foreground"
-              aria-label="正在载入认领资料"
-            >
-              <LoaderCircleIcon
-                className="mr-2 size-4 animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-              正在载入
-            </div>
+                正在载入
+              </div>
             )}
           </DialogBody>
 

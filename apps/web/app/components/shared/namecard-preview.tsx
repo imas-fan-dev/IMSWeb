@@ -1,11 +1,4 @@
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  RotateCcwIcon,
-  XIcon,
-  ZoomInIcon,
-  ZoomOutIcon,
-} from "lucide-react"
+import { RotateCcwIcon, XIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { Button } from "~/components/ui/button"
@@ -26,18 +19,6 @@ const PAN_STEP = 32
 const BACKDROP_CLICK_THRESHOLD = 8
 
 export type NamecardSide = "front" | "back"
-
-export type NamecardPreviewNavigation = {
-  position: number
-  total: number
-  canPrevious: boolean
-  canNext: boolean
-  pending: boolean
-  error: string | null
-  onPrevious: () => void
-  onNext: () => void
-  onRetry: () => void
-}
 
 type Point = { x: number; y: number }
 type ViewState = { scale: number; offset: Point }
@@ -62,14 +43,12 @@ export function NamecardPreview({
   side,
   onSideChange,
   onOpenChange,
-  navigation,
   onReturnFocus,
 }: {
   card: Namecard | null
   side: NamecardSide
   onSideChange: (side: NamecardSide) => void
   onOpenChange: (open: boolean) => void
-  navigation?: NamecardPreviewNavigation
   onReturnFocus?: () => void
 }) {
   const [view, setView] = useState<ViewState>({
@@ -258,11 +237,6 @@ export function NamecardPreview({
               制作人名片 <span className="sr-only">{card?.id}</span> ·{" "}
               {sideLabel(side)}
             </DialogTitle>
-            {navigation ? (
-              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                第 {navigation.position} / {navigation.total} 张
-              </p>
-            ) : null}
           </div>
           <DialogDescription className="sr-only">
             双面名片大图预览，可切换正面和背面
@@ -366,42 +340,8 @@ export function NamecardPreview({
         </div>
 
         <footer className="flex flex-col items-center gap-2 border-t pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]">
-          {navigation?.pending ? (
-            <p role="status" className="text-xs text-muted-foreground">
-              正在读取名片…
-            </p>
-          ) : null}
-          {navigation?.error ? (
-            <div className="flex flex-wrap items-center justify-center gap-x-2">
-              <p role="alert" className="text-xs text-destructive">
-                {navigation.error}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-11"
-                onClick={navigation.onRetry}
-              >
-                重试加载名片
-              </Button>
-            </div>
-          ) : null}
           <div className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center">
             <div className="flex items-center gap-1">
-              {navigation ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="mr-2 size-11"
-                  aria-label="上一张名片"
-                  title="上一张名片"
-                  disabled={!navigation.canPrevious || navigation.pending}
-                  onClick={navigation.onPrevious}
-                >
-                  <ArrowLeftIcon />
-                </Button>
-              ) : null}
               {(["front", "back"] as const).map((nextSide) => (
                 <Button
                   key={nextSide}
@@ -414,20 +354,6 @@ export function NamecardPreview({
                   {sideLabel(nextSide)}
                 </Button>
               ))}
-              {navigation ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="ml-2 size-11"
-                  aria-label="下一张名片"
-                  title="下一张名片"
-                  disabled={!navigation.canNext || navigation.pending}
-                  onClick={navigation.onNext}
-                >
-                  <ArrowRightIcon />
-                </Button>
-              ) : null}
             </div>
 
             <div className="flex items-center gap-1">

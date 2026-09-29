@@ -25,7 +25,7 @@ pnpm run test
 pnpm run format
 ```
 
-`check` runs ESLint, route type generation, TypeScript, unit tests, and a production build. `test` adds Playwright desktop and mobile suites. Use `pnpm run test:watch` for focused Vitest work and `pnpm run preview` to inspect a production build. Run root `pnpm run test:web-routing` when route ownership or fallback behavior changes.
+`check` runs ESLint, route type generation, TypeScript, unit tests, and a production build. Local `test` runs unit tests only; opt in to Web Playwright with `pnpm run test:e2e` and App Playwright with `pnpm run test:e2e:app`. The CI Web owner profile runs `check` and the full Web Playwright suite. Use `pnpm run test:watch` for focused Vitest work and `pnpm run preview` to inspect a production build. Run root `pnpm run test:web-routing` when route ownership or fallback behavior changes.
 
 ## App Shell & Device Delivery
 

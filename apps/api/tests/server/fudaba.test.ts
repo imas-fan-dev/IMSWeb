@@ -270,7 +270,7 @@ import { describe, onTestFinished, test } from 'vitest';
             );
         });
 
-        test('legacy card claims accept cross-series selections and enforce 1..20 unique idols', () => {
+        test('legacy card claims accept cross-series selections and enforce 0..20 unique idols', () => {
             assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
                 seriesCode: '765',
@@ -282,8 +282,30 @@ import { describe, onTestFinished, test } from 'vitest';
                 favoriteIdolIds: [900_001, 900_002],
                 message: 'same producer'
             });
+            // 企划 and 担当偶像 are optional: an absent series and an empty idol
+            // list reach the repository, which then derives the series itself.
+            assert.deepEqual(parseLegacyCardClaim({
+                targetCardId: null,
+                favoriteIdolIds: [],
+                message: ''
+            }), {
+                targetCardId: null,
+                seriesCode: null,
+                favoriteIdolIds: [],
+                message: ''
+            });
+            assert.deepEqual(parseLegacyCardClaim({
+                targetCardId: null,
+                seriesCode: null,
+                favoriteIdolIds: [],
+                message: ''
+            }), {
+                targetCardId: null,
+                seriesCode: null,
+                favoriteIdolIds: [],
+                message: ''
+            });
             for (const favoriteIdolIds of [
-                [],
                 [1, 1],
                 [0],
                 Array.from({ length: 21 }, (_, index) => index + 1)
@@ -295,6 +317,12 @@ import { describe, onTestFinished, test } from 'vitest';
                     message: ''
                 }), /favoriteIdolIds/);
             }
+            assert.throws(() => parseLegacyCardClaim({
+                targetCardId: null,
+                seriesCode: 'Not A Series',
+                favoriteIdolIds: [],
+                message: ''
+            }), /seriesCode/);
         });
 
         test('namecard and claim views expose structured idol and claim metadata', () => {
@@ -2780,7 +2808,6 @@ import { describe, onTestFinished, test } from 'vitest';
             );
 
             for (const [suffix, idolIds] of [
-                ['e', []],
                 ['d', [900_001, 900_001]],
                 ['m', [999_999]],
                 ['x', Array.from({ length: 21 }, (_, index) => 910_000 + index)]
@@ -2798,6 +2825,58 @@ import { describe, onTestFinished, test } from 'vitest';
                     updatedAt: CREATED_AT
                 }), { status: 'unavailable' });
             }
+
+            // 企划 and 担当偶像 are optional on a claim. The server derives the
+            // series from the selected idols' agency, the legacy card's own
+            // series, or the bound target card, and only asks when none exist.
+            const noSeriesLegacyId = await insertLegacyCard(database, 'e');
+            assert.deepEqual(await fudaba.createCardClaimForOwner({
+                id: 'empty-claim-input',
+                legacyCardId: noSeriesLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                seriesCode: null,
+                idolIds: [],
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            }), { status: 'series-required' });
+
+            const idolDerivedLegacyId = await insertLegacyCard(database, 'i');
+            const idolDerived = await fudaba.createCardClaimForOwner({
+                id: 'idol-derived-series-claim',
+                legacyCardId: idolDerivedLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                seriesCode: null,
+                idolIds: [900_001],
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(idolDerived.status, 'created');
+            if (idolDerived.status !== 'created') return;
+            assert.equal(idolDerived.claim.series_code, '765');
+
+            const legacyDerivedLegacyId = await insertLegacyCard(database, 'l');
+            await database.prepare(
+                "UPDATE cards SET series_code='cg' WHERE id=?"
+            ).bind(legacyDerivedLegacyId).run();
+            const legacyDerived = await fudaba.createCardClaimForOwner({
+                id: 'legacy-derived-series-claim',
+                legacyCardId: legacyDerivedLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                seriesCode: null,
+                idolIds: [],
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(legacyDerived.status, 'created');
+            if (legacyDerived.status !== 'created') return;
+            assert.equal(legacyDerived.claim.series_code, 'cg');
+            assert.deepEqual(legacyDerived.claim.favorite_idols, []);
 
             const wrongOwnerLegacyId = await insertLegacyCard(database, 'w');
             assert.deepEqual(await fudaba.createCardClaimForOwner({
@@ -4428,7 +4507,14 @@ import { describe, onTestFinished, test } from 'vitest';
                 return { status: "saved" as const, location: current };
             },
             listCardClaimsForOwner: async () => [],
-            createCardClaimForOwner: async () => ({ status: "unavailable" as const }),
+            createCardClaimForOwner: async (
+                input: Parameters<FudabaRepository['createCardClaimForOwner']>[0],
+            ) => {
+                if (input.seriesCode === null) {
+                    return { status: 'series-required' as const };
+                }
+                return { status: 'unavailable' as const };
+            },
             listOfficeLocationReviews: async (input: {
                 reviewState?: FudabaOfficePublicLocationRecord["review_state"];
                 limit: number;
@@ -4840,6 +4926,24 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.deepEqual(
                 await contractJson(unavailable, fudabaCardClaimErrorSchema),
                 { success: false, code: "FUDABA_LEGACY_CARD_UNAVAILABLE" },
+            );
+
+            const missingSeries = await fixture.app.request(
+                "http://ims.test/api/community/exchange/legacy-cards/42/claims",
+                {
+                    method: "POST",
+                    headers: platformBearerHeaders({ "content-type": "application/json" }),
+                    body: JSON.stringify({ targetCardId: null, message: "claim this card" }),
+                },
+            );
+            assert.equal(missingSeries.status, 409);
+            assert.deepEqual(
+                await contractJson(missingSeries, fudabaCardClaimErrorSchema),
+                {
+                    success: false,
+                    code: "FUDABA_CLAIM_SERIES_REQUIRED",
+                    message: "请选择主企划后再提交认领",
+                },
             );
         });
 

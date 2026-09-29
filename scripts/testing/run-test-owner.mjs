@@ -221,18 +221,24 @@ function webPlan(profile) {
     throw new Error("Web profile must be all or ci");
   }
 
+  if (profile === "ci") {
+    return freezePlan([
+      command("check Web", "pnpm", ["--filter", "@imsweb/web", "run", "check"]),
+      command("test Web in browsers", "pnpm", [
+        "--filter",
+        "@imsweb/web",
+        "run",
+        "test:e2e",
+      ]),
+    ]);
+  }
+
   return freezePlan([
-    command(profile === "ci" ? "check Web" : "test Web units", "pnpm", [
+    command("test Web units", "pnpm", [
       "--filter",
       "@imsweb/web",
       "run",
-      profile === "ci" ? "check" : "test:unit",
-    ]),
-    command("test Web in browsers", "pnpm", [
-      "--filter",
-      "@imsweb/web",
-      "run",
-      "test:e2e",
+      "test:unit",
     ]),
   ]);
 }

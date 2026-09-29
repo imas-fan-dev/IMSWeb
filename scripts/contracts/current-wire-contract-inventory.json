@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "e3237c85d4e2eb46db2fa396e31812c9fc5e799472215dec06411094ce2aaf71",
+    "semanticDigest": "f100d6fb5b3b7afb104d7b46301c059e7d0afbe04f1636b6c8460c2019de152d",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -27,8 +27,8 @@
       "non-object-applicable": 71
     },
     "responses": {
-      "total": 658,
-      "json": 594,
+      "total": 659,
+      "json": 595,
       "nonJson": 64
     },
     "unresolved": 0
@@ -9691,6 +9691,11 @@
           "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
           "kind": "json",
           "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CLAIM_SERIES_REQUIRED\" , message : \"\\u8BF7\\u9009\\u62E9\\u4E3B\\u4F01\\u5212\\u540E\\u518D\\u63D0\\u4EA4\\u8BA4\\u9886\" }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
@@ -21593,6 +21598,14 @@
       "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
       "kind": "json",
       "expression": "<no body>"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/legacy-cards/:legacyCardId/claims",
+      "handlerSymbol": "handleCreateFudabaLegacyCardClaim",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CLAIM_SERIES_REQUIRED\" , message : \"\\u8BF7\\u9009\\u62E9\\u4E3B\\u4F01\\u5212\\u540E\\u518D\\u63D0\\u4EA4\\u8BA4\\u9886\" }"
     },
     {
       "method": "POST",

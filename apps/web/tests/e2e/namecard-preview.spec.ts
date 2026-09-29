@@ -49,21 +49,36 @@ test.describe("namecard preview", () => {
     await expect(frontTrigger.locator("img")).toBeVisible()
     await frontTrigger.click()
 
-    const dialog = page.getByRole("dialog")
-    await expect(dialog).toBeVisible()
+    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
+    await expect(detail).toBeVisible()
+    const previewTrigger = detail.getByRole("button", {
+      name: "放大制作人名片 42 正面",
+    })
+    await expect(previewTrigger.locator("img")).toHaveAttribute(
+      "src",
+      FRONT_THUMBNAIL
+    )
+    await previewTrigger.click()
+
+    const preview = page.getByRole("dialog", {
+      name: /制作人名片 42 · (正面|背面)/,
+    })
+    await expect(preview).toBeVisible()
     await expect(
-      dialog.getByRole("img", { name: "制作人名片 42 正面" })
+      preview.getByRole("img", { name: "制作人名片 42 正面" })
     ).toHaveAttribute("src", FRONT)
-
-    await dialog.getByRole("button", { name: "背面", exact: true }).click()
+    await preview.getByRole("button", { name: "背面", exact: true }).click()
     await expect(
-      dialog.getByRole("img", { name: "制作人名片 42 背面" })
-    ).toBeVisible()
-    await expect(page.getByRole("dialog")).toHaveCount(1)
+      preview.getByRole("img", { name: "制作人名片 42 背面" })
+    ).toHaveAttribute("src", BACK)
+    await expect(preview).toBeVisible()
 
-    await dialog.press("ArrowLeft")
+    await preview.press("ArrowLeft")
     await expect(
-      dialog.getByRole("img", { name: "制作人名片 42 正面" })
+      preview.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()
+    await preview.getByRole("button", { name: "关闭名片预览" }).click()
+    await expect(detail).toBeVisible()
+    await expect(previewTrigger).toBeFocused()
   })
 })

@@ -197,71 +197,91 @@ public, and keep the asset map, API allowlist and actual files covered together.
 Browser tests must load all icons in both targets and verify their dimensions;
 allow subpixel rounding when comparing DOMRect values to CSS pixels.
 
-Mobile list chips use 16px graphics and 12px counts while the picker and desktop
-keep 20px graphics. Include the add button in the four-entry row limit. Mobile
-chips are 40px wide and 44px tall (`min-w-10` / `min-h-11`) so four short-count
-entries, add button included, share one row from about a 350px viewport. The
-width floor is deliberately 40px rather than 44px: a 44px floor puts the add
-button onto a second, almost empty row at a 390px viewport, which cost every
-card 44px. The height keeps the full 44px touch target, and longer counts still
-grow the chip naturally and wrap. A narrower Card wraps to fewer entries.
-Preserve inset focus rings at full-width Card edges and restore desktop padding
-and gaps. Browser coverage must prove four short-count entries at 402px,
-narrow-screen wrapping, six-digit counts without overflow, and unchanged picker
-sizing.
+Mobile list reaction summaries show at most three active emoji, sorted by
+count descending with original API order breaking ties. Desktop shows every
+active reaction. Both are read-only buttons that open the detail Dialog; the
+list has no add-reaction control. The detail owns all reaction chips and the
+44px picker entries. Keep Unicode values in accessible names and render their
+pinned local images, never native emoji as a visual fallback.
 
-On mobile the claim control spans the footer as a full-width action
-(`max-md:w-full max-md:justify-center`); the date and the claim cannot share one
-row there, because a 148px card at 320px leaves no room for both.
+List summaries use 32px-high bordered pills with 14px graphics, 11px counts,
+`min-w-8`, and `px-1` on mobile. Desktop uses 20px graphics, 14px counts and
+`md:px-3`. Short mobile counts may grow up to `max-w-14`; longer counts grow
+to fit without clipping. Keep the row inset with footer `p-1.5`, `gap-0.75`
+on mobile and `md:gap-1.5` on desktop. When no reactions exist, a visible
+`查看详情` button still opens the Dialog. Preserve inset focus rings and verify
+that three summaries do not overflow a 320px viewport.
 
-Desktop list chips are compact pills rather than squares: `md:h-8` with
-`md:min-h-8`, natural width (`md:min-w-0`), `md:rounded-full`, and `md:px-3`,
-keeping 20px graphics and 14px counts. The add button matches that height as a
-32px dashed outline circle (`md:size-8`, `md:bg-transparent`), so an existing
-reaction and the add affordance stay distinguishable.
+The list metadata row keeps the date and claimed/pending badge together; the
+claim action is in the detail Dialog, not the list. The mobile date drops the
+decorative calendar icon (`max-md:hidden`) so the date and a short producer
+name fit side by side on a 390px Card. A longer name wraps instead of being
+truncated, since a touch device cannot recover a truncated name.
 
-On desktop the Card is a grid (`md:grid-cols-[minmax(0,1fr)_auto]`,
-`md:content-start`) with three rows: the faces, the metadata row, and the
-reaction row. The submission date and the claim control share the metadata row —
-date left, claim right-aligned — so the area below the faces carries two bands
-instead of three. The footer turns into `md:contents` at that breakpoint so its
-chips and its claim can land in different rows: paint the panel on the Card
-(`md:bg-muted/50`) and the separator on the faces row, because a
-`display: contents` element renders no background, border, or padding. Keep the
-claim at `md:mr-4` so it lines up with the chips' `md:px-4` inset, and hold the
+The claim dialog treats 企划 and 担当偶像 as optional: a producer may submit the
+claim with neither and fill them in from the owner card editor after approval.
+A claim row's `series_code` is `NOT NULL` and foreign-keyed into `agencies`, so
+the API derives one rather than demanding a choice, taking the first candidate
+that is a live, wiki-enabled agency: the explicit request value, the card the
+claim binds to, the selected idols' agency, then the legacy card's own series.
+Only when none of those resolve does it answer `409`
+`FUDABA_CLAIM_SERIES_REQUIRED`, which the dialog surfaces so the producer can
+pick one. An empty idol selection skips validation in the claim path only;
+owner-card writes still require between 1 and 20 idols.
+
+Desktop list summaries remain compact pills with natural width (`md:min-w-0`),
+20px graphics, 14px counts and `md:px-3`. The add control appears only inside
+the detail Dialog, next to the complete reaction set. Its visible dashed circle
+is 32px in diameter, matching the pill height and therefore the end-arc diameter.
+Center this circle inside a transparent 44px button and use `items-center` on the
+reaction row; do not enlarge the pills to match the touch target. Browser checks
+must compare the circle dimensions and vertical center with a pill, and verify
+that the 44px hit target does not overlap adjacent pills.
+
+On desktop the Card is a flex column (`md:gap-0`) whose children are the faces
+(with `md:mb-4` and a `md:border-b` separator), the metadata row, and the
+reaction row. Paint the panel on the Card (`md:bg-muted/50`) rather than on the
+footer, so the whole area below the faces reads as one surface. Hold the
 metadata row at `md:min-h-8` so every card in a row is the same height and the
-grid's stretch leaves no filler above the panel. A claimed badge renders the
+column's stretch leaves no filler above the panel. A claimed badge renders the
 linked card's producer name directly; API resolution falls back to the claiming
 platform profile's display name, then to `已由注册用户认领` when neither name is
 available. Keep the shield icon to retain the claimed-state meaning without a
 text prefix. Center the metadata with `md:items-center` on the header: padding
 the header instead moves the date off the claim's optical center.
 
-The mobile floor is a `min-height`, so a desktop override needs both `md:h-*`
-and `md:min-h-*`; `md:h-7` alone left the claim button 44px tall. Branch the
-browser geometry helper on the breakpoint instead of applying one target size to
-both: mobile asserts 40px wide by 44px tall, the desktop pill 32px in both
-directions. A touch device at desktop width receives the desktop pill —
-the 44px rule is a mobile-branch contract, not a global one.
+### Namecard detail and image preview
 
-### Continuous namecard previews
+The list faces and reaction summaries open `NamecardDetailDialog`. It renders
+both faces, only metadata already in the public list response, claim state and
+action, and all reactions. It does not construct a share link until an anonymous
+single-card route and its public projection exist. The claim Dialog remains a
+separate overlay; successful submission updates both the visible list and the
+current detail card.
 
-Keep one `NamecardPreview` Dialog mounted while changing cards. The page-private
-`useNamecardPreviewNavigation(listContext)` owns adjacent-page reads through
-`getNamecardPage`; preview navigation must not change the list URL or replace its
-items. Lock navigation synchronously before awaiting a request. Invalidate its
-session on close, reopen, unmount, and list-context changes; empty or shrinking
-pages retain the current image and expose retry instead of recursing.
+`useNamecardDetailSession(listContext)` holds only the card opened from the list,
+closes when list context changes, and updates the selected card after a claim.
+The detail has no previous/next card controls, card position indicator or
+adjacent-page reads; the underlying list keeps its own pagination. `NamecardPreview`
+opens from a face inside detail and handles only that card's side, zoom, pan and
+image retry. Closing preview returns focus to its detail image trigger. Closing
+detail uses `useNamecardDetailReturn(listContext)` to restore the original list
+trigger, scrollable ancestors and window position after the focus trap releases.
+Its deferred callback must ignore stale sessions.
 
-`useNamecardPreviewReturn(listContext)` records the original trigger, scrollable
-ancestors, and window position. Restore focus with `preventScroll` after the focus
-trap releases, then restore scroll positions. A deferred animation-frame callback
-must check that its return target still belongs to the closing session. Reopening
-or changing list context must invalidate it.
+The page owns one reaction cache by card ID for list summaries and detail.
+Deduplicate list/detail reads by card ID while a request is in flight. A read
+that began before a successful mutation cannot overwrite its new count: record
+a per-card version before sending the read, increment it on mutation, and ignore
+an older response. Keep the session cap of 10 clicks per emoji per card. The opened card shares
+the list's reaction cache and in-flight read.
 
-Verify these contracts in the navigation/return hook unit tests and
-`apps/web/tests/e2e/namecard-mobile-browsing.spec.ts`. The App counterpart covers
-safe areas and return behavior across the existing five viewport projects.
+Test the detail session/return hooks, reaction read-versus-write race, stable
+mobile top-three ranking, detail-to-preview focus chain and App safe areas.
+The browser suites `namecard-mobile-browsing`, `app-namecard-browsing`,
+`namecard-preview`, `namecard-claim-workflow`, `namecard-pagination` and
+`app-navigation` cover the entry changes. Request-count fixtures must match
+the shared in-flight read semantics, not assume separate list/detail fetches.
 
 ### Popup resting styles
 

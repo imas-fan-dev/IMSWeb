@@ -38,8 +38,19 @@ test.describe("namecard mobile browsing", () => {
       await expectNamecardGalleryGeometry(page)
       await attachNamecardScreenshot(page, testInfo, "gallery-dual-face")
       await back.click()
+      const detail = page.getByRole("dialog", { name: "制作人名片 1" })
+      await expect(detail).toBeVisible()
       await expect(
-        page.getByRole("img", { name: "制作人名片 1 背面" })
+        detail.getByRole("button", { name: "放大制作人名片 1 背面" })
+      ).toBeVisible()
+      await detail
+        .getByRole("button", { name: "放大制作人名片 1 背面" })
+        .click()
+      const preview = page.getByRole("dialog", {
+        name: "制作人名片 1 · 背面",
+      })
+      await expect(
+        preview.getByRole("img", { name: "制作人名片 1 背面" })
       ).toHaveAttribute("src", "/__namecard-qa/back-1.png")
       await expectNamecardPreviewGeometry(page)
       await attachNamecardScreenshot(page, testInfo, "preview")
@@ -47,9 +58,49 @@ test.describe("namecard mobile browsing", () => {
         .include('[role="dialog"]')
         .analyze()
       expect(results.violations).toEqual([])
-      await page.getByRole("button", { name: "关闭名片预览" }).click()
+      await preview.getByRole("button", { name: "关闭名片预览" }).click()
+      await expect(detail).toBeVisible()
       await expectNamecardNoOverflow(page)
-      await page.getByRole("button", { name: "添加反应" }).first().click()
+      const addReaction = detail.getByRole("button", { name: "添加反应" })
+      await expect(addReaction).toHaveAttribute("title", "添加反应")
+      const reactionRow = detail.getByLabel("名片全部反应")
+      await expect(reactionRow.locator(":scope > :last-child")).toHaveAttribute(
+        "aria-label",
+        "添加反应"
+      )
+      const circle = addReaction.locator("span")
+      await expect(circle).toHaveCSS("border-top-style", "dashed")
+      await expect(circle).toHaveCSS("border-top-left-radius", /px$/)
+      const addBox = await addReaction.boundingBox()
+      const circleBox = await circle.boundingBox()
+      const pillBox = await detail
+        .getByRole("button", { name: "👍，2 次反应", exact: true })
+        .boundingBox()
+      expect(addBox?.width).toBeGreaterThanOrEqual(43.5)
+      expect(addBox?.height).toBeGreaterThanOrEqual(43.5)
+      expect(pillBox?.height).toBeCloseTo(32, 0)
+      expect(circleBox?.width).toBeCloseTo(pillBox!.height, 0)
+      expect(circleBox?.height).toBeCloseTo(pillBox!.height, 0)
+      expect(circleBox!.y + circleBox!.height / 2).toBeCloseTo(
+        pillBox!.y + pillBox!.height / 2,
+        0
+      )
+      expect(circleBox!.x + circleBox!.width / 2).toBeCloseTo(
+        addBox!.x + addBox!.width / 2,
+        0
+      )
+      for (const pill of await reactionRow
+        .getByRole("button", { name: /次反应$/ })
+        .all()) {
+        const box = (await pill.boundingBox())!
+        const overlaps =
+          box.x < addBox!.x + addBox!.width &&
+          box.x + box.width > addBox!.x &&
+          box.y < addBox!.y + addBox!.height &&
+          box.y + box.height > addBox!.y
+        expect(overlaps).toBe(false)
+      }
+      await addReaction.click()
       const pickerButtons = page.getByRole("button", { name: /，添加反应$/ })
       await expect(pickerButtons).toHaveCount(46)
       await expectNamecardReactionGraphics(page)
@@ -80,6 +131,10 @@ test.describe("namecard mobile browsing", () => {
       await pickerButtons.last().click()
       const card = page.locator('[data-slot="card"]').filter({ has: front })
       await expect(
+        detail.getByRole("button", { name: "🔘，1 次反应", exact: true })
+      ).toContainText("1")
+      await detail.getByRole("button", { name: "Close" }).click()
+      await expect(
         card.getByRole("button", { name: "🔘，1 次反应", exact: true })
       ).toContainText("1")
       await page
@@ -98,7 +153,16 @@ test.describe("namecard mobile browsing", () => {
       page,
       api,
       26,
-      { 1: { "👍": 2, "🎮": 4, "🌹": 3, "🍔": 5, "🍭": 6, "🔨": 7 } },
+      {
+        1: {
+          "👍": 999999,
+          "🎮": 888888,
+          "🌹": 777777,
+          "🍔": 5,
+          "🍭": 6,
+          "🔨": 7,
+        },
+      },
       { cards: 1, reactionReads: 12, reactionWrites: 0 }
     )
     const release = browsing.holdReactions(1)
@@ -112,14 +176,19 @@ test.describe("namecard mobile browsing", () => {
       expect(before[2]).toBeCloseTo(before[3]!, 0)
       release()
       await expect(
-        cards.first().getByRole("button", { name: "🎮，4 次反应", exact: true })
+        cards
+          .first()
+          .getByRole("button", { name: "👍，999999 次反应", exact: true })
       ).toBeVisible()
       await expectNamecardGalleryGeometry(page)
       const after = await cards.evaluateAll((elements) =>
         elements.slice(0, 4).map((element) => element.getBoundingClientRect().y)
       )
       expect(after[0]).toBeCloseTo(after[1]!, 0)
-      expect(after[2]! - before[2]!).toBeGreaterThan(43)
+      // Three long mobile summary counts wrap onto an additional row. The
+      // next card in that masonry column follows it without moving the other
+      // column.
+      expect(after[2]! - before[2]!).toBeGreaterThanOrEqual(31.5)
       expect(after[3]).toBeCloseTo(before[3]!, 0)
       await expect(
         page.getByRole("button", { name: /查看制作人名片 \d+ 正面/ })
@@ -149,7 +218,7 @@ test.describe("namecard mobile browsing", () => {
     }
   })
 
-  test("keeps mobile reactions compact with at most four entries per row", async ({
+  test("shows the mobile top three and all reactions on desktop", async ({
     page,
     api,
   }, testInfo) => {
@@ -163,31 +232,46 @@ test.describe("namecard mobile browsing", () => {
     await page.setViewportSize({ width: 402, height: 874 })
     await page.goto("/community/cards?page=1&size=12")
     const first = page.locator("[data-namecard-item]").first()
+    const summary = first.getByLabel("名片反应摘要")
+    await expect(summary.getByRole("button")).toHaveCount(3)
     await expect(
-      first.getByRole("button", { name: "🎮，6 次反应", exact: true })
+      summary.getByRole("button", { name: "❤️，21 次反应", exact: true })
     ).toBeVisible()
+    await expect(
+      summary.getByRole("button", { name: "👍，13 次反应", exact: true })
+    ).toBeVisible()
+    await expect(
+      summary.getByRole("button", { name: "🥰，13 次反应", exact: true })
+    ).toBeVisible()
+    const mobileOrder: string[] = []
+    await first.getByRole("button", { name: "查看制作人名片 1 正面" }).focus()
+    await page.keyboard.press("Tab")
+    await page.keyboard.press("Tab")
+    for (let index = 0; index < 3; index += 1) {
+      mobileOrder.push(
+        (await page.evaluate(() => document.activeElement?.textContent)) ?? ""
+      )
+      if (index < 2) await page.keyboard.press("Tab")
+    }
+    expect(mobileOrder).toEqual(["21", "13", "13"])
     await expectNamecardReactionDensity(page)
-    const rows = await first
-      .locator('[aria-label="名片反应"] button')
-      .evaluateAll((buttons) => {
-        const counts = new Map<number, number>()
-        for (const button of buttons) {
-          const y = Math.round(button.getBoundingClientRect().y)
-          counts.set(y, (counts.get(y) ?? 0) + 1)
-        }
-        return Array.from(counts.values())
-      })
-    expect(rows).toEqual([4, 3])
     await attachNamecardScreenshot(page, testInfo, "compact-reactions-402")
     for (const viewport of [
       { width: 320, height: 568 },
       { width: 390, height: 844 },
-      { width: 1280, height: 900 },
     ]) {
       await page.setViewportSize(viewport)
+      await expect(summary.getByRole("button")).toHaveCount(3)
       await expectNamecardReactionDensity(page)
       await expectNamecardGalleryGeometry(page)
     }
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(summary.getByRole("button")).toHaveCount(6)
+    await expect(
+      summary.getByRole("button", { name: "🎮，6 次反应", exact: true })
+    ).toBeVisible()
+    await expectNamecardReactionDensity(page)
+    await expectNamecardGalleryGeometry(page)
     const accessibility = await new AxeBuilder({ page })
       .include("[data-namecard-item]")
       .analyze()
@@ -219,7 +303,7 @@ test.describe("namecard mobile browsing", () => {
     await expect(
       cards
         .last()
-        .getByRole("button", { name: "😎，999999 次反应", exact: true })
+        .getByRole("button", { name: "👍，999999 次反应", exact: true })
     ).toBeAttached()
     await expect
       .poll(() =>
@@ -262,7 +346,7 @@ test.describe("namecard mobile browsing", () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await mockNamecardBrowsing(page, api, 26, undefined, {
       cards: 4,
-      reactionReads: 52,
+      reactionReads: 26,
       reactionWrites: 0,
     })
     await page.goto("/community/cards?page=1&size=12")
@@ -302,13 +386,13 @@ test.describe("namecard mobile browsing", () => {
     await expectNamecardNoOverflow(page)
   })
 
-  test("reads across page boundaries and returns to the original list face and position", async ({
+  test("keeps the selected card and returns to the original list face and position", async ({
     page,
     api,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     const browsing = await mockNamecardBrowsing(page, api, 26, undefined, {
-      cards: 3,
+      cards: 1,
       reactionReads: 12,
       reactionWrites: 0,
     })
@@ -319,86 +403,44 @@ test.describe("namecard mobile browsing", () => {
     await original.scrollIntoViewIfNeeded()
     const scrollY = await page.evaluate(() => window.scrollY)
     await original.click()
-    const dialog = page.getByRole("dialog")
-    await dialog.getByRole("button", { name: "放大名片" }).click()
-    await dialog.getByRole("button", { name: "下一张名片" }).click()
+    const detail = page.getByRole("dialog", { name: "制作人名片 12" })
+    await expect(detail).toBeVisible()
     await expect(
-      dialog.getByRole("img", { name: "制作人名片 13 正面" })
+      detail.getByRole("button", { name: /[上下]一张名片/ })
+    ).toHaveCount(0)
+    await expect(detail.getByText(/第 \d+ \/ \d+ 张/)).toHaveCount(0)
+    await expect(page).toHaveURL(/page=1&size=12$/)
+    expect(browsing.requests).toEqual([1])
+
+    const previewTrigger = detail.getByRole("button", {
+      name: "放大制作人名片 12 正面",
+    })
+    await previewTrigger.click()
+    const preview = page.getByRole("dialog", {
+      name: "制作人名片 12 · 正面",
+    })
+    await expect(
+      preview.getByRole("button", { name: /[上下]一张名片/ })
+    ).toHaveCount(0)
+    await expect(preview.getByText(/第 \d+ \/ \d+ 张/)).toHaveCount(0)
+    await expect(
+      preview.getByRole("img", { name: "制作人名片 12 正面" })
     ).toBeVisible()
-    await expect(dialog.getByRole("img")).toHaveCSS(
+    await preview.getByRole("button", { name: "放大名片" }).click()
+    await expect(preview.getByRole("img")).not.toHaveCSS(
       "transform",
       "matrix(1, 0, 0, 1, 0, 0)"
     )
-    await expect(page).toHaveURL(/page=1&size=12$/)
-    await dialog.getByRole("button", { name: "下一张名片" }).click()
-    await expect(
-      dialog.getByRole("img", { name: "制作人名片 14 正面" })
-    ).toBeVisible()
-    expect(browsing.requests).toEqual([1, 2])
-    await dialog.getByRole("button", { name: "上一张名片" }).click()
-    await dialog.getByRole("button", { name: "上一张名片" }).click()
-    await expect(
-      dialog.getByRole("img", { name: "制作人名片 12 正面" })
-    ).toBeVisible()
-    await dialog.getByRole("button", { name: "关闭名片预览" }).click()
-    await expect(dialog).toBeHidden()
+    await preview.getByRole("button", { name: "关闭名片预览" }).click()
+    await expect(detail).toBeVisible()
+    await expect(previewTrigger).toBeFocused()
+    await detail.getByRole("button", { name: "Close" }).click()
+    await expect(detail).toBeHidden()
     await expect(original).toBeFocused()
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeCloseTo(scrollY, 0)
     await expect(page).toHaveURL(/page=1&size=12$/)
-  })
-
-  test("keeps the current card on failure, retries, and ignores responses after closing", async ({
-    page,
-    api,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    const browsing = await mockNamecardBrowsing(page, api, 26, undefined, {
-      cards: 5,
-      reactionReads: 14,
-      reactionWrites: 0,
-    })
-    await page.goto("/community/cards?page=1&size=12")
-    const original = page.getByRole("button", {
-      name: "查看制作人名片 12 正面",
-    })
-    await original.click()
-    const dialog = page.getByRole("dialog")
-    browsing.failOnce(2)
-    await dialog.getByRole("button", { name: "下一张名片" }).click()
-    await expect(
-      dialog.getByRole("img", { name: "制作人名片 12 正面" })
-    ).toBeVisible()
-    await dialog.getByRole("button", { name: "重试加载名片" }).click()
-    await expect(
-      dialog.getByRole("img", { name: "制作人名片 13 正面" })
-    ).toBeVisible()
-    await dialog.getByRole("button", { name: "关闭名片预览" }).click()
-    await original.click()
-    browsing.hold(2)
-    await dialog.getByRole("button", { name: "下一张名片" }).click()
-    await expect(
-      dialog.getByRole("button", { name: "下一张名片" })
-    ).toBeDisabled()
-    await dialog.getByRole("button", { name: "关闭名片预览" }).click()
-    await page.getByRole("button", { name: "查看制作人名片 1 正面" }).click()
-    const response = page.waitForResponse(
-      (result) => new URL(result.url()).searchParams.get("page") === "2"
-    )
-    browsing.release()
-    await response
-    await expect(
-      dialog.getByRole("img", { name: "制作人名片 1 正面" })
-    ).toBeVisible()
-    await expect(
-      dialog.getByRole("button", { name: "上一张名片" })
-    ).toBeDisabled()
-    await dialog.getByRole("button", { name: "关闭名片预览" }).click()
-    await page.goto("/community/cards?page=3&size=12")
-    await page.getByRole("button", { name: "查看制作人名片 26 正面" }).click()
-    await expect(
-      dialog.getByRole("button", { name: "下一张名片" })
-    ).toBeDisabled()
+    expect(browsing.requests).toEqual([1])
   })
 })

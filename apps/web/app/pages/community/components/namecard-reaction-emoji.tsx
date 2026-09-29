@@ -60,7 +60,7 @@ export function NamecardReactionEmoji({
 }) {
   const file = REACTION_ASSETS.get(emoji)
   const [failedFile, setFailedFile] = useState<string | null>(null)
-  const className = compact ? "size-4 shrink-0 md:size-5" : "size-5 shrink-0"
+  const className = compact ? "size-3.5 shrink-0 md:size-5" : "size-5 shrink-0"
 
   if (!file || failedFile === file) {
     return <SmileIcon aria-hidden="true" className={className} />

@@ -316,7 +316,7 @@ export interface CreateFudabaCardClaimInput {
     legacyCardId: number;
     claimantAccountId: string;
     targetCardId: string | null;
-    seriesCode: string;
+    seriesCode: string | null;
     idolIds: number[];
     message: string;
     createdAt: string;
@@ -337,6 +337,7 @@ export interface ConfirmFudabaLegacyEnvelopeInput
 export type FudabaClaimCreateResult =
     | { status: "created"; claim: FudabaCardClaimRecord }
     | { status: "conflict"; claimId: string; state: FudabaCardClaimState }
+    | { status: "series-required" }
     | { status: "unavailable" };
 
 export type FudabaEnvelopeActionResult =

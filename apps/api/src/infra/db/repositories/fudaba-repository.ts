@@ -2575,19 +2575,71 @@ export class SqlFudabaRepository implements FudabaRepository {
         });
     }
 
+    /**
+     * A claim row's `series_code` is NOT NULL and foreign-keyed into
+     * `agencies`, and the approval path copies it onto the owned card. The claim
+     * dialog therefore lets 企划 stay unset, and the server takes the first
+     * candidate that is a live, wiki-enabled agency: the explicit choice, the
+     * card this claim binds to, the selected idols' agency, then the legacy
+     * card's own series. Returning null means the caller has to ask for one.
+     */
+    private async resolveClaimSeriesCode(
+        database: SqlDatabase,
+        input: CreateFudabaCardClaimInput,
+        idols: readonly CardIdolSelectionRecord[],
+    ): Promise<string | null> {
+        const candidates: Array<string | null | undefined> = [input.seriesCode];
+        if (input.targetCardId) {
+            const target = await queryOne<{ series_code: string | null }>(
+                database,
+                `SELECT series_code FROM fudaba_cards
+                 WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
+                [input.targetCardId, input.claimantAccountId],
+            );
+            candidates.push(target?.series_code);
+        }
+        candidates.push(idols[0]?.agency_code);
+        const legacy = await queryOne<{ series_code: string | null }>(
+            database,
+            `SELECT series_code FROM cards WHERE id=?`,
+            [input.legacyCardId],
+        );
+        candidates.push(legacy?.series_code);
+        for (const candidate of candidates) {
+            if (typeof candidate !== 'string' || !candidate) continue;
+            const agency = await queryOne<{ code: string }>(
+                database,
+                `SELECT code FROM agencies WHERE code=? AND wiki_enabled=?`,
+                [candidate, this.bindBoolean(true)],
+            );
+            if (agency) return candidate;
+        }
+        return null;
+    }
+
     private async createCardClaimInTransaction(
         database: SqlDatabase,
         input: CreateFudabaCardClaimInput,
     ): Promise<FudabaClaimCreateResult> {
-        let idols: CardIdolSelectionRecord[];
-        try {
-            idols = await this.validateCardIdols(database, input.idolIds);
-        } catch (error) {
-            if (error instanceof InvalidCardIdolSelectionError) {
-                return { status: "unavailable" };
+        // 担当偶像 is optional for a legacy claim, so an empty selection skips
+        // validation instead of failing; owner-card writes stay strict.
+        let idols: CardIdolSelectionRecord[] = [];
+        if (input.idolIds.length > 0) {
+            try {
+                idols = await this.validateCardIdols(database, input.idolIds);
+            } catch (error) {
+                if (error instanceof InvalidCardIdolSelectionError) {
+                    return { status: "unavailable" };
+                }
+                throw error;
             }
-            throw error;
         }
+        const seriesCode = await this.resolveClaimSeriesCode(
+            database,
+            input,
+            idols,
+        );
+        if (!seriesCode) return { status: "series-required" };
         const result = await database
             .prepare(
                 `INSERT INTO fudaba_card_claims
@@ -2622,7 +2674,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                 input.createdAt,
                 input.updatedAt,
                 input.claimantAccountId,
-                input.seriesCode,
+                seriesCode,
                 this.bindBoolean(true),
                 input.targetCardId,
                 input.legacyCardId,
@@ -2835,7 +2887,12 @@ export class SqlFudabaRepository implements FudabaRepository {
                         updatedAt: input.updatedAt,
                     },
                 );
-                if (claimResult.status === "unavailable") {
+                // The envelope flow derives its series from the bound target card,
+                // so a missing series can only mean the target is unusable.
+                if (
+                    claimResult.status === "unavailable" ||
+                    claimResult.status === "series-required"
+                ) {
                     return { status: "unavailable" };
                 }
                 if (claimResult.status === "conflict") {

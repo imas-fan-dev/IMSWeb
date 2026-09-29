@@ -83,125 +83,73 @@ describe("NamecardPreview", () => {
     )
   })
 
-  it("presents optional navigation and keeps one dialog across card changes", async () => {
+  it("keeps one dialog across card changes and resets the image view", async () => {
     const user = userEvent.setup()
-    const navigation = {
-      position: 1,
-      total: 2,
-      canPrevious: false,
-      canNext: true,
-      pending: false,
-      error: null,
-      onPrevious: vi.fn(),
-      onNext: vi.fn(),
-      onRetry: vi.fn(),
-    }
     const props = {
       card,
       side: "front" as const,
       onSideChange: vi.fn(),
       onOpenChange: vi.fn(),
-      navigation,
     }
     const { rerender } = render(<NamecardPreview {...props} />)
     const dialog = screen.getByRole("dialog")
-    expect(within(dialog).getByText("第 1 / 2 张")).toBeVisible()
     expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")
     expect(
       within(within(dialog).getByRole("heading")).getByText("42")
     ).toHaveClass("sr-only")
-    expect(screen.getByRole("button", { name: "上一张名片" })).toBeDisabled()
-    await user.click(screen.getByRole("button", { name: "下一张名片" }))
-    expect(navigation.onNext).toHaveBeenCalledOnce()
     await user.click(screen.getByRole("button", { name: "放大名片" }))
     fireEvent.keyDown(dialog, { key: "ArrowRight" })
     const viewport = screen.getByLabelText("名片查看区域")
     fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 20, clientY: 20 })
-    rerender(
-      <NamecardPreview
-        {...props}
-        card={{ ...card, id: 43 }}
-        navigation={{
-          ...navigation,
-          position: 2,
-          canPrevious: true,
-          canNext: false,
-        }}
-      />
-    )
+    rerender(<NamecardPreview {...props} card={{ ...card, id: 43 }} />)
     expect(screen.getByRole("dialog")).toBe(dialog)
     expect(dialog).toHaveAccessibleName("制作人名片 43 · 正面")
     expect(
       within(within(dialog).getByRole("heading")).getByText("43")
     ).toHaveClass("sr-only")
-    const nextImage = screen.getByRole("img", { name: "制作人名片 43 正面" })
-    expect(nextImage).toHaveStyle({
-      transform: "translate3d(0px, 0px, 0) scale(1)",
-    })
-    expect(screen.getByRole("button", { name: "下一张名片" })).toBeDisabled()
+    expect(screen.getByRole("img", { name: "制作人名片 43 正面" })).toHaveStyle(
+      { transform: "translate3d(0px, 0px, 0) scale(1)" }
+    )
+    expect(
+      screen.queryByRole("button", { name: "下一张名片" })
+    ).not.toBeInTheDocument()
     fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 20, clientY: 20 })
     expect(props.onOpenChange).not.toHaveBeenCalled()
   })
 
-  it("locks navigation while loading but retains the current image and close action", async () => {
+  it("retains the current image, side controls, and close action", async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
-    const navigation = {
-      position: 2,
-      total: 5,
-      canPrevious: true,
-      canNext: true,
-      pending: true,
-      error: null,
-      onPrevious: vi.fn(),
-      onNext: vi.fn(),
-      onRetry: vi.fn(),
-    }
     render(
       <NamecardPreview
         card={card}
         side="back"
         onSideChange={vi.fn()}
         onOpenChange={onClose}
-        navigation={navigation}
       />
     )
-    expect(screen.getByText("正在读取名片…")).toHaveAttribute("role", "status")
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
     ).toHaveAttribute("src", card.image2_url)
-    expect(screen.getByRole("button", { name: "上一张名片" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "下一张名片" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "正面" })).toBeEnabled()
+    expect(
+      screen.queryByRole("button", { name: "上一张名片" })
+    ).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "关闭名片预览" }))
     expect(onClose).toHaveBeenCalledWith(false)
   })
 
-  it("separates navigation retry from image retry and resets errors on side and card changes", async () => {
+  it("retries image failures and resets errors on side and card changes", async () => {
     const user = userEvent.setup()
-    const navigation = {
-      position: 2,
-      total: 5,
-      canPrevious: true,
-      canNext: true,
-      pending: false,
-      error: "暂时无法读取名片，请重试。",
-      onPrevious: vi.fn(),
-      onNext: vi.fn(),
-      onRetry: vi.fn(),
-    }
     const props = {
       card,
       side: "front" as const,
       onSideChange: vi.fn(),
       onOpenChange: vi.fn(),
-      navigation,
     }
     const { rerender } = render(<NamecardPreview {...props} />)
     fireEvent.error(screen.getByRole("img", { name: "制作人名片 42 正面" }))
-    expect(screen.getAllByRole("alert")).toHaveLength(2)
-    await user.click(screen.getByRole("button", { name: "重试加载名片" }))
-    expect(navigation.onRetry).toHaveBeenCalledOnce()
+    expect(screen.getAllByRole("alert")).toHaveLength(1)
     await user.click(screen.getByRole("button", { name: "重试加载图片" }))
     expect(screen.queryByText("这张图片暂时无法显示")).not.toBeInTheDocument()
     fireEvent.load(screen.getByRole("img", { name: "制作人名片 42 正面" }))

@@ -3,7 +3,7 @@ import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 export interface LegacyCardClaimInput {
     favoriteIdolIds: number[];
     message: string;
-    seriesCode: string;
+    seriesCode: string | null;
     targetCardId: string | null;
 }
 
@@ -48,7 +48,7 @@ function revision(value: unknown): number {
 
 function idolIds(value: unknown): number[] {
     if (
-        !Array.isArray(value) || value.length < 1 || value.length > 20 ||
+        !Array.isArray(value) || value.length > 20 ||
         value.some((id) => !Number.isSafeInteger(id) || Number(id) <= 0) ||
         new Set(value).size !== value.length
     ) {
@@ -57,9 +57,12 @@ function idolIds(value: unknown): number[] {
     return value.map(Number);
 }
 
-function seriesCode(value: unknown): string {
+/** Absent or blank means the API derives the series instead. */
+function optionalSeriesCode(value: unknown): string | null {
+    if (value === undefined || value === null) return null;
     const code = text(value, 'seriesCode', 64);
-    if (!code || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(code)) {
+    if (!code) return null;
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(code)) {
         throw badRequest('seriesCode 无效');
     }
     return code;
@@ -84,8 +87,8 @@ export function parseLegacyCardClaim(value: unknown): LegacyCardClaimInput {
     }
     return {
         targetCardId,
-        seriesCode: seriesCode(body.seriesCode),
-        favoriteIdolIds: idolIds(body.favoriteIdolIds),
+        seriesCode: optionalSeriesCode(body.seriesCode),
+        favoriteIdolIds: idolIds(body.favoriteIdolIds ?? []),
         message: text(body.message, 'message', 1000)
     };
 }

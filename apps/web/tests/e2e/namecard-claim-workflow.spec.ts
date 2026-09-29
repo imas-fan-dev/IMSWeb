@@ -273,7 +273,9 @@ test.describe("namecard claim workflow", () => {
     )
 
     await page.goto("/community/cards")
-    await page.getByRole("button", { name: "认领这张名片" }).click()
+    await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
+    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
+    await detail.getByRole("button", { name: "认领这张名片" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()
     await expect(
@@ -284,11 +286,18 @@ test.describe("namecard claim workflow", () => {
     await dialog.getByRole("button", { name: "提交认领审核" }).click()
 
     await expect(dialog).not.toBeVisible()
-    await expect(page.getByText("认领审核中")).toBeVisible()
+    await expect(detail.getByText("认领审核中", { exact: true })).toBeVisible()
+    await expect(
+      page
+        .locator("[data-namecard-item]")
+        .getByText("认领审核中", { exact: true })
+    ).toBeVisible()
     expect(submitted).toEqual({
       body: {
         targetCardId: null,
-        seriesCode: "765",
+        // 企划 is left to the server: it derives one from the selected idol's
+        // agency, the bound card, or the legacy card itself.
+        seriesCode: null,
         favoriteIdolIds: [1],
         message: "旧活动现场交换所得",
       },
@@ -303,10 +312,58 @@ test.describe("namecard claim workflow", () => {
     ).toBe(false)
     expect(consoleErrors).toEqual([])
     await waitForNextPaint(page)
-    await expect(page.getByRole("dialog")).not.toBeVisible()
+    await expect(detail).toBeVisible()
+    await detail.getByRole("button", { name: "Close" }).click()
+    await expect(detail).not.toBeVisible()
     await page.screenshot({
       path: `/tmp/imsweb-namecard-claim-${testInfo.project.name}.png`,
       fullPage: true,
+    })
+  })
+
+  test("submits a claim with neither 企划 nor 担当偶像 chosen", async ({
+    page,
+  }) => {
+    await mockClaimSurface(page)
+    let submitted: Record<string, unknown> | undefined
+    await api.mockRoute(
+      "**/api/community/exchange/legacy-cards/42/claims",
+      async (route) => {
+        submitted = route.request().postDataJSON() as Record<string, unknown>
+        await route.fulfill({
+          status: 201,
+          json: {
+            success: true,
+            claim: {
+              id: "claim-bare",
+              legacyCardId: 42,
+              targetCardId: null,
+              seriesCode: "765",
+              favoriteIdols: [],
+              state: "pending",
+              message: "旧活动现场交换所得",
+              reviewNote: "",
+              revision: 0,
+              createdAt: "2026-08-16T19:30:00.000Z",
+              updatedAt: "2026-08-16T19:30:00.000Z",
+              reviewedAt: null,
+            },
+          },
+        })
+      },
+      "POST"
+    )
+
+    const dialog = await openClaimDialog(page)
+    await dialog.getByLabel("认领说明").fill("旧活动现场交换所得")
+    await dialog.getByRole("button", { name: "提交认领审核" }).click()
+
+    await expect(dialog).not.toBeVisible()
+    expect(submitted).toEqual({
+      targetCardId: null,
+      seriesCode: null,
+      favoriteIdolIds: [],
+      message: "旧活动现场交换所得",
     })
   })
 
@@ -368,7 +425,9 @@ test.describe("namecard claim workflow", () => {
 
   async function openClaimDialog(page: Page) {
     await page.goto("/community/cards")
-    await page.getByRole("button", { name: "认领这张名片" }).click()
+    await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
+    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
+    await detail.getByRole("button", { name: "认领这张名片" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()
     await settleDialog(dialog)

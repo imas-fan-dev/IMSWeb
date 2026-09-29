@@ -1,9 +1,9 @@
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -299,6 +299,13 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertEqual(
             web_scripts["test"],
             "node ../../scripts/testing/run-test-owner.mjs web",
+        )
+        self.assertIn(
+            "IMS_TEST_POSTGRES_ENABLED=false pnpm --filter @imsweb/api run test:migration",
+            root_scripts["check:pre-commit"],
+        )
+        self.assertNotIn(
+            "IMS_TEST_POSTGRES_ENABLED=false", root_scripts["test"]
         )
         commands = "\n".join(
             [*root_scripts.values(), *api_scripts.values(), *web_scripts.values()]
