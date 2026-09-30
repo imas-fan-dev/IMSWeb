@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Check E2E distinctions and browser testing constraints"}
+{"file": "docs/development/testing.md", "reason": "Check test routing and owner command claims"}
+{"file": "docs/development/app-device-delivery.md", "reason": "Check device delivery commands and safety limits"}
+{"file": ".trellis/spec/repository/index.md", "reason": "Check repo rules, scripts, and documentation validation claims"}
