@@ -254,7 +254,7 @@ async function openAccountRoot(
     })
   })
 
-  await page.goto("/account/me")
+  await page.goto("/account/me", { waitUntil: "domcontentloaded" })
   expect(new URL(page.url()).origin).toBe(documentOrigin)
   await applySafeArea(page)
 
