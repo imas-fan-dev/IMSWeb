@@ -122,8 +122,12 @@ rather than inlining a provider payload or a session response in a spec.
 
 E2E specs must not use `page.waitForTimeout()` or poll wall-clock APIs to create
 delays. Wait for visible state, requests, focus, geometry, or animation
-completion. When elapsed time is itself the tested boundary, use Playwright's
-controlled clock and still observe the resulting state.
+completion. Hit-target assertions after scrolling must poll a single in-page
+snapshot that confirms the target region is in the viewport and all sampled
+control points resolve to the controls; a preceding hidden-state assertion can
+observe stale layout/observer state. When elapsed time is itself the tested
+boundary, use Playwright's controlled clock and still observe the resulting
+state.
 
 After a worktree sync or dependency update adds contracts entrypoints, restart
 existing Vite previews before running the matrix. A linked package can otherwise

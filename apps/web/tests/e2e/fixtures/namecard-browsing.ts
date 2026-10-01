@@ -449,20 +449,28 @@ export async function expectNamecardPaginationHitTargets(page: Page) {
   await expect(page.locator("[data-app-floating-actions]")).toBeHidden()
   await expect
     .poll(() =>
-      pagination.evaluate((element) =>
-        Array.from(
+      pagination.evaluate((element) => {
+        const box = element.getBoundingClientRect()
+        const inViewport =
+          box.width > 0 &&
+          box.height > 0 &&
+          box.top >= 0 &&
+          box.bottom <= window.innerHeight &&
+          box.left >= 0 &&
+          box.right <= window.innerWidth
+        const uncoveredControls = Array.from(
           element.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
             "button,#namecard-target-page"
           )
         )
           .filter((control) => !control.disabled)
           .filter((control) => {
-            const box = control.getBoundingClientRect()
+            const controlBox = control.getBoundingClientRect()
             return [0.25, 0.5, 0.75].some((x) =>
               [0.25, 0.5, 0.75].some((y) => {
                 const hit = document.elementFromPoint(
-                  box.x + box.width * x,
-                  box.y + box.height * y
+                  controlBox.x + controlBox.width * x,
+                  controlBox.y + controlBox.height * y
                 )
                 return !hit || !control.contains(hit)
               })
@@ -470,7 +478,12 @@ export async function expectNamecardPaginationHitTargets(page: Page) {
           })
           .map((control) => control.getAttribute("aria-label") ?? control.id)
           .filter(Boolean)
-      )
+        return inViewport && uncoveredControls.length === 0
+          ? []
+          : uncoveredControls.length
+            ? uncoveredControls
+            : ["名片分页未完整进入视口"]
+      })
     )
     .toEqual([])
 }
