@@ -124,10 +124,16 @@ E2E specs must not use `page.waitForTimeout()` or poll wall-clock APIs to create
 delays. Wait for visible state, requests, focus, geometry, or animation
 completion. Hit-target assertions after scrolling must poll a single in-page
 snapshot that confirms the target region is in the viewport and all sampled
-control points resolve to the controls; a preceding hidden-state assertion can
-observe stale layout/observer state. When elapsed time is itself the tested
-boundary, use Playwright's controlled clock and still observe the resulting
-state.
+control points resolve to the controls. `scrollIntoViewIfNeeded()` ignores fixed
+App navigation covering an otherwise fully visible region. Center pagination
+with `element.scrollIntoView({ block: "center", behavior: "instant" })` in each
+polled snapshot so focus scrolling and masonry reflow cannot leave it behind the
+tab bar. Assert the floating actions are hidden after the hit checks; a preceding
+hidden-state assertion can observe stale layout/observer state. The focused
+pagination case in `app-namecard-browsing.spec.ts` deliberately places the input
+behind the fixed navigation before verifying recovery and preserving its draft.
+When elapsed time is itself the tested boundary, use Playwright's controlled
+clock and still observe the resulting state.
 
 After a worktree sync or dependency update adds contracts entrypoints, restart
 existing Vite previews before running the matrix. A linked package can otherwise

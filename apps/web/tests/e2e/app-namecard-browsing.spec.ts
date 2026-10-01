@@ -15,6 +15,47 @@ import {
 } from "./fixtures/namecard-browsing"
 
 test.describe("app namecard browsing", () => {
+  test("scrolls focused pagination clear of the fixed App navigation", async ({
+    page,
+    api,
+  }) => {
+    await mockNamecardBrowsing(page, api, 26, undefined, {
+      cards: 1,
+      reactionReads: 12,
+      reactionWrites: 0,
+    })
+    await page.goto("/community/cards?page=2&size=12")
+    await applyNamecardSafeArea(page)
+    await expectNamecardPaginationGeometry(page)
+    const pagination = page.getByRole("navigation", { name: "名片分页" })
+    await pagination.getByRole("spinbutton", { name: "跳至" }).fill("3")
+    // Reproduce a focus-restored position that is inside the viewport but
+    // underneath the fixed navigation, where scrollIntoViewIfNeeded is a no-op.
+    await pagination.evaluate((element) => {
+      window.scrollBy({
+        top: element.getBoundingClientRect().bottom - innerHeight + 1,
+        behavior: "instant",
+      })
+    })
+    await expect
+      .poll(() =>
+        pagination.evaluate((element) => {
+          const input = element.querySelector("#namecard-target-page")!
+          const box = input.getBoundingClientRect()
+          const hit = document.elementFromPoint(
+            box.x + box.width / 2,
+            box.y + box.height / 2
+          )
+          return Boolean(hit?.closest('nav[aria-label="主导航"]'))
+        })
+      )
+      .toBe(true)
+    await expectNamecardPaginationHitTargets(page)
+    await expect(
+      pagination.getByRole("spinbutton", { name: "跳至" })
+    ).toHaveValue("3")
+  })
+
   test("preserves App safe areas, complete images and the list return position", async ({
     page,
     api,

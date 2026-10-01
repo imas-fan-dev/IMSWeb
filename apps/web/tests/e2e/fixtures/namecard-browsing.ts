@@ -445,11 +445,12 @@ export async function expectNamecardPaginationGeometry(page: Page) {
 
 export async function expectNamecardPaginationHitTargets(page: Page) {
   const pagination = page.getByRole("navigation", { name: "名片分页" })
-  await pagination.scrollIntoViewIfNeeded()
-  await expect(page.locator("[data-app-floating-actions]")).toBeHidden()
   await expect
     .poll(() =>
       pagination.evaluate((element) => {
+        // Native viewport visibility ignores the fixed App tab bar. Center
+        // again if focus scrolling or masonry reflow moves the pagination.
+        element.scrollIntoView({ block: "center", behavior: "instant" })
         const box = element.getBoundingClientRect()
         const inViewport =
           box.width > 0 &&
@@ -486,6 +487,7 @@ export async function expectNamecardPaginationHitTargets(page: Page) {
       })
     )
     .toEqual([])
+  await expect(page.locator("[data-app-floating-actions]")).toBeHidden()
 }
 
 export async function expectNamecardReactionDensity(page: Page) {
