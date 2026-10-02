@@ -233,7 +233,12 @@ test.describe("namecard mobile browsing", () => {
     await page.goto("/community/cards?page=1&size=12")
     const first = page.locator("[data-namecard-item]").first()
     const summary = first.getByLabel("名片反应摘要")
-    await expect(summary.getByRole("button")).toHaveCount(3)
+    await expect(summary.getByRole("button", { name: /次反应$/ })).toHaveCount(
+      3
+    )
+    await expect(
+      summary.getByRole("button", { name: "添加反应", exact: true })
+    ).toHaveCount(0)
     await expect(
       summary.getByRole("button", { name: "❤️，21 次反应", exact: true })
     ).toBeVisible()
@@ -261,12 +266,22 @@ test.describe("namecard mobile browsing", () => {
       { width: 390, height: 844 },
     ]) {
       await page.setViewportSize(viewport)
-      await expect(summary.getByRole("button")).toHaveCount(3)
+      await expect(
+        summary.getByRole("button", { name: /次反应$/ })
+      ).toHaveCount(3)
+      await expect(
+        summary.getByRole("button", { name: "添加反应", exact: true })
+      ).toHaveCount(0)
       await expectNamecardReactionDensity(page)
       await expectNamecardGalleryGeometry(page)
     }
     await page.setViewportSize({ width: 1280, height: 900 })
-    await expect(summary.getByRole("button")).toHaveCount(6)
+    await expect(summary.getByRole("button", { name: /次反应$/ })).toHaveCount(
+      6
+    )
+    await expect(
+      summary.getByRole("button", { name: "添加反应", exact: true })
+    ).toBeVisible()
     await expect(
       summary.getByRole("button", { name: "🎮，6 次反应", exact: true })
     ).toBeVisible()

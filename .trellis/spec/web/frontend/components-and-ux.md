@@ -199,18 +199,26 @@ allow subpixel rounding when comparing DOMRect values to CSS pixels.
 
 Mobile list reaction summaries show at most three active emoji, sorted by
 count descending with original API order breaking ties. Desktop shows every
-active reaction. Both are read-only buttons that open the detail Dialog; the
-list has no add-reaction control. The detail owns all reaction chips and the
-44px picker entries. Keep Unicode values in accessible names and render their
-pinned local images, never native emoji as a visual fallback.
+active reaction. On Web at the `md` breakpoint and above, clicking a list chip
+adds that reaction directly, and a visible add button opens the same picker used
+in detail. Narrow Web and all App list summaries open the detail Dialog. The
+picker entries retain their 44px targets. Keep Unicode values in accessible
+names and render their pinned local images, never native emoji as a visual
+fallback.
+
+When an open desktop list picker crosses below `48rem`, close its portal and
+return focus to a visible detail entry on the same card, preferring the mobile
+reaction summary. The detail picker stays available at narrow widths. Verify
+this transition with an open picker; hiding only its trigger leaves the portal
+interactive and its default focus target hidden.
 
 List summaries use 32px-high bordered pills with 14px graphics, 11px counts,
 `min-w-8`, and `px-1` on mobile. Desktop uses 20px graphics, 14px counts and
 `md:px-3`. Short mobile counts may grow up to `max-w-14`; longer counts grow
 to fit without clipping. Keep the row inset with footer `p-1.5`, `gap-0.75`
-on mobile and `md:gap-1.5` on desktop. When no reactions exist, a visible
-`查看详情` button still opens the Dialog. Preserve inset focus rings and verify
-that three summaries do not overflow a 320px viewport.
+on mobile and `md:gap-1.5` on desktop. When no reactions exist, narrow Web and App
+show `查看详情`; desktop Web shows the add-reaction picker. Preserve inset focus
+rings and verify that three summaries do not overflow a 320px viewport.
 
 The list metadata row keeps the date and claimed/pending badge together; the
 claim action is in the detail Dialog, not the list. The mobile date drops the
@@ -230,13 +238,14 @@ pick one. An empty idol selection skips validation in the claim path only;
 owner-card writes still require between 1 and 20 idols.
 
 Desktop list summaries remain compact pills with natural width (`md:min-w-0`),
-20px graphics, 14px counts and `md:px-3`. The add control appears only inside
-the detail Dialog, next to the complete reaction set. Its visible dashed circle
-is 32px in diameter, matching the pill height and therefore the end-arc diameter.
-Center this circle inside a transparent 44px button and use `items-center` on the
-reaction row; do not enlarge the pills to match the touch target. Browser checks
-must compare the circle dimensions and vertical center with a pill, and verify
-that the 44px hit target does not overlap adjacent pills.
+20px graphics, 14px counts and `md:px-3`. The add control appears in desktop Web
+list rows and inside the detail Dialog, next to the reaction set. Both reuse
+`NamecardReactionPicker`. Its visible dashed circle is 32px in diameter, matching
+the pill height and therefore the end-arc diameter. Center this circle inside a
+transparent 44px button and use `items-center` on the reaction row; do not enlarge
+the pills to match the touch target. Browser checks must compare the circle
+dimensions and vertical center with a pill, and verify that the 44px hit target
+does not overlap adjacent pills.
 
 On desktop the Card is a flex column (`md:gap-0`) whose children are the faces
 (with `md:mb-4` and a `md:border-b` separator), the metadata row, and the
@@ -273,8 +282,12 @@ The page owns one reaction cache by card ID for list summaries and detail.
 Deduplicate list/detail reads by card ID while a request is in flight. A read
 that began before a successful mutation cannot overwrite its new count: record
 a per-card version before sending the read, increment it on mutation, and ignore
-an older response. Keep the session cap of 10 clicks per emoji per card. The opened card shares
-the list's reaction cache and in-flight read.
+an older response. The page also owns pending writes and the session cap of 10
+successful clicks per emoji per card, shared by desktop list and detail. Reject
+duplicate writes for the same card until its request finishes; other cards can
+submit independently. Failed writes preserve counts and quota, report the error,
+and allow retry. The opened card shares the list's reaction cache and in-flight
+read.
 
 Test the detail session/return hooks, reaction read-versus-write race, stable
 mobile top-three ranking, detail-to-preview focus chain and App safe areas.

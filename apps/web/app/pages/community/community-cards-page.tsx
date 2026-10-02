@@ -54,13 +54,18 @@ import { useNamecardMasonry } from "~/pages/community/hooks/use-namecard-masonry
 import { useNamecardPaginationVisibility } from "~/pages/community/hooks/use-namecard-pagination-visibility"
 import { useNamecardDetailSession } from "~/pages/community/hooks/use-namecard-detail-session"
 import { useNamecardDetailReturn } from "~/pages/community/hooks/use-namecard-detail-return"
-import { getNamecardPage, getNamecardReactions } from "~/lib/api"
+import {
+  addNamecardReaction,
+  getNamecardPage,
+  getNamecardReactions,
+} from "~/lib/api"
 import type { Namecard, NamecardPage } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
+const SESSION_REACTION_LIMIT = 10
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
   month: "long",
@@ -114,11 +119,15 @@ export function meta() {
 function NamecardItem({
   card,
   reactions,
+  busy,
   onOpenDetail,
+  onReact,
 }: {
   card: Namecard
   reactions: NamecardReactionState
+  busy: boolean
   onOpenDetail: (card: Namecard, trigger: HTMLButtonElement) => void
+  onReact: (cardId: number, emoji: string) => Promise<boolean>
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
   return (
@@ -189,7 +198,9 @@ function NamecardItem({
       <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-1.5 md:px-4 md:pt-3 md:pb-4">
         <NamecardReactionSummary
           {...reactions}
+          busy={busy}
           onOpen={(trigger) => onOpenDetail(card, trigger)}
+          onReact={(emoji) => onReact(card.id, emoji)}
         />
       </CardFooter>
     </Card>
@@ -216,6 +227,9 @@ export default function CommunityCardsPage() {
   const reactionRequests = useRef(new Set<number>())
   const reactionVersions = useRef(new Map<number, number>())
   const reactionEmojiVersions = useRef(new Map<number, Map<string, number>>())
+  const reactionMutations = useRef(new Set<number>())
+  const sessionReactionCounts = useRef(new Map<string, number>())
+  const [busyReactionCards, setBusyReactionCards] = useState(new Set<number>())
   const [reload, setReload] = useState(0)
   const listContext = `${page}:${pageSize}`
   const [loadedContext, setLoadedContext] = useState(listContext)
@@ -335,6 +349,53 @@ export default function CommunityCardsPage() {
     detail.open(card)
   }
 
+  function recordReaction(cardId: number, emoji: string) {
+    const version = (reactionVersions.current.get(cardId) ?? 0) + 1
+    reactionVersions.current.set(cardId, version)
+    const emojiVersions =
+      reactionEmojiVersions.current.get(cardId) ?? new Map<string, number>()
+    emojiVersions.set(emoji, version)
+    reactionEmojiVersions.current.set(cardId, emojiVersions)
+    setReactionsByCard((current) => ({
+      ...current,
+      [cardId]: {
+        reactions: {
+          ...(current[cardId]?.reactions ?? {}),
+          [emoji]: (current[cardId]?.reactions[emoji] ?? 0) + 1,
+        },
+        loading: false,
+      },
+    }))
+  }
+
+  async function reactToCard(cardId: number, emoji: string) {
+    if (reactionMutations.current.has(cardId)) return false
+    const sessionKey = `${cardId}:${emoji}`
+    const count = sessionReactionCounts.current.get(sessionKey) ?? 0
+    if (count >= SESSION_REACTION_LIMIT) {
+      toast.error("这个反应点得太多了")
+      return false
+    }
+    reactionMutations.current.add(cardId)
+    setBusyReactionCards((current) => new Set(current).add(cardId))
+    try {
+      await addNamecardReaction(cardId, emoji).send()
+      sessionReactionCounts.current.set(sessionKey, count + 1)
+      recordReaction(cardId, emoji)
+      return true
+    } catch {
+      toast.error("暂时无法添加反应")
+      return false
+    } finally {
+      reactionMutations.current.delete(cardId)
+      setBusyReactionCards((current) => {
+        const next = new Set(current)
+        next.delete(cardId)
+        return next
+      })
+    }
+  }
+
   function closeDetail() {
     if (previewSide !== null) return
     prepareRestore()
@@ -378,6 +439,7 @@ export default function CommunityCardsPage() {
       <NamecardDetailDialog
         card={detail.card}
         canClaim={canClaim}
+        busy={detail.card ? busyReactionCards.has(detail.card.id) : false}
         reactions={
           detail.card
             ? (reactionsByCard[detail.card.id] ?? {
@@ -391,24 +453,11 @@ export default function CommunityCardsPage() {
         }}
         onOpenPreview={openPreview}
         onClaim={setClaimCard}
-        onReactionChange={(cardId, emoji) => {
-          const version = (reactionVersions.current.get(cardId) ?? 0) + 1
-          reactionVersions.current.set(cardId, version)
-          const emojiVersions =
-            reactionEmojiVersions.current.get(cardId) ?? new Map()
-          emojiVersions.set(emoji, version)
-          reactionEmojiVersions.current.set(cardId, emojiVersions)
-          setReactionsByCard((current) => ({
-            ...current,
-            [cardId]: {
-              reactions: {
-                ...(current[cardId]?.reactions ?? {}),
-                [emoji]: (current[cardId]?.reactions[emoji] ?? 0) + 1,
-              },
-              loading: false,
-            },
-          }))
-        }}
+        onReact={(emoji) =>
+          detail.card
+            ? reactToCard(detail.card.id, emoji)
+            : Promise.resolve(false)
+        }
         onReturnFocus={restore}
       />
       <NamecardClaimDialog
@@ -524,6 +573,7 @@ export default function CommunityCardsPage() {
                 <NamecardItem
                   key={card.id}
                   card={card}
+                  busy={busyReactionCards.has(card.id)}
                   reactions={
                     reactionsByCard[card.id] ?? {
                       reactions: {},
@@ -531,6 +581,7 @@ export default function CommunityCardsPage() {
                     }
                   }
                   onOpenDetail={openDetail}
+                  onReact={reactToCard}
                 />
               ))}
             </div>

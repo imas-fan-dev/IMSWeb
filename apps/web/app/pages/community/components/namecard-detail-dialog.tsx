@@ -1,7 +1,6 @@
 import { CalendarDaysIcon, PlusIcon, ShieldCheckIcon } from "lucide-react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
-import { toast } from "sonner"
 
 import type { NamecardSide } from "~/components/shared/namecard-preview"
 import { Badge } from "~/components/ui/badge"
@@ -20,14 +19,14 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "~/components/ui/popover"
-import { addNamecardReaction, NAMECARD_REACTIONS } from "~/lib/api"
+import { NAMECARD_REACTIONS } from "~/lib/api"
 import type { Namecard, NamecardReactions } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
 import { NamecardThumbnail } from "~/pages/community/components/namecard-thumbnail"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
-const SESSION_REACTION_LIMIT = 10
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
   month: "long",
@@ -99,18 +98,133 @@ function ReactionChip({
   )
 }
 
+function NamecardReactionPicker({
+  reactions,
+  busy,
+  onReact,
+  className,
+  closeBelowMd = false,
+}: {
+  reactions: NamecardReactions
+  busy: boolean
+  onReact: (emoji: string) => Promise<boolean>
+  className?: string
+  closeBelowMd?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [closedByBreakpoint, setClosedByBreakpoint] = useState(false)
+  useEffect(() => {
+    if (!closeBelowMd || !open) return
+    const desktop = window.matchMedia("(min-width: 48rem)")
+    const closeOnNarrowViewport = () => {
+      if (desktop.matches) return
+      setClosedByBreakpoint(true)
+      setOpen(false)
+    }
+    closeOnNarrowViewport()
+    desktop.addEventListener("change", closeOnNarrowViewport)
+    return () => desktop.removeEventListener("change", closeOnNarrowViewport)
+  }, [closeBelowMd, open])
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) setClosedByBreakpoint(false)
+        setOpen(nextOpen)
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            ref={triggerRef}
+            type="button"
+            size="icon"
+            variant="ghost"
+            className={cn(
+              "size-11 rounded-full bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground max-md:focus-visible:ring-inset dark:hover:bg-transparent",
+              className
+            )}
+            title="添加反应"
+            aria-label="添加反应"
+            disabled={busy}
+          />
+        }
+      >
+        <span className="flex size-8 items-center justify-center rounded-full border border-dashed border-border group-hover/button:border-solid dark:border-input">
+          <PlusIcon aria-hidden="true" />
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={6}
+        style={{ animation: "none" }}
+        className="max-h-(--available-height) w-72 max-w-(--available-width) overflow-y-auto"
+        finalFocus={
+          closeBelowMd && closedByBreakpoint
+            ? () => {
+                const row = triggerRef.current?.parentElement
+                const card = triggerRef.current?.closest("[data-namecard-item]")
+                const buttons = [
+                  ...(row?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+                  ...(card?.querySelectorAll<HTMLButtonElement>("button") ??
+                    []),
+                ]
+                return (
+                  buttons.find(
+                    (button) =>
+                      !button.disabled && button.getClientRects().length > 0
+                  ) ?? false
+                )
+              }
+            : undefined
+        }
+      >
+        <PopoverTitle className="mb-2">选择反应</PopoverTitle>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1">
+          {NAMECARD_REACTIONS.map((emoji) => (
+            <Button
+              key={emoji}
+              type="button"
+              size="icon"
+              variant={reactions[emoji] ? "secondary" : "ghost"}
+              className="size-11 text-base"
+              disabled={busy}
+              aria-label={`${emoji}，添加反应`}
+              onClick={() => {
+                void onReact(emoji).then((success) => {
+                  if (success) setOpen(false)
+                })
+              }}
+            >
+              <NamecardReactionEmoji emoji={emoji} />
+            </Button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function NamecardReactionSummary({
   reactions,
   loading,
+  busy,
   onOpen,
-}: NamecardReactionState & { onOpen: (trigger: HTMLButtonElement) => void }) {
+  onReact,
+}: NamecardReactionState & {
+  busy: boolean
+  onOpen: (trigger: HTMLButtonElement) => void
+  onReact: (emoji: string) => Promise<boolean>
+}) {
   const all = activeNamecardReactions(reactions)
   const mobile = mobileNamecardReactionSummary(reactions)
   return (
     <div
-      className="flex min-h-8 min-w-0 flex-wrap gap-0.75 md:gap-1.5"
+      className="flex min-h-8 min-w-0 flex-wrap items-center gap-0.75 md:gap-1.5"
       aria-label="名片反应摘要"
-      aria-busy={loading}
+      aria-busy={loading || busy}
     >
       {mobile.map((entry) => (
         <ReactionChip
@@ -126,15 +240,31 @@ export function NamecardReactionSummary({
           key={`desktop-${entry[0]}`}
           entry={entry}
           compact
-          onClick={(event) => onOpen(event.currentTarget)}
+          disabled={!IS_APP_TARGET && busy}
+          onClick={(event) => {
+            if (IS_APP_TARGET) onOpen(event.currentTarget)
+            else void onReact(entry[0])
+          }}
           className="max-md:hidden"
         />
       ))}
+      {!IS_APP_TARGET ? (
+        <NamecardReactionPicker
+          reactions={reactions}
+          busy={busy}
+          onReact={onReact}
+          className="max-md:hidden"
+          closeBelowMd
+        />
+      ) : null}
       {all.length === 0 && !loading ? (
         <Button
           type="button"
           variant="ghost"
-          className="h-8 min-h-8 rounded-full border border-dashed px-2 text-xs text-muted-foreground"
+          className={cn(
+            "h-8 min-h-8 rounded-full border border-dashed px-2 text-xs text-muted-foreground",
+            !IS_APP_TARGET && "md:hidden"
+          )}
           onClick={(event) => onOpen(event.currentTarget)}
         >
           查看详情
@@ -148,46 +278,24 @@ export function NamecardDetailDialog({
   card,
   canClaim,
   reactions,
+  busy,
   onOpenChange,
   onOpenPreview,
   onClaim,
-  onReactionChange,
+  onReact,
   onReturnFocus,
 }: {
   card: Namecard | null
   canClaim: boolean
   reactions: NamecardReactionState
+  busy: boolean
   onOpenChange: (open: boolean) => void
   onOpenPreview: (side: NamecardSide, trigger: HTMLButtonElement) => void
   onClaim: (card: Namecard) => void
-  onReactionChange: (cardId: number, emoji: string) => void
+  onReact: (emoji: string) => Promise<boolean>
   onReturnFocus: () => void
 }) {
-  const [busy, setBusy] = useState<string | null>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const sessionCounts = useRef(new Map<string, number>())
   const entries = activeNamecardReactions(reactions.reactions)
-
-  async function react(emoji: string) {
-    if (!card || busy !== null) return
-    const sessionKey = `${card.id}:${emoji}`
-    const sessionCount = sessionCounts.current.get(sessionKey) ?? 0
-    if (sessionCount >= SESSION_REACTION_LIMIT) {
-      toast.error("这个反应点得太多了")
-      return
-    }
-    setBusy(emoji)
-    try {
-      await addNamecardReaction(card.id, emoji).send()
-      sessionCounts.current.set(sessionKey, sessionCount + 1)
-      onReactionChange(card.id, emoji)
-      setPickerOpen(false)
-    } catch {
-      toast.error("暂时无法添加反应")
-    } finally {
-      setBusy(null)
-    }
-  }
 
   const submitted = card?.created_at ? new Date(card.created_at) : null
   const submittedLabel =
@@ -294,64 +402,24 @@ export function NamecardDetailDialog({
             <div
               className="flex min-h-11 flex-wrap items-center gap-1.5"
               aria-label="名片全部反应"
-              aria-busy={reactions.loading}
+              aria-busy={reactions.loading || busy}
             >
               {entries.map((entry) => (
                 <ReactionChip
                   key={entry[0]}
                   entry={entry}
-                  disabled={busy !== null}
-                  onClick={() => void react(entry[0])}
+                  disabled={busy}
+                  onClick={() => void onReact(entry[0])}
                 />
               ))}
               {!reactions.loading && entries.length === 0 ? (
                 <p className="text-sm text-muted-foreground">还没有反应</p>
               ) : null}
-              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-11 rounded-full bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground max-md:focus-visible:ring-inset dark:hover:bg-transparent"
-                      title="添加反应"
-                      aria-label="添加反应"
-                      disabled={busy !== null}
-                    />
-                  }
-                >
-                  <span className="flex size-8 items-center justify-center rounded-full border border-dashed border-border group-hover/button:border-solid dark:border-input">
-                    <PlusIcon aria-hidden="true" />
-                  </span>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  sideOffset={6}
-                  style={{ animation: "none" }}
-                  className="max-h-(--available-height) w-72 max-w-(--available-width) overflow-y-auto"
-                >
-                  <PopoverTitle className="mb-2">选择反应</PopoverTitle>
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1">
-                    {NAMECARD_REACTIONS.map((emoji) => (
-                      <Button
-                        key={emoji}
-                        type="button"
-                        size="icon"
-                        variant={
-                          reactions.reactions[emoji] ? "secondary" : "ghost"
-                        }
-                        className="size-11 text-base"
-                        disabled={busy !== null}
-                        aria-label={`${emoji}，添加反应`}
-                        onClick={() => void react(emoji)}
-                      >
-                        <NamecardReactionEmoji emoji={emoji} />
-                      </Button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <NamecardReactionPicker
+                reactions={reactions.reactions}
+                busy={busy}
+                onReact={onReact}
+              />
             </div>
           </section>
         </DialogBody>

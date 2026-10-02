@@ -8,10 +8,15 @@ import {
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { NamecardPage } from "~/lib/api"
 import CommunityCardsPage from "~/pages/community/community-cards-page"
+
+const elementScrollToDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollTo"
+)
 
 const apiMocks = vi.hoisted(() => ({
   getNamecardPage: vi.fn(),
@@ -92,9 +97,33 @@ function renderPage(entry = "/community/cards?page=1&size=12") {
   )
 }
 
+function desktopReaction(summary: HTMLElement, emoji: string, count: number) {
+  return within(summary)
+    .getAllByRole("button", { name: `${emoji}，${count} 次反应` })
+    .find((chip) => chip.classList.contains("max-md:hidden"))!
+}
+
 describe("CommunityCardsPage", () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: vi.fn(),
+    })
+    vi.stubGlobal("scrollTo", vi.fn())
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((media: string) => ({
+        media,
+        matches: media === "(min-width: 48rem)",
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+    )
     sessionMocks.useOptionalPlatformSession.mockReturnValue({
       status: "anonymous",
       session: null,
@@ -119,6 +148,18 @@ describe("CommunityCardsPage", () => {
     apiMocks.addNamecardReaction.mockReturnValue({
       send: apiMocks.sendAddReaction,
     })
+  })
+
+  afterEach(() => {
+    if (elementScrollToDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "scrollTo",
+        elementScrollToDescriptor
+      )
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollTo")
+    }
   })
 
   it("hides the public card number and formats the submission time", async () => {
@@ -354,9 +395,9 @@ describe("CommunityCardsPage", () => {
     )
     expect(reaction.querySelector("img")).toHaveClass("size-3.5", "md:size-5")
 
-    expect(
-      screen.queryByRole("button", { name: "添加反应" })
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "添加反应" })).toHaveClass(
+      "max-md:hidden"
+    )
     await user.click(
       screen.getAllByRole("button", { name: "❤️，4 次反应" })[0]!
     )
@@ -439,6 +480,294 @@ describe("CommunityCardsPage", () => {
     await user.click(screen.getByRole("button", { name: "🧒，10 次反应" }))
     expect(toastMocks.error).toHaveBeenCalledWith("这个反应点得太多了")
     expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
+  })
+
+  it("submits desktop chips and picker choices from the list and shares counts with detail", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue(pageResult())
+    apiMocks.sendReactions.mockResolvedValue({ "❤️": 4, "👍": 2 })
+    renderPage()
+
+    const summary = await screen.findByLabelText("名片反应摘要")
+    await within(summary).findAllByRole("button", { name: "❤️，4 次反应" })
+    await user.click(desktopReaction(summary, "❤️", 4))
+
+    await waitFor(() => {
+      expect(desktopReaction(summary, "❤️", 5)).toHaveTextContent("5")
+      expect(apiMocks.sendAddReaction).toHaveBeenCalledOnce()
+    })
+    expect(apiMocks.addNamecardReaction).toHaveBeenCalledWith(42, "❤️")
+    expect(
+      screen.queryByRole("dialog", { name: "制作人名片 42" })
+    ).not.toBeInTheDocument()
+
+    const add = within(summary).getByRole("button", { name: "添加反应" })
+    expect(add).toHaveAttribute("title", "添加反应")
+    expect(add).toHaveClass("max-md:hidden", "size-11")
+    expect(add.querySelector("span")).toHaveClass("size-8", "border-dashed")
+    await user.click(add)
+    expect(screen.getByText("选择反应")).toBeVisible()
+    expect(screen.getAllByRole("button", { name: /，添加反应$/ })).toHaveLength(
+      46
+    )
+    expect(
+      screen.queryByRole("dialog", { name: "制作人名片 42" })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "🧒，添加反应" }))
+
+    await waitFor(() =>
+      expect(desktopReaction(summary, "🧒", 1)).toHaveTextContent("1")
+    )
+    await waitFor(() =>
+      expect(screen.queryByText("选择反应")).not.toBeInTheDocument()
+    )
+    expect(apiMocks.addNamecardReaction.mock.calls).toEqual([
+      [42, "❤️"],
+      [42, "🧒"],
+    ])
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(2)
+    expect(
+      screen.queryByRole("dialog", { name: "制作人名片 42" })
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole("button", { name: "查看制作人名片 42 正面" })
+    )
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    expect(
+      within(detail).getByRole("button", { name: "❤️，5 次反应" })
+    ).toBeVisible()
+    expect(
+      within(detail).getByRole("button", { name: "🧒，1 次反应" })
+    ).toBeVisible()
+    expect(
+      within(detail).getByRole("button", { name: "👍，2 次反应" })
+    ).toBeVisible()
+    expect(apiMocks.sendReactions).toHaveBeenCalledOnce()
+  })
+
+  it("offers an empty desktop picker and keeps the narrow empty summary opening detail", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue(pageResult())
+    renderPage()
+
+    const summary = await screen.findByLabelText("名片反应摘要")
+    const viewDetail = await within(summary).findByRole("button", {
+      name: "查看详情",
+    })
+    expect(viewDetail).toHaveClass("md:hidden")
+    const add = within(summary).getByRole("button", { name: "添加反应" })
+    expect(add).toHaveClass("max-md:hidden")
+    await user.click(viewDetail)
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    expect(within(detail).getByText("还没有反应")).toBeVisible()
+    expect(apiMocks.sendAddReaction).not.toHaveBeenCalled()
+    await user.click(within(detail).getByRole("button", { name: "Close" }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "制作人名片 42" })
+      ).not.toBeInTheDocument()
+    )
+    await waitFor(() => {
+      expect(viewDetail).toHaveFocus()
+    })
+
+    await user.click(add)
+    expect(screen.getByText("选择反应")).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
+    await waitFor(() =>
+      expect(desktopReaction(summary, "❤️", 1)).toHaveTextContent("1")
+    )
+    expect(
+      within(summary).queryByRole("button", { name: "查看详情" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("dialog", { name: "制作人名片 42" })
+    ).not.toBeInTheDocument()
+    expect(apiMocks.addNamecardReaction).toHaveBeenCalledWith(42, "❤️")
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledOnce()
+  })
+
+  it("shares the per-card emoji quota between list and detail for the page lifetime", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue(pageResult([42, 43]))
+    apiMocks.sendReactions.mockResolvedValue({ "❤️": 4 })
+    renderPage()
+
+    await screen.findAllByRole("button", { name: "❤️，4 次反应" })
+    const [summary, otherSummary] = screen.getAllByLabelText("名片反应摘要")
+    for (let count = 4; count < 10; count += 1) {
+      await user.click(desktopReaction(summary!, "❤️", count))
+      await waitFor(() =>
+        expect(desktopReaction(summary!, "❤️", count + 1)).toHaveTextContent(
+          String(count + 1)
+        )
+      )
+    }
+    await user.click(
+      screen.getByRole("button", { name: "查看制作人名片 42 正面" })
+    )
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    for (let count = 10; count < 14; count += 1) {
+      await user.click(
+        within(detail).getByRole("button", { name: `❤️，${count} 次反应` })
+      )
+      expect(
+        await within(detail).findByRole("button", {
+          name: `❤️，${count + 1} 次反应`,
+        })
+      ).toBeVisible()
+    }
+    await user.click(
+      within(detail).getByRole("button", { name: "❤️，14 次反应" })
+    )
+    expect(toastMocks.error).toHaveBeenCalledWith("这个反应点得太多了")
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
+    await user.click(within(detail).getByRole("button", { name: "Close" }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "制作人名片 42" })
+      ).not.toBeInTheDocument()
+    )
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "查看制作人名片 42 正面" })
+      ).toHaveFocus()
+    })
+
+    await user.click(desktopReaction(summary!, "❤️", 14))
+    expect(toastMocks.error).toHaveBeenCalledTimes(2)
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
+    expect(desktopReaction(summary!, "❤️", 14)).toHaveTextContent("14")
+    await user.click(within(summary!).getByRole("button", { name: "添加反应" }))
+    await user.click(screen.getByRole("button", { name: "🧒，添加反应" }))
+    await waitFor(() =>
+      expect(desktopReaction(summary!, "🧒", 1)).toHaveTextContent("1")
+    )
+    await user.click(desktopReaction(otherSummary!, "❤️", 4))
+    await waitFor(() =>
+      expect(desktopReaction(otherSummary!, "❤️", 5)).toHaveTextContent("5")
+    )
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(12)
+    expect(apiMocks.addNamecardReaction).toHaveBeenLastCalledWith(43, "❤️")
+  })
+
+  it("suppresses pending duplicates across list and detail while other cards can react", async () => {
+    let resolveMutation!: (value: { ok: true }) => void
+    apiMocks.sendPage.mockResolvedValue(pageResult([42, 43]))
+    apiMocks.sendReactions.mockResolvedValue({ "❤️": 4, "👍": 2 })
+    apiMocks.sendAddReaction.mockReturnValueOnce(
+      new Promise<{ ok: true }>((resolve) => {
+        resolveMutation = resolve
+      })
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findAllByRole("button", { name: "❤️，4 次反应" })
+    const [summary, otherSummary] = screen.getAllByLabelText("名片反应摘要")
+    const heart = desktopReaction(summary!, "❤️", 4)
+    fireEvent.click(heart)
+    fireEvent.click(heart)
+    fireEvent.click(desktopReaction(summary!, "👍", 2))
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledOnce()
+    expect(heart).toBeDisabled()
+    expect(desktopReaction(summary!, "👍", 2)).toBeDisabled()
+    expect(
+      within(summary!).getByRole("button", { name: "添加反应" })
+    ).toBeDisabled()
+    expect(heart).toHaveTextContent("4")
+    expect(desktopReaction(otherSummary!, "❤️", 4)).toBeEnabled()
+    await user.click(desktopReaction(otherSummary!, "❤️", 4))
+    await waitFor(() =>
+      expect(desktopReaction(otherSummary!, "❤️", 5)).toHaveTextContent("5")
+    )
+    expect(apiMocks.addNamecardReaction.mock.calls).toEqual([
+      [42, "❤️"],
+      [43, "❤️"],
+    ])
+
+    await user.click(
+      screen.getByRole("button", { name: "查看制作人名片 42 正面" })
+    )
+    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detailHeart = within(detail).getByRole("button", {
+      name: "❤️，4 次反应",
+    })
+    expect(detailHeart).toBeDisabled()
+    expect(
+      within(detail).getByRole("button", { name: "添加反应" })
+    ).toBeDisabled()
+    fireEvent.click(detailHeart)
+    fireEvent.click(
+      within(detail).getByRole("button", { name: "👍，2 次反应" })
+    )
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(2)
+    await act(async () => resolveMutation({ ok: true }))
+    expect(
+      within(detail).getByRole("button", { name: "❤️，5 次反应" })
+    ).toBeEnabled()
+    expect(
+      within(detail).getByRole("button", { name: "👍，2 次反应" })
+    ).toBeEnabled()
+    expect(
+      within(detail).getByRole("button", { name: "添加反应" })
+    ).toBeEnabled()
+    await user.click(within(detail).getByRole("button", { name: "Close" }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "制作人名片 42" })
+      ).not.toBeInTheDocument()
+    )
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "查看制作人名片 42 正面" })
+      ).toHaveFocus()
+    })
+    expect(desktopReaction(summary!, "❤️", 5)).toHaveTextContent("5")
+    expect(desktopReaction(otherSummary!, "❤️", 5)).toHaveTextContent("5")
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(2)
+  })
+
+  it("preserves counts on a failed desktop write and lets retry use all ten successful reactions", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue(pageResult())
+    apiMocks.sendReactions.mockResolvedValue({ "❤️": 4, "👍": 2 })
+    apiMocks.sendAddReaction.mockRejectedValueOnce(new Error("offline"))
+    renderPage()
+
+    const summary = await screen.findByLabelText("名片反应摘要")
+    await within(summary).findAllByRole("button", { name: "❤️，4 次反应" })
+    await user.click(desktopReaction(summary, "❤️", 4))
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith("暂时无法添加反应")
+    )
+    expect(desktopReaction(summary, "❤️", 4)).toBeEnabled()
+    expect(desktopReaction(summary, "👍", 2)).toHaveTextContent("2")
+    expect(
+      within(summary).getByRole("button", { name: "添加反应" })
+    ).toBeEnabled()
+    expect(
+      within(summary).queryByRole("button", { name: "❤️，5 次反应" })
+    ).not.toBeInTheDocument()
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledOnce()
+
+    for (let count = 4; count < 14; count += 1) {
+      await user.click(desktopReaction(summary, "❤️", count))
+      await waitFor(() =>
+        expect(desktopReaction(summary, "❤️", count + 1)).toHaveTextContent(
+          String(count + 1)
+        )
+      )
+    }
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(11)
+    await user.click(desktopReaction(summary, "❤️", 14))
+    expect(toastMocks.error).toHaveBeenLastCalledWith("这个反应点得太多了")
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(11)
+    expect(desktopReaction(summary, "❤️", 14)).toHaveTextContent("14")
+    expect(
+      screen.queryByRole("dialog", { name: "制作人名片 42" })
+    ).not.toBeInTheDocument()
   })
 
   it("preserves counts read during a pending reaction mutation", async () => {
@@ -587,9 +916,9 @@ describe("CommunityCardsPage", () => {
       expect(chip).toHaveClass("max-w-14", "md:max-w-none", "grow")
       expect(chip.querySelector("img")).toHaveClass("size-3.5", "md:size-5")
     }
-    expect(
-      within(group).queryByRole("button", { name: "添加反应" })
-    ).not.toBeInTheDocument()
+    expect(within(group).getByRole("button", { name: "添加反应" })).toHaveClass(
+      "max-md:hidden"
+    )
   })
 
   it("opens detail from the list and then previews both sides", async () => {
