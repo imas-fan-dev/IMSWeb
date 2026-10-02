@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/09-19-vitest-reporting-coverage/design.md", "reason": "三域 reporter/coverage 的写定值、阈值策略、CI artifact 命名与注解取舍的依据"}
+{"file": ".trellis/tasks/09-19-vitest-test-unification/design.md", "reason": "父设计 §4：报表与覆盖率的统一口径与 CI 接线要求"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "CI lane 结构、artifact 用法与 action 固定 SHA 的约束"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Web 侧 Vitest 配置与 CI-stable 约束，补 reporter 与 coverage 时不得破坏"}

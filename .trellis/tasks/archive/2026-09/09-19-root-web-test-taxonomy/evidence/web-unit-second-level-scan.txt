@@ -1,0 +1,27 @@
+
+apps/web/tests/unit/lib/api/api.test.ts  (1 run(s))
+  L359-377 ×2  parent="Alova access-token refresh" member=(single)
+      phrase: "does not refresh"
+
+apps/web/tests/unit/lib/api/origin.test.ts  (1 run(s))
+  L107-113 ×2  parent="API origin" member=(single)
+      phrase: "resolves the site origin against the"
+
+apps/web/tests/unit/mocks/data/editorial.test.ts  (1 run(s))
+  L49-56 ×2  parent="editorial fixture factories" member=(single)
+      phrase: "builds a spotlight"
+
+apps/web/tests/unit/mocks/data/namecards.test.ts  (1 run(s))
+  L19-26 ×2  parent="namecards fixture factories" member=(single)
+      phrase: "builds a namecard"
+
+apps/web/tests/unit/pages/tier-list/tier-list-model.test.ts  (1 run(s))
+  L134-144 ×2  parent="removeItem / clearAll" member=(single)
+      phrase: "removes an item from"
+
+apps/web/tests/unit/pages/tier-list/tier-list-storage.test.ts  (1 run(s))
+  L28-33 ×2  parent="tier-list-storage" member=(single)
+      phrase: "returns null for"
+
+合计 6 个候选段，覆盖 6 个文件
+已写入 /Users/texas/Workspace/IMSWeb/.trellis/tasks/09-19-root-web-test-taxonomy/evidence/web-unit-second-level-scan.json

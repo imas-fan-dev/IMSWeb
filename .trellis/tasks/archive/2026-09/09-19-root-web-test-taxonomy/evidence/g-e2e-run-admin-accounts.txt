@@ -1,0 +1,8 @@
+[WARN] Your node_modules are out of sync with your lockfile. The value of the enableGlobalVirtualStore setting has changed
+[WebServer] $ VITE_IMS_APP_TARGET=web react-router dev --host 127.0.0.1 --port 4173
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium-desktop] › tests/e2e/admin-accounts.spec.ts:45:3 › admin accounts › super administrator manages accounts without viewport overflow (2.3s)
+
+  1 passed (7.0s)

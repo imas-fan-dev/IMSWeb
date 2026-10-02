@@ -1,0 +1,180 @@
+/*
+ * Accessibility and capability fallbacks: reduced transparency, forced colours,
+ * reduced motion, and the theme view-transition.
+ *
+ * Almost all of it lives in `@layer overrides` because it has to win regardless
+ * of which file or utility class set the property it is downgrading. The view
+ * transition targets `::view-transition-*` pseudo-elements, which no utility
+ * class competes with, so it stays in `@layer base`.
+ */
+
+/* Transparency is a preference, not a requirement. Fall back to solid surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  @layer overrides {
+    .glass-surface {
+      --glass-alpha: 1;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-color: var(--popover);
+      background-image: none;
+    }
+
+    .glass-bar {
+      background-color: var(--background);
+    }
+
+    .glass-refract::before,
+    .glass-sheen::after,
+    .glass-control::after {
+      display: none;
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  @layer overrides {
+    .glass-surface,
+    .glass-quiet {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-image: none;
+      box-shadow: none;
+      border: 1px solid CanvasText;
+    }
+
+    .edge-fade-x {
+      mask-image: none;
+    }
+
+    .glass-refract::before,
+    .glass-sheen::after,
+    .glass-control::after {
+      display: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * `html { scroll-behavior: smooth }` further down is unconditional, and
+   * CSSOM-View defines `scrollTo`'s default `behavior: "auto"` as "defer to the
+   * element's computed scroll-behavior". So every scripted scroll that asks for
+   * `auto` animates anyway, including the ones that explicitly downgrade
+   * themselves when this query matches. Turning the property off here fixes the
+   * whole class at once: back-to-top, anchor jumps and router scroll
+   * restoration alike.
+   */
+  @layer overrides {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  @layer overrides {
+    .glass-control,
+    .media-hover,
+    .media-hover [data-media-zoom] {
+      transition: none;
+    }
+
+    .media-hover:hover,
+    .media-hover:focus-visible,
+    a:hover .media-hover {
+      transform: none;
+    }
+
+    .media-hover:hover [data-media-zoom],
+    a:hover .media-hover [data-media-zoom] {
+      transform: none;
+    }
+
+    /* Hold the bar at its condensed value instead of tracking the scroller. */
+    .glass-scroll-bar {
+      --glass-scroll-progress: 1;
+      animation: none;
+    }
+
+    .glass-sheen::after,
+    .glass-control::after {
+      transition: none;
+      animation: none;
+    }
+
+    .glass-control[data-glass-pressed],
+    .glass-control[data-glass-releasing],
+    .glass-control[data-glass-exiting],
+    .glass-tab[data-glass-pressed],
+    .glass-tab[data-glass-releasing],
+    .glass-tab[data-glass-exiting] {
+      transform: none;
+      animation: none;
+    }
+
+    /*
+     * Navigation motion collapses to an instant state change: the lens is
+     * already at the new slot on the first frame, nothing deforms, and a press
+     * reports itself through colour alone.
+     */
+    .glass-lens,
+    .glass-tab,
+    .glass-tab [data-glass-tab-icon] {
+      transition: none;
+    }
+
+    .glass-lens-skin,
+    .glass-tab[aria-current="page"] [data-glass-tab-icon] {
+      animation: none;
+    }
+
+    .glass-tab:active {
+      transform: none;
+    }
+  }
+}
+
+@layer base {
+  @media (prefers-reduced-motion: no-preference) {
+    html[data-theme-transition="circle"]::view-transition-old(root),
+    html[data-theme-transition="circle"]::view-transition-new(root) {
+      animation: none;
+      mix-blend-mode: normal;
+    }
+
+    html[data-theme-transition="circle"]::view-transition-old(root) {
+      z-index: 1;
+    }
+
+    html[data-theme-transition="circle"]::view-transition-new(root) {
+      z-index: 2;
+    }
+
+    html[data-theme-transition="fade"],
+    html[data-theme-transition="fade"] *,
+    html[data-theme-transition="fade"] *::before,
+    html[data-theme-transition="fade"] *::after {
+      transition-duration: 300ms !important;
+      transition-property:
+        background-color, border-color, box-shadow, color, fill, opacity,
+        outline-color, stroke, text-decoration-color, transform !important;
+      transition-timing-function: ease-in-out !important;
+    }
+  }
+}
+
+@layer overrides {
+  @media (prefers-reduced-motion: reduce) {
+    img[data-image-state="loading"] {
+      animation: none;
+    }
+
+    .series-icon-motif {
+      will-change: auto;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .series-icon-background {
+      display: none;
+    }
+  }
+}

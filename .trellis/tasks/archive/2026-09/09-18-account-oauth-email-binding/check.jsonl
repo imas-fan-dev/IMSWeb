@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "PostgreSQL 生命周期、并发回归与契约符合性测试要求"}
+{"file": ".trellis/spec/api/backend/observability-and-security.md", "reason": "安全事件、限流、客户端地址与日志脱敏审查点"}
+{"file": ".trellis/spec/contracts/shared/quality.md", "reason": "消费端同步、HTTP 原始体符合性与验证命令"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层读写链路与边界验证清单"}
+{"file": ".trellis/tasks/09-18-account-oauth-email-binding/research/02-email-verification-flow.md", "reason": "验证码 hash 域、consumed_token 栅栏与投递协议事实"}

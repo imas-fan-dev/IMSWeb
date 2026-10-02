@@ -29,6 +29,7 @@ import {
   AdminStatus,
   adminControlClass,
 } from "~/components/admin/admin-ui"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
@@ -190,13 +191,13 @@ export function StoryMediaManager() {
                   </div>
                 ) : null}
               </div>
-              <a
+              <NavigationLink
                 href={storyUrl}
                 className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
               >
                 打开剧情档案
                 <ArrowUpRightIcon className="size-3" aria-hidden="true" />
-              </a>
+              </NavigationLink>
             </div>
           </div>
 

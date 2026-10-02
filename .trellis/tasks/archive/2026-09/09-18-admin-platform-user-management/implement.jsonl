@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/api/backend/architecture.md", "reason": "新增 admin/platform-users 域、routes.ts 注册与依赖方向必须遵守"}
+{"file": ".trellis/spec/api/backend/data-and-errors.md", "reason": "请求校验边界、repository/事务规则、响应类型与错误处理"}
+{"file": ".trellis/spec/contracts/shared/schemas-and-exports.md", "reason": "新建契约模块的四处导出同步与 JSON wire 归属门禁"}
+{"file": ".trellis/spec/web/frontend/api-state-and-contracts.md", "reason": "Web endpoint 的 parsed(...) 与 withBackofficeCsrf 规范"}
+{"file": ".trellis/tasks/09-18-admin-platform-user-management/research/03-platform-account-repository-gaps.md", "reason": "仓储缺口、可复用方法与末位凭据判定的事实依据"}

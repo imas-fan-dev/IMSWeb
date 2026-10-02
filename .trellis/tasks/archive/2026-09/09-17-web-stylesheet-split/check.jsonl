@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-17-web-stylesheet-split/research/app-css-audit.md", "reason": "核对拆分是否无损的基准：行区间映射、19 处未分层规则的清单、无消费者令牌的实测统计。检查时用它与实现结果逐条对账。"}
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "核对令牌是否与 DESIGN.md 保持同步、玻璃材质配方是否被改动、motion-reduce 承诺是否仍然成立。"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "核对三个既有 CSS 断言测试是否仍然校验真实文件内容（而不是因读取路径失效而静默变绿），以及新增不变量测试的放置与命令。"}
+{"file": ".trellis/spec/web/frontend/index.md", "reason": "核对改动是否越过了 Web 前端的层规范与实现前清单。"}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "核对 app shell 令牌、原生玻璃隐藏与 touch-action 策略在搬移后语义未变。"}

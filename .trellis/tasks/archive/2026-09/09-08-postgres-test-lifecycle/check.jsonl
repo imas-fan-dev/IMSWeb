@@ -1,0 +1,3 @@
+{"file":".trellis/spec/api/backend/testing.md","reason":"检查 repository、migration、Node 和全量 API 测试"}
+{"file":".trellis/spec/repository/ci.md","reason":"确认 CI 不产生意外 PostgreSQL skip"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/api-test-infrastructure.md","reason":"核对 cleanup、URL 安全和调用方完整迁移"}

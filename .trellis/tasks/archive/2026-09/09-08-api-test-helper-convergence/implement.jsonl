@@ -1,0 +1,3 @@
+{"file":".trellis/spec/api/backend/testing.md","reason":"API helper 和 fixture 测试所有权"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"共同语义抽取与保留本地实现的准则"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/api-test-infrastructure.md","reason":"JSON、auth、cookie、CSRF 和 migration fixture 证据"}

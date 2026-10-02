@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/contracts/shared/schemas-and-exports.md", "reason": "业务 schema、类型和 export 实施规范"}
+{"file": ".trellis/spec/api/backend/data-and-errors.md", "reason": "API request/response/error 实施边界"}
+{"file": ".trellis/spec/web/frontend/api-state-and-contracts.md", "reason": "Web shared schema 与 parsed 调用规范"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/contract-inventory.md", "reason": "并行业务包的完整迁移清单"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/high-risk-drift.md", "reason": "Backoffice/Wiki 必须保留的行为"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/unknown-request-fields.md", "reason": "Strict/strip/passthrough 逐端点策略"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-a-evidence.md", "reason": "Phase A 基础层实现、验证结果与并行业务包共同基线"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/shared-middleware-evidence.md", "reason": "共享 middleware JSON error contract 化与 HTTP 证据"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b1-evidence.md", "reason": "已集成的 B1 Backoffice/Admin 迁移和 Phase C delta"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b6-evidence.md", "reason": "已集成的 B6 Delivery/Site Packages 迁移、surface 和 non-JSON 记录"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-c-system-health-evidence.md", "reason": "已验证的 health JSON contracts 和 Wiki probe 延期项"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b2-evidence.md", "reason": "已集成的 B2 Wiki exact contracts、compatibility 和测试证据"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b3-evidence.md", "reason": "已集成的 B3 Platform exact contracts、HTTP conformance 和 PostgreSQL 回归证据"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b4-evidence.md", "reason": "已集成的 B4 Fudaba/Namecards contracts、HTTP conformance 和兼容证据"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b5-evidence.md", "reason": "已集成的 B5 Content/Editorial contracts、HTTP conformance 和 non-JSON 证据"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-c-integration-evidence.md", "reason": "已集成的 Phase C shared contracts、admin Web errors 和 zero-legacy-validator 证据"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-d-final-evidence.md", "reason": "Phase D compiler gates、独立 review、baseline reconciliation 和 final commands 证据"}

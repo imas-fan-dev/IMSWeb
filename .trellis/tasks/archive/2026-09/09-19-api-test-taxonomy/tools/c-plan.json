@@ -1,0 +1,327 @@
+{
+    "batch": "C",
+    "note": "tests/migration. Every file is flat and gains one subject suite; four files also have two or more realizable second-level groups.",
+    "files": [
+        {
+            "path": "tests/migration/cms-article-title-backfill.test.js",
+            "subject": "CMS article",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+            ],
+            "categories": [
+                {
+                    "title": "body",
+                    "cases": [
+                        1,
+                        2
+                    ]
+                },
+                {
+                    "title": "title backfill",
+                    "cases": [
+                        3,
+                        4
+                    ]
+                },
+                {
+                    "title": "PostgreSQL",
+                    "cases": [
+                        5,
+                        6,
+                        7,
+                        8
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "tests/migration/fudaba-media.test.js",
+            "subject": "Fudaba media",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+            ]
+        },
+        {
+            "path": "tests/migration/fudaba-metadata-import.test.js",
+            "subject": "Fudaba metadata import",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19
+            ],
+            "categories": [
+                {
+                    "title": "extract rejects",
+                    "cases": [
+                        7,
+                        8,
+                        9
+                    ]
+                },
+                {
+                    "title": "real PostgreSQL",
+                    "cases": [
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "tests/migration/information-to-community-posts.test.js",
+            "subject": "Information post migration",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2
+            ]
+        },
+        {
+            "path": "tests/migration/legacy-about-avatars.test.js",
+            "subject": "About avatar",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+            ]
+        },
+        {
+            "path": "tests/migration/legacy-brand-assets.test.js",
+            "subject": "brand asset",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3
+            ]
+        },
+        {
+            "path": "tests/migration/legacy-information-media.test.js",
+            "subject": "legacy Information migration",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3
+            ]
+        },
+        {
+            "path": "tests/migration/legacy-namecards.test.js",
+            "subject": "Legacy namecard",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4
+            ]
+        },
+        {
+            "path": "tests/migration/legacy-producer-map.test.js",
+            "subject": "Producer Map",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ],
+            "categories": [
+                {
+                    "title": "R2 acceptance",
+                    "cases": [
+                        1,
+                        2,
+                        3
+                    ]
+                },
+                {
+                    "title": "parser",
+                    "cases": [
+                        4,
+                        5
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "tests/migration/local-upload-media.test.js",
+            "subject": "local upload media",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3
+            ]
+        },
+        {
+            "path": "tests/migration/namecard-thumbnail-backfill.test.js",
+            "subject": "namecard thumbnail backfill",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3
+            ]
+        },
+        {
+            "path": "tests/migration/namecard-unification-reconcile.test.js",
+            "subject": "namecard unification reconciliation",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1
+            ]
+        },
+        {
+            "path": "tests/migration/postgres-migrations.test.js",
+            "subject": "PostgreSQL migration",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ],
+            "categories": [
+                {
+                    "title": "email",
+                    "cases": [
+                        4,
+                        5
+                    ]
+                },
+                {
+                    "title": "runner",
+                    "cases": [
+                        7,
+                        8,
+                        9
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "tests/migration/public-object-placement.test.js",
+            "subject": "public object placement",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3
+            ]
+        },
+        {
+            "path": "tests/migration/semantic-object-keys.test.js",
+            "subject": "semantic object migration",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3
+            ]
+        },
+        {
+            "path": "tests/migration/single-bucket-consolidation.test.js",
+            "subject": "single bucket consolidation",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2
+            ]
+        },
+        {
+            "path": "tests/migration/wiki-media-sync.test.js",
+            "subject": "Wiki media sync",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+            ]
+        },
+        {
+            "path": "tests/migration/wiki-metadata-audit.test.js",
+            "subject": "Wiki metadata audit",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2
+            ]
+        }
+    ]
+}

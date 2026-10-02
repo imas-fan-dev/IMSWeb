@@ -1,0 +1,60 @@
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract an empty story category can be added explicitly for one idol
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract catalog and story reads require an editor or operator session
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract catalog is built from repository agencies and idols
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract catalog writes create a dynamic agency and keep one idol in multiple groups
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract content types and source platforms are managed dynamically and protected in use
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract deleting a group preserves its idols and stories as ungrouped content
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract deleting an idol soft deletes its cards and sources while retaining media
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract selected idol stories expose database rows and managed category choices
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract story reads validate target parameters without leaking unrelated data
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract story_id derives the old group from the stored row and rejects malformed IDs
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract story_id edits the selected link while legacy group lookup remains compatible
+tests/wiki/bilibili.contract.test.ts	WIKI-02 isolated Bilibili parsing contract fake video fetch receives the API URL, user agent and abort signal
+tests/wiki/bilibili.contract.test.ts	WIKI-02 isolated Bilibili parsing contract invalid input skips fetch and upstream errors preserve compatible JSON
+tests/wiki/bilibili.contract.test.ts	WIKI-02 isolated Bilibili parsing contract the five-second timeout aborts injected fetch and maps to the legacy gateway error
+tests/wiki/dom.contract.test.ts	WIKI-01 database-associated media and story object paths entity icon routes use database keys while retired static routes and traversal are rejected
+tests/wiki/dom.contract.test.ts	WIKI-01 database-associated media and story object paths health and random background reads remain public and compatible
+tests/wiki/dom.contract.test.ts	WIKI-01 database-associated media and story object paths image GET/HEAD preserve body and metadata while unknown targets remain 404
+tests/wiki/node-cleanup-compensation.contract.test.ts	Node Wiki delete journals a failed cleanup and the next compensation scan converges
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract catalog exposes the requested agency and resolved idol artwork anonymously
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract catalog places idols without memberships in the final ungrouped collection
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract catalog rejects unknown agencies without hiding the default selection
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract random idol samples only enabled Wiki idol entries with resolved artwork
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract story reads validate the requested agency and idol
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract story view aggregates cards and multiple sources with encoded media URLs
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract a card can be created, read, and retained without source entries
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category cleanup does not cross a sibling directory prefix
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category cleanup enumerates unreferenced prefix objects and compensates each failed key
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category move copies before commit, deletes old after commit, and category delete cleans the copy
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category-move commit failure cleans the copy and preserves the original
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract cleanup failure after a successful database delete does not resurrect the row
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract delete_story and delete_category commit failures preserve their old rows and objects
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract one card request creates multiple sources and source deletion retains the empty card
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract post-commit cleanup still succeeds when object deletion and compensation enqueue both fail
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract source deletion guards media revision and cleans exact unreferenced legacy images
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract successful replacement edit deletes the old object, then delete_story removes the replacement
+tests/wiki/security-crud.contract.test.ts	Wiki Cookie JWT, role and Header-to-claim CSRF contract JWT claim CSRF is required and unapproved roles stay forbidden
+tests/wiki/security-crud.contract.test.ts	Wiki Cookie JWT, role and Header-to-claim CSRF contract all writes reject missing Cookie JWT, even with valid Authorization JWT
+tests/wiki/security-crud.contract.test.ts	Wiki Cookie JWT, role and Header-to-claim CSRF contract editor and op Cookie JWTs can write with only the matching CSRF header
+tests/wiki/security-crud.contract.test.ts	Wiki agency icon object storage contract upload publishes a versioned catalog icon and delete removes it
+tests/wiki/security-crud.contract.test.ts	Wiki agency story cover asset contract asset upload fails cleanly when a direct public read URL is unavailable
+tests/wiki/security-crud.contract.test.ts	Wiki agency story cover asset contract asset upload rejects an unknown presentation policy
+tests/wiki/security-crud.contract.test.ts	Wiki agency story cover asset contract one uploaded asset can back a card and cannot be deleted while referenced
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract card edit moves its image and metadata while preserving every source
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract card image replacement and failed category move preserve object consistency
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract category rename validates the selected idol and preserves its storage slug
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract dedicated source append targets only an existing card at its current revision
+tests/wiki/security-crud.contract.test.ts	Wiki destructive revision and audit contract whole-card and whole-category deletion require current revisions and audit only success
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract agency, group and idol uploads use unique objects and persist transforms
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract invalid transform fails before object and repository writes
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract stale upload is rejected and its uncommitted object is cleaned
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract transform-only save increments the revision without rewriting the object
+tests/wiki/security-crud.contract.test.ts	Wiki idol media object storage contract upload switches the catalog to object storage and delete clears the association
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract conflicting add keeps the winning card and cleans the uncommitted upload
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract edit commit failure removes the replacement and preserves the old row/object
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract invalid, MIME-mismatched, forged and undecodable images fail before database/object writes
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract oversized multipart is rejected before the upload parser
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract partial object write and insert commit failure both clean the new object
+tests/wiki/wire-contract-conformance.test.ts	Wiki wire-contract conformance admin catalog and stories responses satisfy the shared wire schemas
+tests/wiki/wire-contract-conformance.test.ts	Wiki wire-contract conformance mutation and authorization error responses preserve the shared raw wire shapes
+tests/wiki/wire-contract-conformance.test.ts	Wiki wire-contract conformance public catalog and stories responses satisfy the shared wire schemas

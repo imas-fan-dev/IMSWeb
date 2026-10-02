@@ -1,0 +1,9 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared implementation and quality conventions for repository changes."}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web package structure, commands, and frontend ownership boundaries."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Browser-test ownership, strict API dispatcher, pass-through, and validation contracts."}
+{"file":".trellis/spec/repository/ci.md","reason":"Affected-workspace CI jobs, service isolation, action pinning, and browser installation contracts."}
+{"file":".trellis/tasks/09-15-e2e-ci-stability/research/planning-context.md","reason":"Confirmed failure chain, matrix baseline, inherited constraints, and chosen self-contained topology."}
+{"file":".trellis/tasks/09-15-e2e-ci-stability/research/e2e-inventory.md","reason":"Project tags, retained browser responsibilities, authorized skips, and post-reduction counts."}
+{"file":".trellis/tasks/09-15-e2e-ci-stability/research/debug-retrospective.md","reason":"Root causes, failed synchronization approaches, and prevention mechanisms discovered during repeated stability debugging."}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/ci-browser-remediation.md","reason":"Prior zero-retry browser remediation and unavailable-API validation evidence."}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/test-governance-summary.md","reason":"Existing test-owner model, script caps, and deletion or migration rules in injection-safe form."}

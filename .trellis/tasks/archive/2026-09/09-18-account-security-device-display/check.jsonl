@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "QA 证据口径：单测归属、断言方式与不得新增无边界 e2e"}
+{"file": ".trellis/spec/web/frontend/api-state-and-contracts.md", "reason": "校验 AC9：无契约/端点改动，wire 类型与 parsed() 边界不动"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "批量改动后逐一复核旧原文断言，并检查是否引入重复抽象或新依赖"}
+{"file": ".trellis/tasks/09-18-account-security-device-display/research/01-device-list-render.md", "reason": "唯一渲染汇聚点与 aria-label 共读 deviceLabel 的事实，用于确认改一处即全局生效"}
+{"file": ".trellis/tasks/09-18-account-security-device-display/research/05-test-infrastructure.md", "reason": "6 处 UA 断言 + 2 处 fixture 的清单，核对替换是否遗漏或过宽"}

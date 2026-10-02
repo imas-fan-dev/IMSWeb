@@ -1,0 +1,140 @@
+{
+    "batch": "A1",
+    "note": "apps/api/tests/server, first 25 basenames in byte order (about-page-content ... fudaba-card-placement-routes). client-address.test.ts is already in the target shape and is listed with an empty case list so the tool asserts that.",
+    "files": [
+        {
+            "path": "tests/server/about-page-content.test.ts",
+            "subject": "about",
+            "cases": [17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
+        },
+        {
+            "path": "tests/server/abuse-protection.contract.test.ts",
+            "subject": "abuse protection",
+            "cases": [11, 12, 13]
+        },
+        {
+            "path": "tests/server/admin-accounts.contract.test.ts",
+            "subject": "admin accounts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [20, 21, 22, 23, 24, 25]
+        },
+        {
+            "path": "tests/server/admin-platform-users.contract.test.ts",
+            "subject": "platform-user",
+            "cases": [22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+        },
+        {
+            "path": "tests/server/auth-refresh.contract.test.ts",
+            "subject": "auth refresh",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [22, 23, 24, 25]
+        },
+        {
+            "path": "tests/server/auth-request-helper.test.ts",
+            "subject": "auth request helpers",
+            "cases": [9, 10, 11, 12]
+        },
+        {
+            "path": "tests/server/backoffice-auth-boundary.contract.test.ts",
+            "subject": "Backoffice auth boundary",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [30, 31, 32, 33, 34, 35]
+        },
+        {
+            "path": "tests/server/bilibili-cover.test.ts",
+            "subject": "Bilibili cover",
+            "cases": [3, 4, 5]
+        },
+        {
+            "path": "tests/server/brand-assets.test.ts",
+            "subject": "brand assets",
+            "cases": [6]
+        },
+        {
+            "path": "tests/server/business-request-models.test.ts",
+            "subject": "business request models",
+            "cases": [10, 11, 12, 13]
+        },
+        {
+            "path": "tests/server/cache-config.test.ts",
+            "subject": "cache configuration",
+            "cases": [3, 4, 5]
+        },
+        {
+            "path": "tests/server/chronicle-idempotency.contract.test.ts",
+            "subject": "Chronicle",
+            "cases": [27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42]
+        },
+        {
+            "path": "tests/server/contract-json-helper.test.ts",
+            "subject": "contract JSON helpers",
+            "cases": [5, 6, 7, 8]
+        },
+        {
+            "path": "tests/server/core-runtime-contract.test.ts",
+            "subject": "core runtime contract",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [45, 46, 47, 48, 49, 50, 51]
+        },
+        {
+            "path": "tests/server/cors-policy.test.ts",
+            "subject": "CORS",
+            "cases": [3, 4, 5, 6]
+        },
+        {
+            "path": "tests/server/editorial-safeguards.test.ts",
+            "subject": "Editorial",
+            "cases": [15, 16, 17, 18, 19, 20]
+        },
+        {
+            "path": "tests/server/events-pagination.test.ts",
+            "subject": "events pagination",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [27, 28, 29, 30, 31, 32, 33]
+        },
+        {
+            "path": "tests/server/events-response.test.ts",
+            "subject": "events response",
+            "cases": [3]
+        },
+        {
+            "path": "tests/server/fudaba-agency-catalog.test.ts",
+            "subject": "canonical Fudaba agency data",
+            "cases": [3, 4]
+        },
+        {
+            "path": "tests/server/fudaba-agency-migration.test.ts",
+            "subject": "PostgreSQL 0027",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [11, 12]
+        },
+        {
+            "path": "tests/server/fudaba-card-claim-contract.test.ts",
+            "subject": "Fudaba card claims",
+            "cases": [8, 9, 10]
+        },
+        {
+            "path": "tests/server/fudaba-card-interaction-routes.test.ts",
+            "subject": "card interaction routes",
+            "cases": [24, 25, 26, 27]
+        },
+        {
+            "path": "tests/server/fudaba-card-placement-repository.test.ts",
+            "subject": "Fudaba card placement repository",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [19]
+        },
+        {
+            "path": "tests/server/fudaba-card-placement-routes.test.ts",
+            "subject": "card placement",
+            "cases": [22, 23, 24, 25]
+        }
+    ]
+}

@@ -1,6 +1,5 @@
 import { ArrowUpRightIcon } from "lucide-react"
 import { type CSSProperties, useMemo } from "react"
-import { Link } from "react-router"
 
 import {
   wikiEntryKindLabel,
@@ -8,6 +7,7 @@ import {
 } from "~/components/wiki/wiki-entry-kind"
 import type { WikiPublicSearchEntry } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function normalizeSearchText(value: string) {
   return value.normalize("NFKC").trim().toLocaleLowerCase("zh-CN")
@@ -72,8 +72,8 @@ export function WikiGlobalSearchResults({
             })
             return (
               <li key={`${entry.agencyId}\u0000${entry.id}`}>
-                <Link
-                  to={`${view === "modern" ? "/story" : "/story/classic"}?${searchParams}`}
+                <NavigationLink
+                  to={`${import.meta.env.VITE_IMS_APP_TARGET === "app" || view === "modern" ? "/story" : "/story/classic"}?${searchParams}`}
                   className="group/result grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-3 py-2 hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   aria-label={`跳转到 ${entry.name} · ${entry.agencyName}`}
                   onClick={onNavigate}
@@ -102,7 +102,7 @@ export function WikiGlobalSearchResults({
                     className="size-4 text-muted-foreground group-hover/result:text-foreground"
                     aria-hidden="true"
                   />
-                </Link>
+                </NavigationLink>
               </li>
             )
           })}

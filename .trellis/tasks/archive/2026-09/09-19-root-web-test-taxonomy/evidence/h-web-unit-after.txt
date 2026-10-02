@@ -1,0 +1,72 @@
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider accepts a matching profile without replacing session fields
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider accepts a returned login session without requesting it again
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider does not let a profile update restore state during a deferred logout
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider does not let a profile update restore state during a deferred reload
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider drops rejected sessions but surfaces unexpected failures
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider exposes loading before resolving an active session
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider ignores an old account profile after the live account changes
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider keeps restricted accounts authenticated with an explicit state
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider logs out only the Platform session and returns to anonymous
+tests/unit/components/platform/platform-session-provider.test.tsx	passed	PlatformSessionProvider stays anonymous and avoids a session request without a cookie hint
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls falls back to a fade when starting a view transition throws
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls falls back to a fade when the view-transition pseudo-element is unsupported
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls falls back to a global fade when view transitions are unavailable
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls keeps the browser theme color in sync
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls keeps the circular reveal in an iOS Tauri WebView
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls switches instantly when reduced motion is requested
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls synchronizes Android system bars when the circular reveal commits
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls synchronizes Android system bars when the fade fallback commits
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls synchronizes Android system bars without adding a second animation
+tests/unit/components/shared/theme-toggle.test.tsx	passed	theme controls uses the circular reveal in an Android Tauri WebView when APIs are supported
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates accepts Android coarse location without another permission request
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates accepts coarse location returned by the system permission request
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates clears the native deadline after a position resolves
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates does not request a position when native location is denied
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates does not request a position when the permission request is denied
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates enforces a ten-second native deadline
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates handles a native rejection after the JavaScript deadline
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates maps a native permission check failure to unavailable
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates maps a native position rejection and clears its deadline
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates maps browser error code 1 to permission-denied
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates maps browser error code 2 to unavailable
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates maps browser error code 3 to timeout
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates reports unsupported when browser geolocation is absent
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates requests location when the native permission can still be prompted
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates uses browser geolocation outside a real Tauri runtime
+tests/unit/lib/geolocation.test.ts	passed	getCurrentCoordinates uses native position without requesting an already granted permission
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds a card page that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds a card that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds a placed card that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds a registered card review that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds a series list that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds a series that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an admin card claim that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an office detail that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an office page that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an office that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an owner card list that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an owner card that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an owner office list that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories builds an owner office that matches its contract
+tests/unit/mocks/data/fudaba.test.ts	passed	fudaba fixture factories layers overrides over the defaults without dropping nested keys
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a category that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a public agency that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a public catalog that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a public group that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a public idol that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a public story card that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a public story link that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a random background that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a random idol that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a story content type that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a story cover asset that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds a story source platform that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds admin stories that match their contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds an admin agency that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds an admin catalog that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds an admin group that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds an admin idol that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds an admin story that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds an image transform that matches its contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories builds public stories that match their contract
+tests/unit/mocks/data/wiki.test.ts	passed	wiki fixture factories layers overrides over the defaults without dropping nested keys

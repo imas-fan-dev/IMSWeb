@@ -1,0 +1,11 @@
+$ pnpm --filter @imsweb/api exec vitest run tests/migration
+ Test Files  18 passed (18)
+      Tests  114 passed (114)
+   Duration  3.51s (transform 552ms, setup 0ms, import 2.22s, tests 7.29s, environment 1ms)
+EXIT=0
+
+$ IMS_TEST_POSTGRES_ENABLED=false pnpm --filter @imsweb/api exec vitest run tests/migration
+ Test Files  17 passed | 1 skipped (18)
+      Tests  99 passed | 15 skipped (114)
+   Duration  1.46s (transform 892ms, setup 0ms, import 2.49s, tests 869ms, environment 1ms)
+EXIT=0

@@ -1,0 +1,7 @@
+{"file":".trellis/spec/api/backend/testing.md","reason":"检查 API 测试归属、回归和完整门禁"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"检查浏览器、unit、build 与 routing 证据"}
+{"file":".trellis/spec/repository/ci.md","reason":"检查 CI job、PostgreSQL 隔离和聚合语义"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查 abstraction 是否代表稳定共同规则"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/prior-audit-baseline.md","reason":"核对原始缺口和已完成前置项"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/test-governance-summary.md","reason":"核对脚本预算、测试归属和inventory基线"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/r2-test-bucket-addendum.md","reason":"核对测试优先执行、回滚和生产只读边界"}

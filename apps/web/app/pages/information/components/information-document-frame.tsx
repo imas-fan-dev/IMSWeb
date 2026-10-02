@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { observeImageLoading } from "~/components/shared/image-loading-indicator"
+import { resolveMediaUrl } from "~/lib/api"
 
 const minimumFrameHeight = 480
 const maximumFrameHeight = 24_000
@@ -73,13 +74,20 @@ export function InformationDocumentFrame({
   return (
     <iframe
       ref={frameRef}
-      src={`/information/${encodeURIComponent(contentId)}/content`}
+      // The API renders this document, so the URL is API-owned rather than
+      // bundle-owned. Production serves the SPA and the API from one host, where
+      // a root-relative path reaches the API and `resolveMediaUrl` leaves it
+      // untouched; the packaged App reaches the API cross-origin, where a
+      // root-relative `src` would resolve against the WebView and never leave it.
+      src={resolveMediaUrl(
+        `/information/${encodeURIComponent(contentId)}/content`
+      )}
       title={title}
       sandbox="allow-same-origin"
       referrerPolicy="no-referrer"
       onLoad={handleLoad}
       style={{ height }}
-      className="min-h-[60svh] w-full rounded-md border bg-background"
+      className="min-h-[60svh] w-full max-w-full min-w-0 rounded-md border bg-background"
     />
   )
 }

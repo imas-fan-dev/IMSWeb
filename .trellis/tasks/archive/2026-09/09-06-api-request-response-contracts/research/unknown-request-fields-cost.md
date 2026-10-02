@@ -1,0 +1,166 @@
+# Unknown request fields and strict migration cost
+
+## Scope
+
+This report consolidates the endpoint inventory and an independent sender scan. It distinguishes four cases:
+
+- `reject`: an unknown object key already returns an error.
+- `project`: the boundary accepts the object but only returns or reads declared keys.
+- `pass-through`: the original object reaches later logic; top-level extra keys are unbounded.
+- `N/A`: validation is scalar or decoded-path based, so object-key strictness does not apply.
+
+The full endpoint-by-endpoint evidence is in
+[`unknown-request-fields.md`](./unknown-request-fields.md). Sender and fixture evidence is in
+[`unknown-request-fields-verification.md`](./unknown-request-fields-verification.md).
+
+## Counts
+
+The scan covers 223 active method/path instances and 283 body, query, and param boundaries.
+
+| Carrier | Reject | Project | Pass-through | N/A | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| JSON body | 31 | 40 | 17 | 0 | 88 |
+| Query | 10 | 19 | 0 | 0 | 29 |
+| Params | 0 | 102 | 0 | 64 | 166 |
+| **Total** | **41** | **161** | **17** | **64** | **283** |
+
+The 161 project boundaries and 17 pass-through boundaries accept arbitrary extra key names. Those names are
+not finite and cannot be enumerated. The finite list below contains every concrete extra key observed in this
+repository's production senders, tests, fixtures, and generated URLs.
+
+The same source contains 119 distinct named semantic validators: 32 reject, 77 project, 1 pass-through, and
+9 scalar/N/A validators.
+
+## Concrete accepted extra keys
+
+Twenty distinct extra key names were observed outside the receiving operation's declared or consumed shape.
+No production JSON body sender depends on one of these extra keys. Production does depend on the `v` query
+parameter used by generated media and site-content URLs.
+
+### JSON bodies
+
+| Method and path | Observed extra keys | Sender | Current effect | Strict migration impact |
+| --- | --- | --- | --- | --- |
+| `PUT /api/admin/community-posts/11` | `id`, `article_id`, `cover_url`, `body_json`, `start_at`, `end_at`, `venue_name`, `registration_url`, `event_status`, `source_url`, `related_links` | `apps/api/tests/server/editorial-safeguards.test.ts:82-92` spreads `currentEvent` | Passed through at the boundary; later helpers ignore these request keys | Test-only payload cleanup is low cost. Making the Editorial family strict is high cost because 17 routes currently pass arbitrary top-level keys. |
+| `POST /api/admin/accounts` | `adminRole` | `apps/api/tests/server/admin-accounts.contract.test.ts:155-165` | Silently projected away; the account is still created as `admin` | Low. Remove it from the success fixture and retain it as a strict rejection test if this endpoint is tightened later. |
+| `POST /api/wiki/add_story` | `expected_revision` | Shared `formFields()` fixture, including `apps/api/tests/wiki/security-crud.contract.test.ts:181` | Preserved by the Wiki field bag but unused by add-story | Test-only cleanup is low. Tightening the shared Wiki form bag is high cost. |
+| `PATCH /api/admin/wiki/cards/:cardId` | `category_name`, `up_name`, `video_title`, `url` | `apps/api/tests/wiki/security-crud.contract.test.ts:1300` | Preserved by the Wiki field bag but unused by this operation | Test-only cleanup is low; per-operation multipart schemas are high-cost migration work. |
+| `POST /api/wiki/delete_story` | `up_name`, `video_title`, `url` | Shared `formFields()` fixture, including `apps/api/tests/wiki/security-crud.contract.test.ts:927` | Preserved but unused | Same as above. |
+| `POST /api/wiki/delete_category` | `card_name`, `up_name`, `video_title`, `url` | Shared `formFields()` fixture, including `apps/api/tests/wiki/security-crud.contract.test.ts:1017` | Preserved but unused | Same as above. |
+
+The 20 distinct observed names are:
+
+`id`, `article_id`, `cover_url`, `body_json`, `start_at`, `end_at`, `venue_name`,
+`registration_url`, `event_status`, `source_url`, `related_links`, `adminRole`,
+`expected_revision`, `category_name`, `up_name`, `video_title`, `url`, `card_name`,
+`request`, and `v`.
+
+A name can be unknown for one operation and valid for another. For example, `expected_revision` is unsupported
+by add-story but remains a required compatibility field on several edit/delete operations.
+
+### Query strings
+
+| Method and path | Observed extra key | Sender | Current effect | Strict migration impact |
+| --- | --- | --- | --- | --- |
+| `GET /api/admin/auth/session` | `request=second` | `apps/web/tests/unit/lib/api/api.test.ts:339,414` | Ignored; used only to distinguish mocked concurrent calls | Low. Move request identity out of the wire query before adding an empty strict query schema. |
+| `GET /api/platform/auth/session` | `request=second` | `apps/web/tests/unit/lib/api/platform-api.test.ts:125,178` | Same as above | Low. |
+| Authenticated avatar, card, office, and moderation media GETs | `v` | Generated by API response views in platform profile and Fudaba domains | Intentionally ignored as a cache-busting revision | Low schema cost but high breakage if omitted. Declare optional bounded `v` in the query contract. |
+| Wiki icon, image, and story-cover media GETs | `v` | Generated by Wiki admin catalog/story/asset responses | Intentionally ignored as a cache-busting revision | Same as above. |
+| Published and preview site-content GETs | `v` | Site package HTML and route tests | Intentionally ignored for asset lookup | Same as above. |
+
+No successful request contains an extra route-param key. Hono only materializes the params declared by the
+matched route.
+
+## Already rejected extra keys
+
+These are existing negative controls, not compatibility dependencies. Strict migration should preserve them.
+
+| Method and path | Rejected key |
+| --- | --- |
+| `POST /api/platform/auth/register` | `role` |
+| `POST /api/platform/me/password` | `confirmPassword` |
+| `PUT /api/platform/me` | `nickname` |
+| `DELETE /api/platform/me/avatar` | `displayName` |
+| `POST /api/community/exchange/offices` | `status` |
+| `PUT /api/community/exchange/offices/:officeId/cards/:cardId/placement` | `unexpected` |
+| `GET /api/community/exchange/map/offices` | `unknown` |
+| `GET /api/community/exchange/offices/:officeSlug` | `unexpected` |
+| `GET /api/community/exchange/offices` | `bbox` |
+
+Multipart parser tests also use file fields named `unknown` or `ignored` to prove that discarded streams still
+count toward upload limits. Those are parser tests, not supported endpoint fields.
+
+## Supported fields that must not be classified as unknown
+
+Strict schemas must retain the current wire spellings and transform them after parsing:
+
+- `producername` on admin account creation.
+- `expected_revision` on legacy namecard and Wiki mutations where currently supported.
+- `cover_url` in the news multipart encoding; the JSON encoding uses `coverUrl`.
+- Repeated `series`, plus `open` and `office`, in Fudaba public query strings.
+- Wiki story delete accepts `agency`, `idol`, and `expectedRevision` through either query or optional JSON body,
+  with body values taking precedence.
+- Wiki multipart and URL-encoded operations use operation-specific subsets of `agency`, `idol`, `category_name`,
+  `category_id`, `card_name`, `old_category_name`, `old_card_name`, `story_id`, `up_name`, `video_title`, `url`,
+  `content_type_id`, `source_platform_id`, `subtitle`, `sources_json`, `expected_revision`, `cover_asset_id`,
+  `presentation_policy`, `is_active`, `remove_image`, `image_fit`, `image_focal_x`, `image_focal_y`, `image_zoom`,
+  `image_rotation`, `name`, and file field `image`.
+
+Raw route-param schemas must also retain Hono names before local normalization: `submissionId`, `id`,
+`agencyId`, `groupId`, `idolId`, `assetId`, `optionId`, and `filename`.
+
+## Unbounded JSON boundaries
+
+All 17 pass-through JSON body occurrences are Editorial routes using `validateEditorialArticlePayload`:
+
+- 1 `POST /api/admin/chronicle`
+- 1 `PUT /api/admin/chronicle/:id`
+- 3 `POST /api/admin/chronicle/:id/{publish,unpublish,archive}`
+- 2 `POST /api/admin/community-posts` and `POST /api/admin/events`
+- 2 `PUT /api/admin/community-posts/:id` and `PUT /api/admin/events/:id`
+- 2 `POST /api/admin/community-posts/:id/preview` and `POST /api/admin/events/:id/preview`
+- 6 status routes for `{publish,unpublish,archive}` under both community-post and event aliases
+
+Known top-level fields consumed later are the shared article fields plus post- or chronicle-specific fields.
+`bodyJson` remains recursively open because it contains a Tiptap document. A future strict conversion must keep
+that document extension surface intentional instead of applying `.strict()` recursively.
+
+## Multipart, form, and no-input routes
+
+There are 27 multipart/form/file carriers outside the strict JSON migration:
+
+- 8 reject unknown text fields.
+- 7 project or ignore unknown text fields.
+- 12 Wiki carriers pass through a shared text-field bag.
+- All 27 discard unknown file field names while still enforcing byte, file, and part limits.
+
+Routes that consume no request data were excluded from the 283-boundary count. They currently tolerate query
+strings by default. Adding an empty strict query schema to every such route would be a separate behavior change;
+the production `v` cases prove it cannot be automated safely.
+
+Six retired Information mutations immediately return `410` without reading body, query, or params. They do not
+need request schemas unless their retirement response policy changes.
+
+## Cost assessment
+
+| Scope | Quantity | Cost and risk |
+| --- | ---: | --- |
+| Preserve already strict bodies/queries | 41 boundaries | Low; move ownership and retain negative tests. |
+| Preserve project behavior | 161 boundaries | Medium overall. Forty bodies and 19 queries need explicit non-strict schemas; 102 param projections are mostly mechanical. |
+| Make project bodies/queries strict now | 59 boundaries | Medium-to-high compatibility risk despite a small known repository break set. External callers can rely on silent projection. |
+| Make Editorial pass-through bodies strict | 17 boundaries | High. Requires operation-specific schemas and a deliberate open policy for Tiptap documents. |
+| Tighten multipart/form carriers | 27 carriers | High and outside this JSON migration; Wiki needs per-operation metadata schemas. |
+| Clean known test-only extras | 6 JSON operation families plus 2 session queries | Low. This does not prove that external clients send no extras. |
+| Preserve production `v` queries | Media and site-content route families | Low implementation cost; high user-visible breakage if missed. |
+
+## Recommendation for the approved A policy
+
+For this contract migration:
+
+1. Preserve the current reject/project/pass-through behavior explicitly in each shared schema.
+2. Keep the 20 observed extra keys documented; clean test-only payloads only when doing so does not change the
+   endpoint's migration behavior.
+3. Declare `v` as an optional query field on generated media and site-content URLs.
+4. Make new request schemas strict by default.
+5. Treat later strictness work as a separate, endpoint-versioned change. Start with the 40 project JSON bodies,
+   then handle the 17 Editorial pass-through bodies, and leave multipart/Wiki form tightening for its own task.

@@ -1,0 +1,140 @@
+{
+    "batch": "D",
+    "note": "tests/assets (2) + the five top-level tests/*.test.js. node-security.test.js has no test declarations of its own (seven register*Tests(fixture) calls own its 36 cases), so it is handled by its own edit, not by this plan.",
+    "files": [
+        {
+            "path": "tests/assets/client-allowlist.test.js",
+            "subject": "client allowlist",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3
+            ]
+        },
+        {
+            "path": "tests/assets/frontend-routing.contract.test.js",
+            "subject": "frontend routing",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+            ]
+        },
+        {
+            "path": "tests/hono-app-contract.test.js",
+            "subject": "Hono app contract",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ]
+        },
+        {
+            "path": "tests/node-listener-probe.test.js",
+            "subject": "node listener probe",
+            "wrapper": "test.describe",
+            "cases": [
+                0
+            ]
+        },
+        {
+            "path": "tests/operation-scripts.test.js",
+            "subject": "operation scripts",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ],
+            "categories": [
+                {
+                    "title": "categorized add-user script",
+                    "cases": [
+                        0,
+                        1
+                    ]
+                },
+                {
+                    "title": "development data script",
+                    "cases": [
+                        3,
+                        4,
+                        5
+                    ]
+                },
+                {
+                    "title": "RustFS sync",
+                    "cases": [
+                        6,
+                        7
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "tests/postgres-test-lifecycle.test.js",
+            "subject": "PostgreSQL test lifecycle",
+            "wrapper": "test.describe",
+            "cases": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18
+            ],
+            "categories": [
+                {
+                    "title": "PostgreSQL test",
+                    "cases": [
+                        0,
+                        1,
+                        2,
+                        3
+                    ]
+                },
+                {
+                    "title": "database cleanup",
+                    "cases": [
+                        7,
+                        8,
+                        9,
+                        10
+                    ]
+                }
+            ]
+        }
+    ]
+}

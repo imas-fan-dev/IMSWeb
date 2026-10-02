@@ -373,7 +373,7 @@ export function StoryEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-4xl">
+   <DialogContent className="overflow-y-auto sm:max-w-4xl">
         <form className="contents" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>

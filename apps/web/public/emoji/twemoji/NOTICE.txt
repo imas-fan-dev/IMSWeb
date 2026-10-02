@@ -1,0 +1,10 @@
+Twemoji graphics by the Twemoji contributors.
+Source: https://github.com/jdecked/twemoji/tree/v17.0.3/assets/svg
+Version: 17.0.3
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+License URL: https://creativecommons.org/licenses/by/4.0/
+Full license: LICENSE-GRAPHICS.txt
+
+This distribution contains only the namecard reaction icons used by IMSWeb.
+The SVG files are unmodified. The adjacent manifest.json records each file's
+source code point, size and SHA-256 checksum.

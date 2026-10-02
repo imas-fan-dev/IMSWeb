@@ -58,6 +58,7 @@ import {
   createRegion,
   seriesOptions,
 } from "~/pages/admin/producer-map/producer-map-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type ChangeContent = (
   update: (content: ProducerMapContent) => ProducerMapContent
@@ -441,7 +442,11 @@ export function ProducerMapManager() {
               <Button
                 variant="outline"
                 render={
-                  <a href="/producer-map" target="_blank" rel="noreferrer" />
+                  <NavigationLink
+                    href="/producer-map"
+                    target="_blank"
+                    rel="noreferrer"
+                  />
                 }
                 nativeButton={false}
               >

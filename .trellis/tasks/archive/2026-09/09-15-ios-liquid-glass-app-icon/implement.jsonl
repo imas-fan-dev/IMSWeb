@@ -1,0 +1,7 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web workspace ownership and pre-development checklist; the Tauri app shell and device wrapper scripts belong to apps/web"}
+{"file":".trellis/spec/web/frontend/tauri-mobile-integration.md","reason":"Contract for coordinating JavaScript, Rust, capability, and platform metadata changes, and the rule that src-tauri/gen is never hand-edited"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Where unit and infrastructure tests belong for apps/web, and what a changed view must cover"}
+{"file":".trellis/spec/repository/index.md","reason":"Root contract tests read configuration and documentation files directly, so a pipeline or doc edit must keep them in sync"}
+{"file":".trellis/spec/guides/index.md","reason":"Cross-layer and code-reuse review guidance for a change that crosses build tooling, documentation, and native platform metadata"}
+{"file":".trellis/tasks/09-15-ios-liquid-glass-app-icon/research/toolchain-findings.md","reason":"Verified ictool, actool, and tauri icon behavior with reproducible commands and observed numbers, including the layer-order result that contradicts published guidance"}
+{"file":".trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layers.py","reason":"Reproducible SVG rasterization for the Icon Composer layers and Android foreground/monochrome layers; the retired --from-art entry point cannot overwrite the clean geometric master"}

@@ -1,166 +1,97 @@
-import { z } from "zod"
+import {
+  adminApiPath,
+  apiPath,
+  eventChroniclePath,
+  wikiPath,
+} from "@imsweb/contracts/paths"
+import { createEventResponseSchema } from "@imsweb/contracts/events"
+import {
+  adminNamecardHttpErrorSchema,
+  adminNamecardListBusinessErrorSchema,
+  adminNamecardListSchema,
+  adminNamecardMutationSchema,
+  namecardErrorResponseSchema,
+} from "@imsweb/contracts/namecards"
+import {
+  idolMediaCatalogSchema,
+  wikiErrorResponseSchema,
+  wikiHttpErrorResponseSchema,
+  wikiIdolMediaUploadResultSchema,
+  wikiMutationResultSchema,
+} from "@imsweb/contracts/wiki"
+import {
+  adminInformationIndexSchema,
+  adminInformationMutationSchema,
+  informationAssetSchema,
+} from "@imsweb/contracts/information"
+import {
+  backofficeProtectedHttpErrorSchema,
+  successFlagSchema,
+} from "@imsweb/contracts/common"
+import {
+  adminAccountEndpointErrorResponseSchema,
+  adminAccountListSchema,
+  adminAccountMutationSchema,
+  adminLoginErrorResponseSchema,
+  adminLoginSuccessResponseSchema,
+  adminLogoutHttpErrorResponseSchema,
+  adminLogoutSuccessResponseSchema,
+  adminSessionHttpErrorResponseSchema,
+  adminSessionSchema,
+} from "@imsweb/contracts/admin"
+import {
+  pendingChronicleMediaSchema,
+  usedChronicleMediaSchema,
+} from "@imsweb/contracts/chronicle"
+import {
+  adminRecommendationListSchema,
+  newsAdminHttpErrorResponseSchema,
+  newsMutationErrorResponseSchema,
+  newsMutationSuccessSchema,
+} from "@imsweb/contracts/news"
 
+import { parsed } from "../parsed"
+import { adminApiClient } from "../admin-client"
 import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
-import { apiClient } from "../client"
-import { withCsrf } from "../types"
+import { readCookie } from "../cookies"
+import {
+  BACKOFFICE_CSRF_COOKIE_NAME,
+  LEGACY_BACKOFFICE_CSRF_COOKIE_NAME,
+} from "../request"
+import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
-const adminRoleSchema = z.enum(["admin", "super_admin"])
+export { adminInformationCardSchema } from "@imsweb/contracts/information"
 
-const adminSessionSchema = z.object({
-  success: z.literal(true),
-  user: z.object({
-    id: z.coerce.number().int().positive(),
-    username: z.string(),
-    producername: z.string().optional().default(""),
-    dept: z.string(),
-    adminRole: adminRoleSchema.nullable(),
-  }),
-})
+import type {
+  InformationCategory,
+  InformationContentType,
+} from "@imsweb/contracts/information"
 
-const loginSchema = z.object({
-  success: z.literal(true),
-  username: z.string(),
-  producername: z.string().nullable().optional(),
-  dept: z.literal("op"),
-  adminRole: adminRoleSchema,
-})
+export type {
+  IdolMediaAgency,
+  IdolMediaCatalog,
+  IdolMediaItem,
+} from "@imsweb/contracts/wiki"
 
-const adminAccountSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  username: z.string(),
-  producername: z.string(),
-  adminRole: adminRoleSchema,
-})
+export type {
+  AdminAccount,
+  AdminRole,
+  AdminSession,
+} from "@imsweb/contracts/admin"
 
-const adminAccountListSchema = z.object({
-  success: z.literal(true),
-  accounts: z.array(adminAccountSchema),
-})
+export type {
+  AdminInformationCard,
+  AdminInformationIndex,
+  InformationCategory,
+  InformationContentType,
+} from "@imsweb/contracts/information"
 
-const adminAccountMutationSchema = z.object({
-  success: z.literal(true),
-  account: adminAccountSchema,
-})
+export type { AdminRecommendation } from "@imsweb/contracts/news"
 
-const informationCategorySchema = z.enum(["activity", "fan"])
-const informationContentTypeSchema = z.enum(["external", "html"])
-
-export const adminInformationCardSchema = z.object({
-  id: z.string(),
-  category: informationCategorySchema,
-  contentType: informationContentTypeSchema,
-  image: z.string(),
-  link: z.string(),
-  title: z.string(),
-  html: z.string().optional(),
-  updatedAt: z.string(),
-})
-
-const adminInformationIndexSchema = z.object({
-  version: z.literal(1),
-  cards: z.array(adminInformationCardSchema),
-  assets: z.array(z.string()),
-})
-
-const recommendationSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  title: z.string(),
-  image: z.string().nullable().optional(),
-  thumbnail: z.string().nullable().optional(),
-  content: z.string(),
-  date: z.string().nullable().optional(),
-  author: z.string().nullable().optional(),
-})
-
-const recommendationListSchema = z.object({
-  success: z.literal(true),
-  data: z.array(recommendationSchema),
-})
-
-const informationAssetSchema = z.object({
-  success: z.literal(true),
-  url: z.string(),
-})
-
-const idolMediaSourceSchema = z.enum(["object-storage", "none"])
-
-const idolMediaCatalogSchema = z.object({
-  status: z.literal("success"),
-  agencies: z.array(
-    z.object({
-      code: z.string(),
-      name: z.string(),
-      idols: z.array(
-        z.object({
-          name: z.string(),
-          imageUrl: z.string(),
-          imageFit: z.enum(["contain", "cover"]),
-          source: idolMediaSourceSchema,
-        })
-      ),
-    })
-  ),
-})
-
-const pendingChronicleMediaSchema = z.record(
-  z.string(),
-  z.array(
-    z.object({
-      filename: z.string().min(1),
-      url: z.string().min(1),
-      uploader: z.string().optional(),
-      time: z.string().optional(),
-    })
-  )
-)
-
-const usedChronicleMediaSchema = z.record(
-  z.string(),
-  z.array(
-    z.object({
-      filename: z.string().min(1),
-      url: z.string().min(1),
-    })
-  )
-)
-
-const adminNamecardSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
-  status: z.string(),
-  revision: z.coerce.number().int().nonnegative(),
-})
-
-const adminNamecardListSchema = z.object({
-  success: z.literal(true),
-  data: z.array(adminNamecardSchema),
-  pageInfo: z.object({
-    page: z.number().int().positive(),
-    pageSize: z.number().int().positive(),
-    total: z.number().int().nonnegative(),
-    totalPages: z.number().int().nonnegative(),
-    hasNextPage: z.boolean(),
-  }),
-})
-
-export type AdminSession = z.infer<typeof adminSessionSchema>["user"]
-export type AdminRole = z.infer<typeof adminRoleSchema>
-export type AdminAccount = z.infer<typeof adminAccountSchema>
-export type AdminInformationCard = z.infer<typeof adminInformationCardSchema>
-export type AdminInformationIndex = z.infer<typeof adminInformationIndexSchema>
-export type AdminRecommendation = z.infer<typeof recommendationSchema>
-export type InformationCategory = z.infer<typeof informationCategorySchema>
-export type InformationContentType = z.infer<
-  typeof informationContentTypeSchema
->
-export type IdolMediaCatalog = z.infer<typeof idolMediaCatalogSchema>
-export type IdolMediaAgency = IdolMediaCatalog["agencies"][number]
-export type IdolMediaItem = IdolMediaAgency["idols"][number]
-export type PendingChronicleMedia = z.infer<typeof pendingChronicleMediaSchema>
-export type UsedChronicleMedia = z.infer<typeof usedChronicleMediaSchema>
-export type AdminNamecard = z.infer<typeof adminNamecardSchema>
-export type AdminNamecardList = z.infer<typeof adminNamecardListSchema>
+export type {
+  PendingChronicleMedia,
+  UsedChronicleMedia,
+} from "@imsweb/contracts/chronicle"
 
 export type InformationSubmission = {
   title: string
@@ -171,36 +102,52 @@ export type InformationSubmission = {
   image: string
 }
 
+export function hasBackofficeSessionHint() {
+  return Boolean(
+    readCookie(BACKOFFICE_CSRF_COOKIE_NAME) ||
+    readCookie(LEGACY_BACKOFFICE_CSRF_COOKIE_NAME)
+  )
+}
+
 export function getAdminSession() {
-  return apiClient.Get<z.infer<typeof adminSessionSchema>, unknown>(
-    "/api/check",
-    {
-      transform: (payload) => adminSessionSchema.parse(payload),
-    }
+  return adminApiClient.Get(
+    adminApiPath("/auth/session"),
+    parsed(adminSessionSchema, {
+      errorSchema: adminSessionHttpErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
 export function loginAdmin(username: string, password: string) {
-  return apiClient.Post<z.infer<typeof loginSchema>, unknown>(
-    "/api/admin/login",
+  return adminApiClient.Post(
+    adminApiPath("/auth/login"),
     { username, password },
-    {
-      meta: { authRole: "login" },
-      transform: (payload) => loginSchema.parse(payload),
-    }
+    parsed(adminLoginSuccessResponseSchema, {
+      errorSchema: adminLoginErrorResponseSchema,
+      meta: withBackofficeAuth({ authRole: "login" }),
+    })
   )
 }
 
 export function logoutAdmin() {
-  return apiClient.Post<{ success: true }, unknown>("/api/logout", undefined, {
-    meta: withCsrf({ authRole: "logout" }),
-  })
+  return adminApiClient.Post(
+    adminApiPath("/auth/logout"),
+    undefined,
+    parsed(adminLogoutSuccessResponseSchema, {
+      errorSchema: adminLogoutHttpErrorResponseSchema,
+      meta: withBackofficeCsrf({ authRole: "logout" }),
+    })
+  )
 }
 
 export function getAdminAccounts() {
-  return apiClient.Get<z.infer<typeof adminAccountListSchema>, unknown>(
-    "/api/admin/accounts",
-    { transform: (payload) => adminAccountListSchema.parse(payload) }
+  return adminApiClient.Get(
+    adminApiPath("/accounts"),
+    parsed(adminAccountListSchema, {
+      errorSchema: adminAccountEndpointErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
@@ -209,52 +156,59 @@ export function createAdminAccount(input: {
   producername: string
   password: string
 }) {
-  return apiClient.Post<z.infer<typeof adminAccountMutationSchema>, unknown>(
-    "/api/admin/accounts",
+  return adminApiClient.Post(
+    adminApiPath("/accounts"),
     input,
-    {
-      meta: withCsrf(),
-      transform: (payload) => adminAccountMutationSchema.parse(payload),
-    }
+    parsed(adminAccountMutationSchema, {
+      errorSchema: adminAccountEndpointErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function deleteAdminAccount(id: number) {
-  return apiClient.Delete<{ success: true }, unknown>(
-    `/api/admin/accounts/${id}`,
+  return adminApiClient.Delete(
+    adminApiPath(`/accounts/${id}`),
     undefined,
-    { meta: withCsrf() }
+    parsed(successFlagSchema, {
+      errorSchema: adminAccountEndpointErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function getAdminInformation() {
-  return apiClient.Get<AdminInformationIndex, unknown>(
-    "/api/admin/information",
-    { transform: (payload) => adminInformationIndexSchema.parse(payload) }
+  return adminApiClient.Get(
+    adminApiPath("/information"),
+    parsed(adminInformationIndexSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
 export function uploadInformationAsset(file: File) {
   const form = new FormData()
   form.append("image", file)
-  return apiClient.Post<z.infer<typeof informationAssetSchema>, unknown>(
-    "/api/admin/information/assets",
+  return adminApiClient.Post(
+    adminApiPath("/information/assets"),
     form,
-    {
-      meta: withCsrf(),
-      transform: (payload) => informationAssetSchema.parse(payload),
-    }
+    parsed(informationAssetSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function createInformation(submission: InformationSubmission) {
-  return apiClient.Post<{ success: true; card: AdminInformationCard }, unknown>(
-    "/api/admin/information",
+  return adminApiClient.Post(
+    adminApiPath("/information"),
     submission,
-    {
-      meta: withCsrf(),
+    parsed(adminInformationMutationSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-    }
+    })
   )
 }
 
@@ -262,78 +216,98 @@ export function updateInformation(
   id: string,
   submission: InformationSubmission
 ) {
-  return apiClient.Put<{ success: true; card: AdminInformationCard }, unknown>(
-    `/api/admin/information/${encodeURIComponent(id)}`,
+  return adminApiClient.Put(
+    adminApiPath(`/information/${encodeURIComponent(id)}`),
     submission,
-    {
-      meta: withCsrf(),
+    parsed(adminInformationMutationSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-    }
+    })
   )
 }
 
 export function deleteInformation(id: string) {
-  return apiClient.Delete<{ success: true }, unknown>(
-    `/api/admin/information/${encodeURIComponent(id)}`,
+  return adminApiClient.Delete(
+    adminApiPath(`/information/${encodeURIComponent(id)}`),
     undefined,
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-    }
+    })
   )
 }
 
 export function reorderInformation(ids: string[]) {
-  return apiClient.Put<{ success: true }, unknown>(
-    "/api/admin/information/order",
+  return adminApiClient.Put(
+    adminApiPath("/information/order"),
     { ids },
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-    }
+    })
   )
 }
 
 export function deleteInformationAsset(url: string) {
-  return apiClient.Delete<{ success: true }, unknown>(
-    "/api/admin/information/assets",
+  return adminApiClient.Delete(
+    adminApiPath("/information/assets"),
     { url },
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-    }
+    })
   )
 }
 
 export function getRecommendations() {
-  return apiClient.Get<z.infer<typeof recommendationListSchema>, unknown>(
-    "/api/admin/news",
-    { transform: (payload) => recommendationListSchema.parse(payload) }
+  return adminApiClient.Get(
+    adminApiPath("/news"),
+    parsed(adminRecommendationListSchema, {
+      businessErrorSchema: newsMutationErrorResponseSchema,
+      errorSchema: newsAdminHttpErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
 export function createRecommendation(form: FormData) {
-  return apiClient.Post<{ success: true }, unknown>("/api/admin/news", form, {
-    meta: withCsrf(),
-    name: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,
-  })
+  return adminApiClient.Post(
+    adminApiPath("/news"),
+    form,
+    parsed(newsMutationSuccessSchema, {
+      businessErrorSchema: newsMutationErrorResponseSchema,
+      errorSchema: newsAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,
+    })
+  )
 }
 
 export function deleteRecommendation(id: number) {
-  return apiClient.Delete<{ success: true }, unknown>(
-    `/api/admin/news/${id}`,
+  return adminApiClient.Delete(
+    adminApiPath(`/news/${id}`),
     undefined,
-    {
-      meta: withCsrf(),
+    parsed(newsMutationSuccessSchema, {
+      errorSchema: newsAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,
-    }
+    })
   )
 }
 
 export function getIdolMediaCatalog() {
-  return apiClient.Get<IdolMediaCatalog, unknown>("/api/wiki/idol-media", {
-    transform: (payload) => idolMediaCatalogSchema.parse(payload),
-  })
+  return adminApiClient.Get(
+    wikiPath("/idol-media"),
+    parsed(idolMediaCatalogSchema, {
+      businessErrorSchema: wikiErrorResponseSchema,
+      errorSchema: wikiHttpErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
+  )
 }
 
 export function uploadIdolMedia(agency: string, idol: string, file: File) {
@@ -341,144 +315,176 @@ export function uploadIdolMedia(agency: string, idol: string, file: File) {
   form.append("agency", agency)
   form.append("idol", idol)
   form.append("image", file)
-  return apiClient.Post<{ status: "success"; url: string }, unknown>(
-    "/api/wiki/idol-media",
+  return adminApiClient.Post(
+    wikiPath("/idol-media"),
     form,
-    {
-      meta: withCsrf(),
+    parsed(wikiIdolMediaUploadResultSchema, {
+      businessErrorSchema: wikiErrorResponseSchema,
+      errorSchema: wikiHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
-    }
+    })
   )
 }
 
 export function deleteIdolMedia(agency: string, idol: string) {
-  return apiClient.Delete<{ status: "success" }, unknown>(
-    "/api/wiki/idol-media",
+  return adminApiClient.Delete(
+    wikiPath("/idol-media"),
     { agency, idol },
-    {
-      meta: withCsrf(),
+    parsed(wikiMutationResultSchema, {
+      businessErrorSchema: wikiErrorResponseSchema,
+      errorSchema: wikiHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
-    }
+    })
   )
 }
 
 export function getPendingChronicleMedia() {
-  return apiClient.Get<PendingChronicleMedia, unknown>(
-    "/eventchronicle/admin/pending",
-    { transform: (payload) => pendingChronicleMediaSchema.parse(payload) }
+  return adminApiClient.Get(
+    eventChroniclePath("/admin/pending"),
+    parsed(pendingChronicleMediaSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
 export function getUsedChronicleMedia() {
-  return apiClient.Get<UsedChronicleMedia, unknown>(
-    "/eventchronicle/admin/used",
-    { transform: (payload) => usedChronicleMediaSchema.parse(payload) }
+  return adminApiClient.Get(
+    eventChroniclePath("/admin/used"),
+    parsed(usedChronicleMediaSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
 export function approveChronicleMedia(activityId: string, filename: string) {
-  return apiClient.Post<{ success: true }, unknown>(
-    `/eventchronicle/admin/approve/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+  return adminApiClient.Post(
+    eventChroniclePath(
+      `/admin/approve/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`
+    ),
     undefined,
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
-    }
+    })
   )
 }
 
 export function rejectChronicleMedia(activityId: string, filename: string) {
-  return apiClient.Post<{ success: true }, unknown>(
-    `/eventchronicle/admin/reject/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+  return adminApiClient.Post(
+    eventChroniclePath(
+      `/admin/reject/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`
+    ),
     undefined,
-    { meta: withCsrf() }
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function deleteUsedChronicleMedia(activityId: string, filename: string) {
-  return apiClient.Delete<{ success: true }, unknown>(
-    `/eventchronicle/admin/delete-used/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+  return adminApiClient.Delete(
+    eventChroniclePath(
+      `/admin/delete-used/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`
+    ),
     undefined,
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
-    }
+    })
   )
 }
 
 export function getAdminNamecards(page = 1) {
-  return apiClient.Get<z.infer<typeof adminNamecardListSchema>, unknown>(
-    "/api/admin/cards",
-    {
+  return adminApiClient.Get(
+    adminApiPath("/cards"),
+    parsed(adminNamecardListSchema, {
+      businessErrorSchema: adminNamecardListBusinessErrorSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
       params: { page },
-      transform: (payload) => adminNamecardListSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function approveAdminNamecard(id: number, expectedRevision: number) {
-  return apiClient.Post<{ success: true; revision: number }, unknown>(
-    `/api/admin/cards/approve/${id}`,
+  return adminApiClient.Post(
+    adminApiPath(`/cards/approve/${id}`),
     { expected_revision: expectedRevision },
-    {
-      meta: withCsrf(),
+    parsed(adminNamecardMutationSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
-    }
+    })
   )
 }
 
 export function rejectAdminNamecard(id: number, expectedRevision: number) {
-  return apiClient.Post<{ success: true }, unknown>(
-    `/api/admin/cards/reject/${id}`,
+  return adminApiClient.Post(
+    adminApiPath(`/cards/reject/${id}`),
     { expected_revision: expectedRevision },
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
-    }
+    })
   )
 }
 
 export function deleteAdminNamecard(id: number, expectedRevision: number) {
-  return apiClient.Delete<{ success: true }, unknown>(
-    `/api/admin/cards/${id}?expected_revision=${expectedRevision}`,
+  return adminApiClient.Delete(
+    adminApiPath(`/cards/${id}?expected_revision=${expectedRevision}`),
     undefined,
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
-    }
+    })
   )
 }
 
 export function createAdminEvent(form: FormData, idempotencyKey: string) {
-  return apiClient.Post<{ success: true; id: number }, unknown>(
-    "/api/events",
+  return adminApiClient.Post(
+    apiPath("/events"),
     form,
-    {
+    parsed(createEventResponseSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       headers: { "Idempotency-Key": idempotencyKey },
-      meta: withCsrf(),
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
-    }
+    })
   )
 }
 
 export function updateAdminEvent(id: string, form: FormData) {
-  return apiClient.Put<{ success: true }, unknown>(
-    `/api/events/${encodeURIComponent(id)}`,
+  return adminApiClient.Put(
+    apiPath(`/events/${encodeURIComponent(id)}`),
     form,
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
-    }
+    })
   )
 }
 
 export function deleteAdminEvent(id: string) {
-  return apiClient.Delete<{ success: true }, unknown>(
-    `/api/events/${encodeURIComponent(id)}`,
+  return adminApiClient.Delete(
+    apiPath(`/events/${encodeURIComponent(id)}`),
     undefined,
-    {
-      meta: withCsrf(),
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
-    }
+    })
   )
 }

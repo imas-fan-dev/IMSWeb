@@ -1,0 +1,65 @@
+import type { PlatformOAuthProvider } from "@imsweb/contracts/platform"
+import type { ComponentProps } from "react"
+
+import {
+  ConfigurableLucideIcon,
+  resolveLucideIconName,
+} from "~/components/lucide-icon"
+
+export function PlatformOAuthProviderIcon({
+  provider,
+  ...props
+}: ComponentProps<"svg"> & {
+  provider: PlatformOAuthProvider["icon"]
+}) {
+  if (provider === "google") {
+    return (
+      <svg
+        viewBox="0 0 18 18"
+        fill="none"
+        focusable="false"
+        data-provider-icon="google"
+        {...props}
+      >
+        <path
+          fill="#4285F4"
+          d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.909c1.702-1.567 2.683-3.874 2.683-6.615Z"
+        />
+        <path
+          fill="#34A853"
+          d="M9 18c2.43 0 4.468-.806 5.957-2.18l-2.91-2.258c-.806.54-1.835.859-3.047.859-2.344 0-4.328-1.585-5.037-3.715H.956v2.332A9 9 0 0 0 9 18Z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M3.963 10.706A5.41 5.41 0 0 1 3.681 9c0-.592.102-1.168.282-1.706V4.962H.956A9 9 0 0 0 0 9c0 1.45.347 2.824.956 4.038l3.007-2.332Z"
+        />
+        <path
+          fill="#EA4335"
+          d="M9 3.58c1.322 0 2.508.454 3.441 1.346l2.582-2.582C13.464.892 11.426 0 9 0A9 9 0 0 0 .956 4.962l3.007 2.332C4.672 5.164 6.656 3.58 9 3.58Z"
+        />
+      </svg>
+    )
+  }
+
+  if (provider === "github") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        focusable="false"
+        data-provider-icon="github"
+        {...props}
+      >
+        <path d="M12 .7a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2.02c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.23 1.84 1.23 1.07 1.83 2.8 1.3 3.49.99.11-.77.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.92 0-1.31.47-2.38 1.23-3.22-.12-.3-.53-1.52.12-3.17 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.65 1.65.24 2.87.12 3.17.77.84 1.23 1.91 1.23 3.22 0 4.6-2.8 5.61-5.47 5.91.43.37.81 1.1.81 2.22v3.29c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z" />
+      </svg>
+    )
+  }
+
+  return (
+    <ConfigurableLucideIcon
+      name={resolveLucideIconName(provider)}
+      data-provider-icon={provider}
+      {...props}
+    />
+  )
+}

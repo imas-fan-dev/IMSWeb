@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Outlet, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import AdminAccountsPage from "~/pages/admin/accounts/index"
 import type { AdminSession } from "~/lib/api"
 
@@ -35,22 +40,14 @@ function renderPage(session: AdminSession = superSession) {
   )
 }
 
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
-
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.clearAllMocks()
-  document.cookie = "csrf_token=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("AdminAccountsPage", () => {
   it("blocks a regular administrator before requesting account data", () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     renderPage({
       ...superSession,
@@ -64,52 +61,49 @@ describe("AdminAccountsPage", () => {
   })
 
   it("lists roles and creates a regular administrator", async () => {
-    document.cookie = "csrf_token=account-csrf; path=/"
+    setCsrfCookie("backoffice", "account-csrf")
     const requests: Request[] = []
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
 
-        if (request.method === "GET") {
-          return Response.json({
-            success: true,
-            accounts: [
-              {
-                id: 1,
-                username: "super-operator",
-                producername: "Super Operator",
-                adminRole: "super_admin",
-              },
-              {
-                id: 2,
-                username: "regular-operator",
-                producername: "Regular Operator",
-                adminRole: "admin",
-              },
-            ],
-          })
-        }
-
-        if (request.method === "POST") {
-          return Response.json(
+      if (request.method === "GET") {
+        return Response.json({
+          success: true,
+          accounts: [
             {
-              success: true,
-              account: {
-                id: 3,
-                username: "new-operator",
-                producername: "New Operator",
-                adminRole: "admin",
-              },
+              id: 1,
+              username: "super-operator",
+              producername: "Super Operator",
+              adminRole: "super_admin",
             },
-            { status: 201 }
-          )
-        }
-
-        throw new Error(`Unexpected request: ${request.method} ${request.url}`)
+            {
+              id: 2,
+              username: "regular-operator",
+              producername: "Regular Operator",
+              adminRole: "admin",
+            },
+          ],
+        })
       }
-    )
-    vi.stubGlobal("fetch", fetchMock)
+
+      if (request.method === "POST") {
+        return Response.json(
+          {
+            success: true,
+            account: {
+              id: 3,
+              username: "new-operator",
+              producername: "New Operator",
+              adminRole: "admin",
+            },
+          },
+          { status: 201 }
+        )
+      }
+
+      throw new Error(`Unexpected request: ${request.method} ${request.url}`)
+    })
     const user = userEvent.setup()
 
     renderPage()
@@ -146,37 +140,34 @@ describe("AdminAccountsPage", () => {
   })
 
   it("confirms deletion of a regular administrator", async () => {
-    document.cookie = "csrf_token=delete-csrf; path=/"
+    setCsrfCookie("backoffice", "delete-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
 
-        if (request.method === "DELETE") {
-          return Response.json({ success: true })
-        }
+      if (request.method === "DELETE") {
+        return Response.json({ success: true })
+      }
 
-        return Response.json({
-          success: true,
-          accounts: [
-            {
-              id: 1,
-              username: "super-operator",
-              producername: "Super Operator",
-              adminRole: "super_admin",
-            },
-            {
-              id: 2,
-              username: "regular-operator",
-              producername: "Regular Operator",
-              adminRole: "admin",
-            },
-          ],
-        })
+      return Response.json({
+        success: true,
+        accounts: [
+          {
+            id: 1,
+            username: "super-operator",
+            producername: "Super Operator",
+            adminRole: "super_admin",
+          },
+          {
+            id: 2,
+            username: "regular-operator",
+            producername: "Regular Operator",
+            adminRole: "admin",
+          },
+        ],
       })
-    )
+    })
     const user = userEvent.setup()
 
     renderPage()

@@ -1,0 +1,31 @@
+{
+  "batch": "A1-rescan",
+  "files": [
+    {
+      "path": "apps/api/tests/server/admin.test.ts",
+      "suiteBodyIndent": 2,
+      "categories": [
+        {
+          "title": "administrator deletion preserves",
+          "lines": [
+            283,
+            366
+          ]
+        }
+      ]
+    },
+    {
+      "path": "apps/api/tests/server/events.test.ts",
+      "suiteBodyIndent": 2,
+      "categories": [
+        {
+          "title": "cursor event pagination",
+          "lines": [
+            260,
+            311
+          ]
+        }
+      ]
+    }
+  ]
+}

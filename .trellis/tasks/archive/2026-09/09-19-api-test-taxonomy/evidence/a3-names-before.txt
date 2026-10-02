@@ -1,0 +1,203 @@
+tests/server/migration-catalog.test.ts	migration catalog copies SQL files only before an existing boundary
+tests/server/migration-catalog.test.ts	migration catalog fails before creating a fixture for a missing boundary
+tests/server/namecard-media-keys.test.ts	card media keys stay readable by the namecard readers
+tests/server/namecard-media-keys.test.ts	claimed legacy media keeps the canonical namecards layout
+tests/server/namecard-media-keys.test.ts	claimed media keeps the source extension and never reuses the source
+tests/server/namecard-media-keys.test.ts	claimed media round-trips through the public media chain
+tests/server/namecard-media-keys.test.ts	ensureNamecardThumbnails generates missing thumbnails from originals
+tests/server/namecard-media-keys.test.ts	ensureNamecardThumbnails rejects when the original object is missing
+tests/server/namecard-media-keys.test.ts	ensureNamecardThumbnails skips sides whose thumbnails already exist
+tests/server/namecard-media-keys.test.ts	legacy thumbnail paths map back to the canonical thumbnail key
+tests/server/namecard-media-keys.test.ts	namecard media key pairs cover the original and its stored thumbnail
+tests/server/namecard-media-keys.test.ts	namecard thumbnail keys share the original stem under a thumbnail role
+tests/server/namecard-media-keys.test.ts	namecard thumbnail public URLs keep the original filename identity
+tests/server/namecard-metadata-repository.test.ts	PostgreSQL guest namecards may carry optional profile text
+tests/server/namecard-metadata-repository.test.ts	PostgreSQL guest namecards persist ordered cross-series idol metadata atomically
+tests/server/namecard-ownership-migration.test.ts	namecard ownership migration preserves historical rows as legacy
+tests/server/namecard-reaction-reconciliation-migration.test.ts	namecard reaction reconciliation resyncs namecard_reactions from card_emojis drift
+tests/server/namecard-unification-migration.test.ts	namecard unification migration folds legacy cards into one table
+tests/server/news-pagination.test.ts	admin news parses exact success and mutation business-error envelopes
+tests/server/news-pagination.test.ts	news cursor pagination holds an id snapshot while rows are inserted
+tests/server/news-pagination.test.ts	news cursor pagination validates limits, cursors, and empty snapshots
+tests/server/news-pagination.test.ts	news keeps its legacy array response when pagination is not requested
+tests/server/news-pagination.test.ts	news list responses preserve a title with legacy leading or trailing whitespace verbatim
+tests/server/node-email-delivery-runner.test.ts	email delivery runner cancels a claim when lease renewal is lost false result
+tests/server/node-email-delivery-runner.test.ts	email delivery runner cancels a claim when lease renewal is lost rejection
+tests/server/node-email-delivery-runner.test.ts	email delivery runner cancels a claim when lease renewal is lost timeout
+tests/server/node-email-delivery-runner.test.ts	email delivery runner claims with a fresh post-maintenance timestamp
+tests/server/node-email-delivery-runner.test.ts	email delivery runner contains claim failures and continues polling
+tests/server/node-email-delivery-runner.test.ts	email delivery runner drains claims committed while shutdown begins
+tests/server/node-email-delivery-runner.test.ts	email delivery runner leaves delayed claims for lease recovery after shutdown times out
+tests/server/node-email-delivery-runner.test.ts	email delivery runner polls immediately and enforces bounded concurrency
+tests/server/node-email-delivery-runner.test.ts	email delivery runner readiness expires and refreshes after a successful poll
+tests/server/node-email-delivery-runner.test.ts	email delivery runner recovers readiness after a failed PostgreSQL poll
+tests/server/node-email-delivery-runner.test.ts	email delivery runner serializes lease renewals
+tests/server/node-email-delivery-runner.test.ts	email delivery runner waits for graceful work and bounds stalled shutdown
+tests/server/node-email-delivery-runner.test.ts	email worker health follows runner readiness, stopping, and liveness
+tests/server/node-email-delivery-runner.test.ts	shutdownEmailWorker bounds stalled service and active health-server close
+tests/server/object-cleanup-lifecycle.test.ts	Node service shutdown waits for object cleanup before closing its dependencies
+tests/server/object-cleanup-lifecycle.test.ts	object cleanup runner stops scheduling and closes only after the active cycle is idle
+tests/server/object-deletion-worker-fencing.test.ts	object deletion lease fences stale worker failure after takeover
+tests/server/object-deletion-worker.test.ts	PostgreSQL object deletion worker retries and atomically leases prefix jobs
+tests/server/object-protection-compensation.test.ts	object protection and its compensation are fenced to one object version
+tests/server/object-read-response.test.ts	S3-capable media responses redirect GET and HEAD without loading object bytes
+tests/server/object-read-response.test.ts	proxy mode bypasses signed URLs and preserves stored byte semantics
+tests/server/object-read-response.test.ts	public redirects receive a bounded cache policy when the handler has none
+tests/server/optional-platform-auth.test.ts	optional Platform auth exposes only a fully validated Platform viewer
+tests/server/optional-platform-auth.test.ts	optional Platform auth rejects invalid credentials instead of downgrading
+tests/server/optional-platform-auth.test.ts	optional Platform auth stays anonymous when Platform credentials are absent
+tests/server/platform-account-admin-repository.test.ts	a stale status write reports a conflict and leaves sessions alone
+tests/server/platform-account-admin-repository.test.ts	activating a restricted account is unsupported and unknown ids are not-found
+tests/server/platform-account-admin-repository.test.ts	admin list counts only live refresh sessions and reports them without leaking hashes
+tests/server/platform-account-admin-repository.test.ts	admin list searches by id, email and display name and hides deleted accounts
+tests/server/platform-account-admin-repository.test.ts	force logout revokes every live session, bumps the version and is idempotent
+tests/server/platform-account-admin-repository.test.ts	suspending bumps token_version, sweeps live sessions and is not affected by a lost race
+tests/server/platform-account-admin-repository.test.ts	the last-credential guard still refuses unlinking an OAuth-only account
+tests/server/platform-account-management-repository.test.ts	a concurrent exchange redeems the code for exactly one caller
+tests/server/platform-account-management-repository.test.ts	a link state round-trips its account and intent
+tests/server/platform-account-management-repository.test.ts	a second subject for the same provider on one account is a provider conflict
+tests/server/platform-account-management-repository.test.ts	a stale migration expectation reports state-conflict
+tests/server/platform-account-management-repository.test.ts	a stale status revision reports conflict with the current projection
+tests/server/platform-account-management-repository.test.ts	a subject owned by another account is refused without a write
+tests/server/platform-account-management-repository.test.ts	a wrong binding code leaves the credential unwritten
+tests/server/platform-account-management-repository.test.ts	activating a restricted account is unsupported
+tests/server/platform-account-management-repository.test.ts	admin listing searches by id, email and display name and excludes deleted accounts
+tests/server/platform-account-management-repository.test.ts	an app state carries its challenge and survives the read-only return-channel lookup
+tests/server/platform-account-management-repository.test.ts	an exchange code is consumed exactly once
+tests/server/platform-account-management-repository.test.ts	an expired exchange code is not returned
+tests/server/platform-account-management-repository.test.ts	binding a second credential for one account is already-bound and keeps the code
+tests/server/platform-account-management-repository.test.ts	binding a taken address reports email-conflict and rolls the code back
+tests/server/platform-account-management-repository.test.ts	binding an email credential consumes the code and survives a password hash
+tests/server/platform-account-management-repository.test.ts	forcing a logout revokes every live session and is idempotent
+tests/server/platform-account-management-repository.test.ts	linking an identity writes the row and its audit event
+tests/server/platform-account-management-repository.test.ts	linking to a missing or inactive account is not found
+tests/server/platform-account-management-repository.test.ts	migrating an email keeps the password hash, algorithm and salt
+tests/server/platform-account-management-repository.test.ts	migrating without a bound credential reports not-bound
+tests/server/platform-account-management-repository.test.ts	re-linking the same subject to the same account is idempotent
+tests/server/platform-account-management-repository.test.ts	reactivating a suspended account restores it without bumping twice
+tests/server/platform-account-management-repository.test.ts	suspending an account bumps the token version and revokes live sessions atomically
+tests/server/platform-account-management-repository.test.ts	two concurrent binds for one account produce exactly one credential
+tests/server/platform-account-management-repository.test.ts	two concurrent links of one subject resolve to exactly one owner
+tests/server/platform-account-management-repository.test.ts	two unlinks cannot strip every login method
+tests/server/platform-account-security.contract.test.ts	a disabled provider does not count as a surviving login method
+tests/server/platform-account-security.contract.test.ts	a password makes a sole OAuth link removable
+tests/server/platform-account-security.contract.test.ts	a password-less account cannot unlink its only provider
+tests/server/platform-account-security.contract.test.ts	a restricted account cannot write, but can still read its devices
+tests/server/platform-account-security.contract.test.ts	a session owned by another account cannot be revoked
+tests/server/platform-account-security.contract.test.ts	a successful password change keeps this session and drops the others
+tests/server/platform-account-security.contract.test.ts	a wrong current password is refused without disturbing the account
+tests/server/platform-account-security.contract.test.ts	account security endpoints carry their own rate limit buckets
+tests/server/platform-account-security.contract.test.ts	an account without an email credential cannot change a password
+tests/server/platform-account-security.contract.test.ts	an empty provider string is reported as no value, not as a blank name
+tests/server/platform-account-security.contract.test.ts	an unknown provider and another account's link are both just missing
+tests/server/platform-account-security.contract.test.ts	anonymous and restricted callers cannot unlink
+tests/server/platform-account-security.contract.test.ts	cookie callers must present a matching CSRF token
+tests/server/platform-account-security.contract.test.ts	cookie callers must present a matching CSRF token to unlink
+tests/server/platform-account-security.contract.test.ts	packaged clients receive the rotated tokens in the body
+tests/server/platform-account-security.contract.test.ts	password change refuses to reuse the current password
+tests/server/platform-account-security.contract.test.ts	password change rejects array body
+tests/server/platform-account-security.contract.test.ts	password change rejects blank current password
+tests/server/platform-account-security.contract.test.ts	password change rejects malformed JSON
+tests/server/platform-account-security.contract.test.ts	password change rejects missing current password
+tests/server/platform-account-security.contract.test.ts	password change rejects missing new password
+tests/server/platform-account-security.contract.test.ts	password change rejects new password over 128 characters
+tests/server/platform-account-security.contract.test.ts	password change rejects new password over 72 UTF-8 bytes
+tests/server/platform-account-security.contract.test.ts	password change rejects new password under 8 characters
+tests/server/platform-account-security.contract.test.ts	password change rejects non-string new password
+tests/server/platform-account-security.contract.test.ts	password change rejects null body
+tests/server/platform-account-security.contract.test.ts	password change rejects null new password
+tests/server/platform-account-security.contract.test.ts	password change rejects unknown field
+tests/server/platform-account-security.contract.test.ts	password change requires a JSON content type
+tests/server/platform-account-security.contract.test.ts	platform account security raw JSON conforms across password, sessions, and OAuth unlink
+tests/server/platform-account-security.contract.test.ts	platform account security rejects anonymous callers
+tests/server/platform-account-security.contract.test.ts	revoking one session only reaches this account
+tests/server/platform-account-security.contract.test.ts	signing out everywhere else keeps the calling session
+tests/server/platform-account-security.contract.test.ts	the OAuth link endpoints carry their own rate limit buckets
+tests/server/platform-account-security.contract.test.ts	the OAuth link list never exposes the third-party subject
+tests/server/platform-account-security.contract.test.ts	the link list reports whether a password exists at all
+tests/server/platform-account-security.contract.test.ts	the session list never exposes a session secret
+tests/server/platform-account-security.contract.test.ts	without a password, one of two enabled links can still go
+tests/server/platform-email-auth.contract.test.ts	Platform email auth routes use independent IP rate-limit buckets
+tests/server/platform-email-auth.contract.test.ts	bcrypt rejects passwords beyond 72 UTF-8 bytes instead of truncating
+tests/server/platform-email-auth.contract.test.ts	bearer callers get tokens from registration and login, cookie callers do not
+tests/server/platform-email-auth.contract.test.ts	cache failure falls through to SQL cooldown with exact Retry-After
+tests/server/platform-email-auth.contract.test.ts	configured resend intervals and unknown password reset responses come from PostgreSQL
+tests/server/platform-email-auth.contract.test.ts	durable HTTP enqueue is completed by a fresh worker runner
+tests/server/platform-email-auth.contract.test.ts	email auth strictly validates JSON shapes and credential fields
+tests/server/platform-email-auth.contract.test.ts	login account limiting shares a normalized digest across rotating IPs before lookup
+tests/server/platform-email-auth.contract.test.ts	login returns one generic credential error and rejects blocked account states
+tests/server/platform-email-auth.contract.test.ts	long migrated PBKDF2 passwords authenticate without unsafe bcrypt upgrade
+tests/server/platform-email-auth.contract.test.ts	migrated PBKDF2 accepts only the declared Fudaba parameter contract
+tests/server/platform-email-auth.contract.test.ts	migrated PBKDF2 credential logs in once and upgrades with bcrypt CAS
+tests/server/platform-email-auth.contract.test.ts	password reset cooldown is enumeration-safe with missing or failing cache
+tests/server/platform-email-auth.contract.test.ts	password reset responses preserve exact JSON and reject invalid API email grammar
+tests/server/platform-email-auth.contract.test.ts	real PostgreSQL failed resend preserves old code across repository instances
+tests/server/platform-email-auth.contract.test.ts	real PostgreSQL keeps registration atomic under normalized email races
+tests/server/platform-email-auth.contract.test.ts	registration verification is hashed, cached, atomically consumed, and single use
+tests/server/platform-email-auth.contract.test.ts	session fencing returns account unavailable without writing cookies
+tests/server/platform-email-auth.contract.test.ts	verification enqueue failure returns purpose-specific unavailable response
+tests/server/platform-email-auth.contract.test.ts	verification requests enqueue without SMTP and staged codes remain unusable
+tests/server/platform-email-binding.contract.test.ts	OAuth link start demands a session
+tests/server/platform-email-binding.contract.test.ts	OAuth link start writes an intent=link state and redirects to the provider
+tests/server/platform-email-binding.contract.test.ts	a provider denial on a link+app state keeps flow=link
+tests/server/platform-email-binding.contract.test.ts	a provider that cannot build an authorization URL writes no state
+tests/server/platform-email-binding.contract.test.ts	a refused app link callback returns an error with flow=link
+tests/server/platform-email-binding.contract.test.ts	a web link callback still returns to account security with a reason
+tests/server/platform-email-binding.contract.test.ts	an app link callback returns a one-time code with flow=link
+tests/server/platform-email-binding.contract.test.ts	an unavailable provider returns to account security with a reason
+tests/server/platform-email-binding.contract.test.ts	app OAuth link start demands a bearer session
+tests/server/platform-email-binding.contract.test.ts	app OAuth link start rejects an unknown body key
+tests/server/platform-email-binding.contract.test.ts	app OAuth link start rejects an unusable challenge
+tests/server/platform-email-binding.contract.test.ts	app OAuth link start reports an unavailable provider
+tests/server/platform-email-binding.contract.test.ts	app OAuth link start returns the provider URL and records an app state
+tests/server/platform-email-binding.contract.test.ts	binding a second email for an account already bound is refused
+tests/server/platform-email-binding.contract.test.ts	binding requires a valid code and leaves no credential on failure
+tests/server/platform-email-binding.contract.test.ts	changing an email needs the current password and keeps the credential on refusal
+tests/server/platform-email-binding.contract.test.ts	changing an email on a provider-only account reports not-bound
+tests/server/platform-email-binding.contract.test.ts	changing an email preserves the password hash and every live session
+tests/server/platform-email-binding.contract.test.ts	changing to an address owned by another account is refused without a partial write
+tests/server/platform-email-binding.contract.test.ts	email binding and OAuth link start use their own account-dimension buckets
+tests/server/platform-email-binding.contract.test.ts	email binding rejects anonymous callers on every route
+tests/server/platform-email-binding.contract.test.ts	platform email binding raw JSON conforms across read, code, and bind
+tests/server/platform-email-binding.contract.test.ts	sending a code for an address owned by another account is refused up front
+tests/server/platform-email-binding.contract.test.ts	the verification code is hashed with the binding domain, not the registration one
+tests/server/platform-email-cache.test.ts	email cooldown cache operations abort when the backend never settles
+tests/server/platform-email-cache.test.ts	password reset cooldown uses the same strict snapshot without exposing email
+tests/server/platform-email-cache.test.ts	platform email cooldown can be cleared after delivery or registration
+tests/server/platform-email-cache.test.ts	platform email cooldown rejects malformed records and fails open when unavailable
+tests/server/platform-email-cache.test.ts	platform email cooldown uses an anonymous key, strict snapshot, and deadline TTL
+tests/server/platform-email-delivery-repository.test.ts	a 30-second policy supersedes queued, retrying, and running deliveries
+tests/server/platform-email-delivery-repository.test.ts	anonymous cooldown survives account creation and uses the next policy after expiry
+tests/server/platform-email-delivery-repository.test.ts	competing claims, lease expiry, renewal, and stale owners are fenced
+tests/server/platform-email-delivery-repository.test.ts	completion-first and supersession-first ordering preserve the intended candidate
+tests/server/platform-email-delivery-repository.test.ts	failed resend preserves the active code and missing candidates never retry
+tests/server/platform-email-delivery-repository.test.ts	password reset activation uses acceptance time and remains unusable while queued
+tests/server/platform-email-delivery-repository.test.ts	password reset request cooldown serializes simultaneous first requests
+tests/server/platform-email-delivery-repository.test.ts	password reset request cooldowns are durable, anonymous, and preserve legacy authority
+tests/server/platform-email-delivery-repository.test.ts	password reset supersession and terminal failure preserve the active code
+tests/server/platform-email-delivery-repository.test.ts	registration enqueue is atomic, encrypted, and unusable until delivery completes
+tests/server/platform-email-delivery-repository.test.ts	retry, attempt, deadline, expiry, and retention limits are enforced
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery classifies only bounded failure evidence
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery closes the transport when its abort signal fires
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery contains a rejection that arrives after deadline closure
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery contains unexpected factory, DNS, and configuration-store errors
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery enforces one absolute deadline across database, DNS, transport, and send
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery pins a public DNS address while retaining the TLS hostname
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery rejects IPv4 and IPv6 non-public DNS answers
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery rejects acceptance resolved after the absolute deadline
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery requires explicit acceptance of the intended recipient
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher preserves multibyte recipients
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher rejects authenticated ciphertext tampering
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher round trips one prepared delivery identity
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher separates credential context and authenticates identity
+tests/server/platform-email-job-payload.test.ts	platform email job payload purpose fixes the verification lifetime
+tests/server/platform-email-resend-policy-cache.test.ts	Valkey resend policy cache rejects delayed stale fills and refreshes equal revisions
+tests/server/platform-email-resend-policy-cache.test.ts	Valkey resend policy cache replaces malformed data and validates replies
+tests/server/platform-email-resend-policy-cache.test.ts	Valkey resend policy cache shares revisions across adapter instances
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader aborts stalled Valkey reads and refills
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader falls back to PostgreSQL when Valkey reads and refills fail
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader refills a cache miss with the PostgreSQL revision
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader uses a strict cache hit without reading PostgreSQL
+tests/server/platform-email-settings-contract.test.ts	SMTP administration contracts enforce resend cooldown bounds
+tests/server/platform-email-settings-contract.test.ts	SMTP administration returns contract-checked conflicts and strict request errors
+tests/server/platform-email-settings-contract.test.ts	mounted SMTP administration enforces super-admin auth and exact contracts

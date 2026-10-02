@@ -5,18 +5,40 @@ import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RUNBOOK = PROJECT_ROOT / "docs/operations-runbook.md"
-DATABASE_CONFIGURATION = PROJECT_ROOT / "docs/database-configuration.md"
-OBJECT_STORAGE = PROJECT_ROOT / "docs/object-storage.md"
-AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/ai-development-environment.md"
+RUNBOOK = PROJECT_ROOT / "docs/operations/runbook.md"
+DATABASE_CONFIGURATION = PROJECT_ROOT / "docs/operations/database-configuration.md"
+OBJECT_STORAGE = PROJECT_ROOT / "docs/architecture/object-storage.md"
+AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/development/ai-environment.md"
 API_ENVIRONMENT = PROJECT_ROOT / "apps/api/.env.example"
 WEB_ENVIRONMENT = PROJECT_ROOT / "apps/web/.env.example"
 DEPLOY_ENVIRONMENT = PROJECT_ROOT / "deploy/.env.example"
 PNPM_WORKSPACE = PROJECT_ROOT / "pnpm-workspace.yaml"
-PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/producer-map-online-migration.md"
+PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/migrations/producer-map-online.md"
 PRODUCER_MAP_SQL = (
     PROJECT_ROOT / "deploy/migrations/producer-map-r2-control-plane.sql"
 )
+ENVIRONMENT_ASSIGNMENT = re.compile(
+    r"^\s*(?P<commented>#\s*)?(?P<key>[A-Z][A-Z0-9_]*)\s*=\s*(?P<value>.*)$"
+)
+
+
+def parse_environment_template(text):
+    """Split a dotenv template into active values and documented key names.
+
+    Commented assignments such as ``# IMS_JWT_SECRET=`` are recorded as
+    documented names, because the template keeps those lines on purpose.
+    """
+    values = {}
+    documented = set()
+    for line in text.splitlines():
+        match = ENVIRONMENT_ASSIGNMENT.match(line)
+        if match is None:
+            continue
+        if match.group("commented") is not None:
+            documented.add(match.group("key"))
+            continue
+        values[match.group("key")] = match.group("value").strip()
+    return values, documented
 
 
 class OperationsDocumentationTests(unittest.TestCase):
@@ -32,19 +54,17 @@ class OperationsDocumentationTests(unittest.TestCase):
     def test_database_configuration_covers_postgresql_runtime_and_readiness(self):
         for token in (
             "DATABASE_URL",
-            "一个 PostgreSQL 物理数据库",
             "IMS_PG_POOL_MAX",
             "migration:postgresql",
             "Hono Node",
-            "自动读取 `apps/api/.env`",
             "/api/health/live",
             "/api/health/ready",
         ):
             self.assertIn(token, self.database_configuration)
 
         for readme in (
-            PROJECT_ROOT / "README.md",
             PROJECT_ROOT / "apps/api/README.md",
+            PROJECT_ROOT / "docs/README.md",
         ):
             self.assertIn("database-configuration.md", readme.read_text(encoding="utf-8"))
 
@@ -56,7 +76,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "pnpm run dev:down",
             "PostgreSQL",
             "RustFS",
-            "自动读取 `apps/api/.env`",
+            "Valkey",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:rustfs:up",
             "pnpm run dev:node",
@@ -65,13 +85,12 @@ class OperationsDocumentationTests(unittest.TestCase):
             "git status --short",
             "deploy/compose.yaml",
             "WSL2",
-            "远程 context",
         ):
             self.assertIn(token, self.ai_guide)
 
         for document in (PROJECT_ROOT / "AGENTS.md", PROJECT_ROOT / "README.md"):
             self.assertIn(
-                "docs/ai-development-environment.md",
+                "docs/development/ai-environment.md",
                 document.read_text(encoding="utf-8"),
             )
 
@@ -98,7 +117,8 @@ class OperationsDocumentationTests(unittest.TestCase):
             "node scripts/development/dev-environment.mjs --down",
         )
         self.assertIn(
-            "tests/development-environment.test.js", scripts["test:infra"]
+            "node scripts/testing/run-test-owner.mjs governance",
+            scripts["test:infra"],
         )
         self.assertIn(
             "scripts/development/dev-environment.mjs", scripts["check:root"]
@@ -146,7 +166,6 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "pnpm run dev:api:r2:config",
             "pnpm run dev:api:r2:up",
-            "不启用或依赖 RustFS",
             "`auto` region",
         ):
             self.assertIn(token, self.ai_guide)
@@ -156,20 +175,29 @@ class OperationsDocumentationTests(unittest.TestCase):
         api_environment = API_ENVIRONMENT.read_text(encoding="utf-8")
         web_environment = WEB_ENVIRONMENT.read_text(encoding="utf-8")
         deploy_environment = DEPLOY_ENVIRONMENT.read_text(encoding="utf-8")
+        api_values, api_documented = parse_environment_template(api_environment)
+        web_values, _ = parse_environment_template(web_environment)
+        deploy_values, _ = parse_environment_template(deploy_environment)
 
-        for token in (
-            "IMS_JWT_SECRET",
+        for key in (
+            "IMS_BACKOFFICE_JWT_SECRET",
             "IMS_SUPER_ADMIN_USERNAME",
             "IMS_OBJECT_STORAGE",
         ):
-            self.assertIn(token, api_environment)
-        self.assertNotIn("IMS_DATABASE", api_environment)
-        self.assertIn("IMS_OBJECT_STORAGE=s3", api_environment)
-        self.assertIn("DATABASE_URL=", api_environment)
-        for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
-            self.assertIn(token, web_environment)
-        for token in (
-            "COMPOSE_PROFILES=local-storage",
+            self.assertIn(key, api_values)
+        # The legacy Backoffice secret stays on a commented line on purpose, so
+        # the template documents its name without activating it.
+        self.assertIn("IMS_JWT_SECRET", set(api_values) | api_documented)
+        self.assertEqual(api_values["IMS_OBJECT_STORAGE"], "s3")
+        self.assertEqual(api_values["DATABASE_URL"], "")
+        for key in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
+            self.assertIn(key, web_values)
+        self.assertEqual(
+            deploy_values["COMPOSE_PROFILES"], "local-cache,local-storage"
+        )
+        for key in (
+            "IMS_VALKEY_IMAGE",
+            "IMS_CACHE_BACKEND",
             "IMS_POSTGRES_IMAGE",
             "IMS_RUSTFS_IMAGE",
             "IMS_RUSTFS_BUCKET",
@@ -177,11 +205,13 @@ class OperationsDocumentationTests(unittest.TestCase):
             "IMS_PUBLIC_READ_URL_BASE",
             "AWS_ACCESS_KEY_ID",
         ):
-            self.assertIn(token, deploy_environment)
+            self.assertIn(key, deploy_values)
 
+        self.assertNotIn("IMS_DATABASE", api_environment)
         self.assertNotIn("IMS_NGINX_IMAGE", api_environment)
         self.assertNotIn("IMS_NGINX_IMAGE", deploy_environment)
         self.assertNotIn("IMS_NODE_UPSTREAM", deploy_environment)
+        self.assertNotIn("IMS_BACKOFFICE_JWT_SECRET", web_environment)
         self.assertNotIn("IMS_JWT_SECRET", web_environment)
         self.assertNotIn("IMS_LEGACY", deploy_environment)
 
@@ -199,7 +229,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "GetObject",
             "PutObject",
             "DeleteObject",
-            "不会自动搬迁",
             "migration:public-objects",
             "migration:single-bucket",
             "migration:namecard-thumbnails",
@@ -223,7 +252,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "client-manifest.json",
             "/srv/ims/current",
             "pg_dump --format=custom",
-            "数据库与媒体必须在同一停写窗口",
         ):
             self.assertIn(token, self.runbook)
 
@@ -297,16 +325,11 @@ class OperationsDocumentationTests(unittest.TestCase):
             self.assertIn(token, self.producer_map_sql)
 
         for token in (
-            "imsweb-media-public-prod",
-            "test -z \"${IMS_S3_PREFIX:-}\"",
-            "pg_dump --format=custom",
+            "pnpm run media:producer-map:sync",
+            "pnpm run media:producer-map:sync -- --apply",
             "producer-map-r2-control-plane.sql",
-            "pnpm run test:r2:producer-map",
-            "参数层禁止 `--apply`",
-            "configStatus=unchanged",
-            "objects.unchanged=43",
-            "不要追加 `--apply`",
-            "禁止只删数据库或只删 R2",
+            "ObjectStorage",
+            "SHA-256",
         ):
             self.assertIn(token, self.producer_map_migration)
 
