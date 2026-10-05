@@ -468,6 +468,7 @@ test.describe("community exchange me", () => {
   test("edits the authenticated profile and card without viewport overflow @mobile", async ({
     page,
     isMobile,
+    api: dispatcher,
   }, testInfo) => {
     const consoleErrors: string[] = []
     page.on("console", (message) => {
@@ -676,11 +677,35 @@ test.describe("community exchange me", () => {
     await expect(page.getByText("西岸艺术中心入口").first()).toBeVisible()
     await expect(page.getByRole("spinbutton")).toHaveCount(0)
 
-    await page.getByRole("textbox", { name: "搜索地点" }).fill("首钢园")
-    await page.getByRole("button", { name: "搜索" }).click()
-    await page.getByRole("button", { name: /首钢园.*石景山区/ }).click()
-
     const officeName = page.getByRole("textbox", { name: "事务所名称" })
+    const officeIntro = page.getByRole("textbox", { name: "事务所介绍" })
+    await officeName.fill("尚未保存的浏览器事务所")
+    await officeIntro.fill("尚未保存的线下说明")
+    const placeQuery = page.getByRole("textbox", { name: "搜索地点" })
+    await placeQuery.fill("首钢园")
+    await placeQuery.press("Enter")
+    await page.getByRole("button", { name: /首钢园.*石景山区/ }).click()
+    await expect(officeName).toHaveValue("尚未保存的浏览器事务所")
+    await expect(officeIntro).toHaveValue("尚未保存的线下说明")
+    await expect(page.getByRole("textbox", { name: "城市" })).toHaveValue(
+      "北京市"
+    )
+    expect(
+      dispatcher.requests({
+        method: "PUT",
+        path: "/api/community/exchange/me/offices/office-1",
+      })
+    ).toHaveLength(0)
+    expect(
+      dispatcher.requests({
+        method: "PUT",
+        path: "/api/community/exchange/me/offices/office-1/location",
+      })
+    ).toHaveLength(0)
+    await page.screenshot({
+      path: testInfo.outputPath("office-place-search-preserved-draft.png"),
+      fullPage: true,
+    })
     await officeName.fill("更新后的浏览器事务所")
     await page.getByRole("button", { name: "保存事务所" }).click()
     await expect(page.getByText("事务所资料已保存。")).toBeVisible()

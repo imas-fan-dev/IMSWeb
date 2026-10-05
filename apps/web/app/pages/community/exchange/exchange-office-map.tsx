@@ -24,6 +24,7 @@ import {
 import {
   getFudabaChinaBoundaryDashSource,
   resolveMapTransportOrigin,
+  type FudabaPlaceSearchResult,
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
@@ -230,6 +231,7 @@ export interface ExchangeOfficeMapProps {
   styleUrl: string
   groups: FudabaMapOfficeGroup[]
   selectedGroupKey: string | null
+  selectedPlace?: FudabaPlaceSearchResult | null
   onSelectGroup: (groupKey: string) => void
   onViewportChange: (bounds: ReturnType<typeof splitViewportBounds>) => void
   onFatalError: (error: Error) => void
@@ -516,6 +518,7 @@ export function ExchangeOfficeMap({
   styleUrl,
   groups,
   selectedGroupKey,
+  selectedPlace,
   onSelectGroup,
   onViewportChange,
   onFatalError,
@@ -533,6 +536,7 @@ export function ExchangeOfficeMap({
   const attributionSignatureRef = useRef<string | null>(null)
   const refreshMarkersRef = useRef<() => void>(() => undefined)
   const userLocationMarkerRef = useRef<Marker | null>(null)
+  const searchMarkerRef = useRef<Marker | null>(null)
   const locationRequestRef = useRef(0)
   const fatalErrorSentRef = useRef(false)
   const [locationState, setLocationState] = useState<{
@@ -953,6 +957,37 @@ export function ExchangeOfficeMap({
       refreshMarkersRef.current = () => undefined
     }
   }, [styleUrl])
+
+  useEffect(() => {
+    const map = mapRef.current
+    searchMarkerRef.current?.remove()
+    searchMarkerRef.current = null
+    if (!map || !selectedPlace) return
+    const center: [number, number] = [
+      selectedPlace.location.longitude,
+      selectedPlace.location.latitude,
+    ]
+    const element = document.createElement("div")
+    element.className =
+      "size-5 rounded-full border-3 border-background bg-primary shadow-md"
+    element.setAttribute("role", "img")
+    element.setAttribute("aria-label", `搜索地点：${selectedPlace.label}`)
+    searchMarkerRef.current = new Marker({ element, anchor: "center" })
+      .setLngLat(center)
+      .addTo(map)
+    map.easeTo({
+      center,
+      zoom: 13,
+      duration: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? 0
+        : 900,
+      essential: false,
+    })
+    return () => {
+      searchMarkerRef.current?.remove()
+      searchMarkerRef.current = null
+    }
+  }, [selectedPlace, styleUrl])
 
   useEffect(() => {
     const map = mapRef.current

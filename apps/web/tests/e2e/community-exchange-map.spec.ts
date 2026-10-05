@@ -183,6 +183,122 @@ test.beforeEach(async ({ page, api }, testInfo) => {
 
 test.describe("community exchange map", () => {
   test(
+    "searches a place explicitly and recenters the public map",
+    { tag: "@mobile" },
+    async ({ page }, testInfo) => {
+      test.skip(
+        testInfo.project.name === "firefox-desktop",
+        "MapLibre success requires stable WebGL"
+      )
+      await api.mockRoute(
+        "/api/community/exchange/map/config",
+        (route) =>
+          route.fulfill({
+            json: { styleUrl: "/maps/exchange-test-style.json" },
+          }),
+        "GET"
+      )
+      const mapQueries: URL[] = []
+      await api.mockRoute(
+        "**/api/community/exchange/map/offices?*",
+        (route) => {
+          mapQueries.push(new URL(route.request().url()))
+          return route.fulfill({ json: { items: [], truncated: false } })
+        },
+        "GET",
+        { min: 2, max: 8 }
+      )
+      const placeQueries: string[] = []
+      await api.mockRoute(
+        "**/api/community/exchange/places/search?*",
+        (route) => {
+          placeQueries.push(
+            new URL(route.request().url()).searchParams.get("q") ?? ""
+          )
+          return route.fulfill({
+            json: {
+              success: true,
+              items: [
+                {
+                  id: "relation:913067",
+                  label: "上海市",
+                  address: "上海市, 中国",
+                  city: "上海市",
+                  location: {
+                    latitude: 31.2312707,
+                    longitude: 121.4700152,
+                    precision: "exact",
+                  },
+                },
+              ],
+              attribution: "© OpenStreetMap contributors",
+            },
+          })
+        },
+        "GET",
+        1
+      )
+      await page.goto("/community/exchange/")
+      await expect(page.locator("[data-exchange-office-map]")).toHaveAttribute(
+        "data-map-state",
+        "ready",
+        { timeout: 15_000 }
+      )
+      const trigger = page.getByRole("button", {
+        name: "查找地点",
+        exact: true,
+      })
+      await trigger.click()
+      const query = page.getByRole("textbox", { name: "搜索地点" })
+      await query.fill("上海市")
+      expect(placeQueries).toHaveLength(0)
+      await query.press("Enter")
+      const result = page.getByRole("button", {
+        name: "上海市 上海市, 中国",
+        exact: true,
+      })
+      await expect(result).toBeVisible()
+      expect(placeQueries).toEqual(["上海市"])
+      await result.click()
+      await expect(
+        page.getByRole("status").filter({ hasText: "已定位：上海市" })
+      ).toBeVisible()
+      await expect(trigger).toBeFocused()
+      await expect(
+        page.getByRole("img", { name: "搜索地点：上海市" })
+      ).toBeVisible()
+      await expect
+        .poll(() =>
+          mapQueries.some((url) => {
+            const [west, south, east, north] = (
+              url.searchParams.get("bbox") ?? ""
+            )
+              .split(",")
+              .map(Number)
+            return (
+              west < 121.4700152 &&
+              east > 121.4700152 &&
+              south < 31.2312707 &&
+              north > 31.2312707 &&
+              east - west < 1
+            )
+          })
+        )
+        .toBe(true)
+      const geometry = await trigger.boundingBox()
+      expect(geometry).not.toBeNull()
+      expect(geometry!.x).toBeGreaterThanOrEqual(0)
+      expect(geometry!.x + geometry!.width).toBeLessThanOrEqual(
+        page.viewportSize()!.width
+      )
+      await page.getByRole("button", { name: "清除搜索地点" }).click()
+      await expect(
+        page.getByRole("img", { name: "搜索地点：上海市" })
+      ).toHaveCount(0)
+    }
+  )
+
+  test(
     "fills the public workspace with a responsive map and keeps both directories reachable",
     {
       tag: "@mobile",

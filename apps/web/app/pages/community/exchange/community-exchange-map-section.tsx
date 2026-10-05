@@ -4,6 +4,7 @@ import {
   MapIcon,
   MapPinOffIcon,
   RefreshCwIcon,
+  SearchIcon,
   XIcon,
 } from "lucide-react"
 import {
@@ -32,6 +33,7 @@ import {
   type FudabaMapBounds,
   type FudabaMapOffice,
   type FudabaSeries,
+  type FudabaPlaceSearchResult,
 } from "~/lib/api"
 import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
@@ -43,6 +45,7 @@ import {
 import type { ExchangeMapAttribution } from "./exchange-map-attribution"
 import type { ExchangeOfficeMapProps } from "./exchange-office-map"
 import { NavigationLink } from "~/components/navigation/navigation-link"
+import { ExchangePlaceSearch } from "./exchange-place-search"
 
 type MapComponent = ComponentType<ExchangeOfficeMapProps>
 type ConfigState =
@@ -226,6 +229,10 @@ export function CommunityExchangeMapSection({
   const [data, setData] = useState<MapDataState>(initialDataState)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [selectedPlace, setSelectedPlace] =
+    useState<FudabaPlaceSearchResult | null>(null)
+  const searchTriggerRef = useRef<HTMLButtonElement>(null)
   const configGeneration = useRef(0)
   const dataGeneration = useRef(0)
   const lastBoundsRef = useRef<FudabaMapBounds[] | null>(null)
@@ -389,11 +396,74 @@ export function CommunityExchangeMapSection({
           styleUrl={config.styleUrl}
           groups={groups}
           selectedGroupKey={selectedGroupKey}
+          selectedPlace={selectedPlace}
           onSelectGroup={selectGroup}
           onViewportChange={(bounds) => void loadBounds(bounds)}
           onFatalError={handleFatalError}
           onAttributionChange={onAttributionChange}
         />
+      ) : null}
+
+      {config.phase === "ready" && MapComponent && !mapFailure ? (
+        <div
+          className={cn(
+            "absolute left-3 z-10 w-[min(22rem,calc(100%-1.5rem))]",
+            IS_APP_TARGET
+              ? "top-[calc(var(--app-header-inset)+3.75rem)]"
+              : "top-29 sm:top-31 lg:top-15"
+          )}
+        >
+          <Button
+            ref={searchTriggerRef}
+            type="button"
+            variant="outline"
+            className="bg-background/95 shadow-sm"
+            aria-expanded={searchOpen}
+            aria-controls={searchOpen ? "exchange-map-place-search" : undefined}
+            onClick={() => setSearchOpen((value) => !value)}
+          >
+            <SearchIcon aria-hidden="true" />
+            查找地点
+          </Button>
+          {searchOpen ? (
+            <div
+              id="exchange-map-place-search"
+              className="mt-2 max-h-[min(28rem,55dvh)] overflow-y-auto rounded-lg border bg-background/97 p-3 shadow-md backdrop-blur-sm"
+            >
+              <ExchangePlaceSearch
+                onSelect={(place) => {
+                  setSelectedPlace(place)
+                  setSelectedGroupKey(null)
+                  setMobileSheetOpen(false)
+                  setSearchOpen(false)
+                  searchTriggerRef.current?.focus()
+                }}
+              />
+            </div>
+          ) : null}
+          {selectedPlace && !searchOpen ? (
+            <div
+              role="status"
+              className="mt-2 flex items-start gap-2 rounded-lg border bg-background/95 p-2 text-sm shadow-sm"
+            >
+              <span className="min-w-0 flex-1 wrap-break-word">
+                已定位：{selectedPlace.label}
+                <span className="block text-xs text-muted-foreground">
+                  © OpenStreetMap contributors
+                </span>
+              </span>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label="清除搜索地点"
+                onClick={() => setSelectedPlace(null)}
+              >
+                <XIcon aria-hidden="true" />
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {mapFailure ? (

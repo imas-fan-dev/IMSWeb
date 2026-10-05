@@ -227,6 +227,15 @@
       "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "Fudaba public-read and owner-write flags remain independent" }
     },
     {
+      "id": "FUDABA-PLACE-SEARCH-POLICY-01",
+      "sourceFile": "apps/api/src/domains/community/fudaba/locations/place-search-policy.ts",
+      "symbol": "requireFudabaPlaceSearch",
+      "responseKind": "compatibility-text-error",
+      "reason": "Place search preserves the existing concealed disabled write response when public map reading is unavailable.",
+      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the existing place-search text/plain 404 when no search access branch is enabled." },
+      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "public map place search is read-only, requires both rollout flags, and shares provider cache and limits" }
+    },
+    {
       "id": "FUDABA-OWNER-UPLOAD-SIDE-01",
       "sourceFile": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
       "symbol": "handleUploadFudabaOwnedMedia",

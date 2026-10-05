@@ -141,6 +141,16 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("USER node", dockerfile)
         self.assertIn('CMD ["node", "apps/api/dist/server/main.js"]', dockerfile)
 
+    def test_api_forwards_geocoder_configuration_without_enabling_a_default_provider(self):
+        compose = COMPOSE_PATH.read_text(encoding="utf-8")
+        api = compose.split("\n  api:\n", maxsplit=1)[1]
+        for token in (
+            "IMS_FUDABA_GEOCODING_ENDPOINT: ${IMS_FUDABA_GEOCODING_ENDPOINT-}",
+            "IMS_FUDABA_GEOCODING_USER_AGENT: ${IMS_FUDABA_GEOCODING_USER_AGENT-}",
+            "IMS_FUDABA_GEOCODING_COUNTRY_CODES: ${IMS_FUDABA_GEOCODING_COUNTRY_CODES:-cn}",
+        ):
+            self.assertIn(token, api)
+
     def test_rustfs_creates_one_public_bucket_with_a_protected_prefix(self):
         compose = COMPOSE_PATH.read_text(encoding="utf-8")
         policy = (PROJECT_ROOT / "deploy/rustfs-public-policy.json").read_text(

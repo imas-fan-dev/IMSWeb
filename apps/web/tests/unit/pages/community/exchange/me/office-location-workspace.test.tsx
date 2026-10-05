@@ -214,6 +214,29 @@ describe("OfficeLocationWorkspace", () => {
     apiMocks.sendLocationWithdrawal.mockResolvedValue({ success: true })
   })
 
+  it("searches with Enter without saving and preserves unrelated unsaved office fields when selecting", async () => {
+    const user = userEvent.setup()
+    renderWorkspace()
+    const officeName = await screen.findByRole("textbox", {
+      name: "事务所名称",
+    })
+    await user.clear(officeName)
+    await user.type(officeName, "尚未保存的事务所")
+    await user.type(
+      screen.getByRole("textbox", { name: "搜索地点" }),
+      "西岸艺术中心"
+    )
+    await user.keyboard("{Enter}")
+    expect(apiMocks.searchFudabaPlaces).toHaveBeenCalledWith("西岸艺术中心")
+    expect(apiMocks.updateFudabaOwnerOffice).not.toHaveBeenCalled()
+    await user.click(
+      await screen.findByRole("button", { name: /西岸艺术中心.*西岸艺术中心/ })
+    )
+    expect(officeName).toHaveValue("尚未保存的事务所")
+    expect(screen.getByRole("textbox", { name: "城市" })).toHaveValue("上海市")
+    expect(apiMocks.updateFudabaOwnerOffice).not.toHaveBeenCalled()
+  })
+
   it("shows addresses while keeping exact and regional coordinates out of the UI", async () => {
     const user = userEvent.setup()
     renderWorkspace()

@@ -6,6 +6,8 @@ import {
   fudabaMapQuerySchema,
   fudabaOfficePageSchema,
   fudabaOfficeQuerySchema,
+  fudabaPlaceSearchQuerySchema,
+  fudabaPlaceSearchResponseSchema,
   fudabaSeriesListSchema,
 } from "@imsweb/contracts/fudaba"
 
@@ -142,6 +144,102 @@ test.beforeEach(async ({ page }, testInfo) => {
 })
 
 test.describe("app map", () => {
+  test(
+    "selects a searched place without leaving the map and clears its marker",
+    { tag: ["@app-iphone", "@app-landscape"] },
+    async ({ page, api }, testInfo) => {
+      const bounds = installMapMocks(api)
+      api.expect({
+        name: "App explicit place search",
+        method: "GET",
+        path: "/api/community/exchange/places/search",
+        query: fudabaPlaceSearchQuerySchema,
+        responses: { 200: fudabaPlaceSearchResponseSchema },
+        times: 1,
+        handle: () => ({
+          status: 200,
+          json: {
+            success: true,
+            items: [
+              {
+                id: "way:307455604",
+                label: "西岸艺术中心",
+                address: "上海市徐汇区西岸艺术中心",
+                city: "上海市",
+                location: {
+                  latitude: 31.1693193,
+                  longitude: 121.457005,
+                  precision: "exact",
+                },
+              },
+            ],
+            attribution: "© OpenStreetMap contributors",
+          },
+        }),
+      })
+      await page.goto("/community/exchange")
+      await expect(page.locator("[data-exchange-office-map]")).toHaveAttribute(
+        "data-map-state",
+        "ready",
+        { timeout: 15_000 }
+      )
+      await applySafeArea(page)
+      const trigger = page.getByRole("button", {
+        name: "查找地点",
+        exact: true,
+      })
+      await trigger.click()
+      const query = page.getByRole("textbox", { name: "搜索地点" })
+      await query.fill("西岸艺术中心")
+      await page.getByRole("button", { name: "搜索", exact: true }).click()
+      await expect(
+        page.getByText("© OpenStreetMap contributors", { exact: true })
+      ).toBeVisible()
+      const result = page.getByRole("button", {
+        name: /西岸艺术中心.*上海市徐汇区/,
+      })
+      await expect(result).toBeVisible()
+      const box = await result.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box!.x).toBeGreaterThanOrEqual(0)
+      expect(box!.x + box!.width).toBeLessThanOrEqual(
+        page.viewportSize()!.width
+      )
+      expect(box!.y + box!.height).toBeLessThanOrEqual(
+        page.viewportSize()!.height
+      )
+      await page.screenshot({
+        path: testInfo.outputPath("app-map-search-results.png"),
+      })
+      await result.click()
+      await expect(trigger).toBeFocused()
+      await expect(
+        page.getByRole("img", { name: "搜索地点：西岸艺术中心" })
+      ).toBeVisible()
+      await expect
+        .poll(() =>
+          bounds.some((value) => {
+            const [west, south, east, north] = value.split(",").map(Number)
+            return (
+              west < 121.457005 &&
+              east > 121.457005 &&
+              south < 31.1693193 &&
+              north > 31.1693193 &&
+              east - west < 1
+            )
+          })
+        )
+        .toBe(true)
+      await page.screenshot({
+        path: testInfo.outputPath("app-map-selected-place.png"),
+      })
+      await page.getByRole("button", { name: "清除搜索地点" }).click()
+      await expect(
+        page.getByRole("img", { name: "搜索地点：西岸艺术中心" })
+      ).toHaveCount(0)
+    }
+  )
+
   test(
     "uses browser geolocation to return to the current position",
     {

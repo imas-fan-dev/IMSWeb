@@ -10,6 +10,7 @@ import {
     platformCsrf,
 } from "@/middleware/hono-auth";
 import { requireFudabaWrite } from "@/domains/community/fudaba/access-policy";
+import { requireFudabaPlaceSearch } from '@/domains/community/fudaba/locations/place-search-policy';
 import { handleGetFudabaOwnerLocation } from "@/domains/community/fudaba/locations/handlers/get-owner-location";
 import { handleSaveFudabaOwnerLocation } from "@/domains/community/fudaba/locations/handlers/save-owner-location";
 import { handleSearchFudabaPlaces } from "@/domains/community/fudaba/locations/handlers/search-places";
@@ -37,8 +38,7 @@ export function fudabaLocationRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
     routes.get(
         "/places/search",
-        requireFudabaWrite,
-        platformAuth,
+        requireFudabaPlaceSearch,
         querySchemaValidator(fudabaPlaceSearchQuerySchema),
         handleSearchFudabaPlaces,
     );

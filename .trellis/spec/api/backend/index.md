@@ -18,6 +18,7 @@ them.
 | [Authentication](./authentication.md) | Session channels, OAuth flows and the app deep-link return, provider trust, account linking |
 | [Observability and security](./observability-and-security.md) | Request logs, secrets, auth policy, audit and security events, sensitive data |
 | [Testing](./testing.md) | Test placement, focused suites, required gates |
+| [Map place search](./map-place-search.md) | Geocoder configuration, anonymous public map reads, explicit search and location privacy |
 
 ## Pre-Development Checklist
 

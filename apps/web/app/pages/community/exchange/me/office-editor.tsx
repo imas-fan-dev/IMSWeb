@@ -175,6 +175,7 @@ export function OfficeEditor({
             </FieldGroup>
 
             <OfficePlaceSearch
+              key={office?.id ?? "new-office"}
               draft={draft}
               disabled={formDisabled}
               onChange={onChange}

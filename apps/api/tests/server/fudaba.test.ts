@@ -4337,6 +4337,7 @@ import { describe, onTestFinished, test } from 'vitest';
         readonly cache = new ControlledCache();
         readonly rateLimiter = new ControlledRateLimiter();
         readonly geocodingRequests: Array<{ url: URL; headers: Headers }> = [];
+        geocodingAddress: Record<string, string> = { city: "上海市" };
         readonly mapRows: FudabaPublicMapOfficeRecord[] = [
             {
                 id: "map-office-a",
@@ -4592,7 +4593,7 @@ import { describe, onTestFinished, test } from 'vitest';
                                 display_name: "西岸艺术中心，徐汇区，上海市，中国",
                                 lat: "31.1842",
                                 lon: "121.4665",
-                                address: { city: "上海市" },
+                                address: this.geocodingAddress,
                             },
                         ]),
                         {
@@ -4798,8 +4799,8 @@ import { describe, onTestFinished, test } from 'vitest';
             }
         });
 
-        test("place search requires auth, validates input, caches results, and rate limits the provider", async () => {
-            const enabled = new LocationRouteFixture({ geocodingEnabled: true });
+        test("office-only place search requires auth, validates input, caches results, and rate limits the provider", async () => {
+            const enabled = new LocationRouteFixture({ geocodingEnabled: true, mapEnabled: false });
             const searchPath =
                 "/api/community/exchange/places/search?q=" +
                 encodeURIComponent("西岸艺术中心");
@@ -4881,6 +4882,45 @@ import { describe, onTestFinished, test } from 'vitest';
             );
             assert.equal(busy.status, 429);
             assert.equal(busy.headers.get("retry-after"), "60");
+        });
+
+        test("public map place search is read-only, requires both rollout flags, and shares provider cache and limits", async () => {
+            const fixture = new LocationRouteFixture({ geocodingEnabled: true, writeEnabled: false });
+            const path = "http://ims.test/api/community/exchange/places/search?q=" + encodeURIComponent("西岸艺术中心");
+            const anonymous = await fixture.app.request(path);
+            assert.equal(anonymous.status, 200);
+            const body = await contractJson(anonymous, fudabaPlaceSearchResponseSchema);
+            assert.equal(body.items[0]?.location.precision, "exact");
+            assert.equal(fixture.locations.size, 0);
+            const authenticated = await fixture.app.request(path, { headers: platformBearerHeaders() });
+            assert.equal(authenticated.status, 200);
+            assert.deepEqual(await contractJson(authenticated, fudabaPlaceSearchResponseSchema), body);
+            assert.equal(fixture.geocodingRequests.length, 1);
+            assert.equal(fixture.rateLimiter.calls.filter((call) => call.bucket === "fudaba-geocoding-provider").length, 1);
+            fixture.rateLimiter.deniedBuckets.add("fudaba-geocoding-provider");
+            assert.equal((await fixture.app.request("http://ims.test/api/community/exchange/places/search?q=other")).status, 429);
+            // Preserve the existing legacy-strip query policy.
+            assert.equal((await fixture.app.request(path + "&unknown=true")).status, 200);
+            assert.equal((await fixture.app.request("http://ims.test/api/community/exchange/places/search?q=x")).status, 400);
+            for (const flags of [{ publicReadEnabled: false }, { mapEnabled: false }]) {
+                const closed = new LocationRouteFixture({ ...flags, geocodingEnabled: true, writeEnabled: false });
+                assert.equal((await closed.app.request(path)).status, 404);
+                assert.equal(closed.geocodingRequests.length, 0);
+            }
+            assert.equal((await fixture.app.request(`http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`)).status, 401);
+            assert.equal((await fixture.app.request(`http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`, {
+                method: "PUT", headers: platformBearerHeaders({ "content-type": "application/json" }), body: JSON.stringify({ latitude: 31.1842, longitude: 121.4665, revision: null }),
+            })).status, 404);
+        });
+
+        test("place search maps Chinese direct municipalities above the provider district without changing exact coordinates", async () => {
+            const fixture = new LocationRouteFixture({ geocodingEnabled: true });
+            fixture.geocodingAddress = { city: "徐汇区", state: "上海市", country_code: "cn" };
+            const response = await fixture.app.request("http://ims.test/api/community/exchange/places/search?q=" + encodeURIComponent("西岸艺术中心"));
+            assert.equal(response.status, 200);
+            const body = await contractJson(response, fudabaPlaceSearchResponseSchema);
+            assert.equal(body.items[0]?.city, "上海市");
+            assert.deepEqual(body.items[0]?.location, { latitude: 31.1842, longitude: 121.4665, precision: "exact" });
         });
 
         test("mounted claim routes authenticate reads, reject unknown mutation fields, and preserve business errors", async () => {

@@ -84,7 +84,7 @@ function result(place: UpstreamPlace, index: number) {
     const address = text(place.display_name, 240);
     const latitude = coordinate(place.lat, -90, 90);
     const longitude = coordinate(place.lon, -180, 180);
-    const city = addressPart(place.address, [
+    const providerCity = addressPart(place.address, [
         "city",
         "town",
         "village",
@@ -93,6 +93,13 @@ function result(place: UpstreamPlace, index: number) {
         "state",
         "country",
     ]);
+    // Nominatim can label a municipal district (for example 徐汇区) as city.
+    // The office city stays the direct municipality, not its district.
+    const state = addressPart(place.address, ['state']);
+    const countryCode = addressPart(place.address, ['country_code']);
+    const city = countryCode === 'cn' && state && ['北京市', '上海市', '天津市', '重庆市'].includes(state)
+        ? state
+        : providerCity;
     if (!address || latitude === null || longitude === null || !city)
         return null;
     return {
@@ -114,7 +121,7 @@ function cacheKey(
             `${endpoint}\n${countryCodes}\n${LANGUAGE}\n${search.toLowerCase()}`,
         )
         .digest("hex");
-    return `fudaba:place-search:${digest}`;
+    return `fudaba:place-search:v2:${digest}`;
 }
 
 function cachedResponse(value: string | null): PlaceSearchResponse | null {

@@ -176,6 +176,34 @@ describe("ExchangeOfficeMap App viewport memory", () => {
     })
   })
 
+  it("recenters on a selected search place, removes its marker, and leaves public office points unchanged", () => {
+    const selectedPlace = {
+      id: "way:200",
+      label: "西岸艺术中心",
+      address: "上海西岸",
+      city: "上海",
+      location: {
+        longitude: 121.4665,
+        latitude: 31.1842,
+        precision: "exact" as const,
+      },
+    }
+    const view = render(<ExchangeOfficeMap {...mapProps} />)
+    const map = maplibreMocks.instances[0]
+    map?.getSource.mockClear()
+    view.rerender(
+      <ExchangeOfficeMap {...mapProps} selectedPlace={selectedPlace} />
+    )
+    expect(map?.easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [121.4665, 31.1842], zoom: 13 })
+    )
+    const marker = maplibreMocks.markerInstances[0]
+    expect(marker?.setLngLat).toHaveBeenCalledWith([121.4665, 31.1842])
+    expect(map?.getSource).not.toHaveBeenCalled()
+    view.rerender(<ExchangeOfficeMap {...mapProps} selectedPlace={null} />)
+    expect(marker?.remove).toHaveBeenCalled()
+  })
+
   it("applies the portal palette before MapLibre receives the first style", () => {
     render(<ExchangeOfficeMap {...mapProps} />)
     const map = maplibreMocks.instances[0]
