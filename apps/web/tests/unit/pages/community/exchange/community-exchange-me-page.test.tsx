@@ -75,6 +75,7 @@ vi.mock("~/lib/media/crop-avatar-image", () => ({
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
   usePlatformSession: sessionMocks.usePlatformSession,
+  useOptionalPlatformSession: sessionMocks.usePlatformSession,
 }))
 
 vi.mock("~/lib/api", async (importOriginal) => {

@@ -5,7 +5,7 @@ import {
   LoaderCircleIcon,
   UploadIcon,
 } from "lucide-react"
-import { useEffect, useMemo } from "react"
+import { useEffect, useState } from "react"
 
 import { IdolMultiSelect } from "~/components/community/idol-multi-select"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
@@ -35,20 +35,27 @@ import type {
   FudabaSeries,
   WikiPublicSearchEntry,
 } from "~/lib/api"
+import { useOwnerCardMedia } from "./use-owner-card-media"
 
 export function useObjectUrl(file: File | null) {
-  const url = useMemo(() => {
-    if (!file || typeof URL.createObjectURL !== "function") return null
-    return URL.createObjectURL(file)
-  }, [file])
+  const [preview, setPreview] = useState<{ file: File; url: string } | null>(
+    null
+  )
 
   useEffect(() => {
+    if (!file || typeof URL.createObjectURL !== "function") return
+    const url = URL.createObjectURL(file)
+    let disposed = false
+    queueMicrotask(() => {
+      if (!disposed) setPreview({ file, url })
+    })
     return () => {
-      if (url) URL.revokeObjectURL(url)
+      disposed = true
+      URL.revokeObjectURL(url)
     }
-  }, [url])
+  }, [file])
 
-  return url
+  return preview?.file === file ? preview.url : null
 }
 
 export function CardPreview({
@@ -60,6 +67,8 @@ export function CardPreview({
   backUrl: string | null
   displayName: string
 }) {
+  const front = useOwnerCardMedia(frontUrl)
+  const back = useOwnerCardMedia(backUrl)
   return (
     <Tabs defaultValue="front" className="min-w-0">
       <TabsList className="w-full" aria-label="名片预览面">
@@ -68,14 +77,15 @@ export function CardPreview({
       </TabsList>
       {(
         [
-          ["front", frontUrl, "正面"],
-          ["back", backUrl, "背面"],
+          ["front", front, frontUrl, "正面"],
+          ["back", back, backUrl, "背面"],
         ] as const
-      ).map(([side, url, label]) => (
+      ).map(([side, media, source, label]) => (
         <TabsContent key={side} value={side} className="mt-3">
-          {url ? (
+          {media.src ? (
             <CoverImagePreview
-              src={url}
+              key={media.src}
+              src={media.src}
               alt={`${displayName || "新名片"}${label}`}
               previewLabel="名片"
               className="aspect-3/2 w-full border bg-muted"
@@ -85,7 +95,21 @@ export function CardPreview({
             <div className="flex aspect-3/2 w-full items-center justify-center border bg-muted/40 text-muted-foreground">
               <div className="flex flex-col items-center gap-2 text-sm">
                 <ImageOffIcon aria-hidden="true" />
-                尚未选择{label}图片
+                {source
+                  ? media.failed
+                    ? "图片加载失败"
+                    : "加载图片"
+                  : `尚未选择${label}图片`}
+                {media.failed ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={media.retry}
+                  >
+                    重试加载
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}

@@ -19,6 +19,7 @@ index and do not replace those files.
 | [App navigation](./app-navigation.md) | Section ownership, queued tab input, scroll continuity, back behavior, directories, shell-owned OAuth routing, and native tab verification |
 | [Tauri mobile integration](./tauri-mobile-integration.md) | Native plugin, capability, permission, deep-link return, and platform metadata contracts |
 | [Testing](./testing.md) | Unit, component, browser, and routing tests |
+| [Private owner card images](./owner-card-media.md) | App authenticated binary media, URL allowlisting, refresh and object URL lifecycle |
 
 ## Pre-Development Checklist
 

@@ -26,6 +26,8 @@ import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy'
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
+import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
 import type { ManagedSqlDatabase, SqlDatabase, SqlResult, SqlSchemaStrategy, SqlStatement } from '@/infra/db/sql/database';
 import type { CacheStore, RateLimiter } from '@/ports/cache';
 import type { ParsedUpload, UploadedFile, UploadParser } from '@/ports/http';
@@ -39,7 +41,10 @@ import { fudabaCardClaimErrorSchema, ownerClaimListSchema, reviewMutationSchema 
 import { fudabaLocationReviewErrorSchema, fudabaLocationReviewListSchema, fudabaLocationReviewMutationSchema } from '@imsweb/contracts/fudaba/location-review';
 import { fudabaMapDeliveryErrorSchema, fudabaMapDeliveryMutationSchema, fudabaMapDeliverySnapshotSchema } from '@imsweb/contracts/fudaba/map-delivery';
 import { Hono } from 'hono';
+import { S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { describe, onTestFinished, test } from 'vitest';
 
@@ -7978,33 +7983,145 @@ import { describe, onTestFinished, test } from 'vitest';
 
         test('owner media is protected, private, and inaccessible through another account card', async () => {
             const fixture = new OwnerRouteFixture();
+            const reads: string[] = [];
+            const get = fixture.storage.get.bind(fixture.storage);
+            fixture.storage.get = async (key) => {
+                reads.push(key);
+                return get(key);
+            };
+            assert.equal(typeof fixture.storage.createReadUrl, 'function');
             const response = await fixture.app.request(
                 'http://ims.test/api/community/exchange/me/cards/owner-card/media/front?v=1',
                 { headers: bearerHeaders(), redirect: 'manual' }
             );
-            assert.equal(response.status, 307);
-            assert.match(response.headers.get('location') || '', /^https:\/\/private-media\./);
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get('location'), null);
             assert.equal(response.headers.get('cache-control'), 'private, no-store');
             assert.match(response.headers.get('vary') || '', /Authorization/);
-            assert.deepEqual(fixture.storage.readUrls.at(-1), {
-                key: ownerCard().front_object_key,
-                method: 'GET'
-            });
+            assert.equal(response.headers.get('content-type'), 'image/webp');
+            assert.equal(response.headers.get('content-length'), '4');
+            assert.equal(response.headers.get('etag'), `seed-${ownerCard().front_object_key}`);
+            assert.deepEqual(new Uint8Array(await response.arrayBuffer()),
+                new Uint8Array([0x52, 0x49, 0x46, 0x46]));
+            assert.deepEqual(reads, [ownerCard().front_object_key]);
+            assert.deepEqual(fixture.storage.readUrls, []);
 
             const head = await fixture.app.request(
                 'http://ims.test/api/community/exchange/me/cards/owner-card/media/back?v=1',
                 { method: 'HEAD', headers: bearerHeaders(), redirect: 'manual' }
             );
-            assert.equal(head.status, 307);
-            assert.equal(fixture.storage.readUrls.at(-1)?.method, 'HEAD');
+            assert.equal(head.status, 200);
+            assert.equal(head.headers.get('location'), null);
+            assert.equal(head.headers.get('content-length'), '4');
+            assert.equal((await head.arrayBuffer()).byteLength, 0);
+            assert.deepEqual(fixture.storage.readUrls, []);
 
-            const readsBeforeOther = fixture.storage.readUrls.length;
+            const readsBeforeOther = reads.length;
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media/front'
+            )).status, 401);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media/front',
+                { headers: { authorization: 'Bearer expired-platform-token' } }
+            )).status, 401);
             assert.equal((await fixture.app.request(
                 'http://ims.test/api/community/exchange/me/cards/other-card/media/front',
                 { headers: bearerHeaders() }
             )).status, 404);
-            assert.equal(fixture.storage.readUrls.length, readsBeforeOther);
+            assert.equal(reads.length, readsBeforeOther);
+            assert.deepEqual(fixture.storage.readUrls, []);
         });
+
+        test('owner media cookie GET and HEAD retain private signed delivery', async () => {
+            const fixture = new OwnerRouteFixture();
+            fixture.storage.get = async () => {
+                throw new Error('Cookie redirect must not read object bytes');
+            };
+            for (const method of ['GET', 'HEAD']) {
+                const response = await fixture.app.request(
+                    'http://ims.test/api/community/exchange/me/cards/owner-card/media/front?v=1',
+                    { method, headers: cookieHeaders(null), redirect: 'manual' }
+                );
+                assert.equal(response.status, 307);
+                assert.match(response.headers.get('location') || '', /^https:\/\/private-media\.example\.test\//);
+                assert.equal(response.headers.get('cache-control'), 'private, no-store');
+                assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+                assert.equal((await response.arrayBuffer()).byteLength, 0);
+                assert.equal(fixture.storage.readUrls.at(-1)?.method, method);
+            }
+        });
+
+        test.skipIf(process.env.IMS_OWNER_MEDIA_RUSTFS_TEST !== '1')(
+            'owner media proxies real local RustFS private bytes without a signed storage hop', async () => {
+                const connection = await createPostgresTestDatabase('owner-media-rustfs');
+                const state = new S3UploadStateMachine(connection);
+                await state.initialize();
+                // This opt-in acceptance uses only the documented local bucket.
+                const client = new S3Client({
+                    endpoint: 'http://127.0.0.1:9000',
+                    region: 'us-east-1',
+                    forcePathStyle: true
+                });
+                let signedCalls = 0;
+                const storage = new S3ObjectStorage(client, {
+                    bucket: 'imsweb-media-local',
+                    prefix: `owner-media-acceptance-${randomUUID()}`,
+                    readUrlTtlSeconds: 60
+                }, async (command, expiresIn) => {
+                    signedCalls += 1;
+                    return getSignedUrl(client, command, { expiresIn });
+                }, state);
+                const fixture = new OwnerRouteFixture();
+                const key = ownerCard().front_object_key;
+                const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"/>');
+                let owned = false;
+                onTestFinished(async () => {
+                    try {
+                        if (owned) await storage.delete(key);
+                    } finally {
+                        storage.close();
+                        await connection.close();
+                    }
+                });
+                await storage.put(key, bytes, { contentType: 'image/svg+xml', protectedAccess: true });
+                owned = true;
+                const target = await storage.createReadUrl(key);
+                assert.equal(target?.visibility, 'private');
+                const unsigned = new URL(target!.url);
+                unsigned.search = '';
+                assert.equal((await fetch(unsigned)).status, 403);
+                assert.deepEqual(new Uint8Array(await (await fetch(target!.url)).arrayBuffer()), bytes);
+                signedCalls = 0;
+                let byteReads = 0;
+                const get = storage.get.bind(storage);
+                storage.get = async (objectKey) => {
+                    byteReads += 1;
+                    return get(objectKey);
+                };
+                const app = createHonoApp(() => ({ ...fixture.runtime(), storage }));
+                const path = 'http://ims.test/api/community/exchange/me/cards/owner-card/media/front';
+                assert.equal((await app.request(path)).status, 401);
+                assert.equal((await app.request(path.replace('owner-card', 'other-card'), {
+                    headers: bearerHeaders()
+                })).status, 404);
+                assert.equal(byteReads, 0);
+                const response = await app.request(path, {
+                    headers: bearerHeaders({ origin: 'tauri://localhost' }), redirect: 'manual'
+                });
+                assert.equal(response.status, 200);
+                assert.equal(response.headers.get('location'), null);
+                assert.equal(response.headers.get('access-control-allow-origin'), 'tauri://localhost');
+                assert.equal(response.headers.get('cache-control'), 'private, no-store');
+                assert.equal(response.headers.get('content-type'), 'image/svg+xml');
+                assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes);
+                assert.equal(byteReads, 1);
+                assert.equal(signedCalls, 0);
+                await storage.delete(key);
+                owned = false;
+                assert.equal(await storage.get(key), null);
+                assert.equal((await fetch(target!.url)).status, 404);
+            }
+        );
 
         test('card creation uses IP and account upload limits before multipart parsing', async () => {
             const ipLimited = new OwnerRouteFixture();

@@ -12,6 +12,7 @@ import {
 import type { FudabaOwnerCard } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { mediaRightsLabels, publicationLabels } from "./exchange-me-model"
+import { OwnerCardImage } from "./owner-card-image"
 
 export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
   const status = card.publicationStatus
@@ -90,11 +91,7 @@ export function CardInventory({
               onClick={() => onSelect(card.id)}
             >
               <span className="aspect-3/2 overflow-hidden rounded-md border bg-muted">
-                <img
-                  src={card.frontImageUrl}
-                  alt=""
-                  className="size-full object-contain"
-                />
+                <OwnerCardImage src={card.frontImageUrl} />
               </span>
               <span className="min-w-0 self-center">
                 <span className="block truncate text-sm font-medium">

@@ -23,6 +23,10 @@ export async function handleServeFudabaOwnerCardMedia(
     const response = await objectReadResponse(c.req.raw, storage, key, {
         'Cache-Control': 'private, no-store',
         'Vary': 'Authorization, Cookie'
+    }, {
+        // App bearer reads stay on the authenticated API origin. Storage hosts
+        // need no browser CORS policy, even when they support signed redirects.
+        mode: c.get('platformAuthSource') === 'authorization' ? 'proxy' : 'redirect'
     });
     return response ?? c.text('Not Found', 404);
 }
