@@ -232,6 +232,10 @@ jobs:
 
   deploy:
     name: Deploy preview
+    if: >-
+      !cancelled() &&
+      needs.prepare.result == 'success' &&
+      needs.resolve-image.result == 'success'
     needs:
       - prepare
       - resolve-image

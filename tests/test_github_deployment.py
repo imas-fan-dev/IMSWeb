@@ -519,6 +519,16 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("deploy-compose-release.sh", preview)
 
         deploy_job = preview.split("\n  deploy:\n", maxsplit=1)[1]
+        deploy_header = deploy_job.split("\n    steps:\n", maxsplit=1)[0]
+        # Manual dispatch skips publish; override the implicit success() check
+        # while requiring both direct dependencies to succeed.
+        self.assertIn(
+            "if: >-\n"
+            "      !cancelled() &&\n"
+            "      needs.prepare.result == 'success' &&\n"
+            "      needs.resolve-image.result == 'success'",
+            deploy_header,
+        )
         self.assertIn("      packages: read", deploy_job)
         self.assertIn("environment:\n      name: preview", deploy_job)
         self.assertIn("steps.freshness.outputs.deploy == 'true'", deploy_job)
