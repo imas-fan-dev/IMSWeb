@@ -2,7 +2,7 @@
 {"file":".trellis/spec/web/frontend/testing.md","reason":"Unit and browser regression ownership"}
 {"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Private binary authentication across Web and App"}
 {"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse platform refresh and preview UI"}
-{"file":".trellis/tasks/10-05-app-owner-card-media/research/root-cause.md","reason":"Root cause and implementation boundary"}
+{"file":".trellis/tasks/archive/2026-10/10-05-app-owner-card-media/research/root-cause.md","reason":"Root cause and implementation boundary"}
 {"file":".trellis/spec/web/frontend/owner-card-media.md","reason":"Private media runtime contract"}
 {"file":"apps/api/.rules","reason":"API response and storage boundaries"}
 {"file":".trellis/spec/api/backend/authentication.md","reason":"Validated authentication context"}

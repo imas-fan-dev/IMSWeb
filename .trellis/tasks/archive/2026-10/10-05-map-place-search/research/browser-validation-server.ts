@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
 import path from 'node:path';
-import { getRequestListener } from '../../../../apps/api/node_modules/@hono/node-server';
-import { createHonoApp } from '../../../../apps/api/src/app';
-import { parseFudabaGeocodingConfig } from '../../../../apps/api/src/config/env';
-import { createValkeyClient, ValkeyCache } from '../../../../apps/api/src/infra/cache/valkey/cache';
-import { ValkeyRateLimiter } from '../../../../apps/api/src/infra/cache/valkey/rate-limiter';
-import { FrontendStaticAssets, NodeStaticAssets, listFrontendFiles } from '../../../../apps/api/src/infra/http/filesystem/static-assets';
+import { getRequestListener } from '../../../../../../apps/api/node_modules/@hono/node-server';
+import { createHonoApp } from '../../../../../../apps/api/src/app';
+import { parseFudabaGeocodingConfig } from '../../../../../../apps/api/src/config/env';
+import { createValkeyClient, ValkeyCache } from '../../../../../../apps/api/src/infra/cache/valkey/cache';
+import { ValkeyRateLimiter } from '../../../../../../apps/api/src/infra/cache/valkey/rate-limiter';
+import { FrontendStaticAssets, NodeStaticAssets, listFrontendFiles } from '../../../../../../apps/api/src/infra/http/filesystem/static-assets';
 
 // Validation only: serve the real Hono search route with loopback Valkey and an
 // explicitly selected public provider. Directory fixtures belong to Playwright.

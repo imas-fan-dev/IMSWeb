@@ -1,5 +1,5 @@
-{"file":".trellis/tasks/10-05-app-owner-card-media/prd.md","reason":"Acceptance"}
-{"file":".trellis/tasks/10-05-app-owner-card-media/design.md","reason":"Security and lifecycle contract"}
+{"file":".trellis/tasks/archive/2026-10/10-05-app-owner-card-media/prd.md","reason":"Acceptance"}
+{"file":".trellis/tasks/archive/2026-10/10-05-app-owner-card-media/design.md","reason":"Security and lifecycle contract"}
 {"file":".trellis/spec/web/frontend/testing.md","reason":"Verification rules"}
 {"file":".trellis/spec/web/frontend/owner-card-media.md","reason":"Authentication and lifecycle regressions"}
 {"file":".trellis/spec/api/backend/owner-card-media.md","reason":"Signed-capability and real local storage acceptance"}
