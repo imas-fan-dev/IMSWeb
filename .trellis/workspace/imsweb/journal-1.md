@@ -294,3 +294,39 @@
 - 分支 chore/vitest-ui-and-test-taxonomy 未推送、未合并；是否 squash 合并到 release/v1.1 与是否推送由用户决定。
 - 若要让 Web 单测的二级分组彻底完整，把「单 describe ≥10 用例」的采样阈值下调并重放同一机械判据即可（残留 6 个候选段已逐条记录）。
 - .trellis/tasks 下的任务目录与会话日志按惯例留到合并收尾时作为最后一次文档提交入库。
+
+
+## Session 9: 修复 App 名片图片与地图地点搜索
+<!-- trellis-session: v=2 fp=362b3f51815839cf -->
+
+**Date**: 2026-10-05
+**Task**: 修复 App 名片图片与地图地点搜索
+**Package**: web
+**Branch**: `release/v1.1`
+
+### Summary
+
+两个独立任务由各自子代理实现与验收，主会话审核实际源码和运行证据后分别提交，并归档任务。
+
+### Main Changes
+
+- App 私有名片使用平台客户端认证取图，Bearer 媒体通过 API 返回私有字节，覆盖清单、双面预览和灯箱；Cookie 签名交付保持兼容。
+- 地图与事务所提供显式地点搜索，修复 Enter 意外保存、结果定位和空结果反馈，Compose 转发搜索服务配置。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cf9fe750f3cfeb079dd5d31553c4241023ab455f` | fix(exchange): restore map place search |
+| `a2fba0b043a8e786c659aa3a742163991a422935` | fix(app): load private owner card images with authenticated media |
+
+### Testing
+
+- [OK] 独立验收检出 pnpm run check 通过，Web 223 个文件与 1565 项单测通过；API 全量 70 个文件、878 项通过和 1 项 opt-in 跳过。
+- [OK] 名片浏览器 App 3 场景和 Web Cookie 1 场景通过；真实 RustFS 私有对象、Bearer 字节代理、Tauri-origin CORS、匿名 401 和其他所有者 404 均验证。
+- [OK] 地图 Web 7 场景、App 9 场景及真实 provider Web/App 4 场景通过；Nominatim 西岸艺术中心经 Hono 和 Valkey 返回，缓存与全局限流通过。
+- [OK] 两个工作提交保留 Git hooks；原有 15 个 staged 设计文件与三个 API 构建脚本删除保留。验收服务已停，PostgreSQL 与 Valkey保留。
+
+### Status
+
+[OK] **Completed**

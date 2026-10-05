@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-09-20
+- **Total Sessions**: 9
+- **Last Active**: 2026-10-05
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~296 | Active |
+| `journal-1.md` | ~332 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-10-05 | 修复 App 名片图片与地图地点搜索 | `cf9fe750f3cfeb079dd5d31553c4241023ab455f`, `a2fba0b043a8e786c659aa3a742163991a422935` | `release/v1.1` |
 | 8 | 2026-09-20 | Vitest UI 面板与全仓测试归类（test.describe） | `874d4e6f`, `1c446a60`, `f5a23cdf`, `2e7d919d`, `27828b24`, `d65a0c25`, `17d4172f`, `1ddcee10`, `51d9d41e`, `5c1a61b9`, `26f5f36c`, `128b1f3a`, `9094facc`, `da7778f5` | `chore/vitest-ui-and-test-taxonomy` |
 | 7 | 2026-09-19 | 统一测试执行到 Vitest 并接入报表与覆盖率 | `f9a1358f` | `release/v1.1` |
 | 6 | 2026-09-19 | 对齐 Trellis spec 与仓库 docs 到已落地代码 | `squashed` | `release/v1.1` |
