@@ -14,7 +14,7 @@
 - [x] 新增/更新 API 持久化 HTTP、Web endpoint、公共页与后台交互回归；调整确实依赖旧硬编码入口的既有测试 fixture。
 - [x] 分范围运行验证，独立 review 并修复；浏览器桌面/手机核对并留截图。
 - [x] 更新 acceptance/verification 与必要 spec，审查全任务 diff。
-- [ ] 限定提交本任务范围，归档并记录会话。
+- [x] 限定提交本任务范围；工作提交 `3ee7ae68`，随后按 finish-work 归档并记录会话。
 
 ## Validation
 

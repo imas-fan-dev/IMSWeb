@@ -6,4 +6,4 @@
 {"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Admin and public component behavior"}
 {"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"New wire contract and exports"}
 {"file":".trellis/spec/guides/index.md","reason":"Cross-workspace conventions"}
-{"file":".trellis/tasks/10-06-community-dynamic-management/research/source-baseline.md","reason":"Existing mechanisms and task boundary"}
+{"file":".trellis/tasks/archive/2026-10/10-06-community-dynamic-management/research/source-baseline.md","reason":"Existing mechanisms and task boundary"}
