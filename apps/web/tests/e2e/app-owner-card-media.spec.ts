@@ -103,13 +103,21 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
         times: { min: 1, max: 4 },
       },
       async (route) => {
-        const response = await fetch(`${runtimeOrigin}/api/platform/auth/refresh`, {
-          method: "POST",
-          headers: route.request().headers(),
-          body: route.request().postData(),
-        })
+        const response = await fetch(
+          `${runtimeOrigin}/api/platform/auth/refresh`,
+          {
+            method: "POST",
+            headers: route.request().headers(),
+            body: route.request().postData(),
+          }
+        )
         expect(response.status).toBe(200)
-        await route.fulfill({ status: response.status, body: await response.text(), contentType: "application/json", headers: cors })
+        await route.fulfill({
+          status: response.status,
+          body: await response.text(),
+          contentType: "application/json",
+          headers: cors,
+        })
       }
     )
   }
@@ -120,10 +128,18 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
       times: { min: 1, max: 8 },
     },
     async (route) => {
-      const response = await fetch(`${runtimeOrigin}/api/platform/auth/session`, {
-        headers: route.request().headers(),
+      const response = await fetch(
+        `${runtimeOrigin}/api/platform/auth/session`,
+        {
+          headers: route.request().headers(),
+        }
+      )
+      await route.fulfill({
+        status: response.status,
+        body: await response.text(),
+        contentType: "application/json",
+        headers: cors,
       })
-      await route.fulfill({ status: response.status, body: await response.text(), contentType: "application/json", headers: cors })
     }
   )
   await api.mock(
@@ -178,9 +194,14 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
     webMode ? "/community/exchange/me?section=cards" : "/account/me/cards",
     { waitUntil: "domcontentloaded" }
   )
-  const inventory = page
-    .getByRole("navigation", { name: "我的名片清单" })
-    .locator("img")
+  const inventoryNavigation = page.getByRole("navigation", {
+    name: "我的名片清单",
+  })
+  const inventoryCard = inventoryNavigation.getByRole("button", {
+    name: /Owner Card/,
+  })
+  await expect(inventoryCard).toBeVisible()
+  const inventory = inventoryCard.locator("img")
   await expect(inventory).toHaveAttribute(
     "src",
     webMode ? /^\/api\// : /^blob:/
@@ -190,10 +211,7 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
       inventory.evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBe(120)
-  await page
-    .getByRole("navigation", { name: "我的名片清单" })
-    .getByRole("button", { name: /Owner Card/ })
-    .click()
+  await inventoryCard.click()
   const front = page
     .getByRole("button", { name: "查看Owner Card正面", exact: true })
     .locator("img")
@@ -268,8 +286,16 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
     expect(stats.refreshCalls).toBeGreaterThan(0)
     expect(stats.invalidMediaReads + stats.invalidAuthReads).toBeGreaterThan(0)
   }
-  const countersPath = test.info().outputPath("owner-media-fixture-counters.json")
+  const countersPath = test
+    .info()
+    .outputPath("owner-media-fixture-counters.json")
   await writeFile(countersPath, JSON.stringify(stats, null, 2))
-  await test.info().attach("owner-media-fixture-counters", { path: countersPath, contentType: "application/json" })
-  await page.screenshot({ path: test.info().outputPath("owner-media-restored.png"), fullPage: true })
+  await test.info().attach("owner-media-fixture-counters", {
+    path: countersPath,
+    contentType: "application/json",
+  })
+  await page.screenshot({
+    path: test.info().outputPath("owner-media-restored.png"),
+    fullPage: true,
+  })
 })
