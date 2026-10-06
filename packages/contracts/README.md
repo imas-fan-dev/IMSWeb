@@ -165,3 +165,5 @@ CJS + d.ts，`build-if-sources.mjs` 守卫 `prepare`（Docker manifest 层安装
 源码缺失则跳过）。`pnpm --filter @imsweb/contracts run build` 在 TypeScript 构建后检查
 entrypoint inventory、导出目标、root namespace、README、构建产物和 fresh-process
 Zod-free loader。
+
+`@imsweb/contracts/community-content` exports community landing content, revisioned admin snapshots and updates, image upload responses, and HTTP errors. The root namespace is `communityContent`.

@@ -68,6 +68,15 @@ const navigation: Array<{
     end: true,
   },
   {
+    to: "/admin/community",
+    label: "制作人社区",
+    description: "社区首页文字与入口",
+    icon: UsersRoundIcon,
+    accent: "bg-franchise-sidem",
+    editorOnly: true,
+    end: true,
+  },
+  {
     to: "/admin/events",
     label: "社区帖子",
     description: "社区动态与首页精选",
@@ -281,8 +290,12 @@ function isExpiredSession(error: unknown): boolean {
   )
 }
 
-function isEditorWikiRoute(pathname: string): boolean {
-  return pathname === "/admin/stories" || pathname.startsWith("/admin/stories/")
+function isEditorContentRoute(pathname: string): boolean {
+  return (
+    pathname === "/admin/community" ||
+    pathname === "/admin/stories" ||
+    pathname.startsWith("/admin/stories/")
+  )
 }
 
 export default function AdminLayout() {
@@ -322,7 +335,7 @@ export default function AdminLayout() {
   const isEditor = data.user.dept === "editor"
   const canAccessCurrentRoute =
     data.user.dept === "op" ||
-    (isEditor && isEditorWikiRoute(location.pathname))
+    (isEditor && isEditorContentRoute(location.pathname))
 
   if (!canAccessCurrentRoute) {
     return <AdminAccessDenied />
@@ -344,7 +357,7 @@ export default function AdminLayout() {
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-400 items-center gap-4 px-4 sm:px-6 lg:px-8">
           <NavigationLink
-            to="/admin"
+            to={isEditor ? "/admin/stories" : "/admin"}
             className="flex min-w-0 items-center gap-3"
           >
             <BrandWordmark className="h-8" />
@@ -366,7 +379,7 @@ export default function AdminLayout() {
               className="hidden md:flex"
             >
               {isEditor
-                ? "Wiki 编辑"
+                ? "内容编辑"
                 : data.user.adminRole === "super_admin"
                   ? "最高管理员"
                   : "一般管理员"}

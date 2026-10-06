@@ -149,6 +149,7 @@ test.describe("home layout geometry", () => {
       { path: "/api/news", times: 3 },
       { path: "/api/events", times: 3 },
       { path: "/api/live-schedule", times: 1 },
+      { path: "/api/community/content", times: 1 },
       { path: "/api/community/exchange/series", times: 1 },
       { path: "/api/about", times: 2 },
     ])

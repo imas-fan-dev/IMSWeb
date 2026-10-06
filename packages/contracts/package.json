@@ -111,6 +111,11 @@
       "require": "./dist/about.js",
       "default": "./dist/about.js"
     },
+    "./community-content": {
+      "types": "./dist/community-content.d.ts",
+      "require": "./dist/community-content.js",
+      "default": "./dist/community-content.js"
+    },
     "./producer-map": {
       "types": "./dist/producer-map.d.ts",
       "require": "./dist/producer-map.js",

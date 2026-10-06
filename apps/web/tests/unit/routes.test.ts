@@ -61,7 +61,7 @@ describe("Web route metadata", () => {
     )
 
     expect(manifest).toEqual(descriptors)
-    expect(manifest).toHaveLength(53)
+    expect(manifest).toHaveLength(54)
   })
 
   it("registers every Web prerender and preserves the 30-document set", () => {
@@ -86,6 +86,15 @@ describe("Web route metadata", () => {
         })
       ).toBe(true)
     }
+  })
+
+  it("delivers community management only to the Web admin layout", () => {
+    expect(routeFile("admin/community")).toBe("pages/admin/community/index.tsx")
+    expect(
+      routeDescriptorsForTarget("app").some(
+        (entry) => entry.file === "pages/admin/community/index.tsx"
+      )
+    ).toBe(false)
   })
 
   it("uses the modern Wiki and story pages by default", () => {

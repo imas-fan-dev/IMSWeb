@@ -68,6 +68,8 @@ export function articleAssetObjectKey(articleId: number, filename: string): stri
 
 export const INFORMATION_INDEX_OBJECT_KEY = 'editorial/information/index.json';
 export const ABOUT_PAGE_OBJECT_KEY = 'editorial/about/config.json';
+export const COMMUNITY_CONTENT_OBJECT_KEY = 'community/landing/config.json';
+
 export const PRODUCER_MAP_OBJECT_KEY = 'community/producer-map/config.json';
 export const FUDABA_MAP_DELIVERY_OBJECT_KEY = 'community/fudaba/map-delivery.json';
 
@@ -152,6 +154,11 @@ export function namecardClaimMediaObjectKey(
 ): string {
     const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(sourceObjectKey);
     return namecardCardMediaObjectKey(cardId, side, match ? match[2]! : 'webp');
+}
+
+export function communityContentAssetObjectKey(filename: string): string {
+    const file = fileParts(filename);
+    return `community/landing/assets/${file.stem}/image.${file.extension}`;
 }
 
 export function producerMapAssetObjectKey(filename: string): string {
@@ -267,6 +274,8 @@ export function publicMediaObjectKey(value: string): string {
             }
             return namecardThumbnailObjectKey(filename.slice(0, -suffix.length));
         }
+        case 'uploads/community-content':
+            return communityContentAssetObjectKey(filename);
         case 'uploads/producer-map':
             return producerMapAssetObjectKey(filename);
         default:

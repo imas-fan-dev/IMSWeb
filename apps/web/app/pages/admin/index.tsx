@@ -27,6 +27,14 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const workspaces = [
   {
+    title: "制作人社区",
+    description: "社区首页文字与入口配置",
+    to: "/admin/community",
+    icon: MapPinnedIcon,
+    accent: "bg-franchise-sidem",
+    scope: ["入口排序", "展示范围", "自定义图片"],
+  },
+  {
     title: "首页板块",
     description: "维护首页导航、友情链接与网站支持",
     to: "/admin/homepage",

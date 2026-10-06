@@ -41,6 +41,7 @@ import {
 } from "@imsweb/contracts/news"
 import { apiPath, exchangePath } from "@imsweb/contracts/paths"
 
+import { installCommunityContentMock } from "./community-content"
 import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
 import { installHomepageLinksMock } from "./homepage"
 import { installNamecardListMock } from "./namecards"
@@ -107,6 +108,7 @@ export type SeededPublicApiRegistration = {
     | "/api/cards"
     | "/api/chronicle"
     | "/api/community-posts/spotlight"
+    | "/api/community/content"
     | "/api/community/exchange/cards"
     | "/api/community/exchange/map/config"
     | "/api/community/exchange/map/offices"
@@ -278,6 +280,8 @@ export function installSeededPublicApis(
       installChronicleMock(api, times)
     } else if (path === "/api/community-posts/spotlight") {
       installSpotlightMock(api, times)
+    } else if (path === "/api/community/content") {
+      installCommunityContentMock(api, times)
     } else if (path === "/api/community/exchange/cards") {
       installExchangeCardsMock(api, times)
     } else if (path === "/api/community/exchange/map/config") {

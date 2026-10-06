@@ -21,3 +21,5 @@ export * from "./producer-map"
 export * from "./recommendations"
 export * from "./site-packages"
 export * from "./wiki"
+
+export * from "./community-content"

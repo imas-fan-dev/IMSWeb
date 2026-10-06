@@ -1,3 +1,4 @@
+import { registerCommunityContentRoutes } from '@/domains/content/community-content/routes';
 import {
     apiPath,
     platformAuthPath,
@@ -259,6 +260,7 @@ export function createHonoApp<
 
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);
+    registerCommunityContentRoutes(app);
     registerBrandAssetRoutes(app);
     registerBackofficeAuthRoutes(app);
     registerPlatformAuthRoutes(app);

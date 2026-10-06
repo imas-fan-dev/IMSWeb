@@ -20,6 +20,7 @@ them.
 | [Testing](./testing.md) | Test placement, focused suites, required gates |
 | [Map place search](./map-place-search.md) | Geocoder configuration, anonymous public map reads, explicit search and location privacy |
 | [Owner card media](./owner-card-media.md) | Private bearer byte proxy, Cookie signed delivery, owner authorization and storage regression |
+| [Community landing configuration](./community-content.md) | Editable entries, empty content, op/editor permissions, owned icon images and atomic snapshots |
 
 ## Pre-Development Checklist
 

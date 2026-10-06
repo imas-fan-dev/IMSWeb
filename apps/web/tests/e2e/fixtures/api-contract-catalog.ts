@@ -1,4 +1,12 @@
 import {
+  communityContentSchema,
+  communityContentErrorResponseSchema,
+  adminCommunityContentSnapshotSchema,
+  adminCommunityContentUpdateSchema,
+  adminCommunityContentUpdateRequestSchema,
+  adminCommunityContentImageUploadSchema,
+} from "@imsweb/contracts/community-content"
+import {
   aboutAdminSnapshotSchema,
   aboutAdminUpdateSchema,
   aboutErrorResponseSchema,
@@ -767,6 +775,43 @@ export function resolveApiContract(
       responses: {
         200: sitePackageListSchema,
         401: sitePackageHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/community/content")
+    return {
+      responses: {
+        200: communityContentSchema,
+        500: communityContentErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/community-content")
+    return {
+      responses: {
+        200: adminCommunityContentSnapshotSchema,
+        ...protectedErrors,
+      },
+    }
+  if (method === "PUT" && path === "/api/admin/community-content")
+    return {
+      body: adminCommunityContentUpdateRequestSchema,
+      responses: {
+        200: adminCommunityContentUpdateSchema,
+        ...protectedErrors,
+        409: communityContentErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && path === "/api/admin/community-content/images")
+    return {
+      rawBody: {
+        name: "community image multipart request",
+        reason: "FormData is a Web-local non-JSON boundary",
+        schema: aboutAvatarMultipartSchema,
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        200: adminCommunityContentImageUploadSchema,
+        ...protectedErrors,
+        413: communityContentErrorResponseSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/producer-map")

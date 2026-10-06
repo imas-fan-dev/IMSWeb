@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "f100d6fb5b3b7afb104d7b46301c059e7d0afbe04f1636b6c8460c2019de152d",
+    "semanticDigest": "b52dbf741b03e60162ac7e8899b02310a537e4309bd4d0bbb09cae7b6f6a1f0a",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 237,
-    "carriers": 300,
-    "reject": 51,
+    "mountedMethodPaths": 240,
+    "carriers": 303,
+    "reject": 52,
     "acceptAndProject": 161,
     "passthrough": 17,
-    "nonObjectApplicable": 71
+    "nonObjectApplicable": 73
   },
   "counts": {
-    "mountedRegistrations": 331,
-    "mountedMethodPaths": 244,
-    "noInputRoutes": 87,
-    "requestCarriers": 323,
+    "mountedRegistrations": 337,
+    "mountedMethodPaths": 247,
+    "noInputRoutes": 90,
+    "requestCarriers": 326,
     "policies": {
-      "reject": 51,
+      "reject": 52,
       "accept-and-project": 183,
       "passthrough": 18,
-      "non-object-applicable": 71
+      "non-object-applicable": 73
     },
     "responses": {
-      "total": 659,
-      "json": 595,
+      "total": 667,
+      "json": 603,
       "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 237,
-      "requestCarriers": 300,
+      "mountedMethodPaths": 240,
+      "requestCarriers": 303,
       "policies": {
-        "reject": 51,
+        "reject": 52,
         "accept-and-project": 161,
         "passthrough": 17,
-        "non-object-applicable": 71
+        "non-object-applicable": 73
       }
     },
     "explicitQueryAdditions": [
@@ -116,12 +116,12 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 128,
+      "/api/admin": 131,
       "/api/card": 1,
       "/api/cards": 1,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 50,
+      "/api/community": 51,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -155,6 +155,7 @@
       "/sites/:slug": 4,
       "/uploads/about": 4,
       "/uploads/articles": 2,
+      "/uploads/community-content": 2,
       "/uploads/event": 2,
       "/uploads/information": 4,
       "/uploads/namecard": 4,
@@ -2129,6 +2130,34 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/community-content",
+      "registration": {
+        "file": "apps/api/src/domains/content/community-content/routes.ts"
+      },
+      "handlerSymbol": "handleGetAdminCommunityContent",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/content/community-content/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/get-admin-community-content.ts",
+          "kind": "json",
+          "expression": "await readCommunityContent ( storage ) satisfies CommunityContentAdminReadResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/community-posts",
       "registration": {
         "file": "apps/api/src/domains/content/editorial/posts/routes.ts"
@@ -3089,6 +3118,34 @@
           "file": "apps/api/src/domains/content/editorial/spotlight/handlers/list-public-spotlight.ts",
           "kind": "json",
           "expression": "{ items : resolved . map ( toEditorialSpotlightItemResponse ) } satisfies EditorialSpotlightResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/content",
+      "registration": {
+        "file": "apps/api/src/domains/content/community-content/routes.ts"
+      },
+      "handlerSymbol": "handleGetCommunityContent",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/content/community-content/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/get-community-content.ts",
+          "kind": "json",
+          "expression": "{ ... content , entries , } satisfies CommunityContentPublicReadResponse"
         }
       ]
     },
@@ -5889,6 +5946,29 @@
     },
     {
       "method": "GET",
+      "path": "/uploads/community-content/:filename",
+      "registration": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "handlerSymbol": "handleServePublicUpload",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
       "path": "/uploads/event/original/:filename",
       "registration": {
         "file": "apps/api/src/domains/delivery/media/routes.ts"
@@ -7059,6 +7139,29 @@
     },
     {
       "method": "HEAD",
+      "path": "/uploads/community-content/:filename",
+      "registration": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "handlerSymbol": "handleServePublicUpload",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "HEAD",
       "path": "/uploads/event/original/:filename",
       "registration": {
         "file": "apps/api/src/domains/delivery/media/routes.ts"
@@ -8092,6 +8195,49 @@
           "file": "apps/api/src/domains/content/editorial/chronicle/handlers/set-entry-status.ts",
           "kind": "json",
           "expression": "{ status , revision : result . revision } satisfies EditorialStatusResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/community-content/images",
+      "registration": {
+        "file": "apps/api/src/domains/content/community-content/routes.ts"
+      },
+      "handlerSymbol": "handleUploadCommunityContentImage",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/content/community-content/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+          "kind": "json",
+          "expression": "{ success : true , url , } satisfies CommunityContentImageUploadSuccessResponse"
+        },
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u4E0A\\u4F20\\u6587\\u4EF6\\u8D85\\u8FC7 10MB \\u9650\\u5236\" , } satisfies CommunityContentMutationErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u5236\\u4F5C\\u4EBA\\u793E\\u533A\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" , } satisfies CommunityContentMutationErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+          "kind": "json",
+          "expression": "{ error : messageFromError ( error ) , } satisfies CommunityContentMutationErrorResponse"
         }
       ]
     },
@@ -11088,6 +11234,42 @@
           "file": "apps/api/src/domains/content/editorial/chronicle/handlers/update-entry.ts",
           "kind": "json",
           "expression": "{ revision : result . revision } satisfies EditorialRevisionResponse"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community-content",
+      "registration": {
+        "file": "apps/api/src/domains/content/community-content/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateCommunityContent",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/community-content/routes.ts"
+          },
+          "schemaSymbol": "adminCommunityContentUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/community-content",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/community-content/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/update-community-content.ts",
+          "kind": "json",
+          "expression": "{ success : true , ... result , } satisfies CommunityContentUpdateSuccessResponse"
+        },
+        {
+          "file": "apps/api/src/domains/content/community-content/handlers/update-community-content.ts",
+          "kind": "json",
+          "expression": "{ error : status > = 500 ? \"\\u5236\\u4F5C\\u4EBA\\u793E\\u533A\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) , } satisfies CommunityContentMutationErrorResponse"
         }
       ]
     },
@@ -15060,6 +15242,21 @@
     },
     {
       "method": "GET",
+      "path": "/uploads/community-content/:filename",
+      "handlerSymbol": "handleServePublicUpload",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "GET",
       "path": "/uploads/event/original/:filename",
       "handlerSymbol": "handleServePublicUpload",
       "kind": "param",
@@ -15636,6 +15833,21 @@
     {
       "method": "HEAD",
       "path": "/uploads/articles/:articleId/:filename",
+      "handlerSymbol": "handleServePublicUpload",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "HEAD",
+      "path": "/uploads/community-content/:filename",
       "handlerSymbol": "handleServePublicUpload",
       "kind": "param",
       "source": "raw-param",
@@ -17438,6 +17650,23 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/community-content",
+      "handlerSymbol": "handleUpdateCommunityContent",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/community-content/routes.ts"
+      },
+      "schemaSymbol": "adminCommunityContentUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/community-content",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/community-content/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/community-posts/:id",
       "handlerSymbol": "handleUpdateCommunityPost",
       "kind": "param",
@@ -19113,6 +19342,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/community-content",
+      "handlerSymbol": "handleGetAdminCommunityContent",
+      "file": "apps/api/src/domains/content/community-content/handlers/get-admin-community-content.ts",
+      "kind": "json",
+      "expression": "await readCommunityContent ( storage ) satisfies CommunityContentAdminReadResponse"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/community-posts",
       "handlerSymbol": "handleListCommunityPosts",
       "file": "apps/api/src/domains/content/editorial/posts/handlers/list-posts.ts",
@@ -19446,6 +19683,14 @@
       "file": "apps/api/src/domains/content/editorial/spotlight/handlers/list-public-spotlight.ts",
       "kind": "json",
       "expression": "{ items : resolved . map ( toEditorialSpotlightItemResponse ) } satisfies EditorialSpotlightResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/content",
+      "handlerSymbol": "handleGetCommunityContent",
+      "file": "apps/api/src/domains/content/community-content/handlers/get-community-content.ts",
+      "kind": "json",
+      "expression": "{ ... content , entries , } satisfies CommunityContentPublicReadResponse"
     },
     {
       "method": "GET",
@@ -20870,6 +21115,38 @@
       "file": "apps/api/src/domains/content/editorial/chronicle/handlers/set-entry-status.ts",
       "kind": "json",
       "expression": "{ status , revision : result . revision } satisfies EditorialStatusResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/community-content/images",
+      "handlerSymbol": "handleUploadCommunityContentImage",
+      "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+      "kind": "json",
+      "expression": "{ success : true , url , } satisfies CommunityContentImageUploadSuccessResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/community-content/images",
+      "handlerSymbol": "handleUploadCommunityContentImage",
+      "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u4E0A\\u4F20\\u6587\\u4EF6\\u8D85\\u8FC7 10MB \\u9650\\u5236\" , } satisfies CommunityContentMutationErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/community-content/images",
+      "handlerSymbol": "handleUploadCommunityContentImage",
+      "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u5236\\u4F5C\\u4EBA\\u793E\\u533A\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" , } satisfies CommunityContentMutationErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/community-content/images",
+      "handlerSymbol": "handleUploadCommunityContentImage",
+      "file": "apps/api/src/domains/content/community-content/handlers/upload-community-content-image.ts",
+      "kind": "json",
+      "expression": "{ error : messageFromError ( error ) , } satisfies CommunityContentMutationErrorResponse"
     },
     {
       "method": "POST",
@@ -22462,6 +22739,22 @@
       "file": "apps/api/src/domains/content/editorial/chronicle/handlers/update-entry.ts",
       "kind": "json",
       "expression": "{ revision : result . revision } satisfies EditorialRevisionResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community-content",
+      "handlerSymbol": "handleUpdateCommunityContent",
+      "file": "apps/api/src/domains/content/community-content/handlers/update-community-content.ts",
+      "kind": "json",
+      "expression": "{ success : true , ... result , } satisfies CommunityContentUpdateSuccessResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community-content",
+      "handlerSymbol": "handleUpdateCommunityContent",
+      "file": "apps/api/src/domains/content/community-content/handlers/update-community-content.ts",
+      "kind": "json",
+      "expression": "{ error : status > = 500 ? \"\\u5236\\u4F5C\\u4EBA\\u793E\\u533A\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) , } satisfies CommunityContentMutationErrorResponse"
     },
     {
       "method": "PUT",

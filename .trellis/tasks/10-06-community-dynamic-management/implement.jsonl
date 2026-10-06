@@ -1,0 +1,9 @@
+{"file":".trellis/spec/api/backend/index.md","reason":"API ownership and required checks"}
+{"file":".trellis/spec/api/backend/architecture.md","reason":"Domain and runtime ports"}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"Request boundaries and persistence errors"}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web ownership and required checks"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"Endpoints parsed schemas and state"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Admin and public component behavior"}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"New wire contract and exports"}
+{"file":".trellis/spec/guides/index.md","reason":"Cross-workspace conventions"}
+{"file":".trellis/tasks/10-06-community-dynamic-management/research/source-baseline.md","reason":"Existing mechanisms and task boundary"}

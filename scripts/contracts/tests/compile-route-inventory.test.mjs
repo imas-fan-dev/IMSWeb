@@ -141,17 +141,17 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 331,
-      mountedMethodPaths: 244,
-      noInputRoutes: 87,
-      requestCarriers: 323,
+      mountedRegistrations: 337,
+      mountedMethodPaths: 247,
+      noInputRoutes: 90,
+      requestCarriers: 326,
       policies: {
-        reject: 51,
+        reject: 52,
         "accept-and-project": 183,
         passthrough: 18,
-        "non-object-applicable": 71,
+        "non-object-applicable": 73,
       },
-      responses: { total: 659, json: 595, nonJson: 64 },
+      responses: { total: 667, json: 603, nonJson: 64 },
       unresolved: 0,
     });
     assert.deepEqual(current, artifact);

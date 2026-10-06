@@ -26,7 +26,7 @@ export function publicUploadKey(pathname: string): string | null {
             return null;
         }
     }
-    if (segments.length === 3 && lower.slice(0, 2).join('/') === 'uploads/producer-map') {
+    if (segments.length === 3 && ['uploads/producer-map', 'uploads/community-content'].includes(lower.slice(0, 2).join('/'))) {
         return publicMediaObjectKey(segments.join('/'));
     }
     return null;

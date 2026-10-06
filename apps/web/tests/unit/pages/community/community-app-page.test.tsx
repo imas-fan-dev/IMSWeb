@@ -1,59 +1,48 @@
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
-import { beforeEach, describe, expect, it, vi } from "vitest"
-
+import { expect, it, vi } from "vitest"
 import Community from "~/pages/community"
-
-const apiMocks = vi.hoisted(() => ({
-  getFudabaSeries: vi.fn(),
-  sendSeries: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  series: vi.fn(),
+  media: vi.fn((url: string) => `https://api.example.test${url}`),
 }))
-
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
-
-vi.mock("~/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/api")>()
-  return {
-    ...actual,
-    getFudabaSeries: apiMocks.getFudabaSeries,
-  }
-})
-
-function renderPage() {
-  return render(
+vi.mock("~/lib/api", async (original) => ({
+  ...(await original<typeof import("~/lib/api")>()),
+  resolveSafeMediaUrl: mocks.media,
+  getCommunityContent: () => ({
+    send: async () => ({
+      version: 1,
+      title: "App 社区",
+      introduction: "",
+      updatedAt: null,
+      entries: ["all", "app", "web"].map((audience) => ({
+        id: audience,
+        title: audience,
+        description: "",
+        href: "/events",
+        icon: "users",
+        imageUrl: "/uploads/community-content/test.webp",
+        enabled: true,
+        availability: "always",
+        audience,
+      })),
+    }),
+  }),
+  getFudabaSeries: () => ({ send: mocks.series }),
+}))
+it("renders only configured App/all entries with the shared media resolver", async () => {
+  render(
     <MemoryRouter>
       <Community />
     </MemoryRouter>
   )
-}
-
-describe("Community App page", () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
-    apiMocks.sendSeries.mockResolvedValue({ items: [] })
-  })
-
-  it("adds activity and keeps App community destinations without the Web game", async () => {
-    renderPage()
-
-    expect(screen.getByRole("link", { name: /社区动态/ })).toHaveAttribute(
-      "href",
-      "/events"
-    )
-    expect(screen.getByRole("link", { name: /制作人名片墙/ })).toHaveAttribute(
-      "href",
-      "/community/cards"
-    )
-    expect(screen.getByRole("link", { name: /全国支部地图/ })).toHaveAttribute(
-      "href",
-      "/producer-map"
-    )
-    expect(
-      await screen.findByRole("link", { name: /名片交换事务所/ })
-    ).toHaveAttribute("href", "/community/exchange")
-    expect(
-      screen.queryByRole("link", { name: /板板大暴走/ })
-    ).not.toBeInTheDocument()
-  })
+  expect(await screen.findByRole("link", { name: "app" })).toBeVisible()
+  expect(screen.getByRole("link", { name: "all" })).toBeVisible()
+  expect(screen.queryByRole("link", { name: "web" })).not.toBeInTheDocument()
+  expect(document.querySelector("img")).toHaveAttribute(
+    "src",
+    "https://api.example.test/uploads/community-content/test.webp"
+  )
+  expect(mocks.series).not.toHaveBeenCalled()
 })

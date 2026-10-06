@@ -89,6 +89,7 @@ test.describe("app navigation", () => {
         reactionWrites: 0,
       })
       installSeededPublicApis(api, [
+        { path: "/api/community/content", times: 1 },
         { path: "/api/community/exchange/series", times: 1 },
       ])
       await page.goto(cardsUrl)
@@ -238,6 +239,7 @@ test.describe("app navigation", () => {
       reactionWrites: 0,
     })
     installSeededPublicApis(api, [
+      { path: "/api/community/content", times: 1 },
       { path: "/api/community/exchange/series", times: 1 },
     ])
     await page.goto(cardsUrl)

@@ -41,6 +41,8 @@ function renderAdminLayout(initialEntry = "/admin") {
         <Route path="/admin/login" element={<h1>管理登录路由</h1>} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<h1>管理工作台首页</h1>} />
+          <Route path="community" element={<h1>社区配置</h1>} />
+          <Route path="community/exchange" element={<h1>位置审核</h1>} />
           <Route path="stories" element={<h1>Wiki 剧情管理</h1>} />
           <Route path="stories/assets" element={<h1>Wiki 素材管理</h1>} />
         </Route>
@@ -105,7 +107,7 @@ describe("AdminLayout", () => {
     renderAdminLayout("/admin/stories")
 
     expect(screen.getByRole("heading", { name: "Wiki 剧情管理" })).toBeVisible()
-    expect(screen.getByText("Wiki 编辑")).toBeVisible()
+    expect(screen.getByText("内容编辑")).toBeVisible()
     expect(screen.getByRole("link", { name: /剧情内容/ })).toHaveAttribute(
       "href",
       "/admin/stories"
@@ -117,6 +119,41 @@ describe("AdminLayout", () => {
       screen.queryByRole("link", { name: /工作台/ })
     ).not.toBeInTheDocument()
   })
+
+  it.each(["/admin/community", "/admin/community/exchange"])(
+    "limits editor community access at %s",
+    (path) => {
+      mocks.useRequest.mockReturnValue({
+        data: {
+          success: true,
+          user: {
+            id: 4,
+            username: "editor",
+            producername: "Editor",
+            dept: "editor",
+            adminRole: null,
+          },
+        },
+        loading: false,
+        error: undefined,
+        onError: mocks.onError,
+        send: mocks.send,
+      })
+      renderAdminLayout(path)
+      if (path === "/admin/community") {
+        expect(screen.getByRole("heading", { name: "社区配置" })).toBeVisible()
+        expect(
+          screen.getByRole("link", { name: /制作人社区/ })
+        ).toHaveAttribute("href", "/admin/community")
+        expect(
+          screen.queryByRole("link", { name: /事务所位置/ })
+        ).not.toBeInTheDocument()
+      } else
+        expect(
+          screen.getByRole("heading", { name: "无法访问管理工作台" })
+        ).toBeVisible()
+    }
+  )
 
   it("shows a retryable state for a session service failure", async () => {
     mocks.useRequest.mockReturnValue({

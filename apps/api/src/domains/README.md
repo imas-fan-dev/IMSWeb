@@ -28,6 +28,7 @@ capability 内的技术角色。
 | Content | `events` | 活动生命周期和媒体 | `events` |
 | Content | `chronicle` | 编年史活动、媒体审核与服务 | 扁平（11 个 handler） |
 | Content | `about` | 关于页和图片 | `page` `media` |
+| Content | `community-content` | 制作人社区整页配置与图片 | 扁平 |
 | Content | `producer-map` | 制作人地图和图片 | `map` `media` |
 | Content | `live-schedule` | 直播日程读取 | `schedule` |
 | Content | `homepage-links` | 首页链接编排 | `links` |

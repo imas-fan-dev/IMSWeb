@@ -76,7 +76,10 @@ const publicRoutes: Array<{
   {
     path: "/community",
     title: /制作人社区.*IMSWeb/i,
-    apis: withCatalog("/api/community/exchange/series"),
+    apis: [
+      ...withCatalog("/api/community/content"),
+      { path: "/api/community/exchange/series", times: 1 },
+    ],
   },
   {
     path: "/account/login",

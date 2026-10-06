@@ -88,6 +88,7 @@ export default defineConfig({
     entries: ["app/**/*.{ts,tsx}"],
     include: [
       "@imsweb/contracts/**",
+      "@imsweb/contracts/community-content",
       "@imsweb/contracts/fudaba/guest-submissions",
       "@imsweb/contracts/fudaba/runtime",
       "@base-ui/react > use-sync-external-store/shim",

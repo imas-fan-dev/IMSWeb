@@ -20,6 +20,7 @@ index and do not replace those files.
 | [Tauri mobile integration](./tauri-mobile-integration.md) | Native plugin, capability, permission, deep-link return, and platform metadata contracts |
 | [Testing](./testing.md) | Unit, component, browser, and routing tests |
 | [Private owner card images](./owner-card-media.md) | App authenticated binary media, URL allowlisting, refresh and object URL lifecycle |
+| [Community landing configuration](../../api/backend/community-content.md) | Configured community entries, admin draft preservation, empty results and icon image delivery |
 
 ## Pre-Development Checklist
 

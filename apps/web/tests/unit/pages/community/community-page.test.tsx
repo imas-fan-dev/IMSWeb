@@ -1,60 +1,94 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-
-import { ApiError } from "~/lib/api"
+import { ApiError, type CommunityContentEntry } from "~/lib/api"
 import Community from "~/pages/community"
-
-const apiMocks = vi.hoisted(() => ({
-  getFudabaSeries: vi.fn(),
-  sendSeries: vi.fn(),
+const mocks = vi.hoisted(() => ({ content: vi.fn(), series: vi.fn() }))
+vi.mock("~/lib/api", async (original) => ({
+  ...(await original<typeof import("~/lib/api")>()),
+  getCommunityContent: () => ({ send: mocks.content }),
+  getFudabaSeries: () => ({ send: mocks.series }),
 }))
-
-vi.mock("~/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/api")>()
-  return {
-    ...actual,
-    getFudabaSeries: apiMocks.getFudabaSeries,
-  }
+const entry: CommunityContentEntry = {
+  id: "configured",
+  title: "配置入口",
+  description: "配置说明",
+  href: "/community/cards",
+  icon: "unknown",
+  imageUrl: null,
+  enabled: true,
+  audience: "all",
+  availability: "always",
+}
+const content = (entries: CommunityContentEntry[] = []) => ({
+  version: 1,
+  title: "社区标题",
+  introduction: "社区简介",
+  entries,
+  updatedAt: null,
 })
-
-function renderPage() {
-  return render(
+const renderPage = () =>
+  render(
     <MemoryRouter>
       <Community />
     </MemoryRouter>
   )
-}
-
-describe("Community", () => {
+describe("configured Community", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
-    apiMocks.sendSeries.mockResolvedValue({ items: [] })
+    mocks.content.mockResolvedValue(content())
+    mocks.series.mockResolvedValue({ items: [] })
   })
-
-  it("shows the exchange entry when the public read route is available", async () => {
+  it("renders a successful empty configuration without placeholders or a probe", async () => {
     renderPage()
-
     expect(
-      await screen.findByRole("link", { name: /名片交换事务所/ })
-    ).toHaveAttribute("href", "/community/exchange")
+      await screen.findByRole("heading", { name: "社区标题" })
+    ).toBeVisible()
+    expect(screen.queryAllByRole("link")).toHaveLength(0)
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+    expect(mocks.series).not.toHaveBeenCalled()
   })
-
-  it("keeps the Web game entry without adding the App activity shortcut", () => {
-    renderPage()
-
-    expect(screen.getByRole("link", { name: /板板大暴走/ })).toHaveAttribute(
-      "href",
-      "/runninggame/"
+  it("filters hidden and App-only entries and retains configured ordering and custom images", async () => {
+    mocks.content.mockResolvedValue(
+      content([
+        { ...entry, id: "hidden", enabled: false, availability: "exchange" },
+        { ...entry, id: "app", audience: "app", availability: "exchange" },
+        { ...entry, imageUrl: "/uploads/community-content/image.webp" },
+        { ...entry, id: "second", title: "第二入口", audience: "web" },
+      ])
     )
-    expect(
-      screen.queryByRole("link", { name: /社区动态/ })
-    ).not.toBeInTheDocument()
+    renderPage()
+    await screen.findByRole("link", { name: /配置入口/ })
+    expect(screen.getAllByRole("link").map((node) => node.textContent)).toEqual(
+      ["配置入口配置说明", "第二入口配置说明"]
+    )
+    expect(document.querySelector("img")).toHaveAttribute(
+      "src",
+      expect.stringContaining("/uploads/community-content/image.webp")
+    )
+    expect(mocks.series).not.toHaveBeenCalled()
   })
-
-  it("hides the exchange entry only for the explicit feature-off response", async () => {
-    apiMocks.sendSeries.mockRejectedValue(
+  it("retries a failed read without injecting defaults", async () => {
+    mocks.content
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(content([entry]))
+    renderPage()
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取")
+    expect(screen.queryAllByRole("link")).toHaveLength(0)
+    await userEvent.click(screen.getByRole("button", { name: "重试" }))
+    expect(await screen.findByRole("link", { name: /配置入口/ })).toBeVisible()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "重试" })
+    ).not.toBeInTheDocument()
+    expect(mocks.content).toHaveBeenCalledTimes(2)
+  })
+  it("hides configured exchange entries for explicit feature-off", async () => {
+    mocks.content.mockResolvedValue(
+      content([{ ...entry, availability: "exchange" }])
+    )
+    mocks.series.mockRejectedValue(
       new ApiError("Not Found", {
         kind: "http",
         status: 404,
@@ -62,42 +96,30 @@ describe("Community", () => {
       })
     )
     renderPage()
-
-    await waitFor(() => {
+    await screen.findByRole("heading", { name: "社区标题" })
+    await waitFor(() =>
       expect(screen.queryByRole("status")).not.toBeInTheDocument()
-    })
-    expect(
-      screen.queryByRole("link", { name: /名片交换事务所/ })
-    ).not.toBeInTheDocument()
-  })
-
-  it("keeps a navigable entry when the availability probe fails", async () => {
-    apiMocks.sendSeries.mockRejectedValue(
-      new ApiError("Service unavailable", {
-        kind: "http",
-        status: 503,
-        payload: { error: "Service unavailable" },
-      })
     )
-    renderPage()
-
-    expect(
-      await screen.findByRole("link", { name: /名片交换事务所/ })
-    ).toHaveTextContent("交换区状态暂时无法确认，可直接进入重试。")
+    expect(screen.queryAllByRole("link")).toHaveLength(0)
+    expect(mocks.series).toHaveBeenCalledTimes(1)
   })
-
-  it("does not treat an unrelated JSON 404 as the feature-off response", async () => {
-    apiMocks.sendSeries.mockRejectedValue(
-      new ApiError("Route response changed", {
-        kind: "http",
-        status: 404,
-        payload: { error: "Route response changed" },
-      })
-    )
-    renderPage()
-
-    expect(
-      await screen.findByRole("link", { name: /名片交换事务所/ })
-    ).toHaveAttribute("href", "/community/exchange")
-  })
+  it.each([503, 404])(
+    "keeps configured exchange navigation on unrelated %s errors",
+    async (status) => {
+      mocks.content.mockResolvedValue(
+        content([{ ...entry, availability: "exchange" }])
+      )
+      mocks.series.mockRejectedValue(
+        new ApiError("unavailable", {
+          kind: "http",
+          status,
+          payload: { error: "unavailable" },
+        })
+      )
+      renderPage()
+      expect(
+        await screen.findByRole("link", { name: /配置入口/ })
+      ).toHaveAttribute("href", "/community/cards")
+    }
+  )
 })

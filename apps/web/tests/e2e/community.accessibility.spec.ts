@@ -1,3 +1,4 @@
+import { installCommunityContentMock } from "./fixtures/community-content"
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "./fixtures/test"
 
@@ -11,6 +12,7 @@ test.describe("community accessibility", () => {
     api,
   }) => {
     installEmptyWikiCatalogMock(api)
+    installCommunityContentMock(api, 1)
     await api.mockRoute(
       "/api/community/exchange/series",
       (route) => route.fulfill({ json: { items: [] } }),

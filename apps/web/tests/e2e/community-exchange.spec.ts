@@ -1,3 +1,4 @@
+import { installCommunityContentMock } from "./fixtures/community-content"
 import AxeBuilder from "@axe-core/playwright"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { api, expect, test } from "./fixtures/test"
@@ -206,6 +207,7 @@ test.describe("community exchange", () => {
       "GET",
       2
     )
+    installCommunityContentMock(api, 1)
     await page.goto("/community")
     const exchangeLink = page.getByRole("link", { name: /名片交换事务所/ })
     await expect(exchangeLink).toBeVisible()
