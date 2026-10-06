@@ -62,3 +62,5 @@
 主会话已读取最终页面、模型、列表和弹窗源码，确认 Web facade 仅导出现有单项 schema；实际 diff 没有新增 HTTP 方法或修改 endpoint 测试。已打开复核桌面及手机弹窗截图，并更新社区配置规范中的候选确认、上传归属、ID 定位、焦点和测试要求。
 
 规范更新后运行 `node scripts/check-agent-rules.mjs`、`node scripts/check-docs.mjs` 和 `git diff --check`，全部退出 0。一次额外完整 `check:rules` 在调用工具 45 秒上限处中断，不计为完整通过；源代码门禁采用已记录的完整通过结果，本次文档变更采用上述针对性检查。
+
+工作提交 `f21cbbe9fba5b6e26245279b628344cbf383085c` 通过完整正常 pre-commit hook，包含合同 29 用例、迁移 99 通过/15 跳过、路由 6 用例、根规则/边界、contracts build、design lint、Web lint/typecheck 和 API syntax/architecture。候选树与已验证源码一致；主检出其他 29 个受保护路径哈希、原有暂存 patch 均保持不变。

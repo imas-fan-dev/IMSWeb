@@ -2,4 +2,4 @@
 {"file":".trellis/spec/web/frontend/testing.md","reason":"语义回归、typed fixture、Axe 和浏览器布局"}
 {"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"确认没有重复 wire schema 或旁路请求"}
 {"file":".trellis/spec/api/backend/community-content.md","reason":"检查冲突与读取失败保护、图片归属和空列表"}
-{"file":".trellis/tasks/10-07-community-admin-list-dialog/research/source-baseline.md","reason":"区分原型验证与正式产品验收，保护已有工作"}
+{"file":".trellis/tasks/archive/2026-10/10-07-community-admin-list-dialog/research/source-baseline.md","reason":"区分原型验证与正式产品验收，保护已有工作"}
