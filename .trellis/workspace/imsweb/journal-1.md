@@ -330,3 +330,42 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: 制作人社区动态配置与验收
+<!-- trellis-session: v=2 fp=c9a8354d964ade4e -->
+
+**Date**: 2026-10-07
+**Task**: 制作人社区动态配置与验收
+**Package**: api
+**Branch**: `release/v1.1`
+
+### Summary
+
+完成 API、Web、contracts 的社区首页动态配置、后台管理、自定义图标图片与空内容展示，验收并归档当前任务。
+
+### Main Changes
+
+- 后台 /admin/community 管理页面文案与入口的增删、排序、显隐、Web/App 范围和图标图片；公共 /community 消费配置，未配置及空列表均不回填旧卡片。
+- op/editor 权限、Cookie CSRF、保存/上传审计、业务图片归属与安全链接校验；保存强制原子版本保护，损坏配置返回失败，冲突保留草稿。
+- 新增七段跨层 spec 和验收记录；独立 Git index 提交，保留原有 15 个 staged 设计文件与三个构建脚本删除。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3ee7ae682a92ab3acccb41993b280d8fa4e2dc04` | feat(community): manage landing content and custom icons |
+
+### Testing
+
+- [OK] 最终隔离副本：contracts build、API owner 71 文件/887 通过/1 跳过、Web check 225 文件/1579 通过、root rules/boundaries、打包路由 10 测试全部通过。
+- [OK] 9 个相关浏览器案例及 8 张临时截图，含 op/editor、desktop/mobile、Axe、40×40 图片、空列表和无横向溢出；父会话核对截图。
+- [OK] 最终社区 endpoint/public/admin 17 项 unit 回归通过；工作和归档提交的现有 pre-commit hook 全部通过，候选树及保护文件哈希一致。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 本次未推送、部署或写入线上配置。发布后由后台显式配置需要展示的入口；初始入口区域为空。
