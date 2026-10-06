@@ -4,6 +4,7 @@ import {
   communityContentSchema,
   communityContentErrorResponseSchema,
   communityContentDraftSchema,
+  communityContentEntrySchema,
   adminCommunityContentSnapshotSchema,
   adminCommunityContentUpdateSchema,
   adminCommunityContentImageUploadSchema,
@@ -14,7 +15,7 @@ import { adminApiClient } from "../admin-client"
 import { parsed } from "../parsed"
 import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
-export { communityContentDraftSchema }
+export { communityContentDraftSchema, communityContentEntrySchema }
 export type * from "@imsweb/contracts/community-content"
 
 export function getCommunityContent() {

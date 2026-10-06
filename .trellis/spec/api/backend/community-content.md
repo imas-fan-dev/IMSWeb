@@ -59,6 +59,36 @@ JSON is validated locally by `parseCommunityContent` without loading Zod.
   Failed writes use existing deletion/compensation. Clearing a draft reference
   does not delete a successful upload.
 
+### Admin list and candidate Dialog
+
+`apps/web/app/pages/admin/community/` owns the compact list and pinned entry
+Dialog. The page holds the loaded baseline, draft and revision; dirty state
+compares the draft with the baseline. Opening an editor creates a copied
+candidate and records the original ID. Cancel, Escape and outside dismissal
+discard the candidate. Confirm validates the existing entry schema through the
+Web API facade, checks ID uniqueness and original-target existence, and updates
+only that row. An unchanged confirmation leaves the page clean. Adding a row
+does not append it before confirmation. Only the page's save action calls the
+configuration PUT; candidate confirmation, ordering and deletion stay local.
+
+The editor owns upload state separately from page loading/saving. A response,
+catch or finally may change the editor only while its session token, upload
+sequence and active flag match. Pending upload blocks closing and confirmation;
+unmount invalidates the session. A successful upload is only a candidate image
+reference until entry confirmation and page save. Cancelling never deletes the
+server asset.
+
+Editing, sorting and deletion locate entries by ID. After an editable ID changes,
+closing the Dialog restores focus to the new row's visible edit button; if the
+target no longer exists, focus falls back to the add button. Scheduled focus
+restoration is cancelled on unmount or opening another session.
+
+The desktop table exposes ordering, edit and delete buttons. Narrow layouts merge
+metadata into the entry column and use a local `@base-ui/react/menu` Portal for
+ordering/deletion, with 44px targets. The Dialog uses the shared pinned layout,
+the complete flex/min-height chain and `DialogBody` as its only scroll region.
+Keep the footer and close control reachable, including validation errors.
+
 ## 4. Validation and error matrix
 
 | Condition | Result |
@@ -102,10 +132,15 @@ use the shared image normalization pipeline.
   retry recovery, configured exchange availability and public image origin.
 - `apps/web/tests/unit/pages/admin/community/admin-community-page.test.tsx`:
   editing/order/visibility, upload/clear, loading failure and draft/conflict
-  preservation. Endpoint tests assert contracts and shared CSRF metadata.
+  preservation; cancel/add isolation, unchanged confirmation, baseline restoration,
+  duplicate/changed IDs, missing original target, upload closure blocking,
+  stale-upload/unmount protection and focus restoration. Endpoint tests assert
+  contracts and shared CSRF metadata.
 - `apps/web/tests/e2e/community-content-management.spec.ts`: op/editor
   workflows at desktop and 320px phone widths, publish/reread, image size,
-  deletion to empty, accessibility and no horizontal overflow.
+  deletion to empty, accessibility and no horizontal overflow; mobile menu
+  keyboard/focus and 44px targets, pinned-body scrolling, ID-change focus and
+  validation feedback preserving the desktop field columns.
 - Refresh the mounted wire inventory for route changes. Run contracts,
   API/Web owner gates, root rules/boundaries and `test:web-routing`.
 

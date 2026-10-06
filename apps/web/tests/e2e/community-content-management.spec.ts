@@ -4,6 +4,7 @@ import {
   adminCommunityContentUpdateRequestSchema,
   adminCommunityContentUpdateSchema,
   communityContentSchema,
+  communityContentErrorResponseSchema,
   type CommunityContent,
 } from "@imsweb/contracts/community-content"
 import { adminApiPath, communityApiPath } from "@imsweb/contracts/paths"
@@ -115,34 +116,134 @@ test.describe("community content management", () => {
         ).toHaveCount(0)
       await page.getByLabel("页面标题").fill("共同创作社区")
       await page.getByLabel("页面简介").fill("管理配置的简介")
-      await page.getByRole("button", { name: "添加入口" }).click()
-      await page.getByRole("button", { name: "添加入口" }).click()
-      const first = page.getByRole("region", { name: "入口 1", exact: true })
-      const second = page.getByRole("region", { name: "入口 2", exact: true })
-      await first.getByLabel("名称", { exact: true }).fill("制作人名片")
-      await first.getByLabel("入口 ID").fill("cards")
-      await first.getByLabel("跳转地址").fill("/community/cards")
-      await first.getByLabel("说明", { exact: true }).fill("浏览制作人名片")
-      await second.getByLabel("名称", { exact: true }).fill("App 专属")
-      await second.getByLabel("入口 ID").fill("app-only")
-      await second.getByLabel("展示范围").selectOption("app")
-      await second.getByRole("button", { name: "上移" }).click()
-      await expect(first.getByLabel("名称", { exact: true })).toHaveValue(
-        "App 专属"
-      )
-      await second
+      await page.getByRole("button", { name: "新增入口" }).click()
+      const dialog = page.getByRole("dialog")
+      await dialog.getByLabel("名称", { exact: true }).fill("取消的新入口")
+      await dialog.getByRole("button", { name: "取消", exact: true }).click()
+      await expect(page.getByText("取消的新入口")).toHaveCount(0)
+      await page.getByRole("button", { name: "新增入口" }).click()
+      await dialog.getByLabel("入口 ID").fill("Invalid ID")
+      await dialog
+        .getByRole("button", { name: "添加入口", exact: true })
+        .click()
+      await expect(dialog.getByRole("alert")).toBeVisible()
+      if (!isMobile) {
+        const name = await dialog
+          .getByLabel("名称", { exact: true })
+          .boundingBox()
+        const icon = await dialog
+          .getByRole("button", { name: "图标：users", exact: true })
+          .boundingBox()
+        expect(name!.x).toBeLessThan(icon!.x)
+      }
+      await dialog.getByLabel("名称", { exact: true }).fill("制作人名片")
+      await dialog.getByLabel("入口 ID").fill("cards")
+      await dialog.getByLabel("跳转地址").fill("/community/cards")
+      await dialog.getByLabel("说明", { exact: true }).fill("浏览制作人名片")
+      await dialog
+        .getByRole("button", { name: "添加入口", exact: true })
+        .click()
+      await page.getByRole("button", { name: "新增入口" }).click()
+      await dialog.getByLabel("名称", { exact: true }).fill("App 专属")
+      await dialog.getByLabel("入口 ID").fill("app-only")
+      await dialog.getByLabel("展示范围").click()
+      await page.getByRole("option", { name: "App", exact: true }).click()
+      await dialog
+        .getByRole("button", { name: "添加入口", exact: true })
+        .click()
+      const first = page.getByRole("row", { name: "入口 1", exact: true })
+      if (isMobile) {
+        await page.getByRole("button", { name: "更多操作 App 专属" }).click()
+        await expect(page.getByRole("menu")).toBeVisible()
+        for (const item of await page.getByRole("menuitem").all())
+          expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+        await page.keyboard.press("Escape")
+        await expect(
+          page.getByRole("button", { name: "更多操作 App 专属" })
+        ).toBeFocused()
+        await page.getByRole("button", { name: "更多操作 App 专属" }).click()
+        await page.getByRole("menuitem", { name: "上移", exact: true }).click()
+      } else await page.getByRole("button", { name: "上移 App 专属" }).click()
+      await expect(first.getByText("App 专属", { exact: true })).toBeVisible()
+      await page.getByRole("button", { name: "编辑 制作人名片" }).click()
+      await dialog.getByLabel("名称", { exact: true }).fill("取消编辑")
+      await page.keyboard.press("Escape")
+      await expect(
+        page.getByRole("button", { name: "编辑 制作人名片" })
+      ).toBeFocused()
+      await page.getByRole("button", { name: "编辑 制作人名片" }).click()
+      await dialog.getByLabel("入口 ID").fill("cards-renamed")
+      await dialog
         .locator('input[type="file"]')
         .setInputFiles({ name: "icon.png", mimeType: "image/png", buffer: png })
       await expect(
-        second.getByRole("img", { name: "入口图片预览" })
+        dialog.getByRole("img", { name: "入口图片预览" })
       ).toBeVisible()
       await expect
         .poll(() =>
-          second
+          dialog
             .getByRole("img")
             .evaluate((image: HTMLImageElement) => image.naturalWidth)
         )
         .toBeGreaterThan(0)
+      await dialog.evaluate(async (element) => {
+        await Promise.allSettled(
+          element
+            .getAnimations({ subtree: true })
+            .filter(
+              (a) => a.effect?.getComputedTiming().iterations !== Infinity
+            )
+            .map((a) => a.finished)
+        )
+      })
+      if (isMobile) {
+        const footer = dialog.locator('[data-slot="dialog-footer"]')
+        const close = dialog.getByRole("button", { name: "关闭入口编辑器" })
+        const scrollTop = await page.evaluate(
+          () => document.scrollingElement!.scrollTop
+        )
+        const before = {
+          footer: await footer.boundingBox(),
+          close: await close.boundingBox(),
+        }
+        const body = dialog.locator('[data-slot="dialog-body"]')
+        await expect
+          .poll(() =>
+            body.evaluate(
+              (element) => element.scrollHeight > element.clientHeight
+            )
+          )
+          .toBe(true)
+        await body.evaluate((element) => {
+          element.scrollTop = element.scrollHeight
+        })
+        await expect
+          .poll(() => body.evaluate((element) => element.scrollTop))
+          .toBeGreaterThan(0)
+        expect(
+          await page.evaluate(() => document.scrollingElement!.scrollTop)
+        ).toBe(scrollTop)
+        expect(await footer.boundingBox()).toEqual(before.footer)
+        expect(await close.boundingBox()).toEqual(before.close)
+        expect(before.close!.width).toBeGreaterThanOrEqual(44)
+        expect(before.close!.height).toBeGreaterThanOrEqual(44)
+        await expect(
+          dialog.getByRole("button", { name: "完成编辑" })
+        ).toBeInViewport()
+        const bounds = await dialog.boundingBox()
+        expect(bounds!.x).toBeGreaterThanOrEqual(0)
+        expect(bounds!.y).toBeGreaterThanOrEqual(0)
+        expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(568)
+      }
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+      await page.screenshot({
+        path: testInfo.outputPath(`community-dialog-${dept}.png`),
+        fullPage: true,
+      })
+      await dialog.getByRole("button", { name: "完成编辑" }).click()
+      await expect(
+        page.getByRole("button", { name: "编辑 制作人名片" })
+      ).toBeFocused()
       await expect
         .poll(() =>
           page.evaluate(
@@ -158,9 +259,7 @@ test.describe("community content management", () => {
       await page.getByRole("button", { name: "保存配置" }).click()
       await expect(page.getByRole("alert")).toHaveText("已保存")
       await page.getByRole("button", { name: "重新读取" }).click()
-      await expect(first.getByLabel("名称", { exact: true })).toHaveValue(
-        "App 专属"
-      )
+      await expect(first.getByText("App 专属", { exact: true })).toBeVisible()
       await page.goto("/community")
       await expect(
         page.getByRole("heading", { name: "共同创作社区" })
@@ -198,21 +297,21 @@ test.describe("community content management", () => {
         fullPage: true,
       })
       await page.goto("/admin/community")
-      await expect(first.getByLabel("名称", { exact: true })).toHaveValue(
-        "App 专属"
-      )
-      await page
-        .getByRole("region", { name: "入口 2", exact: true })
-        .getByRole("button", { name: "清除图片" })
-        .click()
-      await expect(page.getByRole("img", { name: "入口图片预览" })).toHaveCount(
-        0
-      )
-      for (let i = 0; i < 2; i++) {
-        await page
-          .getByRole("region", { name: "入口 1", exact: true })
-          .getByRole("button", { name: "删除", exact: true })
-          .click()
+      await expect(first.getByText("App 专属", { exact: true })).toBeVisible()
+      await page.getByRole("button", { name: "编辑 制作人名片" }).click()
+      await dialog.getByRole("button", { name: "清除图片" }).click()
+      await expect(
+        dialog.getByRole("img", { name: "入口图片预览" })
+      ).toHaveCount(0)
+      await dialog.getByRole("button", { name: "完成编辑" }).click()
+      for (const title of ["App 专属", "制作人名片"]) {
+        if (isMobile) {
+          await page.getByRole("button", { name: `更多操作 ${title}` }).click()
+          await expect(page.getByRole("menu")).toBeVisible()
+          await page
+            .getByRole("menuitem", { name: "删除", exact: true })
+            .click()
+        } else await page.getByRole("button", { name: `删除 ${title}` }).click()
         await page
           .getByRole("alertdialog")
           .getByRole("button", { name: "确认", exact: true })
@@ -228,4 +327,71 @@ test.describe("community content management", () => {
       await expect(page.getByText("暂无内容")).toHaveCount(0)
     })
   }
+  test("@mobile preserves local edits on conflict and blocks saving after a failed reread", async ({
+    page,
+    api,
+    isMobile,
+  }) => {
+    if (isMobile) await page.setViewportSize({ width: 320, height: 568 })
+    await page.addInitScript(() =>
+      window.localStorage.setItem("imsweb.language", "zh-CN")
+    )
+    installEmptyWikiCatalogMock(api, 1)
+    await installAdminAuthMock(page, api, { sessionTimes: 1 })
+    let reads = 0
+    api.expect({
+      name: "community snapshot then failed reread",
+      method: "GET",
+      path: adminApiPath("/community-content"),
+      times: 2,
+      responses: {
+        200: adminCommunityContentSnapshotSchema,
+        500: communityContentErrorResponseSchema,
+      },
+      handle: () =>
+        ++reads === 1
+          ? {
+              status: 200,
+              json: {
+                content: {
+                  version: 1,
+                  title: "服务器标题",
+                  introduction: "",
+                  entries: [],
+                  updatedAt: null,
+                },
+                revision: "v1",
+              },
+            }
+          : { status: 500, json: { error: "read failed" } },
+    })
+    api.expect({
+      name: "community revision conflict",
+      method: "PUT",
+      path: adminApiPath("/community-content"),
+      body: adminCommunityContentUpdateRequestSchema,
+      responses: { 409: communityContentErrorResponseSchema },
+      handle: ({ body }) => {
+        expect(body.revision).toBe("v1")
+        expect(body.content.title).toBe("本地修改")
+        return { status: 409, json: { error: "conflict" } }
+      },
+    })
+    await page.goto("/admin/community")
+    await page.getByLabel("页面标题").fill("本地修改")
+    await page.getByRole("button", { name: "保存配置" }).click()
+    await expect(page.getByRole("alert")).toContainText("本地草稿已保留")
+    await expect(page.getByRole("button", { name: "保存配置" })).toBeDisabled()
+    await expect(page.getByLabel("页面标题")).toHaveValue("本地修改")
+    await page.getByRole("button", { name: "重新读取" }).click()
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "确认" })
+      .click()
+    await expect(page.getByRole("alert")).toContainText("无法读取")
+    await expect(page.getByLabel("页面标题")).toHaveValue("本地修改")
+    await expect(page.getByLabel("页面标题")).toBeDisabled()
+    await expect(page.getByRole("button", { name: "新增入口" })).toBeDisabled()
+    await expect(page.getByRole("button", { name: "保存配置" })).toBeDisabled()
+  })
 })

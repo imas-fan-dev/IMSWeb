@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { act, render, screen, within, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "~/lib/api"
@@ -50,28 +50,23 @@ describe("community draft editor", () => {
     const user = userEvent.setup()
     render(<AdminCommunity />)
     await screen.findByLabelText("页面标题")
+    await user.click(screen.getByRole("button", { name: "新增入口" }))
+    await user.clear(screen.getByLabelText("名称"))
+    await user.type(screen.getByLabelText("名称"), "第一")
+    await user.click(screen.getByLabelText("展示范围"))
+    await user.click(screen.getByRole("option", { name: "App" }))
+    await user.click(screen.getByRole("checkbox", { name: "显示入口" }))
     await user.click(screen.getByRole("button", { name: "添加入口" }))
+    await user.click(screen.getByRole("button", { name: "新增入口" }))
+    await user.clear(screen.getByLabelText("名称"))
+    await user.type(screen.getByLabelText("名称"), "第二")
     await user.click(screen.getByRole("button", { name: "添加入口" }))
-    const first = within(screen.getByRole("region", { name: "入口 1" }))
-    await user.clear(first.getByLabelText("名称"))
-    await user.type(first.getByLabelText("名称"), "第一")
-    await user.selectOptions(first.getByLabelText("展示范围"), "app")
-    await user.click(first.getByRole("checkbox", { name: "显示入口" }))
-    const second = within(screen.getByRole("region", { name: "入口 2" }))
-    await user.clear(second.getByLabelText("名称"))
-    await user.type(second.getByLabelText("名称"), "第二")
-    await user.click(second.getByRole("button", { name: "上移" }))
+    expect(mocks.update).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "上移 第二" }))
     expect(
-      within(screen.getByRole("region", { name: "入口 1" })).getByLabelText(
-        "名称"
-      )
-    ).toHaveValue("第二")
-    await user.click(
-      within(screen.getByRole("region", { name: "入口 1" })).getByRole(
-        "button",
-        { name: "删除" }
-      )
-    )
+      within(screen.getByRole("row", { name: "入口 1" })).getByText("第二")
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "删除 第二" }))
     await user.click(screen.getByRole("button", { name: "确认" }))
     await user.click(screen.getByRole("button", { name: "保存配置" }))
     await screen.findByText("已保存")
@@ -99,7 +94,7 @@ describe("community draft editor", () => {
       })
     render(<AdminCommunity />)
     await screen.findByLabelText("页面标题")
-    await user.click(screen.getByRole("button", { name: "添加入口" }))
+    await user.click(screen.getByRole("button", { name: "新增入口" }))
     const input = document.querySelector(
       'input[type="file"]'
     ) as HTMLInputElement
@@ -123,6 +118,7 @@ describe("community draft editor", () => {
     expect(
       screen.queryByRole("img", { name: "入口图片预览" })
     ).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "添加入口" }))
     await user.click(screen.getByRole("button", { name: "保存配置" }))
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -130,6 +126,136 @@ describe("community draft editor", () => {
       }),
       null
     )
+  })
+  it("cancels new and existing candidates, keeps unchanged confirmation clean, and targets original IDs", async () => {
+    const user = userEvent.setup()
+    const entry = {
+      id: "one",
+      title: "原名称",
+      description: "",
+      href: "/community",
+      icon: "users",
+      imageUrl: null,
+      enabled: true,
+      audience: "all",
+      availability: "always",
+    }
+    mocks.read.mockResolvedValue({
+      content: {
+        ...initial,
+        entries: [entry, { ...entry, id: "two", title: "其他入口" }],
+      },
+      revision: "base",
+    })
+    render(<AdminCommunity />)
+    await screen.findByLabelText("页面标题")
+    await user.click(screen.getByRole("button", { name: "新增入口" }))
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    expect(screen.getAllByRole("row")).toHaveLength(3)
+    await user.click(screen.getByRole("button", { name: "编辑 原名称" }))
+    await user.type(screen.getByLabelText("名称"), "取消")
+    await user.keyboard("{Escape}")
+    expect(screen.getByText("原名称")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "编辑 原名称" }))
+    await user.click(screen.getByRole("button", { name: "完成编辑" }))
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "编辑 原名称" }))
+    await user.clear(screen.getByLabelText("入口 ID"))
+    await user.type(screen.getByLabelText("入口 ID"), "Invalid ID")
+    await user.click(screen.getByRole("button", { name: "完成编辑" }))
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("id")
+    await user.clear(screen.getByLabelText("入口 ID"))
+    await user.type(screen.getByLabelText("入口 ID"), "two")
+    await user.click(screen.getByRole("button", { name: "完成编辑" }))
+    expect(screen.getByRole("alert")).toHaveTextContent("ID 已存在")
+    await user.clear(screen.getByLabelText("入口 ID"))
+    await user.type(screen.getByLabelText("入口 ID"), "renamed")
+    await user.clear(screen.getByLabelText("名称"))
+    await user.type(screen.getByLabelText("名称"), "新名称")
+    await user.click(screen.getByRole("button", { name: "完成编辑" }))
+    expect(screen.getByText("其他入口")).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "编辑 新名称" })).toHaveFocus()
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "保存配置" }))
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: [
+          expect.objectContaining({ id: "renamed", title: "新名称" }),
+          expect.objectContaining({ id: "two" }),
+        ],
+      }),
+      "base"
+    )
+  })
+  it("blocks closing during upload and ignores completion after unmount in a new editor", async () => {
+    let resolve!: (value: { url: string }) => void
+    mocks.upload.mockReturnValue(
+      new Promise((r) => {
+        resolve = r
+      })
+    )
+    const user = userEvent.setup()
+    const view = render(<AdminCommunity />)
+    await screen.findByLabelText("页面标题")
+    await user.click(screen.getByRole("button", { name: "新增入口" }))
+    await user.upload(
+      document.querySelector('input[type="file"]') as HTMLInputElement,
+      new File(["image"], "test.png", { type: "image/png" })
+    )
+    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: "关闭入口编辑器" })
+    ).toBeDisabled()
+    expect(screen.getByRole("button", { name: "正在上传" })).toBeDisabled()
+    await user.keyboard("{Escape}")
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    view.unmount()
+    render(<AdminCommunity />)
+    await screen.findByLabelText("页面标题")
+    await user.click(screen.getByRole("button", { name: "新增入口" }))
+    await act(async () => {
+      resolve({ url: "/uploads/community-content/stale.webp" })
+    })
+    expect(
+      screen.queryByRole("img", { name: "入口图片预览" })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "添加入口" })).toBeEnabled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+  it("returns to a clean baseline when page changes are undone and enforces the entry limit", async () => {
+    const user = userEvent.setup()
+    const entry = {
+      id: "one",
+      title: "入口",
+      description: "",
+      href: "/community",
+      icon: "users",
+      imageUrl: null,
+      enabled: true,
+      audience: "all",
+      availability: "always",
+    }
+    mocks.read.mockResolvedValue({
+      content: {
+        ...initial,
+        entries: Array.from({ length: 100 }, (_, index) => ({
+          ...entry,
+          id: `entry-${index}`,
+        })),
+      },
+      revision: "base",
+    })
+    render(<AdminCommunity />)
+    const title = await screen.findByLabelText("页面标题")
+    expect(screen.getByRole("button", { name: "新增入口" })).toBeDisabled()
+    await user.type(title, "改")
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeEnabled()
+    await user.clear(title)
+    await user.type(title, "社区")
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled()
   })
   it("disables save after a failed reload while retaining the previous draft", async () => {
     render(<AdminCommunity />)
