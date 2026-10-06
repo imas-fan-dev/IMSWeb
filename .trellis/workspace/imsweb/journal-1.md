@@ -369,3 +369,38 @@
 ### Next Steps
 
 - 本次未推送、部署或写入线上配置。发布后由后台显式配置需要展示的入口；初始入口区域为空。
+
+
+## Session 11: 社区后台入口列表与编辑弹窗
+<!-- trellis-session: v=2 fp=b9916b6f1deb7a16 -->
+
+**Date**: 2026-10-07
+**Task**: 社区后台入口列表与编辑弹窗
+**Package**: web
+**Branch**: `release/v1.1`
+
+### Summary
+
+完成社区后台紧凑列表与独立编辑弹窗，保留整页版本保存、上传归属和错误保护；完成独立复核并归档。
+
+### Main Changes
+
+- 复用后台 Table、pinned Dialog 与本地 Base UI 菜单，支持 320px 操作与焦点返回。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f21cbbe9fba5b6e26245279b628344cbf383085c` | feat(community): edit admin entries in list dialogs |
+
+### Testing
+
+- [OK] 完整 Web 1582 单元测试及构建、集中 25 单元测试、最终社区浏览器 6 用例通过；正常提交 hooks 通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 未推送或部署；Preview 保持原部署。
