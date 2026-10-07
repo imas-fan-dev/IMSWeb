@@ -13,6 +13,18 @@ const routeMetadataUrl = pathToFileURL(
   path.resolve(webRoot, "app/route-metadata.ts"),
 );
 const devAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/dev-app.js"));
+const previewAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/preview-app.js"));
+
+test("App preview includes App-only client routes and preserves shared server ownership", async () => {
+  const { appPreviewSpaRoutes } = await import(previewAppUrl.href);
+  const routes = appPreviewSpaRoutes();
+  for (const route of ["apps", "account/me", "account/me/:section", "events/:eventId"]) {
+    assert.ok(routes.includes(route), route);
+  }
+  for (const route of ["community/cards", "packages/:siteSlug", "community/cards/submissions/:id"]) {
+    assert.ok(!routes.includes(route), route);
+  }
+});
 
 // The icon layers ship as RGBA PNGs whose shape lives in alpha. The root tests
 // must not pull in an image dependency, so this decodes exactly what the icon
@@ -212,6 +224,10 @@ test.describe('tauri build configuration', () => {
       );
       assert.equal(webPackage.scripts["build:app"], "node scripts/build-app.js");
       assert.equal(webPackage.scripts["dev:app"], "node scripts/dev-app.js");
+      assert.equal(
+        webPackage.scripts["preview:app"],
+        "node --experimental-strip-types scripts/preview-app.js",
+      );
       assert.equal(
         webPackage.scripts["icon:app"],
         "tauri icon src-tauri/icon-sources/app-icon.json && node scripts/canonicalize-icns.js src-tauri/icons/icon.icns && node scripts/sync-ios-app-icon.js",

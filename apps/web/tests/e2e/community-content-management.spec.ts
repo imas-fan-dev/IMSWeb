@@ -12,6 +12,12 @@ import { test, expect } from "./fixtures/test"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
+const imageUrl = "/uploads/community-content/editor-test.webp"
+const png = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+  "base64"
+)
+
 test.describe("community content management", () => {
   for (const dept of ["op", "editor"] as const) {
     test(`@mobile ${dept} edits, orders and publishes community entries at desktop and phone widths`, async ({
@@ -27,7 +33,7 @@ test.describe("community content management", () => {
       await installAdminAuthMock(page, api, {
         user: { dept },
         csrfToken: "community-e2e-csrf",
-        sessionTimes: 4,
+        sessionTimes: 2,
       })
       let stored: CommunityContent = {
         version: 1,
@@ -42,7 +48,7 @@ test.describe("community content management", () => {
         method: "GET",
         path: adminApiPath("/community-content"),
         responses: { 200: adminCommunityContentSnapshotSchema },
-        times: 3,
+        times: 2,
         handle: () => ({ status: 200, json: { content: stored, revision } }),
       })
       api.expect({
@@ -51,7 +57,7 @@ test.describe("community content management", () => {
         path: adminApiPath("/community-content"),
         body: adminCommunityContentUpdateRequestSchema,
         responses: { 200: adminCommunityContentUpdateSchema },
-        times: 2,
+        times: 1,
         handle: ({ body, request }) => {
           expect(request.headers()["x-csrftoken"]).toBe("community-e2e-csrf")
           expect(body.revision).toBe(revision)
@@ -68,7 +74,7 @@ test.describe("community content management", () => {
         method: "GET",
         path: communityApiPath("/content"),
         responses: { 200: communityContentSchema },
-        times: 2,
+        times: 1,
         handle: () => ({
           status: 200,
           json: {
@@ -77,11 +83,6 @@ test.describe("community content management", () => {
           },
         }),
       })
-      const imageUrl = "/uploads/community-content/editor-test.webp"
-      const png = Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
-        "base64"
-      )
       await page.route(
         "**/uploads/community-content/editor-test.webp",
         (route) =>
@@ -296,9 +297,100 @@ test.describe("community content management", () => {
         path: testInfo.outputPath(`community-public-${dept}.png`),
         fullPage: true,
       })
+    })
+
+    test(`@mobile ${dept} clears an image and publishes an empty community`, async ({
+      page,
+      api,
+      isMobile,
+    }) => {
+      if (isMobile) await page.setViewportSize({ width: 320, height: 568 })
+      await page.addInitScript(() =>
+        window.localStorage.setItem("imsweb.language", "zh-CN")
+      )
+      installEmptyWikiCatalogMock(api, 1)
+      await installAdminAuthMock(page, api, {
+        user: { dept },
+        csrfToken: "community-e2e-csrf",
+        sessionTimes: 2,
+      })
+      let stored: CommunityContent = {
+        version: 1,
+        title: "共同创作社区",
+        introduction: "管理配置的简介",
+        entries: [
+          {
+            id: "app-only",
+            title: "App 专属",
+            description: "",
+            href: "/community",
+            icon: "users",
+            imageUrl: null,
+            enabled: true,
+            audience: "app",
+            availability: "always",
+          },
+          {
+            id: "cards-renamed",
+            title: "制作人名片",
+            description: "浏览制作人名片",
+            href: "/community/cards",
+            icon: "users",
+            imageUrl,
+            enabled: true,
+            audience: "all",
+            availability: "always",
+          },
+        ],
+        updatedAt: "2026-10-06T10:00:00.000Z",
+      }
+      api.expect({
+        name: "read configured community editor snapshot",
+        method: "GET",
+        path: adminApiPath("/community-content"),
+        responses: { 200: adminCommunityContentSnapshotSchema },
+        times: 1,
+        handle: () => ({
+          status: 200,
+          json: { content: stored, revision: "v1" },
+        }),
+      })
+      api.expect({
+        name: "publish empty community draft",
+        method: "PUT",
+        path: adminApiPath("/community-content"),
+        body: adminCommunityContentUpdateRequestSchema,
+        responses: { 200: adminCommunityContentUpdateSchema },
+        times: 1,
+        handle: ({ body, request }) => {
+          expect(request.headers()["x-csrftoken"]).toBe("community-e2e-csrf")
+          expect(body.revision).toBe("v1")
+          expect(body.content.entries).toEqual([])
+          stored = { ...body.content, updatedAt: "2026-10-06T10:00:00.000Z" }
+          return {
+            status: 200,
+            json: { success: true, content: stored, revision: "v2" },
+          }
+        },
+      })
+      api.expect({
+        name: "read empty published community",
+        method: "GET",
+        path: communityApiPath("/content"),
+        responses: { 200: communityContentSchema },
+        times: 1,
+        handle: () => ({ status: 200, json: stored }),
+      })
+      await page.route(
+        "**/uploads/community-content/editor-test.webp",
+        (route) =>
+          route.fulfill({ status: 200, contentType: "image/png", body: png })
+      )
       await page.goto("/admin/community")
+      const first = page.getByRole("row", { name: "入口 1", exact: true })
       await expect(first.getByText("App 专属", { exact: true })).toBeVisible()
       await page.getByRole("button", { name: "编辑 制作人名片" }).click()
+      const dialog = page.getByRole("dialog")
       await dialog.getByRole("button", { name: "清除图片" }).click()
       await expect(
         dialog.getByRole("img", { name: "入口图片预览" })

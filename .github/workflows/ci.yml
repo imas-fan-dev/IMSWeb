@@ -134,6 +134,9 @@ jobs:
 
       - name: Build App target
         run: pnpm --filter @imsweb/web run build:app
+        env:
+          VITE_IMS_API_ORIGIN: http://127.0.0.1:1420
+          VITE_IMS_PUBLIC_SITE_ORIGIN: http://localhost:1420
 
       - name: Test App in browsers
         run: pnpm --filter @imsweb/web run test:e2e:app

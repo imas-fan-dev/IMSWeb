@@ -253,6 +253,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             GOOGLE_CHROME_APT_CLEANUP,
             "playwright install --with-deps chromium webkit",
             "run build:app",
+            "VITE_IMS_API_ORIGIN: http://127.0.0.1:1420",
+            "VITE_IMS_PUBLIC_SITE_ORIGIN: http://localhost:1420",
             "run test:e2e:app",
             "name: Upload App browser failure evidence",
             "if: failure()",

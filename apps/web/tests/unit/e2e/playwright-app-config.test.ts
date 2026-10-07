@@ -1,8 +1,40 @@
 import { describe, expect, it } from "vitest"
 
-import { resolveAppE2EOrigins } from "@/playwright.app.config"
+import config, {
+  resolveAppE2EOrigins,
+  resolveAppE2EWebServer,
+} from "@/playwright.app.config"
 
 describe("App Playwright origin configuration", () => {
+  it("keeps local development on the owned dev server", () => {
+    const server = resolveAppE2EWebServer({})
+    expect(server?.command).toBe("pnpm dev:app")
+    expect(server?.reuseExistingServer).toBe(true)
+  })
+
+  it("uses the compiled App preview in CI without increasing test budgets", () => {
+    const server = resolveAppE2EWebServer({ CI: "1" })
+    expect(server?.command).toBe("pnpm preview:app")
+    expect(server?.reuseExistingServer).toBe(false)
+    expect(server?.url).toBe("http://localhost:1420")
+    expect(server?.env.E2E_APP_API_ORIGIN).toBe("http://127.0.0.1:1420")
+    expect(server?.env.IMS_API_ORIGIN).toBe("http://127.0.0.1:65534")
+    expect(server?.env.IMS_PUBLIC_SITE_ORIGIN).toBe("http://127.0.0.1:65534")
+    expect(config.timeout).toBe(20_000)
+    expect(config.expect?.timeout).toBe(5_000)
+    expect(config.retries).toBe(0)
+  })
+
+  it("does not start an owned server for an external App in CI", () => {
+    expect(
+      resolveAppE2EWebServer({
+        CI: "1",
+        E2E_APP_BASE_URL: "https://app.example.test",
+        E2E_APP_API_ORIGIN: "https://api.example.test",
+      })
+    ).toBeUndefined()
+  })
+
   it("uses the local cross-origin API default", () => {
     expect(resolveAppE2EOrigins({})).toEqual({
       apiOrigin: "http://127.0.0.1:1420",

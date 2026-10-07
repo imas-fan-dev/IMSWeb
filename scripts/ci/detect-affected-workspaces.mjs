@@ -44,6 +44,7 @@ const APP_SCRIPTS = new Set([
   "build-app.js",
   "dev-app.d.ts",
   "dev-app.js",
+  "preview-app.js",
 ]);
 
 const APP_CONTRACT_INPUTS = new Set([
@@ -149,6 +150,10 @@ function classifyPath(changedPath) {
 
   if (changedPath.startsWith("packages/contracts/")) {
     return ownedJobs(...PRODUCT_KEYS);
+  }
+
+  if (changedPath === "apps/api/tests/fixtures/app-static-preview-server.ts") {
+    return ownedJobs("app", "api");
   }
 
   if (

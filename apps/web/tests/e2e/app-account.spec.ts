@@ -257,9 +257,20 @@ async function openAccountPage(
     })
   })
 
+  const startupPath =
+    options.pathname === "/account/me/profile"
+      ? "/api/platform/me"
+      : "/api/platform/auth/session"
+  const startupReady = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === startupPath &&
+      response.status() === 200
+  )
   await page.goto(options.pathname ?? "/account/me", {
     waitUntil: "domcontentloaded",
   })
+  await startupReady
   expect(new URL(page.url()).origin).toBe(documentOrigin)
   await applySafeArea(page)
 

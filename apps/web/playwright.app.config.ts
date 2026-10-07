@@ -49,7 +49,27 @@ export function resolveAppE2EOrigins(
   return { apiOrigin, baseURL, external: Boolean(externalBaseURL) }
 }
 
-const { apiOrigin, baseURL, external } = resolveAppE2EOrigins()
+export function resolveAppE2EWebServer(
+  environment: NodeJS.ProcessEnv = process.env
+) {
+  const { apiOrigin, baseURL, external } = resolveAppE2EOrigins(environment)
+  if (external) return undefined
+  return {
+    command: environment.CI ? "pnpm preview:app" : "pnpm dev:app",
+    env: {
+      ...environment,
+      E2E_APP_API_ORIGIN: apiOrigin,
+      IMS_API_ORIGIN: unavailableApiOrigin,
+      IMS_PUBLIC_SITE_ORIGIN: unavailableApiOrigin,
+      IMS_APP_E2E_CROSS_ORIGIN: "1",
+    },
+    url: baseURL,
+    reuseExistingServer: !environment.CI,
+    timeout: 120_000,
+  }
+}
+
+const { apiOrigin, baseURL } = resolveAppE2EOrigins()
 
 export default defineConfig<ApiTestOptions>({
   testDir: "./tests/e2e",
@@ -70,20 +90,7 @@ export default defineConfig<ApiTestOptions>({
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
-  webServer: external
-    ? undefined
-    : {
-        command: "pnpm dev:app",
-        env: {
-          ...process.env,
-          E2E_APP_API_ORIGIN: apiOrigin,
-          IMS_API_ORIGIN: unavailableApiOrigin,
-          IMS_APP_E2E_CROSS_ORIGIN: "1",
-        },
-        url: baseURL,
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
-      },
+  webServer: resolveAppE2EWebServer(),
   projects: [
     {
       name: "app-small",

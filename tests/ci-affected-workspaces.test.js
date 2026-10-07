@@ -93,6 +93,7 @@ test.describe('affected workspace classification', () => {
       "apps/web/scripts/app-device.js",
       "apps/web/scripts/app-toolchain.js",
       "apps/web/scripts/dev-app.js",
+      "apps/web/scripts/preview-app.js",
       "apps/web/scripts/android-release-network.js",
       "apps/web/playwright.app.config.ts",
       "apps/web/tests/e2e/app-shell.spec.ts",
@@ -107,6 +108,11 @@ test.describe('affected workspace classification', () => {
         app: true,
       });
     }
+
+    assert.deepEqual(
+      classifyChangedPaths(["apps/api/tests/fixtures/app-static-preview-server.ts"]),
+      { ...REPOSITORY_ONLY, app: true, api: true },
+    );
 
     for (const changedPath of [
       "apps/web/tests/e2e/home.smoke.spec.ts",

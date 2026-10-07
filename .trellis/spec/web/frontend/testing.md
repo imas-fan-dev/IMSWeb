@@ -246,6 +246,28 @@ Ordinary Web tests use the page origin. App tests also receive the normalized
 `E2E_APP_BASE_URL` requires that API origin explicitly. Both values must be
 credential-free HTTP(S) origins with no path, query, or fragment.
 
+CI builds the App with API `http://127.0.0.1:1420` and public site
+`http://localhost:1420`, then serves `build-app/client` through `preview:app`.
+The browser budget measures the compiled App; it does not include thousands of
+development module transforms. Local owned runs keep `dev:app`. A manual
+`CI=1` run must first call `build:app` with those origins. Both owned modes keep
+the same strict JSON dispatcher. The owned dev server blocks unmocked API and
+public-site proxies with the unavailable loopback port. App preview serves the
+bundle through the existing `FrontendStaticAssets` policy without DB or auth
+services: prerendered routes use their own documents, and deep routes use
+`__spa-fallback.html`. The Web owner passes SPA and App-only `none` client paths
+from the same route metadata. Shared `none` paths retain server ownership. The API's
+Web-only ledger does not include those paths. A generic `index.html` fallback
+preserves the home shell at a different URL and invalidates hydration and
+navigation checks. Account root startup waits for its successful session
+response; direct profile entry waits for its profile response. Do not await a
+section's deferred request before opening that section.
+
+Community management keeps editor/publish and image-clear/empty-publish flows
+in separate browser cases with their own revision and exact request counts.
+Both retain the default test budget, CSRF checks, department permissions and
+public delivery assertions; the empty flow starts from a configured snapshot.
+
 ### 2. Signatures
 
 ```ts

@@ -47,6 +47,7 @@
         "test:server": "vitest run tests/server",
         "test:migration": "vitest run tests/migration",
         "test:assets": "vitest run tests/assets",
+        "test:app-preview": "TSX_TSCONFIG_PATH=tsconfig.tests.json node --import tsx tests/fixtures/app-static-preview-server.ts",
         "test": "node ../../scripts/testing/run-test-owner.mjs api"
     },
     "keywords": [],
