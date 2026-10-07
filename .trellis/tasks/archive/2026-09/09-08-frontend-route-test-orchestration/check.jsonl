@@ -1,0 +1,6 @@
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"检查route manifest与target行为"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"检查route、App、Web和Playwright验证"}
+{"file":".trellis/spec/repository/ci.md","reason":"检查affected-workspace和CI owner调用"}
+{"file":".trellis/spec/api/backend/architecture.md","reason":"检查direct request投递、SPA fallback和404"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/frontend-route-metadata.md","reason":"核对现有路径、prerender和独立导航模型"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/test-governance-summary.md","reason":"核对55/41/20脚本预算和执行去重"}

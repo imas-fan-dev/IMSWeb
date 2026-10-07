@@ -1,0 +1,30 @@
+appId: top.idol-master.imsweb
+---
+# Starts in the large-results state produced by exchange-search-results.yaml.
+- assertVisible:
+    id: "ims-native-search-result-native-place:1"
+- swipe:
+    start: "50%, 85%"
+    end: "50%, 38%"
+    duration: 600
+- swipe:
+    start: "50%, 85%"
+    end: "50%, 38%"
+    duration: 600
+- assertVisible:
+    id: "ims-native-search-result-native-place:5"
+- takeScreenshot:
+    path: "NativeSearchResultsScrolled"
+# Header starts at y134 on the owned 402x874 simulator. Dragging it down must
+# collapse the panel, independently of the result table's scroll gesture.
+- swipe:
+    start: "50%, 18%"
+    end: "50%, 81%"
+    duration: 800
+- assertVisible: "查找地点"
+- assertNotVisible:
+    id: "ims-native-exchange-search-input"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- takeScreenshot:
+    path: "NativeSearchDragCollapsed"

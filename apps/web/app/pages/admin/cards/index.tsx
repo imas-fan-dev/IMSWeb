@@ -14,6 +14,7 @@ import { useSearchParams } from "react-router"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import {
   AdminEmptyState,
   AdminPageHeader,
@@ -21,6 +22,10 @@ import {
 } from "~/components/admin/admin-ui"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
+import {
+  CardClaimReviewPanel,
+  RegisteredCardReviewPanel,
+} from "~/pages/admin/cards/fudaba-card-moderation-panels"
 import {
   approveAdminNamecard,
   deleteAdminNamecard,
@@ -30,6 +35,7 @@ import {
   type AdminNamecard,
   type AdminNamecardList,
 } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]
@@ -187,7 +193,7 @@ export default function AdminCardsPage() {
     },
     getTitle: () => "驳回名片",
     getDescription: (card) =>
-      `名片 #${card.id} 将被驳回。投稿者会在状态页看到「未通过」，可修改后重新投稿。`,
+      `名片 #${card.id} 将被驳回。游客投稿不可编辑，如需再次提交必须重新投稿。`,
     successMessage: (card) => `名片 #${card.id} 已驳回`,
     getFallbackFocus,
   })
@@ -202,7 +208,7 @@ export default function AdminCardsPage() {
       <AdminPageHeader
         eyebrow="NAMECARD REVIEW"
         title="制作人名片审核"
-        description="审核公开投稿的双面制作人名片，并清理不再适合展示的内容。"
+        description="分别处理游客投稿、注册用户投稿和旧名片认领。"
         actions={
           <Button
             type="button"
@@ -216,170 +222,191 @@ export default function AdminCardsPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-2">
-        <Badge variant="secondary">第 {page} 页</Badge>
-        <Badge variant="outline">共 {pageInfo.total} 条记录</Badge>
-      </div>
+      <Tabs defaultValue="guest">
+        <TabsList aria-label="名片审核类型">
+          <TabsTrigger value="guest">游客投稿</TabsTrigger>
+          <TabsTrigger value="registered">注册用户投稿</TabsTrigger>
+          <TabsTrigger value="claims">旧名片认领</TabsTrigger>
+        </TabsList>
 
-      <AdminPanel
-        title="名片队列"
-        description="每条投稿包含正面和背面两张图片"
-        icon={ContactRoundIcon}
-      >
-        <div ref={listFocusRef} tabIndex={-1} aria-label="名片队列内容">
-          {loading ? (
-            <CardsSkeleton />
-          ) : error ? (
-            <AdminEmptyState
-              icon={ContactRoundIcon}
-              title="无法读取名片队列"
-              description="请确认管理会话有效，然后刷新页面重试。"
-            />
-          ) : cards.length ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {cards.map((card) => {
-                return (
-                  <article
-                    key={card.id}
-                    data-namecard-id={card.id}
-                    className="overflow-hidden rounded-xl border"
-                  >
-                    <div className="grid grid-cols-2 gap-px bg-border">
-                      {[card.image1_url, card.image2_url].map(
-                        (image, index) => (
-                          <a
-                            key={`${card.id}-${index}`}
-                            href={image}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <img
-                              src={image}
-                              alt={`名片 #${card.id} ${index === 0 ? "正面" : "背面"}`}
-                              className="aspect-3/2 w-full bg-muted object-cover"
-                              loading="lazy"
-                            />
-                          </a>
-                        )
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 p-4">
-                      <div className="mr-auto">
-                        <p className="font-medium">名片 #{card.id}</p>
-                        <p className="text-xs text-muted-foreground">
-                          状态：{card.status}
-                        </p>
-                      </div>
-                      {card.status !== "approved" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={submitting}
-                          onClick={(event) =>
-                            approveConfirm.requestAction(
-                              card,
-                              event.currentTarget
-                            )
-                          }
-                        >
-                          {approveConfirm.submitting &&
-                          approveConfirm.target?.id === card.id ? (
-                            <LoaderCircleIcon
-                              data-icon="inline-start"
-                              className="animate-spin"
-                            />
-                          ) : (
-                            <CheckIcon data-icon="inline-start" />
-                          )}
-                          通过
-                        </Button>
-                      ) : null}
-                      {card.status === "pending" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={submitting}
-                          onClick={(event) =>
-                            rejectConfirm.requestAction(
-                              card,
-                              event.currentTarget
-                            )
-                          }
-                        >
-                          {rejectConfirm.submitting &&
-                          rejectConfirm.target?.id === card.id ? (
-                            <LoaderCircleIcon
-                              data-icon="inline-start"
-                              className="animate-spin"
-                            />
-                          ) : (
-                            <XIcon data-icon="inline-start" />
-                          )}
-                          驳回
-                        </Button>
-                      ) : null}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        disabled={submitting}
-                        aria-label={`删除名片 #${card.id}`}
-                        onClick={(event) =>
-                          deleteConfirm.requestAction(card, event.currentTarget)
-                        }
+        <TabsContent value="guest" className="flex flex-col gap-7 pt-5">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary">第 {page} 页</Badge>
+            <Badge variant="outline">共 {pageInfo.total} 条记录</Badge>
+          </div>
+
+          <AdminPanel
+            title="名片队列"
+            description="每条投稿包含正面和背面两张图片"
+            icon={ContactRoundIcon}
+          >
+            <div ref={listFocusRef} tabIndex={-1} aria-label="名片队列内容">
+              {loading ? (
+                <CardsSkeleton />
+              ) : error ? (
+                <AdminEmptyState
+                  icon={ContactRoundIcon}
+                  title="无法读取名片队列"
+                  description="请确认管理会话有效，然后刷新页面重试。"
+                />
+              ) : cards.length ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {cards.map((card) => {
+                    return (
+                      <article
+                        key={card.id}
+                        data-namecard-id={card.id}
+                        className="overflow-hidden rounded-xl border"
                       >
-                        {deleteConfirm.submitting &&
-                        deleteConfirm.target?.id === card.id ? (
-                          <LoaderCircleIcon
-                            data-icon="inline-start"
-                            className="animate-spin"
-                          />
-                        ) : (
-                          <Trash2Icon data-icon="inline-start" />
-                        )}
-                        删除
-                      </Button>
-                    </div>
-                  </article>
-                )
-              })}
+                        <div className="grid grid-cols-2 gap-px bg-border">
+                          {[card.image1_url, card.image2_url].map(
+                            (image, index) => (
+                              <NavigationLink
+                                key={`${card.id}-${index}`}
+                                href={image}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <img
+                                  src={image}
+                                  alt={`名片 #${card.id} ${index === 0 ? "正面" : "背面"}`}
+                                  className="aspect-3/2 w-full bg-muted object-cover"
+                                  loading="lazy"
+                                />
+                              </NavigationLink>
+                            )
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 p-4">
+                          <div className="mr-auto">
+                            <p className="font-medium">名片 #{card.id}</p>
+                            <p className="text-xs text-muted-foreground">
+                              状态：{card.status}
+                            </p>
+                          </div>
+                          {card.status !== "approved" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={submitting}
+                              onClick={(event) =>
+                                approveConfirm.requestAction(
+                                  card,
+                                  event.currentTarget
+                                )
+                              }
+                            >
+                              {approveConfirm.submitting &&
+                              approveConfirm.target?.id === card.id ? (
+                                <LoaderCircleIcon
+                                  data-icon="inline-start"
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <CheckIcon data-icon="inline-start" />
+                              )}
+                              通过
+                            </Button>
+                          ) : null}
+                          {card.status === "pending" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={submitting}
+                              onClick={(event) =>
+                                rejectConfirm.requestAction(
+                                  card,
+                                  event.currentTarget
+                                )
+                              }
+                            >
+                              {rejectConfirm.submitting &&
+                              rejectConfirm.target?.id === card.id ? (
+                                <LoaderCircleIcon
+                                  data-icon="inline-start"
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <XIcon data-icon="inline-start" />
+                              )}
+                              驳回
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled={submitting}
+                            aria-label={`删除名片 #${card.id}`}
+                            onClick={(event) =>
+                              deleteConfirm.requestAction(
+                                card,
+                                event.currentTarget
+                              )
+                            }
+                          >
+                            {deleteConfirm.submitting &&
+                            deleteConfirm.target?.id === card.id ? (
+                              <LoaderCircleIcon
+                                data-icon="inline-start"
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Trash2Icon data-icon="inline-start" />
+                            )}
+                            删除
+                          </Button>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              ) : (
+                <AdminEmptyState
+                  icon={CheckIcon}
+                  title="当前页没有名片"
+                  description="新的名片投稿会显示在这里。"
+                />
+              )}
             </div>
-          ) : (
-            <AdminEmptyState
-              icon={CheckIcon}
-              title="当前页没有名片"
-              description="新的名片投稿会显示在这里。"
-            />
-          )}
-        </div>
-      </AdminPanel>
+          </AdminPanel>
 
-      <div className="flex items-center justify-between">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={page <= 1 || loading}
-          onClick={() => changePage(page - 1)}
-        >
-          <ArrowLeftIcon data-icon="inline-start" />
-          上一页
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          {pageInfo.totalPages
-            ? `第 ${page} / ${pageInfo.totalPages} 页`
-            : "暂无记录"}
-        </span>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={!pageInfo.hasNextPage || loading}
-          onClick={() => changePage(page + 1)}
-        >
-          下一页
-          <ArrowRightIcon data-icon="inline-end" />
-        </Button>
-      </div>
+          <div className="flex items-center justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={page <= 1 || loading}
+              onClick={() => changePage(page - 1)}
+            >
+              <ArrowLeftIcon data-icon="inline-start" />
+              上一页
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {pageInfo.totalPages
+                ? `第 ${page} / ${pageInfo.totalPages} 页`
+                : "暂无记录"}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!pageInfo.hasNextPage || loading}
+              onClick={() => changePage(page + 1)}
+            >
+              下一页
+              <ArrowRightIcon data-icon="inline-end" />
+            </Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="registered" className="pt-5">
+          <RegisteredCardReviewPanel />
+        </TabsContent>
+
+        <TabsContent value="claims" className="pt-5">
+          <CardClaimReviewPanel />
+        </TabsContent>
+      </Tabs>
 
       <ConfirmActionDialog
         open={approveConfirm.open}

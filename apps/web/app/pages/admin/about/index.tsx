@@ -859,7 +859,7 @@ function MemberEditorDialog({
                 <AdminImageUploadField
                   id={`${prefix}-avatar-upload`}
                   label="上传头像"
-                  description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB。"
+                  description="支持 PNG、JPEG、WebP、AVIF、HEIC 或 HEIF，单张不超过 10MB。"
                   file={avatarFile}
                   disabled={uploadDisabled}
                   uploading={avatarUploading}
@@ -1319,7 +1319,7 @@ export function AboutManager() {
           id="about-hero-image-upload"
           name="image"
           label="上传角色主视觉图"
-          description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB；上传后请保存更改以发布。"
+          description="支持 PNG、JPEG、WebP、AVIF、HEIC 或 HEIF，单张不超过 10MB；上传后请保存更改以发布。"
           file={heroFile}
           disabled={saving}
           uploading={uploadingHero}

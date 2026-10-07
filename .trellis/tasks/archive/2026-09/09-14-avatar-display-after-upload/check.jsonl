@@ -1,0 +1,7 @@
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"Verify the Blob endpoint stays behind the shared Platform client and declares its error contract."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Verify avatar and fallback rendering, cancellation ownership, responsive bounds and App parity."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Verify focused unit tests and Web/App browser evidence cover both reported avatar locations."}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"Verify proxy delivery preserves authenticated binary response and missing-object semantics without affecting other storage routes."}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"Verify Bearer credentials never enter URLs or third-party avatar requests and private storage remains protected."}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"Verify non-JSON manifest liveness, JSON errors and route inventory after the response-mode change."}
+{"file":".trellis/tasks/09-14-avatar-display-after-upload/research/avatar-display-flow.md","reason":"Use the original flow trace to check that the implementation fixes both stale session state and App media loading."}

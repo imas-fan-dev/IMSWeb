@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/09-19-api-test-taxonomy/prd.md", "reason": "本子任务需求、目录基线与 AC"}
+{"file": ".trellis/tasks/09-19-api-test-taxonomy/design.md", "reason": "归类规则、JSON reporter 机检方案、批次与风险"}
+{"file": ".trellis/tasks/09-19-api-test-taxonomy/implement.md", "reason": "批次顺序与验收命令"}
+{"file": ".trellis/tasks/09-19-vitest-ui-and-test-taxonomy/design.md", "reason": "父任务的两层归类规则与可检性约定"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "API 测试域规格：断言风格、适配器与执行入口，归类时不得违反"}
+{"file": "apps/api/package.json", "reason": "测试脚本入口（test:server/test:wiki/test:migration/test:assets）与脚本数上限"}
+{"file": "apps/api/vitest.config.mts", "reason": "API 域配置：include/pool/alias，报告输出位置"}
+{"file": "apps/api/tests/server/node-email-delivery-runner.test.ts", "reason": "已有 describe + 动态注册的参照样例"}
+{"file": "apps/api/tests/server/client-address.test.ts", "reason": "已有 describe 的次要参照"}

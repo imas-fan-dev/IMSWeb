@@ -1,0 +1,172 @@
+{
+  "files": [
+    {
+      "path": "tests/server/platform-email-settings.test.ts",
+      "subject": "platform email settings",
+      "subjectLines": [90, 548],
+      "categories": [
+        { "title": "SMTP policy cache", "lines": [278, 354] },
+        { "title": "SMTP resend cooldown", "lines": [356, 402] }
+      ]
+    },
+    {
+      "path": "tests/server/platform-oauth-callback-branches.test.ts",
+      "subject": "platform oauth callback branches",
+      "subjectLines": [149, 342],
+      "categories": [
+        { "title": "a provider denial", "lines": [312, 342] }
+      ]
+    },
+    {
+      "path": "tests/server/platform-oauth-exchange.test.ts",
+      "subject": "platform oauth exchange",
+      "subjectLines": [113, 252]
+    },
+    {
+      "path": "tests/server/platform-oauth-provider-settings.test.ts",
+      "subject": "platform oauth provider settings",
+      "subjectLines": [102, 323]
+    },
+    {
+      "path": "tests/server/platform-oauth-unlink-repository.test.ts",
+      "subject": "platform oauth unlink repository",
+      "wrapper": "describe",
+      "importDescribe": "extend",
+      "subjectLines": [166, 277]
+    },
+    {
+      "path": "tests/server/platform-oauth-wire-contract-conformance.test.ts",
+      "subject": "platform oauth wire contract conformance",
+      "subjectLines": [144, 236]
+    },
+    {
+      "path": "tests/server/platform-profile.contract.test.ts",
+      "subject": "platform profile contract",
+      "subjectLines": [31, 659],
+      "categories": [
+        { "title": "Platform avatar uploads", "lines": [461, 512] }
+      ]
+    },
+    {
+      "path": "tests/server/platform-session-security.contract.test.ts",
+      "subject": "platform session security contract",
+      "wrapper": "describe",
+      "importDescribe": "extend",
+      "subjectLines": [355, 1089]
+    },
+    {
+      "path": "tests/server/postgresql-request-controls.test.ts",
+      "subject": "PostgreSQL idempotency",
+      "wrapper": "describe",
+      "importDescribe": "new",
+      "subjectLines": [10, 140]
+    },
+    {
+      "path": "tests/server/producer-map-content.test.ts",
+      "subject": "producer map content",
+      "subjectLines": [174, 452]
+    },
+    {
+      "path": "tests/server/public-object-url.test.ts",
+      "subject": "public object url",
+      "subjectLines": [27, 124],
+      "categories": [
+        { "title": "required public URLs", "lines": [64, 102] }
+      ]
+    },
+    {
+      "path": "tests/server/request-observability.test.ts",
+      "subject": "request observability",
+      "subjectLines": [10, 99]
+    },
+    {
+      "path": "tests/server/request-validation-boundaries.test.ts",
+      "subject": "request validation boundaries",
+      "subjectLines": [23, 84]
+    },
+    {
+      "path": "tests/server/request-validation.test.ts",
+      "subject": "request validation",
+      "subjectLines": [26, 285],
+      "categories": [
+        { "title": "schema validator does not hide", "lines": [241, 285] }
+      ]
+    },
+    {
+      "path": "tests/server/runtime-adapters.test.ts",
+      "subject": "runtime adapters",
+      "subjectLines": [49, 946]
+    },
+    {
+      "path": "tests/server/s3-object-storage.test.ts",
+      "subject": "S3 object storage",
+      "wrapper": "describe",
+      "importDescribe": "extend",
+      "subjectLines": [230, 947]
+    },
+    {
+      "path": "tests/server/shared-json-error-contract.test.ts",
+      "subject": "shared json error contract",
+      "subjectLines": [16, 96]
+    },
+    {
+      "path": "tests/server/shared-paths.test.ts",
+      "subject": "shared paths",
+      "subjectLines": [18, 36]
+    },
+    {
+      "path": "tests/server/site-package-archive.test.ts",
+      "subject": "site package archive",
+      "subjectLines": [110, 407]
+    },
+    {
+      "path": "tests/server/site-package-env.test.ts",
+      "subject": "site package env",
+      "subjectLines": [10, 98]
+    },
+    {
+      "path": "tests/server/site-package-repository.test.ts",
+      "subject": "site package repository",
+      "wrapper": "describe",
+      "importDescribe": "new",
+      "subjectLines": [31, 225]
+    },
+    {
+      "path": "tests/server/site-package-routes.test.ts",
+      "subject": "site package routes",
+      "wrapper": "describe",
+      "importDescribe": "new",
+      "subjectLines": [159, 907]
+    },
+    {
+      "path": "tests/server/sql-database.test.ts",
+      "subject": "sql database",
+      "subjectLines": [35, 165]
+    },
+    {
+      "path": "tests/server/story-repository.test.ts",
+      "subject": "story repository",
+      "wrapper": "describe",
+      "importDescribe": "extend",
+      "subjectLines": [25, 1136]
+    },
+    {
+      "path": "tests/server/upload-contract.test.ts",
+      "subject": "upload contract",
+      "subjectLines": [82, 498],
+      "categories": [
+        { "title": "shared image upload contract", "lines": [228, 299] }
+      ]
+    },
+    {
+      "path": "tests/server/valkey-cache.test.ts",
+      "subject": "Valkey cache",
+      "subjectLines": [58, 104]
+    },
+    {
+      "path": "tests/server/valkey-rate-limiter.test.ts",
+      "subject": "Valkey rate limiter",
+      "subjectLines": [27, 179]
+    }
+  ]
+}

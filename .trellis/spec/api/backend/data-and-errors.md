@@ -1,0 +1,369 @@
+# API data and errors
+
+## Request validation
+
+Validate raw input at the route boundary. The helpers in
+`apps/api/src/middleware/request-validation.ts` wrap Hono validation for JSON,
+path parameters, and query parameters, normalize malformed input to a 400
+response, and preserve typed `c.req.valid(...)` data for handlers. This is the
+only API production boundary that may value-import and execute a contracts
+request schema. Existing schemas explicitly preserve strict, strip, or
+passthrough unknown-key behavior. New schemas are `strict` unless a documented
+exception applies; see
+[Contract schemas and exports](../../contracts/shared/schemas-and-exports.md#zod-boundary)
+for when `.strip()` or `.passthrough()` is allowed and how to record it.
+
+JSON bodies that the Platform surface accepts declare their content-type
+explicitly. `requirePlatformJson` (`src/domains/identity/platform-auth/platform-json-request.ts`)
+rejects any other content type with `415 PLATFORM_AUTH_JSON_REQUIRED` before the
+body schema runs, so a form-encoded or text body never reaches a JSON validator
+and never reports a misleading field error. Pair it with
+`platformJsonInputInvalid()` only for the malformed-body case.
+
+Handlers should accept a `ValidatedRequestContext` when a route validator has
+already run. Do not parse the same payload again in the handler or pass raw
+request values into a repository.
+
+Use a domain request module for coercion and business-specific validation. Keep
+multipart parsing behind the injected HTTP capability rather than importing
+Busboy into domain code.
+
+## Persistence
+
+PostgreSQL is the only active runtime and test database. SQLite is restricted
+to the explicit legacy Fudaba migration importer.
+
+- Business repository interfaces and record types belong in
+  `src/ports/repositories/`.
+- SQL implementation details belong in `src/infra/db/repositories/`.
+- The internal driver contract is `src/infra/db/sql/database.ts`.
+- Connection and schema strategy code belongs in `src/infra/db/postgresql/`.
+- Schema changes use versioned migrations under `apps/api/migrations/`.
+
+Domain code must not import PostgreSQL, `SqlDatabase`, ORM clients, generated
+ORM models, or database row types. Map persistence rows to types owned by the
+relevant port before returning them to business code.
+
+Use the driver's `bind`, `batch`, and `transaction` APIs. Do not interpolate
+untrusted input into SQL. Multi-step writes that must succeed together use the
+injected transaction boundary.
+
+## Wire responses
+
+API response modules do not hand-write shared wire shapes. Import contract
+success and error types with `import type` from the narrow
+`@imsweb/contracts/<domain>` subpath, and annotate view builders with the
+matching output type. Use a `z.input` type only when a schema transforms or
+coerces and the API emits the input shape. Production API code outside request
+validation must not load contracts schemas or Zod to prove a type TypeScript can
+express.
+
+Redirects, media and site streams remain API-local success boundaries. Their
+JSON error bodies use contracts types. HTTP conformance tests parse untouched
+JSON with the shared schema and compare the parsed result with the raw body.
+
+Private media that a cross-origin client must read with `Authorization` uses the
+fixed-endpoint contract in
+[Web API, state, and contracts](../../web/frontend/api-state-and-contracts.md#scenario-bearer-authenticated-private-media).
+Select `objectReadResponse(..., { mode: 'proxy' })` only in the authenticated
+route that requires byte delivery. Keep redirect mode as the helper default and
+preserve private cache, referrer, `Vary`, GET/HEAD, Range, missing-key and
+dangling-object semantics in route-level tests.
+
+`pnpm run check:rules` resolves every mounted request validator and
+`c.json(...)` emitter through the TypeScript compiler. Keep route factories,
+path builders, and view mappers statically resolvable. Register each non-JSON
+handler or middleware by exact file and symbol in
+`scripts/contracts/non-json-boundaries.manifest.json`; wildcard, stale, inline,
+or unreachable exceptions fail the gate. Regenerate the checked inventory with
+`node scripts/contracts/compile-route-inventory.mjs --write` after an intentional
+route change.
+
+## Failure handling
+
+- Convert expected validation failures at the request boundary.
+- Let unexpected failures reach the central Hono error handling path.
+- Preserve the original status and message when a shared error helper already
+  defines them.
+- Do not turn infrastructure failures into empty success responses.
+- Keep compensation and object deletion behavior behind injected ports when a
+  write spans PostgreSQL and object storage.
+- Never expose stack traces, SQL text, credentials, tokens, or internal object
+  keys in public error bodies.
+
+Add a regression test for every changed status, error body, rollback path, or
+persistence failure.
+
+## Scenario: Bounded best-effort cache access
+
+### 1. Scope / Trigger
+
+Use this contract when a request path reads or writes Valkey as an acceleration
+for PostgreSQL-backed state. It applies when cache failure is allowed to fall
+back to PostgreSQL without weakening correctness.
+
+### 2. Signatures
+
+Bound each awaited cache operation at the call site:
+
+```typescript
+withBoundedCacheOperation<T>(
+    operation: (signal: AbortSignal) => Promise<T>,
+    timeoutMs = 250,
+): Promise<T>
+```
+
+### 3. Contracts
+
+- PostgreSQL remains authoritative for authorization, cooldown persistence and
+  configuration updates.
+- Cache reads, fills, write-through updates and best-effort cleanup must not
+  hold an HTTP response open indefinitely.
+- A cache timeout follows the same fallback path as a rejected cache command.
+- The deadline must abort its signal, and a concrete Valkey adapter must pass
+  that signal to the node-redis command. This removes commands that are still
+  waiting in the offline/write queue instead of replaying them after reconnect.
+- A command already written to Valkey cannot be recalled. Its late result must
+  be harmless. Use absolute deadlines for cached
+  cooldowns and monotonic revision checks for configuration writes.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Cache hit with valid data | Use it only for the documented acceleration path |
+| Missing or malformed entry | Read PostgreSQL and repair the cache best-effort |
+| Cache command rejects | Continue through the PostgreSQL fallback |
+| Cache command never settles | Stop waiting after the bounded deadline and use the same fallback |
+| Database commit succeeds but write-through times out | Return the committed result and report only a bounded, non-sensitive cache event |
+| PostgreSQL fallback fails | Preserve the existing infrastructure failure; do not return an empty success |
+
+### 5. Good/Base/Bad Cases
+
+- Good: reject an email cooldown early from Valkey, then lock and recheck the
+  PostgreSQL aggregate before persisting a new request.
+- Base: Valkey misses or times out, PostgreSQL supplies the current state, and a
+  later cache fill repairs the acceleration path.
+- Bad: await a best-effort cache Promise without a deadline, or let cached data
+  authorize a write that PostgreSQL has not confirmed.
+
+### 6. Tests Required
+
+- Use a cache fake whose Promise never settles and prove the request or service
+  completes within an outer test deadline and aborts the supplied signal.
+- Prove concrete Valkey adapters forward that signal to every affected command.
+- Assert reads fall back to PostgreSQL, post-commit writes do not change the
+  committed response, and cache error reporting contains no stored values.
+- Cover late-write safety through absolute expiry validation or revision-fenced
+  compare-and-set behavior, depending on the cached data.
+
+### 7. Wrong vs Correct
+
+```typescript
+// Wrong: Valkey can hold the request open forever.
+const cached = await cache.get(key);
+
+// Correct: timeout aborts a queued command and uses the PostgreSQL fallback.
+const cached = await withBoundedCacheOperation(
+    (signal) => cache.get(key, { signal }),
+).catch(() => null);
+const current = cached ?? await repository.getCurrentState();
+```
+
+## Scenario: One-time PostgreSQL content backfills
+
+### 1. Scope / Trigger
+
+Use this contract for an operational command under `apps/api/scripts/migration/`
+that rewrites existing PostgreSQL business rows without changing the schema.
+The command may keep script-specific SQL local instead of adding a permanent
+business repository method, but reusable domain validation and rendering remain
+the source of truth.
+
+### 2. Signatures
+
+Register the command in `apps/api/package.json` with this shape:
+
+```sh
+pnpm --filter @imsweb/api run migration:<name> -- [--apply] [--report PATH]
+```
+
+Keep the database operation injectable and testable:
+
+```typescript
+executeBackfill(
+    database: ManagedSqlDatabase,
+    apply: boolean
+): Promise<BackfillReport>
+```
+
+The CLI creates `PostgresConnection` from
+`parseNodeDatabaseConfig(process.env)` and closes it in `finally`.
+
+### 3. Contracts
+
+- `--apply` is optional. Its absence means dry-run and forbids data writes.
+- `--report PATH` selects a JSON report. The default belongs under the
+  Git-ignored `data/migration/` directory.
+- `DATABASE_URL` is required through `parseNodeDatabaseConfig`; the existing
+  `IMS_PG_*` pool and timeout keys remain optional.
+- Reports include the mode, status, scanned, unmatched, candidate, updated,
+  conflict and error counts, plus bounded record details needed for audit or
+  recovery.
+- Reports containing production content use mode `0600` and an atomic
+  temporary-file rename. stdout contains only counts and the report path.
+- Apply rebuilds its plan from current rows inside one transaction. Use an
+  advisory lock for duplicate command runs, row locks for target rows and
+  parameterized compare-and-set conditions for the original values.
+- Any conflict, invalid candidate or write failure rolls back the whole batch.
+  A successful repeat reports zero candidates and zero updates.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| No `--apply` | Write a dry-run report; execute no `UPDATE` |
+| Unknown option or missing report path | Fail before opening a write transaction |
+| Report path is not writable | Fail before database writes |
+| Existing row cannot pass domain validation | Mark the plan aborted; write nothing |
+| Compare-and-set affects an unexpected row count | Record the row as a conflict and roll back |
+| A later related-row write fails | Roll back earlier writes in the same batch |
+| Apply succeeds | Reconcile stored rows with the report before reporting success |
+| Apply runs again | Report zero candidates and leave revisions unchanged |
+
+### 5. Good/Base/Bad Cases
+
+- Good: run dry-run, review the restricted report, back up the database, run
+  apply, reconcile every changed row, then run apply again to prove convergence.
+- Base: no rows match. Both modes complete with zero updates.
+- Bad: execute ad hoc SQL against all matching rows without a dry-run report,
+  row locking, original-value checks, rollback coverage or a backup.
+
+### 6. Tests Required
+
+- Unit test argument parsing, default dry-run behavior, transformation boundary
+  cases, report permissions and content-free terminal summaries.
+- PostgreSQL integration test dry-run with no writes, successful apply,
+  related-row updates, revision changes and exact body serialization.
+- Re-run apply and assert zero new writes.
+- Force an invalid candidate, a compare-and-set loser and a late write failure;
+  assert the report classification and that every earlier write rolled back.
+- Add the test file to the explicit `test:migration` list and run API typecheck,
+  architecture checks, the full migration suite and root rule checks.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await executeSql(database, 'UPDATE articles SET title=? WHERE id=?', [title, id]);
+```
+
+This writes immediately, does not protect concurrent edits and cannot prove a
+related-table failure rolls back the article change.
+
+#### Correct
+
+```typescript
+await database.transaction(async (transaction) => {
+    const result = await executeSql(
+        transaction,
+        'UPDATE articles SET title=? WHERE id=? AND title=? AND revision=?',
+        [nextTitle, id, previousTitle, previousRevision]
+    );
+    if (result.meta.changes !== 1) throw new BackfillConflictError(id);
+    await updateRelatedRows(transaction, id, nextTitle);
+});
+```
+
+Build and validate the plan inside the same transaction before the first update.
+Throwing on a conflict or related-row failure lets `ManagedSqlDatabase` roll the
+whole batch back.
+
+## Scenario: Platform account avatars in object storage
+
+### 1. Scope / Trigger
+
+Use this contract when changing avatar upload, storage keys, or the authenticated
+avatar read path for a Platform account.
+
+### 2. Signatures
+
+```ts
+// apps/api/src/utils/storage/business-object-keys.ts
+platformAccountAvatarVersionObjectKey(accountId: string, version: string): string
+// -> `platform/accounts/<accountId>/avatars/<version>.webp`
+
+// apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+key = platformAccountAvatarVersionObjectKey(accountId, crypto.randomUUID())
+
+// serve-avatar.ts
+const AVATAR_RESPONSE_HEADERS = {
+    'Cache-Control': 'private, no-store',
+    'Referrer-Policy': 'no-referrer',
+    'Vary': 'Authorization, Cookie',
+}
+objectReadResponse(c.req.raw, storage, key, AVATAR_RESPONSE_HEADERS, { mode: 'proxy' })
+```
+
+### 3. Contracts
+
+- Each upload writes a new versioned object. The version is a random UUID, so an
+  upload never overwrites the bytes a cached response already points at.
+- Avatars are normalized to `image/webp` before storage, with an upload cap of
+  5 MiB plus a bounded multipart envelope allowance.
+- The object key is stored on the account's own profile row. Read paths use the
+  stored key; they do not rebuild it from the generator. This is what keeps
+  avatars uploaded before the `platform/` move readable while their old
+  `community/fudaba/accounts/` objects still exist.
+- The read path is authenticated and uses `objectReadResponse` in `proxy` mode
+  with the fixed headers above. It is not a public redirect and not a
+  `/uploads` path.
+- A profile with no stored key, or a key whose object is gone, returns the
+  plain-text 404 with the same private headers, for GET and HEAD alike.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Upload larger than the cap | Rejected before an object is written |
+| Unsupported source image type | Rejected; `webkit` conversion does not silently succeed |
+| Profile has no `avatar_object_key` | 404 with private headers, not an empty 200 |
+| Stored key no longer resolves to an object | 404 with private headers |
+| Unauthenticated read | Rejected by the route's auth middleware before storage is touched |
+
+### 5. Good/Base/Bad Cases
+
+- Good: upload a JPEG, store the WebP object under a fresh UUID, persist the key
+  on the profile row, and serve it through the authenticated proxy.
+- Base: replace an avatar twice; both versions exist and only the profile row
+  decides which one readers get.
+- Bad: build the key from the account id at read time, write the original bytes
+  under a fixed name, or serve avatars through an unauthenticated redirect.
+
+### 6. Tests Required
+
+- Assert the upload path writes a versioned `platform/accounts/...` key, the
+  read path returns `private, no-store` with GET and HEAD, and a missing or
+  dangling key yields the plain-text 404.
+- Assert an account whose stored key still uses the legacy
+  `community/fudaba/accounts/` layout remains readable.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Read-time reconstruction: silently breaks every avatar uploaded before the
+// key layout moved, and re-resolves a key the row no longer owns.
+const key = platformAccountAvatarVersionObjectKey(accountId, accountId)
+```
+
+#### Correct
+
+```ts
+// The row is the source of truth for which object this account displays.
+const key = c.get('platformAccount')?.profile.avatar_object_key
+if (!key) return avatarNotFoundResponse(c.req.raw)
+```

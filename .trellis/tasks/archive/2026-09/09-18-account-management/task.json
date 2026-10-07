@@ -1,0 +1,32 @@
+{
+  "id": "account-management",
+  "name": "account-management",
+  "title": "完善平台帐号管理能力",
+  "description": "平台帐号管理的三项能力补全：登录用户绑定 OAuth/邮箱、网页端帐号安全管理与设备标记展示、管理端平台用户管理。父任务负责需求基线、子任务映射与最终集成验收。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-09-18",
+  "completedAt": "2026-09-19",
+  "branch": "release/v1.1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-18-account-oauth-email-binding",
+    "09-18-account-security-device-display",
+    "09-18-admin-platform-user-management",
+    "09-18-oauth-login-mobile-adaptation",
+    "09-19-account-security-web-entry"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

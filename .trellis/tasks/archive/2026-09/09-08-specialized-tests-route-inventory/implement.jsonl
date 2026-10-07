@@ -1,0 +1,5 @@
+{"file":".trellis/spec/api/backend/testing.md","reason":"Node、Platform、Wiki 和 API suite 所有权"}
+{"file":".trellis/spec/contracts/shared/index.md","reason":"compiler-backed contracts 与 inventory 质量边界"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"重复断言删除前的共同责任判断"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/test-governance-summary.md","reason":"36项Node断言、4项Platform测试和inventory churn聚焦证据"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/api-test-infrastructure.md","reason":"node-security数据库生命周期依赖"}

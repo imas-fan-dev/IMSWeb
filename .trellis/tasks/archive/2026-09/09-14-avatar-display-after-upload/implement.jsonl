@@ -1,0 +1,8 @@
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"Owns the Web API facade, parsed error contracts, auth metadata and endpoint boundary used by the authenticated avatar Blob request."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Defines reusable component ownership, App safe behavior, fallback accessibility and responsive visual verification."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Defines unit and Playwright coverage for Web/App workflows and strict same-origin API mocks."}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"Defines object-storage persistence, wire response ownership and failure behavior for the private binary avatar route."}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"Defines Platform authentication, credential secrecy and protected object handling constraints."}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Defines focused API contract and active runtime regression expectations."}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"Defines non-JSON boundary registration and JSON error contract requirements for binary delivery routes."}
+{"file":".trellis/tasks/09-14-avatar-display-after-upload/research/avatar-display-flow.md","reason":"Records the verified stale-session root cause and App protected-media transport analysis."}

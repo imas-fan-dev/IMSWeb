@@ -1,0 +1,7 @@
+{"file":".trellis/spec/api/backend/index.md","reason":"API checks and boundaries"}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Node regression owner"}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web checks"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"UI regression and browser evidence"}
+{"file":".trellis/spec/contracts/shared/quality.md","reason":"Exact wire conformance"}
+{"file":".trellis/spec/guides/index.md","reason":"Cross-layer review"}
+{"file":".trellis/tasks/archive/2026-10/10-06-community-dynamic-management/research/source-baseline.md","reason":"Empty and editor permission invariants"}

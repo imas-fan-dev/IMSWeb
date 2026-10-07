@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "共享 UI 基元的约定（glass/overlay/dialog 组合、可访问名称、触控目标）是本任务实现的直接约束"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "单测与浏览器测试的既有写法（含 Playwright fixture 与几何断言的既有先例）决定新测试怎么写"}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "移动端安全区变量与原生 tab bar suppression 的既有契约，弹窗尺寸与滚动不得与它们冲突"}
+{"file": ".trellis/spec/web/frontend/architecture.md", "reason": "共享基元与页面模块的边界，确认 ui/dialog.tsx 是唯一该改动的位置"}

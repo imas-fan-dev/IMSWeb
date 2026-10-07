@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/contracts/shared/schemas-and-exports.md", "reason": "Wave 0 接口冻结的契约与跨层约束"}
+{"file": ".trellis/spec/contracts/shared/quality.md", "reason": "Wave 0 接口冻结的契约与跨层约束"}
+{"file": ".trellis/spec/api/backend/data-and-errors.md", "reason": "Wave 0 接口冻结的契约与跨层约束"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Wave 0 接口冻结的契约与跨层约束"}
+{"file": ".trellis/tasks/09-18-account-oauth-email-binding/design.md", "reason": "接口冻结的权威定义：契约、端口签名、迁移与 i18n 键清单"}
+{"file": ".trellis/tasks/09-18-admin-platform-user-management/design.md", "reason": "接口冻结的权威定义：契约、端口签名、迁移与 i18n 键清单"}
+{"file": ".trellis/tasks/09-18-oauth-login-mobile-adaptation/design.md", "reason": "接口冻结的权威定义：契约、端口签名、迁移与 i18n 键清单"}

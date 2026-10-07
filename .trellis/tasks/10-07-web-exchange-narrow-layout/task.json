@@ -1,0 +1,28 @@
+{
+  "id": "web-exchange-narrow-layout",
+  "name": "web-exchange-narrow-layout",
+  "title": "设计 Web 与 App 交换地图底部搜索卡片",
+  "description": "采用 Apple Maps 风格的底部地点查找，覆盖 Web 窄屏与移动 App，并规划 iOS 原生 Liquid Glass",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-10-07",
+  "completedAt": null,
+  "branch": "codex/exchange-map-search",
+  "base_branch": "release/v1.1",
+  "worktree_path": "/Users/texas/Workspace/IMSWeb/.worktrees/exchange-map-search",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "implementation_approval": "用户在圆润 Web 方案审阅后明确开始施工，并要求独立分支。"
+  }
+}

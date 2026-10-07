@@ -1,0 +1,6 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web 质量检查入口"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"行为回归、App 五视口和桌面验收"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"检查完整图像、交互尺寸、安全区和可访问性"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"检查相邻页请求、失效响应和契约边界"}
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"核对生产代码与测试归属，排除交换区和壳层越界修改"}
+{"file":".trellis/tasks/09-05-card-mobile-browsing-redesign/research/current-browsing.md","reason":"核对既有分页、键盘行为、认领和反应不回归"}

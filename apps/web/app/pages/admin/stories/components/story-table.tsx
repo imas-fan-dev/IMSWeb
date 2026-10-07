@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "~/components/ui/table"
 import type { WikiAdminStory } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function StoryTable({
   stories,
@@ -88,7 +89,7 @@ export function StoryTable({
                 </p>
               </TableCell>
               <TableCell className="hidden max-w-64 xl:table-cell">
-                <a
+                <NavigationLink
                   href={story.url}
                   target="_blank"
                   rel="noreferrer"
@@ -99,7 +100,7 @@ export function StoryTable({
                     className="size-3 shrink-0"
                     aria-hidden="true"
                   />
-                </a>
+                </NavigationLink>
               </TableCell>
               <TableCell>
                 <div className="flex justify-end gap-1">

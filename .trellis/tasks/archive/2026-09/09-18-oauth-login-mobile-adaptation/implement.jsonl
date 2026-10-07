@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/contracts/shared/schemas-and-exports.md", "reason": "Wire-contract ownership, new request/response schema placement, and the route-inventory freshness gate for the new exchange endpoint."}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "Native plugin registration, capability allowlists, and platform metadata patterns the deep-link plugin must follow."}
+{"file": ".trellis/spec/api/backend/architecture.md", "reason": "API layering: ports for repository contracts, handlers own request validation, no infra imports in domains."}
+{"file": "docs/development/tauri-mobile.md", "reason": "Authoritative app shell state: cookie vs bearer channels, origin wiring, and the OAuth blocker this task resolves."}
+{"file": "docs/development/app-device-delivery.md", "reason": "Real device build/install commands and why --live cannot stand in for a packaged build."}

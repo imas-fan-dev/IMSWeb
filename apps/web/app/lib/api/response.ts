@@ -1,5 +1,8 @@
 import { ApiError } from "./api-error"
+import { hasExactJsonStructure } from "./json-contract"
 import type { ApiRequestContext, ApiResponseType } from "./types"
+
+import type { z } from "@imsweb/contracts/z"
 
 type JsonRecord = Record<string, unknown>
 
@@ -54,7 +57,16 @@ function hasNoBody(response: Response): boolean {
 
 async function parseJson(response: Response): Promise<unknown> {
   const body = await response.text()
-  return body.trim() ? JSON.parse(body) : null
+  if (!body.trim()) return null
+  try {
+    return JSON.parse(body)
+  } catch (cause) {
+    throw new ApiError("服务器返回了无效的 JSON", {
+      kind: "parse",
+      code: "RESPONSE_JSON_INVALID",
+      cause,
+    })
+  }
 }
 
 function isJsonContentType(contentType: string): boolean {
@@ -114,6 +126,36 @@ async function parseHttpErrorPayload(response: Response): Promise<unknown> {
   }
 }
 
+function validateErrorPayload(
+  schema: z.ZodType | undefined,
+  payload: unknown,
+  response: Response,
+  context: ApiRequestContext
+): void {
+  if (!schema) return
+  const result = schema.safeParse(payload)
+  if (result.success && hasExactJsonStructure(payload, result.data)) return
+  throw new ApiError("响应不符合线上契约", {
+    ...context,
+    kind: "contract",
+    status: response.status,
+    code: "CONTRACT_VIOLATION",
+    payload,
+    cause: result.success ? undefined : result.error,
+  })
+}
+
+function isJsonResponse(
+  response: Response,
+  responseType: ApiResponseType
+): boolean {
+  return (
+    responseType === "json" ||
+    (responseType === "auto" &&
+      isJsonContentType(response.headers.get("content-type") ?? ""))
+  )
+}
+
 export async function handleApiResponse(
   response: Response,
   context: ApiRequestContext = {}
@@ -122,6 +164,7 @@ export async function handleApiResponse(
 
   if (!response.ok) {
     const payload = await parseHttpErrorPayload(response)
+    validateErrorPayload(context.meta?.errorSchema, payload, response, context)
     throw new ApiError(
       extractApiErrorMessage(payload, `请求失败（HTTP ${response.status}）`),
       {
@@ -151,6 +194,12 @@ export async function handleApiResponse(
     !context.meta?.skipBusinessErrorCheck &&
     isBusinessErrorPayload(payload)
   ) {
+    validateErrorPayload(
+      context.meta?.businessErrorSchema,
+      payload,
+      response,
+      context
+    )
     throw new ApiError(extractApiErrorMessage(payload, "请求未成功"), {
       ...context,
       kind: "business",
@@ -160,5 +209,39 @@ export async function handleApiResponse(
     })
   }
 
+  if (
+    isJsonResponse(response, responseType) &&
+    !context.meta?.parsed &&
+    !context.meta?.skipContractCheck
+  ) {
+    reportUnparsedResponse(context)
+  }
+
   return payload
+}
+
+const unparsedResponseReports = new Set<string>()
+
+/**
+ * Wire-contract enforcement: every JSON endpoint must either validate its
+ * payload via `parsed()` or opt out explicitly with `meta.skipContractCheck`.
+ * Warns once per endpoint during development and fails fast under vitest.
+ */
+function reportUnparsedResponse(context: ApiRequestContext): void {
+  const key = `${context.method ?? "GET"} ${context.url ?? "<unknown>"}`
+  if (unparsedResponseReports.has(key)) {
+    return
+  }
+  unparsedResponseReports.add(key)
+  const message = `JSON 响应未经线上契约校验: ${key}（请使用 parsed() 或 meta.skipContractCheck）`
+  if (import.meta.env.MODE === "test") {
+    throw new ApiError(message, {
+      ...context,
+      kind: "contract",
+      code: "UNVALIDATED_RESPONSE",
+    })
+  }
+  if (import.meta.env.DEV) {
+    console.warn(`[api] ${message}`)
+  }
 }

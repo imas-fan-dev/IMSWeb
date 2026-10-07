@@ -1,0 +1,1813 @@
+### tests/server/about-page-content.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-  10  other    import { aboutAdminSnapshotSchema, aboutAdminUpdateSchema, aboutErrorResponseSchema, aboutImageUploadSch
+  [ 4] L  11-  14  other    import { failureMessageResponseSchema, messageErrorResponseSchema } from '@imsweb/contracts/common';
+  [ 5] L  15-  15  other    import { createHonoApp } from '@/app';
+  [ 6] L  16-  16  other    import { parseAboutPageContent, type AboutPageContent } from '@/domains/content/about/data';
+  [ 7] L  17-  22  other    import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage
+  [ 8] L  23-  23  other    import type { ImageProcessor } from '@/ports/media';
+  [ 9] L  24-  24  other    import type { UploadParser } from '@/ports/http';
+  [10] L  25-  25  other    import type { AuditLogInput } from '@/ports/repositories';
+  [11] L  26-  26  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [12] L  28-  84  other    class MemoryStorage implements ObjectStorage { private readonly objects = new Map<string, StoredObject>(); priva
+  [13] L  86- 102  other    const uploads: UploadParser = { async parse(request) { const form = await request.formData(); const
+  [14] L 104- 113  other    const images: ImageProcessor = { async validate() { return { format: 'png', width: 800, height: 1_600, conte
+  [15] L 115- 153  other    function aboutPageContent(): AboutPageContent { return { version: 1, siteName: '测试制作人交流站', s
+  [16] L 155- 183  other    function fixture(dept = 'op') { const storage = new MemoryStorage(); const audit: AuditLogInput[] = []; cons
+  [17] L 185- 516  describe about page
+### tests/server/abuse-protection.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { createHonoApp } from '@/app';
+  [ 3] L   4-   4  other    import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+  [ 4] L   5-   5  other    import { JSON_BODY_MAX_BYTES } from '@/middleware/json-body-limit';
+  [ 5] L   6-   6  other    import type { BackofficeAuthRepository, ReactionRepository } from '@/ports/repositories';
+  [ 6] L   7-   7  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 7] L   8-   8  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 8] L   9-   9  other    import { assertAbuseProtectionContract } from '../contracts/runtime-contracts.js';
+  [ 9] L  11-  11  other    const CARD_ID = 700;
+  [10] L  12-  12  other    const CLIENT_ADDRESS = '203.0.113.70';
+  [11] L  14- 140  describe abuse protection
+### tests/server/admin-accounts.contract.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-  10  other    import { adminAccountErrorResponseSchema, adminAccountListSchema, adminAccountMutationSchema, adminAudit
+  [ 4] L  11-  11  other    import { insertFudabaOfficePublicLocation, insertPlatformAccount, insertUser } from '../fixtures/rows';
+  [ 5] L  12-  12  other    import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
+  [ 6] L  13-  13  other    import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+  [ 7] L  14-  14  other    import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
+  [ 8] L  15-  15  other    import { PostgresConnection } from '@/infra/db/postgresql/connection';
+  [ 9] L  16-  16  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [10] L  17-  17  other    import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+  [11] L  18-  18  other    import type { AdminRole } from '@/ports/repositories';
+  [12] L  19-  19  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [13] L  20-  20  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [14] L  21-  21  other    import { createTestApp, testRequest } from './test-app';
+  [15] L  23-  23  other    const SECRET = 'admin-accounts-contract-secret-at-least-thirty-two-bytes';
+  [16] L  25-  33  other    interface Fixture { app: ReturnType<typeof createTestApp>; connection: PostgresConnection; repository: SqlBa
+  [17] L  35-  47  other    async function insertAccount( connection: PostgresConnection, username: string, dept: 'op' | 'editor', r
+  [18] L  49-  83  other    async function createFixture(): Promise<Fixture> { const connection = await createPostgresTestDatabase('admin-accoun
+  [19] L  85- 102  other    async function authHeaders( fixture: Fixture, input: { id: number; username: string; dept: string; role: AdminRo
+  [20] L 104- 362  describe admin accounts
+  template-literal lines (not reindented): 284,285,286,287,288,324,325,326,327,328
+### tests/server/admin-platform-users.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-  11  other    import { adminPlatformUserDetailResponseSchema, adminPlatformUserHttpErrorSchema, adminPlatformUserListSchem
+  [ 3] L  12-  12  other    import { adminApiPath } from '@imsweb/contracts/paths';
+  [ 4] L  13-  16  other    import { BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_CSRF_TOKEN_COOKIE, } from '@/domains/admin/backoffice-auth/b
+  [ 5] L  17-  17  other    import { MemoryCache } from '@/infra/cache/memory/cache';
+  [ 6] L  18-  18  other    import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+  [ 7] L  19-  19  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 8] L  20-  29  other    import type { DeletePlatformOAuthIdentityResult, ForceLogoutPlatformAccountInput, ListPlatformAccountsForAdm
+  [ 9] L  30-  30  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [10] L  31-  31  other    import { normalizeAdminPlatformUserListQuery } from '@/domains/admin/platform-users/request';
+  [11] L  32-  32  other    import { createTestApp, TEST_ORIGIN } from './test-app';
+  [12] L  34-  34  other    const USERS_URL = adminApiPath('/platform/users');
+  [13] L  36-  46  other    interface FakeAccount { id: string; status: 'active' | 'restricted' | 'suspended' | 'deleted'; display_name:
+  [14] L  48-  51  other    interface AuditEntry { action: string; target: string; }
+  [15] L  53-  55  other    function escapeRegex(character: string): string { return character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  [16] L  59-  75  other    function likeToRegex(pattern: string): RegExp { let source = ''; for (let index = 0; index < pattern.length; ind
+  [17] L  77- 211  other    class FakePlatformAccounts { readonly accounts = new Map<string, FakeAccount>(); readonly links = new Map<string
+  [18] L 213- 227  other    function link( accountId: string, providerCode: string, providerEnabled = true ): PlatformOAuthLinkRecord {
+  [19] L 229- 293  other    function configure() { const platformAccounts = new FakePlatformAccounts(); const csrf = 'platform-users-csrf';
+  [20] L 295- 313  other    async function superAdminHeaders( tokens: HmacBackofficeTokenService, csrf: string ): Promise<Record<string, str
+  [21] L 315- 330  other    async function operatorHeaders( tokens: HmacBackofficeTokenService, adminRole: 'admin' ): Promise<Record<string,
+  [22] L 332- 717  describe platform-user
+### tests/server/auth-refresh.contract.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   8  other    import { readSetCookieValues as cookieValues, serializeCookieHeader as cookieHeader, setCookieHeaders as set
+  [ 4] L   9-   9  other    import { insertUser } from '../fixtures/rows';
+  [ 5] L  10-  10  other    import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+  [ 6] L  11-  11  other    import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
+  [ 7] L  12-  12  other    import { PostgresConnection } from '@/infra/db/postgresql/connection';
+  [ 8] L  13-  13  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 9] L  14-  14  other    import { queryOne } from '@/infra/db/sql/query';
+  [10] L  15-  15  other    import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+  [11] L  16-  16  other    import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
+  [12] L  17-  17  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [13] L  18-  18  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [14] L  19-  19  other    import { createTestApp, testRequest } from './test-app';
+  [15] L  21-  21  other    const USERNAME = 'refresh-contract-op';
+  [16] L  22-  22  other    const NON_OP_USERNAME = 'refresh-contract-user';
+  [17] L  23-  23  other    const PASSWORD = 'refresh-contract-password';
+  [18] L  25-  30  other    interface AuthFixture { app: ReturnType<typeof createTestApp>; connection: PostgresConnection; repository: S
+  [19] L  32-  36  other    function jwtPayload(token: string): Record<string, unknown> { const payload = token.split('.')[1]; if (!payload)
+  [20] L  38-  75  other    async function createFixture(): Promise<AuthFixture> { const connection = await createPostgresTestDatabase('auth-ref
+  [21] L  77- 106  other    async function login( fixture: AuthFixture, options: { path?: string; username?: string } = {} ): Promise<{
+  [22] L 108- 253  describe auth refresh
+### tests/server/auth-request-helper.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-  10  other    import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex, readSetCookieValues, serializeCook
+  [ 3] L  12-  12  other    const PLATFORM_ACCESS = 'ims_platform_access';
+  [ 4] L  13-  13  other    const PLATFORM_CSRF = 'ims_platform_csrf';
+  [ 5] L  14-  14  other    const BACKOFFICE_ACCESS = 'ims_admin_access';
+  [ 6] L  15-  15  other    const BACKOFFICE_CSRF = 'ims_admin_csrf';
+  [ 7] L  17-  22  other    function platformCookieHeaders(csrfHeader: string | null, csrfCookie = 'platform=csrf') { return cookieCsrfHeaders([
+  [ 8] L  24-  29  other    function backofficeCookieHeaders(csrfHeader: string | null) { return cookieCsrfHeaders([ [BACKOFFICE_ACCESS,
+  [ 9] L  31-  72  describe auth request helpers
+### tests/server/backoffice-auth-boundary.contract.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe, onTestFinished, vi } from 'vitest';
+  [ 3] L   4-   8  other    import { readSetCookieValues as cookieValues, serializeCookieHeader as cookieHeader, setCookieHeaders as set
+  [ 4] L   9-   9  other    import { insertBackofficeAccount } from '../fixtures/rows';
+  [ 5] L  10-  10  other    import { sign as signJwt } from 'hono/utils/jwt/jwt';
+  [ 6] L  11-  18  other    import { adminLegacyOperatorLoginErrorResponseSchema, adminLoginErrorResponseSchema, adminLoginSuccessRespon
+  [ 7] L  19-  19  other    import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
+  [ 8] L  20-  20  other    import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+  [ 9] L  21-  21  other    import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
+  [10] L  22-  22  other    import { PostgresConnection } from '@/infra/db/postgresql/connection';
+  [11] L  23-  23  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [12] L  24-  24  other    import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+  [13] L  25-  25  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [14] L  26-  26  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [15] L  27-  27  other    import { createTestApp, testRequest } from './test-app';
+  [16] L  29-  29  other    const USERNAME = 'backoffice-boundary-op';
+  [17] L  30-  30  other    const PASSWORD = 'backoffice-boundary-password';
+  [18] L  31-  31  other    const SECRET = 'backoffice-boundary-secret-at-least-thirty-two-bytes';
+  [19] L  32-  32  other    const LEGACY_SECRET = 'legacy-backoffice-secret-at-least-thirty-two-bytes';
+  [20] L  33-  33  other    const ACCESS_COOKIE = 'ims_admin_access';
+  [21] L  34-  34  other    const REFRESH_COOKIE = 'ims_admin_refresh';
+  [22] L  35-  35  other    const CSRF_COOKIE = 'ims_admin_csrf';
+  [23] L  36-  42  other    const LEGACY_SUCCESSORS = new Map([ ['/api/login', '/api/admin/auth/login'], ['/api/admin/login', '/api/admin/au
+  [24] L  44-  50  other    interface Fixture { app: ReturnType<typeof createTestApp>; connection: PostgresConnection; repository: SqlBa
+  [25] L  52-  56  other    function jwtPart(token: string, index: number): Record<string, unknown> { const part = token.split('.')[index];
+  [26] L  58-  89  other    function assertCanonicalCookies( response: Response, cleared = false, legacyCleared = false ): Map<string, s
+  [27] L  91-  98  other    function assertDeprecated(response: Response, pathName: string): void { assert.equal(response.headers.get('Deprecati
+  [28] L 100- 132  other    async function createFixture( legacySecret: string | null = LEGACY_SECRET ): Promise<Fixture> { const connection
+  [29] L 134- 140  other    async function login(fixture: Fixture, route = '/api/admin/auth/login') { return testRequest(fixture.app, route, {
+  [30] L 142- 534  describe Backoffice auth boundary
+### tests/server/bilibili-cover.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   6  other    import { fetchBilibiliCover, normalizeBilibiliCoverUrl } from '@/utils/media/bilibili-cover';
+  [ 3] L   8-  67  describe Bilibili cover
+### tests/server/brand-assets.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { createHonoApp } from '@/app';
+  [ 3] L   4-   4  other    import { BRAND_ASSET_DEFINITIONS } from '@/domains/content/brand-assets/data';
+  [ 4] L   5-  11  other    import type { ListedObject, ObjectReadTarget, ObjectStorage, PutObjectOptions, StoredObject } from '
+  [ 5] L  13-  54  other    class BrandAssetStorage implements ObjectStorage { readonly requestedKeys: string[] = []; readonly readKeys: str
+  [ 6] L  56-  93  describe brand assets
+### tests/server/business-request-models.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   7  other    import { validateEventFields, validateEventIdParams, validateEventListQuery } from '@/domains/content/events
+  [ 3] L   8-   8  other    import { validateFudabaGuestSubmissionIdParams } from '@/domains/community/fudaba/guest-submissions/request';
+  [ 4] L   9-  12  other    import { validateAdminNamecardListQuery, validateNamecardListQuery } from '@/domains/community/namecards/request
+  [ 5] L  13-  17  other    import { validateCompatibleNewsDeleteParams, validateNewsIdParams, validateNewsListQuery } from '@/domains/c
+  [ 6] L  18-  18  other    import { validateNewsSubmission } from '@/domains/content/news/submission';
+  [ 7] L  19-  19  other    import { validateWikiAgencyIdParams } from '@/domains/content/wiki/request';
+  [ 8] L  20-  20  other    import { encodeDescendingIdCursor } from '@/utils/validation/descending-id-cursor';
+  [ 9] L  22-  28  other    function rejects(run: () => unknown, message: RegExp): void { assert.throws(run, (error: Error & { status?: number }
+  [10] L  30- 127  describe business request models
+### tests/server/cache-config.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { test } from "vitest";
+  [ 2] L   3-   3  other    import { parseNodeCacheConfig } from "@/config/cache";
+  [ 3] L   5-  75  describe cache configuration
+### tests/server/chronicle-idempotency.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { onTestFinished, test, vi } from 'vitest';
+  [ 3] L   4-  12  other    import { chronicleActivityListSchema, chronicleActivitySchema, chronicleErrorResponseSchema, chronicleUp
+  [ 4] L  13-  17  other    import { failureMessageResponseSchema, messageErrorResponseSchema, successFlagSchema } from '@imsweb/contrac
+  [ 5] L  18-  18  other    import { createHonoApp } from '@/app';
+  [ 6] L  19-  19  other    import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+  [ 7] L  20-  20  other    import type { IdempotencyClaim, IdempotencyResponse, IdempotencyStore } from '@/ports/cache';
+  [ 8] L  21-  24  other    import { CHRONICLE_UPLOAD_ATTEMPT_LIMIT, CHRONICLE_UPLOAD_WRITE_LIMIT } from '@/middleware/rate-limit';
+  [ 9] L  25-  25  other    import type { ImageInfo, ImageProcessor } from '@/ports/media';
+  [10] L  26-  26  other    import type { CompensationService } from '@/ports/object-storage';
+  [11] L  27-  27  other    import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
+  [12] L  28-  28  other    import type { RateLimiter, RateLimitIdentity, RateLimitResult } from '@/ports/cache';
+  [13] L  29-  29  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [14] L  30-  30  other    import type { ParsedUpload, UploadParser } from '@/ports/http';
+  [15] L  32-  36  other    const CHRONICLE_PREFIXES = { upload: 'chronicle/media/pending', used: 'chronicle/media/published', meta: 'ch
+  [16] L  38-  40  other    function chronicleKey(bucket: keyof typeof CHRONICLE_PREFIXES, suffix: string): string { return `${CHRONICLE_PREFIXE
+  [17] L  42-  44  other    function stored(body: Uint8Array, contentType = 'application/octet-stream'): StoredObject { return { body: Uint8Arra
+  [18] L  46- 117  other    class MemoryStorage implements ObjectStorage { objects = new Map<string, StoredObject>(); puts: string[] = [];
+  [19] L 119- 142  other    class MemoryCompensation implements CompensationService { enqueues: Array<{ kind: string; payload: unknown }> = [];
+  [20] L 144- 208  other    class MemoryIdempotencyStore implements IdempotencyStore { private ownershipBarrier: { reached: () => void;
+  [21] L 210- 219  other    class FixtureImages implements ImageProcessor { calls = 0; async validate(): Promise<ImageInfo> { this.c
+  [22] L 221- 230  other    class FixtureUploads implements UploadParser { next: ParsedUpload = { fields: {}, files: {} }; error: unknown =
+  [23] L 232- 287  other    class CapturingRateLimiter implements RateLimiter { private readonly buckets = new Map<string, Set<string>>(); l
+  [24] L 289- 325  other    async function fixture() { const storage = new MemoryStorage(); const idempotency = new MemoryIdempotencyStore()
+  [25] L 327- 336  other    function uploadRequest(app: ReturnType<typeof createHonoApp>, key?: string) { return app.request('/eventchronicle/up
+  [26] L 338- 359  other    function unreadUploadRequest(app: ReturnType<typeof createHonoApp>, key: string) { let pulls = 0; const body = n
+  [27] L 361- 954  describe Chronicle
+### tests/server/client-address.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { describe, test } from 'vitest';
+  [ 2] L   3-   3  other    import { Hono } from 'hono';
+  [ 3] L   4-   4  other    import type { AppEnvironment } from '@/app';
+  [ 4] L   5-   8  other    import { getRequestClientAddress, resolveClientAddress } from '@/middleware/client-address';
+  [ 5] L   9-   9  other    import { getClientAddress } from '@/middleware/hono-context';
+  [ 6] L  11-  99  describe client address resolution
+### tests/server/contract-json-helper.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { assertContractJson, readContractJson } from '../contracts/contract-json';
+  [ 3] L   5-  10  other    const exactSchema = { parse(value: unknown): { success: true; value: string } { assert.deepEqual(value, { su
+  [ 4] L  12-  21  other    function jsonResponse( value: unknown, contentType = 'application/json; charset=UTF-8', status = 200 ): Resp
+  [ 5] L  23-  78  describe contract JSON helpers
+### tests/server/core-runtime-contract.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import fs from 'node:fs/promises';
+  [ 3] L   4-   4  other    import os from 'node:os';
+  [ 4] L   5-   5  other    import path from 'node:path';
+  [ 5] L   6-   6  other    import { describe, onTestFinished } from 'vitest';
+  [ 6] L   7-   7  other    import { createHonoApp } from '@/app';
+  [ 7] L   8-   8  other    import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
+  [ 8] L   9-   9  other    import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
+  [ 9] L  10-  10  other    import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+  [10] L  11-  14  other    import { ValkeyRateLimiter, valkeyRateLimitWindowKey } from '@/infra/cache/valkey/rate-limiter';
+  [11] L  15-  15  other    import { FakeValkeyRateLimitServer } from './fake-valkey';
+  [12] L  16-  16  other    import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
+  [13] L  17-  17  other    import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
+  [14] L  18-  18  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [15] L  19-  19  other    import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+  [16] L  20-  20  other    import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
+  [17] L  21-  21  other    import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+  [18] L  22-  22  other    import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
+  [19] L  23-  23  other    import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+  [20] L  24-  24  other    import { SqlReactionRepository } from '@/infra/db/repositories/reaction-repository';
+  [21] L  25-  25  other    import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
+  [22] L  26-  26  other    import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+  [23] L  27-  27  other    import type { CompensationService } from '@/ports/object-storage';
+  [24] L  28-  31  other    import type { EventRepository, NewsRepository } from '@/ports/repositories';
+  [25] L  32-  32  other    import type { ImageProcessor } from '@/ports/media';
+  [26] L  33-  33  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [27] L  34-  34  other    import type { ParsedUpload, UploadParser } from '@/ports/http';
+  [28] L  35-  35  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [29] L  36-  43  other    import { assertChronicleRateContract, assertConcurrentRateLimiterContract, assertCoreMutationContract, a
+  [30] L  44-  44  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [31] L  45-  45  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [32] L  47-  47  other    const SECRET = 'node-contract-secret-at-least-32-bytes';
+  [33] L  48-  48  other    const USERNAME = 'node-contract-op';
+  [34] L  49-  49  other    const PASSWORD = 'contract-password';
+  [35] L  50-  50  other    const PRODUCER = 'Node Contract Producer';
+  [36] L  51-  51  other    const APPROVED_CARD_ID = 700;
+  [37] L  52-  52  other    const PENDING_CARD_ID = 701;
+  [38] L  54-  69  other    class ControlledUploadParser implements UploadParser { next?: ParsedUpload; calls = 0; set(value: Controlle
+  [39] L  71-  84  other    const images: ImageProcessor = { async validate() { return { format: 'png', width: 1, height: 1, contentType
+  [40] L  86- 130  other    interface NodeFixture { request(pathname: string, init?: RequestInit): Promise<Response>; setUpload(upload: Cont
+  [41] L 132- 146  other    async function countFiles(directory: string): Promise<number> { let entries: import('node:fs').Dirent[]; try {
+  [42] L 148- 163  other    async function chronicleRecordCount(metaDirectory: string): Promise<number> { let names: string[]; try {
+  [43] L 165- 169  other    function clientAddress(client: string): string { return client === 'replay-client' ? '203.0.113.201' : clien
+  [44] L 171- 495  other    async function createFixture(): Promise<NodeFixture> { const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-nod
+  [45] L 497- 625  describe core runtime contract
+  template-literal lines (not reindented): 192,197,198,199,200,201,202,203,204,209,210,211,212,213,214,215,216,420
+### tests/server/cors-policy.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { createHonoApp } from '@/app';
+  [ 3] L   5-  65  describe CORS
+### tests/server/editorial-safeguards.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-  21  other    import { adminEditorialSpotlightSchema, editorialArticleAssetListSchema, editorialArticleListSchema, edi
+  [ 4] L  22-  25  other    import { failureMessageResponseSchema, messageErrorResponseSchema } from '@imsweb/contracts/common';
+  [ 5] L  26-  26  other    import { createHonoApp } from '@/app';
+  [ 6] L  27-  27  other    import { legacyHtmlToArticleDocument } from '@/domains/content/editorial/article-body';
+  [ 7] L  28-  28  other    import type { EditorialRepository } from '@/ports/repositories';
+  [ 8] L  30-  50  other    const currentEvent = { id: 11, article_id: 29, title: '测试活动', summary: '', cover_url: null, body
+  [ 9] L  52-  68  other    function createApp(repository: EditorialRepository, dept: 'op' | 'editor' = 'op') { return createHonoApp(() => ({
+  [10] L  70-  79  other    function bearerRequest(method: string, body?: Record<string, unknown>): RequestInit { return { method,
+  [11] L  81-  84  other    const articleBody = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '正文' }] }] };
+  [12] L  86- 102  other    const editorialRow = { id: 1, article_id: 1, title: '测试内容', summary: '', cover_url: null, body_j
+  [13] L 104- 129  other    function editorialRepositoryStub( overrides: Record<string, unknown> = {} ): EditorialRepository { return {
+  [14] L 131- 141  other    function requestOptions(body: Record<string, unknown>): RequestInit { return { method: 'PUT', header
+  [15] L 143- 320  describe Editorial
+### tests/server/events-pagination.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 4] L   5-  12  other    import { createEventResponseSchema, eventErrorResponseSchema, eventLegacyPageSchema, eventListItemSchema
+  [ 5] L  13-  16  other    import { failureMessageResponseSchema, messageErrorResponseSchema } from '@imsweb/contracts/common';
+  [ 6] L  17-  17  other    import { createHonoApp } from '@/app';
+  [ 7] L  18-  18  other    import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+  [ 8] L  19-  19  other    import type { IdempotencyClaim, IdempotencyResponse, IdempotencyStore } from '@/ports/cache';
+  [ 9] L  20-  20  other    import type { ParsedUpload, UploadParser } from '@/ports/http';
+  [10] L  21-  21  other    import type { ImageProcessor } from '@/ports/media';
+  [11] L  22-  22  other    import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
+  [12] L  23-  23  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [13] L  24-  27  other    import { decodeEventCursor, encodeEventCursor } from '@/domains/content/events/event-cursor';
+  [14] L  28-  28  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [15] L  29-  29  other    import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
+  [16] L  30-  30  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [17] L  32-  35  other    interface EventListItem { id: number; title: string; }
+  [18] L  37-  40  other    interface LegacyEventPage { list: EventListItem[]; totalPage: number; }
+  [19] L  42-  49  other    interface CursorEventPage { items: EventListItem[]; pageInfo: { nextCursor: string | null; hasNe
+  [20] L  51-  69  other    interface EventFixture { request(pathname: string, init?: RequestInit): Promise<Response>; insert(title: string)
+  [21] L  71-  84  other    class MemoryEventUploads implements UploadParser { private next: ParsedUpload | null = null; set(value: ParsedU
+  [22] L  86- 123  other    class MemoryEventIdempotency implements IdempotencyStore { private readonly records = new Map<string, { fing
+  [23] L 125- 162  other    function eventStorage(): ObjectStorage { const objects = new Map<string, StoredObject>(); return { async
+  [24] L 164- 171  other    const eventImages: ImageProcessor = { async validate() { return { format: 'png', width: 1, height: 1, conten
+  [25] L 173- 235  other    async function createFixture(count: number): Promise<EventFixture> { const connection = await createPostgresTestData
+  [26] L 237- 239  other    async function responseJson<T>(response: Response): Promise<T> { return response.json() as Promise<T>; }
+  [27] L 241- 571  describe events pagination
+### tests/server/events-response.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { toEditorialEventResponse } from '@/domains/content/events/response';
+  [ 3] L   5-  48  describe events response
+### tests/server/fudaba-agency-catalog.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   6  other    import { CANONICAL_FUDABA_AGENCIES, projectCanonicalFudabaAgencies } from '../fixtures/fudaba-agency-catalog';
+  [ 3] L   8-  40  describe canonical Fudaba agency data
+### tests/server/fudaba-agency-migration.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createRequire } from 'node:module';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   8  other    import { createPostgresTestHarness, type PostgresTestHarness } from '../integration/postgres-harness';
+  [ 5] L   9-   9  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 6] L  10-  10  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 7] L  12-  12  other    const require = createRequire(__filename);
+  [ 8] L  13-  20  other    const { migratePostgres } = require( '../../scripts/migration/postgres-migrations.js' ) as { migratePostgres(opt
+  [ 9] L  22-  22  other    const AGENCY_CATALOG_MIGRATION = '0027_fudaba_agency_catalog.sql';
+  [10] L  24-  51  other    async function createLegacyHarness(): Promise<PostgresTestHarness> { const harness = await createPostgresTestHarness
+  [11] L  53- 161  describe PostgreSQL 0027
+  template-literal lines (not reindented): 33,34,35,39,40,41,42,43,44,45,46,47,48,67,68,72,73,74,75,76,77,78,79,80,81,96,97,98,102,103,104,120,121,122,123,124,125,126,127,128,129,144,145,154,155
+### tests/server/fudaba-card-claim-contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { parseLegacyCardClaim } from '@/domains/community/fudaba/claims/request';
+  [ 3] L   4-   4  other    import { fudabaCardClaimView } from '@/domains/community/fudaba/contracts/claim';
+  [ 4] L   5-   5  other    import { parseFudabaCardCreateFields } from '@/domains/community/fudaba/cards/request';
+  [ 5] L   6-   6  other    import { toPublicNamecardResponse } from '@/domains/community/namecards/response';
+  [ 6] L   7-   7  other    import type { FudabaCardClaimRecord } from '@/ports/repositories';
+  [ 7] L   9-  20  other    function registeredFields(favoriteIdolIds: string) { return { producerName: 'Producer', displayName:
+  [ 8] L  22- 134  describe Fudaba card claims
+### tests/server/fudaba-card-interaction-routes.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   7  other    import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex } from '../fixtures/auth-request';
+  [ 3] L   8-   8  other    import { test } from 'vitest';
+  [ 4] L   9-  13  other    import { fudabaCardInteractionResponseSchema, fudabaCardPageSchema, fudabaErrorResponseSchema } from '@imswe
+  [ 5] L  14-  14  other    import { createHonoApp } from '@/app';
+  [ 6] L  15-  18  other    import { PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_CSRF_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contr
+  [ 7] L  19-  19  other    import type { RateLimiter } from '@/ports/cache';
+  [ 8] L  20-  25  other    import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage
+  [ 9] L  26-  32  other    import type { FudabaCardInteractionStateRecord, FudabaPublicCardRecord, FudabaRepository, ListFudabaPubl
+  [10] L  33-  33  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [11] L  35-  35  other    const ACCOUNT_ID = 'interaction-account';
+  [12] L  36-  36  other    const TOKEN = 'interaction-access-token';
+  [13] L  37-  37  other    const CSRF = 'interaction-csrf-secret';
+  [14] L  38-  38  other    const CARD_ID = 'interaction-card';
+  [15] L  39-  39  other    const CREATED_AT = '2026-08-02T00:00:00.000Z';
+  [16] L  41-  70  other    class PublicMediaStorage implements ObjectStorage { async createPublicReadUrl(key: string): Promise<string | null> {
+  [17] L  72-  87  other    class ControlledRateLimiter implements RateLimiter { readonly deniedBuckets = new Set<string>(); async consume(
+  [18] L  89- 115  other    function publicCard( overrides: Partial<FudabaPublicCardRecord> = {} ): FudabaPublicCardRecord { return {
+  [19] L 117- 120  other    interface FixtureOptions { accountStatus?: PlatformAccountStatus; writeEnabled?: boolean; }
+  [20] L 122- 253  other    class InteractionFixture { readonly accountStatus: PlatformAccountStatus; readonly writeEnabled: boolean; re
+  [21] L 255- 257  other    function bearerHeaders(): Record<string, string> { return bearerTokenHeaders(TOKEN); }
+  [22] L 259- 264  other    function cookieHeaders(includeCsrfHeader: boolean): Record<string, string> { return cookieCsrfHeaders([ [PLA
+  [23] L 266- 268  other    function interactionPath(kind: 'like' | 'favorite', cardId = CARD_ID): string { return `http://ims.test/api/communit
+  [24] L 270- 434  describe card interaction routes
+### tests/server/fudaba-card-placement-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { describe, onTestFinished } from 'vitest';
+  [ 2] L   3-   3  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 3] L   4-   4  other    import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
+  [ 4] L   5-   8  other    import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 5] L   9-  13  other    import type { NewFudabaCardInput, NewFudabaOfficeInput, PlatformAccountStatus } from '@/ports/repositories';
+  [ 6] L  14-  14  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 7] L  15-  15  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 8] L  17-  17  other    const CREATED_AT = '2026-08-03T00:00:00.000Z';
+  [ 9] L  18-  18  other    const UPDATED_AT = '2026-08-03T00:01:00.000Z';
+  [10] L  19-  19  other    const ARCHIVED_AT = '2026-08-03T00:02:00.000Z';
+  [11] L  21-  26  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [12] L  28-  32  other    interface Fixture { database: ManagedSqlDatabase; repository: SqlFudabaRepository; dialect: 'postgresql'; }
+  [13] L  34-  46  other    async function createFixture( dialect: Fixture['dialect'] ): Promise<Fixture> { const harness = await createPost
+  [14] L  48-  58  other    async function seedAccount( fixture: Fixture, id: string, status: PlatformAccountStatus = 'active' ): Promis
+  [15] L  60-  87  other    function office( id: string, ownerAccountId: string, overrides: Partial<NewFudabaOfficeInput> = {} ): NewFud
+  [16] L  89- 119  other    function card( id: string, ownerAccountId: string, overrides: Partial<NewFudabaCardInput> = {} ): NewFudabaC
+  [17] L 121- 139  other    function placementInput( officeId: string, cardId: string, ownerAccountId: string, expectedRevision: num
+  [18] L 141- 396  other    async function assertCardPlacementRepository( dialect: Fixture['dialect'] ): Promise<void> { const fixture = awa
+  [19] L 398- 402  describe Fudaba card placement repository
+  template-literal lines (not reindented): 55,56,383,384,394
+### tests/server/fudaba-card-placement-routes.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   7  other    import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex as csrfHash } from '../fixtures/auth-reques
+  [ 3] L   8-   8  other    import { test } from 'vitest';
+  [ 4] L   9-  13  other    import { fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaErrorResponse
+  [ 5] L  14-  14  other    import { createHonoApp } from '@/app';
+  [ 6] L  15-  18  other    import { PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_CSRF_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contr
+  [ 7] L  19-  19  other    import type { RateLimiter } from '@/ports/cache';
+  [ 8] L  20-  24  other    import type { FudabaCardPlacementRecord, FudabaRepository, PlatformAccountStatus } from '@/ports/repositorie
+  [ 9] L  25-  25  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [10] L  27-  27  other    const ACCOUNT_ID = 'placement-owner';
+  [11] L  28-  28  other    const TOKEN = 'placement-access-token';
+  [12] L  29-  29  other    const CSRF = 'placement-csrf-secret';
+  [13] L  30-  30  other    const OFFICE_ID = 'placement-office';
+  [14] L  31-  31  other    const CARD_ID = 'placement-card';
+  [15] L  33-  56  other    class ControlledRateLimiter implements RateLimiter { readonly deniedBuckets = new Set<string>(); readonly calls:
+  [16] L  58-  63  other    interface FixtureOptions { accountStatus?: PlatformAccountStatus; officeOpen?: boolean; officeOwnerStatus?:
+  [17] L  65- 241  other    class PlacementRouteFixture { readonly accountStatus: PlatformAccountStatus; readonly writeEnabled: boolean;
+  [18] L 243- 245  other    function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> { return bearerTokenHeaders(TOKEN
+  [19] L 247- 252  other    function cookieHeaders(includeHeader: boolean): Record<string, string> { return cookieCsrfHeaders([ [PLATFOR
+  [20] L 254- 262  other    function placementBody(expectedRevision: number | null): Record<string, unknown> { return { x: 25.5,
+  [21] L 264- 267  other    function path(cardId = CARD_ID): string { return `/api/community/exchange/offices/${OFFICE_ID}` + `/cards/${
+  [22] L 269- 533  describe card placement
+### tests/server/fudaba-card-reaction-routes.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-   7  other    import { fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema } from '@imsweb/contracts/fudaba';
+  [ 4] L   8-   8  other    import { createHonoApp } from '@/app';
+  [ 5] L   9-  13  other    import type { FudabaCardReactionInput, FudabaCardReactionRecord, FudabaRepository } from '@/ports/repositori
+  [ 6] L  14-  14  other    import type { RateLimiter } from '@/ports/cache';
+  [ 7] L  16-  16  other    const CARD_ID = 'card-reaction-1';
+  [ 8] L  17-  17  other    const PATH = `http://ims.test/api/community/exchange/cards/${CARD_ID}/reactions`;
+  [ 9] L  19-  38  other    class ControlledRateLimiter implements RateLimiter { private denied: string | null = null; denyBucket(bucket: s
+  [10] L  40-  84  other    class ReactionFixture { readonly rateLimiter = new ControlledRateLimiter(); readonly reactions = new Map<string,
+  [11] L  86- 183  describe exchange card reactions
+### tests/server/fudaba-card-review-handlers.test.ts
+  [ 0] L   1-   1  other    import { reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import assert from 'node:assert/strict';
+  [ 3] L   4-   4  other    import { test } from 'vitest';
+  [ 4] L   5-   5  other    import { Hono } from 'hono';
+  [ 5] L   6-   6  other    import type { AppEnvironment } from '@/app';
+  [ 6] L   7-  10  other    import { handleReviewFudabaCardClaim, handleReviewFudabaRegisteredCard } from '@/domains/community/fudaba/modera
+  [ 7] L  11-  11  other    import type { ObjectStorage, StoredObject } from '@/ports/object-storage';
+  [ 8] L  12-  12  other    import { namecardOriginalUrlFromObjectKey } from '@/utils/storage/business-object-keys';
+  [ 9] L  13-  18  other    import type { FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaRegisteredCardReviewRecord, Fudab
+  [10] L  19-  19  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [11] L  21-  21  other    const CREATED_AT = '2026-08-16T19:30:00.000Z';
+  [12] L  23-  30  other    function idol() { return { idol_id: 1, agency_code: '765', name_cn: '天海春香', display_
+  [13] L  32-  60  other    function registeredCard(): FudabaRegisteredCardReviewRecord { return { id: 'registered-review', owne
+  [14] L  62-  79  other    function claimRecord(): FudabaCardClaimRecord { return { id: 'claim-review', legacy_card_id: 42,
+  [15] L  81-  90  other    function adminClaim(): FudabaAdminCardClaimRecord { return { ...claimRecord(), state: 'pending',
+  [16] L  92-  99  other    function stored(body: number): StoredObject { return { body: Uint8Array.of(body), size: 1, c
+  [17] L 101- 120  other    function storage(overrides: Partial<ObjectStorage>): ObjectStorage { return { async get() { return null; },
+  [18] L 122- 141  other    function app(runtime: RuntimeServices) { const application = new Hono<AppEnvironment>(); application.use('*', as
+  [19] L 143- 156  other    function runtime( repository: Partial<FudabaRepository>, objectStorage: ObjectStorage ): RuntimeServices { r
+  [20] L 158- 535  describe Fudaba card review handlers
+### tests/server/fudaba-claim-review-repository.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
+  [ 3] L   4-   4  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 4] L   5-   5  other    import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
+  [ 5] L   6-   6  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 6] L   7-  12  other    import type { AuditLogInput, CreateOwnedFudabaCardInput, NewFudabaCardInput, NewPlatformAccountInput } f
+  [ 7] L  13-  13  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 8] L  14-  17  other    import { connectPostgresTestDatabase, createPostgresTestDatabase } from '../postgres-test-database';
+  [ 9] L  18-  18  other    import { describe } from 'vitest';
+  [10] L  20-  20  other    const CREATED_AT = '2026-08-16T19:30:00.000Z';
+  [11] L  21-  21  other    const REVIEWED_AT = '2026-08-16T20:00:00.000Z';
+  [12] L  22-  22  other    const PROFILE_AT = 1_776_000_000_000;
+  [13] L  24-  41  other    function account(id: string): NewPlatformAccountInput { return { id, status: 'active', token
+  [14] L  43-  72  other    function registeredCard( id: string, ownerAccountId: string, publicationStatus: NewFudabaCardInput['publicat
+  [15] L  74-  93  other    function ownerCard(id: string, ownerAccountId: string): CreateOwnedFudabaCardInput { const card = registeredCard(id,
+  [16] L  95- 102  other    const audit: AuditLogInput = { username: 'reviewer', producername: 'Review Admin', action: 'review namecard
+  [17] L 104- 168  other    async function insertLegacyCard( database: ManagedSqlDatabase, suffix: string ): Promise<number> { // A lega
+  [18] L 170- 181  other    async function insertBackofficeActor( database: ManagedSqlDatabase ): Promise<number> { const row = await databa
+  [19] L 183- 202  other    async function fixture() { const database = await createPostgresTestDatabase('fudaba-claim-review'); const sibli
+  [20] L 204- 703  describe Fudaba claim review repository
+  template-literal lines (not reindented): 116,117,118,119,120,121,125,126,127,128,143,144,145,146,147,148,149,163,164,165,175,176,177
+### tests/server/fudaba-domain-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { describe, onTestFinished } from 'vitest';
+  [ 2] L   3-   3  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 3] L   4-   4  other    import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
+  [ 4] L   5-   5  other    import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
+  [ 5] L   6-   9  other    import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 6] L  10-  13  other    import type { NewFudabaCardInput, NewFudabaOfficeInput } from '@/ports/repositories';
+  [ 7] L  14-  14  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 8] L  15-  15  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 9] L  16-  16  other    import { insertBackofficeAccount, insertPlatformAccount } from '../fixtures/rows';
+  [10] L  18-  18  other    const CREATED_AT = '2026-08-02T00:00:00.000Z';
+  [11] L  19-  19  other    const UPDATED_AT = '2026-08-02T00:01:00.000Z';
+  [12] L  20-  20  other    const RESOLVED_AT = '2026-08-02T00:02:00.000Z';
+  [13] L  22-  27  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [14] L  29-  33  other    interface Fixture { database: ManagedSqlDatabase; repository: SqlFudabaRepository; dialect: 'postgresql'; }
+  [15] L  35-  62  other    function office( id: string, ownerAccountId: string, overrides: Partial<NewFudabaOfficeInput> = {} ): NewFud
+  [16] L  64-  94  other    function card( id: string, ownerAccountId: string, overrides: Partial<NewFudabaCardInput> = {} ): NewFudabaC
+  [17] L  96- 108  other    async function createFixture( dialect: 'postgresql' = 'postgresql' ): Promise<Fixture> { const harness = await c
+  [18] L 110- 115  other    async function seedPlatformAccount( fixture: Fixture, accountId: string ): Promise<void> { await insertPlatf
+  [19] L 117- 126  other    async function seedBackofficeActor( fixture: Fixture, username: string ): Promise<number> { const actor = aw
+  [20] L 128- 145  other    async function placeCard( fixture: Fixture, officeId: string, cardId: string, ownerAccountId: string,
+  [21] L 147- 500  describe Fudaba domain repository
+  template-literal lines (not reindented): 171,172,176,247,248,252,253,257,258,259,260,320,321,322,323,335,336,337,338,376,377,381,382
+### tests/server/fudaba-location-repository.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { describe, onTestFinished } from 'vitest';
+  [ 2] L   3-   3  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 3] L   4-   4  other    import { SqlAdminAccountRepository } from "@/infra/db/repositories/admin-account-repository";
+  [ 4] L   5-   5  other    import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
+  [ 5] L   6-   9  other    import type { ManagedSqlDatabase, SqlSchemaStrategy, } from "@/infra/db/sql/database";
+  [ 6] L  10-  13  other    import type { NewFudabaOfficeInput, PlatformAccountStatus, } from "@/ports/repositories";
+  [ 7] L  14-  14  other    import { createPostgresTestHarness } from "../integration/postgres-harness";
+  [ 8] L  15-  15  other    import { seedCanonicalFudabaAgencies } from "../integration/fudaba-agency-fixture";
+  [ 9] L  16-  20  other    import { insertBackofficeAccount, insertFudabaOfficePublicLocation, insertPlatformAccount, } from "../fixtur
+  [10] L  22-  22  other    const SUBMITTED_AT = "2026-08-03T01:00:00.000Z";
+  [11] L  23-  23  other    const RESUBMITTED_AT = "2026-08-03T02:00:00.000Z";
+  [12] L  24-  24  other    const REVIEWED_AT = "2026-08-03T03:00:00.000Z";
+  [13] L  25-  25  other    const PUBLISH_OPERATION_ID = "00000000-0000-4000-8000-000000000001";
+  [14] L  26-  26  other    const STALE_OPERATION_ID = "00000000-0000-4000-8000-000000000002";
+  [15] L  27-  27  other    const FAILED_OPERATION_ID = "00000000-0000-4000-8000-000000000003";
+  [16] L  29-  34  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [17] L  36-  40  other    interface Fixture { database: ManagedSqlDatabase; repository: SqlFudabaRepository; dialect: "postgresql"; }
+  [18] L  42-  54  other    async function createFixture( dialect: Fixture["dialect"], ): Promise<Fixture> { const harness = await createPos
+  [19] L  56-  62  other    async function seedAccount( fixture: Fixture, id: string, status: PlatformAccountStatus = "active", ): Promi
+  [20] L  64-  91  other    function office( id: string, ownerAccountId: string, overrides: Partial<NewFudabaOfficeInput> = {}, ): NewFu
+  [21] L  93- 101  other    async function seedReviewer(fixture: Fixture): Promise<number> { const row = await insertBackofficeAccount(
+  [22] L 103- 129  other    async function insertReviewedLocation( fixture: Fixture, input: { officeId: string; latitudeE1:
+  [23] L 131- 140  other    function reviewAudit(target: string) { return { username: "location-reviewer", producername: "Review
+  [24] L 142- 154  other    async function installFailingAuditTrigger(fixture: Fixture): Promise<void> { await fixture.database.executeScript(`
+  [25] L 156- 161  other    async function removeFailingAuditTrigger(fixture: Fixture): Promise<void> { await fixture.database.executeScript(`
+  [26] L 163- 576  other    async function assertLocationRepository( dialect: Fixture["dialect"], ): Promise<void> { const fixture = await c
+  [27] L 578- 582  describe Fudaba location repository
+  template-literal lines (not reindented): 144,145,146,147,148,149,150,151,152,153,158,159,160,257,328,364
+### tests/server/fudaba-location-routes.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from "../contracts/contract-json";
+  [ 2] L   3-   6  other    import { fudabaCardClaimErrorSchema, ownerClaimListSchema, } from "@imsweb/contracts/fudaba/card-claims";
+  [ 3] L   7-  11  other    import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex as csrfHash, } from "../fixtures/auth-reque
+  [ 4] L  12-  12  other    import { test } from "vitest";
+  [ 5] L  13-  21  other    import { fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOwnerLocatio
+  [ 6] L  22-  26  other    import { fudabaLocationReviewErrorSchema, fudabaLocationReviewListSchema, fudabaLocationReviewMutationSchema
+  [ 7] L  27-  27  other    import { createHonoApp } from "@/app";
+  [ 8] L  28-  31  other    import { BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_CSRF_TOKEN_COOKIE, } from "@/domains/admin/backoffice-auth/b
+  [ 9] L  32-  35  other    import { PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_CSRF_TOKEN_COOKIE, } from "@/domains/identity/platform-auth/cont
+  [10] L  36-  36  other    import type { CacheStore, RateLimiter } from "@/ports/cache";
+  [11] L  37-  49  other    import type { AuditLogInput, BackofficeAccountRecord, FudabaOfficeLocationReviewRecord, FudabaOfficePubl
+  [12] L  50-  50  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [13] L  52-  52  other    const ACCOUNT_ID = "location-owner";
+  [14] L  53-  53  other    const OTHER_ACCOUNT_ID = "other-owner";
+  [15] L  54-  54  other    const OFFICE_ID = "location-office";
+  [16] L  55-  55  other    const PLATFORM_TOKEN = "platform-location-token";
+  [17] L  56-  56  other    const PLATFORM_CSRF = "platform-location-csrf";
+  [18] L  57-  57  other    const BACKOFFICE_TOKEN = "backoffice-location-token";
+  [19] L  58-  58  other    const BACKOFFICE_CSRF = "backoffice-location-csrf";
+  [20] L  59-  59  other    const SUBMITTED_AT = "2026-08-03T01:00:00.000Z";
+  [21] L  61-  88  other    function officeRecord( id = OFFICE_ID, ownerAccountId = ACCOUNT_ID, status: FudabaOfficeRecord["status"] = "
+  [22] L  90- 106  other    function pendingLocation( officeId = OFFICE_ID, overrides: Partial<FudabaOfficePublicLocationRecord> = {}, ): Fu
+  [23] L 108- 126  other    class ControlledCache implements CacheStore { readonly values = new Map<string, string>(); async get(key: strin
+  [24] L 128- 151  other    class ControlledRateLimiter implements RateLimiter { readonly deniedBuckets = new Set<string>(); readonly calls:
+  [25] L 153- 163  other    interface FixtureOptions { publicReadEnabled?: boolean; mapEnabled?: boolean; writeEnabled?: boolean; ac
+  [26] L 165- 523  other    class LocationRouteFixture { publicReadEnabled: boolean; mapEnabled: boolean; writeEnabled: boolean; acc
+  [27] L 525- 527  other    function platformBearerHeaders(extra: Record<string, string> = {}) { return bearerTokenHeaders(PLATFORM_TOKEN, extra
+  [28] L 529- 534  other    function platformCookieHeaders(includeCsrf = true) { return cookieCsrfHeaders([ [PLATFORM_ACCESS_TOKEN_COOKI
+  [29] L 536- 541  other    function backofficeCookieHeaders(includeCsrf = true) { return cookieCsrfHeaders([ [BACKOFFICE_ACCESS_TOKEN_C
+  [30] L 543-1171  describe Fudaba location routes
+### tests/server/fudaba-map-delivery.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { bearerTokenHeaders } from '../fixtures/auth-request';
+  [ 3] L   4-   4  other    import { test } from 'vitest';
+  [ 4] L   5-   9  other    import { fudabaMapDeliveryErrorSchema, fudabaMapDeliveryMutationSchema, fudabaMapDeliverySnapshotSchema, } f
+  [ 5] L  10-  10  other    import { createHonoApp } from '@/app';
+  [ 6] L  11-  16  other    import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject, } from '@/ports/object-storag
+  [ 7] L  17-  17  other    import type { AuditLogInput } from '@/ports/repositories';
+  [ 8] L  18-  18  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 9] L  19-  19  other    import { FUDABA_MAP_DELIVERY_OBJECT_KEY } from '@/utils/storage/business-object-keys';
+  [10] L  21-  21  other    const TOKEN = 'map-delivery-admin-token';
+  [11] L  22-  22  other    const OFFICIAL_STYLE = 'https://tiles.openfreemap.org/styles/positron';
+  [12] L  23-  23  other    const SELF_HOSTED_STYLE = '/maps/exchange-style.json';
+  [13] L  24-  24  other    const OBJECT_STORAGE_STYLE =
+  [14] L  26-  26  other    const DYNAMIC_STYLE =
+  [15] L  28-  28  other    const EDITED_DYNAMIC_STYLE =
+  [16] L  31- 104  other    class MemoryStorage implements ObjectStorage { private readonly objects = new Map<string, StoredObject>(); priva
+  [17] L 106- 178  other    function fixture() { const storage = new MemoryStorage(); const audit: AuditLogInput[] = []; const services:
+  [18] L 180- 184  other    interface SourcePayload { id: string; name: string; styleUrl: string; }
+  [19] L 186- 194  other    interface DeliveryPayload { success: true; delivery: { sources: SourcePayload[]; activeSourceId:
+  [20] L 196- 495  describe map delivery
+### tests/server/fudaba-office-management-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { describe, onTestFinished } from 'vitest';
+  [ 2] L   3-   3  other    import { fixtureSha256Hex as hash } from '../fixtures/auth-request';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import type { PostgresConnection } from '@/infra/db/postgresql/connection';
+  [ 5] L   6-   6  other    import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
+  [ 6] L   7-  13  other    import type { ManagedSqlDatabase, SqlResult, SqlDatabase, SqlStatement, SqlSchemaStrategy } from '@/
+  [ 7] L  14-  17  other    import type { CreateOwnedFudabaOfficeInput, PlatformAccountStatus } from '@/ports/repositories';
+  [ 8] L  18-  18  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 9] L  19-  19  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [10] L  21-  21  other    const CREATED_AT = '2026-08-03T01:00:00.000Z';
+  [11] L  22-  22  other    const UPDATED_AT = '2026-08-03T02:00:00.000Z';
+  [12] L  23-  23  other    const LATER_AT = '2026-08-03T03:00:00.000Z';
+  [13] L  24-  24  other    const RECEIPT_RACE_LOCK = [18_003, 18] as const;
+  [14] L  26-  31  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [15] L  33-  37  other    interface Fixture { database: ManagedSqlDatabase; repository: SqlFudabaRepository; dialect: 'postgresql'; }
+  [16] L  39-  71  other    class InterleavingStatement implements SqlStatement { constructor( private readonly statement: SqlStatement,
+  [17] L  73- 114  other    class InterleavingOwnerReadDatabase implements ManagedSqlDatabase { private armed = true; constructor(
+  [18] L 116- 128  other    async function createFixture( dialect: Fixture['dialect'] ): Promise<Fixture> { const harness = await createPost
+  [19] L 130- 140  other    async function seedAccount( fixture: Fixture, id: string, status: PlatformAccountStatus = 'active' ): Promis
+  [20] L 142- 172  other    function office( id: string, ownerAccountId: string, overrides: Partial<CreateOwnedFudabaOfficeInput> = {} )
+  [21] L 174- 184  other    async function seedPendingLocation( fixture: Fixture, officeId: string ): Promise<void> { await fixture.data
+  [22] L 186- 197  other    async function countOrphanedOfficeCreateReceipts( fixture: Fixture ): Promise<number> { return Number(await fixt
+  [23] L 199- 201  other    function delay(milliseconds: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, millisecon
+  [24] L 203- 219  other    async function waitForAdvisoryLockWaiter(fixture: Fixture): Promise<void> { const deadline = Date.now() + 5_000;
+  [25] L 221- 236  other    async function waitForPostgresLockWait( fixture: Fixture, processId: number, settled: () => boolean ): Promi
+  [26] L 238- 260  other    function updateInput( officeId: string, ownerAccountId: string, expectedRevision: number, overrides: Rec
+  [27] L 262- 559  other    async function assertOfficeManagement(fixture: Fixture): Promise<void> { const ownerId = `${fixture.dialect}-office-
+  [28] L 561- 725  describe Fudaba office management repository
+  template-literal lines (not reindented): 137,138,180,181,182,191,192,193,194,195,208,209,210,211,212,213,287,429,430,459,460,538,539,540,638,639,640,641,642,643,644,645,646,647,648,649,650,651,652,653,654,675,676,702,703
+### tests/server/fudaba-office-management-routes.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   6  other    import { bearerTokenHeaders, fixtureSha256Hex as csrfHash } from '../fixtures/auth-request';
+  [ 3] L   7-   7  other    import { test } from 'vitest';
+  [ 4] L   8-  12  other    import { fudabaErrorResponseSchema, fudabaOfficeMutationResponseSchema, fudabaOwnerOfficeListSchema } from '
+  [ 5] L  13-  13  other    import { createHonoApp } from '@/app';
+  [ 6] L  14-  14  other    import type { RateLimiter } from '@/ports/cache';
+  [ 7] L  15-  15  other    import type { ParsedUpload, UploadParser, UploadedFile } from '@/ports/http';
+  [ 8] L  16-  16  other    import type { ImageInfo, ImageProcessor } from '@/ports/media';
+  [ 9] L  17-  17  other    import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
+  [10] L  18-  26  other    import type { CreateOwnedFudabaOfficeInput, FudabaOfficeCreateResult, FudabaOfficeMutationResult, Fudaba
+  [11] L  27-  27  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [12] L  29-  29  other    const ACCOUNT_ID = 'office-owner';
+  [13] L  30-  30  other    const OTHER_ACCOUNT_ID = 'other-owner';
+  [14] L  31-  31  other    const PLATFORM_TOKEN = 'office-platform-token';
+  [15] L  32-  32  other    const CSRF_SECRET = 'office-csrf-secret';
+  [16] L  33-  33  other    const CREATED_AT = '2026-08-03T01:00:00.000Z';
+  [17] L  34-  34  other    const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
+  [18] L  36-  63  other    function officeRecord( overrides: Partial<FudabaOwnerOfficeRecord> = {} ): FudabaOwnerOfficeRecord { return {
+  [19] L  65-  78  other    function officeBody(overrides: Record<string, unknown> = {}): Record<string, unknown> { return { name: 'New
+  [20] L  80-  82  other    function uploadedFile(): UploadedFile { return { filename: 'cover.jpg', contentType: 'image/jpeg', body: JPEG_BYTES
+  [21] L  84-  98  other    class ControlledUploads implements UploadParser { next: ParsedUpload = { fields: { expectedRevision: '0' },
+  [22] L 100- 128  other    class CoverImages implements ImageProcessor { async validate(body: Uint8Array, declaredType?: string): Promise<Image
+  [23] L 130- 212  other    class CoverStorage { readonly objects = new Map<string, { stored: StoredObject; options: PutObjectOptions }>();
+  [24] L 214- 231  other    class ControlledRateLimiter implements RateLimiter { readonly deniedBuckets = new Set<string>(); readonly calls:
+  [25] L 233- 546  other    class OfficeRouteFixture { accountStatus: PlatformAccountStatus = 'active'; writeEnabled = true; readonly of
+  [26] L 548- 550  other    function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> { return bearerTokenHeaders(PLATF
+  [27] L 552- 565  other    async function createOffice( fixture: OfficeRouteFixture, key: string, body = officeBody() ): Promise<Respon
+  [28] L 567- 575  other    async function uploadCover( fixture: OfficeRouteFixture, officeId = 'owner-office' ): Promise<Response> { re
+  [29] L 577- 881  describe Fudaba office management routes
+### tests/server/fudaba-owner-routes.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-  10  other    import { fudabaCardDeleteResponseSchema, fudabaCardMutationResponseSchema, fudabaErrorResponseSchema, fu
+  [ 4] L  11-  28  other    import { ACCOUNT_ID, BACKOFFICE_TOKEN, CSRF_SECRET, JPEG_BYTES, OwnerRouteFixture, bearerHeaders
+  [ 5] L  30- 642  describe Fudaba owner routes
+### tests/server/fudaba-owner-write-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { describe, onTestFinished } from 'vitest';
+  [ 2] L   3-   3  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 3] L   4-   4  other    import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
+  [ 4] L   5-   5  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 5] L   6-   9  other    import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 6] L  10-  15  other    import type { CreateOwnedFudabaCardInput, NewFudabaCardInput, NewPlatformAccountInput, PlatformAccountSt
+  [ 7] L  16-  16  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 8] L  17-  17  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 9] L  19-  19  other    const CREATED_AT = '2026-08-02T03:00:00.000Z';
+  [10] L  20-  20  other    const UPDATED_AT = '2026-08-02T03:01:00.000Z';
+  [11] L  21-  21  other    const MEDIA_UPDATED_AT = '2026-08-02T03:02:00.000Z';
+  [12] L  22-  22  other    const DELETED_AT = '2026-08-02T03:03:00.000Z';
+  [13] L  23-  23  other    const PROFILE_CREATED_AT = 1_775_100_000_000;
+  [14] L  25-  30  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [15] L  32-  37  other    interface Fixture { database: ManagedSqlDatabase; platform: SqlPlatformAccountRepository; fudaba: SqlFudabaR
+  [16] L  39-  55  other    async function createFixture( dialect: Fixture['dialect'] ): Promise<Fixture> { const harness = await createPost
+  [17] L  57-  78  other    function account( id: string, status: PlatformAccountStatus = 'active', avatarObjectKey: string | null = nul
+  [18] L  80- 102  other    function ownedCard( id: string, ownerAccountId: string, seriesCode = '765' ): CreateOwnedFudabaCardInput {
+  [19] L 104- 118  other    function importedCard( id: string, ownerAccountId: string ): NewFudabaCardInput { return { ...ownedC
+  [20] L 120- 185  other    async function assertProfileWrites(fixture: Fixture): Promise<void> { const ownerId = `${fixture.dialect}-profile-ow
+  [21] L 187- 382  other    async function assertCardWrites(fixture: Fixture): Promise<void> { const ownerId = `${fixture.dialect}-card-owner`;
+  [22] L 384- 459  other    async function assertCrossInstanceCas(fixture: Fixture): Promise<void> { const siblingPlatform = new SqlPlatformAcco
+  [23] L 461- 468  describe Fudaba owner write repository
+  template-literal lines (not reindented): 262,263,326,327
+### tests/server/fudaba-public-read-repository.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { describe, onTestFinished } from 'vitest';
+  [ 2] L   3-   3  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 3] L   4-   4  other    import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
+  [ 4] L   5-   8  other    import type { ManagedSqlDatabase, SqlSchemaStrategy, } from "@/infra/db/sql/database";
+  [ 5] L   9-  13  other    import type { NewFudabaCardInput, NewFudabaOfficeInput, PlatformAccountStatus, } from "@/ports/repositories"
+  [ 6] L  14-  14  other    import { createPostgresTestHarness } from "../integration/postgres-harness";
+  [ 7] L  15-  15  other    import { seedCanonicalFudabaAgencies } from "../integration/fudaba-agency-fixture";
+  [ 8] L  17-  17  other    const OFFICE_CREATED_AT = "2026-08-02T00:00:00.000Z";
+  [ 9] L  18-  18  other    const OFFICE_UPDATED_AT = "2026-08-02T00:01:00.000Z";
+  [10] L  19-  19  other    const CARD_OLDEST_AT = "2026-08-02T01:00:00.000Z";
+  [11] L  20-  20  other    const CARD_OLD_AT = "2026-08-02T02:00:00.000Z";
+  [12] L  21-  21  other    const CARD_NEW_AT = "2026-08-02T03:00:00.000Z";
+  [13] L  22-  22  other    const CARD_DELETED_AT = "2026-08-02T04:00:00.000Z";
+  [14] L  24-  29  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [15] L  31-  35  other    interface Fixture { database: ManagedSqlDatabase; repository: SqlFudabaRepository; dialect: "postgresql"; }
+  [16] L  37-  49  other    async function createFixture( dialect: Fixture["dialect"], ): Promise<Fixture> { const harness = await createPos
+  [17] L  51-  77  other    function office( id: string, overrides: Partial<NewFudabaOfficeInput> = {}, ): NewFudabaOfficeInput { return
+  [18] L  79- 108  other    function card( id: string, overrides: Partial<NewFudabaCardInput> = {}, ): NewFudabaCardInput { return {
+  [19] L 110- 130  other    async function seedAccount( fixture: Fixture, accountId: string, status: PlatformAccountStatus = "active", )
+  [20] L 132- 152  other    async function placeCard( fixture: Fixture, officeId: string, cardId: string, zIndex: number, ownerA
+  [21] L 154- 163  other    function assertOfficePrivacy(record: Record<string, unknown>): void { assert.equal(typeof record.address, "string",
+  [22] L 165- 760  other    async function assertPublicReadModels( dialect: Fixture["dialect"], ): Promise<void> { const fixture = await cre
+  [23] L 762- 766  describe Fudaba public read repository
+  template-literal lines (not reindented): 119,120,431,432
+### tests/server/fudaba-public-routes.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from "../contracts/contract-json";
+  [ 2] L   3-   3  other    import { test } from "vitest";
+  [ 3] L   4-   4  other    import { createTestApp, testRequest } from "./test-app";
+  [ 4] L   5-  11  other    import { fudabaCardPageSchema, fudabaErrorResponseSchema, fudabaOfficeDetailSchema, fudabaOfficePageSche
+  [ 5] L  12-  12  other    import { PLATFORM_ACCESS_TOKEN_COOKIE } from "@/domains/identity/platform-auth/contracts/session";
+  [ 6] L  13-  21  other    import type { FudabaPublicCardRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRe
+  [ 7] L  22-  27  other    import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject, } from "@/ports/object-storag
+  [ 8] L  28-  28  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [ 9] L  30-  30  other    const NOW = Date.now();
+  [10] L  31-  31  other    const CREATED_AT = "2026-08-02T00:00:00.000Z";
+  [11] L  33-  64  other    class PublicMediaStorage implements ObjectStorage { async createPublicReadUrl(key: string): Promise<string | null> {
+  [12] L  66-  92  other    function publicCard( overrides: Partial<FudabaPublicCardRecord> = {}, ): FudabaPublicCardRecord { return {
+  [13] L  94- 109  other    function publicOffice(): FudabaPublicOfficeRecord { return { id: "office-a", slug: "上海-office-a",
+  [14] L 111- 180  other    class PublicFudabaFixture { lastOfficeInput: ListFudabaPublicOfficesInput | null = null; lastCardInput: ListFuda
+  [15] L 182- 255  other    function runtime( fudaba: PublicFudabaFixture, options: { enabled?: boolean; accountStatus?: Pla
+  [16] L 257- 534  describe Fudaba public routes
+### tests/server/handler-model-contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import fs from 'node:fs';
+  [ 2] L   3-   3  other    import path from 'node:path';
+  [ 3] L   4-   4  other    import { test } from 'vitest';
+  [ 4] L   6-   6  other    const domainRoot = path.resolve(__dirname, '../../src/domains');
+  [ 5] L   7-   7  other    const routeMethods = new Set(['all', 'delete', 'get', 'on', 'options', 'patch', 'post', 'put']);
+  [ 6] L   8-  30  other    const domainSections: Record<string, string> = { 'platform-auth': 'identity', 'platform-profile': 'identity',
+  [ 7] L  32-  36  other    function domainDirectory(domain: string): string { const section = domainSections[domain]; if (!section) throw n
+  [ 8] L  38- 204  other    const expectedRouteHandlers: Record<string, readonly string[]> = { about: [ 'handleGetAboutPage', 'h
+  [ 9] L 206- 210  other    interface HandlerImport { domain: string; module: string; symbol: string; }
+  [10] L 212- 218  other    function routeFile(domain: string): string { for (const filename of ['routes.ts', 'routes.tsx']) { const can
+  [11] L 220- 229  other    function domainRouteFiles(domain: string): string[] { const directory = domainDirectory(domain); const files = [
+  [12] L 231- 247  other    function handlerImportsFromSource(source: string): HandlerImport[] { const imports: HandlerImport[] = []; const
+  [13] L 249- 252  other    function handlerImports(domain: string): HandlerImport[] { return domainRouteFiles(domain).flatMap((file) =>
+  [14] L 254- 260  other    function handlerFile(entry: HandlerImport): string { for (const extension of ['.ts', '.tsx']) { const candid
+  [15] L 262- 304  other    function maskNonCode(source: string): string { const output = [...source]; let index = 0; while (index < out
+  [16] L 306- 323  other    function responseImports(source: string, domain: string): string[] { const escapedDomain = domain.replace(/[.*+?^${}
+  [17] L 325- 350  other    function firstJsonArguments(source: string): string[] { const code = maskNonCode(source); const argumentsList: s
+  [18] L 352- 371  other    function routeRegistrations(source: string): string[] { const code = maskNonCode(source); const registrations: s
+  [19] L 373- 379  other    function validatorAliases(source: string): Map<string, string> { const aliases = new Map<string, string>(); cons
+  [20] L 381- 384  other    function identifierCount(source: string, identifier: string): number { const escaped = identifier.replace(/[.*+?^${}
+  [21] L 386- 394  other    function domainSourceFiles(directory: string): string[] { const files: string[] = []; for (const entry of fs.rea
+  [22] L 396- 410  other    function matchingDelimiter( source: string, opening: number, openCharacter: string, closeCharacter: stri
+  [23] L 412- 428  other    function typeAliasEnd(source: string, start: number): number { let braces = 0; let brackets = 0; let parenth
+  [24] L 430- 433  other    function parameterNames(parameters: string): string[] { return [...parameters.matchAll(/(?:^|,)\s*([A-Za-z_$][\w$]*)
+  [25] L 435- 442  other    function isUnvalidatedRecordBody(body: string, parameters: readonly string[]): boolean { const directInput = paramet
+  [26] L 444- 449  other    function constValidatorOutput(declaration: string): string | null { const implemented = /\)\s*:\s*([^=]+?)\s*=>/.exe
+  [27] L 451- 676  describe handler model contract
+### tests/server/handler-validation-compatibility.test.ts
+  [ 0] L   1-   6  other    import { fudabaGuestSubmissionDetailSchema, // pi-lens-ignore: ts:2724 fudabaGuestSubmissionErrorSchema,
+  [ 1] L   7-  18  other    import { adminNamecardListSchema, // pi-lens-ignore: ts:2305 namecardEmptyResponseSchema, // pi-lens-ign
+  [ 2] L  19-  19  other    import { failureMessageResponseSchema } from '@imsweb/contracts/common';
+  [ 3] L  20-  20  other    import assert from 'node:assert/strict';
+  [ 4] L  21-  21  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 5] L  22-  22  other    import { test } from 'vitest';
+  [ 6] L  23-  23  other    import { createHonoApp } from '@/app';
+  [ 7] L  24-  24  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 8] L  25-  36  other    import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, Even
+  [ 9] L  37-  37  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [10] L  39-  57  other    interface CompatibilityCalls { adminDelete: number[]; audit: AuditLogInput[]; authFind: number[]; eventD
+  [11] L  59- 285  other    function createCompatibilityFixture( namecardOverrides: Partial<NamecardRepository> = {}, serviceOverrides: Part
+  [12] L 287- 289  other    async function responseJson(response: Response): Promise<unknown> { return response.json(); }
+  [13] L 291-1321  describe handler validation compatibility
+### tests/server/homepage-links.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 4] L   5-  10  other    import { homepageLinkDeleteSchema, homepageLinkErrorResponseSchema, homepageLinkMutationSchema, homepage
+  [ 5] L  11-  11  other    import { createHonoApp } from '@/app';
+  [ 6] L  12-  12  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 7] L  13-  13  other    import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+  [ 8] L  14-  14  other    import { SqlHomepageLinkRepository } from '@/infra/db/repositories/homepage-link-repository';
+  [ 9] L  15-  15  other    import { executeSql } from '@/infra/db/sql/query';
+  [10] L  16-  16  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [11] L  18-  27  other    function adminRequest(method: string, pathname: string, body?: unknown): Request { return new Request(`http://homepa
+  [12] L  29- 136  describe homepage links
+### tests/server/idempotency-fencing.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import fs from 'node:fs/promises';
+  [ 2] L   3-   3  other    import os from 'node:os';
+  [ 3] L   4-   4  other    import path from 'node:path';
+  [ 4] L   5-   5  other    import { onTestFinished, test } from 'vitest';
+  [ 5] L   6-   6  other    import { FilesystemIdempotencyStore } from
+  [ 6] L   9-  70  describe filesystem idempotency
+### tests/server/information-data.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   8  other    import { defaultInformationIndex, informationCardSummary, parseInformationIndex, serializeInformationInd
+  [ 3] L  10-  51  describe information index
+### tests/server/information-html-document.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   6  other    import { buildInformationHtmlDocument, INFORMATION_DOCUMENT_CSP } from '@/domains/content/information/informatio
+  [ 3] L   8-  22  describe information HTML documents
+### tests/server/information-public-response.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { publicInformationCard } from '@/domains/content/information/public-response';
+  [ 3] L   4-   4  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 4] L   6-  18  other    const storage: ObjectStorage = { async createPublicReadUrl(key) { return `https://cdn.example.test/${key}`;
+  [ 5] L  20-  43  describe public information details
+### tests/server/information-reorder.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import crypto from 'node:crypto';
+  [ 3] L   4-   4  other    import { test } from 'vitest';
+  [ 4] L   5-   9  other    import { informationDetailSchema, informationErrorResponseSchema, informationListSchema } from '@imsweb/cont
+  [ 5] L  10-  10  other    import { createHonoApp } from '@/app';
+  [ 6] L  11-  11  other    import { parseInformationIndex, serializeInformationIndex } from '@/domains/content/information/data';
+  [ 7] L  12-  17  other    import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage
+  [ 8] L  18-  18  other    import { INFORMATION_INDEX_OBJECT_KEY } from '@/utils/storage/business-object-keys';
+  [ 9] L  20-  58  other    class MemoryStorage implements ObjectStorage { object: StoredObject | null = null; get(key: string): Promise<St
+  [10] L  60- 164  describe Information admin reordering
+### tests/server/live-schedule.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { afterEach, test } from 'vitest';
+  [ 3] L   4-   7  other    import { liveScheduleErrorResponseSchema, liveScheduleListSchema } from '@imsweb/contracts/live';
+  [ 4] L   8-   8  other    import { createHonoApp } from '@/app';
+  [ 5] L   9-  13  other    import { clearLiveScheduleCache, getLiveSchedule, normalizeLiveScheduleArticle } from '@/domains/content/liv
+  [ 6] L  15-  20  other    function jsonResponse(value: unknown, status = 200): Response { return new Response(JSON.stringify(value), {
+  [ 7] L  22-  35  other    function liveArticle(overrides: Record<string, unknown> = {}) { return { _id: 'live-1', title: 'THE
+  [ 8] L  37-  50  other    function cmsFetcher(articles: unknown[]) { let calls = 0; const fetcher: typeof fetch = async (input) => {
+  [ 9] L  52-  52  other    afterEach(() => clearLiveScheduleCache());
+  [10] L  54- 144  describe live schedule
+### tests/server/local-upload-sync.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import fs from 'node:fs/promises';
+  [ 2] L   3-   3  other    import os from 'node:os';
+  [ 3] L   4-   4  other    import path from 'node:path';
+  [ 4] L   5-   5  other    import { onTestFinished, test } from 'vitest';
+  [ 5] L   6-  11  other    import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage
+  [ 6] L  12-  12  other    import { listLocalUploadFiles, syncLocalUploads } from '@/utils/storage/local-upload-sync';
+  [ 7] L  14-  66  other    class MemoryObjectStorage implements ObjectStorage { readonly objects = new Map<string, StoredObject>(); async
+  [ 8] L  68-  77  other    async function fixture(): Promise<string> { const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-upload-sy
+  [ 9] L  79- 127  describe local upload sync
+### tests/server/media-article-assets.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { createHonoApp } from '@/app';
+  [ 3] L   4-   4  other    import type { ObjectStorage, StoredObject } from '@/ports/object-storage';
+  [ 4] L   5-   5  other    import { articleAssetObjectKey } from '@/utils/storage/business-object-keys';
+  [ 5] L   7-  46  describe article body assets
+### tests/server/migration-catalog.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import fs from 'node:fs/promises';
+  [ 2] L   3-   3  other    import { onTestFinished, test } from 'vitest';
+  [ 3] L   4-   4  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 4] L   6-   6  other    const BOUNDARY = '20260816193000_namecard_ownership_foundation.sql';
+  [ 5] L   8-  24  describe migration catalog
+### tests/server/namecard-media-keys.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { ensureNamecardThumbnails } from '@/domains/community/fudaba/card-media-assets';
+  [ 3] L   4-  12  other    import { namecardCardMediaObjectKey, namecardClaimMediaObjectKey, namecardMediaObjectKeys, namecardOrigi
+  [ 4] L  14- 126  describe namecard media keys
+  [ 5] L 128- 152  other    function stubThumbnailRuntime(overrides: { exists: (key: string) => boolean | Promise<boolean>; get: (key: strin
+  [ 6] L 154- 198  describe ensureNamecardThumbnails
+### tests/server/namecard-metadata-repository.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe } from 'vitest';
+  [ 3] L   4-   4  other    import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+  [ 4] L   5-   5  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 5] L   6-   6  other    import { executeSql, queryOne } from '@/infra/db/sql/query';
+  [ 6] L   7-   7  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 7] L   8-   8  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [ 8] L  10-  10  other    const WITHDRAWAL_TOKEN_HASH = 'a'.repeat(64);
+  [ 9] L  12-  23  other    function guestInput(hashSuffix: string) { return { image1Url: `/uploads/namecard/original/${hashSuffix}-fron
+  [10] L  25- 172  describe PostgreSQL guest namecards
+  template-literal lines (not reindented): 158,159
+### tests/server/namecard-ownership-migration.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createRequire } from 'node:module';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 5] L   6-   6  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 6] L   7-   7  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 7] L   9-   9  other    const require = createRequire(__filename);
+  [ 8] L  10-  15  other    const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as { migratePostgres(options:
+  [ 9] L  17-  17  other    const OWNERSHIP_MIGRATION = '20260816193000_namecard_ownership_foundation.sql';
+  [10] L  19- 112  describe namecard ownership migration
+  template-literal lines (not reindented): 33,34,38,39,40,41,42,47,48,49,50,51,52,53,54,55,62,83,84,85,86,92,93,101,102,103
+### tests/server/namecard-reaction-reconciliation-migration.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createRequire } from 'node:module';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 5] L   6-   6  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 6] L   7-   7  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 7] L   9-   9  other    const require = createRequire(__filename);
+  [ 8] L  10-  15  other    const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as { migratePostgres(options:
+  [ 9] L  17-  17  other    const RECONCILIATION_MIGRATION =
+  [10] L  20-  89  describe namecard reaction reconciliation
+  template-literal lines (not reindented): 36,37,38,39,40,41,42,48,49,50,51,52,53,54,55,61,68,75,84
+### tests/server/namecard-unification-migration.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createRequire } from 'node:module';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 5] L   6-   6  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 6] L   7-   7  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 7] L   9-   9  other    const require = createRequire(__filename);
+  [ 8] L  10-  15  other    const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as { migratePostgres(options:
+  [ 9] L  17-  17  other    const UNIFICATION_MIGRATION = '20260819000000_namecard_unification_foundation.sql';
+  [10] L  19- 153  describe namecard unification migration
+  template-literal lines (not reindented): 31,32,37,38,39,40,41,42,43,47,48,49,50,51,52,53,70,71,72,73,74,75,76,77,78,85,86,87,105,115,126,143,144,145,146,147
+### tests/server/news-pagination.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 4] L   5-  12  other    import { adminRecommendationListSchema, newsErrorResponseSchema, newsMutationErrorResponseSchema, newsMu
+  [ 5] L  13-  13  other    import { createHonoApp } from '@/app';
+  [ 6] L  14-  14  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 7] L  15-  15  other    import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+  [ 8] L  16-  19  other    import { decodeDescendingIdCursor, encodeDescendingIdCursor } from '@/utils/validation/descending-id-cursor';
+  [ 9] L  20-  20  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [10] L  22-  29  other    interface CursorNewsPage { items: Recommendation[]; pageInfo: { nextCursor: string | null; hasNe
+  [11] L  31-  34  other    interface NewsFixture { request(pathname: string): Promise<Response>; insert(title: string): Promise<number>; }
+  [12] L  36-  67  other    async function createFixture(count: number): Promise<NewsFixture> { const connection = await createPostgresTestDatab
+  [13] L  69- 246  describe news
+### tests/server/node-email-delivery-runner.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createConnection, type AddressInfo } from 'node:net';
+  [ 2] L   3-   3  other    import { describe, onTestFinished, test } from 'vitest';
+  [ 3] L   4-   7  other    import { shutdownEmailWorker, startEmailWorker, } from '@/email-worker-main';
+  [ 4] L   8-  13  other    import type { PlatformEmailDeliveryClaim, PlatformEmailDeliveryWorkerStore, PlatformEmailJobPayloadCipher,
+  [ 5] L  14-  14  other    import { NodeEmailDeliveryRunner } from '@/runtime/node-email-delivery-runner';
+  [ 6] L  16-  24  other    function deferred<T = void>() { let resolve!: (value: T | PromiseLike<T>) => void; let reject!: (reason?: unknow
+  [ 7] L  26-  36  other    async function waitFor( predicate: () => boolean, message: string, timeoutMs = 1_000, ): Promise<void> {
+  [ 8] L  38-  50  other    function claim(index: number): PlatformEmailDeliveryClaim { return { jobId: `job-${index}`, purpose:
+  [ 9] L  52-  65  other    const payloadCipher: PlatformEmailJobPayloadCipher = { encrypt() { throw new Error('encrypt is not used by t
+  [10] L  67-  91  other    function workerStore( overrides: Partial<PlatformEmailDeliveryWorkerStore> = {}, ): PlatformEmailDeliveryWorkerStore
+  [11] L  93- 101  other    function acceptedSender( acceptedAt = Date.now(), ): PlatformEmailWorkerSender { return { async deliverV
+  [12] L 103- 682  describe email delivery runner
+  [13] L 684- 801  describe email worker
+### tests/server/object-cleanup-lifecycle.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { createServer } from "node:http";
+  [ 2] L   3-   3  other    import { once } from "node:events";
+  [ 3] L   4-   4  other    import { onTestFinished, test } from "vitest";
+  [ 4] L   5-  10  other    import type { CompensationService, ObjectCleanupRunner, ObjectDeletionWorker, ObjectStorage, } from "@/p
+  [ 5] L  11-  11  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [ 6] L  12-  12  other    import { NodeObjectCleanupRunner } from "@/runtime/node-object-cleanup-runner";
+  [ 7] L  13-  13  other    import { createNodeServiceLifecycle } from "@/runtime/node-services";
+  [ 8] L  14-  14  other    import { shutdownServer } from "@/main";
+  [ 9] L  16-  24  other    function signal(): { promise: Promise<void>; resolve: () => void } { let resolve!: () => void; return {
+  [10] L  26- 139  describe object cleanup lifecycle
+### tests/server/object-deletion-worker-fencing.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe } from 'vitest';
+  [ 3] L   4-   4  other    import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
+  [ 4] L   5-   5  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 5] L   6-   6  other    import { queryOne } from '@/infra/db/sql/query';
+  [ 6] L   7-   7  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [ 7] L   9-  15  other    function signal(): { promise: Promise<void>; resolve: () => void } { let resolve!: () => void; return {
+  [ 8] L  17-  74  describe object deletion worker fencing
+  template-literal lines (not reindented): 41,42,43
+### tests/server/object-deletion-worker.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { describe } from 'vitest';
+  [ 3] L   4-   4  other    import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
+  [ 4] L   5-   5  other    import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
+  [ 5] L   6-   6  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 6] L   7-   7  other    import { queryOne } from '@/infra/db/sql/query';
+  [ 7] L   8-   8  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [ 8] L  10-  23  other    async function insertJob( database: ManagedSqlDatabase, id: string, resourceId: string, target: string,
+  [ 9] L  25- 148  describe PostgreSQL object deletion worker
+  template-literal lines (not reindented): 19,20,21
+### tests/server/object-protection-compensation.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { test } from "vitest";
+  [ 2] L   3-   3  other    import type { ObjectStorage } from "@/ports/object-storage";
+  [ 3] L   4-   4  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [ 4] L   5-   5  other    import { protectObjectWithCompensation } from "@/utils/storage/delete-object";
+  [ 5] L   7-  54  describe object protection and its compensation
+### tests/server/object-read-response.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import type { ObjectReadUrlOptions, ObjectStorage } from '@/ports/object-storage';
+  [ 3] L   4-   4  other    import { objectReadResponse } from '@/utils/http/object-read-response';
+  [ 4] L   6- 109  describe object read response
+### tests/server/optional-platform-auth.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { Hono } from 'hono';
+  [ 3] L   4-   4  other    import type { AppEnvironment } from '@/app';
+  [ 4] L   5-   5  other    import { PLATFORM_ACCESS_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';
+  [ 5] L   6-   6  other    import { optionalPlatformAuth } from '@/middleware/hono-auth';
+  [ 6] L   7-   7  other    import type { PlatformJwtClaims } from '@/ports/security';
+  [ 7] L   8-   8  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 8] L  10-  10  other    const NOW = Date.now();
+  [ 9] L  11-  22  other    const CLAIMS: PlatformJwtClaims = { iss: 'imsweb', aud: 'ims-platform', kind: 'platform', id: 'platform-
+  [10] L  24-  84  other    function fixture(): { app: Hono<AppEnvironment>; verifiedTokens: string[]; } { const verifiedTokens: string[
+  [11] L  86- 119  describe optional Platform auth
+### tests/server/platform-account-admin-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash } from 'node:crypto';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 5] L   6-   6  other    import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 6] L   7-  11  other    import type { NewPlatformEmailAccountInput, NewPlatformOAuthAccountInput, PlatformSecurityEventInput } from
+  [ 7] L  12-  12  other    import type { PlatformOAuthProviderCode } from '@/ports/oauth';
+  [ 8] L  13-  13  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 9] L  25-  25  other    const AT = 1_776_000_000_000;
+  [10] L  26-  26  other    const HOUR = 60 * 60 * 1000;
+  [11] L  29-  31  other    function hashOf(value: string): string { return createHash('sha256').update(value).digest('hex'); }
+  [12] L  33-  38  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [13] L  40-  49  other    function profile(id: string, displayName = `Producer ${id}`) { return { displayName, avatarObjectKey
+  [14] L  51-  72  other    function emailAccount( id: string, options: { displayName?: string; email?: string } = {} ): NewPlatformEmailAcc
+  [15] L  74-  95  other    function oauthAccount( id: string, providerCode: PlatformOAuthProviderCode ): NewPlatformOAuthAccountInput {
+  [16] L  97- 108  other    function event(accountId: string, eventType: PlatformSecurityEventInput['eventType']) { return (): PlatformSecurityE
+  [17] L 110- 162  other    async function createFixture() { const harness = await createPostgresTestHarness(); const platform = new SqlPlat
+  [18] L 164- 397  describe platform account admin repository
+  template-literal lines (not reindented): 141
+### tests/server/platform-account-management-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash } from 'node:crypto';
+  [ 2] L   3-   3  other    import { describe, onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { createPostgresTestHarness, type PostgresTestHarness } from '../integration/postgres-harness';
+  [ 5] L   6-   6  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 6] L   7-   7  other    import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 7] L   8-  16  other    import type { CreatePlatformEmailCredentialInput, CreatePlatformOAuthIdentityForAccountInput, ForceLogoutPla
+  [ 8] L  17-  17  other    import type { PlatformOAuthProviderCode } from '@/ports/oauth';
+  [ 9] L  28-  28  other    const AT = 1_775_100_000_000;
+  [10] L  29-  34  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [11] L  36-  38  other    function sha(value: string): string { return createHash('sha256').update(value).digest('hex'); }
+  [12] L  40-  49  other    function profile(id: string) { return { displayName: `Producer ${id}`, avatarObjectKey: null,
+  [13] L  51-  73  other    function oauthAccount( id: string, providerCode: PlatformOAuthProviderCode = 'google', subject = `${provider
+  [14] L  75-  93  other    function emailAccount(id: string): NewPlatformEmailAccountInput { return { id, status: 'active',
+  [15] L  95- 106  other    function event(accountId: string, eventType: PlatformSecurityEventInput['eventType'] = 'auth.oauth.linked'): PlatformSec
+  [16] L 108- 117  other    function credentialInput(normalizedEmail: string): CreatePlatformEmailCredentialInput { return { normalizedE
+  [17] L 119- 134  other    function linkInput( accountId: string, providerCode: PlatformOAuthProviderCode, subject: string ): CreatePla
+  [18] L 136- 140  other    interface Fixture { harness: PostgresTestHarness; platform: SqlPlatformAccountRepository; second: SqlPlatfor
+  [19] L 142- 158  other    async function createFixture(): Promise<Fixture> { const harness = await createPostgresTestHarness(); onTestFini
+  [20] L 160- 174  other    async function insertVerificationCode( harness: PostgresTestHarness, codeHash: string, email: string ): Prom
+  [21] L 176- 187  other    async function verificationCodeRow( harness: PostgresTestHarness, email: string ): Promise<{ code_hash: string;
+  [22] L 189- 218  other    async function insertRefreshSession( harness: PostgresTestHarness, input: { id: string; accountI
+  [23] L 220- 228  other    async function accountStatus( fixture: Fixture, accountId: string ): Promise<{ status: string; token_version: nu
+  [24] L 230- 242  other    async function liveSessionCount( fixture: Fixture, accountId: string ): Promise<number> { const row = await
+  [25] L 246- 967  describe platform account management repository
+  template-literal lines (not reindented): 168,169,170,183,202,203,204,205,237,260,283,305,352,606,750
+### tests/server/platform-account-security.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-   4  other    import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
+  [ 4] L   5-  11  other    import { platformOAuthLinkListResponseSchema, platformOAuthUnlinkResponseSchema, platformPasswordChangeRespo
+  [ 5] L  12-  33  other    import { ACCOUNT_ID, AccountSecurityFixture, CURRENT_PASSWORD, CURRENT_SESSION_ID, DISABLED_PROVIDER
+  [ 6] L  35-  35  other    const PASSWORD_URL = 'http://ims.test/api/platform/me/password';
+  [ 7] L  36-  36  other    const SESSIONS_URL = 'http://ims.test/api/platform/me/sessions';
+  [ 8] L  37-  37  other    const OAUTH_LINKS_URL = 'http://ims.test/api/platform/me/oauth-links';
+  [ 9] L  41-  44  other    const TWO_ENABLED_LINKS = [ oauthLink(GOOGLE_PROVIDER), oauthLink(GITHUB_PROVIDER, { created_at: 4_000 }) ];
+  [10] L  45-  48  other    const ONE_ENABLED_ONE_DISABLED = [ oauthLink(GOOGLE_PROVIDER), oauthLink(DISABLED_PROVIDER, { created_at: 4_000,
+  [11] L  50-  54  other    interface ErrorBody { code?: string; error?: string; success?: boolean; }
+  [12] L  56-  66  other    async function changePassword( fixture: AccountSecurityFixture, body: string, headers: Record<string, string
+  [13] L  68-  70  other    async function listSessions(fixture: AccountSecurityFixture): Promise<Response> { return await fixture.app.request(S
+  [14] L  72-  78  other    async function listOAuthLinks( fixture: AccountSecurityFixture ): Promise<Response> { return await fixture.app.r
+  [15] L  80-  89  other    async function unlink( fixture: AccountSecurityFixture, provider: string, headers: Record<string, string> =
+  [16] L  91- 847  describe platform account security
+### tests/server/platform-email-auth.contract.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { readContractJson as assertRawJsonConforms } from "../contracts/contract-json";
+  [ 2] L   3-   6  other    import { bearerTokenHeaders, setCookieHeaders as setCookies, } from "../fixtures/auth-request";
+  [ 3] L   7-   7  other    import { createHash, pbkdf2Sync, randomUUID } from "node:crypto";
+  [ 4] L   8-   8  other    import { describe, onTestFinished, test as nodeTest } from "vitest";
+  [ 5] L   9-   9  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 6] L  10-  10  other    import { successFlagSchema } from "@imsweb/contracts/common";
+  [ 7] L  11-  16  other    import { passwordResetIssueResponseSchema, platformHttpErrorSchema, platformRegistrationVerificationResponse
+  [ 8] L  17-  17  other    import { createTestApp, testRequest } from "./test-app";
+  [ 9] L  18-  18  other    import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
+  [10] L  19-  19  other    import { SqlPlatformEmailDeliveryRepository } from "@/infra/db/repositories/platform-email-delivery-repository";
+  [11] L  20-  20  other    import { PlatformEmailJobPayloadCipherAdapter } from "@/infra/email/smtp/platform-email-job-payload";
+  [12] L  21-  24  other    import type { ManagedSqlDatabase, SqlSchemaStrategy, } from "@/infra/db/sql/database";
+  [13] L  25-  25  other    import { MemoryCache } from "@/infra/cache/memory/cache";
+  [14] L  26-  26  other    import { BcryptPasswordVerifier } from "@/infra/security/bcrypt/password-verifier";
+  [15] L  27-  27  other    import { HmacPlatformTokenService } from "@/infra/security/hmac/platform-token-service";
+  [16] L  28-  28  other    import { NodeEmailDeliveryRunner } from '@/runtime/node-email-delivery-runner';
+  [17] L  29-  29  other    import { platformEmailVerificationCacheKey } from "@/domains/identity/platform-auth/registration/email-verification-cach
+  [18] L  30-  33  other    import { platformPasswordResetCacheKey, platformPasswordResetRecipientKey, } from "@/domains/identity/platform-a
+  [19] L  34-  34  other    import { isMigratedPbkdf2Parameters } from "@/domains/identity/platform-auth/contracts/credentials";
+  [20] L  35-  38  other    import type { NewPlatformEmailAccountInput, PlatformAccountStatus, } from "@/ports/repositories";
+  [21] L  39-  42  other    import type { PlatformEmailDeliveryPurpose, PlatformEmailJobPayloadCipher, } from "@/ports/email-delivery";
+  [22] L  43-  43  other    import type { CacheStore } from "@/ports/cache";
+  [23] L  44-  44  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [24] L  45-  45  other    import { createPostgresTestHarness } from "../integration/postgres-harness";
+  [25] L  47-  47  other    const PLATFORM_SECRET =
+  [26] L  49-  49  other    const PASSWORD = "correct horse battery staple";
+  [27] L  50-  50  other    const LEGACY_PASSWORD = "old-pass";
+  [28] L  51-  51  other    const ACCESS_COOKIE = "ims_platform_access";
+  [29] L  52-  52  other    const REFRESH_COOKIE = "ims_platform_refresh";
+  [30] L  53-  53  other    const CSRF_COOKIE = "ims_platform_csrf";
+  [31] L  54-  54  other    const PLATFORM_COOKIE_NAMES = [ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE];
+  [32] L  56-  61  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [33] L  63-  71  other    interface Fixture { app: ReturnType<typeof createTestApp>; database: ManagedSqlDatabase; databaseUrl?: strin
+  [34] L  73-  91  other    class HangingCache implements CacheStore { private pending<T>(): Promise<T> { return new Promise<T>(() => un
+  [35] L  93- 107  other    class FailingCache implements CacheStore { async get(): Promise<string | null> { throw new Error("cache unav
+  [36] L 109- 130  other    function appWithPlatformEmail( repository: SqlPlatformAccountRepository, deliveryRepository: SqlPlatformEmailDel
+  [37] L 132- 162  other    function emailAccount( email: string, passwordHash: string, status: PlatformAccountStatus = "active", ): New
+  [38] L 164- 189  other    async function createFixture(): Promise<Fixture> { const harness = await createPostgresTestHarness(); onTestFini
+  [39] L 191- 201  other    async function waitFor( predicate: () => boolean, message: string, timeoutMs = 2_000, ): Promise<void> {
+  [40] L 203- 213  other    function jsonRequest( pathname: string, body: unknown, headers: HeadersInit = {}, ): Request { return ne
+  [41] L 215- 228  other    function assertPlatformCookies(response: Response): void { const cookies = setCookies(response); assert.deepEqua
+  [42] L 230- 235  other    function assertPrivateAuthResponse(response: Response): void { assert.equal(response.headers.get("cache-control"), "
+  [43] L 237- 263  other    async function completeNextDelivery( fixture: Fixture, purpose: PlatformEmailDeliveryPurpose, ): Promise<string>
+  [44] L 265- 284  other    async function requestVerificationCode( fixture: Fixture, email: string, ): Promise<string> { const response
+  [45] L 286- 440  other    async function assertFailedResendPreservesOldCode( dialect: "postgresql", ): Promise<void> { const fixture = awa
+  [46] L 442- 569  other    async function assertRegistrationAndLogin(): Promise<void> { const fixture = await createFixture(); const { app,
+  [47] L 571-1949  describe platform email auth
+  template-literal lines (not reindented): 295,296,297,313,322,330,364,414,484,485,486,487,488,489,726,784,805,825,850,974,990,1010,1042,1053,1120,1145,1208,1215,1222,1232,1233,1234,1261,1298,1323,1450,1451,1452,1481,1554,1555,1556,1585,1935
+### tests/server/platform-email-binding.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
+  [ 3] L   4-   9  other    import { platformEmailBindingResponseSchema, platformEmailCredentialResponseSchema, platformEmailVerificatio
+  [ 4] L  10-  10  other    import type { PlatformOAuthProviderSummary } from '@/ports/oauth';
+  [ 5] L  11-  13  other    import { hashPlatformEmailBindingCode } from '@/domains/identity/platform-account-security/email/email-binding-code'
+  [ 6] L  14-  14  other    import { hashPlatformEmailVerificationCode } from '@/domains/identity/platform-auth/registration/email-verification';
+  [ 7] L  15-  15  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 8] L  16-  23  other    import { ACCOUNT_ID, AccountSecurityFixture, CURRENT_PASSWORD, GITHUB_PROVIDER, bearerHeaders, s
+  [ 9] L  25-  25  other    const EMAIL_URL = 'http://ims.test/api/platform/me/email';
+  [10] L  26-  26  other    const CODE_URL = 'http://ims.test/api/platform/me/email/verification-code';
+  [11] L  27-  27  other    const BIND_URL = 'http://ims.test/api/platform/me/email/bind';
+  [12] L  28-  28  other    const CHANGE_URL = 'http://ims.test/api/platform/me/email/change';
+  [13] L  29-  29  other    const LINK_START_URL = 'http://ims.test/api/platform/me/oauth-links/github/start';
+  [14] L  30-  30  other    const LINK_START_UNAVAILABLE_URL =
+  [15] L  32-  32  other    const LINK_CALLBACK_URL = 'http://ims.test/api/platform/auth/oauth/github/callback';
+  [16] L  33-  33  other    const APP_CHALLENGE = 'c'.repeat(43);
+  [17] L  35-  39  other    interface ErrorBody { code?: string; error?: string; success?: boolean; }
+  [18] L  41-  52  other    async function sendJson( fixture: AccountSecurityFixture, url: string, body: unknown, headers: Record<st
+  [19] L  54- 559  describe platform email binding
+### tests/server/platform-email-cache.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { test } from "vitest";
+  [ 2] L   3-   3  other    import type { CacheOperationOptions, CacheStore } from "@/ports/cache";
+  [ 3] L   4-   9  other    import { clearPlatformEmailVerificationCooldown, markPlatformEmailVerificationCooldown, platformEmailVerific
+  [ 4] L  10-  16  other    import { clearPlatformPasswordResetCooldown, markPlatformPasswordResetCooldown, platformPasswordResetCacheKe
+  [ 5] L  17-  17  other    import { MemoryCache } from "@/infra/cache/memory/cache";
+  [ 6] L  18-  18  other    import { withBoundedCacheOperation } from "@/utils/cache/bounded-operation";
+  [ 7] L  20-  54  other    class HangingCache implements CacheStore { abortedOperations = 0; private pending<T>(options?: CacheOperationOp
+  [ 8] L  56-  70  other    class FailingCache implements CacheStore { async get(): Promise<string | null> { throw new Error("cache unav
+  [ 9] L  72- 259  describe platform email cooldown
+### tests/server/platform-email-delivery-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash, randomUUID } from 'node:crypto';
+  [ 2] L   3-   3  other    import { describe } from 'vitest';
+  [ 3] L   4-   4  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 4] L   5-   5  other    import { SqlPlatformEmailDeliveryRepository } from '@/infra/db/repositories/platform-email-delivery-repository';
+  [ 5] L   6-   6  other    import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platform-email-job-payload';
+  [ 6] L   7-   7  other    import { platformPasswordResetRecipientKey } from '@/domains/identity/platform-auth/password-reset/password-reset-cache'
+  [ 7] L   8-   8  other    import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 8] L   9-   9  other    import { queryAll, queryOne } from '@/infra/db/sql/query';
+  [ 9] L  10-  15  other    import type { PlatformEmailDeliveryEnqueueInput, PlatformEmailDeliveryPurpose, PlatformPasswordResetEmailDel
+  [10] L  16-  19  other    import type { NewPlatformEmailAccountInput, NewVerifiedPlatformEmailAccountInput, } from '@/ports/repositories/p
+  [11] L  20-  24  other    import { connectPostgresTestDatabase, createPostgresTestDatabase, postgresTest as test, } from '../postgres-
+  [12] L  26-  26  other    const SECRET = 'platform-email-delivery-repository-test-secret-0123456789';
+  [13] L  27-  27  other    const cipher = new PlatformEmailJobPayloadCipherAdapter(SECRET);
+  [14] L  28-  33  other    const initializedSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform: async
+  [15] L  35-  38  other    interface DeliveryFixture { input: PlatformEmailDeliveryEnqueueInput; code: string; }
+  [16] L  40-  50  other    interface JobState { state: string; attempts: number; next_attempt_at: number; deadline_at: number;
+  [17] L  52-  58  other    interface RequestCooldownState { purpose: string; recipient_key: string; enqueued_at: number; resend_aft
+  [18] L  60-  69  other    interface VerificationState { code_hash: string; expires_at: number; resend_after: number; attempts_rema
+  [19] L  71-  73  other    function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
+  [20] L  75- 109  other    function delivery( purpose: PlatformEmailDeliveryPurpose, email: string, marker: string, createdAt: numb
+  [21] L 111- 120  other    function passwordResetDeliveryInput( fixture: DeliveryFixture, ): PlatformPasswordResetEmailDeliveryEnqueueInput {
+  [22] L 122- 147  other    function emailAccount(email: string, now: number): NewPlatformEmailAccountInput { return { id: randomUUID(),
+  [23] L 149- 161  other    function verifiedAccount( fixture: DeliveryFixture, verifiedAt: number, ): NewVerifiedPlatformEmailAccountInput
+  [24] L 163- 174  other    function jobState( database: ManagedSqlDatabase, jobId: string, ): Promise<JobState | null> { return queryOn
+  [25] L 176- 187  other    function requestCooldownState( database: ManagedSqlDatabase, recipientKey: string, ): Promise<RequestCooldownSta
+  [26] L 189- 205  other    function verificationState( database: ManagedSqlDatabase, purpose: PlatformEmailDeliveryPurpose, email: stri
+  [27] L 207- 215  other    async function claimOne( repository: SqlPlatformEmailDeliveryRepository, now: number, leaseDurationMs = 15_0
+  [28] L 217- 224  other    async function useDatabase(label: string) { const database = await createPostgresTestDatabase(label); return {
+  [29] L 226-1315  describe platform email delivery repository
+  template-literal lines (not reindented): 170,171,183,184,200,201,202,252,397,483,490,491,505,544,545,546,582,596,633,634,649,662,675,682,690,691,695,715,746,753,800,882,1159,1168
+### tests/server/platform-email-delivery-service.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { ConfiguredPlatformEmailService } from '@/infra/email/smtp/platform-email-service';
+  [ 3] L   4-   7  other    import type { PlatformEmailConfigurationRecord, PlatformEmailConfigurationStore, } from '@/ports/email';
+  [ 4] L   9-   9  other    type TransportFactory = NonNullable<
+  [ 5] L  10-  10  other    ConstructorParameters<typeof ConfiguredPlatformEmailService>[2]
+  [ 6] L  11-  11  other    >;
+  [ 7] L  12-  12  other    type HostResolver = NonNullable<
+  [ 8] L  13-  13  other    ConstructorParameters<typeof ConfiguredPlatformEmailService>[3]
+  [ 9] L  14-  14  other    >;
+  [10] L  16-  16  other    const recipient = 'producer@example.com';
+  [11] L  18-  26  other    function deferred<T>() { let resolve!: (value: T | PromiseLike<T>) => void; let reject!: (reason?: unknown) => v
+  [12] L  28-  38  other    async function waitFor( predicate: () => boolean, message: string, timeoutMs = 1_000, ): Promise<void> {
+  [13] L  40-  56  other    function configuration( overrides: Partial<PlatformEmailConfigurationRecord> = {}, ): PlatformEmailConfigurationReco
+  [14] L  58-  68  other    const secretBox = { encrypt(value: string) { return `encrypted:${value}`; }, decrypt(value: string)
+  [15] L  70-  96  other    function createService(options: { getConfiguration?: () => Promise<PlatformEmailConfigurationRecord>; transportF
+  [16] L  98- 113  other    function deliver( service: ConfiguredPlatformEmailService, deadlineAt = Date.now() + 1_000, signal = new Abo
+  [17] L 115- 508  describe worker SMTP delivery
+### tests/server/platform-email-job-payload.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platform-email-job-payload';
+  [ 3] L   4-   4  other    import { PlatformEmailSecretCipher } from '@/infra/email/smtp/platform-email-secrets';
+  [ 4] L   5-   8  other    import type { PlatformEmailJobIdentity, PlatformEmailJobPayload, } from '@/ports/email-delivery';
+  [ 5] L  10-  10  other    const SECRET = 'platform-email-job-payload-test-secret-0123456789';
+  [ 6] L  11-  16  other    const REGISTRATION_IDENTITY: PlatformEmailJobIdentity = { jobId: '1'.repeat(64), purpose: 'registration', de
+  [ 7] L  17-  22  other    const REGISTRATION_PAYLOAD: PlatformEmailJobPayload = { purpose: 'registration', normalizedEmail: 'producer@exam
+  [ 8] L  24-  31  other    function mutateCiphertext(value: string): string { const parts = value.split('.'); const ciphertext = parts[3];
+  [ 9] L  33- 151  describe platform email job payload
+### tests/server/platform-email-resend-policy-cache.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { CachedPlatformEmailResendPolicyReader } from '@/infra/cache/valkey/platform-email-resend-policy-reader';
+  [ 3] L   4-   7  other    import { VALKEY_PLATFORM_EMAIL_RESEND_POLICY_WRITE_SCRIPT, ValkeyPlatformEmailResendPolicyCache, } from '@/infra
+  [ 4] L   8-  11  other    import type { PlatformEmailResendPolicyCache, PlatformEmailResendPolicyRecord, } from '@/ports/email-delivery';
+  [ 5] L  12-  15  other    import type { PlatformEmailConfigurationRecord, PlatformEmailConfigurationStore, } from '@/ports/email';
+  [ 6] L  16-  16  other    import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
+  [ 7] L  18-  18  other    const PREFIX = 'imsweb:test:';
+  [ 8] L  19-  19  other    const CACHE_KEY = `${PREFIX}platform-email-resend-policy:v1`;
+  [ 9] L  21-  24  other    interface StoredValue { value: string; expiresAt: number; }
+  [10] L  26-  35  other    function strictPolicy(value: unknown): value is PlatformEmailResendPolicyRecord { if (!value || typeof value !== 'ob
+  [11] L  37- 107  other    class FakeValkeyPolicyServer { readonly commands: string[][] = []; readonly commandSignals: Array<AbortSignal |
+  [12] L 109- 125  other    function configuration( overrides: Partial<PlatformEmailConfigurationRecord> = {}, ): PlatformEmailConfigurationReco
+  [13] L 127- 140  other    function configurationStore( current: PlatformEmailConfigurationRecord, ): PlatformEmailConfigurationStore & { reads
+  [14] L 142- 226  describe Valkey resend policy cache
+  [15] L 228- 337  describe resend policy reader
+### tests/server/platform-email-settings-contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-  11  other    import { adminPlatformEmailConfigurationTestRequestSchema, adminPlatformEmailConfigurationWriteRequestSchema,
+  [ 3] L  12-  12  other    import { adminApiPath } from '@imsweb/contracts/paths';
+  [ 4] L  13-  16  other    import { BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_CSRF_TOKEN_COOKIE, } from '@/domains/admin/backoffice-auth/b
+  [ 5] L  17-  17  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 6] L  18-  18  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 7] L  19-  19  other    import { createWikiFixture } from '../wiki/fixture';
+  [ 8] L  21-  21  other    const ADMIN_EMAIL_URL = adminApiPath('/platform/email');
+  [ 9] L  23-  35  other    const settings = { enabled: false, configured: true, host: 'smtp.qiye.163.com', port: 465, security:
+  [10] L  37-  48  other    const writeRequest = { enabled: true, host: settings.host, port: settings.port, security: settings.secur
+  [11] L  50-  68  other    async function superAdminHeaders( fixture: ReturnType<typeof createWikiFixture>, ): Promise<Record<string, string>>
+  [12] L  70- 119  other    function configureFixture() { const fixture = createWikiFixture(); const writes: unknown[] = []; const tests
+  [13] L 121- 242  describe SMTP administration
+### tests/server/platform-email-settings.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { afterAll, onTestFinished, test } from 'vitest';
+  [ 2] L   3-   3  other    import { ConfiguredPlatformEmailService } from '@/infra/email/smtp/platform-email-service';
+  [ 3] L   4-   4  other    import { PlatformEmailSecretCipher } from '@/infra/email/smtp/platform-email-secrets';
+  [ 4] L   5-   5  other    import { SqlPlatformEmailConfigurationRepository } from '@/infra/db/repositories/platform-email-configuration-repository
+  [ 5] L   6-   9  other    import { createPostgresTestHarness, postgresIntegrationEnabled, } from '../integration/postgres-harness';
+  [ 6] L  10-  10  other    import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
+  [ 7] L  11-  14  other    import type { PlatformEmailConfigurationRecord, PlatformEmailConfigurationStore, } from '@/ports/email';
+  [ 8] L  15-  15  other    import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
+  [ 9] L  20-  20  other    afterAll(closeSharedPostgresTestAllocator);
+  [10] L  22-  38  other    function record( overrides: Partial<PlatformEmailConfigurationRecord> = {}, ): PlatformEmailConfigurationRecord {
+  [11] L  40-  61  other    function store(initial: PlatformEmailConfigurationRecord) { let current = initial; let writes = 0; const ada
+  [12] L  63-  72  other    const secretBox = { encrypt(value: string) { return `encrypted:${value}`; }, decrypt(value: string)
+  [13] L  74-  88  other    function input(overrides: Record<string, unknown> = {}) { return { enabled: true, host: 'smtp.qiye.1
+  [14] L  90- 100  test     platform email secret cipher preserves SMTP password bytes
+  [15] L 102- 150  test     enabled SMTP updates verify TLS before the optimistic write
+  [16] L 152- 170  test     SMTP settings never expose stored credentials
+  [17] L 172- 201  test     stale SMTP writes return the current settings without opening a connection
+  [18] L 203- 241  test     SMTP database compare-and-swap conflicts do not write the resend policy cache
+  [19] L 243- 276  test     saved SMTP settings write the returned resend policy revision through cache
+  [20] L 278- 308  test     SMTP policy cache failure does not change a committed settings result
+  [21] L 310- 354  test     SMTP policy cache timeout does not delay a committed settings result indefinitely
+  [22] L 356- 380  test     SMTP resend cooldown accepts boundaries and retains stored credentials
+  [23] L 382- 402  test     SMTP resend cooldown rejects out-of-range and non-integer values
+  [24] L 404- 435  test     SMTP test send uses the complete draft without persisting it
+  [25] L 437- 469  test     worker SMTP delivery reads the active database configuration for every message
+  [26] L 471- 501  test     SMTP connections reject non-public and mixed DNS results
+  [27] L 503- 548  test     real PostgreSQL stores one SMTP configuration with optimistic concurrency
+### tests/server/platform-oauth-callback-branches.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash } from 'node:crypto';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-   8  other    import type { CreatePlatformOAuthExchangeCodeInput, PlatformOAuthIdentity, PlatformOAuthStateRecord } from '
+  [ 4] L   9-   9  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 5] L  10-  10  other    import { createWikiFixture } from '../wiki/fixture';
+  [ 6] L  19-  19  other    const PUBLIC_OAUTH_URL = '/api/platform/auth/oauth';
+  [ 7] L  20-  20  other    const AT = 1_775_100_000_000;
+  [ 8] L  22-  27  other    const provider = { code: 'github', displayName: 'GitHub', icon: 'github', buttonColor: '#24292f' };
+  [ 9] L  29-  58  other    function identity(): PlatformOAuthIdentity { return { account: { id: 'account-1', st
+  [10] L  60-  74  other    function state(overrides: Partial<PlatformOAuthStateRecord>): PlatformOAuthStateRecord { return { state_hash
+  [11] L  76- 147  other    function configureFixture( consumed: PlatformOAuthStateRecord | null, linkResult: | { status: 'created'
+  [12] L 149- 166  test     login + web keeps the original callback redirect and sets the session cookies
+  [13] L 168- 220  test     login + app returns a one-time deep-link code instead of a session
+  [14] L 222- 248  test     a link state binds the identity and never creates a session
+  [15] L 250- 265  test     re-linking the same subject is an idempotent success
+  [16] L 267- 282  test     a subject owned by another account is refused without a session
+  [17] L 284- 298  test     a second subject for one provider is reported as already bound
+  [18] L 300- 310  test     a login state never reaches the account-linking write
+  [19] L 312- 328  test     a provider denial on an app state is handed back to the deep link
+  [20] L 330- 342  test     a provider denial on a web state keeps the login redirect
+### tests/server/platform-oauth-exchange.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash } from 'node:crypto';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-   7  other    import type { PlatformAccountWithProfile, PlatformOAuthExchangeCodeRecord } from '@/ports/repositories';
+  [ 4] L   8-   8  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 5] L   9-   9  other    import { createWikiFixture } from '../wiki/fixture';
+  [ 6] L  19-  19  other    const EXCHANGE_URL = '/api/platform/auth/oauth/exchange';
+  [ 7] L  20-  20  other    const AT = 1_775_100_000_000;
+  [ 8] L  22-  22  other    const CODE = 'c'.repeat(43);
+  [ 9] L  23-  23  other    const VERIFIER = 'v'.repeat(43);
+  [10] L  24-  24  other    const CHALLENGE = createHash('sha256').update(VERIFIER).digest('base64url');
+  [11] L  26-  48  other    function accountWithProfile(overrides: { status?: 'active' | 'restricted' | 'suspended' | 'deleted'; } = {}): Platfo
+  [12] L  50-  95  other    function configureFixture(options: { consume?: PlatformOAuthExchangeCodeRecord | null; account?: PlatformAccount
+  [13] L  97- 111  other    async function postExchange( fixture: ReturnType<typeof createWikiFixture>, body: unknown, headers: Record<s
+  [14] L 113- 131  test     a valid code and verifier return a bearer session
+  [15] L 133- 169  test     a replayed code is rejected after the first redemption
+  [16] L 171- 180  test     an expired or unknown code is rejected
+  [17] L 182- 194  test     a verifier that does not match the challenge is rejected
+  [18] L 196- 210  test     exchanging without the bearer auth mode is refused
+  [19] L 212- 228  test     an invalid exchange body is refused without leaking validation detail
+  [20] L 230- 241  test     an account that cannot hold a session is refused
+  [21] L 243- 252  test     the exchange endpoint is rate limited
+### tests/server/platform-oauth-provider-settings.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { afterAll, onTestFinished, test } from 'vitest';
+  [ 2] L   3-   3  other    import { parsePlatformOAuthConfig, validatePlatformOAuthEndpoint } from '@/config/platform-oauth';
+  [ 3] L   4-   4  other    import { ConfiguredPlatformOAuthClient } from '@/infra/oauth/platform-oauth-client';
+  [ 4] L   5-   5  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 5] L   6-   6  other    import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 6] L   7-  10  other    import { createPostgresTestHarness, postgresIntegrationEnabled, } from '../integration/postgres-harness';
+  [ 7] L  11-  11  other    import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
+  [ 8] L  12-  12  other    import type { PlatformOAuthProviderConfigRecord, PlatformOAuthProviderStore } from '@/ports/oauth';
+  [ 9] L  17-  17  other    afterAll(closeSharedPostgresTestAllocator);
+  [10] L  19-  24  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [11] L  26-  52  other    function provider( code: string, overrides: Partial<PlatformOAuthProviderConfigRecord> = {}, ): PlatformOAuthPro
+  [12] L  54-  77  other    function store(rows: PlatformOAuthProviderConfigRecord[]): PlatformOAuthProviderStore { return { async listO
+  [13] L  79- 100  other    function client( rows: PlatformOAuthProviderConfigRecord[], fetchImpl: typeof fetch = globalThis.fetch, ) {
+  [14] L 102- 143  test     loopback HTTP OAuth endpoints require the explicit development exception
+  [15] L 145- 160  test     OAuth settings expose every persisted provider in repository order
+  [16] L 162- 183  test     public OAuth settings include only complete enabled providers
+  [17] L 185- 206  test     OAuth provider writes reject private endpoint addresses
+  [18] L 208- 254  test     real PostgreSQL protects providers referenced by an OAuth state
+  [19] L 256- 323  test     generic OAuth exchange uses persisted protocol and nested profile paths
+### tests/server/platform-oauth-unlink-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { onTestFinished } from 'vitest';
+  [ 2] L   3-   3  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 3] L   4-   4  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 4] L   5-   5  other    import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 5] L   6-  10  other    import type { NewPlatformEmailAccountInput, NewPlatformOAuthAccountInput, PlatformSecurityEventInput } from
+  [ 6] L  11-  11  other    import type { PlatformOAuthProviderCode } from '@/ports/oauth';
+  [ 7] L  12-  12  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 8] L  28-  28  other    const AT = 1_775_100_000_000;
+  [ 9] L  30-  35  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [10] L  37-  97  other    async function createFixture(): Promise<{ platform: SqlPlatformAccountRepository; setProviderEnabled: (code: str
+  [11] L  99- 108  other    function profile(id: string) { return { displayName: `Producer ${id}`, avatarObjectKey: null,
+  [12] L 110- 131  other    function oauthAccount( id: string, providerCode: PlatformOAuthProviderCode ): NewPlatformOAuthAccountInput {
+  [13] L 133- 151  other    function emailAccount(id: string): NewPlatformEmailAccountInput { return { id, status: 'active',
+  [14] L 153- 164  other    function event(accountId: string): PlatformSecurityEventInput { return { id: `event-${accountId}-${Math.rand
+  [15] L 166- 188  test     a disabled provider does not count as a surviving login method
+  [16] L 190- 210  test     an enabled sibling link lets the other one go
+  [17] L 212- 230  test     a password is a login method, so the only link can be unlinked
+  [18] L 232- 251  test     the sole link of a password-less account survives its own removal
+  [19] L 253- 277  test     another account link is never reachable
+  template-literal lines (not reindented): 70,71,72,73,90
+### tests/server/platform-oauth-wire-contract-conformance.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-  10  other    import { // pi-lens-ignore: ts:2305 platformOAuthCallbackQuerySchema, platformOAuthProvidersResponseSchema,
+  [ 4] L  11-  21  other    import { // pi-lens-ignore: ts:2724 platformOAuthAdminConflictErrorSchema, // pi-lens-ignore: ts:2724 pl
+  [ 5] L  22-  25  other    import { BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_CSRF_TOKEN_COOKIE } from '@/domains/admin/backoffice-auth/ba
+  [ 6] L  26-  26  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 7] L  27-  27  other    import { createWikiFixture } from '../wiki/fixture';
+  [ 8] L  29-  29  other    const PUBLIC_OAUTH_URL = '/api/platform/auth/oauth';
+  [ 9] L  30-  30  other    const ADMIN_OAUTH_URL = '/api/admin/platform/auth/oauth';
+  [10] L  32-  52  other    const provider = { code: 'github', displayName: 'GitHub', icon: 'github', buttonColor: '#24292f', en
+  [11] L  54-  73  other    const providerWrite = { code: provider.code, displayName: provider.displayName, icon: provider.icon, but
+  [12] L  75-  90  other    async function superAdminHeaders( fixture: ReturnType<typeof createWikiFixture> ): Promise<Record<string, string>> {
+  [13] L  92- 142  other    function configureOAuthFixture() { const fixture = createWikiFixture(); const createdStates: Array<Record<string
+  [14] L 144- 177  test     mounted OAuth discovery, start, and callback preserve their wire contracts
+  [15] L 179- 236  test     mounted OAuth provider administration emits exact success, conflict, and request-error DTOs
+### tests/server/platform-profile-wire-contract-conformance.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { describe, test } from 'vitest';
+  [ 2] L   3-   7  other    import { platformProfileMutationResponseSchema, platformProfileResponseSchema, platformProfileSchema } from
+  [ 3] L   8-   8  other    import { platformProfileView } from '@/domains/identity/platform-profile/profile-view';
+  [ 4] L   9-  16  other    import type { PlatformAccountRepository, PlatformAccountStatus, PlatformProfileRecord, PlatformProfileSa
+  [ 5] L  17-  17  other    import type { PlatformJwtClaims, PlatformTokenService } from '@/ports/security';
+  [ 6] L  18-  18  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 7] L  19-  19  other    import { createWikiFixture, type WikiFixture } from '../wiki/fixture';
+  [ 8] L  21-  21  other    const PLATFORM_ACCOUNT_ID = 'platform-conformance-account';
+  [ 9] L  22-  22  other    const PLATFORM_SESSION_ID = 'platform-conformance-session';
+  [10] L  23-  23  other    const PLATFORM_ACCESS_TOKEN = 'platform-conformance-access-token';
+  [11] L  24-  24  other    const PLATFORM_CSRF_SECRET = 'platform-conformance-csrf-secret';
+  [12] L  26-  30  other    interface PlatformProfileFixture { app: WikiFixture['app']; profile: PlatformProfileRecord; headers(extra?:
+  [13] L  32-  45  other    function platformProfileRecord( overrides: Partial<PlatformProfileRecord> = {} ): PlatformProfileRecord { return
+  [14] L  51- 156  other    function attachPlatformAccount( fixture: WikiFixture, options: { status?: PlatformAccountStatus;
+  [15] L 158- 257  describe Platform profile wire-contract conformance
+### tests/server/platform-profile.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-   8  other    import { platformMutationRateLimitResponseSchema, platformProfileMutationResponseSchema, platformProfileResp
+  [ 4] L   9-   9  other    import type { PlatformAccountStatus } from '@/ports/repositories';
+  [ 5] L  10-  17  other    import { ACCOUNT_ID, OwnerRouteFixture, bearerHeaders, cookieHeaders, mediaUpload, profileBody }
+  [ 6] L  19-  19  other    const PROFILE_URL = 'http://ims.test/api/platform/me';
+  [ 7] L  20-  20  other    const AVATAR_URL = 'http://ims.test/api/platform/me/avatar';
+  [ 8] L  21-  21  other    const SEEDED_UPDATED_AT = 1_000;
+  [ 9] L  23-  27  other    interface ErrorBody { code: string; message?: string; success: boolean; }
+  [10] L  31-  84  test     Platform profile GET and text update expose a fenced owner projection
+  [11] L  86-  88  other    function profileJson(overrides: Record<string, unknown> = {}): string { return JSON.stringify({ ...profileBody(SEEDE
+  [12] L  90-  99  other    async function putProfile( fixture: OwnerRouteFixture, body: string ): Promise<Response> { return fixture.ap
+  [13] L 101- 107  other    async function putAvatar(fixture: OwnerRouteFixture): Promise<Response> { return fixture.app.request(AVATAR_URL, {
+  [14] L 109- 173  other    const invalidSubmissions: Array<{ body: string; label: string; message: string; }> = [ { label:
+  [15] L 175- 187  test     Platform profile writes reject every malformed submission before the repository
+  [16] L 189- 208  test     Platform profile writes accept the boundary lengths their validator allows
+  [17] L 210- 223  test     restricted Platform accounts keep profile reads but lose profile writes
+  [18] L 225- 244  test     suspended and deleted Platform accounts lose the profile route entirely
+  [19] L 246- 262  test     anonymous callers cannot read or write the Platform profile
+  [20] L 264- 286  test     Platform profile writes consume the shared Platform write budget
+  [21] L 288- 436  test     Platform avatar reads stay 404 until the account stores an avatar object
+  [22] L 441- 456  test     Platform profile writes ignore the Fudaba rollout switch
+  [23] L 461- 489  test     Platform avatar uploads spend a Platform budget, not the Fudaba one
+  [24] L 491- 512  test     Platform avatar uploads ignore the Fudaba rollout switch
+  [25] L 518- 540  test     avatar uploads commit under owner CAS and sweep the replaced object
+  [26] L 544- 561  test     a committed avatar write recovers after the repository throws
+  [27] L 565- 578  test     a failed confirmation read preserves the ambiguous avatar object
+  [28] L 580- 589  other    async function deleteAvatar( fixture: OwnerRouteFixture, body: unknown ): Promise<Response> { return fixture
+  [29] L 591- 616  test     avatar removal clears both avatar columns and sweeps the stored object
+  [30] L 618- 659  test     avatar removal is fenced, validated, and refused for locked accounts
+### tests/server/platform-session-security.contract.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   6  other    import { readSetCookieValues as cookieValues, serializeCookieHeader as cookieHeader, setCookieHeaders as set
+  [ 2] L   7-   7  other    import path from "node:path";
+  [ 3] L   8-   8  other    import { randomUUID } from "node:crypto";
+  [ 4] L   9-   9  other    import { onTestFinished, test as nodeTest } from "vitest";
+  [ 5] L  10-  10  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 6] L  11-  11  other    import { pathToFileURL } from "node:url";
+  [ 7] L  12-  12  other    import { sign, verify } from "hono/utils/jwt/jwt";
+  [ 8] L  13-  13  other    import { createTestApp, testRequest } from "./test-app";
+  [ 9] L  14-  14  other    import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
+  [10] L  15-  15  other    import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service";
+  [11] L  16-  19  other    import type { ManagedSqlDatabase, SqlSchemaStrategy, } from "@/infra/db/sql/database";
+  [12] L  20-  23  other    import type { NewPlatformAccountInput, PlatformAccountStatus, } from "@/ports/repositories";
+  [13] L  24-  24  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [14] L  25-  25  other    import { sha256Hex } from "@/utils/crypto/sha256";
+  [15] L  26-  26  other    import { createPostgresTestHarness } from "../integration/postgres-harness";
+  [16] L  28-  28  other    const PLATFORM_SECRET = "shared-realm-test-secret-at-least-thirty-two-bytes";
+  [17] L  29-  29  other    const ACCESS_COOKIE = "ims_platform_access";
+  [18] L  30-  30  other    const REFRESH_COOKIE = "ims_platform_refresh";
+  [19] L  31-  31  other    const CSRF_COOKIE = "ims_platform_csrf";
+  [20] L  32-  32  other    const ACCESS_TTL_SECONDS = 15 * 60;
+  [21] L  33-  33  other    const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  [22] L  34-  34  other    const textEncoder = new TextEncoder();
+  [23] L  36-  47  other    interface PlatformClaims extends Record<string, unknown> { iss: "imsweb"; aud: "ims-platform"; kind: "platfo
+  [24] L  49-  57  other    interface SeededSession { accountId: string; sessionId: string; accessToken: string; refreshToken: strin
+  [25] L  59-  74  other    interface Fixture { app: ReturnType<typeof createTestApp>; database: ManagedSqlDatabase; databaseUrl?: strin
+  [26] L  76-  81  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [27] L  83- 128  other    class TestPlatformTokenService { constructor(private readonly secret: string) {} async sign( input: Omi
+  [28] L 130- 146  other    function assertClearedPlatformCookies(response: Response): void { const cookies = setCookies(response); assert.d
+  [29] L 148- 150  other    function hashSecret(value: string): Promise<string> { return sha256Hex(textEncoder.encode(value)); }
+  [30] L 152- 158  other    function jwtPart(token: string, index: number): Record<string, unknown> { const part = token.split(".")[index];
+  [31] L 160- 174  other    function expectedSessionPayload( accountId: string, status: PlatformAccountStatus, ) { return { succ
+  [32] L 176- 294  other    async function createFixture(): Promise<Fixture> { const harness = await createPostgresTestHarness(); const data
+  [33] L 296- 303  other    async function sessionRequest( fixture: Fixture, cookies: Map<string, string>, ): Promise<Response> { return
+  [34] L 305- 320  other    async function refreshRequest( fixture: Fixture, cookies: Map<string, string>, csrf?: string, ): Promise<Res
+  [35] L 322- 336  other    async function sessionRow(fixture: Fixture, sessionId: string) { return fixture.database .prepare(
+  [36] L 338- 353  other    async function eventRows(fixture: Fixture, accountId: string) { const result = await fixture.database .prepa
+  [37] L 355- 433  test     Platform session authenticates active and restricted accounts through a live family
+  [38] L 435- 514  test     refresh-session writes fence the current account token version atomically
+  [39] L 516- 572  test     Platform and Backoffice reject each other even when their test secret is shared
+  [40] L 574- 661  other    nodeTest("production Platform token service fixes HS256 and all realm/session claims", async () => { const moduleId
+  [41] L 663- 694  test     Platform refresh requires cookie, header, and stored CSRF before rotating state
+  [42] L 696- 764  test     Bearer callers refresh without cookies and only they receive tokens
+  [43] L 766- 921  other    async function assertRotationReplayAndLogout( dialect: "postgresql", ): Promise<void> { const fixture = await cr
+  [44] L 923- 954  test     suspended and deleted Platform accounts are blocked and their family is revoked
+  [45] L 956- 986  other    nodeTest("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket", async () => { const calls: Array<{
+  [46] L 988-1012  test     Platform logout is idempotent and Bearer authentication does not require CSRF
+  [47] L1014-1016  test     real PostgreSQL enforces Platform rotation, replay, logout, and event behavior
+  [48] L1018-1089  test     real PostgreSQL emits refresh success only for the cross-instance CAS winner
+  template-literal lines (not reindented): 233,234,235,250,251,252,326,342,428,1026,1027,1028,1029,1030,1031,1032,1033,1034,1035,1036,1037,1038,1039,1040,1041
+### tests/server/postgresql-request-controls.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { PostgresqlIdempotencyStore } from
+  [ 3] L   5-   8  other    import { connectPostgresTestDatabase, createPostgresTestDatabase } from '../postgres-test-database';
+  [ 4] L  10-  88  test     PostgreSQL idempotency shares replay and fencing across connections
+  [ 5] L  90- 103  test     PostgreSQL idempotency serializes concurrent first claims
+  [ 6] L 105- 140  test     PostgreSQL idempotency sweeps only expired terminal records
+  template-literal lines (not reindented): 134
+### tests/server/producer-map-content.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-  10  other    import { producerMapAdminSnapshotSchema, producerMapAdminUpdateSchema, producerMapContentSchema, produce
+  [ 4] L  11-  14  other    import { failureMessageResponseSchema, messageErrorResponseSchema } from '@imsweb/contracts/common';
+  [ 5] L  15-  15  other    import { createHonoApp } from '@/app';
+  [ 6] L  16-  16  other    import type { ProducerMapContent } from '@/domains/content/producer-map/data';
+  [ 7] L  17-  17  other    import { producerMapAssetObjectKey } from '@/utils/storage/business-object-keys';
+  [ 8] L  18-  23  other    import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage
+  [ 9] L  24-  24  other    import type { ImageProcessor } from '@/ports/media';
+  [10] L  25-  25  other    import type { UploadParser } from '@/ports/http';
+  [11] L  26-  26  other    import type { AuditLogInput } from '@/ports/repositories';
+  [12] L  27-  27  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [13] L  29-  85  other    class MemoryStorage implements ObjectStorage { private readonly objects = new Map<string, StoredObject>(); priva
+  [14] L  87- 103  other    const uploads: UploadParser = { async parse(request) { const form = await request.formData(); const
+  [15] L 105- 114  other    const images: ImageProcessor = { async validate() { return { format: 'png', width: 1_200, height: 800, conte
+  [16] L 116- 142  other    function producerMapContent(): ProducerMapContent { return { version: 1, title: '测试制作人地图', s
+  [17] L 144- 172  other    function fixture(dept = 'op') { const storage = new MemoryStorage(); const audit: AuditLogInput[] = []; cons
+  [18] L 174- 219  test     producer map images are authenticated, audited, and publicly readable
+  [19] L 221- 244  test     producer map media is served from semantic object storage
+  [20] L 246- 254  test     producer map reports unconfigured content without serving defaults
+  [21] L 256- 313  test     producer map admin updates are authenticated, audited, and revision guarded
+  [22] L 315- 363  test     producer map rejects unsafe links and duplicate provinces
+  [23] L 365- 452  test     producer map mounted JSON responses preserve shared schemas and project unknown update fields
+### tests/server/public-object-url.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 3] L   4-   9  other    import { requirePublicObjectUrl, resolvePublicMediaFields, resolvePublicMediaUrl, resolvePublicObjectUrl
+  [ 4] L  11-  25  other    function storageWithPublicUrls( resolve: (key: string) => string | null | Promise<string | null> ): ObjectStorage {
+  [ 5] L  27-  46  test     public media URLs resolve legacy business paths to CDN object URLs
+  [ 6] L  48-  62  test     public URL resolution preserves external, private, and unsupported fallbacks
+  [ 7] L  64-  79  test     required public URLs fail closed instead of returning an application fallback
+  [ 8] L  81- 102  test     required public URLs can promote a legacy private object before resolving
+  [ 9] L 104- 124  test     public media field rewriting changes only declared string fields
+### tests/server/request-observability.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { onTestFinished, test } from 'vitest';
+  [ 2] L   3-   7  other    import { healthLiveResponseSchema, healthReadySuccessResponseSchema, healthReadyUnavailableResponseSchema }
+  [ 3] L   8-   8  other    import { createHonoApp } from '@/app';
+  [ 4] L  10-  99  test     request IDs, health probes, and structured request logs stay correlated
+### tests/server/request-validation-boundaries.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { strictRequestObject } from '@imsweb/contracts/common';
+  [ 3] L   4-   4  other    import { z } from '@imsweb/contracts/z';
+  [ 4] L   5-   5  other    import { Hono, type Context } from 'hono';
+  [ 5] L   6-  10  other    import { jsonSchemaValidator, paramValidator, queryValidator } from '@/middleware/request-validation';
+  [ 6] L  12-  21  other    function positiveId(value: unknown): { id: number } { if (!value || typeof value !== 'object' || Array.isArray(value
+  [ 7] L  23-  60  test     schema validators preserve legacy errors without accepting schema-invalid input
+  [ 8] L  62-  84  test     param and query validators normalize invalid business input before handlers run
+### tests/server/request-validation.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { legacyPassthroughRequestObject, legacyStripRequestObject, strictRequestObject } from '@imsweb/contracts/common'
+  [ 3] L   4-   4  other    import { z } from '@imsweb/contracts/z';
+  [ 4] L   5-   5  other    import { Hono } from 'hono';
+  [ 5] L   6-  13  other    import { jsonSchemaValidator, jsonValidator, paramSchemaValidator, paramValidator, querySchemaValida
+  [ 6] L  15-  24  other    function positiveIdRequest(value: unknown): { id: number } { if (!value || typeof value !== 'object' || Array.isArra
+  [ 7] L  26-  40  test     json validator exposes parsed request data through req.valid
+  [ 8] L  42-  61  test     json validator normalizes malformed and invalid request errors
+  [ 9] L  63-  76  test     json validator does not hide unexpected parser failures
+  [10] L  78-  93  test     json validator can explicitly preserve mislabeled JSON compatibility
+  [11] L  95- 110  test     json validator awaits asynchronous request parsers
+  [12] L 112- 128  test     param and query validators expose normalized request models
+  [13] L 130- 168  test     schema validators preserve explicit strict, strip, and passthrough request policies
+  [14] L 170- 194  test     schema JSON validators preserve malformed and mislabeled JSON behavior
+  [15] L 196- 239  test     schema validators await adapters and preserve custom validation errors
+  [16] L 241- 262  test     schema validator does not hide unexpected adapter failures
+  [17] L 264- 285  test     schema validator does not hide asynchronous adapter failures
+### tests/server/runtime-adapters.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { once } from "node:events";
+  [ 2] L   3-   3  other    import { createReadStream } from "node:fs";
+  [ 3] L   4-   4  other    import fs from "node:fs/promises";
+  [ 4] L   5-   5  other    import os from "node:os";
+  [ 5] L   6-   6  other    import path from "node:path";
+  [ 6] L   7-   7  other    import { createServer } from "node:http";
+  [ 7] L   8-   8  other    import { onTestFinished, test } from "vitest";
+  [ 8] L   9-  14  other    import { brotliCompressSync, brotliDecompressSync, gzipSync, gunzipSync, } from "node:zlib";
+  [ 9] L  15-  15  other    import { FilesystemCompensationService } from "@/infra/oss/filesystem/compensation-service";
+  [10] L  16-  16  other    import { FilesystemIdempotencyStore } from "@/infra/cache/filesystem/idempotency-store";
+  [11] L  17-  17  other    import { FilesystemObjectStorage } from "@/infra/oss/filesystem/object-storage";
+  [12] L  18-  22  other    import { FrontendStaticAssets, listFrontendFiles, NodeStaticAssets, } from "@/infra/http/filesystem/static-a
+  [13] L  23-  23  other    import type { ObjectStorage } from "@/ports/object-storage";
+  [14] L  24-  24  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [15] L  25-  29  other    import { createNodeServiceLifecycle, initializeNodeRepositories, validateFudabaPublicReadStorage, } from "@/
+  [16] L  30-  40  other    import { parseClientAddressSource, parseFudabaGeocodingConfig, parseFudabaMapConfig, parseFudabaMapEnabl
+  [17] L  41-  41  other    import { parseNodeDatabaseConfig } from "@/config/database";
+  [18] L  42-  42  other    import { parseNodeObjectStorageConfig } from "@/config/object-storage";
+  [19] L  43-  43  other    import { shutdownServer } from "@/main";
+  [20] L  45-  47  other    async function temporaryDirectory(prefix: string): Promise<string> { return fs.mkdtemp(path.join(os.tmpdir(), prefix
+  [21] L  49-  99  test     Node repository initialization closes every constructed resource after partial failure
+  [22] L 101- 116  test     graceful shutdown stops HTTP acceptance before closing runtime services
+  [23] L 118- 128  test     story upload byte limit accepts only a positive bounded safe integer
+  [24] L 130- 137  test     Node trusts proxy address headers only when Nginx is explicit
+  [25] L 139- 147  test     Fudaba public reads require an explicit boolean feature flag
+  [26] L 149- 157  test     Fudaba writes use an independent explicit boolean feature flag
+  [27] L 159- 189  test     Fudaba map configuration is disabled by default and strictly parsed
+  [28] L 191- 248  test     Fudaba geocoding requires an identifiable configurable HTTPS provider
+  [29] L 250- 275  test     Fudaba map source seeds accept complete style URLs
+  [30] L 277- 307  test     Fudaba map style accepts trusted deployment URL shapes
+  [31] L 309- 347  test     Fudaba public reads require S3 public object URL configuration
+  [32] L 349- 429  test     early close does not poison a later Node service and concurrent close is idempotent
+  [33] L 431- 568  test     Node object storage defaults to S3 and requires explicit filesystem compatibility
+  [34] L 570- 613  test     Node database accepts only a validated PostgreSQL configuration
+  [35] L 615- 686  test     FilesystemObjectStorage maps canonical business keys to owned roots
+  [36] L 688- 771  test     NodeStaticAssets does not open a body for HEAD and opens only the requested byte range
+  [37] L 773- 874  test     NodeStaticAssets negotiates precompressed assets without exposing encoded files
+  [38] L 876- 916  test     filesystem idempotency persists replay, rejects fingerprint reuse, and recovers failure
+  [39] L 918- 946  test     filesystem compensation journal retries a failed idempotent delete to completion
+### tests/server/s3-object-storage.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from "node:assert/strict";
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-  13  other    import { CopyObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectC
+  [ 4] L  14-  19  other    import { S3ObjectStorage, s3PhysicalObjectKey, type S3ObjectStorageOptions, type S3ReadUrlSigner, } from
+  [ 5] L  20-  20  other    import { S3CompensationService } from "@/infra/oss/s3/compensation-service";
+  [ 6] L  21-  21  other    import { S3UploadStateMachine } from "@/infra/oss/s3/upload-state-machine";
+  [ 7] L  22-  22  other    import type { PostgresConnection } from "@/infra/db/postgresql/connection";
+  [ 8] L  23-  23  other    import { createPostgresTestDatabase } from "../postgres-test-database";
+  [ 9] L  25-  31  other    interface FakeObject { body: Uint8Array; contentType?: string; etag: string; lastModified: Date; met
+  [10] L  33-  38  other    function s3Error(name: string, status: number): Error { return Object.assign(new Error(name), { name,
+  [11] L  40- 177  other    class FakeS3Client { readonly objects = new Map<string, FakeObject>(); readonly commands: unknown[] = []; de
+  [12] L 179- 228  other    async function fixture( storageOptions: Partial<S3ObjectStorageOptions> = {}, ): Promise<{ client: FakeS3Client;
+  [13] L 230- 344  test     S3 object storage preserves logical keys across versioned CRUD, copy, and move
+  [14] L 346- 357  test     S3 object storage validates checksums and rejects unsafe logical keys
+  [15] L 359- 422  test     S3 object storage removes a write when PutObject times out after persistence
+  [16] L 424- 449  test     S3 object storage keeps owner tokens out of user metadata
+  [17] L 451- 488  test     S3 physical keys support both an optional custom prefix and no prefix
+  [18] L 490- 516  test     S3 object storage signs GET and HEAD reads without proxying object bodies
+  [19] L 518- 619  test     S3 public and protected objects share one bucket with distinct read paths
+  [20] L 621- 666  test     S3 deferred public media stays private until publication moves it
+  [21] L 668- 691  test     ambiguous S3 publication removes an untracked public destination
+  [22] L 693- 712  test     S3 protection compensation restores private scope
+  [23] L 714- 746  test     stale S3 protection compensation does not privatize a newer version
+  [24] L 748- 769  test     S3 compensation preserves public access scope after a delete failure
+  [25] L 771- 808  test     S3 deferred publication hides new objects and restores the previous version on rollback
+  [26] L 810- 839  test     S3 listings resolve all readable versions with one metadata query
+  [27] L 841- 854  test     S3 ignores objects that have no managed semantic-key index
+  [28] L 856- 884  test     S3 lifecycle fences owner and object identity mutations
+  [29] L 886- 947  test     S3 stale recovery and SQL compensation remove unreferenced physical versions
+  template-literal lines (not reindented): 400
+### tests/server/shared-json-error-contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-   7  other    import { errorResponseSchema, failureMessageResponseSchema, } from '@imsweb/contracts/common';
+  [ 4] L   8-   8  other    import { Hono } from 'hono';
+  [ 5] L   9-   9  other    import { createHonoApp, type AppEnvironment } from '@/app';
+  [ 6] L  10-  10  other    import { authenticateBackoffice } from '@/middleware/hono-auth';
+  [ 7] L  11-  11  other    import { jsonBodyLimit } from '@/middleware/json-body-limit';
+  [ 8] L  12-  12  other    import { enforceRateLimit } from '@/middleware/rate-limit';
+  [ 9] L  13-  13  other    import { jsonValidator } from '@/middleware/request-validation';
+  [10] L  14-  14  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [11] L  16-  76  test     shared middleware JSON errors conform to their common contracts
+  [12] L  78-  96  test     central application JSON errors conform to the common error contract
+### tests/server/shared-paths.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-  16  other    import { ADMIN_API_PATH_PREFIX, ADMIN_EXCHANGE_PATH_PREFIX, API_PATH_PREFIX, EXCHANGE_PATH_PREFIX, W
+  [ 3] L  18-  30  test     shared path prefixes compose the canonical API and delivery paths
+  [ 4] L  32-  36  test     shared path builders normalize suffix separators without duplicate slashes
+### tests/server/site-package-archive.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash } from 'node:crypto';
+  [ 2] L   3-   3  other    import { Readable } from 'node:stream';
+  [ 3] L   4-   4  other    import { test } from 'vitest';
+  [ 4] L   5-   5  other    import { ZipFile } from 'yazl';
+  [ 5] L   6-  10  other    import { parseSitePackageArchive, SITE_PACKAGE_ARCHIVE_LIMITS, SitePackageArchiveError } from '@/domains/del
+  [ 6] L  12-  17  other    interface ArchiveFixtureEntry { readonly path: string; readonly body?: Buffer; readonly directory?: boolean;
+  [ 7] L  19-  34  other    async function createArchive(entries: readonly ArchiveFixtureEntry[]): Promise<Buffer> { const zip = new ZipFile();
+  [ 8] L  36-  43  other    function webpFixture(): Buffer { const body = Buffer.alloc(20); body.write('RIFF', 0, 'ascii'); body.writeUI
+  [ 9] L  45-  51  other    function woff2Fixture(): Buffer { const body = Buffer.alloc(48); body.write('wOF2', 0, 'ascii'); body.writeU
+  [10] L  53-  55  other    function jpegFixture(): Buffer { return Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0xff, 0xd9]); }
+  [11] L  57-  71  other    function replaceAscii(archive: Buffer, source: string, replacement: string): Buffer { assert.equal(Buffer.byteLength
+  [12] L  73-  84  other    function patchFlags(archive: Buffer, bit: number): Buffer { const patched = Buffer.from(archive); for (let offse
+  [13] L  86-  96  other    function patchCentralSizes(archive: Buffer, uncompressedSize: number): Buffer { const patched = Buffer.from(archive)
+  [14] L  98- 108  other    async function assertArchiveError( action: () => Promise<unknown>, code: SitePackageArchiveError['code'] ): Prom
+  [15] L 110- 176  test     parses a hiro-like isolated package into an immutable manifest
+  [16] L 178- 210  test     uses a conventional packaged icon and warns about unusable declarations
+  [17] L 212- 242  test     safe packages reject JavaScript files and active HTML handlers
+  [18] L 244- 283  test     rejects traversal, duplicate, and case-folded path collisions
+  [19] L 285- 303  test     rejects symlink and encrypted ZIP entries
+  [20] L 305- 354  test     enforces archive, file, expanded total, and file-count bomb limits
+  [21] L 356- 386  test     rejects invalid magic, blocked nested files, and missing HTML entry paths
+  [22] L 388- 407  test     requires PDF isolation and recognizes escaped PDF action names
+  template-literal lines (not reindented): 116,117,118,119
+### tests/server/site-package-env.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { parseSitePackageMaxUploadBytes } from '@/config/env';
+  [ 3] L   4-   8  other    import { sitePackageContentCsp, sitePackageFrameAncestorOrigins, sitePackageRequestOrigin } from '@/domains/
+  [ 4] L  10-  46  test     site-package content uses the current request origin
+  [ 5] L  48-  57  test     site-package frame ancestors accept loopback aliases only for local development
+  [ 6] L  59-  76  test     isolated site-package CSP uses an explicit content path for opaque origins
+  [ 7] L  78-  90  test     safe site-package CSP blocks scripts while allowing packaged styles
+  [ 8] L  92-  98  test     site-package upload limit is bounded by the archive parser maximum
+### tests/server/site-package-repository.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import crypto from 'node:crypto';
+  [ 3] L   4-   4  other    import type { ManagedSqlDatabase, SqlResult } from '@/infra/db/sql/database';
+  [ 4] L   5-   5  other    import { executeSql, queryOne } from '@/infra/db/sql/query';
+  [ 5] L   6-   6  other    import { SqlSitePackageRepository } from '@/infra/db/repositories/site-package-repository';
+  [ 6] L   7-   7  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [ 7] L   9-  29  other    function revision(packageId: string, id: string, token: string, createdAt: number) { const prefix = `site-packages/$
+  [ 8] L  31- 225  test     PostgreSQL site packages create revisions and atomically switch rollback pointers
+  template-literal lines (not reindented): 193
+### tests/server/site-package-routes.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import crypto from 'node:crypto';
+  [ 3] L   4-   4  other    import { Readable } from 'node:stream';
+  [ 4] L   5-   5  other    import { ZipFile } from 'yazl';
+  [ 5] L   6-   6  other    import { mediaHttpErrorSchema } from '@imsweb/contracts/media';
+  [ 6] L   7-  16  other    import { publicSitePackageSchema, sitePackageCreateResultSchema, sitePackageCreateRevisionResultSchema,
+  [ 7] L  17-  17  other    import { createHonoApp } from '@/app';
+  [ 8] L  18-  18  other    import type { NamecardRepository, SitePackageRepository } from '@/ports/repositories';
+  [ 9] L  19-  25  other    import type { ListedObject, ObjectReadUrlOptions, ObjectStorage, PutObjectOptions, StoredObject } fr
+  [10] L  26-  26  other    import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+  [11] L  27-  27  other    import { SqlSitePackageRepository } from '@/infra/db/repositories/site-package-repository';
+  [12] L  28-  28  other    import { queryOne } from '@/infra/db/sql/query';
+  [13] L  29-  29  other    import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
+  [14] L  30-  30  other    import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
+  [15] L  31-  31  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [16] L  33-  38  other    function assertWireContract<T>( schema: { parse(value: unknown): T }, payload: unknown ): void { assert.deep
+  [17] L  40-  60  other    async function createArchive(): Promise<Buffer> { const zip = new ZipFile(); zip.addBuffer( Buffer.from(
+  [18] L  62- 130  other    class MemoryStorage implements ObjectStorage { readonly objects = new Map<string, StoredObject>(); reads: string
+  [19] L 132- 157  other    function revision( packageId: string, revisionId: string, token: string, runtimeMode: 'safe' | 'isolated
+  [20] L 159- 907  test     site-package routes share the main origin and enforce manifests, CSP, and revisions
+### tests/server/sql-database.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import type { QueryResult } from 'pg';
+  [ 3] L   4-   8  other    import { PostgresConnection, translatePostgresParameters, type PostgresPool } from '@/infra/db/postgresql/co
+  [ 4] L   9-   9  other    import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+  [ 5] L  10-  10  other    import { SqlReactionRepository } from '@/infra/db/repositories/reaction-repository';
+  [ 6] L  11-  11  other    import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
+  [ 7] L  13-  33  other    function pgResult( rows: Array<Record<string, unknown>> = [], rowCount = rows.length, bigintFields: string[]
+  [ 8] L  35-  45  test     PostgreSQL parameter translation ignores quoted and commented question marks
+  [ 9] L  47- 112  test     PostgreSQL implements the SQL port with one short transaction per batch
+  [10] L 114- 142  test     PostgreSQL news pagination uses a bounded descending id range
+  [11] L 144- 165  test     PostgreSQL reaction upsert qualifies the existing count
+### tests/server/story-repository.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
+  [ 4] L   5-   5  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 5] L   6-   6  other    import { executeSql, queryOne } from '@/infra/db/sql/query';
+  [ 6] L   7-  10  other    import { connectPostgresTestDatabase, createPostgresTestDatabase } from '../postgres-test-database';
+  [ 7] L  12-  18  other    const DEFAULT_IMAGE_TRANSFORM = { fit: 'cover' as const, focalX: 0.5, focalY: 0.5, zoom: 1, rotation
+  [ 8] L  20-  23  other    const DEFAULT_STORY_SOURCE = { contentTypeId: 1, sourcePlatformId: 2 };
+  [ 9] L  25- 180  test     PostgreSQL story lookup selects the requested row within its agency and idol
+  [10] L 182- 396  test     PostgreSQL catalog CRUD supports dynamic agencies and multi-group idols
+  [11] L 398- 466  test     PostgreSQL group deletion preserves idols and their normalized stories
+  [12] L 468- 644  test     PostgreSQL normalized stories keep one card and one link per source row
+  [13] L 646- 713  test     PostgreSQL card source append requires the exact card and current media revision
+  [14] L 715- 804  test     PostgreSQL idol deletion preserves rows while hiding the idol and its stories
+  [15] L 806- 875  test     PostgreSQL category rename is scoped by idol assignment and preserves storage slug
+  [16] L 877- 965  test     PostgreSQL card edit updates shared card metadata without modifying source links
+  [17] L 967-1060  test     PostgreSQL story cover assets are agency scoped, versioned, and protected in use
+  [18] L1062-1136  test     PostgreSQL whole-card and category deletion reject stale revisions
+  template-literal lines (not reindented): 36,555,556,557,558,559,560,561,562,563,564,565,566,567,583,584,585,789
+### tests/server/upload-contract.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import crypto from "node:crypto";
+  [ 2] L   3-   3  other    import { test } from "vitest";
+  [ 3] L   4-   4  other    import sharp from "sharp";
+  [ 4] L   5-   5  other    import { normalizeNamecardImage } from "@/domains/community/fudaba/guest-submissions/image";
+  [ 5] L   6-   6  other    import { StreamingUploadParser } from "@/infra/http/busboy/upload-parser";
+  [ 6] L   7-   7  other    import { SharpImageProcessor } from "@/infra/media/sharp/image-processor";
+  [ 7] L   8-  14  other    import { ImagePixelLimitError, type ImageInfo, type ImageProcessor, type ImageValidationOptions, typ
+  [ 8] L  15-  15  other    import { validateUploadedImage } from "@/utils/media/image-upload";
+  [ 9] L  16-  16  other    import { md5Hex } from "@/utils/crypto/md5";
+  [10] L  18-  25  other    function versionAtLeast(actual: string, minimum: readonly number[]): boolean { const parts = actual.split(".").map(N
+  [11] L  27-  65  other    class FixtureImages implements ImageProcessor { validationOptions: Array<ImageValidationOptions | undefined> = [];
+  [12] L  67-  80  other    async function materializedMultipartRequest(form: FormData): Promise<Request> { const encoded = new Request("http://
+  [13] L  82- 226  other    for (const [name, parser] of [ ["Node streaming", new StreamingUploadParser()], ] as const) { test(`${name} mult
+  [14] L 228- 281  test     shared image upload contract rejects extension, MIME, decoded format, and corrupt payload mismatches
+  [15] L 283- 299  test     shared image upload contract accepts standard HEIC and HEIF uploads
+  [16] L 301- 360  test     namecard normalization bounds only oversized JPEG output
+  [17] L 362- 372  test     Sharp runtime includes the libvips fixes for inherited image decoder CVEs
+  [18] L 374- 488  test     Sharp image processor validates and converts real image bytes with stable dimensions
+  [19] L 490- 498  test     shared MD5 implementation matches RFC vectors and legacy Node hashes
+### tests/server/valkey-cache.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { test } from "vitest";
+  [ 2] L   3-   3  other    import { ValkeyCache } from "@/infra/cache/valkey/cache";
+  [ 3] L   4-   4  other    import { withBoundedCacheOperation } from "@/utils/cache/bounded-operation";
+  [ 4] L   6-  56  other    class FakeValkeyClient { readonly commands: string[][] = []; readonly values = new Map<string, string>(); cl
+  [ 5] L  58-  80  test     Valkey cache namespaces values and applies an expiration command
+  [ 6] L  82-  95  test     Valkey cache aborts a queued command at the caller deadline
+  [ 7] L  97- 104  test     Valkey cache rejects invalid keys and TTLs before issuing commands
+### tests/server/valkey-rate-limiter.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import crypto from 'node:crypto';
+  [ 2] L   3-   3  other    import fs from 'node:fs/promises';
+  [ 3] L   4-   4  other    import path from 'node:path';
+  [ 4] L   5-   5  other    import { test } from 'vitest';
+  [ 5] L   6-   6  other    import { ValkeyRateLimiter } from '@/infra/cache/valkey/rate-limiter';
+  [ 6] L   7-   7  other    import { assertConcurrentRateLimiterContract } from '../contracts/runtime-contracts.js';
+  [ 7] L   8-   8  other    import { FakeValkeyRateLimitServer } from './fake-valkey';
+  [ 8] L  10-  10  other    const PREFIX = 'imsweb:test:';
+  [ 9] L  12-  15  other    function rateLimitWindowKey(bucket: string, key: string): string { const digest = crypto.createHash('sha256').update
+  [10] L  17-  25  other    async function typescriptFiles(directory: string): Promise<string[]> { const entries = await fs.readdir(directory, {
+  [11] L  27-  53  test     Valkey rate limiter shares one atomic budget across limiter instances
+  [12] L  55-  85  test     Valkey rate limiter resets expired windows and reports reset timestamps
+  [13] L  87- 116  test     Valkey rate limiter exempts replayed identities without extra consumption
+  [14] L 118- 144  test     Valkey rate limiter never stores raw keys or identities
+  [15] L 146- 162  test     Valkey rate limiter rejects invalid buckets, limits, and windows
+  [16] L 164- 179  test     domain and middleware code cannot depend on the Valkey rate limiter

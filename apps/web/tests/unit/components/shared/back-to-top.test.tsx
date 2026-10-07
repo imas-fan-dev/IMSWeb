@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BackToTop } from "~/components/shared/back-to-top"
 import { i18n } from "~/i18n/config"
@@ -9,11 +9,6 @@ import { i18n } from "~/i18n/config"
 describe("BackToTop", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("zh-CN")
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it("appears after scrolling and returns the window to the top", async () => {

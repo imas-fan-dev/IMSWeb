@@ -1,0 +1,3 @@
+{"file": "tests/test_workspace_boundaries.py", "reason": "脚本数上限与根依赖白名单断言，禁止顺带加脚本"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "核对断言风格与 postgres 适配器约定未被改动"}
+{"file": "apps/api/vitest.config.mts", "reason": "核对覆盖率 include 与阈值未被改动"}

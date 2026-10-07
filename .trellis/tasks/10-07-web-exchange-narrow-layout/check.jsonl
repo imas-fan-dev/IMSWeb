@@ -1,0 +1,8 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"检查 Web 质量门禁与变更归属"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"验证断点连续、来源义务、触控净空和焦点回退"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"检查浏览器几何、状态与回归证据"}
+{"file":".trellis/tasks/10-07-web-exchange-narrow-layout/research/current-layout.md","reason":"防止区域点/已加载数量误标和名录/地图模式混淆"}
+{"file":".trellis/spec/web/frontend/app-navigation.md","reason":"检查标签栏净空、导航抑制释放与切页恢复"}
+{"file":".trellis/tasks/10-07-web-exchange-narrow-layout/research/native-controls-context.md","reason":"原生规范的任务级索引，避免全文件截断；检查时直接读取完整相关场景"}
+{"file":"docs/architecture/glass-refraction-platform-strategy.md","reason":"区分真实 Liquid Glass 与 DOM 模糊／浏览器证据"}
+{"file":".trellis/tasks/10-07-web-exchange-narrow-layout/research/apple-maps-and-native-search.md","reason":"核对搜索显式提交、输入法、档位及原生设备验收"}

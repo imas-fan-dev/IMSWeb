@@ -1,0 +1,13 @@
+appId: top.idol-master.imsweb
+---
+- tapOn: "首页"
+- assertNotVisible:
+    id: "ims-native-exchange-search"
+- assertNotVisible:
+    id: "ims-native-exchange-search-input"
+- assertNotVisible:
+    id: "inputView"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- takeScreenshot:
+    path: "NativeSearchRouteTeardown"

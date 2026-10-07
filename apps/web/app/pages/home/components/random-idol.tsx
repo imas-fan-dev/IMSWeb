@@ -5,7 +5,6 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
-import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -14,6 +13,7 @@ import { cn } from "~/lib/utils"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
 import { getWikiRandomIdol, isApiError } from "~/lib/api"
 import type { WikiRandomIdol } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function idolStoryHref(idol: NonNullable<WikiRandomIdol["idol"]>) {
   return (
@@ -169,13 +169,13 @@ export function RandomIdol() {
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {selectedIdol ? (
-              <Link
+              <NavigationLink
                 to={idolStoryHref(selectedIdol)}
                 className={cn(buttonVariants({ variant: "outline" }), "w-full")}
               >
                 查看剧情档案
                 <ArrowUpRightIcon data-icon="inline-end" />
-              </Link>
+              </NavigationLink>
             ) : (
               <span aria-hidden="true" />
             )}

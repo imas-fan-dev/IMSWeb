@@ -1,0 +1,103 @@
+0a1,4
+> tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL apply rejects an invalid candidate before writing any article
+> tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL apply reports an update conflict and rolls back earlier rows
+> tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL apply rolls back the batch after a late event write failure
+> tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL dry-run, apply, and repeat preserve the migration contract
+6,10d9
+< tests/migration/cms-article-title-backfill.test.js	PostgreSQL apply rejects an invalid candidate before writing any article
+< tests/migration/cms-article-title-backfill.test.js	PostgreSQL apply reports an update conflict and rolls back earlier rows
+< tests/migration/cms-article-title-backfill.test.js	PostgreSQL apply rolls back the batch after a late event write failure
+< tests/migration/cms-article-title-backfill.test.js	PostgreSQL dry-run, apply, and repeat preserve the migration contract
+< tests/migration/fudaba-media.test.js	Fudaba R2 locators reject encoded, traversing, or ambiguous paths
+12,40c11,40
+< tests/migration/fudaba-media.test.js	a CAS loser cannot compensate an object created by a competing invocation
+< tests/migration/fudaba-media.test.js	a public or different existing target is a non-overwriting conflict
+< tests/migration/fudaba-media.test.js	apply confirmations fail before the target runtime is resolved
+< tests/migration/fudaba-media.test.js	approved apply writes private-ready objects, reads back, and converges
+< tests/migration/fudaba-media.test.js	batch failure compensates only objects created by the migration
+< tests/migration/fudaba-media.test.js	dry-run scaffolds v2 rights and performs no target writes
+< tests/migration/fudaba-media.test.js	inventory bytes and rights bindings are immutable migration inputs
+< tests/migration/fudaba-media.test.js	media apply refuses storage adapters without CAS and fenced deletion
+< tests/migration/fudaba-media.test.js	restricted JSON fixtures keep pretty output, final newline, and private mode
+< tests/migration/fudaba-metadata-import.test.js	apply confirmation seals source.json independently from the source export
+< tests/migration/fudaba-metadata-import.test.js	extract creates an immutable, classified snapshot without leaking security rows
+< tests/migration/fudaba-metadata-import.test.js	extract rejects full table, trigger and ledger DDL rewrites
+< tests/migration/fudaba-metadata-import.test.js	extract rejects migration-ledger, index and trigger provenance drift
+< tests/migration/fudaba-metadata-import.test.js	extract rejects schema drift and classification keys absent from the source
+< tests/migration/fudaba-metadata-import.test.js	planning consumes explicitly retained external avatars and denied optional covers
+< tests/migration/fudaba-metadata-import.test.js	planning handles source-null update times and empty optional avatars exactly
+< tests/migration/fudaba-metadata-import.test.js	planning preserves count provenance and excludes ephemeral auth state
+< tests/migration/fudaba-metadata-import.test.js	planning recomputes every media-plan binding after a plan reseal
+< tests/migration/fudaba-metadata-import.test.js	planning rejects public media and a manifest detached from its media plan
+< tests/migration/fudaba-metadata-import.test.js	planning rejects tampered operational-row provenance
+< tests/migration/fudaba-metadata-import.test.js	planning rejects values that only PostgreSQL would otherwise catch
+< tests/migration/fudaba-metadata-import.test.js	real PostgreSQL blocks missing or drifted media control-plane state
+< tests/migration/fudaba-metadata-import.test.js	real PostgreSQL dry-run, apply, repeat and reconciliation are exact
+< tests/migration/fudaba-metadata-import.test.js	real PostgreSQL imports historical children before restoring an archived office
+< tests/migration/fudaba-metadata-import.test.js	real PostgreSQL reconciles a lost commit acknowledgement before reporting success
+< tests/migration/fudaba-metadata-import.test.js	real PostgreSQL reports alternate unique-key conflicts before writing
+< tests/migration/fudaba-metadata-import.test.js	real PostgreSQL rolls back the entire import after a late write failure
+< tests/migration/fudaba-metadata-import.test.js	real PostgreSQL serializes concurrent identical applies into one exact dataset
+< tests/migration/fudaba-metadata-import.test.js	timestamp and series conversion accept only the locked source contract
+---
+> tests/migration/fudaba-media.test.js	Fudaba media Fudaba R2 locators reject encoded, traversing, or ambiguous paths
+> tests/migration/fudaba-media.test.js	Fudaba media a CAS loser cannot compensate an object created by a competing invocation
+> tests/migration/fudaba-media.test.js	Fudaba media a public or different existing target is a non-overwriting conflict
+> tests/migration/fudaba-media.test.js	Fudaba media apply confirmations fail before the target runtime is resolved
+> tests/migration/fudaba-media.test.js	Fudaba media approved apply writes private-ready objects, reads back, and converges
+> tests/migration/fudaba-media.test.js	Fudaba media batch failure compensates only objects created by the migration
+> tests/migration/fudaba-media.test.js	Fudaba media dry-run scaffolds v2 rights and performs no target writes
+> tests/migration/fudaba-media.test.js	Fudaba media inventory bytes and rights bindings are immutable migration inputs
+> tests/migration/fudaba-media.test.js	Fudaba media media apply refuses storage adapters without CAS and fenced deletion
+> tests/migration/fudaba-media.test.js	Fudaba media restricted JSON fixtures keep pretty output, final newline, and private mode
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import apply confirmation seals source.json independently from the source export
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract creates an immutable, classified snapshot without leaking security rows
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract rejects full table, trigger and ledger DDL rewrites
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract rejects migration-ledger, index and trigger provenance drift
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract rejects schema drift and classification keys absent from the source
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning consumes explicitly retained external avatars and denied optional covers
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning handles source-null update times and empty optional avatars exactly
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning preserves count provenance and excludes ephemeral auth state
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning recomputes every media-plan binding after a plan reseal
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning rejects public media and a manifest detached from its media plan
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning rejects tampered operational-row provenance
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning rejects values that only PostgreSQL would otherwise catch
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL blocks missing or drifted media control-plane state
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL dry-run, apply, repeat and reconciliation are exact
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL imports historical children before restoring an archived office
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL reconciles a lost commit acknowledgement before reporting success
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL reports alternate unique-key conflicts before writing
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL rolls back the entire import after a late write failure
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL serializes concurrent identical applies into one exact dataset
+> tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import timestamp and series conversion accept only the locked source contract
+60a61
+> tests/migration/legacy-namecards.test.js	Legacy namecard Legacy reactions reject invalid counts
+65d65
+< tests/migration/legacy-namecards.test.js	Legacy reactions reject invalid counts
+83a84
+> tests/migration/postgres-migrations.test.js	PostgreSQL migration PostgreSQL migrations are ordered and split around the data import
+85a87,88
+> tests/migration/postgres-migrations.test.js	PostgreSQL migration email delivery migration creates the constrained queue and resend policy
+> tests/migration/postgres-migrations.test.js	PostgreSQL migration email request cooldown migration creates a narrow bounded anonymous store
+86a90
+> tests/migration/postgres-migrations.test.js	PostgreSQL migration released Platform and Fudaba migrations remain byte-for-byte immutable
+90,93d93
+< tests/migration/postgres-migrations.test.js	PostgreSQL migrations are ordered and split around the data import
+< tests/migration/postgres-migrations.test.js	email delivery migration creates the constrained queue and resend policy
+< tests/migration/postgres-migrations.test.js	email request cooldown migration creates a narrow bounded anonymous store
+< tests/migration/postgres-migrations.test.js	released Platform and Fudaba migrations remain byte-for-byte immutable
+98,100d97
+< tests/migration/semantic-object-keys.test.js	semantic media keys preserve public filename identity under business roles
+< tests/migration/semantic-object-keys.test.js	semantic migration apply requires an exact bucket confirmation
+< tests/migration/semantic-object-keys.test.js	semantic migration resolves old indexed objects without runtime fallback
+101a99,101
+> tests/migration/semantic-object-keys.test.js	semantic object migration semantic media keys preserve public filename identity under business roles
+> tests/migration/semantic-object-keys.test.js	semantic object migration semantic migration apply requires an exact bucket confirmation
+> tests/migration/semantic-object-keys.test.js	semantic object migration semantic migration resolves old indexed objects without runtime fallback
+105c105,106
+< tests/migration/wiki-media-sync.test.js	Wiki media crawl opens only the story repository when upload is disabled
+---
+> tests/migration/wiki-media-sync.test.js	Wiki media sync Wiki media crawl opens only the story repository when upload is disabled
+> tests/migration/wiki-media-sync.test.js	Wiki media sync Wiki media upload reuses storage and closes resources after failure
+111d111
+< tests/migration/wiki-media-sync.test.js	Wiki media upload reuses storage and closes resources after failure

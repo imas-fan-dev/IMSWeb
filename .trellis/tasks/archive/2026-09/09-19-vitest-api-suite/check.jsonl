@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "核验 contract row 逐条保留、禁用跳过的共享 reason 未变、生命周期测试覆盖未回退"}
+{"file": ".trellis/tasks/09-19-vitest-api-suite/design.md", "reason": "核验两个包装器与批次边界的实现与设计一致"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "核验未把不同业务规则塞进通用 helper，也未新增重复抽象"}

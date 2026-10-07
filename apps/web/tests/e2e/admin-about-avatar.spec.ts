@@ -1,4 +1,9 @@
-import { expect, test } from "@playwright/test"
+import type { Locator, Page } from "@playwright/test"
+
+import { api, expect, test } from "./fixtures/test"
+
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const content = {
   version: 1,
@@ -63,29 +68,79 @@ const content = {
   updatedAt: null,
 }
 
-test.beforeEach(async ({ context, page }) => {
-  await context.addCookies([
-    {
-      name: "csrf_token",
-      value: "about-avatar-e2e",
-      domain: "127.0.0.1",
-      path: "/",
-    },
+async function moveDownWithKeyboard(
+  page: Page,
+  handle: Locator,
+  orderedHandles: Locator,
+  expectedLabels: string[]
+) {
+  const activeLabel = await handle.getAttribute("aria-label")
+  const handles = await orderedHandles.all()
+  const activeIndex = (
+    await Promise.all(
+      handles.map((candidate) => candidate.getAttribute("aria-label"))
+    )
+  ).indexOf(activeLabel)
+  const [activeBox, targetBox] = await Promise.all([
+    handles[activeIndex]?.boundingBox(),
+    handles[activeIndex + 1]?.boundingBox(),
   ])
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "about-editor",
-          producername: "关于页编辑",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  if (!activeBox || !targetBox) {
+    throw new Error(`Cannot move ${activeLabel ?? "unknown drag handle"} down`)
+  }
+
+  await handle.focus()
+  await page.keyboard.press("Space")
+  await expect(handle).toHaveAttribute("aria-pressed", "true")
+  await page.keyboard.press("ArrowDown")
+  // ArrowDown lands the dragged row on the following row's bottom edge, so the
+  // displacement equals that row's height, not the gap between the two handles.
+  // Demanding a share of the handle gap (the previous form of this assertion)
+  // only holds while both rows happen to be the same height, and these rows
+  // resize as their avatars and member lists render. Assert that the keyboard
+  // step moved the row at all; the drop below checks the resulting order.
+  await expect
+    .poll(() =>
+      handle.evaluate((element) => {
+        const row = element.closest<HTMLElement>("div.grid")
+        if (!row) return 0
+        const transform = getComputedStyle(row).transform
+        return transform === "none" ? 0 : Math.abs(new DOMMatrix(transform).m42)
+      })
+    )
+    .toBeGreaterThan(0)
+  await expect
+    .poll(() =>
+      handle.evaluate((element) => {
+        const row = element.closest<HTMLElement>("div.grid")
+        return (
+          row
+            ?.getAnimations({ subtree: false })
+            .every((animation) =>
+              ["finished", "idle"].includes(animation.playState)
+            ) ?? false
+        )
+      })
+    )
+    .toBe(true)
+  await page.keyboard.press("Space")
+  await expect
+    .poll(() =>
+      orderedHandles.evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute("aria-label"))
+      )
+    )
+    .toEqual(expectedLabels)
+}
+
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
+    csrfToken: "about-avatar-e2e",
+    user: {
+      username: "about-editor",
+      producername: "关于页编辑",
+    },
   })
   await page.route("**/uploads/about/member-avatars/*", async (route) => {
     await route.fulfill({
@@ -98,138 +153,157 @@ test.beforeEach(async ({ context, page }) => {
   })
 })
 
-test("roster sorting and scoped avatar edits stay in the draft until page save", async ({
-  page,
-}, testInfo) => {
-  const browserErrors: string[] = []
-  page.on("console", (message) => {
-    if (message.type() === "error" || message.type() === "warning") {
-      browserErrors.push(`${message.type()}: ${message.text()}`)
-    }
-  })
-  page.on("pageerror", (error) => browserErrors.push(error.message))
-  const savedState: { groups: typeof content.groups | null } = { groups: null }
-  const readSavedGroups = () => savedState.groups
-  await page.route("**/api/admin/about/member-avatar", async (route) => {
-    expect(route.request().headers()["x-csrftoken"]).toBe("about-avatar-e2e")
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        url: "/uploads/about/member-avatars/producer-a.webp",
-      }),
+test.describe("admin about avatar", () => {
+  test("roster sorting and scoped avatar edits stay in the draft until page save", async ({
+    page,
+  }, testInfo) => {
+    const browserErrors: string[] = []
+    page.on("console", (message) => {
+      if (message.type() === "error" || message.type() === "warning") {
+        browserErrors.push(`${message.type()}: ${message.text()}`)
+      }
     })
-  })
-  await page.route("**/api/admin/about", async (route) => {
-    if (route.request().method() === "PUT") {
-      const requestBody = route.request().postDataJSON()
-      savedState.groups = requestBody.content.groups
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          success: true,
-          content: {
-            ...requestBody.content,
-            updatedAt: "2026-08-05T04:00:00.000Z",
-          },
-          revision: '"revision-2"',
-        }),
+    page.on("pageerror", (error) => browserErrors.push(error.message))
+    const savedState: { groups: typeof content.groups | null } = {
+      groups: null,
+    }
+    const readSavedGroups = () => savedState.groups
+    await api.mockRoute(
+      "**/api/admin/about/member-avatar",
+      async (route) => {
+        expect(route.request().headers()["x-csrftoken"]).toBe(
+          "about-avatar-e2e"
+        )
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: true,
+            url: "/uploads/about/member-avatars/producer-a.webp",
+          }),
+        })
+      },
+      "POST"
+    )
+    await api.mockRoute(
+      "**/api/admin/about",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ content, revision: '"revision-1"' }),
+        })
+      },
+      "GET"
+    )
+    await api.mockRoute(
+      "**/api/admin/about",
+      async (route) => {
+        const requestBody = route.request().postDataJSON()
+        savedState.groups = requestBody.content.groups
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: true,
+            content: {
+              ...requestBody.content,
+              updatedAt: "2026-08-05T04:00:00.000Z",
+            },
+            revision: '"revision-2"',
+          }),
+        })
+      },
+      "PUT"
+    )
+
+    await page.goto("/admin/about")
+    await expect(
+      page.getByRole("heading", { name: "关于页配置" })
+    ).toBeVisible()
+    await expect(page.getByLabel("头像链接")).toHaveCount(0)
+    await expect(page.getByLabel("角色主视觉图链接")).toHaveCount(0)
+    await expect(page.getByAltText("制作人A头像")).toHaveAttribute(
+      "src",
+      "/brand/about/staff/iris-radio-p.webp"
+    )
+
+    const groupHandle = page.getByRole("button", {
+      name: "拖动排序：创始人",
+    })
+    await moveDownWithKeyboard(
+      page,
+      groupHandle,
+      page.getByRole("button", { name: /^拖动排序：(创始人|维护组)$/ }),
+      ["拖动排序：维护组", "拖动排序：创始人"]
+    )
+
+    const memberHandle = page.getByRole("button", {
+      name: "拖动排序：制作人A",
+      exact: true,
+    })
+    await moveDownWithKeyboard(
+      page,
+      memberHandle,
+      page.getByRole("button", { name: /^拖动排序：制作人A2?$/ }),
+      ["拖动排序：制作人A2", "拖动排序：制作人A"]
+    )
+
+    await page
+      .getByRole("button", { name: "编辑成员 制作人A", exact: true })
+      .click()
+    const dialog = page.getByRole("dialog", { name: "编辑成员" })
+    await expect(dialog.getByLabel("名称")).toHaveValue("制作人A")
+    await dialog.getByLabel("上传头像").setInputFiles({
+      name: "member-avatar.png",
+      mimeType: "image/png",
+      buffer: Buffer.from([1, 2, 3]),
+    })
+    await expect(dialog.getByAltText("制作人A头像预览")).toHaveAttribute(
+      "src",
+      "/uploads/about/member-avatars/producer-a.webp"
+    )
+    await expect(
+      page.getByText("/uploads/about/member-avatars/producer-a.webp")
+    ).toHaveCount(0)
+    if (process.env.CAPTURE_ABOUT_AVATAR_QA === "1") {
+      await page.screenshot({
+        path: `/tmp/imsweb-about-member-dialog-${testInfo.project.name}.png`,
+        fullPage: false,
       })
-      return
     }
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ content, revision: '"revision-1"' }),
-    })
+    await dialog.getByRole("button", { name: "保存成员" }).click()
+
+    expect(readSavedGroups()).toBeNull()
+
+    await page.getByRole("button", { name: "保存更改" }).click()
+    await expect
+      .poll(() => readSavedGroups()?.map((group) => group.id))
+      .toEqual(["maintainers", "creators"])
+    const savedGroups = readSavedGroups()
+    if (!savedGroups) throw new Error("missing saved About groups")
+    const savedCreators = savedGroups.find((group) => group.id === "creators")
+    expect(savedCreators?.people.map((person) => person.id)).toEqual([
+      "producer-a2",
+      "producer-a",
+    ])
+    expect(
+      savedCreators?.people.find((person) => person.id === "producer-a")
+        ?.avatarUrl
+    ).toBe("/uploads/about/member-avatars/producer-a.webp")
+    await expect(page.getByText(/最近保存/)).toBeVisible()
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth
+    )
+    expect(hasHorizontalOverflow).toBe(false)
+    expect(browserErrors).toEqual([])
+
+    if (process.env.CAPTURE_ABOUT_AVATAR_QA === "1") {
+      await page.getByText("制作人A", { exact: true }).scrollIntoViewIfNeeded()
+      await page.screenshot({
+        path: `/tmp/imsweb-about-avatar-${testInfo.project.name}.png`,
+        fullPage: false,
+      })
+    }
   })
-
-  await page.goto("/admin/about")
-  await expect(page.getByRole("heading", { name: "关于页配置" })).toBeVisible()
-  await expect(page.getByLabel("头像链接")).toHaveCount(0)
-  await expect(page.getByLabel("角色主视觉图链接")).toHaveCount(0)
-  await expect(page.getByAltText("制作人A头像")).toHaveAttribute(
-    "src",
-    "/brand/about/staff/iris-radio-p.webp"
-  )
-
-  const groupHandle = page.getByRole("button", {
-    name: "拖动排序：创始人",
-  })
-  await groupHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
-
-  const memberHandle = page.getByRole("button", {
-    name: "拖动排序：制作人A",
-    exact: true,
-  })
-  await memberHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
-
-  await page
-    .getByRole("button", { name: "编辑成员 制作人A", exact: true })
-    .click()
-  const dialog = page.getByRole("dialog", { name: "编辑成员" })
-  await expect(dialog.getByLabel("名称")).toHaveValue("制作人A")
-  await dialog.getByLabel("上传头像").setInputFiles({
-    name: "member-avatar.png",
-    mimeType: "image/png",
-    buffer: Buffer.from([1, 2, 3]),
-  })
-  await expect(dialog.getByAltText("制作人A头像预览")).toHaveAttribute(
-    "src",
-    "/uploads/about/member-avatars/producer-a.webp"
-  )
-  await expect(
-    page.getByText("/uploads/about/member-avatars/producer-a.webp")
-  ).toHaveCount(0)
-  if (process.env.CAPTURE_ABOUT_AVATAR_QA === "1") {
-    await page.screenshot({
-      path: `/tmp/imsweb-about-member-dialog-${testInfo.project.name}.png`,
-      fullPage: false,
-    })
-  }
-  await dialog.getByRole("button", { name: "保存成员" }).click()
-
-  expect(readSavedGroups()).toBeNull()
-
-  await page.getByRole("button", { name: "保存更改" }).click()
-  await expect
-    .poll(() => readSavedGroups()?.map((group) => group.id))
-    .toEqual(["maintainers", "creators"])
-  const savedGroups = readSavedGroups()
-  if (!savedGroups) throw new Error("missing saved About groups")
-  const savedCreators = savedGroups.find((group) => group.id === "creators")
-  expect(savedCreators?.people.map((person) => person.id)).toEqual([
-    "producer-a2",
-    "producer-a",
-  ])
-  expect(
-    savedCreators?.people.find((person) => person.id === "producer-a")
-      ?.avatarUrl
-  ).toBe("/uploads/about/member-avatars/producer-a.webp")
-  await expect(page.getByText(/最近保存/)).toBeVisible()
-
-  const hasHorizontalOverflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth >
-      document.documentElement.clientWidth
-  )
-  expect(hasHorizontalOverflow).toBe(false)
-  expect(browserErrors).toEqual([])
-
-  if (process.env.CAPTURE_ABOUT_AVATAR_QA === "1") {
-    await page.getByText("制作人A", { exact: true }).scrollIntoViewIfNeeded()
-    await page.screenshot({
-      path: `/tmp/imsweb-about-avatar-${testInfo.project.name}.png`,
-      fullPage: false,
-    })
-  }
 })

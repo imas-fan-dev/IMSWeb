@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/web/frontend/index.md", "reason": "检查改动的层归属与实现前清单是否被遵守，以及是否越过了点规范。"}
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "核对 dialog、菜单条目与浮动控件的可访问属性、触控尺寸与弹层几何是否满足既有约束。"}
+{"file": ".trellis/spec/web/frontend/app-navigation.md", "reason": "核对原生 tab 验证流程与浮层抑制规则在菜单展开时是否仍然成立。"}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "核对新增命令、capability 与 permission 是否完整登记，以及桌面端不支持语义是否正确。"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "核对测试放置、命名与命令，以及新增测试文件是否已同步 unit-source-policy 清单。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查跨 CSS/React/Tauri/Swift 四层的数据流是否有遗漏的消费者或断点。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "检查是否引入了第四套玻璃数值或重复抽象，而不是复用 --glass-* token 与现有组件。"}
+{"file": ".trellis/tasks/09-17-mobile-map-interface-redesign/prd.md", "reason": "逐条核对 Acceptance Criteria，并对未验证项标注原因。"}
+{"file": ".trellis/tasks/09-17-mobile-map-interface-redesign/design.md", "reason": "核对实现是否遵守冻结接口、z 序约束、回退矩阵与几何同步时机。"}
+{"file": ".trellis/tasks/09-17-mobile-map-interface-redesign/implement.md", "reason": "核对清单完成度、验证命令是否实际执行，以及设备验收项是否被如实记录。"}
+{"file": "docs/architecture/glass-refraction-platform-strategy.md", "reason": "确认 ADR 已按扩展后的原生边界修订，且未残留'仅导航层'的失效表述。"}

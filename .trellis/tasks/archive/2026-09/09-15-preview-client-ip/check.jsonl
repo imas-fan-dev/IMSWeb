@@ -1,0 +1,7 @@
+{"file":".trellis/spec/api/backend/index.md","reason":"检查 API 编码规范和完整质量门禁"}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"检查代理信任、审计数据和配置边界"}
+{"file":".trellis/spec/api/backend/testing.md","reason":"检查测试层级和运行时覆盖"}
+{"file":".trellis/spec/repository/index.md","reason":"检查部署脚本和仓库自动化约束"}
+{"file":".trellis/spec/repository/ci.md","reason":"检查根级测试与 CI 行为"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查请求地址从入口到消费者的完整数据流"}
+{"file":".trellis/tasks/09-15-preview-client-ip/research/preview-client-ip-flow.md","reason":"依据已确认的部署链和安全契约复核实现"}

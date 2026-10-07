@@ -1,0 +1,7 @@
+$ node scripts/contracts/check-non-json-boundaries.mjs
+non-JSON boundary manifest: 31 entries
+registered non-JSON handlers: 30
+EXIT=0
+
+$ cd apps/api && node node_modules/typescript/bin/tsc -p tsconfig.tests.json --noEmit
+EXIT=0

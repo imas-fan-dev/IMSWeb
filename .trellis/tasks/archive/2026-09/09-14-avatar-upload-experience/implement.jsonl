@@ -1,0 +1,8 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web 前端规范入口与相关规范地图。"}
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"约束页面私有组件、共享媒体工具和目录所有权。"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"约束响应式、无障碍、稳定布局、触控目标和可见操作。"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"保持现有 API facade、mutation 状态、认证和 CSRF 边界。"}
+{"file":".trellis/spec/web/frontend/tauri-mobile-integration.md","reason":"保持 App 原生图片准备、生命周期和跨平台 fallback 规则。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"判断页面私有头像组件与通用媒体工具的合理复用边界。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"核对选择、裁剪、上传、session 回写和私有媒体读取的完整数据流。"}
+{"file":".trellis/tasks/09-14-avatar-upload-experience/research/planning-context.md","reason":"记录现有头像流程、体验缺口、相关任务边界和裁剪依赖选择。"}

@@ -1,5 +1,26 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+  successResponse,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
+import {
+  makeWikiAdminCatalog,
+  makeWikiAdminIdol,
+  makeWikiAdminStories,
+  makeWikiCategory,
+  makeWikiPublicAgency,
+  makeWikiPublicCatalog,
+  makeWikiPublicGroup,
+  makeWikiPublicIdol,
+  makeWikiPublicStories,
+  makeWikiPublicStoryCard,
+  makeWikiPublicStoryLink,
+  makeWikiRandomIdol,
+  makeWikiStoryCoverAsset,
+} from "@/mocks/data/wiki"
 import {
   createWikiAgency,
   createWikiCategory,
@@ -34,158 +55,86 @@ import {
   updateWikiStory,
 } from "~/lib/api/endpoints/wiki"
 
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return {
-      body: input.body,
-      headers: input.headers,
-      method: input.method,
-      url: input.url,
-    }
-  }
+const categoryMutationResult = {
+  status: "success" as const,
+  category: makeWikiCategory({
+    id: 8,
+    name: "主线剧情 改",
+    storageSlug: "main-story",
+    revision: 1,
+  }),
+}
+
+function agencyMutationResult(id: number) {
   return {
-    body: init?.body ?? null,
-    headers: new Headers(init?.headers),
-    method: init?.method ?? "GET",
-    url: String(input),
+    status: "success" as const,
+    agency: {
+      id,
+      code: "future",
+      name: "未来企划",
+      color: "#123456",
+      wikiEnabled: true,
+      bannerTitle: "Future Production",
+      displayOrder: 0,
+      layoutRevision: 0,
+      iconUrl: null,
+      imageTransform: defaultWikiImageTransform,
+      mediaRevision: 0,
+    },
   }
 }
 
-function successResponse(payload: unknown = { status: "success" }) {
-  return Response.json(payload)
+function groupMutationResult(id: number) {
+  return {
+    status: "success" as const,
+    group: {
+      id,
+      agencyId: 6,
+      code: "unit-a",
+      name: "组合 A",
+      color: "#abcdef",
+      displayOrder: 0,
+      isFallback: false,
+      iconUrl: null,
+      imageTransform: defaultWikiImageTransform,
+      mediaRevision: 0,
+    },
+  }
+}
+
+function idolMutationResult(id: number) {
+  return {
+    status: "success" as const,
+    idol: makeWikiAdminIdol({
+      id,
+      agencyId: 6,
+      name: "未来偶像",
+      folderName: "future_idol",
+      color: "#112233",
+      wikiUrl: "https://wiki.example.test/idols/future",
+      groupIds: [31, 32],
+    }),
+  }
 }
 
 describe("Wiki admin API", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=wiki-api-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    setCsrfCookie("backoffice", "wiki-api-test")
   })
 
   it("validates the dynamic catalog and selected idol story view", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
+      .mockResolvedValueOnce(successResponse(makeWikiAdminCatalog()))
       .mockResolvedValueOnce(
-        successResponse({
-          status: "success",
-          agencies: [
-            {
-              id: 1,
-              code: "765pro",
-              name: "765PRO",
-              color: "#f34f6d",
-              wikiEnabled: true,
-              bannerTitle: "765PRO ALLSTARS",
-              displayOrder: 0,
-              layoutRevision: 0,
-              iconUrl: null,
-              groups: [
-                {
-                  id: 1,
-                  code: "765pro",
-                  name: "765PRO",
-                  color: "#f34f6d",
-                  iconUrl: null,
-                  displayOrder: 0,
-                  isFallback: true,
-                  idols: [
-                    {
-                      id: 10,
-                      agencyId: 1,
-                      name: "天海春香",
-                      folderName: "amami_haruka",
-                      color: "#e22b30",
-                      textColor: "#ffffff",
-                      displayOrder: 0,
-                      imageUrl: "",
-                      imageFit: "cover",
-                    },
-                  ],
-                },
-              ],
+        successResponse(
+          makeWikiAdminStories({
+            idol: {
+              ...makeWikiAdminStories().idol,
+              wikiUrl: "https://wiki.example.test/idols/amami-haruka",
             },
-          ],
-        })
+          })
+        )
       )
-      .mockResolvedValueOnce(
-        successResponse({
-          status: "success",
-          agency: {
-            id: 1,
-            code: "765pro",
-            name: "765PRO",
-            color: "#f34f6d",
-          },
-          idol: {
-            id: 10,
-            agencyId: 1,
-            name: "天海春香",
-            folderName: "amami_haruka",
-            color: "#e22b30",
-            wikiUrl: "https://wiki.example.test/idols/amami-haruka",
-            textColor: "#ffffff",
-            displayOrder: 0,
-            imageUrl: "",
-            imageFit: "cover",
-          },
-          categories: [
-            {
-              id: 1,
-              name: "主线",
-              storageSlug: "main",
-              displayOrder: 0,
-              showWhenEmpty: true,
-              backgroundEligible: false,
-              revision: 0,
-            },
-          ],
-          contentTypes: [
-            {
-              id: 1,
-              name: "剧情",
-              description: "剧情内容",
-              displayOrder: 0,
-              isActive: true,
-              revision: 0,
-            },
-          ],
-          sourcePlatforms: [
-            {
-              id: 2,
-              name: "其他来源",
-              homepageUrl: "",
-              description: "其他来源",
-              displayOrder: 0,
-              isActive: true,
-              revision: 0,
-            },
-          ],
-          cards: [],
-          stories: [
-            {
-              id: 21,
-              cardId: 401,
-              category: "主线",
-              cardName: "【第一话】",
-              upName: "投稿者",
-              videoTitle: "第一话",
-              url: "https://www.bilibili.com/video/BV1xx411c7mD",
-              contentTypeId: 1,
-              contentTypeName: "剧情",
-              sourcePlatformId: 2,
-              sourcePlatformName: "其他来源",
-              subtitle: "开场",
-              imageFile: null,
-              imageUrl: "",
-              revision: 0,
-            },
-          ],
-        })
-      )
-    vi.stubGlobal("fetch", fetchMock)
 
     const catalog = await getAdminWikiCatalog().send()
     const stories = await getAdminWikiStories("765PRO", "天海春香").send()
@@ -216,129 +165,116 @@ describe("Wiki admin API", () => {
   })
 
   it("validates public catalog, grouped stories, and random artwork", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const catalogAgency = makeWikiPublicAgency({
+      id: 6,
+      code: "sc",
+      name: "闪耀色彩",
+      color: "#8dbbff",
+      bannerTitle: "283 Production",
+      iconUrl: "/icon/agencies/6.webp",
+      idolCount: 1,
+      entryCount: 1,
+    })
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
-        successResponse({
-          status: "success",
-          agencies: [
-            {
-              id: 6,
-              code: "sc",
-              name: "闪耀色彩",
-              color: "#8dbbff",
-              bannerTitle: "283 Production",
-              iconUrl: "/icon/agencies/6.webp",
-              idolCount: 1,
-              entryCount: 1,
-              imageTransform: {
-                fit: "contain",
-                focalX: "0.25",
-                focalY: "0.75",
-                zoom: "1.5",
-                rotation: 90,
-              },
-            },
-          ],
-          selection: {
-            agency: {
-              id: 6,
-              code: "sc",
-              name: "闪耀色彩",
-              color: "#8dbbff",
-              bannerTitle: "283 Production",
-              iconUrl: "/icon/agencies/6.webp",
-              idolCount: 1,
-              entryCount: 1,
-            },
-            layoutRevision: 3,
-            groups: [
+        successResponse(
+          makeWikiPublicCatalog({
+            agencies: [
               {
-                id: 31,
-                code: "illumination-stars",
-                name: "illumination STARS",
-                color: "#ffd700",
-                iconUrl: null,
+                ...catalogAgency,
                 imageTransform: {
                   fit: "contain",
-                  focalX: "0.4",
-                  focalY: "0.6",
-                  zoom: "2",
-                  rotation: 180,
+                  focalX: 0.25,
+                  focalY: 0.75,
+                  zoom: 1.5,
+                  rotation: 90,
                 },
-                idols: [
-                  {
-                    id: 10,
-                    name: "樱木真乃",
-                    folderName: "sakuragi_mano",
-                    color: "#f1b0c9",
-                    imageUrl: "/image/mano.webp",
-                    imageFit: "cover",
-                    textColor: "#ffffff",
-                    imageTransform: {
-                      fit: "cover",
-                      focalX: "0.3",
-                      focalY: "0.7",
-                      zoom: "1.25",
-                      rotation: 270,
-                    },
+              },
+            ],
+            selection: {
+              agency: catalogAgency,
+              layoutRevision: 3,
+              groups: [
+                makeWikiPublicGroup({
+                  id: 31,
+                  code: "illumination-stars",
+                  name: "illumination STARS",
+                  color: "#ffd700",
+                  iconUrl: null,
+                  imageTransform: {
+                    fit: "contain",
+                    focalX: 0.4,
+                    focalY: 0.6,
+                    zoom: 2,
+                    rotation: 180,
                   },
+                  idols: [
+                    makeWikiPublicIdol({
+                      id: 10,
+                      name: "樱木真乃",
+                      folderName: "sakuragi_mano",
+                      color: "#f1b0c9",
+                      wikiUrl: "https://wiki.example.test/idols/sakuragi-mano",
+                      imageUrl: "/image/mano.webp",
+                      imageTransform: {
+                        fit: "cover",
+                        focalX: 0.3,
+                        focalY: 0.7,
+                        zoom: 1.25,
+                        rotation: 270,
+                      },
+                    }),
+                  ],
+                }),
+              ],
+              ungroupedIdols: [],
+            },
+          })
+        )
+      )
+      .mockResolvedValueOnce(
+        successResponse(
+          makeWikiPublicStories({
+            idol: makeWikiPublicIdol({
+              id: 10,
+              name: "樱木真乃",
+              folderName: "sakuragi_mano",
+              color: "#f1b0c9",
+              wikiUrl: "https://wiki.example.test/idols/sakuragi-mano",
+              imageUrl: "/image/mano.webp",
+            }),
+            categories: [
+              {
+                name: "enzaP卡",
+                cards: [
+                  makeWikiPublicStoryCard({
+                    id: 401,
+                    name: "【花风Smiley】",
+                    img: "/image/story.webp",
+                    subtitle: "全话",
+                    imageTransform: {
+                      fit: "contain",
+                      focalX: 0.1,
+                      focalY: 0.9,
+                      zoom: 3,
+                      rotation: 0,
+                    },
+                    links: [
+                      makeWikiPublicStoryLink({
+                        id: 21,
+                        up: "投稿者",
+                        title: "卡片剧情",
+                        url: "https://www.bilibili.com/video/BV1xx411c7mD",
+                        contentType: "剧情",
+                        sourcePlatform: "Bilibili",
+                      }),
+                    ],
+                  }),
                 ],
               },
             ],
-          },
-        })
-      )
-      .mockResolvedValueOnce(
-        successResponse({
-          status: "success",
-          agency: {
-            id: 6,
-            code: "sc",
-            name: "闪耀色彩",
-            color: "#8dbbff",
-          },
-          idol: {
-            id: 10,
-            name: "樱木真乃",
-            folderName: "sakuragi_mano",
-            color: "#f1b0c9",
-            wikiUrl: "https://wiki.example.test/idols/sakuragi-mano",
-            imageUrl: "/image/mano.webp",
-            imageFit: "cover",
-            textColor: "#ffffff",
-          },
-          categories: [
-            {
-              name: "enzaP卡",
-              cards: [
-                {
-                  id: 401,
-                  name: "【花风Smiley】",
-                  img: "/image/story.webp",
-                  subtitle: "全话",
-                  imageTransform: {
-                    fit: "contain",
-                    focalX: "0.1",
-                    focalY: "0.9",
-                    zoom: "3",
-                    rotation: 0,
-                  },
-                  links: [
-                    {
-                      id: 21,
-                      up: "投稿者",
-                      title: "卡片剧情",
-                      url: "https://www.bilibili.com/video/BV1xx411c7mD",
-                      contentType: "剧情",
-                      sourcePlatform: "Bilibili",
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        })
+          })
+        )
       )
       .mockResolvedValueOnce(
         successResponse({
@@ -349,7 +285,6 @@ describe("Wiki admin API", () => {
           agency_name: "闪耀色彩",
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     const catalog = await getWikiCatalog("闪耀色彩").send()
     const stories = await getWikiStories("闪耀色彩", "樱木真乃").send()
@@ -405,41 +340,41 @@ describe("Wiki admin API", () => {
   })
 
   it("validates the Wiki-backed random idol contract", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      successResponse({
-        status: "success",
-        eligibleCount: 345,
-        idol: {
-          id: 6,
-          name: "樱木真乃",
-          color: "#8dbbff",
-          textColor: "#ffffff",
-          imageUrl: "/image/闪耀色彩/樱木真乃/icon.webp",
-          imageTransform: {
-            fit: "cover",
-            focalX: 0.35,
-            focalY: 0.4,
-            zoom: 1.25,
-            rotation: 0,
-          },
-          agency: {
+    const fetchMock = installFetchMock().mockResolvedValue(
+      successResponse(
+        makeWikiRandomIdol({
+          eligibleCount: 345,
+          idol: {
             id: 6,
-            code: "sc",
-            name: "闪耀色彩",
+            name: "樱木真乃",
             color: "#8dbbff",
-            iconUrl: "/icon/agencies/6.webp",
+            textColor: "#ffffff",
+            imageUrl: "/image/闪耀色彩/樱木真乃/icon.webp",
             imageTransform: {
-              fit: "contain",
-              focalX: 0.5,
-              focalY: 0.5,
-              zoom: 1,
+              fit: "cover",
+              focalX: 0.35,
+              focalY: 0.4,
+              zoom: 1.25,
               rotation: 0,
             },
+            agency: {
+              id: 6,
+              code: "sc",
+              name: "闪耀色彩",
+              color: "#8dbbff",
+              iconUrl: "/icon/agencies/6.webp",
+              imageTransform: {
+                fit: "contain",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
+            },
           },
-        },
-      })
+        })
+      )
     )
-    vi.stubGlobal("fetch", fetchMock)
 
     const result = await getWikiRandomIdol().send()
 
@@ -456,8 +391,7 @@ describe("Wiki admin API", () => {
   })
 
   it("sends exact story edits and destructive group operations with CSRF", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(successResponse())
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(successResponse())
 
     await updateWikiStory(
       21,
@@ -533,16 +467,18 @@ describe("Wiki admin API", () => {
   })
 
   it("creates a card with multiple sources and deletes groups or individual sources", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         successResponse({ status: "success", sourceCount: 2 })
       )
       .mockResolvedValueOnce(successResponse())
       .mockResolvedValueOnce(
-        successResponse({ status: "success", cardDeleted: false })
+        successResponse({
+          status: "success",
+          cardDeleted: false,
+          mediaRevision: 4,
+        })
       )
-    vi.stubGlobal("fetch", fetchMock)
     const image = new File(["card"], "card.png", { type: "image/png" })
 
     await createWikiStoryBatch({
@@ -631,8 +567,18 @@ describe("Wiki admin API", () => {
   })
 
   it("sends category and card metadata patches with exact contracts and CSRF", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(successResponse())
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
+      .mockResolvedValueOnce(successResponse(categoryMutationResult))
+      .mockResolvedValueOnce(
+        successResponse({
+          status: "success",
+          mediaRevision: 5,
+          revision: 5,
+          imageFile: "cards/main.webp",
+          coverAssetId: null,
+          imageTransform: defaultWikiImageTransform,
+        })
+      )
     const image = new File(["card"], "card.png", { type: "image/png" })
 
     await updateWikiCategory({
@@ -699,16 +645,14 @@ describe("Wiki admin API", () => {
   })
 
   it("creates an idol category and soft deletes an idol with exact contracts", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(successResponse())
+    const fetchMock = installFetchMock()
+      .mockResolvedValueOnce(successResponse(categoryMutationResult))
       .mockResolvedValueOnce(
         successResponse({
           status: "success",
           softDeleted: { cards: 2, stories: 5 },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     await createWikiCategory({
       agencyId: 6,
@@ -738,19 +682,8 @@ describe("Wiki admin API", () => {
   })
 
   it("lists and mutates agency story cover assets with multipart contracts", async () => {
-    const asset = {
-      id: 12,
-      agencyId: 6,
-      name: "共用主线封面",
-      imageUrl: "/api/wiki/story-cover-assets/12.webp?v=0",
-      presentationPolicy: "contain" as const,
-      displayOrder: 0,
-      isActive: true,
-      revision: 0,
-      usageCount: 0,
-    }
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const asset = makeWikiStoryCoverAsset()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         successResponse({
           status: "success",
@@ -762,11 +695,10 @@ describe("Wiki admin API", () => {
       .mockResolvedValueOnce(
         successResponse({
           status: "success",
-          asset: { ...asset, name: "共用封面改", revision: 1 },
+          asset: makeWikiStoryCoverAsset({ name: "共用封面改", revision: 1 }),
         })
       )
       .mockResolvedValueOnce(successResponse())
-    vi.stubGlobal("fetch", fetchMock)
     const image = new File(["cover"], "cover.png", { type: "image/png" })
 
     await getAdminWikiStoryCoverAssets(6).send()
@@ -816,14 +748,13 @@ describe("Wiki admin API", () => {
   })
 
   it("appends multiple sources to one versioned card without card metadata", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+    const fetchMock = installFetchMock().mockResolvedValue(
       successResponse({
         status: "success",
         sourceCount: 2,
         mediaRevision: 4,
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
 
     await createWikiStorySources(21, {
       agency: "闪耀色彩",
@@ -877,8 +808,7 @@ describe("Wiki admin API", () => {
   })
 
   it("uploads and deletes agency icons through the Wiki CSRF boundary", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         successResponse({
           status: "success",
@@ -886,7 +816,6 @@ describe("Wiki admin API", () => {
         })
       )
       .mockResolvedValueOnce(successResponse())
-    vi.stubGlobal("fetch", fetchMock)
     const file = new File(["icon"], "series.png", { type: "image/png" })
 
     const uploaded = await uploadWikiAgencyIcon("闪耀色彩", file).send()
@@ -908,19 +837,16 @@ describe("Wiki admin API", () => {
 
   it("sends catalog creates and updates with exact JSON contracts and CSRF", async () => {
     const mutationResults = [
-      { status: "success", agency: { id: "6" } },
-      { status: "success", agency: { id: 6 } },
-      { status: "success", group: { id: "31" } },
-      { status: "success", group: { id: 31 } },
-      { status: "success", idol: { id: "10" } },
-      { status: "success", idol: { id: 10 } },
+      agencyMutationResult(6),
+      agencyMutationResult(6),
+      groupMutationResult(31),
+      groupMutationResult(31),
+      idolMutationResult(10),
+      idolMutationResult(10),
     ]
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(() =>
-        Promise.resolve(successResponse(mutationResults.shift()))
-      )
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockImplementation(() =>
+      Promise.resolve(successResponse(mutationResults.shift()))
+    )
     const createAgencyPayload = {
       code: "future",
       name: "未来企划",
@@ -1006,7 +932,7 @@ describe("Wiki admin API", () => {
       zoom: 2.25,
       rotation: 270 as const,
     }
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(() =>
+    const fetchMock = installFetchMock(() =>
       Promise.resolve(
         successResponse({
           status: "success",
@@ -1016,7 +942,6 @@ describe("Wiki admin API", () => {
         })
       )
     )
-    vi.stubGlobal("fetch", fetchMock)
     const file = new File(["image"], "entity.png", { type: "image/png" })
 
     await saveWikiEntityImage({

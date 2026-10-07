@@ -1,0 +1,145 @@
+{
+  "summary": {
+    "url": "/",
+    "title": "IMSWeb | 偶像大师交流站",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "THE iDOLM@STER",
+        "href": null,
+        "ariaCurrent": null
+      },
+      {
+        "tag": "H2",
+        "text": "站内动态",
+        "href": null,
+        "ariaCurrent": null
+      },
+      {
+        "tag": "H2",
+        "text": "偶像生日日历",
+        "href": null,
+        "ariaCurrent": null
+      },
+      {
+        "tag": "H2",
+        "text": "活动资讯与同人活动",
+        "href": null,
+        "ariaCurrent": null
+      },
+      {
+        "tag": "H2",
+        "text": "随机担当",
+        "href": null,
+        "ariaCurrent": null
+      },
+      {
+        "tag": "H2",
+        "text": "社区与支持",
+        "href": null,
+        "ariaCurrent": null
+      }
+    ],
+    "navigation": [
+      {
+        "label": "主导航",
+        "items": [
+          {
+            "tag": "A",
+            "text": "首页",
+            "href": "/",
+            "ariaCurrent": "page"
+          },
+          {
+            "tag": "A",
+            "text": "社区动态",
+            "href": "/events",
+            "ariaCurrent": null
+          },
+          {
+            "tag": "A",
+            "text": "站内应用",
+            "href": "/apps",
+            "ariaCurrent": null
+          },
+          {
+            "tag": "A",
+            "text": "地图",
+            "href": "/community/exchange",
+            "ariaCurrent": null
+          },
+          {
+            "tag": "A",
+            "text": "帐号",
+            "href": "/account/me",
+            "ariaCurrent": null
+          }
+        ]
+      }
+    ],
+    "header": [
+      {
+        "tag": "BUTTON",
+        "text": "切换亮色或暗色模式",
+        "href": null,
+        "ariaCurrent": null
+      }
+    ],
+    "contentLinks": [
+      {
+        "tag": "A",
+        "text": "765PRO ALLSTARS",
+        "href": "/works/765",
+        "ariaCurrent": null
+      },
+      {
+        "tag": "A",
+        "text": "CINDERELLA GIRLS",
+        "href": "/works/cg",
+        "ariaCurrent": null
+      },
+      {
+        "tag": "A",
+        "text": "MILLION LIVE!",
+        "href": "/works/ml",
+        "ariaCurrent": null
+      },
+      {
+        "tag": "A",
+        "text": "SideM",
+        "href": "/works/sidem",
+        "ariaCurrent": null
+      },
+      {
+        "tag": "A",
+        "text": "SHINY COLORS",
+        "href": "/works/sc",
+        "ariaCurrent": null
+      },
+      {
+        "tag": "A",
+        "text": "学园偶像大师",
+        "href": "/works/gakuen",
+        "ariaCurrent": null
+      },
+      {
+        "tag": "A",
+        "text": "查看全部动态",
+        "href": "/events",
+        "ariaCurrent": null
+      },
+      {
+        "tag": "A",
+        "text": "查看全部推荐",
+        "href": "/recommendations",
+        "ariaCurrent": null
+      }
+    ],
+    "viewport": {
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390
+    }
+  },
+  "errors": []
+}

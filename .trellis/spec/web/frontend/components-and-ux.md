@@ -1,0 +1,511 @@
+# Web components and UX
+
+## Design authority
+
+`apps/web/DESIGN.md` defines the product's visual tokens and application rules.
+`apps/web/app/app.css` imports the layered stylesheets under `apps/web/app/styles/`
+that implement those tokens. Read both before changing global color, typography,
+spacing, radius, elevation, material, or motion.
+
+When a global token changes, update `DESIGN.md` and the stylesheet that declares
+it (`app/styles/theme.css` owns every token) together and run
+`pnpm --filter @imsweb/web run design:lint`. Do not introduce a one-off token
+that duplicates an existing semantic color or spacing value.
+
+### Stylesheet layers
+
+`app/app.css` is an entry, not a stylesheet: four Tailwind imports, one
+`@layer overrides;` declaration, then local imports in cascade order (`theme`,
+`glass`, `accessibility`, `media`, `app-shell`). Put a new rule in the file that
+owns its concern instead of appending to the entry.
+
+Every style rule must sit in one of three layers. An unlayered author rule beats
+all of them, which is how this stylesheet used to behave and why the shape is now
+pinned by a test rather than by convention:
+
+- `base` — token declarations and element defaults. A utility class may override
+  these, which is the point.
+- `components` — component and material classes (`.glass-*`, `.media-hover`,
+  `.series-icon-*`). A utility class may still override these.
+- `overrides` — only the rules that must win against a utility class on the same
+  element: the capability fallbacks (`prefers-reduced-motion`,
+  `prefers-reduced-transparency`, `forced-colors`), attribute-driven hiding such
+  as the native-glass twins, and the wiki mobile-search lift. Choose this layer
+  only when the element really carries a competing utility; reaching for it
+  otherwise hides the real cascade from the next reader.
+
+`@property`, `@keyframes`, `@theme`, and `@custom-variant` stay at the top level
+because they do not participate in the cascade.
+
+`tests/unit/lib/stylesheet-layers.test.ts` enforces the import order, the absence
+of unlayered rules, and the three layer names. A test that asserts on a rule
+reads the files through `tests/unit/support/stylesheet-source.ts` instead of
+naming one path, so a later split cannot leave the assertion passing against an
+empty string.
+
+## Component choice and ownership
+
+Reuse shadcn and Base UI primitives from `app/components/ui/`. Use Lucide icons
+through the existing icon components. Reusable business UI belongs under
+`app/components/<domain>/`; page-private presentation stays with the page.
+
+Keep route modules focused on data and composition. Extract a component when it
+has its own interaction contract, repeated rendering, or a testable visual
+responsibility. Do not build a wrapper that only renames props or adds a class.
+
+Use controls that match the action: buttons for commands, links for navigation,
+checkboxes or switches for binary settings, tabs for views, and menus for option
+sets. Icon-only buttons need an accessible name and a tooltip when the icon is
+not self-explanatory.
+
+### Account security page
+
+`apps/web/app/pages/account/security/` splits one page into independent
+credential sections: password, email credential, session devices, and OAuth
+links. Each section owns its own loading, error, and success state; the page
+does not gate them behind a single spinner.
+
+The page exposes its account state on the page shell as `data-account-state`,
+with the values `loading`, `error`, `anonymous`, `restricted`, and
+`authenticated`. `app/pages/account/me/account-me-page.tsx` uses the same
+attribute and the same vocabulary, so a test can wait for the surface and know
+which branch it got without reaching into a section. Keep the two pages in step
+when adding a state.
+
+Use `account-security-model.ts` for labels, reason-key mapping, and validation
+shared by the sections instead of duplicating them per section. Keep the OAuth
+link section's result mapping (`oauthLinkReasonKey`) next to the section that
+renders it, and render only translation keys the model already exposes.
+
+The page is delivered to both targets (`route-metadata.ts` gives
+`account/security` `SHARED_TARGETS` and a prerender), so each target's account
+surface carries its own entry: the web entry sits in `PlatformAccountMenu`
+beside 我的名片, and the App reaches the page through `/account/me` and the tab
+model. Do not leave a web-delivered page reachable only from an app-only route.
+`/account/me` is `APP_TARGET`, so an entry written only there renders for App
+users and is absent for everyone on the web — while the security page itself
+still answers 200, which is what makes the gap invisible to a route check.
+
+### Platform OAuth provider buttons
+
+The same provider list renders differently per target, and the difference is the
+action, not the styling:
+
+| Target | Control                                                       | Behavior                                                                       |
+| ------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Web    | Link to `platformAuthOAuthPath('/<code>/start?returnPath=…')` | Whole-document navigation; the API 303s back                                   |
+| App    | Button                                                        | Opens the authorization page in the system browser, then shows a waiting state |
+
+Share the visual identity (`platformOAuthButtonStyle(color)` for the brand
+background, `PlatformOAuthProviderIcon` for the glyph) so the two targets
+match. Do not share the control itself: a link cannot carry the App's bearer
+session and a button cannot perform the Web's document navigation.
+
+Both targets show a retryable failure state when the provider list fails to
+load. The entry must not silently disappear: an empty OAuth section and a failed
+fetch look identical to the user, and only one of them is recoverable.
+
+### Admin platform users
+
+Admin platform-user pages follow the existing admin table and detail conventions
+(`app/pages/admin/`). Account status changes, session revocation, password-reset
+queues, and OAuth unlinking are separate actions with separate confirmations;
+do not collapse them into one destructive control. Server refusals such as
+"cannot unlink the last credential" surface as the API's reason, not as a
+generic failure.
+
+## Responsive and accessible behavior
+
+- Provide semantic roles and visible labels for interactive controls.
+- Support keyboard focus and operation. Use `:focus-visible` behavior already
+  defined in `app/styles/theme.css`.
+- Respect `prefers-reduced-motion` for non-essential motion.
+- Keep loading, error, empty, and success states within stable layout bounds.
+- Verify that text, dialogs, fixed actions, maps, and navigation do not overlap
+  or create horizontal overflow at mobile and desktop sizes.
+- A visually hidden form control must not contribute layout width. Tailwind's
+  `.sr-only` sets `width: 1px`, so a wrapper variant that resets a direct
+  `.sr-only` child to `w-auto` (as `Field` did) hands an absolutely positioned
+  file input its shrink-to-fit width instead: the avatar uploader measured 361px
+  and made every App account section 56px wider than a 320px viewport. Keep the
+  override at `w-px`, and assert `document.documentElement.scrollWidth ===
+window.innerWidth` at 320px for pages that host hidden inputs.
+- Preserve Tauri safe areas for app-target fixed UI.
+- Keep essential labels and actions visible by default. A hover-only presentation may
+  hide them only under the combined `hover: hover` and `pointer: fine` media query;
+  restore them for both hover and `:focus-visible`, and cover the exact media variant
+  with a component regression test.
+
+Existing Playwright tests such as
+`apps/web/tests/e2e/community-exchange.spec.ts` use role-based interaction,
+accessibility scans, viewport geometry, and overflow assertions. Follow those
+patterns for user-visible workflows.
+
+### Content-sized namecard columns
+
+`useNamecardMasonry(cards)` measures each mobile Card at its natural height and
+keeps cards in their original DOM order, assigning columns by index parity.
+Build explicit row tracks from the sorted item top/bottom coordinates; track
+count must stay at most `2 * itemCount - 1`, regardless of page height. Do not use
+one implicit grid row per pixel: a 48-card page with large reaction groups can
+reach the browser's grid limit and overlap later cards.
+
+Enable the measured grid only after valid positive heights are available. Keep
+ordinary-grid fallback for missing ResizeObserver or invalid measurements, clear
+measured styles on desktop, and invalidate scheduled callbacks during cleanup.
+Emoji changes must move later cards in the same column without changing DOM or
+preview order. One Card owns both faces, metadata, and reactions.
+
+Cover initial alignment, unequal heights, asynchronous changes, breakpoint
+round-trips, and 48 cards with 11 six-digit reaction counts in browser tests.
+Assert same-column gaps, footer separation, and bounded track count, not merely
+that the first viewport looks correct.
+
+### Mobile namecard pagination
+
+Keep page-size, summary, jump form, and previous/next controls in one named
+navigation region. The mobile controls use two rows and targets of at least
+44px; desktop retains its labels and grouping. Preserve URL parameters, reject
+invalid pages, submit on Enter, cancel the draft on Escape, and avoid a request
+for the current page. Verify that a changed page starts in view.
+
+When shortening a label visually, set a stable accessible name on its control:
+browsers can insert spaces between nested label text that unit-test DOMs omit.
+Geometry checks must exclude Base UI's offscreen form inputs; a 1px native form
+mirror is not a visible touch target.
+
+The App floating upload/back-to-top group yields while the namecard pagination
+is visible. The page-private visibility hook owns initial measurement, observer
+subscription, fallback events and cleanup; AppLayout only consumes the marker.
+Do not unmount the upload dialog or change other routes to solve this collision.
+Test actual `elementFromPoint` hits across enabled controls, not only the layout
+of controls inside the navigation. Disabled buttons may have pointer-events none
+and are not touch-hit candidates.
+
+### Namecard dates and reaction graphics
+
+Render submission timestamps as Shanghai `MM-DD HH:mm` with a 24-hour `h23`
+clock. Assemble the parts explicitly rather than relying on locale punctuation.
+Keep the year and seconds in the time element's ISO value and full accessible
+description. Cover midnight, date/year rollovers, timezone offsets, and narrow
+column bounds. Missing/invalid labels remain short.
+
+Reaction chips and picker entries use the same page-private local-image
+component. Preserve Unicode wire values and button labels, but never use native
+emoji as a visual fallback. Pin assets, attribution and SHA-256 metadata under
+public, and keep the asset map, API allowlist and actual files covered together.
+Browser tests must load all icons in both targets and verify their dimensions;
+allow subpixel rounding when comparing DOMRect values to CSS pixels.
+
+Mobile list reaction summaries show at most three active emoji, sorted by
+count descending with original API order breaking ties. Desktop shows every
+active reaction. On Web at the `md` breakpoint and above, clicking a list chip
+adds that reaction directly, and a visible add button opens the same picker used
+in detail. Narrow Web and all App list summaries open the detail Dialog. The
+picker entries retain their 44px targets. Keep Unicode values in accessible
+names and render their pinned local images, never native emoji as a visual
+fallback.
+
+When an open desktop list picker crosses below `48rem`, close its portal and
+return focus to a visible detail entry on the same card, preferring the mobile
+reaction summary. The detail picker stays available at narrow widths. Verify
+this transition with an open picker; hiding only its trigger leaves the portal
+interactive and its default focus target hidden.
+
+List summaries use 32px-high bordered pills with 14px graphics, 11px counts,
+`min-w-8`, and `px-1` on mobile. Desktop uses 20px graphics, 14px counts and
+`md:px-3`. Short mobile counts may grow up to `max-w-14`; longer counts grow
+to fit without clipping. Keep the row inset with footer `p-1.5`, `gap-0.75`
+on mobile and `md:gap-1.5` on desktop. When no reactions exist, narrow Web and App
+show `查看详情`; desktop Web shows the add-reaction picker. Preserve inset focus
+rings and verify that three summaries do not overflow a 320px viewport.
+
+The list metadata row keeps the date and claimed/pending badge together; the
+claim action is in the detail Dialog, not the list. The mobile date drops the
+decorative calendar icon (`max-md:hidden`) so the date and a short producer
+name fit side by side on a 390px Card. A longer name wraps instead of being
+truncated, since a touch device cannot recover a truncated name.
+
+The claim dialog treats 企划 and 担当偶像 as optional: a producer may submit the
+claim with neither and fill them in from the owner card editor after approval.
+A claim row's `series_code` is `NOT NULL` and foreign-keyed into `agencies`, so
+the API derives one rather than demanding a choice, taking the first candidate
+that is a live, wiki-enabled agency: the explicit request value, the card the
+claim binds to, the selected idols' agency, then the legacy card's own series.
+Only when none of those resolve does it answer `409`
+`FUDABA_CLAIM_SERIES_REQUIRED`, which the dialog surfaces so the producer can
+pick one. An empty idol selection skips validation in the claim path only;
+owner-card writes still require between 1 and 20 idols.
+
+Desktop list summaries remain compact pills with natural width (`md:min-w-0`),
+20px graphics, 14px counts and `md:px-3`. The add control appears in desktop Web
+list rows and inside the detail Dialog, next to the reaction set. Both reuse
+`NamecardReactionPicker`. Its visible dashed circle is 32px in diameter, matching
+the pill height and therefore the end-arc diameter. Center this circle inside a
+transparent 44px button and use `items-center` on the reaction row; do not enlarge
+the pills to match the touch target. Browser checks must compare the circle
+dimensions and vertical center with a pill, and verify that the 44px hit target
+does not overlap adjacent pills.
+
+On desktop the Card is a flex column (`md:gap-0`) whose children are the faces
+(with `md:mb-4` and a `md:border-b` separator), the metadata row, and the
+reaction row. Paint the panel on the Card (`md:bg-muted/50`) rather than on the
+footer, so the whole area below the faces reads as one surface. Hold the
+metadata row at `md:min-h-8` so every card in a row is the same height and the
+column's stretch leaves no filler above the panel. A claimed badge renders the
+linked card's producer name directly; API resolution falls back to the claiming
+platform profile's display name, then to `已由注册用户认领` when neither name is
+available. Keep the shield icon to retain the claimed-state meaning without a
+text prefix. Center the metadata with `md:items-center` on the header: padding
+the header instead moves the date off the claim's optical center.
+
+### Namecard detail and image preview
+
+The list faces and reaction summaries open `NamecardDetailDialog`. It renders
+both faces, only metadata already in the public list response, claim state and
+action, and all reactions. It does not construct a share link until an anonymous
+single-card route and its public projection exist. The claim Dialog remains a
+separate overlay; successful submission updates both the visible list and the
+current detail card.
+
+`useNamecardDetailSession(listContext)` holds only the card opened from the list,
+closes when list context changes, and updates the selected card after a claim.
+The detail has no previous/next card controls, card position indicator or
+adjacent-page reads; the underlying list keeps its own pagination. `NamecardPreview`
+opens from a face inside detail and handles only that card's side, zoom, pan and
+image retry. Closing preview returns focus to its detail image trigger. Closing
+detail uses `useNamecardDetailReturn(listContext)` to restore the original list
+trigger, scrollable ancestors and window position after the focus trap releases.
+Its deferred callback must ignore stale sessions.
+
+The page owns one reaction cache by card ID for list summaries and detail.
+Deduplicate list/detail reads by card ID while a request is in flight. A read
+that began before a successful mutation cannot overwrite its new count: record
+a per-card version before sending the read, increment it on mutation, and ignore
+an older response. The page also owns pending writes and the session cap of 10
+successful clicks per emoji per card, shared by desktop list and detail. Reject
+duplicate writes for the same card until its request finishes; other cards can
+submit independently. Failed writes preserve counts and quota, report the error,
+and allow retry. The opened card shares the list's reaction cache and in-flight
+read.
+
+Test the detail session/return hooks, reaction read-versus-write race, stable
+mobile top-three ranking, detail-to-preview focus chain and App safe areas.
+The browser suites `namecard-mobile-browsing`, `app-namecard-browsing`,
+`namecard-preview`, `namecard-claim-workflow`, `namecard-pagination` and
+`app-navigation` cover the entry changes. Request-count fixtures must match
+the shared in-flight read semantics, not assume separate list/detail fetches.
+
+### Popup resting styles
+
+Animation completion alone does not prove a popup is usable. The namecard
+reaction picker uses a local no-animation override because Firefox collision
+placement could leave its entry opacity and transform at intermediate values.
+Assert computed opacity `1` and rendered 44px targets after placement, including
+short landscape viewports. Keep this override local; do not disable global
+motion. When waiting for finite animations, allow cancellation with
+`Promise.allSettled`, then assert the resulting styles and geometry.
+
+### Fixed-height virtualized rows
+
+Treat a virtualized row's rendered height, loading skeleton, virtualizer estimate,
+and test mock as one contract. Change them together, and make test doubles derive
+positions and total size from the supplied estimate instead of repeating a numeric
+height.
+
+Keep metadata in normal document flow across breakpoints unless the product design
+explicitly calls for a different desktop order. Absolute positioning can make a row
+look denser while breaking reading order, centering, and skeleton parity.
+
+Browser geometry assertions must preserve signed viewport coordinates. Virtualized
+rows can sit above the viewport and return negative `DOMRect` values; clamping those
+values to zero creates false overflow failures. Compare relative centers, edges, and
+adjacent row bounds directly.
+
+### Multi-column virtualized rows
+
+CSS grid cannot reflow absolutely positioned virtual items into columns, so a
+responsive multi-column virtualized feed packs consecutive items into virtual rows
+instead. Below the desktop breakpoint and on the App target, one item is one virtual
+row; at `lg` and above, two consecutive items share a row, and an odd trailing item
+occupies only the first column.
+
+Express the virtualizer `count`, stable item keys, `estimateSize`, and
+`getTotalSize()` in virtual rows, not raw items. The row container stays the sole
+`measureElement` target and keeps the row-level `data-index`, while each rendered
+item keeps `role="listitem"`, source order, `aria-posinset`, and the item total.
+Call the virtualizer's `measure()` when the column count or the item array changes,
+so no stale row height survives a breakpoint crossing, a refresh, or an appended
+page.
+
+A `role="list"` must own `listitem` elements, and a row wrapper between them breaks
+that ownership. Give the wrapper `role="presentation"` so the generic element is
+flattened out of the accessibility tree and the listitems become the list's owned
+children again. Axe does not catch this: its `listitem` rule only inspects `ul` and
+`ol`, so a green accessibility run is not evidence that a `div[role="list"]` owns
+its items.
+
+Derive the column count from one source that the loading state can mirror.
+Subscribing to `(min-width: 1024px)` with `useSyncExternalStore`, a no-op subscribe
+when `window.matchMedia` is missing, and a single-column server snapshot keeps SSR
+and the App target on one column; a skeleton switching on `lg:` then agrees with the
+same 1024px threshold. When a `divide-y` skeleton container becomes a grid, move the
+separator onto each cell (`border-b`) to match the real row, or the loading state
+silently loses the border hierarchy the loaded list has.
+
+### App navigation
+
+Follow [App navigation](./app-navigation.md) for section ownership, queued tab
+input, reading position, history, directory entries, and native verification.
+Keep child-page titles visible when their former tab title becomes a section
+label. Geometry and safe-area rules apply to both restored pages and direct entry.
+
+### Travelling lens geometry
+
+The website header and App fallback tab bar share `.glass-lens` motion, but each
+component owns its capsule dimensions. Choose the local vertical inset so the
+lens skin and its outward ring remain inside the segment at the maximum
+`scaleY`; do not shrink the navigation link or its hit target to create this
+space.
+
+```text
+visible gap = inset - ring outset - vertical transform growth / 2
+```
+
+Do not use `overflow-hidden` or `overflow-clip` to hide an oversized lens. Those
+rules mask the geometry defect and can cut off the ring or moving material. A
+browser regression must measure the resting gap after accounting for the ring
+and sample the `0%`, `28%`, `64%`, and `100%` animation states after the longest
+supported slot transition.
+
+Pointer-tracked glass highlights are disabled in production. Do not mount the
+tracker or add `glass-sheen`, `glass-control`, or `data-glass-interactive` to a
+production surface without a new interaction review covering nested ownership,
+pointer exit, keyboard focus, touch behavior, and reduced motion.
+
+### App map floating control shapes
+
+The App draws the exchange map controls through the native glass overlay, so the DOM twin's
+computed radius is the shape the user sees: `measureCornerRadius` in
+`app/lib/native-glass-controls.tsx` reads `borderTopLeftRadius`, caps it at half of the shorter
+side, and hands it to `GlassControlView`. That cap matters because Tailwind's `rounded-full`
+compiles to `3.40282e38px`, which drew a rounded square until it existed. A standalone control is
+a circle (`rounded-full`); a stacked pair is one capsule (`.exchange-map-app-pill-top` /
+`.exchange-map-app-pill-bottom`). Do not leave a map control on a `rounded-lg` square. Assert the
+shape in a browser test rather than by reading the class string, because the radius decides the
+drawing: a circle needs `radius >= min(width, height) / 2` on a square control.
+
+### Map data attribution notice
+
+The OpenMapTiles notice is a licence obligation, and it is no longer drawn inside the map. Keep one
+source of truth and a gapless set of entry points:
+
+- Read the notice from the loaded style (`map.getStyle().sources[*].attribution`); the first
+  non-empty string wins. Do not copy the text into a component, a contract, or a second metadata
+  field, and do not refetch the style JSON to obtain it.
+- Parse it once with `parseMapAttribution`
+  (`app/pages/community/exchange/exchange-map-attribution.ts`) into ordered
+  `{ kind: "text" | "link" }` segments and render those. `dangerouslySetInnerHTML` is forbidden; only
+  `https:` hrefs survive and anything else degrades to plain text.
+- `null` means the entry is not rendered at all — no disabled button, no empty dialog.
+- The entry points cover a gapless union: the bottom search card's More menu on App and Web below
+  1024px, and the Web discovery rail at 1024px and up.
+  Whenever a container gains a width-hiding class, re-check that no width loses its only entry.
+- One controlled dialog serves the page. Closing it returns focus to the visible More trigger on
+  narrow layouts or the desktop source trigger. Native iOS focus returns to the native More control.
+  Menu entries that have closed must not receive focus.
+- The card's search input/trigger is 48px high; More and the text tools have targets of at least
+  44 × 44 CSS pixels. Below 1024px, search, filter and both directories share the card, including
+  the 768px range. The card is nonmodal; only its dedicated handle owns drag gestures.
+
+## Scenario: Mobile dialog sizing and scrolling
+
+### 1. Scope / Trigger
+
+Apply this contract to every centered dialog built on `app/components/ui/dialog.tsx`, and whenever a dialog is long enough to exceed a phone viewport, a caller wants to size one, or a footer or close button must stay reachable.
+
+### 2. Signatures
+
+```tsx
+DialogContent({ layout?: "scroll" | "pinned", safeArea?: "custom" | "inset" | "viewport", … })
+DialogBody({ className, …props }) // data-slot="dialog-body"
+```
+
+### 3. Contracts
+
+- `safeArea="inset"` owns its own size. The geometry (`max-h-(--overlay-safe-height)`,
+  `w-(--overlay-safe-width)`, centering) is written **after** `className`, and `cn` is
+  `twMerge(clsx(...))`, so a caller's `max-h-*` / `w-*` never wins. Do not pass them; delete them
+  when you find them, because they read as if they decide the size.
+- Scrollability comes from `layout`, not from tailwind-merge resolving `overflow` against
+  `overflow-y`. `scroll` (the default) puts `overflow-y-auto overscroll-contain` on the popup;
+  `pinned` puts `overflow-hidden` there plus `flex flex-col` display, so the default path is
+  byte-identical to the pre-`layout` behaviour.
+- `pinned` requires the whole chain to be flex. Any wrapper between `DialogContent` and
+  `DialogHeader` / `DialogBody` / `DialogFooter` — usually a `<form>` — must carry
+  `flex min-h-0 flex-1 flex-col`. Without it the body cannot shrink, the content overflows the
+  `overflow-hidden` popup, and no element scrolls at all.
+- `DialogBody` (`min-h-0 flex-1 overflow-y-auto overscroll-contain`) is the only scroll region in
+  `pinned`. `DialogHeader` and `DialogFooter` are `shrink-0`, so both stay in place.
+- The close button stays `absolute top-2 right-2` and needs no wrapper: the `pinned` root does not
+  scroll, so it is already pinned. It grows to 44 × 44 CSS pixels below the `sm` breakpoint.
+- Option rows rendered inside a dialog are at least `min-h-11` (44px) on touch widths.
+- `DialogFooter`'s `-mx-4 -mb-4` assumes the popup's `p-4`. A wrapper form still aligns the bar to
+  the panel edges because the form spans the popup's content box.
+- A dialog opens with a 100ms zoom, so geometry read straight after `toBeVisible()` is scaled (a
+  44px target measures 43.45px). Wait for finite animations before reading boxes.
+
+### 4. Validation & Error Matrix
+
+| Condition                                           | Required result                                                      |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| Caller passes `max-h-[90svh]`                       | The primitive's `--overlay-safe-height` still wins                   |
+| `layout="pinned"` with no `DialogBody`              | Defect, not a supported shape: content is clipped with no scroller   |
+| Wrapper form missing `flex min-h-0 flex-1 flex-col` | Body cannot shrink; clipped with no scroller                         |
+| Long content at 320 × 568                           | Only the body scrolls; `document.scrollingElement.scrollTop` stays 0 |
+| An inner element needs its own limit                | Keep that `max-h`: only `DialogContent` sizes are primitive-owned    |
+| Short dialog, no `layout` prop                      | Default `scroll` behaviour, unchanged                                |
+
+### 5. Good / Base / Bad Cases
+
+- Good: the namecard claim and upload dialogs use `layout="pinned"`, make the form the flex chain,
+  wrap the fields in `DialogBody`, and keep `DialogFooter` inside the form.
+- Base: a short settings dialog keeps the default `scroll` layout and is untouched.
+- Bad: removing the popup's `overflow-y-auto` outright, which silently turns every existing dialog
+  from "scrolls" into "clipped"; a caller-supplied `max-h`; a hand-rolled
+  `grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden` that predates `layout="pinned"`.
+
+### 6. Tests Required
+
+- `tests/unit/components/ui/dialog.test.tsx`: both layouts' rendered classes and `data-layout`, and
+  a caller `max-h-[90svh]` failing to override the safe-area height.
+- `tests/e2e/namecard-claim-workflow.spec.ts` `@mobile` cases at 375 × 667 and 320 × 568: the panel
+  inside `window.visualViewport`, the submit button visible without scrolling, the body overflowing
+  and scrolling while the footer and close button boxes do not move, `document.scrollingElement`
+  top at 0, and the close button plus every option row at least 44 × 44.
+- Real-device soft keyboard `dvh` shrink is device-only evidence; a passing unit or build is not it.
+
+### 7. Wrong vs Correct
+
+```tsx
+// Wrong: the caller looks like it owns the size, and the footer cannot stay put.
+<DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+  <form>{header}{fields}<DialogFooter /></form>
+</DialogContent>
+
+// Correct: the primitive owns the size, and the body is the scroll region.
+<DialogContent layout="pinned" className="sm:max-w-2xl">
+  <form className="flex min-h-0 flex-1 flex-col space-y-5">
+    <DialogHeader />
+    <DialogBody className="space-y-5">{fields}</DialogBody>
+    <DialogFooter />
+  </form>
+</DialogContent>
+```
+
+## Public assets
+
+Files added to `apps/web/public/` need a clear runtime purpose and an entry in
+`docs/governance/assets.md`. Do not copy private historical assets into this
+repository. Generated Tauri icons remain derived from their tracked source
+assets and are not hand-edited.

@@ -1,0 +1,6 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web 文件归属和实施前检查"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"后台组件复用、pinned Dialog、触摸目标和焦点"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"API facade、候选状态和既有 CSRF"}
+{"file":".trellis/spec/api/backend/community-content.md","reason":"保留整页 CAS、空默认、权限和图片引用规则"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"直接复用后台与 UI 原语，避免另建框架"}
+{"file":".trellis/tasks/archive/2026-10/10-07-community-admin-list-dialog/research/source-baseline.md","reason":"已核实的源码边界、样式参照与业务回归"}

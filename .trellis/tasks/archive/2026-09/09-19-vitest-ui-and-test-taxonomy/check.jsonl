@@ -1,0 +1,5 @@
+{"file": "tests/vitest-reporting.test.mjs", "reason": "不变量守卫的写法参照：objectAfter/quoted 与不硬编码阈值"}
+{"file": "tests/test_workspace_boundaries.py", "reason": "根依赖白名单断言与脚本上限断言"}
+{"file": "scripts/testing/tests/run-test-owner.test.mjs", "reason": "对治理段文件清单做精确断言，新增守卫必须同步"}
+{"file": "docs/development/testing.md", "reason": "核对脚本数与 test:ui 说明"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "核对仓库域执行入口未被改变"}

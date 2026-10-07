@@ -1,59 +1,55 @@
-import { z } from "zod"
-
+import { eventChroniclePath } from "@imsweb/contracts/paths"
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   PUBLIC_QUERY_CACHE_FOR,
 } from "../cache-policy"
+import {
+  normalizeChronicleActivity,
+  normalizeChronicleActivitySummaries,
+} from "../media-urls"
+import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
-const activityIdSchema = z.string().trim().min(1).max(120)
+import {
+  chronicleActivitySchema,
+  chronicleActivityListSchema,
+  chronicleErrorResponseSchema,
+  // pi-lens-ignore: ts:2724
+  chronicleUploadHttpErrorResponseSchema,
+  chronicleUploadResponseSchema,
+} from "@imsweb/contracts/chronicle"
 
-export const chronicleActivitySummarySchema = z.object({
-  id: activityIdSchema,
-  title: z.string().trim().min(1),
-  date: z.string().trim().min(1),
-  location: z.string().trim().min(1),
-  cover: z.string().nullable(),
-})
+export {
+  chronicleActivitySchema,
+  chronicleActivitySummarySchema,
+} from "@imsweb/contracts/chronicle"
 
-export const chronicleActivitySchema = z.object({
-  id: activityIdSchema,
-  title: z.string().trim().min(1),
-  date: z.string().trim().min(1),
-  location: z.string().trim().min(1),
-  images: z.array(z.string().min(1)),
-})
-
-const chronicleUploadResponseSchema = z.object({
-  success: z.literal(true),
-  count: z.number().int().nonnegative(),
-})
-
-export type ChronicleActivitySummary = z.infer<
-  typeof chronicleActivitySummarySchema
->
-export type ChronicleActivity = z.infer<typeof chronicleActivitySchema>
+export type {
+  ChronicleActivity,
+  ChronicleActivitySummary,
+} from "@imsweb/contracts/chronicle"
 
 export function getChronicleActivities() {
-  return apiClient.Get<ChronicleActivitySummary[], unknown>(
-    "/eventchronicle/activities",
-    {
+  return apiClient.Get(
+    eventChroniclePath("/activities"),
+    parsed(chronicleActivityListSchema, {
+      errorSchema: chronicleErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
-      transform: (payload) =>
-        z.array(chronicleActivitySummarySchema).parse(payload),
-    }
+      select: normalizeChronicleActivitySummaries,
+    })
   )
 }
 
 export function getChronicleActivity(activityId: string) {
-  return apiClient.Get<ChronicleActivity, unknown>(
-    `/eventchronicle/activities/${encodeURIComponent(activityId)}`,
-    {
+  return apiClient.Get(
+    eventChroniclePath(`/activities/${encodeURIComponent(activityId)}`),
+    parsed(chronicleActivitySchema, {
+      errorSchema: chronicleErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
-      transform: (payload) => chronicleActivitySchema.parse(payload),
-    }
+      select: normalizeChronicleActivity,
+    })
   )
 }
 
@@ -68,12 +64,12 @@ export function uploadChronicleImages(
   form.append("username", username)
   for (const file of files) form.append("images", file)
 
-  return apiClient.Post<z.infer<typeof chronicleUploadResponseSchema>, unknown>(
-    "/eventchronicle/upload",
+  return apiClient.Post(
+    eventChroniclePath("/upload"),
     form,
-    {
+    parsed(chronicleUploadResponseSchema, {
+      errorSchema: chronicleUploadHttpErrorResponseSchema,
       headers: { "Idempotency-Key": idempotencyKey },
-      transform: (payload) => chronicleUploadResponseSchema.parse(payload),
-    }
+    })
   )
 }

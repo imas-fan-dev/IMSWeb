@@ -1,7 +1,8 @@
 import { WORK_CHARACTER_IMAGE_URLS } from "~/pages/works/brand-assets"
+import { WORK_SLUG, type WorkSlug } from "~/pages/works/work-slugs"
 
 export type WorkEntry = {
-  slug: string
+  slug: WorkSlug
   title: string
   eyebrow: string
   /** CSS gradient string for the franchise title (e.g. "90deg, #ff6fa5, #ffb199") */
@@ -32,7 +33,7 @@ export type WorkEntry = {
 
 export const officialEntries: WorkEntry[] = [
   {
-    slug: "765",
+    slug: WORK_SLUG.allStars,
     title: "765PRO ALLSTARS",
     eyebrow: "THE IDOLM@STER",
     gradient: "90deg, #ff6fa5, #ffb199",
@@ -58,7 +59,7 @@ export const officialEntries: WorkEntry[] = [
     category: "official",
   },
   {
-    slug: "cg",
+    slug: WORK_SLUG.cinderellaGirls,
     title: "CINDERELLA GIRLS",
     eyebrow: "CINDERELLA GIRLS",
     gradient: "90deg, #006FF9, #5AC3FE",
@@ -84,7 +85,7 @@ export const officialEntries: WorkEntry[] = [
     category: "official",
   },
   {
-    slug: "ml",
+    slug: WORK_SLUG.millionLive,
     title: "MILLION LIVE!",
     eyebrow: "MILLION LIVE",
     gradient: "90deg, #FFAF2E, #FFDA60",
@@ -110,7 +111,7 @@ export const officialEntries: WorkEntry[] = [
     category: "official",
   },
   {
-    slug: "sidem",
+    slug: WORK_SLUG.sideM,
     title: "SideM",
     eyebrow: "315 PRODUCTION",
     gradient: "90deg, #05CC9A, #68E081",
@@ -136,7 +137,7 @@ export const officialEntries: WorkEntry[] = [
     category: "official",
   },
   {
-    slug: "sc",
+    slug: WORK_SLUG.shinyColors,
     title: "SHINY COLORS",
     eyebrow: "283 PRODUCTION",
     gradient: "90deg, #4791FF, #D4E5F8",
@@ -162,7 +163,7 @@ export const officialEntries: WorkEntry[] = [
     category: "official",
   },
   {
-    slug: "gakuen",
+    slug: WORK_SLUG.gakuen,
     title: "学园偶像大师",
     eyebrow: "HATSUBOSHI GAKUEN",
     gradient: "90deg, #FE8C03, #FFAC30",
@@ -192,7 +193,7 @@ export const officialEntries: WorkEntry[] = [
 // TODO: 同人作品与官方作品后续需重新设计业务逻辑（审核流程、展示优先级等）
 export const fanEntries: WorkEntry[] = [
   {
-    slug: "games",
+    slug: WORK_SLUG.games,
     title: "社区游戏与工具",
     eyebrow: "FAN CREATIONS",
     gradient: "",
@@ -212,7 +213,7 @@ export const fanEntries: WorkEntry[] = [
     navLinks: [{ label: "📰 资料库", href: "/wiki" }],
   },
   {
-    slug: "wows",
+    slug: WORK_SLUG.worldOfWarships,
     title: "World of W@rships",
     eyebrow: "COMMUNITY PROJECT",
     gradient: "",

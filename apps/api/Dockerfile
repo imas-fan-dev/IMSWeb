@@ -2,11 +2,23 @@ ARG NODE_VERSION=24.18.0
 
 FROM node:${NODE_VERSION}-bookworm-slim AS pnpm-base
 
+ARG DEBIAN_MIRROR_BASE=http://deb.debian.org
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG NODE_HEADERS_MIRROR=https://npmmirror.com/mirrors/node
+
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
 ENV HUSKY=0
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
+ENV npm_config_disturl=${NODE_HEADERS_MIRROR}
 
-RUN corepack enable \
+RUN sed --in-place \
+        "s|http://deb.debian.org|${DEBIAN_MIRROR_BASE}|g" \
+        /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install --yes --no-install-recommends g++ make python3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
     && corepack prepare pnpm@11.10.0 --activate
 
 WORKDIR /app
@@ -15,6 +27,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY .husky/install.mjs .husky/install.mjs
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/contracts/build-if-sources.mjs packages/contracts/build-if-sources.mjs
 
 FROM pnpm-base AS build
 
@@ -24,13 +38,23 @@ COPY . .
 
 RUN pnpm run build
 
-FROM node:${NODE_VERSION}-bookworm AS production-dependencies
+FROM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
+
+ARG DEBIAN_MIRROR_BASE=http://deb.debian.org
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
 ENV HUSKY=0
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
 
-RUN corepack enable \
+RUN sed --in-place \
+        "s|http://deb.debian.org|${DEBIAN_MIRROR_BASE}|g" \
+        /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install --yes --no-install-recommends g++ make python3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
     && corepack prepare pnpm@11.10.0 --activate
 
 WORKDIR /app
@@ -39,10 +63,14 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY .husky/install.mjs .husky/install.mjs
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/contracts/build-if-sources.mjs packages/contracts/build-if-sources.mjs
 
 COPY --from=build /pnpm/store /pnpm/store
 
-RUN pnpm install --offline --frozen-lockfile --prod --filter @imsweb/api...
+# The build stage already verifies this frozen lockfile before exporting its store.
+RUN PNPM_CONFIG_TRUST_LOCKFILE=true \
+    pnpm install --offline --frozen-lockfile --prod --filter @imsweb/api...
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
@@ -59,6 +87,7 @@ COPY package.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY --from=production-dependencies /app/node_modules node_modules
 COPY --from=production-dependencies /app/apps/api/node_modules apps/api/node_modules
+COPY --from=build /app/packages/contracts packages/contracts
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/migrations/postgresql apps/api/migrations/postgresql
 COPY --from=build /app/apps/api/scripts/migration/postgres-migrations.js \

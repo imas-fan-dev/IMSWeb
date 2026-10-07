@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/09-19-vitest-ui-and-test-taxonomy/prd.md", "reason": "父任务需求、普查数据、AC 与确认决策"}
+{"file": ".trellis/tasks/09-19-vitest-ui-and-test-taxonomy/design.md", "reason": "两条工作流的分工、projects 配置形状、归类规则与风险表"}
+{"file": ".trellis/tasks/09-19-vitest-ui-and-test-taxonomy/implement.md", "reason": "分阶段实施清单与回滚点"}
+{"file": "scripts/check-workspace-boundaries.mjs", "reason": "根 devDependencies 白名单与边界强制点"}
+{"file": "scripts/testing/run-test-owner.mjs", "reason": "治理/契约/交付段的计划形状与被冻结的断言对象"}
+{"file": "docs/development/testing.md", "reason": "脚本数、执行域与报告/覆盖率文档，必须同步"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "仓库域 CI 与根 UI 的规格落点"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "API 测试域规格：归类约定与执行入口"}

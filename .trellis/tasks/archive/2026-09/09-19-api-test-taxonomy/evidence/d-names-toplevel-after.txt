@@ -1,0 +1,74 @@
+tests/hono-app-contract.test.js	Hono app contract [ARC-01 RUN-01 NODE-01] compiled entry exposes separate Hono and Node surfaces
+tests/hono-app-contract.test.js	Hono app contract [ARC-01] default Web assets and mutable data use separate roots
+tests/hono-app-contract.test.js	Hono app contract [RUN-01 WIKI-01] honoApp supports standard Request/Response without a socket
+tests/hono-app-contract.test.js	Hono app contract [RUN-01] compiled startup loads the API-owned .env without overriding process env
+tests/hono-app-contract.test.js	Hono app contract [RUN-01] createHonoApp resolves service dependencies for every request
+tests/hono-app-contract.test.js	Hono app contract [RUN-01] invalid story upload byte limits fail before Node startup
+tests/hono-app-contract.test.js	Hono app contract [RUN-02] importing either compatibility entry never starts a listener
+tests/hono-app-contract.test.js	Hono app contract [SEC-01] production requires an independent high-entropy Platform JWT secret
+tests/hono-app-contract.test.js	Hono app contract [SEC-01] production requires the dedicated Backoffice JWT secret
+tests/hono-app-contract.test.js	Hono app contract [SEC-01] shared app adds security headers to early 413 and 429 responses
+tests/node-listener-probe.test.js	node listener probe [RUN-02] loopback listener probe always produces a bounded diagnosis
+tests/node-security.test.js	node security [AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and filesystem services
+tests/node-security.test.js	node security [AUTH-01] Node and WebCrypto JWTs interoperate and invalid token classes stay rejected
+tests/node-security.test.js	node security [CORE-01] shared reaction contract runs against Node PostgreSQL
+tests/node-security.test.js	node security [MEDIA-01 NODE-01] shared multipart contract runs against Node streaming parser
+tests/node-security.test.js	node security [MEDIA-01] shared GET/HEAD and range matrix runs against Node filesystem media
+tests/node-security.test.js	node security chronicle approval and rejection enforce pending state
+tests/node-security.test.js	node security chronicle deletion preserves object metadata and rejects traversal
+tests/node-security.test.js	node security chronicle listings share upload formats and safely encode legacy metadata
+tests/node-security.test.js	node security chronicle operations preserve decomposed Unicode path identity
+tests/node-security.test.js	node security chronicle upload commits files using the final multipart activityId
+tests/node-security.test.js	node security compiled Node news route preserves legacy responses and snapshot pagination
+tests/node-security.test.js	node security compiled server entry exports the application lifecycle contract
+tests/node-security.test.js	node security compiled server entry loads independently of the current working directory
+tests/node-security.test.js	node security cookie-authenticated writes require CSRF while bearer writes remain compatible
+tests/node-security.test.js	node security event deletion survives media cleanup failure after database commit
+tests/node-security.test.js	node security legacy information remains public while management points to community posts
+tests/node-security.test.js	node security legacy server entry forwards the compiled lifecycle contract
+tests/node-security.test.js	node security login token cookie is HttpOnly
+tests/node-security.test.js	node security malformed login input is rejected without terminating the server
+tests/node-security.test.js	node security namecard originals and stored thumbnails enforce approval or op access
+tests/node-security.test.js	node security news publishing does not write an audit record when user lookup fails
+tests/node-security.test.js	node security news publishing rejects missing bodies and unsafe links
+tests/node-security.test.js	node security pending chronicle media requires op authentication
+tests/node-security.test.js	node security production JWT secret length is measured in UTF-8 bytes
+tests/node-security.test.js	node security production NODE_ENV is normalized before fail-fast checks
+tests/node-security.test.js	node security production refuses a short IMS_BACKOFFICE_JWT_SECRET
+tests/node-security.test.js	node security production refuses to load without IMS_BACKOFFICE_JWT_SECRET
+tests/node-security.test.js	node security public card endpoints only expose approved non-sensitive data
+tests/node-security.test.js	node security public upload limiter rejects before Multer writes to disk
+tests/node-security.test.js	node security raw dot segments cannot bypass sensitive static path checks
+tests/node-security.test.js	node security reactions require an approved card and a supported value
+tests/node-security.test.js	node security requiring the compiled server entry does not start a listener
+tests/node-security.test.js	node security sensitive files and virtual environments are blocked before static serving
+tests/node-security.test.js	node security spoofed image uploads are rejected without leaving files behind
+tests/node-security.test.js	node security unauthenticated management routes return 401
+tests/node-security.test.js	node security unknown NODE_ENV values fail fast
+tests/operation-scripts.test.js	operation scripts RustFS sync reports exact inventory differences and parses apply mode
+tests/operation-scripts.test.js	operation scripts RustFS sync validates isolated R2 source and local target settings
+tests/operation-scripts.test.js	operation scripts categorized add-user script requires a PostgreSQL DATABASE_URL
+tests/operation-scripts.test.js	operation scripts categorized add-user script writes a PostgreSQL backoffice account
+tests/operation-scripts.test.js	operation scripts categorized password helper emits a bcrypt hash without database access
+tests/operation-scripts.test.js	operation scripts development data script parses export and guarded restore commands
+tests/operation-scripts.test.js	operation scripts development data script recognizes only non-empty regular files
+tests/operation-scripts.test.js	operation scripts development data script rejects archive traversal and invalid manifests
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle HEAD allocations clone one migrated template and track sibling connections
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test URL precedence prefers the dedicated admin URL over the CI URL
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test configuration is enabled by default and supports strict opt-out
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test configuration rejects invalid protocols and non-loopback hosts
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test database names are normalized, bounded, and validated
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle allocator aggregates persistent connection and admin close failures
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle allocator rejects an injected unsafe database name before admin queries
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle ambiguous failure after create force-drops the possibly created database
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle closing waits for allocation migration before dropping every owned database
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle connection creation and retryable close failures still force-drop the database
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle connection resolving during close is disposed and never registered
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle custom migration catalogs use an isolated template0 database
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup bounds timeout diagnostics before force-drop
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup still force-drops when backend observation fails
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup timing hooks reject invalid values
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup waits for PostgreSQL backends to drain before force-drop
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle failed force-drop remains registered and is retried during allocator shutdown
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle migration failure force-drops the created database and closes the admin pool
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle shared connection close blocks force-drop until the real close completes

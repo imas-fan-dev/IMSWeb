@@ -7,9 +7,11 @@ socket, access the real filesystem/database, or call the Bilibili network.
 Run the standalone gate with:
 
 ```sh
-pnpm exec tsc -p tests/wiki/tsconfig.json --noEmit
-TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/wiki/*.test.ts
+pnpm --filter @imsweb/api run test:wiki
 ```
+
+The shared `pnpm --filter @imsweb/api run typecheck` gate covers `src/` and
+`tests/`; `test:wiki` itself only runs `vitest run tests/wiki`.
 
 ## Acceptance coverage
 
