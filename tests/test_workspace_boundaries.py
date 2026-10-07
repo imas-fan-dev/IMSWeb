@@ -228,12 +228,19 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
         )["scripts"]
 
-        # Raise these counts deliberately, and name what the new script is for.
-        # The mock API dev server added `dev:web:mock` (root) and `dev:mock` (web);
-        # the root test tooling added `test:ui`.
+        # The bounded surface includes mock API dev commands, test UI tooling,
+        # and the App E2E static preview pair (Web preview:app, API test:app-preview).
         self.assertEqual(len(root_scripts), 58)
-        self.assertEqual(len(api_scripts), 43)
-        self.assertEqual(len(web_scripts), 21)
+        self.assertEqual(len(api_scripts), 44)
+        self.assertEqual(len(web_scripts), 22)
+        self.assertEqual(
+            api_scripts["test:app-preview"],
+            "TSX_TSCONFIG_PATH=tsconfig.tests.json node --import tsx tests/fixtures/app-static-preview-server.ts",
+        )
+        self.assertEqual(
+            web_scripts["preview:app"],
+            "node --experimental-strip-types scripts/preview-app.js",
+        )
         self.assertTrue(
             {
                 "build",
