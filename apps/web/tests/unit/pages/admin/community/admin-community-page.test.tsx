@@ -225,8 +225,18 @@ describe("community draft editor", () => {
     expect(screen.getByRole("button", { name: "添加入口" })).toBeEnabled()
     expect(mocks.update).not.toHaveBeenCalled()
   })
-  it("returns to a clean baseline when page changes are undone and enforces the entry limit", async () => {
+  it("returns to a clean baseline when page changes are undone", async () => {
     const user = userEvent.setup()
+    render(<AdminCommunity />)
+    const title = await screen.findByLabelText("页面标题")
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled()
+    await user.type(title, "改")
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeEnabled()
+    await user.clear(title)
+    await user.type(title, "社区")
+    expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled()
+  })
+  it("disables adding entries at the entry limit", async () => {
     const entry = {
       id: "one",
       title: "入口",
@@ -249,13 +259,8 @@ describe("community draft editor", () => {
       revision: "base",
     })
     render(<AdminCommunity />)
-    const title = await screen.findByLabelText("页面标题")
+    await screen.findByLabelText("页面标题")
     expect(screen.getByRole("button", { name: "新增入口" })).toBeDisabled()
-    await user.type(title, "改")
-    expect(screen.getByRole("button", { name: "保存配置" })).toBeEnabled()
-    await user.clear(title)
-    await user.type(title, "社区")
-    expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled()
   })
   it("disables save after a failed reload while retaining the previous draft", async () => {
     render(<AdminCommunity />)

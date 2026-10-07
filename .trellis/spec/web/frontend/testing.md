@@ -22,6 +22,11 @@ Prefer role, label, and visible-state assertions over implementation details. A
 changed data-driven view covers loading, error, empty, and success states when
 each can occur.
 
+Keep independent unit scenarios separate within the default timeout. The
+community editor's dirty-baseline check uses the ordinary fixture; its 100-entry
+limit check mounts the maximum fixture separately. Unrelated typing should not
+re-render the maximum list just to prove that the add button is disabled.
+
 Endpoint tests should prove the path, method, request payload, CSRF metadata,
 and parsed response behavior. Follow tests under
 `tests/unit/lib/api/endpoints/`.
