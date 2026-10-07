@@ -264,6 +264,10 @@ non-empty name and reason, request contracts, and an explicit call count.
   The dispatcher validates the untouched fixture before it reaches the page.
 - `times` defaults to exactly one. Optional or repeated calls are explicit at
   the caller and bounded by observed workflow behavior.
+- After navigation into a data-driven page, wait for its configured content,
+  not only its URL, before teardown. The App events back flow registers one
+  community-content read and waits for the configured events entry; otherwise
+  teardown can race the page's request and hide a missing fixture.
 - A pass-through is valid only when the suite owner starts and health-checks
   the target service in every environment that runs the test. The Vite API
   proxy does not provision an API server.

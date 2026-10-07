@@ -429,6 +429,7 @@ test.describe("app events", () => {
       installSeededPublicApis(api, [
         { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
         { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },
+        { path: "/api/community/content", times: 1 },
         { path: "/api/community/exchange/series", times: { min: 0, max: 1 } },
       ])
 
@@ -654,6 +655,7 @@ test.describe("app events", () => {
       // community flow at its root instead of replaying the home-page visit.
       await page.getByRole("button", { name: "返回", exact: true }).click()
       await expect(page).toHaveURL(/\/community$/)
+      await expect(page.getByRole("link", { name: /^社区动态/ })).toBeVisible()
     }
   )
 })
