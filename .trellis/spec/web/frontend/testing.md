@@ -268,6 +268,12 @@ in separate browser cases with their own revision and exact request counts.
 Both retain the default test budget, CSRF checks, department permissions and
 public delivery assertions; the empty flow starts from a configured snapshot.
 
+Prerendered public smoke pages await successful GET responses for every required
+seeded endpoint, registering waiters before navigation. Static document shape
+and `networkidle` can pass before hydration starts those effects. Optional
+`min: 0` registrations remain optional; the dispatcher retains each exact count
+or upper bound at teardown.
+
 ### 2. Signatures
 
 ```ts

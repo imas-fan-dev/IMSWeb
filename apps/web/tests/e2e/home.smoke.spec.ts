@@ -183,6 +183,20 @@ test.describe("home smoke", () => {
         pageErrors.push(error.message)
       })
 
+      const clientReady = Promise.all(
+        route.apis
+          .filter(({ times }) =>
+            typeof times === "number" ? times > 0 : times.min > 0
+          )
+          .map(({ path }) =>
+            page.waitForResponse(
+              (response) =>
+                response.request().method() === "GET" &&
+                new URL(response.url()).pathname === path &&
+                response.status() === 200
+            )
+          )
+      )
       const response = await page.goto(route.path, {
         waitUntil: "domcontentloaded",
       })
@@ -214,6 +228,7 @@ test.describe("home smoke", () => {
         await expect(background).toHaveCount(1)
         await expect(background.locator(".series-icon-motif")).toHaveCount(12)
       }
+      await clientReady
       await page.waitForLoadState("networkidle")
 
       expect(
