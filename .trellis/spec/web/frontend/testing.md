@@ -275,6 +275,10 @@ non-empty name and reason, request contracts, and an explicit call count.
   responses before starting the inventory and image assertions. The configured
   assertion timeout measures rendered-content readiness, not module loading or
   session restoration; keep the source, decode and authorization checks.
+- A list can mount before per-item reads settle. Namecard pagination waits for
+  every mounted reaction summary to report `aria-busy="false"` before teardown,
+  while retaining the exact reaction request count. The first card or list-level
+  busy state does not prove that all item responses have been consumed.
 - A pass-through is valid only when the suite owner starts and health-checks
   the target service in every environment that runs the test. The Vite API
   proxy does not provision an API server.

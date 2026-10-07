@@ -54,6 +54,11 @@ test.describe("app namecard browsing", () => {
     await expect(
       pagination.getByRole("spinbutton", { name: "跳至" })
     ).toHaveValue("3")
+    await expect(
+      page.locator(
+        '[data-namecard-item] [aria-label="名片反应摘要"][aria-busy="false"]'
+      )
+    ).toHaveCount(12)
   })
 
   test("preserves App safe areas, complete images and the list return position", async ({
@@ -128,6 +133,11 @@ test.describe("app namecard browsing", () => {
     await expect(
       page.getByRole("button", { name: "查看制作人名片 13 正面" })
     ).toBeVisible()
+    await expect(
+      page.locator(
+        '[data-namecard-item] [aria-label="名片反应摘要"][aria-busy="false"]'
+      )
+    ).toHaveCount(12)
     await expectNamecardNoOverflow(page)
   })
 
@@ -181,5 +191,10 @@ test.describe("app namecard browsing", () => {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }))
     await expect(page.locator("[data-app-floating-actions]")).toBeVisible()
     await expect(page.getByRole("button", { name: "上传名片" })).toBeVisible()
+    await expect(
+      page.locator(
+        '[data-namecard-item] [aria-label="名片反应摘要"][aria-busy="false"]'
+      )
+    ).toHaveCount(24)
   })
 })
