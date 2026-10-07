@@ -193,7 +193,7 @@ test.describe("wiki mobile", () => {
         .poll(() =>
           dialog.evaluate((element) =>
             element
-              .getAnimations({ subtree: false })
+              .getAnimations({ subtree: true })
               .every((animation) => animation.playState === "finished")
           )
         )

@@ -76,6 +76,10 @@ Check keyboard operation, semantic roles, overflow, fixed controls, dialog
 bounds, and safe areas where applicable. Use AxeBuilder in an existing
 accessibility suite when the changed page is already covered there.
 
+Modern Wiki dial geometry waits for the popup and its finite descendant entry
+animations before measuring. The popup finishes before its delayed orbit items;
+waiting for the popup alone can sample their radius during the overshoot.
+
 Axe covers only part of a role contract. Its `listitem` rule inspects `ul` and `ol`,
 so it does not report a `div[role="list"]` whose listitems are separated by a generic
 wrapper. When a change alters list ownership, assert the roles and the per-item
