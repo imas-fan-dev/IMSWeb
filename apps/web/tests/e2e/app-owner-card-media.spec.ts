@@ -190,10 +190,21 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
       )
     ).status
   ).toBe(404)
+  const startupReady = Promise.all(
+    ["/api/platform/me", "/api/community/exchange/me/cards"].map((pathname) =>
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname === pathname &&
+          response.status() === 200
+      )
+    )
+  )
   await page.goto(
     webMode ? "/community/exchange/me?section=cards" : "/account/me/cards",
     { waitUntil: "domcontentloaded" }
   )
+  await startupReady
   const inventoryNavigation = page.getByRole("navigation", {
     name: "我的名片清单",
   })

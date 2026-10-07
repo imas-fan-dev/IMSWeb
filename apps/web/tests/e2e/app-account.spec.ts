@@ -193,14 +193,17 @@ type AccountPageContext = {
 }
 
 /**
- * Open the App account root with the shared platform mocks installed, plus the
- * avatar transport and the request accounting both account scenarios assert.
+ * Open an App account page with the shared platform mocks installed, plus the
+ * avatar transport and the request accounting the account scenarios assert.
  * `profile` seeds the session the App reads during its first startup, which is
  * how the removal scenario starts from an avatar persisted by an earlier run.
  */
-async function openAccountRoot(
+async function openAccountPage(
   { page, api, apiOrigins, baseURL }: AccountPageContext,
-  options: { profile?: Partial<AppProfile> } = {}
+  options: {
+    profile?: Partial<AppProfile>
+    pathname?: "/account/me" | "/account/me/profile"
+  } = {}
 ) {
   if (!baseURL || apiOrigins.length !== 1) {
     throw new Error("App account E2E requires one page and API origin")
@@ -254,7 +257,9 @@ async function openAccountRoot(
     })
   })
 
-  await page.goto("/account/me", { waitUntil: "domcontentloaded" })
+  await page.goto(options.pathname ?? "/account/me", {
+    waitUntil: "domcontentloaded",
+  })
   expect(new URL(page.url()).origin).toBe(documentOrigin)
   await applySafeArea(page)
 
@@ -287,34 +292,12 @@ test.beforeEach(async ({ page }, testInfo) => {
 })
 test.describe("app account", () => {
   test(
-    "uses an account root and uploads an avatar in the profile section",
+    "uses an account root and opens the profile section",
     {
       tag: ["@app-iphone", "@app-android", "@app-webkit"],
     },
-    async ({ page, api, apiOrigins, baseURL }, testInfo) => {
-      const {
-        documentOrigin,
-        apiOrigin,
-        avatarUrl,
-        corsHeaders,
-        accountMocks,
-        avatarWrites,
-      } = await openAccountRoot({ page, api, apiOrigins, baseURL })
-
-      await api.mock(
-        { method: "PUT", path: "/api/platform/me/avatar", times: 1 },
-        async (route) => {
-          expectPlatformBearer(route.request().headers())
-          const profile = {
-            ...session.profile,
-            avatarUrl: AVATAR_PATH,
-            updatedAt: 2,
-          }
-          accountMocks.setProfile(profile)
-          await fulfillJson(route, { success: true, profile }, corsHeaders)
-        }
-      )
-
+    async ({ page, api, apiOrigins, baseURL }) => {
+      await openAccountPage({ page, api, apiOrigins, baseURL })
       await expect(page.getByText("App 制作人")).toBeVisible()
       await expect(page.getByText("上海")).toBeVisible()
       const accountNavigation = page.getByRole("navigation", { name: "主导航" })
@@ -352,6 +335,46 @@ test.describe("app account", () => {
       await expect(
         accountNavigation.getByRole("link", { name: "我的" })
       ).toHaveAttribute("aria-current", "page")
+      await backButton.click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+    }
+  )
+
+  test(
+    "uploads an avatar in the profile section",
+    {
+      tag: ["@app-iphone", "@app-android", "@app-webkit"],
+    },
+    async ({ page, api, apiOrigins, baseURL }, testInfo) => {
+      const {
+        documentOrigin,
+        apiOrigin,
+        avatarUrl,
+        corsHeaders,
+        accountMocks,
+        avatarWrites,
+      } = await openAccountPage(
+        { page, api, apiOrigins, baseURL },
+        { pathname: "/account/me/profile" }
+      )
+
+      await api.mock(
+        { method: "PUT", path: "/api/platform/me/avatar", times: 1 },
+        async (route) => {
+          expectPlatformBearer(route.request().headers())
+          const profile = {
+            ...session.profile,
+            avatarUrl: AVATAR_PATH,
+            updatedAt: 2,
+          }
+          accountMocks.setProfile(profile)
+          await fulfillJson(route, { success: true, profile }, corsHeaders)
+        }
+      )
+      await expect(
+        page.getByRole("heading", { name: "个人资料" })
+      ).toBeVisible()
+      const backButton = page.getByRole("button", { name: "返回" })
 
       await page.locator("#exchange-profile-avatar").setInputFiles({
         name: "avatar.svg",
@@ -468,7 +491,7 @@ test.describe("app account", () => {
         pageErrors,
         remoteRequests,
         avatarWrites,
-      } = await openAccountRoot(
+      } = await openAccountPage(
         { page, api, apiOrigins, baseURL },
         { profile: { avatarUrl: AVATAR_PATH, updatedAt: 2 } }
       )
@@ -562,7 +585,7 @@ test.describe("app account", () => {
         tag: ["@app-iphone", "@app-android", "@app-webkit"],
       },
       async ({ page, api, apiOrigins, baseURL }) => {
-        await openAccountRoot({ page, api, apiOrigins, baseURL })
+        await openAccountPage({ page, api, apiOrigins, baseURL })
         await expect(page.getByText("App 制作人")).toBeVisible()
 
         const sections = [

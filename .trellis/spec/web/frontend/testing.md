@@ -166,7 +166,10 @@ only signal the lane produces.
   fixture startup, then the first navigation. Together they take about 5s of a
   20s budget on CI, so a scenario carrying an upload, a restart, and a removal
   does not fit in one test. Split at a state boundary once a scenario's measured
-  CI wall clock passes two thirds of the configured `timeout`. For a flow that
+  CI wall clock passes two thirds of the configured `timeout`. Account-root
+  navigation and avatar upload are separate cases; the upload starts directly
+  at the profile section and retains the crop, transport, toast and back checks.
+  For a flow that
   cannot be split further, treat 3s of headroom as the floor: run-to-run variance
   on the App WebKit project is about 2s and zero retries absorb none of it. Do
   not raise `timeout` and do not depend on a retry. Measured envelope after the
@@ -268,6 +271,10 @@ non-empty name and reason, request contracts, and an explicit call count.
   not only its URL, before teardown. The App events back flow registers one
   community-content read and waits for the configured events entry; otherwise
   teardown can race the page's request and hide a missing fixture.
+- Cold authenticated media scenarios wait for successful profile and card-list
+  responses before starting the inventory and image assertions. The configured
+  assertion timeout measures rendered-content readiness, not module loading or
+  session restoration; keep the source, decode and authorization checks.
 - A pass-through is valid only when the suite owner starts and health-checks
   the target service in every environment that runs the test. The Vite API
   proxy does not provision an API server.
