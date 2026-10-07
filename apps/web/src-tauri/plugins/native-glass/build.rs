@@ -1,4 +1,11 @@
-const COMMANDS: &[&str] = &["configure", "update", "set_controls", "destroy"];
+const COMMANDS: &[&str] = &[
+    "configure",
+    "update",
+    "set_controls",
+    "set_search",
+    "remove_search",
+    "destroy",
+];
 
 fn main() {
     tauri_plugin::Builder::new(COMMANDS)

@@ -1,13 +1,10 @@
 import {
   Building2Icon,
   CreditCardIcon,
-  InfoIcon,
-  ListFilterIcon,
   MapPinnedIcon,
   RefreshCwIcon,
   SearchIcon,
   SlidersHorizontalIcon,
-  UserRoundCogIcon,
   XIcon,
 } from "lucide-react"
 import {
@@ -57,15 +54,11 @@ import {
   type FudabaSeries,
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
-import {
-  NativeGlassControlsProvider,
-  useNativeGlassControl,
-} from "~/lib/native-glass-controls"
+import { NativeGlassControlsProvider } from "~/lib/native-glass-controls"
 import { cn } from "~/lib/utils"
 import { CommunityExchangeMapSection } from "./community-exchange-map-section"
 import { ExchangeDiscoveryRail } from "./components/exchange-discovery-rail"
 import { ExchangeMapAttributionDialog } from "./components/exchange-map-attribution-dialog"
-import { ExchangeMobileNavigation } from "./components/exchange-mobile-navigation"
 import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
 import { ExchangeCard, OfficeCard } from "./exchange-components"
 import type { ExchangeMapAttribution } from "./exchange-map-attribution"
@@ -293,6 +286,9 @@ function DirectoryResults({
           <h3 className="text-sm font-semibold">公开事务所</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             {hasFilters ? "当前筛选结果" : "按访问热度排列"}
+            {" · 已加载 "}
+            {state.offices.length}
+            {" 个事务所"}
           </p>
         </div>
         {state.error ? (
@@ -339,7 +335,7 @@ function DirectoryResults({
         <div className="mb-4">
           <h3 className="text-sm font-semibold">可交换名片</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            {state.cards.length} 张已公开名片
+            已加载 {state.cards.length} 张公开名片
           </p>
         </div>
         {state.error ? (
@@ -377,52 +373,6 @@ function DirectoryResults({
         )}
       </TabsContent>
     </Tabs>
-  )
-}
-
-/**
- * The refresh control is its own component so the native-glass hook sits inside
- * `NativeGlassControlsProvider` instead of on the provider's own owner.
- */
-function ExchangeRefreshButton({
-  refreshing,
-  onRefresh,
-}: {
-  refreshing: boolean
-  onRefresh: () => void
-}) {
-  const { controlRef } = useNativeGlassControl(
-    "refresh",
-    {
-      kind: "icon-button",
-      icon: "refresh-cw",
-      label: "刷新交换区",
-      disabled: refreshing,
-    },
-    () => onRefresh()
-  )
-
-  return (
-    <Button
-      ref={controlRef}
-      type="button"
-      variant="outline"
-      size="icon"
-      className={cn(
-        IS_APP_TARGET &&
-          "exchange-map-app-control pointer-events-auto size-10 rounded-full"
-      )}
-      aria-label="刷新交换区"
-      title="刷新"
-      data-native-glass-control={IS_APP_TARGET ? "refresh" : undefined}
-      disabled={refreshing}
-      onClick={onRefresh}
-    >
-      <RefreshCwIcon
-        className={cn(refreshing && "animate-spin motion-reduce:animate-none")}
-        aria-hidden="true"
-      />
-    </Button>
   )
 }
 
@@ -466,6 +416,7 @@ export default function CommunityExchangePage() {
   const [loadingMoreOffices, setLoadingMoreOffices] = useState(false)
   const [loadingMoreCards, setLoadingMoreCards] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
+  const filterTitleRef = useRef<HTMLHeadingElement | null>(null)
   const [directoryOpen, setDirectoryOpen] = useState(false)
   const [directoryView, setDirectoryView] = useState<DirectoryView>("offices")
   const requestGeneration = useRef(0)
@@ -487,18 +438,21 @@ export default function CommunityExchangePage() {
     setAttributionOpen(open)
     if (open) return
 
-    // The App entry sits in a panel that collapses on the same click, so it is
-    // inert by the time the dialog closes. Fall back to the always-visible
-    // menu trigger there; the Web entries can take focus back themselves.
-    const trigger = attributionTriggerRef.current
-    const fallback = document.querySelector<HTMLElement>(
-      '[data-native-glass-control="map-tools"]'
-    )
-    const target =
-      trigger && trigger.isConnected && !trigger.closest("[inert]")
-        ? trigger
-        : fallback
-    window.requestAnimationFrame(() => target?.focus({ preventScroll: true }))
+    window.requestAnimationFrame(() => {
+      const entries = [
+        attributionTriggerRef.current,
+        ...document.querySelectorAll<HTMLElement>(
+          '.exchange-search-card button[aria-label="更多地图工具"], aside[aria-label="交换发现栏"] button[aria-label="查看地图数据来源"]'
+        ),
+      ]
+      const target = entries.find(
+        (entry) =>
+          entry?.isConnected &&
+          !entry.closest("[inert]") &&
+          entry.getClientRects().length
+      )
+      target?.focus({ preventScroll: true })
+    })
   }, [])
 
   useEffect(() => {
@@ -772,127 +726,24 @@ export default function CommunityExchangePage() {
                 open={openOnly ? true : undefined}
                 onAttributionChange={setAttribution}
                 onSwitchDirectory={() => openDirectory("offices")}
-              />
-
-              <section
-                className={cn(
-                  "pointer-events-none absolute z-20 lg:hidden",
-                  IS_APP_TARGET
-                    ? "top-[calc(env(safe-area-inset-top)+0.75rem)] right-3"
-                    : "inset-x-2 top-2 sm:inset-x-3 sm:top-3"
-                )}
-                style={
-                  IS_APP_TARGET
-                    ? { top: "calc(var(--app-header-inset) + 0.75rem)" }
-                    : undefined
-                }
-                aria-label="地图工具"
-              >
-                {IS_APP_TARGET ? (
-                  <ExchangeRefreshButton
-                    refreshing={refreshing}
-                    onRefresh={() => void loadFirstPage()}
-                  />
-                ) : (
-                  <div className="pointer-events-auto relative overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur-sm sm:rounded-lg">
-                    <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
-                    <div className="flex min-w-0 items-center gap-1.5 px-2.5 pt-2 pb-1 sm:gap-2 sm:px-3 sm:pt-3 sm:pb-2">
-                      <MapPinnedIcon
-                        className="size-3.5 shrink-0 text-primary sm:size-4"
-                        aria-hidden="true"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <h1 className="truncate text-sm font-semibold sm:text-base">
-                          名片交换事务所
-                        </h1>
-                        <p className="hidden truncate text-xs text-muted-foreground sm:block">
-                          {state.offices.length} 个事务所 · {state.cards.length}{" "}
-                          张名片
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <ExchangeRefreshButton
-                          refreshing={refreshing}
-                          onRefresh={() => void loadFirstPage()}
-                        />
-                        <div className="hidden shrink-0 items-center gap-1 md:flex">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="打开筛选"
-                            title="筛选"
-                            onClick={() => setFilterOpen(true)}
-                          >
-                            <ListFilterIcon aria-hidden="true" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="打开事务所名录"
-                            title="事务所名录"
-                            onClick={() => openDirectory("offices")}
-                          >
-                            <Building2Icon aria-hidden="true" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="打开名片名录"
-                            title="名片名录"
-                            onClick={() => openDirectory("cards")}
-                          >
-                            <CreditCardIcon aria-hidden="true" />
-                          </Button>
-                          <NavigationLink
-                            to="/community/exchange/me"
-                            className={buttonVariants({
-                              variant: "outline",
-                              size: "icon",
-                            })}
-                            aria-label="管理我的交换账号"
-                            title="账号管理"
-                          >
-                            <UserRoundCogIcon aria-hidden="true" />
-                          </NavigationLink>
-                          {attribution ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              aria-label="查看地图数据来源"
-                              aria-haspopup="dialog"
-                              title="数据来源"
-                              onClick={(event) =>
-                                openAttribution(event.currentTarget)
-                              }
-                            >
-                              <InfoIcon aria-hidden="true" />
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </section>
-
-              <ExchangeMobileNavigation
-                filterActive={filterOpen}
-                filterApplied={hasFilters}
-                officesActive={directoryOpen && directoryView === "offices"}
-                cardsActive={directoryOpen && directoryView === "cards"}
-                attribution={attribution}
-                onOpenAttribution={openAttribution}
-                onShowMap={() => {
-                  setFilterOpen(false)
-                  setDirectoryOpen(false)
+                searchTools={{
+                  filterApplied: hasFilters,
+                  modalOpen: filterOpen || directoryOpen || attributionOpen,
+                  onOpenFilter: () => {
+                    setDirectoryOpen(false)
+                    setFilterOpen(true)
+                  },
+                  onOpenOffices: () => {
+                    setFilterOpen(false)
+                    openDirectory("offices")
+                  },
+                  onOpenCards: () => {
+                    setFilterOpen(false)
+                    openDirectory("cards")
+                  },
+                  onRefresh: () => void loadFirstPage(),
+                  onOpenAttribution: attribution ? openAttribution : undefined,
                 }}
-                onOpenFilter={() => setFilterOpen(true)}
-                onOpenOffices={() => openDirectory("offices")}
-                onOpenCards={() => openDirectory("cards")}
               />
             </div>
           </div>
@@ -900,10 +751,13 @@ export default function CommunityExchangePage() {
           <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
             <SheetContent
               side="bottom"
+              initialFocus={IS_APP_TARGET ? filterTitleRef : undefined}
               className="exchange-map-filter-sheet overflow-y-auto pb-4"
             >
               <SheetHeader className="border-b pr-14">
-                <SheetTitle>筛选地图</SheetTitle>
+                <SheetTitle ref={filterTitleRef} tabIndex={-1}>
+                  筛选地图
+                </SheetTitle>
                 <SheetDescription>
                   按城市、企划与开放状态收窄地图和名录。
                 </SheetDescription>

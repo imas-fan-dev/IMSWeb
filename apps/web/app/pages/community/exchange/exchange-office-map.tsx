@@ -232,6 +232,7 @@ export interface ExchangeOfficeMapProps {
   groups: FudabaMapOfficeGroup[]
   selectedGroupKey: string | null
   selectedPlace?: FudabaPlaceSearchResult | null
+  occlusion?: { x: number; y: number; width: number; height: number } | null
   onSelectGroup: (groupKey: string) => void
   onViewportChange: (bounds: ReturnType<typeof splitViewportBounds>) => void
   onFatalError: (error: Error) => void
@@ -519,6 +520,7 @@ export function ExchangeOfficeMap({
   groups,
   selectedGroupKey,
   selectedPlace,
+  occlusion,
   onSelectGroup,
   onViewportChange,
   onFatalError,
@@ -537,12 +539,32 @@ export function ExchangeOfficeMap({
   const refreshMarkersRef = useRef<() => void>(() => undefined)
   const userLocationMarkerRef = useRef<Marker | null>(null)
   const searchMarkerRef = useRef<Marker | null>(null)
+  const occlusionRef = useRef(occlusion)
+  useEffect(() => {
+    occlusionRef.current = occlusion
+  }, [occlusion])
   const locationRequestRef = useRef(0)
   const fatalErrorSentRef = useRef(false)
   const [locationState, setLocationState] = useState<{
     phase: "idle" | "locating" | "success" | "error"
     message: string
   }>({ phase: "idle", message: "" })
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) return
+    const measure = () =>
+      setMapSize({ width: element.clientWidth, height: element.clientHeight })
+    measure()
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+    observer?.observe(element)
+    window.addEventListener("resize", measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener("resize", measure)
+    }
+  }, [])
 
   const locateUser = useCallback(async () => {
     const map = mapRef.current
@@ -978,6 +1000,27 @@ export function ExchangeOfficeMap({
     map.easeTo({
       center,
       zoom: 13,
+      padding: occlusionRef.current
+        ? occlusionRef.current.width <
+          (containerRef.current?.clientWidth ?? 0) * 0.65
+          ? {
+              left: occlusionRef.current.x + occlusionRef.current.width + 12,
+              right: 12,
+              top: 12,
+              bottom: 12,
+            }
+          : {
+              left: 12,
+              right: 12,
+              top: 12,
+              bottom: Math.max(
+                12,
+                (containerRef.current?.clientHeight ?? 0) -
+                  occlusionRef.current.y +
+                  12
+              ),
+            }
+        : { left: 0, right: 0, top: 0, bottom: 0 },
       duration: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
         ? 0
         : 900,
@@ -1044,6 +1087,19 @@ export function ExchangeOfficeMap({
                     : "bg-background/95 shadow-sm backdrop-blur-sm",
                   locationControlOffset
                 )}
+                style={
+                  occlusion
+                    ? {
+                        bottom:
+                          occlusion.width < mapSize.width * 0.65
+                            ? 12
+                            : Math.max(12, mapSize.height - occlusion.y + 12),
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                      }
+                    : undefined
+                }
                 aria-label="回到我的位置"
                 data-native-glass-control="locate"
                 aria-busy={locationState.phase === "locating"}
@@ -1073,6 +1129,17 @@ export function ExchangeOfficeMap({
             : "right-12 bottom-20"
         )}
         aria-live="polite"
+        style={
+          occlusion
+            ? {
+                bottom:
+                  occlusion.width < mapSize.width * 0.65
+                    ? 12
+                    : Math.max(12, mapSize.height - occlusion.y + 12),
+                right: 64,
+              }
+            : undefined
+        }
       >
         {locationState.phase === "error" ? (
           <p className="rounded-md border bg-background/95 px-2.5 py-2 text-xs text-foreground shadow-sm backdrop-blur-sm">

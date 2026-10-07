@@ -64,7 +64,7 @@ export function CommunityEntryList({
               {index + 1}
             </TableCell>
             <TableCell className="whitespace-normal">
-              <div className="flex min-w-0 gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted">
                   {entry.imageUrl ? (
                     <img

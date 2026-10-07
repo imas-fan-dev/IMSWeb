@@ -592,8 +592,6 @@ test.describe('tauri build configuration', () => {
   test("every native glass control icon is bundled and actually requested", async () => {
     const controlSources = [
       "app/pages/community/exchange/exchange-office-map.tsx",
-      "app/pages/community/exchange/community-exchange-page.tsx",
-      "app/pages/community/exchange/components/exchange-mobile-navigation.tsx",
     ];
     const [buildScript, ...sources] = await Promise.all([
       readFile(`${webRoot}/src-tauri/build.rs`, "utf8"),
@@ -625,12 +623,9 @@ test.describe('tauri build configuration', () => {
         }
       }
     }
-    // Guards the extractor itself: falling below the icon set the map controls
-    // declare today means the pattern stopped matching, not that icons went away.
-    assert.ok(
-      referenced.size >= 9,
-      `expected at least 9 native control icons, read ${referenced.size}`,
-    );
+    // Search owns its native text/actions; the separate location control uses
+    // these two vector icons. Keep the extractor tied to the active call site.
+    assert.deepEqual([...referenced].sort(), ["loader-circle", "locate-fixed"]);
     for (const icon of referenced) {
       assert.ok(
         bundled.includes(icon),

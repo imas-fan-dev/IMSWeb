@@ -48,11 +48,12 @@ describe("AdminEventsPage", () => {
         jsonResponse(url.includes("/spotlight") ? { items: [] } : posts)
       )
     })
+    const user = userEvent.setup()
 
     renderPage()
 
     expect(await screen.findByText("广州交流活动")).toBeVisible()
-    expect(screen.getAllByText("具体活动")).toHaveLength(2)
+    expect(screen.getByText("具体活动")).toBeVisible()
     expect(screen.getByRole("link", { name: "编辑" })).toHaveAttribute(
       "href",
       "/admin/events/35"
@@ -61,6 +62,20 @@ describe("AdminEventsPage", () => {
       "href",
       "/admin/events/new"
     )
+
+    await user.click(screen.getByRole("combobox", { name: "按状态筛选" }))
+    await user.click(await screen.findByRole("option", { name: /^草稿$/ }))
+    expect(screen.queryByText("广州交流活动")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("combobox", { name: "按状态筛选" }))
+    await user.click(await screen.findByRole("option", { name: /^全部状态$/ }))
+    expect(screen.getByText("广州交流活动")).toBeVisible()
+
+    await user.click(screen.getByRole("combobox", { name: "按类型筛选" }))
+    await user.click(await screen.findByRole("option", { name: /^普通文章$/ }))
+    expect(screen.queryByText("广州交流活动")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("combobox", { name: "按类型筛选" }))
+    await user.click(await screen.findByRole("option", { name: /^全部类型$/ }))
+    expect(screen.getByText("广州交流活动")).toBeVisible()
   })
 
   it("manages manually selected homepage spotlight entries", async () => {

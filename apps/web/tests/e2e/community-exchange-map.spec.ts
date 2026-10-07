@@ -391,18 +391,7 @@ test.describe("community exchange map", () => {
         })
       await expect(groupMarker).toBeVisible()
       const pointCount = page.locator("[data-map-point-count]")
-      await expect(pointCount).toContainText("1 个区域点")
-      await expect
-        .poll(async () => {
-          const countBox = await pointCount.boundingBox()
-          const mapBox = await canvas.boundingBox()
-          if (!countBox || !mapBox) return false
-          return (
-            countBox.x < mapBox.x + mapBox.width / 2 &&
-            countBox.y < mapBox.y + mapBox.height / 2
-          )
-        })
-        .toBe(true)
+      await expect(pointCount).toHaveCount(0)
       await expect
         .poll(async () => {
           const screenshot = await canvas.screenshot()
@@ -485,7 +474,7 @@ test.describe("community exchange map", () => {
             "canvas.maplibregl-canvas"
           )
           const mapTools = document.querySelector<HTMLElement>(
-            'section[aria-label="地图工具"] > div'
+            ".exchange-search-card"
           )
           if (
             !header ||
@@ -581,9 +570,11 @@ test.describe("community exchange map", () => {
             Math.abs(geometry.mapRegionLeft) <= 1 &&
             geometry.headerBottom <= 49 &&
             geometry.mapToolsTop !== null &&
-            geometry.mapToolsTop - geometry.workspaceTop <= 9 &&
+            geometry.mapToolsTop > geometry.workspaceTop &&
             geometry.mapToolsHeight !== null &&
-            geometry.mapToolsHeight <= 47
+            geometry.mapToolsHeight >= 120 &&
+            geometry.mapToolsTop + geometry.mapToolsHeight <=
+              geometry.workspaceBottom
           )
         }
 

@@ -7,6 +7,8 @@ Default permissions for the plugin
 - `allow-configure`
 - `allow-update`
 - `allow-set-controls`
+- `allow-set-search`
+- `allow-remove-search`
 - `allow-destroy`
 
 ## Permission Table
@@ -99,6 +101,32 @@ Denies the ping command without any pre-configured scope.
 <tr>
 <td>
 
+`native-glass:allow-remove-search`
+
+</td>
+<td>
+
+Enables the remove_search command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:deny-remove-search`
+
+</td>
+<td>
+
+Denies the remove_search command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `native-glass:allow-set-controls`
 
 </td>
@@ -118,6 +146,32 @@ Enables the set_controls command without any pre-configured scope.
 <td>
 
 Denies the set_controls command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:allow-set-search`
+
+</td>
+<td>
+
+Enables the set_search command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:deny-set-search`
+
+</td>
+<td>
+
+Denies the set_search command without any pre-configured scope.
 
 </td>
 </tr>

@@ -24,6 +24,37 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
 pub struct NativeGlass<R: Runtime>(PluginHandle<R>);
 
 impl<R: Runtime> NativeGlass<R> {
+    pub fn set_search(&self, args: crate::SetSearchArgs) -> crate::Result<NativeGlassStatus> {
+        #[cfg(target_os = "android")]
+        {
+            let _ = args;
+            Ok(NativeGlassStatus {
+                reason: Some("ios-only".into()),
+                supported: false,
+            })
+        }
+        #[cfg(target_os = "ios")]
+        {
+            self.0
+                .run_mobile_plugin("setSearch", args)
+                .map_err(Into::into)
+        }
+    }
+
+    pub fn remove_search(&self, args: crate::RemoveSearchArgs) -> crate::Result<()> {
+        #[cfg(target_os = "android")]
+        {
+            let _ = args;
+            Ok(())
+        }
+        #[cfg(target_os = "ios")]
+        {
+            self.0
+                .run_mobile_plugin("removeSearch", args)
+                .map_err(Into::into)
+        }
+    }
+
     pub fn configure(&self, options: ConfigureOptions) -> crate::Result<NativeGlassStatus> {
         self.0
             .run_mobile_plugin("configure", options)

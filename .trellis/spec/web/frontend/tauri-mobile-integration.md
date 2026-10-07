@@ -331,9 +331,9 @@ Web build keeps a zoomable, history-driven viewport; only the app target changes
 
 ### 1. Scope / Trigger
 
-Use this contract when a page wants the packaged App to draw a floating control with UIKit rather
-than the DOM. Today the only page that does is the exchange map, for its 定位 button, its 菜单
-触发与展开面板, and its 刷新 button.
+Use this contract when a page wants the packaged App to draw an icon button or menu with UIKit.
+The exchange map uses it for its 定位 button. Search, directory tools and refresh belong to the
+dedicated search renderer described below.
 
 The trigger is a rendering constraint, not a styling preference: `UIGlassEffect` samples only what
 sits below it in the native layer tree, and the map canvas is opaque inside the WKWebView. A glass
@@ -441,13 +441,13 @@ with an underscore from the command name).
 
 ### 5. Good / Base / Bad Cases
 
-- Good: on iOS 26 the App shows the locate, menu and refresh controls as native glass over live map
+- Good: on iOS 26 the App shows the locate control as native glass over live map
   content, the DOM versions are absent from the accessibility tree, and a tap on the native locate
   control runs the same `locateUser` handler as the DOM button.
 - Base: on iOS 17 or Android the same page renders the CSS glass controls with their existing
   `aria-label`, `aria-pressed` and `aria-expanded` semantics.
-- Bad: mounting `useNativeGlassControl` above `NativeGlassControlsProvider` (the context is null, so
-  the control silently never registers — this is why the refresh button is its own component).
+- Bad: mounting `useNativeGlassControl` above `NativeGlassControlsProvider` (the context is null,
+  so the control silently never registers).
 - Bad: writing `data-native-glass="controls"` from `shouldUseNativeGlassControls()` before the plugin
   answers, which blanks the controls on a device that cannot render them.
 
@@ -455,10 +455,9 @@ with an underscore from the command name).
 
 - `tests/unit/lib/native-glass-panel.test.ts`: event parsing for valid, malformed and partial
   details; admission truth table for Web, Android and iOS identities.
-- `tests/unit/pages/community/community-exchange-app-page.test.tsx`: the App map toolbar refresh
-  control still registers with the bridge (`refresh` id, `refresh-cw` icon, `刷新交换区` label) and
-  carries `data-native-glass-control="refresh"`, so the DOM twin and the UIKit control can never be
-  visible at the same time.
+- `tests/unit/pages/community/community-exchange-app-page.test.tsx`: the App search card exposes
+  refresh through More, preserves its directory-only behavior and hides while modal tools open.
+  Search bridge acknowledgment and DOM/native exclusivity are covered by the search hook tests.
 - `tests/unit/lib/native-glass-controls.test.tsx`: no plugin call when not admitted; no registration
   without a provider; marker written only after `supported: true`; `supported: false` and a rejected
   invoke both keep the twins; empty set while the tab bar is suppressed; menu panel width and items
@@ -491,6 +490,124 @@ element it finds first.
 
 The trigger carries the measurable id; the panel carries `data-native-glass-twin`, which only the
 hide rule and the panel-width read consume.
+
+## Scenario: Exchange search renderer boundary
+
+### 1. Scope / Trigger
+
+Use this contract when changing the exchange map's native search, its DOM fallback or the search
+IPC. `app/lib/native-glass-search.ts`, the native-glass Rust plugin, `NativeGlassPlugin.swift` and
+`GlassSearchView.swift` maintain this app-local boundary together. Search has its own capability
+acknowledgment; the existing icon-button/menu union and HTTP API remain separate.
+
+### 2. Signatures
+
+```ts
+syncNativeGlassSearch(args: NativeGlassSearchSnapshot): Promise<NativeGlassStatus>
+removeNativeGlassSearch(id: string, generation: number): Promise<void>
+nativeGlassSearchEvent(event: Event): NativeGlassSearchEvent | null
+```
+
+| TS invoke | Rust command / payload | iOS method / payload | Permission |
+| --- | --- | --- | --- |
+| `plugin:native-glass\|set_search`, `{ args }` | `set_search`, `SetSearchArgs` | `setSearch`, `NativeSearchArgs` | `native-glass:allow-set-search` |
+| `plugin:native-glass\|remove_search`, `{ args: { id, generation } }` | `remove_search`, `RemoveSearchArgs` | `removeSearch`, `NativeRemoveSearchArgs` | `native-glass:allow-remove-search` |
+
+Both commands belong to the plugin's default permission set. Rust `rename_all = "camelCase"`
+maps fields such as `bottom_clearance` to Swift/TS `bottomClearance`. `set_search` returns
+`{ supported: boolean, reason?: string | null }`; `remove_search` resolves without a payload.
+Swift emits `window` CustomEvents named `ims:native-glass-search`.
+
+### 3. Contracts
+
+| Snapshot field | Type / meaning |
+| --- | --- |
+| `id`, `generation`, `revision` | Nonempty presentation id, presentation generation and result revision; Rust/Swift use unsigned 64-bit integers |
+| `host` | `{ x, y, width, height }` in CSS WebView viewport coordinates |
+| `bottomClearance`, `dark` | Collapsed navigation clearance and active theme |
+| `detent`, `editing`, `query`, `busy` | `collapsed \| medium \| large`, requested editing state, shared draft and request status |
+| `message`, `attribution`, `selected` | Complete visible status, search attribution and selected-place summary |
+| `filterApplied`, `pointCount`, `hasAttribution` | Filter status, regional point count and map-source entry availability |
+| `results` | Array of `{ id: string, label: string, address: string }`; renderer does not request places |
+| `labels` | String dictionary: `search`, `input`, `placeholder`, `more`, `submit`, `cancel`, `expand`, `shrink`, `collapse`, `filter`, `offices`, `cards`, `account`, `refresh`, `retry`, `source`, `clear`, `range` |
+
+Events always carry `id`, `generation`, `revision` and an action. `input`, `submit`, `select`,
+`detent` and `tool` require a string `value`; `geometry` requires a positive-size finite frame.
+`cancel` and `clear` need no value. Detent values use the snapshot enum. Tool values are
+`filter`, `offices`, `cards`, `account`, `refresh`, `retry` and `source`.
+
+The Web hook owns explicit requests, concurrent-submit protection, two-character minimum,
+retained results and 429/503 feedback. UIKit owns the persistent `UISearchTextField`, native
+result rows, Liquid Glass, local drag detents and `keyboardLayoutGuide`. Marked text and
+first-responder drafts survive snapshots; repeated editing commands must preserve newer local
+focus intent. Input changes update the submit button's `isEnabled` locally.
+
+The host converts CSS coordinates through the WebView and its adjusted content inset, then
+reports actual occlusion back in CSS coordinates. Drag geometry is throttled to at most 30Hz;
+the final snap reports its final frame. Collapsed height comes from the native stack's fitting
+size, including retained attribution, summary and notice; the measured height also participates
+in drag snapping. Fixed detent constants must not compress the search row below its 48pt target.
+Outside-panel hits pass through to the map.
+
+Updates and removal are serialized. Reopening after a modal creates a new generation, with
+the previous removal ahead of installation. Only a successful search sync hides the DOM twin.
+After a renderer failure, DOM restoration waits for acknowledged removal, with one retry.
+Repeated cleanup failures keep cancel/tools available and retry on later state changes.
+
+Search expansion uses the existing `suppressNativeTabBar` channel. Collapse, modal tools,
+route teardown and successful fallback release ownership. Removal ends editing and detaches
+the host. UIKit tab selection also removes search and advances its generation to reject pending
+old installs. Hidden search panels pass hits through. No new runtime environment keys are required.
+
+### 4. Validation & Error Matrix
+
+| Input / state | Result |
+| --- | --- |
+| Web, Android or non-Tauri identity | Platform admission skips the bridge and preserves DOM |
+| iOS below 26 | `supported: false`, reason `requires-ios-26` |
+| Desktop Rust path | `supported: false`, reason `ios-only`; removal is a no-op |
+| Generation older than plugin's current generation | `supported: false`, reason `stale-search-generation` |
+| Missing native parent/WebView, host width ≤24, height ≤120 or invalid detent | Host removed; `supported: false`, reason `invalid-search-host` |
+| Unknown action, missing required value, unsafe/negative generation or revision, invalid geometry | JS parser returns `null` |
+| Event id/generation differs from active snapshot | Hook ignores it |
+| Selection revision differs or result id is absent | Hook ignores it |
+| Failed sync after installation | Remove host before exposing DOM; retry removal once |
+| Both removal attempts fail | DOM stays hidden; only cancel/tool events remain admitted; later updates retry removal |
+| `remove_search` id/generation does not match installed host | Resolve without removing a newer/different host |
+
+### 5. Good / Base / Bad Cases
+
+- Good: search acknowledgment hides the DOM card, typing preserves the native field, selection
+  uses a current result id, and modal closure installs a fresh generation.
+- Base: an old iOS or Android runtime uses the complete DOM card without invoking search IPC.
+- Bad: hide the DOM after an icon-button acknowledgment, recreate the text field on every
+  query update, or restore DOM while an installed native host has not acknowledged cleanup.
+
+### 6. Tests Required
+
+- `tests/unit/lib/native-glass-search.test.ts`: valid identity/geometry and malformed payloads.
+- `tests/unit/pages/community/exchange/hooks/use-native-exchange-search.test.tsx`: search-only
+  acknowledgment, stale generations/revisions/ids, ordered modal reopening, teardown retries,
+  delayed DOM restoration and permitted cancellation during persistent failure.
+- Search-card and App-tab tests: retained query/results, explicit submit, suppression and restoration.
+- Delivery owner: command registration, generated permissions and native package wiring.
+- iOS simulator/device assertions: native accessibility ids `ims-native-exchange-search-input`
+  and `ims-native-search-result-<id>`, real keyboard clearance, enabled submit state, drag/list
+  scroll, selection, native/DOM exclusivity and modal/route/rotation cleanup. Accessibility-tree
+  automation through XCTest can run without Simulator.app GUI. Browser mocks prove DOM/bridge
+  behavior only; compilation proves package inclusion only. VoiceOver, composition and system
+  accessibility settings require their own native evidence.
+
+### 7. Wrong vs Correct
+
+```ts
+// Wrong: an icon acknowledgment does not establish search support.
+hideSearchDom(iconStatus.supported)
+
+// Correct: search has its own acknowledged presentation.
+const searchStatus = await syncNativeGlassSearch(snapshot)
+if (searchStatus.supported) hideSearchDom(true)
+```
 
 ## Scenario: Android theme and system-bar synchronization
 

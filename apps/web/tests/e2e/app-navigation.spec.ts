@@ -454,8 +454,20 @@ test.describe("app navigation", () => {
   test(
     "keeps the app viewport free of pinch and double-tap zoom",
     { tag: "@app-webkit" },
-    async ({ page }) => {
+    async ({ page, api }) => {
+      // The root favicon and App background share one catalog read on a cold load.
+      installEmptyWikiCatalogMock(api)
+      const catalogResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/wiki/catalog" &&
+          response.request().method() === "GET" &&
+          response.status() === 200
+      )
       await page.goto("/account/me")
+      await catalogResponse
+      await expect(
+        page.locator('main[data-account-state="anonymous"]')
+      ).toBeVisible()
       const viewport = page.locator('meta[name="viewport"]')
       await expect(viewport).toHaveAttribute("content", /maximum-scale=1/)
       await expect(viewport).toHaveAttribute("content", /user-scalable=no/)

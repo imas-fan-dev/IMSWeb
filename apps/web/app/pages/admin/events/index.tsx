@@ -28,6 +28,13 @@ import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select"
 import { adminErrorMessage } from "~/lib/admin-error"
 import {
   getAdminCommunityPosts,
@@ -336,31 +343,49 @@ export default function AdminEventsPage() {
                 className="mt-2 size-4 shrink-0 text-muted-foreground sm:hidden"
                 aria-hidden="true"
               />
-              <select
-                className={`${adminControlClass} h-9 w-auto min-w-25`}
+              <Select
                 value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as ArticleStatusFilter)
+                onValueChange={(value) =>
+                  value && setStatusFilter(value as ArticleStatusFilter)
                 }
-                aria-label="按状态筛选"
               >
-                <option value="all">全部状态</option>
-                <option value="published">已发布</option>
-                <option value="draft">草稿</option>
-                <option value="archived">已归档</option>
-              </select>
-              <select
-                className={`${adminControlClass} h-9 w-auto min-w-25`}
+                <SelectTrigger
+                  className="min-w-25 data-[size=default]:h-9"
+                  aria-label="按状态筛选"
+                >
+                  <SelectValue>
+                    {statusFilter === "all"
+                      ? "全部状态"
+                      : statusLabel(statusFilter)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="published">已发布</SelectItem>
+                  <SelectItem value="draft">草稿</SelectItem>
+                  <SelectItem value="archived">已归档</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
                 value={kindFilter}
-                onChange={(event) =>
-                  setKindFilter(event.target.value as ArticleKindFilter)
+                onValueChange={(value) =>
+                  value && setKindFilter(value as ArticleKindFilter)
                 }
-                aria-label="按类型筛选"
               >
-                <option value="all">全部类型</option>
-                <option value="notice">普通文章</option>
-                <option value="event">具体活动</option>
-              </select>
+                <SelectTrigger
+                  className="min-w-25 data-[size=default]:h-9"
+                  aria-label="按类型筛选"
+                >
+                  <SelectValue>
+                    {kindFilter === "all" ? "全部类型" : kindLabel(kindFilter)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部类型</SelectItem>
+                  <SelectItem value="notice">普通文章</SelectItem>
+                  <SelectItem value="event">具体活动</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           {filteredPosts.length ? (

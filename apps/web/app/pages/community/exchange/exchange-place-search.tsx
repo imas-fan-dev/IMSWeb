@@ -1,71 +1,43 @@
 import { LoaderCircleIcon, MapPinIcon, SearchIcon } from "lucide-react"
-import { useId, useRef, useState } from "react"
+import { useId, useRef } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
+import { type FudabaPlaceSearchResult } from "~/lib/api"
 import {
-  isApiError,
-  searchFudabaPlaces,
-  type FudabaPlaceSearchResult,
-} from "~/lib/api"
-
-function searchError(error: unknown) {
-  if (isApiError(error) && error.status === 429) {
-    return "地点搜索正忙，请稍后再试。"
-  }
-  if (isApiError(error) && error.status === 503) {
-    return "地点搜索服务尚未配置，请联系管理员。"
-  }
-  return "地点暂时无法搜索，请稍后再试。"
-}
+  useExchangePlaceSearch,
+  type ExchangePlaceSearchModel,
+} from "./hooks/use-exchange-place-search"
 
 export function ExchangePlaceSearch({
   disabled = false,
   onSelect,
+  model,
 }: {
   disabled?: boolean
   onSelect: (place: FudabaPlaceSearchResult) => void
+  model?: ExchangePlaceSearchModel
 }) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
-  const searching = useRef(false)
-  const [query, setQuery] = useState("")
-  const [results, setResults] = useState<FudabaPlaceSearchResult[]>([])
-  const [attribution, setAttribution] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [searched, setSearched] = useState(false)
-
-  async function submit() {
-    const search = query.trim()
-    if (search.length < 2 || disabled || searching.current) return
-    searching.current = true
-    setBusy(true)
-    setError(null)
-    setSearched(false)
-    setResults([])
-    setAttribution("")
-    try {
-      const response = await searchFudabaPlaces(search).send()
-      setResults(response.items)
-      setAttribution(response.attribution)
-      setSearched(true)
-    } catch (nextError) {
-      setResults([])
-      setAttribution("")
-      setError(searchError(nextError))
-    } finally {
-      searching.current = false
-      setBusy(false)
-    }
-  }
+  const localModel = useExchangePlaceSearch()
+  const {
+    query,
+    edit,
+    results,
+    attribution,
+    busy,
+    error,
+    searched,
+    submit,
+    resetResults,
+  } = model ?? localModel
 
   function select(place: FudabaPlaceSearchResult) {
-    setQuery(place.label)
-    setResults([])
-    setSearched(false)
+    edit(place.label)
+    if (!model) resetResults(true)
     inputRef.current?.focus()
     onSelect(place)
   }
@@ -85,25 +57,22 @@ export function ExchangePlaceSearch({
               disabled={disabled || busy}
               placeholder="场馆、商圈或完整地址"
               onChange={(event) => {
-                setQuery(event.currentTarget.value)
-                setResults([])
-                setSearched(false)
-                setError(null)
-                setAttribution("")
+                edit(event.currentTarget.value)
+                if (!model) resetResults()
               }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || event.nativeEvent.isComposing)
                   return
                 event.preventDefault()
                 event.stopPropagation()
-                void submit()
+                void submit(query, disabled)
               }}
             />
             <Button
               type="button"
               variant="outline"
               disabled={disabled || busy || query.trim().length < 2}
-              onClick={() => void submit()}
+              onClick={() => void submit(query, disabled)}
             >
               {busy ? (
                 <LoaderCircleIcon className="animate-spin" aria-hidden="true" />

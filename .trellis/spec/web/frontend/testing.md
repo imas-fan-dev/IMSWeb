@@ -304,10 +304,12 @@ non-empty name and reason, request contracts, and an explicit call count.
   The dispatcher validates the untouched fixture before it reaches the page.
 - `times` defaults to exactly one. Optional or repeated calls are explicit at
   the caller and bounded by observed workflow behavior.
-- After navigation into a data-driven page, wait for its configured content,
-  not only its URL, before teardown. The App events back flow registers one
-  community-content read and waits for the configured events entry; otherwise
-  teardown can race the page's request and hide a missing fixture.
+- After App tree-back navigation, register the destination's requests and wait
+  for its configured content before teardown. The `app-events.spec.ts` return
+  to `/community` requires one `GET /api/community/content`; assert the loaded
+  heading, configured events entry, and exchange link so the dependent
+  availability read also settles.
+  A matching URL alone can precede mounting and hide a missing fixture.
 - Cold authenticated media scenarios wait for successful profile and card-list
   responses before starting the inventory and image assertions. The configured
   assertion timeout measures rendered-content readiness, not module loading or
@@ -488,9 +490,9 @@ change, or asserting the map's own controls and notices.
 - Assert control absence by container: `.maplibregl-ctrl-group` and `.maplibregl-ctrl-attrib` counts
   are zero. Individual `.maplibregl-ctrl-zoom-in` / `-compass` selectors disappear with the control.
 - The attribution entry is width-dependent. Assert one reachable entry per range and that the other
-  containers' entries are hidden: below 768px the bottom navigation, 768–1023px the top card,
-  1024px and up the discovery rail, plus the App folding panel. A single-width assertion does not
-  prove the union is gapless.
+  containers' entries are hidden: below 1024px the bottom search card's More menu,
+  1024px and up the discovery rail, plus the App search card. Include both sides of 768px and
+  1024px; a single-width assertion does not prove the union is gapless.
 - `prefers-reduced-transparency` cannot be emulated by Playwright, so that fallback is asserted
   against the stylesheet, the way `tests/unit/lib/glass-material.test.ts` does through
   `tests/unit/support/stylesheet-source.ts`. For the
@@ -510,7 +512,7 @@ change, or asserting the map's own controls and notices.
 ### 4. Tests Required
 
 - One browser test per attribution entry range, plus a 375px case asserting no horizontal overflow
-  and 44 × 44 CSS pixel targets on every bottom-navigation item.
+  and 44 × 44 CSS pixel targets on every search-card action.
 - One browser test asserting no entry and no empty dialog when the style carries no notice, at each
   of the three Web widths.
 - A rewritten viewport-persistence case in `app-map.spec.ts` driven by `canvas.dblclick()` that still

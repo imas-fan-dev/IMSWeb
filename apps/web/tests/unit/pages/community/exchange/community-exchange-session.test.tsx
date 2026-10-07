@@ -30,11 +30,6 @@ vi.mock(
   "~/pages/community/exchange/components/exchange-discovery-rail",
   () => ({ ExchangeDiscoveryRail: () => null })
 )
-vi.mock(
-  "~/pages/community/exchange/components/exchange-mobile-navigation",
-  () => ({ ExchangeMobileNavigation: () => null })
-)
-
 function renderRoute(entry: string) {
   return render(
     <MemoryRouter initialEntries={[entry]}>

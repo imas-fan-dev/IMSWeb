@@ -46,6 +46,12 @@ import type { ExchangeMapAttribution } from "./exchange-map-attribution"
 import type { ExchangeOfficeMapProps } from "./exchange-office-map"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { ExchangePlaceSearch } from "./exchange-place-search"
+import { useExchangePlaceSearch } from "./hooks/use-exchange-place-search"
+import {
+  ExchangeSearchCard,
+  type ExchangeSearchCardTools,
+} from "./components/exchange-search-card"
+import type { NativeGlassFrame } from "~/lib/native-glass-panel"
 
 type MapComponent = ComponentType<ExchangeOfficeMapProps>
 type ConfigState =
@@ -214,6 +220,7 @@ export function CommunityExchangeMapSection({
   open,
   onSwitchDirectory,
   onAttributionChange,
+  searchTools,
 }: {
   city?: string
   series?: readonly string[]
@@ -221,6 +228,7 @@ export function CommunityExchangeMapSection({
   open?: boolean
   onSwitchDirectory: () => void
   onAttributionChange?: (value: ExchangeMapAttribution | null) => void
+  searchTools?: ExchangeSearchCardTools
 }) {
   const [config, setConfig] = useState<ConfigState>(initialConfigState)
   const [MapComponent, setMapComponent] = useState<MapComponent | null>(null)
@@ -237,6 +245,18 @@ export function CommunityExchangeMapSection({
   const dataGeneration = useRef(0)
   const lastBoundsRef = useRef<FudabaMapBounds[] | null>(null)
   const isNarrow = useNarrowMapLayout()
+  const searchModel = useExchangePlaceSearch()
+  const [occlusion, setOcclusion] = useState<NativeGlassFrame | null>(null)
+  const updateOcclusion = useCallback((frame: NativeGlassFrame | null) => {
+    setOcclusion((current) =>
+      current?.x === frame?.x &&
+      current?.y === frame?.y &&
+      current?.width === frame?.width &&
+      current?.height === frame?.height
+        ? current
+        : frame
+    )
+  }, [])
 
   const loadConfig = useCallback(async () => {
     const generation = ++configGeneration.current
@@ -397,6 +417,7 @@ export function CommunityExchangeMapSection({
           groups={groups}
           selectedGroupKey={selectedGroupKey}
           selectedPlace={selectedPlace}
+          occlusion={occlusion}
           onSelectGroup={selectGroup}
           onViewportChange={(bounds) => void loadBounds(bounds)}
           onFatalError={handleFatalError}
@@ -404,10 +425,13 @@ export function CommunityExchangeMapSection({
         />
       ) : null}
 
-      {config.phase === "ready" && MapComponent && !mapFailure ? (
+      {config.phase === "ready" &&
+      MapComponent &&
+      !mapFailure &&
+      !IS_APP_TARGET ? (
         <div
           className={cn(
-            "absolute left-3 z-10 w-[min(22rem,calc(100%-1.5rem))]",
+            "absolute left-3 z-10 hidden w-[min(22rem,calc(100%-1.5rem))] lg:block",
             IS_APP_TARGET
               ? "top-[calc(var(--app-header-inset)+3.75rem)]"
               : "top-29 sm:top-31 lg:top-15"
@@ -415,6 +439,7 @@ export function CommunityExchangeMapSection({
         >
           <Button
             ref={searchTriggerRef}
+            data-exchange-desktop-search
             type="button"
             variant="outline"
             className="bg-background/95 shadow-sm"
@@ -431,6 +456,7 @@ export function CommunityExchangeMapSection({
               className="mt-2 max-h-[min(28rem,55dvh)] overflow-y-auto rounded-lg border bg-background/97 p-3 shadow-md backdrop-blur-sm"
             >
               <ExchangePlaceSearch
+                model={searchModel}
                 onSelect={(place) => {
                   setSelectedPlace(place)
                   setSelectedGroupKey(null)
@@ -474,14 +500,16 @@ export function CommunityExchangeMapSection({
         />
       ) : null}
 
-      {!mapFailure && data.phase !== "error" ? (
+      {!mapFailure &&
+      data.phase !== "error" &&
+      (data.phase !== "ready" || !groups.length || data.truncated) ? (
         <div
           className={cn(
             "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
             IS_APP_TARGET && "exchange-map-app-surface",
             IS_APP_TARGET
               ? "top-[calc(var(--app-header-inset)+0.75rem)]"
-              : "top-17 sm:top-19 lg:top-3"
+              : "top-3"
           )}
           data-map-point-count
           aria-live="polite"
@@ -567,6 +595,48 @@ export function CommunityExchangeMapSection({
             <OfficeGroupDetails group={selectedGroup} />
           </div>
         </aside>
+      ) : null}
+
+      {searchTools ? (
+        <ExchangeSearchCard
+          {...searchTools}
+          modalOpen={
+            searchTools.modalOpen || (mobileSheetOpen && Boolean(selectedGroup))
+          }
+          model={searchModel}
+          selectedPlace={selectedPlace}
+          onSelect={(place) => {
+            setSelectedPlace(place)
+            setSelectedGroupKey(null)
+            setMobileSheetOpen(false)
+          }}
+          onClear={() => setSelectedPlace(null)}
+          pointCount={groups.length}
+          feedbackMessage={
+            mapFailure
+              ? mapUnavailableDescription(mapFailure)
+              : data.phase === "error"
+                ? `地图数据更新失败：${data.error}。已保留上次成功结果。`
+                : data.truncated
+                  ? "当前范围结果较多，请放大地图或收窄筛选。"
+                  : data.phase === "loading"
+                    ? "正在更新地图结果"
+                    : data.phase === "ready" && !groups.length
+                      ? "当前范围内没有公开事务所"
+                      : undefined
+          }
+          onRetry={
+            mapFailure
+              ? retryMap
+              : data.phase === "error"
+                ? () => {
+                    if (lastBoundsRef.current)
+                      void loadBounds(lastBoundsRef.current)
+                  }
+                : undefined
+          }
+          onOcclusion={updateOcclusion}
+        />
       ) : null}
 
       <Sheet

@@ -13,6 +13,17 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
 pub struct NativeGlass<R: Runtime>(AppHandle<R>);
 
 impl<R: Runtime> NativeGlass<R> {
+    pub fn set_search(&self, _args: crate::SetSearchArgs) -> crate::Result<NativeGlassStatus> {
+        Ok(NativeGlassStatus {
+            reason: Some("ios-only".into()),
+            supported: false,
+        })
+    }
+
+    pub fn remove_search(&self, _args: crate::RemoveSearchArgs) -> crate::Result<()> {
+        Ok(())
+    }
+
     pub fn configure(&self, _options: ConfigureOptions) -> crate::Result<NativeGlassStatus> {
         let _ = &self.0;
         Ok(NativeGlassStatus {

@@ -427,9 +427,9 @@ test.describe("app events", () => {
       const { coverRequested, releaseCover, eventRequestCount } =
         await mockCommunityApis(page, api)
       installSeededPublicApis(api, [
+        { path: "/api/community/content", times: 1 },
         { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
         { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },
-        { path: "/api/community/content", times: 1 },
         { path: "/api/community/exchange/series", times: { min: 0, max: 1 } },
       ])
 
@@ -655,6 +655,12 @@ test.describe("app events", () => {
       // community flow at its root instead of replaying the home-page visit.
       await page.getByRole("button", { name: "返回", exact: true }).click()
       await expect(page).toHaveURL(/\/community$/)
+      await expect(
+        page.getByRole("heading", { level: 1, name: "制作人社区", exact: true })
+      ).toBeVisible()
+      await expect(
+        page.getByRole("link", { name: "名片交换事务所 寻找事务所" })
+      ).toBeVisible()
       await expect(page.getByRole("link", { name: /^社区动态/ })).toBeVisible()
     }
   )

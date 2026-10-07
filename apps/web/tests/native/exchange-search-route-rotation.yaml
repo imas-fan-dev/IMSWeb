@@ -1,0 +1,24 @@
+appId: top.idol-master.imsweb
+---
+- tapOn: "交换地图"
+- assertVisible: "查找地点"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible: "查找地点"
+- takeScreenshot:
+    path: "NativeSearchLandscapeCollapsed"
+- tapOn: "查找地点"
+- assertVisible:
+    id: "ims-native-exchange-search-input"
+- assertVisible:
+    id: "inputView"
+- assertVisible: "查找"
+- assertVisible: "取消"
+- takeScreenshot:
+    path: "NativeSearchLandscapeKeyboard"
+- tapOn: "取消"
+- assertNotVisible:
+    id: "inputView"
+- setOrientation: PORTRAIT
+- assertVisible: "查找地点"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"

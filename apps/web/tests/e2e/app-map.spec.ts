@@ -112,6 +112,9 @@ function installMapMocks(api: ApiDispatcher) {
 }
 
 async function applySafeArea(page: import("@playwright/test").Page) {
+  await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({
+    timeout: 15_000,
+  })
   await page.addStyleTag({
     content: `
       :root {
@@ -134,7 +137,8 @@ async function applySafeArea(page: import("@playwright/test").Page) {
 
 test.beforeEach(async ({ page }, testInfo) => {
   test.skip(
-    !["app-iphone", "app-landscape"].includes(testInfo.project.name),
+    !testInfo.title.includes("keeps DOM search") &&
+      !["app-iphone", "app-landscape"].includes(testInfo.project.name),
     "Map canvas geometry is covered on one portrait and one landscape device."
   )
   test.setTimeout(45_000)
@@ -144,6 +148,47 @@ test.beforeEach(async ({ page }, testInfo) => {
 })
 
 test.describe("app map", () => {
+  test("keeps DOM search usable across fallback devices @app-iphone @app-landscape @app-android @app-webkit", async ({
+    page,
+    api,
+  }) => {
+    installMapMocks(api)
+    await page.goto("/community/exchange")
+    await applySafeArea(page)
+    await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({
+      timeout: 15_000,
+    })
+    const card = page.getByRole("region", { name: "地点查找" })
+    await expect(card).toBeVisible()
+    await expect(card).not.toHaveAttribute("data-native-search", "true")
+    const search = card.getByRole("button", { name: "查找地点" })
+    await search.click()
+    await expect(page.getByRole("navigation", { name: "主导航" })).toBeHidden()
+    const input = card.getByRole("textbox", { name: "搜索地点" })
+    await expect(input).toBeFocused()
+    await input.fill("上")
+    await expect(
+      card.getByRole("button", { name: "查找", exact: true })
+    ).toBeDisabled()
+    await input.fill("上海场馆")
+    await card.getByRole("button", { name: "展开结果" }).click()
+    await expect(card).toHaveAttribute("data-detent", "large")
+    await card.getByRole("button", { name: "取消" }).click()
+    await expect(search).toBeFocused()
+    await expect(page.getByRole("navigation", { name: "主导航" })).toBeVisible()
+    await search.click()
+    await expect(input).toHaveValue("上海场馆")
+    await card.getByRole("button", { name: "清除搜索文字" }).click()
+    await expect(input).toHaveValue("")
+    await card.getByRole("button", { name: "取消" }).click()
+    const shape = await card.evaluate((element) => ({
+      radius: getComputedStyle(element).borderTopLeftRadius,
+      box: element.getBoundingClientRect().toJSON(),
+    }))
+    expect(shape.radius).toBe("28px")
+    expect(shape.box.left).toBeGreaterThanOrEqual(0)
+    expect(shape.box.right).toBeLessThanOrEqual(page.viewportSize()!.width)
+  })
   test(
     "selects a searched place without leaving the map and clears its marker",
     { tag: ["@app-iphone", "@app-landscape"] },
@@ -191,7 +236,7 @@ test.describe("app map", () => {
       await trigger.click()
       const query = page.getByRole("textbox", { name: "搜索地点" })
       await query.fill("西岸艺术中心")
-      await page.getByRole("button", { name: "搜索", exact: true }).click()
+      await page.getByRole("button", { name: "查找", exact: true }).click()
       await expect(
         page.getByText("© OpenStreetMap contributors", { exact: true })
       ).toBeVisible()
@@ -303,14 +348,12 @@ test.describe("app map", () => {
         globalNavigation.getByRole("link", { name: "交换地图", exact: true })
       ).toHaveAttribute("aria-current", "page")
 
-      const toolTrigger = page.locator(
-        'button[aria-controls="exchange-map-tools"]'
-      )
-      await expect(toolTrigger).toHaveAccessibleName("展开地图工具")
+      const toolTrigger = page.getByRole("button", { name: "更多地图工具" })
+      await expect(toolTrigger).toHaveAccessibleName("更多地图工具")
       await expect(toolTrigger).toBeVisible()
       await toolTrigger.click()
-      await expect(toolTrigger).toHaveAccessibleName("收起地图工具")
-      const toolbar = page.getByRole("toolbar", { name: "交换地图工具" })
+      await expect(toolTrigger).toHaveAttribute("aria-expanded", "true")
+      const toolbar = page.getByRole("region", { name: "地点查找" })
       await expect(toolbar).toBeVisible()
       await expect(
         toolbar.getByRole("button", { name: "打开筛选" })
@@ -434,12 +477,10 @@ test.describe("app map", () => {
       await expect(canvas).toBeVisible({ timeout: 15_000 })
       await expect.poll(() => mapBounds.length).toBeGreaterThan(0)
 
-      const toolTrigger = page.locator(
-        'button[aria-controls="exchange-map-tools"]'
-      )
+      const toolTrigger = page.getByRole("button", { name: "更多地图工具" })
       await toolTrigger.click()
       await page
-        .getByRole("toolbar", { name: "交换地图工具" })
+        .getByRole("region", { name: "地点查找" })
         .getByRole("button", { name: "打开筛选" })
         .click()
       const filterDialog = page.getByRole("dialog", { name: "筛选地图" })
@@ -546,7 +587,7 @@ test.describe("app map", () => {
 
       await toolTrigger.click()
       await page
-        .getByRole("toolbar", { name: "交换地图工具" })
+        .getByRole("region", { name: "地点查找" })
         .getByRole("button", { name: "打开筛选，已应用筛选" })
         .click()
       await expect(
@@ -564,7 +605,7 @@ test.describe("app map", () => {
   )
 
   test(
-    "renders the app map refresh control as a circle",
+    "renders the app search More action as a 44px circle",
     {
       tag: ["@app-iphone", "@app-landscape"],
     },
@@ -576,11 +617,9 @@ test.describe("app map", () => {
         timeout: 15_000,
       })
 
-      // The control stands alone above the map on the app target, so it reads as a
-      // circle like the locate and map-tool controls, not as a rounded square. The
-      // native glass overlay measures this radius from the DOM twin, so the
-      // computed radius is what decides the drawn shape too.
-      const refresh = page.getByRole("button", { name: "刷新交换区" })
+      // This browser case verifies the DOM fallback shape. The dedicated UIKit
+      // search renderer needs its own simulator or device visual evidence.
+      const refresh = page.getByRole("button", { name: "更多地图工具" })
       await expect(refresh).toBeVisible()
       const shape = await refresh.evaluate((element) => {
         const rect = element.getBoundingClientRect()
@@ -594,6 +633,7 @@ test.describe("app map", () => {
       })
 
       expect(shape.width).toBe(shape.height)
+      expect(shape.width).toBeGreaterThanOrEqual(44)
       expect(shape.radius).toBeGreaterThanOrEqual(shape.width / 2)
     }
   )

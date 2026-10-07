@@ -126,6 +126,8 @@ producer-map, and recommendation refreshes are unaffected.
 The header names the section. A child page needs its own visible title, including
 pages that were previously tab roots. Fullscreen exchange maps retain their
 header exclusion. Modal suppression remains active until the final modal closes.
+On the exchange map, the DOM tab-bar fallback also observes the existing suppression
+event. Expanded search hides it; collapse and the final suppression release restore it.
 
 The App events page sets document `scroll-behavior` to `auto` while mounted
 and resolves the computed property before Router restores the viewport. Its

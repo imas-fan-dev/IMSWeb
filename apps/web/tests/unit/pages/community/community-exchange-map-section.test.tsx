@@ -163,7 +163,7 @@ describe("CommunityExchangeMapSection", () => {
     const pointCount = screen
       .getByText("1 个区域点")
       .closest("[data-map-point-count]")
-    expect(pointCount).toHaveClass("top-17", "sm:top-19", "lg:top-3")
+    expect(pointCount).toHaveClass("top-3")
     expect(pointCount?.className).not.toMatch(/(?:^|\s)bottom-/)
     expect(screen.getByText(/当前范围结果较多/)).toBeVisible()
   })

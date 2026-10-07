@@ -1,132 +1,87 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-
+import { renderPage } from "@/tests/unit/support/harness"
 import CommunityExchangePage from "~/pages/community/exchange/community-exchange-page"
+import type { ExchangeSearchCardTools } from "~/pages/community/exchange/components/exchange-search-card"
 
-const apiMocks = vi.hoisted(() => ({
-  getFudabaSeries: vi.fn(),
-  getFudabaOfficePage: vi.fn(),
-  getFudabaCardPage: vi.fn(),
-  sendSeries: vi.fn(),
-  sendOffices: vi.fn(),
-  sendCards: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  series: vi.fn(),
+  offices: vi.fn(),
+  cards: vi.fn(),
 }))
-
-const glassMocks = vi.hoisted(() => ({
-  registrations: [] as Array<{ id: string; icon: string; label: string }>,
-}))
-
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
-
-// The native bridge is the only path that draws real Liquid Glass on iOS 26, so
-// the page has to keep handing the toolbar refresh control to it.
-vi.mock("~/lib/native-glass-controls", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/lib/native-glass-controls")>()
-  return {
-    ...actual,
-    useNativeGlassControl: (
-      ...args: Parameters<typeof actual.useNativeGlassControl>
-    ) => {
-      glassMocks.registrations.push({
-        id: args[0],
-        icon: args[1].icon,
-        label: args[1].label,
-      })
-      return actual.useNativeGlassControl(...args)
-    },
-  }
-})
-
-vi.mock("~/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/api")>()
-  return {
-    ...actual,
-    getFudabaSeries: apiMocks.getFudabaSeries,
-    getFudabaOfficePage: apiMocks.getFudabaOfficePage,
-    getFudabaCardPage: apiMocks.getFudabaCardPage,
-  }
-})
-
-vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
-  CommunityExchangeMapSection: () => <div>模拟地图内容</div>,
+vi.mock("~/lib/api", async (original) => ({
+  ...(await original<typeof import("~/lib/api")>()),
+  getFudabaSeries: () => ({ send: mocks.series }),
+  getFudabaOfficePage: () => ({ send: mocks.offices }),
+  getFudabaCardPage: () => ({ send: mocks.cards }),
 }))
-
+vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
+  CommunityExchangeMapSection: ({
+    searchTools,
+  }: {
+    searchTools: ExchangeSearchCardTools
+  }) => (
+    <div>
+      <button onClick={searchTools.onRefresh}>刷新名录</button>
+      <button onClick={searchTools.onOpenFilter}>筛选</button>
+      <button onClick={searchTools.onOpenOffices}>事务所</button>
+      <button onClick={searchTools.onOpenCards}>名片</button>
+      <output>{searchTools.modalOpen ? "搜索已隐藏" : "搜索可见"}</output>
+    </div>
+  ),
+}))
 vi.mock(
   "~/pages/community/exchange/components/exchange-discovery-rail",
   () => ({ ExchangeDiscoveryRail: () => null })
 )
 
-vi.mock(
-  "~/pages/community/exchange/components/exchange-mobile-navigation",
-  () => ({ ExchangeMobileNavigation: () => null })
-)
-
-describe("CommunityExchangePage app map toolbar", () => {
+describe("CommunityExchangePage App search tools", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    glassMocks.registrations.length = 0
-    apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
-    apiMocks.getFudabaOfficePage.mockReturnValue({ send: apiMocks.sendOffices })
-    apiMocks.getFudabaCardPage.mockReturnValue({ send: apiMocks.sendCards })
-    apiMocks.sendSeries.mockResolvedValue({ items: [] })
-    apiMocks.sendOffices.mockResolvedValue({
+    mocks.series.mockResolvedValue({ items: [] })
+    mocks.offices.mockResolvedValue({
       items: [],
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
-    apiMocks.sendCards.mockResolvedValue({
+    mocks.cards.mockResolvedValue({
       items: [],
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
   })
 
-  it("keeps only the refresh control above the packaged app map", async () => {
+  it("refreshes only directories through the shared search tools and omits a tab-root back control", async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter initialEntries={["/community/exchange"]}>
-        <CommunityExchangePage />
-      </MemoryRouter>
-    )
-
-    const toolbar = await screen.findByRole("region", { name: "地图工具" })
-    const refresh = within(toolbar).getByRole("button", { name: "刷新交换区" })
-
+    renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
+    await user.click(await screen.findByRole("button", { name: "刷新名录" }))
+    await waitFor(() => expect(mocks.series).toHaveBeenCalledTimes(2))
+    expect(mocks.offices).toHaveBeenCalledTimes(2)
+    expect(mocks.cards).toHaveBeenCalledTimes(2)
+    expect(
+      screen.queryByRole("region", { name: "地图工具" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /返回/ })
+    ).not.toBeInTheDocument()
     expect(document.querySelector("main")).toHaveClass(
       "exchange-map-app-viewport"
     )
-    expect(toolbar).toHaveClass("top-[calc(env(safe-area-inset-top)+0.75rem)]")
-    expect(toolbar).not.toHaveTextContent("名片交换事务所")
-    expect(refresh).toHaveClass(
-      "exchange-map-app-control",
-      "size-10",
-      "rounded-full"
-    )
-
-    await user.click(refresh)
-    await waitFor(() => {
-      expect(apiMocks.sendSeries).toHaveBeenCalledTimes(2)
-    })
   })
 
-  it("hands the map toolbar refresh control to the native glass bridge", async () => {
-    render(
-      <MemoryRouter initialEntries={["/community/exchange"]}>
-        <CommunityExchangePage />
-      </MemoryRouter>
+  it("hides search while modal tools are open and restores it after closing", async () => {
+    const user = userEvent.setup()
+    renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
+    await user.click(await screen.findByRole("button", { name: "筛选" }))
+    expect(
+      await screen.findByRole("dialog", { name: "筛选地图" })
+    ).toBeVisible()
+    expect(screen.getByText("搜索已隐藏")).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "筛选地图" })).toHaveFocus()
     )
-
-    const refresh = await screen.findByRole("button", { name: "刷新交换区" })
-
-    // `data-native-glass-control` is the hook `app.css` uses to hide the DOM twin
-    // once the overlay reports `supported: true`, so the Web and UIKit copies can
-    // never be visible at the same time.
-    expect(refresh).toHaveAttribute("data-native-glass-control", "refresh")
-    expect(glassMocks.registrations).toContainEqual({
-      id: "refresh",
-      icon: "refresh-cw",
-      label: "刷新交换区",
-    })
+    expect(screen.getByRole("textbox", { name: "城市" })).not.toHaveFocus()
+    await user.click(screen.getByRole("button", { name: "关闭" }))
+    expect(await screen.findByText("搜索可见")).toBeVisible()
   })
 })

@@ -38,6 +38,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::configure,
             commands::update,
             commands::set_controls,
+            commands::set_search,
+            commands::remove_search,
             commands::destroy
         ])
         .setup(|app, api| {

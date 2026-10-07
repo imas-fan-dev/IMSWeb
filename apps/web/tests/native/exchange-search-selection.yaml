@@ -1,0 +1,24 @@
+appId: top.idol-master.imsweb
+---
+- tapOn: "展开结果"
+- tapOn: "展开结果"
+- assertVisible: "缩小结果"
+- assertVisible:
+    id: "ims-native-search-result-native-place:2"
+- tapOn:
+    id: "ims-native-search-result-native-place:2"
+- assertVisible: "已定位：Native Hall 2"
+- assertNotVisible:
+    id: "ims-native-exchange-search-input"
+- assertNotVisible:
+    id: "inputView"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- takeScreenshot:
+    path: "NativeSearchSelected"
+- tapOn: "更多"
+- tapOn: "清除搜索地点"
+- assertNotVisible: "已定位：Native Hall 2"
+- assertVisible: "查找地点"
+- takeScreenshot:
+    path: "NativeSearchCleared"

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -61,6 +61,27 @@ function renderTabBar(initialEntry = "/") {
 }
 
 describe("AppTabBar platform material", () => {
+  it("suppresses the DOM map tab bar during search and restores it on release", () => {
+    renderTabBar("/community/exchange")
+    expect(screen.getByRole("navigation")).toBeVisible()
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent("ims:native-tab-bar-suppression", {
+          detail: { suppressed: true },
+        })
+      )
+    )
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent("ims:native-tab-bar-suppression", {
+          detail: { suppressed: false },
+        })
+      )
+    )
+    expect(screen.getByRole("navigation")).toBeVisible()
+    expect(nativeMocks.configure).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     themeMocks.resolvedTheme = "light"
     document.documentElement.classList.remove("dark")

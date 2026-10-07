@@ -5,6 +5,22 @@ use crate::{
 };
 
 #[command]
+pub(crate) async fn set_search<R: Runtime>(
+    app: AppHandle<R>,
+    args: crate::SetSearchArgs,
+) -> Result<NativeGlassStatus> {
+    app.native_glass().set_search(args)
+}
+
+#[command]
+pub(crate) async fn remove_search<R: Runtime>(
+    app: AppHandle<R>,
+    args: crate::RemoveSearchArgs,
+) -> Result<()> {
+    app.native_glass().remove_search(args)
+}
+
+#[command]
 pub(crate) async fn configure<R: Runtime>(
     app: AppHandle<R>,
     options: ConfigureOptions,

@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from "@testing-library/react"
+import { act, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -170,20 +170,21 @@ describe("CommunityExchangePage", () => {
     expect(
       screen.getByRole("heading", { name: "名片交换信号地图" })
     ).toBeVisible()
-    const mobileNavigation = screen.getByRole("navigation", {
-      name: "交换地图导航",
-    })
     expect(
-      within(mobileNavigation).getByRole("button", { name: "地图" })
-    ).toHaveAttribute("aria-current", "page")
-    expect(
-      within(mobileNavigation).getByRole("button", { name: "打开筛选" })
-    ).toHaveAttribute("aria-pressed", "false")
-    expect(
-      within(mobileNavigation).getByRole("link", {
-        name: "管理我的交换账号",
+      screen.queryByRole("navigation", { name: "交换地图导航" })
+    ).not.toBeInTheDocument()
+    expect(mapSectionMock.renders).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        searchTools: expect.objectContaining({
+          filterApplied: false,
+          modalOpen: false,
+          onOpenFilter: expect.any(Function),
+          onOpenOffices: expect.any(Function),
+          onOpenCards: expect.any(Function),
+          onRefresh: expect.any(Function),
+        }),
       })
-    ).toHaveAttribute("href", "/community/exchange/me")
+    )
     const agencyButton = screen.getByRole("button", { name: /765PRO/ })
     expect(agencyButton).toHaveAttribute("aria-pressed", "false")
     expect(agencyButton.querySelector("img")).toHaveAttribute(

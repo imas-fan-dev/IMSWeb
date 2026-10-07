@@ -57,6 +57,8 @@ describe("ExchangePlaceSearch", () => {
       screen.getByRole("button", { name: /西岸艺术中心.*上海市/ })
     )
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(response.items[0])
+    expect(screen.queryByLabelText("地点搜索结果")).not.toBeInTheDocument()
+    expect(screen.getByText(response.attribution)).toBeVisible()
     expect(onSubmit).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "搜索" }))
     expect(mocks.search).toHaveBeenCalledTimes(2)

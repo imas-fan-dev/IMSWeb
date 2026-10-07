@@ -1,0 +1,8 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web 组件分层与质量门禁"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"响应式、来源入口、焦点与 Sheet 安全区约束"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Web 浏览器与单元验证边界"}
+{"file":".trellis/tasks/10-07-web-exchange-narrow-layout/research/current-layout.md","reason":"当前断点、控件真实语义与搜索业务约束"}
+{"file":".trellis/spec/web/frontend/app-navigation.md","reason":"App 标签栏、沉浸地图与导航抑制所有权"}
+{"file":".trellis/tasks/10-07-web-exchange-narrow-layout/research/native-controls-context.md","reason":"原生规范的任务级索引，避免全文件截断；按指针直接读取完整相关场景"}
+{"file":"docs/architecture/glass-refraction-platform-strategy.md","reason":"不透明 WKWebView 地图上的原生玻璃与内容层约束"}
+{"file":".trellis/tasks/10-07-web-exchange-narrow-layout/research/apple-maps-and-native-search.md","reason":"Apple Maps 官方结构、UIKit 能力及搜索插件扩展边界"}

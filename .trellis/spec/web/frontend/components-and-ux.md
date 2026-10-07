@@ -408,15 +408,15 @@ source of truth and a gapless set of entry points:
   `{ kind: "text" | "link" }` segments and render those. `dangerouslySetInnerHTML` is forbidden; only
   `https:` hrefs survive and anything else degrades to plain text.
 - `null` means the entry is not rendered at all — no disabled button, no empty dialog.
-- The entry points must cover a gapless union of widths: the App folding panel, the Web top card at
-  768–1023px, the Web bottom navigation below 768px, and the Web discovery rail at 1024px and up.
+- The entry points cover a gapless union: the bottom search card's More menu on App and Web below
+  1024px, and the Web discovery rail at 1024px and up.
   Whenever a container gains a width-hiding class, re-check that no width loses its only entry.
-- One controlled dialog serves the page. Each entry carries `aria-haspopup="dialog"` and returns
-  focus to its trigger on close. The App entry sits in a panel that collapses on the same click, so
-  that case falls back to the always-visible menu trigger instead of focusing an `[inert]` node.
-- The bottom navigation derives its column count from whether the entry exists (`grid-cols-6` with
-  the notice, `grid-cols-5` without). At 375px every item stays at least 44 × 44 CSS pixels and the
-  document must not overflow horizontally.
+- One controlled dialog serves the page. Closing it returns focus to the visible More trigger on
+  narrow layouts or the desktop source trigger. Native iOS focus returns to the native More control.
+  Menu entries that have closed must not receive focus.
+- The card's search input/trigger is 48px high; More and the text tools have targets of at least
+  44 × 44 CSS pixels. Below 1024px, search, filter and both directories share the card, including
+  the 768px range. The card is nonmodal; only its dedicated handle owns drag gestures.
 
 ## Scenario: Mobile dialog sizing and scrolling
 

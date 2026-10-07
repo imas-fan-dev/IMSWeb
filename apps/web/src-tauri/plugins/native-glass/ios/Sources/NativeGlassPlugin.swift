@@ -132,6 +132,74 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   // declares a stored property of an iOS 26-only subclass. Every read casts
   // inside an `#available(iOS 26.0, *)` scope.
   private var controlHost: UIViewController?
+  private var searchHost: UIViewController?
+  private var searchGeneration: UInt64 = 0
+
+  @objc public func setSearch(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(NativeSearchArgs.self)
+    guard #available(iOS 26.0, *) else {
+      invoke.resolve(["supported": false, "reason": "requires-ios-26"])
+      return
+    }
+    DispatchQueue.main.async {
+      guard args.generation >= self.searchGeneration else {
+        invoke.resolve(["supported": false, "reason": "stale-search-generation"])
+        return
+      }
+      self.searchGeneration = args.generation
+      guard let parent = self.manager.viewController, let webview = self.webview,
+        args.host.width > 24, args.host.height > 120,
+        ["collapsed", "medium", "large"].contains(args.detent) else {
+        self.removeSearchHost()
+        invoke.resolve(["supported": false, "reason": "invalid-search-host"])
+        return
+      }
+      let host: NativeGlassSearchHost
+      if let existing = self.searchHost as? NativeGlassSearchHost { host = existing }
+      else {
+        host = NativeGlassSearchHost()
+        parent.addChild(host)
+        parent.view.addSubview(host.view)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+          host.view.leadingAnchor.constraint(equalTo: parent.view.leadingAnchor),
+          host.view.trailingAnchor.constraint(equalTo: parent.view.trailingAnchor),
+          host.view.topAnchor.constraint(equalTo: parent.view.topAnchor),
+          host.view.bottomAnchor.constraint(equalTo: parent.view.bottomAnchor)
+        ])
+        host.didMove(toParent: parent)
+        self.searchHost = host
+      }
+      host.webview = webview
+      host.onEvent = { [weak self] detail in
+        guard let data = try? JSONSerialization.data(withJSONObject: detail),
+          let literal = String(data: data, encoding: .utf8) else { return }
+        self?.webview?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('ims:native-glass-search',{detail:\(literal)}))", completionHandler: nil)
+      }
+      parent.view.layoutIfNeeded()
+      host.render(args)
+      invoke.resolve(["supported": true])
+    }
+  }
+
+  @objc public func removeSearch(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(NativeRemoveSearchArgs.self)
+    DispatchQueue.main.async {
+      if #available(iOS 26.0, *), let host = self.searchHost as? NativeGlassSearchHost,
+        host.snapshot?.id == args.id, host.snapshot?.generation == args.generation {
+        self.removeSearchHost()
+      }
+      invoke.resolve()
+    }
+  }
+
+  @available(iOS 26.0, *)
+  private func removeSearchHost() {
+    guard let host = searchHost as? NativeGlassSearchHost else { return }
+    searchHost = nil
+    host.clear()
+    detach(host)
+  }
 
   override func load(webview: WKWebView) {
     self.webview = webview
@@ -256,6 +324,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
       self.removeBar(animated: true)
       if #available(iOS 26.0, *) {
         self.removeControlHost()
+        self.removeSearchHost()
       }
       invoke.resolve()
     }
@@ -362,6 +431,11 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     }
 
     selectedIndex = index
+    if #available(iOS 26.0, *), selectedTab.identifier != "/community/exchange",
+      let host = searchHost as? NativeGlassSearchHost {
+      searchGeneration = max(searchGeneration, (host.snapshot?.generation ?? searchGeneration) + 1)
+      removeSearchHost()
+    }
     dispatchRoute(selectedTab.identifier)
   }
 

@@ -144,8 +144,6 @@ export function AppTabBar() {
   }, [activateTab])
 
   useEffect(() => {
-    if (!shouldAttemptNativeGlass()) return
-
     const handleSuppressionChange = (event: Event) => {
       const suppressed = nativeTabBarSuppressed(event)
       if (suppressed !== null) setNativeTabBarSuppressedState(suppressed)
@@ -252,7 +250,8 @@ export function AppTabBar() {
     setTravel({ slot, distance: Math.abs(slot - travel.slot) })
   }
 
-  if (nativeGlassActive) return null
+  if (nativeGlassActive || (useLightMapGlass && nativeTabBarSuppressedState))
+    return null
 
   return (
     <nav

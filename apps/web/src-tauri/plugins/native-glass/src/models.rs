@@ -121,3 +121,41 @@ pub struct NativeGlassStatus {
     pub reason: Option<String>,
     pub supported: bool,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeSearchResult {
+    pub id: String,
+    pub label: String,
+    pub address: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSearchArgs {
+    pub id: String,
+    pub generation: u64,
+    pub revision: u64,
+    pub host: NativeGlassFrame,
+    pub bottom_clearance: f64,
+    pub dark: bool,
+    pub detent: String,
+    pub editing: bool,
+    pub query: String,
+    pub busy: bool,
+    pub message: String,
+    pub attribution: String,
+    pub selected: String,
+    pub filter_applied: bool,
+    pub point_count: usize,
+    pub has_attribution: bool,
+    pub results: Vec<NativeSearchResult>,
+    pub labels: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveSearchArgs {
+    pub id: String,
+    pub generation: u64,
+}

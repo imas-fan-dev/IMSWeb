@@ -45,8 +45,7 @@ interface ExchangeDiscoveryRailProps {
   /**
    * Present only while the map style carries a notice. The rail is the sole
    * container visible at `lg` and up, so this is the desktop's attribution
-   * entry point; the top card covers 768–1023px and the bottom nav covers
-   * narrower viewports.
+   * entry point; the bottom search card covers Web below 1024px and App.
    */
   onOpenAttribution?: (trigger: HTMLElement) => void
 }
