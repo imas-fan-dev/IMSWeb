@@ -180,10 +180,20 @@ test.describe("community exchange", () => {
   }, testInfo) => {
     test.slow()
     await api.mockRoute(
-      "/api/community/exchange/offices/shanghai-weekend",
+      "/api/community/exchange/offices/shanghai-weekend/wall?*",
       (route) =>
         route.fulfill({
           json: {
+            wall: {
+              layoutVersion: 1,
+              left: 0,
+              top: 0,
+              right: 1600,
+              bottom: 900,
+              maxZIndex: 3,
+              total: 2,
+            },
+            pageInfo: { hasNextPage: false, nextCursor: null },
             office: {
               ...office,
               cards: [
@@ -192,8 +202,8 @@ test.describe("community exchange", () => {
                   viewerOwned: false,
                   placement: {
                     pinnedAt: "2026-08-02T09:00:00.000Z",
-                    x: 46,
-                    y: 51,
+                    x: 736,
+                    y: 459,
                     rotation: -3,
                     zIndex: 2,
                     revision: 0,
@@ -205,7 +215,7 @@ test.describe("community exchange", () => {
           },
         }),
       "GET",
-      2
+      { min: 2, max: 10 }
     )
     installCommunityContentMock(api, 1)
     await page.goto("/community")
@@ -354,14 +364,24 @@ test.describe("community exchange", () => {
     ).toBeVisible()
   })
 
-  test("keeps boundary card placements inside the visible wall", async ({
+  test("keeps boundary card placements inside the visible wall @mobile", async ({
     page,
   }) => {
     await api.mockRoute(
-      "**/api/community/exchange/offices/shanghai-weekend",
+      "**/api/community/exchange/offices/shanghai-weekend/wall?*",
       async (route) => {
         await route.fulfill({
           json: {
+            wall: {
+              layoutVersion: 1,
+              left: 0,
+              top: 0,
+              right: 1600,
+              bottom: 900,
+              maxZIndex: 3,
+              total: 2,
+            },
+            pageInfo: { hasNextPage: false, nextCursor: null },
             office: {
               ...office,
               cards: [
@@ -372,8 +392,8 @@ test.describe("community exchange", () => {
                   viewerOwned: false,
                   placement: {
                     pinnedAt: "2026-08-02T09:00:00.000Z",
-                    x: 0,
-                    y: 0,
+                    x: 160,
+                    y: 120,
                     rotation: -12,
                     zIndex: 1,
                     revision: 0,
@@ -387,8 +407,8 @@ test.describe("community exchange", () => {
                   viewerOwned: false,
                   placement: {
                     pinnedAt: "2026-08-02T09:01:00.000Z",
-                    x: 100,
-                    y: 100,
+                    x: 1440,
+                    y: 780,
                     rotation: 12,
                     zIndex: 2,
                     revision: 0,
@@ -400,16 +420,39 @@ test.describe("community exchange", () => {
           },
         })
       },
-      "GET"
+      "GET",
+      { min: 2, max: 12 }
     )
 
+    for (const cardId of ["card-north-west", "card-south-east"]) {
+      await api.mockRoute(
+        "/api/community/exchange/cards/" + cardId + "/reactions",
+        (route) =>
+          route.fulfill({ json: { success: true, cardId, reactions: [] } }),
+        "GET",
+        2
+      )
+    }
+
     await page.goto("/community/exchange/offices/shanghai-weekend")
-    const wall = page.getByLabel("名片墙放置区域")
+    const wall = page.getByRole("region", { name: "名片墙放置区域" })
     await expect(wall).toBeVisible()
-    const wallBox = await wall.boundingBox()
-    expect(wallBox).not.toBeNull()
 
     for (const name of ["左上边界名片", "右下边界名片"]) {
+      await page.getByRole("tab", { name: "列表" }).click()
+      const item = page
+        .locator('[data-slot="tabs-content"]')
+        .filter({ has: page.getByRole("button", { name: "在墙上定位" }) })
+      await item
+        .getByRole("button", { name: "在墙上定位" })
+        .nth(name === "左上边界名片" ? 0 : 1)
+        .click()
+      await expect(page.getByRole("tab", { name: "墙面" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
+      const wallBox = await wall.boundingBox()
+      expect(wallBox).not.toBeNull()
       const cardBox = await page
         .getByRole("button", { name: `查看${name}正面` })
         .boundingBox()
@@ -425,9 +468,10 @@ test.describe("community exchange", () => {
     }
   })
 
-  test("lets a card owner arrange and persist the free-placement wall", async ({
+  test("lets a card owner arrange and persist the free-placement wall @mobile", async ({
     context,
     page,
+    isMobile,
   }, testInfo) => {
     test.slow()
     await context.addCookies([
@@ -484,8 +528,8 @@ test.describe("community exchange", () => {
         "card-1",
         {
           pinnedAt: "2026-08-02T09:00:00.000Z",
-          x: 32,
-          y: 55,
+          x: 800,
+          y: 450,
           rotation: -3,
           zIndex: 2,
           revision: 3,
@@ -575,10 +619,20 @@ test.describe("community exchange", () => {
       2
     )
     await api.mockRoute(
-      "**/api/community/exchange/offices/shanghai-weekend",
+      "**/api/community/exchange/offices/shanghai-weekend/wall?*",
       async (route) => {
         await route.fulfill({
           json: {
+            wall: {
+              layoutVersion: 1,
+              left: 0,
+              top: 0,
+              right: 1600,
+              bottom: 900,
+              maxZIndex: 3,
+              total: 2,
+            },
+            pageInfo: { hasNextPage: false, nextCursor: null },
             office: {
               ...office,
               cards: ownerCards
@@ -589,10 +643,10 @@ test.describe("community exchange", () => {
         })
       },
       "GET",
-      3
+      { min: 3, max: 20 }
     )
     await api.mockRoute(
-      "/api/community/exchange/offices/office-1/cards/card-2/placement",
+      "/api/community/exchange/offices/office-1/cards/card-2/world-placement",
       async (route) => {
         const request = route.request()
         const body = request.postDataJSON() as Record<string, unknown>
@@ -635,7 +689,31 @@ test.describe("community exchange", () => {
     )
 
     await page.goto("/community/exchange/offices/shanghai-weekend")
-    await page.getByRole("button", { name: "布置名片墙" }).click()
+    await expect(page.getByRole("button", { name: "布置名片墙" })).toBeVisible()
+    const firstCard = page.locator('[data-card-id="card-1"] button').first()
+    const activateCard = async (target: typeof firstCard) => {
+      if (isMobile) await target.tap()
+      else await target.click()
+    }
+    await activateCard(firstCard)
+    await expect(page.getByRole("button", { name: "布置名片墙" })).toBeVisible()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await activateCard(firstCard)
+    await expect(page.getByRole("button", { name: "完成布置" })).toBeVisible()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await activateCard(firstCard)
+    await expect(page.getByRole("dialog")).toBeVisible()
+    await page.getByRole("button", { name: "关闭名片预览" }).click()
+    await page.getByRole("button", { name: "完成布置" }).click()
+    await expect(page.locator('[data-card-id="card-1"]')).not.toHaveClass(
+      /ring-2/
+    )
+    await activateCard(firstCard)
+    await expect(page.getByRole("button", { name: "完成布置" })).toBeVisible()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await activateCard(firstCard)
+    await expect(page.getByRole("dialog")).toBeVisible()
+    await page.getByRole("button", { name: "关闭名片预览" }).click()
     await page.getByRole("button", { name: "放到墙上" }).click()
 
     await expect(
@@ -644,37 +722,111 @@ test.describe("community exchange", () => {
     expect(placementWrites[0]).toMatchObject({
       cardId: "card-2",
       method: "PUT",
-      body: { expectedRevision: null, x: 50, y: 50, rotation: 0 },
+      body: {
+        layoutVersion: 1,
+        expectedRevision: null,
+        x: 800,
+        y: 450,
+        rotation: 0,
+      },
     })
 
     const moveHandle = page.getByRole("button", {
-      name: "移动第二张公开名片",
+      name: "查看第二张公开名片正面",
     })
+    await activateCard(moveHandle)
+    await activateCard(moveHandle)
+    await expect(page.locator('[data-card-id="card-2"]')).toHaveClass(/ring-2/)
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    const viewport = page.getByRole("region", { name: "名片墙放置区域" })
+    expect(
+      await viewport.evaluate((element) => getComputedStyle(element).userSelect)
+    ).toBe("none")
+    expect(
+      await moveHandle
+        .locator("img")
+        .evaluate((image) => (image as HTMLImageElement).draggable)
+    ).toBe(false)
+    const nativeDrags: string[] = []
+    await page.exposeFunction("recordNativeWallDrag", (tag: string) =>
+      nativeDrags.push(tag)
+    )
+    await viewport.evaluate((element) =>
+      element.addEventListener("dragstart", (event) => {
+        ;(
+          window as unknown as { recordNativeWallDrag: (tag: string) => void }
+        ).recordNativeWallDrag((event.target as HTMLElement).tagName)
+      })
+    )
     await focusCardWallForScreenshot(page)
     await moveHandle.scrollIntoViewIfNeeded()
+    const scene = viewport.locator("[data-wall-camera-x]")
+    const cameraBeforeDrag = await scene.evaluate((element) => ({
+      x: element.getAttribute("data-wall-camera-x"),
+      y: element.getAttribute("data-wall-camera-y"),
+      scale: element.getAttribute("data-wall-scale"),
+    }))
     const handleBox = await moveHandle.boundingBox()
     expect(handleBox).not.toBeNull()
-    await page.mouse.move(
-      handleBox!.x + handleBox!.width / 2,
-      handleBox!.y + handleBox!.height / 2
-    )
-    await page.mouse.down()
-    await page.mouse.move(
-      handleBox!.x + handleBox!.width / 2 + 52,
-      handleBox!.y + handleBox!.height / 2 + 28,
-      { steps: 4 }
-    )
-    await page.mouse.up()
+    if (isMobile) {
+      const touch = await page.context().newCDPSession(page)
+      const origin = {
+        x: handleBox!.x + handleBox!.width / 2,
+        y: handleBox!.y + handleBox!.height / 2,
+      }
+      await touch.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [origin],
+      })
+      for (const fraction of [0.25, 0.5, 0.75, 1])
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [
+            { x: origin.x + 52 * fraction, y: origin.y + 28 * fraction },
+          ],
+        })
+      await touch.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      })
+      await touch.detach()
+    } else {
+      await page.mouse.move(
+        handleBox!.x + handleBox!.width / 2,
+        handleBox!.y + handleBox!.height / 2
+      )
+      await page.mouse.down()
+      await page.mouse.move(
+        handleBox!.x + handleBox!.width / 2 + 52,
+        handleBox!.y + handleBox!.height / 2 + 28,
+        { steps: 4 }
+      )
+      await page.mouse.up()
+    }
 
     await expect.poll(() => placementWrites.length).toBe(2)
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    expect(nativeDrags).toEqual([])
     expect(placementWrites[1]).toMatchObject({
       cardId: "card-2",
       method: "PUT",
       body: { expectedRevision: 0 },
     })
     const draggedPlacement = placements.get("card-2")!
-    expect(draggedPlacement.x).toBeGreaterThan(50)
-    expect(draggedPlacement.y).toBeGreaterThan(50)
+    expect(draggedPlacement.x).toBeGreaterThan(800)
+    expect(draggedPlacement.y).toBeGreaterThan(450)
+    await expect(scene).toHaveAttribute(
+      "data-wall-camera-x",
+      cameraBeforeDrag.x!
+    )
+    await expect(scene).toHaveAttribute(
+      "data-wall-camera-y",
+      cameraBeforeDrag.y!
+    )
+    await expect(scene).toHaveAttribute(
+      "data-wall-scale",
+      cameraBeforeDrag.scale!
+    )
 
     await page.reload()
     const placedCard = page.locator('[data-card-id="card-2"]')
@@ -704,7 +856,6 @@ test.describe("community exchange", () => {
     await page.mouse.move(0, 0)
     await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
     const accessibility = await new AxeBuilder({ page }).analyze()
-    expect(accessibility.violations).toEqual([])
 
     const viewportGeometry = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
@@ -713,6 +864,7 @@ test.describe("community exchange", () => {
       overflowingElements: Array.from(
         document.querySelectorAll("main#main-content *")
       )
+        .filter((element) => !element.closest("[data-wall-camera-x]"))
         .map((element) => {
           const bounds = element.getBoundingClientRect()
           return {
@@ -759,6 +911,8 @@ test.describe("community exchange", () => {
 
     await page.reload()
     await expect(page.locator('[data-card-id="card-2"]')).toHaveCount(0)
+    // Check the editing-state accessibility snapshot after completing persistence/removal checks.
+    expect(accessibility.violations).toEqual([])
   })
 })
 

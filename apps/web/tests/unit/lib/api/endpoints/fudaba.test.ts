@@ -666,6 +666,7 @@ describe("Fudaba Web API contracts", () => {
     })
 
     const saved = await saveFudabaCardPlacement("office ?#", "card ?#", {
+      layoutVersion: 1 as const,
       x: 20,
       y: 80,
       rotation: 4,
@@ -682,7 +683,7 @@ describe("Fudaba Web API contracts", () => {
     expect(deleted).toEqual({ success: true, revision: 4 })
     expect(requests.map(({ url, init }) => [url, init?.method])).toEqual([
       [
-        "/api/community/exchange/offices/office%20%3F%23/cards/card%20%3F%23/placement",
+        "/api/community/exchange/offices/office%20%3F%23/cards/card%20%3F%23/world-placement",
         "PUT",
       ],
       [
@@ -696,6 +697,7 @@ describe("Fudaba Web API contracts", () => {
       )
     }
     expect(JSON.parse(String(requests[0]?.init?.body))).toEqual({
+      layoutVersion: 1 as const,
       x: 20,
       y: 80,
       rotation: 4,
@@ -710,6 +712,7 @@ describe("Fudaba Web API contracts", () => {
   it("rejects invalid placement paths and values before requesting", () => {
     const fetchMock = installFetchMock()
     const validInput = {
+      layoutVersion: 1 as const,
       x: 20,
       y: 80,
       rotation: 4,
@@ -738,7 +741,7 @@ describe("Fudaba Web API contracts", () => {
     expect(() =>
       saveFudabaCardPlacement("office-1", "card-1", {
         ...validInput,
-        x: 101,
+        x: 1_000_001,
       })
     ).toThrow()
     expect(() => deleteFudabaCardPlacement("office-1", "card-1", -1)).toThrow()

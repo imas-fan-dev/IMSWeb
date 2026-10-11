@@ -613,3 +613,5 @@ export type FudabaCardUpdateRequest = z.infer<typeof fudabaCardUpdateRequestSche
 export type FudabaOfficeFieldsRequest = z.infer<typeof fudabaOfficeFieldsRequestSchema>;
 export type FudabaOfficeUpdateRequest = z.infer<typeof fudabaOfficeUpdateRequestSchema>;
 export type FudabaOwnerLocationSaveRequest = z.infer<typeof fudabaOwnerLocationSaveRequestSchema>;
+
+export type FudabaErrorResponse = z.infer<typeof fudabaErrorResponseSchema>;

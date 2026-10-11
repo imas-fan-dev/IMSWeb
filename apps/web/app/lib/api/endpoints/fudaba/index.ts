@@ -1,4 +1,13 @@
 import {
+  fudabaWallResponseSchema,
+  fudabaWorldPlacementRequestSchema,
+  fudabaWorldPlacementResponseSchema,
+} from "@imsweb/contracts/fudaba/wall"
+export type {
+  FudabaWall,
+  FudabaWallResponse,
+} from "@imsweb/contracts/fudaba/wall"
+import {
   adminExchangePath,
   exchangePath,
   mapsPath,
@@ -37,13 +46,11 @@ import {
   fudabaCardFieldsRequestSchema,
   fudabaCardInteractionKindSchema,
   fudabaCardPlacementDeleteRequestSchema,
-  fudabaCardPlacementSaveRequestSchema,
   fudabaCardUpdateRequestSchema,
   fudabaCardInteractionResponseSchema,
   fudabaCardMutationResponseSchema,
   fudabaCardPageSchema,
   fudabaCardPlacementDeleteResponseSchema,
-  fudabaCardPlacementSaveResponseSchema,
   fudabaCardReactionSchema,
   fudabaCardReactionsResponseSchema,
   namecardReactionEmojiSchema,
@@ -213,7 +220,7 @@ export type SaveFudabaOwnerLocationInput = z.input<
 >
 
 export type SaveFudabaCardPlacementInput = z.input<
-  typeof fudabaCardPlacementSaveRequestSchema
+  typeof fudabaWorldPlacementRequestSchema
 >
 
 export type DeleteFudabaCardPlacementInput = z.input<
@@ -351,6 +358,40 @@ export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformAuth(),
       select: normalizeFudabaOfficePage,
+    })
+  )
+}
+
+export interface FudabaWallRequest {
+  bbox?: readonly [number, number, number, number]
+  cursor?: string
+  owned?: boolean
+  card?: string
+  limit?: number
+}
+export function getFudabaWall(
+  officeSlug: string,
+  input: FudabaWallRequest = {}
+) {
+  const params = new URLSearchParams({ limit: String(input.limit ?? 50) })
+  if (input.bbox) params.set("bbox", input.bbox.join(","))
+  if (input.cursor) params.set("cursor", input.cursor)
+  if (input.owned) params.set("owned", "true")
+  if (input.card) params.set("card", input.card)
+  return platformApiClient.Get(
+    withQuery(
+      exchangePath(`/offices/${encodeURIComponent(officeSlug)}/wall`),
+      params
+    ),
+    parsed(fudabaWallResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+      cacheFor: 0,
+      select: (result) => ({
+        ...result,
+        office: normalizeFudabaOfficeDetail(result.office),
+      }),
     })
   )
 }
@@ -785,13 +826,13 @@ export function saveFudabaCardPlacement(
   input: SaveFudabaCardPlacementInput
 ) {
   const path = fudabaCardPlacementPathSchema.parse({ officeId, cardId })
-  const submission = fudabaCardPlacementSaveRequestSchema.parse(input)
+  const submission = fudabaWorldPlacementRequestSchema.parse(input)
   return platformApiClient.Put(
     exchangePath(
-      `/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`
+      `/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/world-placement`
     ),
     submission,
-    parsed(fudabaCardPlacementSaveResponseSchema, {
+    parsed(fudabaWorldPlacementResponseSchema, {
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformCsrf(),

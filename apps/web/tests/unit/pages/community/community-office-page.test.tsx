@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -20,7 +20,7 @@ import CommunityOfficePage from "~/pages/community/exchange/community-office-pag
 
 const apiMocks = vi.hoisted(() => ({
   deleteFudabaCardPlacement: vi.fn(),
-  getFudabaOffice: vi.fn(),
+  getFudabaWall: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
   getFudabaSeries: vi.fn(),
   getPlatformProfile: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return {
     ...actual,
     deleteFudabaCardPlacement: apiMocks.deleteFudabaCardPlacement,
-    getFudabaOffice: apiMocks.getFudabaOffice,
+    getFudabaWall: apiMocks.getFudabaWall,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
     getFudabaSeries: apiMocks.getFudabaSeries,
     getPlatformProfile: apiMocks.getPlatformProfile,
@@ -131,7 +131,25 @@ describe("CommunityOfficePage", () => {
     }
     platformMocks.usePlatformSession.mockReturnValue(anonymous)
     platformMocks.useOptionalPlatformSession.mockReturnValue(anonymous)
-    apiMocks.getFudabaOffice.mockReturnValue({ send: apiMocks.sendOffice })
+    apiMocks.getFudabaWall.mockReturnValue({
+      abort: vi.fn(),
+      send: async () => {
+        const office = await apiMocks.sendOffice()
+        return {
+          office,
+          wall: {
+            layoutVersion: 1,
+            left: 0,
+            top: 0,
+            right: 1600,
+            bottom: 900,
+            total: office.cards.length,
+            maxZIndex: 2,
+          },
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        }
+      },
+    })
     apiMocks.getFudabaOwnerCards.mockReturnValue({
       send: apiMocks.sendOwnerCards,
     })
@@ -161,7 +179,7 @@ describe("CommunityOfficePage", () => {
       success: true,
       placement: {
         ...placedCard.placement,
-        x: 46,
+        x: 61,
         revision: 4,
         updatedAt: "2026-08-02T10:00:00.000Z",
       },
@@ -187,6 +205,92 @@ describe("CommunityOfficePage", () => {
     expect(
       screen.getByRole("button", { name: "查看交换会用名片背面" })
     ).toBeVisible()
+  })
+
+  it("automatically completes the observation area without paging controls and reuses its buffer", async () => {
+    const cards = Array.from({ length: 60 }, (_, index) => ({
+      ...placedCard,
+      id: "near-" + index,
+      displayName: "区域名片 " + index,
+      viewerOwned: false,
+      placement: { ...placedCard.placement, x: 800, y: 450 },
+    }))
+    const farCard = {
+      ...cards[0],
+      id: "far-card",
+      displayName: "远处名片",
+      placement: { ...placedCard.placement, x: 3300, y: 450 },
+    }
+    apiMocks.getFudabaWall.mockImplementation((_slug, input) => ({
+      abort: vi.fn(),
+      send: async () => {
+        const centerX = (input.bbox[0] + input.bbox[2]) / 2
+        const near = centerX < 2000
+        const office = makeFudabaOfficeDetail({
+          cards: near
+            ? input.cursor
+              ? [...cards.slice(50), cards[49]]
+              : cards.slice(0, 50)
+            : [farCard],
+        })
+        return {
+          office,
+          wall: {
+            layoutVersion: 1,
+            left: 0,
+            top: 0,
+            right: 4800,
+            bottom: 900,
+            total: 61,
+            maxZIndex: 61,
+          },
+          pageInfo: {
+            hasNextPage: near && !input.cursor,
+            nextCursor: near && !input.cursor ? "region-rest" : null,
+          },
+        }
+      },
+    }))
+    const { container } = renderPage()
+    await waitFor(() =>
+      expect(container.querySelectorAll("[data-card-id]")).toHaveLength(60)
+    )
+    expect(
+      screen.queryByRole("button", { name: "下一批名片" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "上一批名片" })
+    ).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(apiMocks.getFudabaWall).toHaveBeenCalledWith("shanghai-weekend", {
+        // 960 × 540 viewport at 80%, with 25% extra on each side.
+        bbox: [-100, -56.25, 1700, 956.25],
+        cursor: "region-rest",
+      })
+    )
+
+    const requests = apiMocks.getFudabaWall.mock.calls.length
+    vi.useFakeTimers()
+    try {
+      const viewport = screen.getByRole("region", { name: "名片墙放置区域" })
+      await act(async () => {
+        fireEvent.keyDown(viewport, { key: "ArrowRight" })
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(apiMocks.getFudabaWall).toHaveBeenCalledTimes(requests)
+      await act(async () => {
+        for (let index = 0; index < 24; index++)
+          fireEvent.keyDown(viewport, { key: "ArrowRight" })
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(container.querySelectorAll("[data-card-id]")).toHaveLength(1)
+      expect(container.querySelector("[data-card-id=far-card]")).not.toBeNull()
+      expect(apiMocks.saveFudabaCardPlacement).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("keeps the office usable when the series catalog is unavailable", async () => {
@@ -237,6 +341,25 @@ describe("CommunityOfficePage", () => {
     expect(screen.queryByText("未找到这个事务所")).not.toBeInTheDocument()
   })
 
+  it("selects the wall, enters editing on the card click, and opens the next click", async () => {
+    const user = userEvent.setup()
+    mockAuthenticatedPlatformSession()
+    renderPage()
+    await screen.findByRole("button", { name: "布置名片墙" })
+    const card = screen.getByRole("button", { name: "查看交换会用名片正面" })
+    await user.click(card)
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "布置名片墙" })).toBeVisible()
+    await user.click(card)
+    expect(screen.getByRole("button", { name: "完成布置" })).toBeVisible()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(card.closest("[data-card-id]")).toHaveClass("ring-2")
+    expect(card.querySelector("img")).toHaveAttribute("draggable", "false")
+    await user.click(card)
+    expect(screen.getByRole("dialog")).toBeVisible()
+    expect(apiMocks.saveFudabaCardPlacement).not.toHaveBeenCalled()
+  })
+
   it("saves keyboard placement changes for the signed-in card owner", async () => {
     const user = userEvent.setup()
     mockAuthenticatedPlatformSession()
@@ -254,7 +377,8 @@ describe("CommunityOfficePage", () => {
         "office-1",
         "card-1",
         {
-          x: 46,
+          layoutVersion: 1,
+          x: 61,
           y: 52,
           rotation: -3,
           zIndex: 2,
@@ -308,8 +432,9 @@ describe("CommunityOfficePage", () => {
       "office-1",
       "card-2",
       {
-        x: 50,
-        y: 50,
+        layoutVersion: 1,
+        x: 45,
+        y: 52,
         rotation: 0,
         zIndex: 3,
         expectedRevision: null,

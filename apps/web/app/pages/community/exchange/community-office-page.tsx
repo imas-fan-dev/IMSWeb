@@ -39,7 +39,7 @@ import { Skeleton } from "~/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import {
   deleteFudabaCardPlacement,
-  getFudabaOffice,
+  getFudabaWall,
   getFudabaOwnerCards,
   getFudabaSeries,
   getPlatformProfile,
@@ -50,6 +50,7 @@ import {
   type FudabaOwnerCard,
   type FudabaPlacedCard,
   type FudabaSeries,
+  type FudabaWallResponse,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import {
@@ -58,7 +59,28 @@ import {
   SeriesBadge,
 } from "./exchange-components"
 import type { WallPlacement } from "./exchange-card-wall"
+import type { WallBounds, WallFocus } from "./wall-viewport"
 import { NavigationLink } from "~/components/navigation/navigation-link"
+
+function wallLoadBounds(viewport: WallBounds): WallBounds {
+  const bufferX = (viewport[2] - viewport[0]) / 4
+  const bufferY = (viewport[3] - viewport[1]) / 4
+  return [
+    Math.max(-1_000_000, viewport[0] - bufferX),
+    Math.max(-1_000_000, viewport[1] - bufferY),
+    Math.min(1_000_000, viewport[2] + bufferX),
+    Math.min(1_000_000, viewport[3] + bufferY),
+  ]
+}
+
+function containsViewport(loaded: WallBounds, viewport: WallBounds) {
+  return (
+    loaded[0] <= viewport[0] &&
+    loaded[1] <= viewport[1] &&
+    loaded[2] >= viewport[2] &&
+    loaded[3] >= viewport[3]
+  )
+}
 
 type DetailPhase = "loading" | "ready" | "closed" | "missing" | "error"
 
@@ -131,6 +153,27 @@ export default function CommunityOfficePage() {
   const [confirmedPlacements, setConfirmedPlacements] = useState(
     () => new Map<string, FudabaCardPlacement>()
   )
+  const [wallInfo, setWallInfo] = useState<FudabaWallResponse | null>(null)
+  const [wallView, setWallView] = useState("wall")
+  const [region, setRegion] = useState<WallBounds>([0, 0, 1600, 900])
+  const [wallFocus, setWallFocus] = useState<WallFocus | null>(null)
+  const loadedBounds = useRef<WallBounds | null>(null)
+  const [knownOwnedPlacements, setKnownOwnedPlacements] = useState(
+    () => new Set<string>()
+  )
+  const [wallLoading, setWallLoading] = useState(false)
+  const sceneGeneration = useRef(0)
+  const activeSceneRequest = useRef<ReturnType<typeof getFudabaWall> | null>(
+    null
+  )
+  const wallQuery = useRef<WallBounds>([-400, -225, 2000, 1125])
+  const onRegionChange = useCallback((bounds: WallBounds) => {
+    setRegion((current) =>
+      current.every((value, index) => Math.abs(value - bounds[index]) < 0.1)
+        ? current
+        : bounds
+    )
+  }, [])
   const requestGeneration = useRef(0)
   const editorGeneration = useRef(0)
   const pendingCardIdsRef = useRef(new Set<string>())
@@ -141,17 +184,22 @@ export default function CommunityOfficePage() {
       return
     }
     const generation = ++requestGeneration.current
+    sceneGeneration.current += 1
+    activeSceneRequest.current?.abort()
+    loadedBounds.current = null
+    setWallLoading(false)
     setState((current) => ({ ...current, phase: "loading", error: null }))
     try {
       const [officeResult, seriesResult] = await Promise.allSettled([
-        getFudabaOffice(officeSlug).send(),
+        getFudabaWall(officeSlug, { bbox: [0, 0, 1600, 900] }).send(),
         getFudabaSeries().send(),
       ])
       if (requestGeneration.current !== generation) return
       if (officeResult.status === "rejected") throw officeResult.reason
+      setWallInfo(officeResult.value)
       setState({
         phase: "ready",
-        office: officeResult.value,
+        office: officeResult.value.office,
         series:
           seriesResult.status === "fulfilled" ? seriesResult.value.items : [],
         error: null,
@@ -204,6 +252,106 @@ export default function CommunityOfficePage() {
     }
   }, [platform.session?.account.id, platform.status])
 
+  const readWall = useCallback(
+    async (bounds: WallBounds, notifyErrors = true) => {
+      if (!officeSlug) return null
+      const generation = ++sceneGeneration.current
+      activeSceneRequest.current?.abort()
+      setWallLoading(true)
+      wallQuery.current = bounds
+      try {
+        const cards = new Map<string, FudabaPlacedCard>()
+        const cursors = new Set<string>()
+        let cursor: string | undefined
+        let result: FudabaWallResponse
+        do {
+          const method = getFudabaWall(officeSlug, { bbox: bounds, cursor })
+          activeSceneRequest.current = method
+          result = await method.send()
+          if (generation !== sceneGeneration.current) return null
+          for (const card of result.office.cards) cards.set(card.id, card)
+          cursor = result.pageInfo.hasNextPage
+            ? (result.pageInfo.nextCursor ?? undefined)
+            : undefined
+          if (result.pageInfo.hasNextPage && (!cursor || cursors.has(cursor)))
+            throw new Error("墙面暂时无法完整载入，请重试。")
+          if (cursor) cursors.add(cursor)
+        } while (cursor)
+        const office = { ...result.office, cards: [...cards.values()] }
+        loadedBounds.current = bounds
+        setWallInfo({ ...result, office })
+        setState((current) => ({ ...current, office }))
+        return office
+      } catch (error) {
+        if (generation === sceneGeneration.current && notifyErrors)
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "墙面暂时无法载入，请重试。"
+          )
+        return null
+      } finally {
+        if (generation === sceneGeneration.current) setWallLoading(false)
+      }
+    },
+    [officeSlug]
+  )
+
+  useEffect(() => {
+    if (
+      state.phase !== "ready" ||
+      (loadedBounds.current && containsViewport(loadedBounds.current, region))
+    )
+      return
+    const bounds = wallLoadBounds(region)
+    const timer = window.setTimeout(() => {
+      void readWall(bounds)
+    }, 180)
+    return () => {
+      window.clearTimeout(timer)
+      sceneGeneration.current += 1
+      activeSceneRequest.current?.abort()
+    }
+  }, [region, state.phase, readWall])
+
+  useEffect(
+    () => () => {
+      sceneGeneration.current += 1
+      activeSceneRequest.current?.abort()
+    },
+    [officeSlug]
+  )
+
+  async function locateMine() {
+    if (!officeSlug) return
+    const pageGeneration = requestGeneration.current
+    const accountGeneration = editorGeneration.current
+    try {
+      const result = await getFudabaWall(officeSlug, {
+        owned: true,
+        limit: 1,
+      }).send()
+      if (
+        pageGeneration !== requestGeneration.current ||
+        accountGeneration !== editorGeneration.current
+      )
+        return
+      const card = result.office.cards[0]
+      if (!card) {
+        toast.info("你还没有在这面墙上放置名片。")
+        return
+      }
+      setWallFocus({
+        x: card.placement.x,
+        y: card.placement.y,
+        key: Date.now(),
+      })
+      setWallView("wall")
+    } catch {
+      toast.error("暂时无法定位名片，请重试。")
+    }
+  }
+
   const seriesMap = useMemo(
     () => new Map(state.series.map((item) => [item.code, item])),
     [state.series]
@@ -221,8 +369,9 @@ export default function CommunityOfficePage() {
   const placedCardIds = useMemo(() => {
     const cardIds = new Set(state.office?.cards.map((card) => card.id) ?? [])
     for (const cardId of confirmedPlacements.keys()) cardIds.add(cardId)
+    for (const cardId of knownOwnedPlacements) cardIds.add(cardId)
     return cardIds
-  }, [confirmedPlacements, state.office?.cards])
+  }, [confirmedPlacements, knownOwnedPlacements, state.office?.cards])
   const unplacedOwnerCards = useMemo(
     () => eligibleOwnerCards.filter((card) => !placedCardIds.has(card.id)),
     [eligibleOwnerCards, placedCardIds]
@@ -251,7 +400,17 @@ export default function CommunityOfficePage() {
 
   useEffect(() => {
     setConfirmedPlacements(new Map())
+    setKnownOwnedPlacements(new Set())
   }, [officeSlug, platform.session?.account.id])
+
+  useEffect(() => {
+    const owned = state.office?.cards.filter((card) => card.viewerOwned) ?? []
+    if (!owned.length) return
+    setKnownOwnedPlacements((current) => {
+      if (owned.every((card) => current.has(card.id))) return current
+      return new Set([...current, ...owned.map((card) => card.id)])
+    })
+  }, [state.office?.cards])
 
   function markCardPending(cardId: string, pending: boolean) {
     const next = new Set(pendingCardIdsRef.current)
@@ -316,17 +475,40 @@ export default function CommunityOfficePage() {
     })
   }
 
-  const refreshOfficeDetail = useCallback(async () => {
-    if (!officeSlug) return null
-    const office = await getFudabaOffice(officeSlug).send()
-    setState((current) => ({
-      ...current,
-      phase: "ready",
-      office,
-      error: null,
-    }))
-    return office
-  }, [officeSlug])
+  const refreshOfficeDetail = useCallback(
+    async (cardId?: string) => {
+      if (!officeSlug) return null
+      if (!cardId) {
+        const office = await readWall(wallQuery.current, false)
+        if (!office) throw new Error("墙面暂时无法重新载入。")
+        return office
+      }
+      const generation = ++sceneGeneration.current
+      activeSceneRequest.current?.abort()
+      setWallLoading(false)
+      const method = getFudabaWall(officeSlug, { card: cardId })
+      activeSceneRequest.current = method
+      const result = await method.send()
+      if (generation !== sceneGeneration.current) return null
+      loadedBounds.current = null
+      setWallInfo(result)
+      setState((current) => ({
+        ...current,
+        phase: "ready",
+        office: {
+          ...result.office,
+          cards: [
+            ...(current.office?.cards.filter((card) => card.id !== cardId) ??
+              []),
+            ...result.office.cards.filter((card) => card.id === cardId),
+          ],
+        },
+        error: null,
+      }))
+      return result.office
+    },
+    [officeSlug, readWall]
+  )
 
   async function handlePlacementFailure(error: unknown, fallback: string) {
     if (
@@ -363,13 +545,21 @@ export default function CommunityOfficePage() {
     const office = state.office
     if (!office || pendingCardIdsRef.current.has(cardId)) return
     markCardPending(cardId, true)
+    sceneGeneration.current += 1
+    activeSceneRequest.current?.abort()
+    setWallLoading(false)
+    const pageGeneration = requestGeneration.current
     try {
       const result = await saveFudabaCardPlacement(office.id, cardId, {
         ...placement,
+        layoutVersion: 1,
         expectedRevision: previous.revision,
       }).send()
+      if (pageGeneration !== requestGeneration.current) return
       replacePlacement(cardId, result.placement)
+      loadedBounds.current = null
     } catch (error) {
+      if (pageGeneration !== requestGeneration.current) return
       replacePlacement(cardId, previous)
       await handlePlacementFailure(error, "名片位置暂时无法保存。")
     } finally {
@@ -384,7 +574,7 @@ export default function CommunityOfficePage() {
     )
     if (!office || !card || pendingCardIdsRef.current.has(card.id)) return
     const maximumZIndex = Math.max(
-      0,
+      wallInfo?.wall.maxZIndex ?? 0,
       ...office.cards.map((item) => item.placement.zIndex),
       ...Array.from(
         confirmedPlacements.values(),
@@ -392,17 +582,30 @@ export default function CommunityOfficePage() {
       )
     )
     markCardPending(card.id, true)
+    const pageGeneration = requestGeneration.current
+    sceneGeneration.current += 1
+    activeSceneRequest.current?.abort()
+    setWallLoading(false)
     try {
       const result = await saveFudabaCardPlacement(office.id, card.id, {
-        x: 50,
-        y: 50,
+        layoutVersion: 1,
+        x: Math.round((region[0] + region[2]) / 2),
+        y: Math.round((region[1] + region[3]) / 2),
         rotation: 0,
-        zIndex: Math.min(999, maximumZIndex + 1),
+        zIndex: Math.min(2_147_483_000, maximumZIndex + 1),
         expectedRevision: null,
       }).send()
+      if (pageGeneration !== requestGeneration.current) return
       rememberConfirmedPlacement(card.id, result.placement)
+      setKnownOwnedPlacements((current) => new Set([...current, card.id]))
+      setWallFocus({
+        x: result.placement.x,
+        y: result.placement.y,
+        key: Date.now(),
+      })
+      setWallView("wall")
       try {
-        const refreshedOffice = await refreshOfficeDetail()
+        const refreshedOffice = await refreshOfficeDetail(card.id)
         if (!refreshedOffice?.cards.some((item) => item.id === card.id)) {
           toast.warning("名片已放到墙上，但最新墙面暂时无法重新载入。")
           return
@@ -414,6 +617,7 @@ export default function CommunityOfficePage() {
       }
       toast.success("名片已放到墙上。")
     } catch (error) {
+      if (pageGeneration !== requestGeneration.current) return
       await handlePlacementFailure(error, "名片暂时无法放到墙上。")
     } finally {
       markCardPending(card.id, false)
@@ -424,12 +628,34 @@ export default function CommunityOfficePage() {
     const office = state.office
     if (!office || pendingCardIdsRef.current.has(card.id)) return
     markCardPending(card.id, true)
+    const pageGeneration = requestGeneration.current
+    sceneGeneration.current += 1
+    activeSceneRequest.current?.abort()
+    setWallLoading(false)
     try {
       await deleteFudabaCardPlacement(
         office.id,
         card.id,
         card.placement.revision
       ).send()
+      if (pageGeneration !== requestGeneration.current) return
+      setKnownOwnedPlacements((current) => {
+        const next = new Set(current)
+        next.delete(card.id)
+        return next
+      })
+      forgetConfirmedPlacement(card.id)
+      setWallInfo((current) =>
+        current
+          ? {
+              ...current,
+              wall: {
+                ...current.wall,
+                total: Math.max(0, current.wall.total - 1),
+              },
+            }
+          : current
+      )
       setState((current) => {
         if (!current.office) return current
         return {
@@ -442,6 +668,7 @@ export default function CommunityOfficePage() {
       })
       toast.success("名片已从墙上移除。")
     } catch (error) {
+      if (pageGeneration !== requestGeneration.current) return
       await handlePlacementFailure(error, "名片暂时无法移除。")
     } finally {
       markCardPending(card.id, false)
@@ -596,10 +823,15 @@ export default function CommunityOfficePage() {
                 事务所名片墙
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {office.cards.length} 张公开名片
+                {wallInfo?.wall.total ?? office.cards.length} 张公开名片
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {platform.status === "authenticated" ? (
+                <Button variant="outline" onClick={() => void locateMine()}>
+                  定位我的名片
+                </Button>
+              ) : null}
               {platform.status === "anonymous" ? (
                 <NavigationLink
                   to="/account/login"
@@ -637,7 +869,22 @@ export default function CommunityOfficePage() {
                   type="button"
                   variant={wallEditing ? "secondary" : "default"}
                   disabled={wallMutationPending}
-                  onClick={() => setWallEditing((current) => !current)}
+                  onClick={() => {
+                    if (!wallEditing) {
+                      const owned = office.cards.find(
+                        (card) => card.viewerOwned
+                      )
+                      if (owned)
+                        setWallFocus({
+                          x: owned.placement.x,
+                          y: owned.placement.y,
+                          scale: 1,
+                          key: Date.now(),
+                        })
+                      setWallView("wall")
+                    }
+                    setWallEditing((current) => !current)
+                  }}
                 >
                   {wallEditing ? (
                     <CheckIcon aria-hidden="true" />
@@ -723,8 +970,8 @@ export default function CommunityOfficePage() {
             </div>
           ) : null}
 
-          {office.cards.length || wallEditing ? (
-            <Tabs defaultValue="wall" className="mt-5">
+          {(wallInfo?.wall.total ?? office.cards.length) || wallEditing ? (
+            <Tabs value={wallView} onValueChange={setWallView} className="mt-5">
               <TabsList aria-label="名片墙视图">
                 <TabsTrigger value="wall">
                   <LayoutGridIcon aria-hidden="true" />
@@ -738,7 +985,14 @@ export default function CommunityOfficePage() {
               <TabsContent value="wall" className="mt-3">
                 <PlacedCardWall
                   cards={office.cards}
+                  total={wallInfo?.wall.total}
+                  maxZIndex={wallInfo?.wall.maxZIndex}
+                  focus={wallFocus}
+                  onRegionChange={onRegionChange}
                   editing={wallEditing}
+                  onEditingChange={(editing) => {
+                    if (canEditWall) setWallEditing(editing)
+                  }}
                   pendingCardIds={pendingCardIds}
                   onPlacementPreview={previewPlacement}
                   onPlacementCommit={(cardId, previous, placement) =>
@@ -748,14 +1002,30 @@ export default function CommunityOfficePage() {
                 />
               </TabsContent>
               <TabsContent value="list" className="mt-3">
+                <p className="mb-3 text-sm text-muted-foreground">
+                  当前观察区域内的名片
+                </p>
                 {office.cards.length ? (
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {office.cards.map((card) => (
-                      <ExchangeCard
-                        key={card.id}
-                        card={card}
-                        series={seriesMap}
-                      />
+                      <div key={card.id} className="space-y-2">
+                        <div>
+                          <ExchangeCard card={card} series={seriesMap} />
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setWallFocus({
+                              x: card.placement.x,
+                              y: card.placement.y,
+                              key: Date.now(),
+                            })
+                            setWallView("wall")
+                          }}
+                        >
+                          在墙上定位
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -764,6 +1034,23 @@ export default function CommunityOfficePage() {
                   </p>
                 )}
               </TabsContent>
+              <div
+                className="flex flex-wrap items-center gap-2"
+                aria-live="polite"
+              >
+                {wallLoading ? (
+                  <span className="text-sm text-muted-foreground">
+                    载入墙面…
+                  </span>
+                ) : null}
+                <Button
+                  variant="outline"
+                  disabled={wallLoading || wallMutationPending}
+                  onClick={() => void readWall(wallQuery.current)}
+                >
+                  刷新墙面
+                </Button>
+              </div>
             </Tabs>
           ) : (
             <Empty className="mt-5 min-h-64 border-y">

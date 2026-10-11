@@ -59,6 +59,9 @@ export function CoverImagePreview({
   previewLabel = "封面",
   previewItems,
   previewIndex = 0,
+  onPreviewRequest,
+  imageDraggable,
+  triggerProps,
 }: {
   src: string
   alt: string
@@ -69,6 +72,18 @@ export function CoverImagePreview({
   previewLabel?: string
   previewItems?: readonly PreviewItem[]
   previewIndex?: number
+  onPreviewRequest?: () => boolean
+  imageDraggable?: boolean
+  triggerProps?: Pick<
+    React.ComponentPropsWithoutRef<"button">,
+    | "onPointerDown"
+    | "onPointerMove"
+    | "onPointerUp"
+    | "onPointerCancel"
+    | "onLostPointerCapture"
+    | "onKeyDown"
+    | "title"
+  >
 }) {
   const previewCount = Math.max(previewItems?.length ?? 0, 1)
   const initialPreviewIndex =
@@ -107,6 +122,7 @@ export function CoverImagePreview({
   }
 
   function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen && onPreviewRequest && !onPreviewRequest()) return
     setOpen(nextOpen)
     setActivePreviewIndex(initialPreviewIndex)
     resetView()
@@ -203,13 +219,14 @@ export function CoverImagePreview({
       <DialogTrigger
         render={
           <button
+            {...triggerProps}
             type="button"
             className={cn(
               "group relative block shrink-0 overflow-hidden rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
               className
             )}
             aria-label={`查看${alt}`}
-            title="查看大图"
+            title={triggerProps?.title ?? "查看大图"}
           />
         }
       >
@@ -217,6 +234,7 @@ export function CoverImagePreview({
           src={src}
           alt=""
           loading={loading}
+          draggable={imageDraggable}
           className={cn("size-full object-cover", imageClassName)}
           style={imageStyle}
         />

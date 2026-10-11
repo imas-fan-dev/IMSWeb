@@ -140,20 +140,27 @@ test.describe('route inventory compiler', () => {
       "utf8",
     ));
 
+    // V1 adds region GET and world-placement PUT: two paths and four carriers.
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 337,
-      mountedMethodPaths: 247,
+      mountedRegistrations: 339,
+      mountedMethodPaths: 249,
       noInputRoutes: 90,
-      requestCarriers: 326,
+      requestCarriers: 330,
       policies: {
-        reject: 52,
+        reject: 54,
         "accept-and-project": 183,
         passthrough: 18,
-        "non-object-applicable": 73,
+        "non-object-applicable": 75,
       },
-      responses: { total: 667, json: 603, nonJson: 64 },
+      responses: { total: 671, json: 607, nonJson: 64 },
       unresolved: 0,
     });
+    const wallRead = current.routes.find((route) => route.method === "GET"
+      && route.path === "/api/community/exchange/offices/:officeSlug/wall");
+    const worldWrite = current.routes.find((route) => route.method === "PUT"
+      && route.path === "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement");
+    assert.equal(wallRead?.carriers.find((carrier) => carrier.kind === "query")?.policy, "reject");
+    assert.equal(worldWrite?.carriers.find((carrier) => carrier.kind === "json")?.policy, "reject");
     assert.deepEqual(current, artifact);
   });
 

@@ -160,6 +160,11 @@
       "types": "./dist/paths.d.ts",
       "require": "./dist/paths.js",
       "default": "./dist/paths.js"
+    },
+    "./fudaba/wall": {
+      "types": "./dist/fudaba/wall.d.ts",
+      "require": "./dist/fudaba/wall.js",
+      "default": "./dist/fudaba/wall.js"
     }
   },
   "scripts": {

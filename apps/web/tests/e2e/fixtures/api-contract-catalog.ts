@@ -1,4 +1,10 @@
 import {
+  fudabaWallQuerySchema,
+  fudabaWallResponseSchema,
+  fudabaWorldPlacementRequestSchema,
+  fudabaWorldPlacementResponseSchema,
+} from "@imsweb/contracts/fudaba/wall"
+import {
   communityContentSchema,
   communityContentErrorResponseSchema,
   adminCommunityContentSnapshotSchema,
@@ -374,6 +380,28 @@ export function resolveApiContract(
   )
     return {
       responses: { 200: fudabaCardReactionsResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall$/.test(path)
+  )
+    return {
+      query: fudabaWallQuerySchema,
+      responses: { 200: fudabaWallResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/cards\/[^/]+\/world-placement$/.test(
+      path
+    )
+  )
+    return {
+      body: fudabaWorldPlacementRequestSchema,
+      responses: {
+        200: fudabaWorldPlacementResponseSchema,
+        201: fudabaWorldPlacementResponseSchema,
+        ...fudabaErrors,
+      },
     }
   if (
     method === "GET" &&

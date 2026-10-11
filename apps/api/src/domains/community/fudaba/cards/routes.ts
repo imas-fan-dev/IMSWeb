@@ -1,3 +1,4 @@
+import { fudabaWorldPlacementRequestSchema } from '@imsweb/contracts/fudaba/wall';
 import {
     fudabaCardIdParamsSchema,
     fudabaCardMediaParamsSchema,
@@ -17,6 +18,7 @@ import { handleDeleteFudabaCard } from '@/domains/community/fudaba/cards/handler
 import { handleGetFudabaOwnerCard } from '@/domains/community/fudaba/cards/handlers/get-owner-card';
 import { handleListFudabaOwnerCards } from '@/domains/community/fudaba/cards/handlers/list-owner-cards';
 import { handleRemoveFudabaCardPlacement } from '@/domains/community/fudaba/cards/handlers/remove-card-placement';
+import { handleRejectLegacyFudabaPlacement } from '@/domains/community/fudaba/cards/handlers/reject-legacy-placement';
 import { handleSaveFudabaCardPlacement } from '@/domains/community/fudaba/cards/handlers/save-card-placement';
 import { handleServeFudabaOwnerCardMedia } from '@/domains/community/fudaba/cards/handlers/serve-owner-card-media';
 import { createHandleFudabaCardInteraction } from '@/domains/community/fudaba/cards/handlers/set-card-interaction';
@@ -52,7 +54,8 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
     }
     routes.put('/me/cards/:cardId', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(fudabaCardUpdateRequestSchema), handleUpdateFudabaCard);
     routes.delete('/me/cards/:cardId', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(fudabaRevisionRequestSchema), handleDeleteFudabaCard);
-    routes.put('/offices/:officeId/cards/:cardId/placement', ...write, paramSchemaValidator(fudabaCardOfficePlacementParamsSchema), jsonSchemaValidator(fudabaCardPlacementSaveRequestSchema), handleSaveFudabaCardPlacement);
+    routes.put('/offices/:officeId/cards/:cardId/world-placement', ...write, paramSchemaValidator(fudabaCardOfficePlacementParamsSchema), jsonSchemaValidator(fudabaWorldPlacementRequestSchema), handleSaveFudabaCardPlacement);
+    routes.put('/offices/:officeId/cards/:cardId/placement', ...write, paramSchemaValidator(fudabaCardOfficePlacementParamsSchema), jsonSchemaValidator(fudabaCardPlacementSaveRequestSchema), handleRejectLegacyFudabaPlacement);
     routes.delete('/offices/:officeId/cards/:cardId/placement', ...write, paramSchemaValidator(fudabaCardOfficePlacementParamsSchema), jsonSchemaValidator(fudabaCardPlacementDeleteRequestSchema), handleRemoveFudabaCardPlacement);
     routes.put(publicUploadsPath('/:side'), requireFudabaWrite, platformAuth, activePlatformMutation, platformCsrf, platformUploadRateLimit, handleUploadFudabaOwnedMedia);
     return routes;

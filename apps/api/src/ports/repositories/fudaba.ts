@@ -654,7 +654,31 @@ export interface ListFudabaPublicCardsInput {
     after?: FudabaPublicCardCursor;
 }
 
+export interface FudabaWallQuery {
+    limit: number;
+    scope: string;
+    bbox?: [number, number, number, number];
+    after?: { pinnedAt: string; id: string };
+    owned?: boolean;
+    cardId?: string;
+}
+
+export interface FudabaPublicWallRecord {
+    office: FudabaPublicOfficeDetailRecord;
+    cursorPosition: { pinnedAt: string; id: string } | null;
+    wall: {
+        layoutVersion: 1;
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+        maxZIndex: number;
+        total: number;
+    };
+}
+
 export interface FudabaRepository {
+    findPublicWall(slug: string, viewerAccountId: string | null, query: FudabaWallQuery): Promise<FudabaPublicWallRecord | null>;
     listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
     listPublicOffices(
         input: ListFudabaPublicOfficesInput,

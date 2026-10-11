@@ -64,6 +64,15 @@ Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and
 
 Tests use Node's runner, Vitest, Testing Library, Playwright, and Python `unittest`. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. No numeric coverage threshold exists; API persistence changes must cover the active Node runtime.
 
+### Validation During Iteration
+
+- For small, reversible UI or interaction adjustments, format/lint the changed files and verify the affected behavior with existing focused tests or a browser check. Include mobile touch verification when touch behavior changes. Then make the result available for user feedback; do not run the full suite, full typecheck, or build after every small adjustment.
+- Reuse existing tests and passing evidence for unchanged code. Add tests only for meaningful behavior or a regression not already covered; do not add tests that merely mirror the implementation. Repeat checks only after relevant code changes, a failure, or a newly identified risk.
+- At version acceptance or before committing/submitting, run the required workspace typechecks, relevant regression tests, builds, and repository gates together. Keep CI and commit-hook requirements intact.
+- Database, authorization, and HTTP contract changes require appropriate validation immediately rather than deferring it to the end of UI iteration.
+- For documentation-only changes, read back the edit and check the diff; do not run application tests or builds.
+- Fix and reverify failed checks within the authorized scope, or report the blocker. Never skip a required check, weaken assertions, or hide failures to claim success. Report focused validation separately from complete version acceptance.
+
 ## Documentation
 
 Repository-level documentation lives under `docs/` and follows [`docs/README.md`](docs/README.md):

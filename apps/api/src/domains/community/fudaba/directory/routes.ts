@@ -1,3 +1,5 @@
+import { fudabaWallQuerySchema } from '@imsweb/contracts/fudaba/wall';
+import { handleGetFudabaWall } from '@/domains/community/fudaba/directory/handlers/get-wall';
 import {
     fudabaCardIdParamsSchema,
     fudabaCardQuerySchema,
@@ -44,6 +46,14 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         querySchemaValidator(fudabaOfficeQuerySchema),
         handleListFudabaPublicOffices
+    );
+    routes.get(
+        '/offices/:officeSlug/wall',
+        requireFudabaPublicRead,
+        optionalPlatformAuth,
+        paramSchemaValidator(fudabaOfficeSlugParamsSchema),
+        querySchemaValidator(fudabaWallQuerySchema),
+        handleGetFudabaWall
     );
     routes.get(
         '/offices/:officeSlug',

@@ -1004,7 +1004,7 @@ import { describe, onTestFinished, test } from 'vitest';
             position_x: 12.5,
             position_y: 87.25,
             rotation: -4.5,
-            z_index: 8,
+            z_index: 1,
             revision: 0,
             updated_at: CREATED_AT
         });
@@ -1062,7 +1062,7 @@ import { describe, onTestFinished, test } from 'vitest';
             position_x: 100,
             position_y: 0,
             rotation: 12,
-            z_index: 999,
+            z_index: 2,
             revision: 1,
             updated_at: UPDATED_AT
         });
@@ -1436,6 +1436,7 @@ import { describe, onTestFinished, test } from 'vitest';
 
     function placementBody(expectedRevision: number | null): Record<string, unknown> {
         return {
+            layoutVersion: 1,
             x: 25.5,
             y: 74.5,
             rotation: -3,
@@ -1446,10 +1447,22 @@ import { describe, onTestFinished, test } from 'vitest';
 
     function path(cardId = CARD_ID): string {
         return `/api/community/exchange/offices/${OFFICE_ID}` +
-            `/cards/${cardId}/placement`;
+            `/cards/${cardId}/world-placement`;
     }
 
     test.describe('card placement', () => {
+        test('legacy percentage writes fail with a layout conflict without changing a placement', async () => {
+            const fixture = new PlacementRouteFixture();
+            const response = await fixture.app.request('http://ims.test' + path().replace('/world-placement', '/placement'), {
+                method: 'PUT',
+                headers: bearerHeaders({ 'content-type': 'application/json' }),
+                body: JSON.stringify({ x: 50, y: 50, rotation: 0, zIndex: 1, expectedRevision: null })
+            });
+            assert.equal(response.status, 409);
+            assert.equal((await response.json() as { code: string }).code, 'FUDABA_WALL_LAYOUT_CONFLICT');
+            assert.equal(fixture.placements.size, 0);
+        });
+
         test('routes enforce write gate, Platform auth, active status, CSRF, and rate limit',
             async () => {
                 const disabled = new PlacementRouteFixture({ writeEnabled: false });
@@ -1483,7 +1496,7 @@ import { describe, onTestFinished, test } from 'vitest';
 
                 const limited = new PlacementRouteFixture();
                 limited.rateLimiter.deniedBuckets.add('platform-write-account');
-                assert.equal((await limited.app.request(`http://ims.test${path()}`, {
+                assert.equal((await limited.app.request(`http://ims.test${path().replace('/world-placement', '/placement')}`, {
                     method: 'DELETE',
                     headers: bearerHeaders({ 'content-type': 'application/json' }),
                     body: JSON.stringify({ expectedRevision: 0 })
@@ -1532,8 +1545,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 assert.equal((await duplicate.json() as { revision: number }).revision, 0);
 
                 for (const invalid of [
-                    { ...placementBody(0), x: -0.01 },
-                    { ...placementBody(0), y: 100.01 },
+                    { ...placementBody(0), x: -1_000_000.01 },
+                    { ...placementBody(0), y: 1_000_000.01 },
                     { ...placementBody(0), rotation: 12.01 },
                     { ...placementBody(0), zIndex: 1.5 },
                     { ...placementBody(0), expectedRevision: '0' },
@@ -1559,6 +1572,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     method: 'PUT',
                     headers: bearerHeaders({ 'content-type': 'application/json' }),
                     body: JSON.stringify({
+                        layoutVersion: 1,
                         x: 0,
                         y: 100,
                         rotation: 12,
@@ -1646,7 +1660,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 assert.equal(closedUpdate.status, 404);
                 assert.deepEqual(await closedUpdate.json(), notFound);
 
-                const removed = await fixture.app.request(`http://ims.test${path()}`, {
+                const removed = await fixture.app.request(`http://ims.test${path().replace('/world-placement', '/placement')}`, {
                     method: 'DELETE',
                     headers: bearerHeaders({ 'content-type': 'application/json' }),
                     body: JSON.stringify({ expectedRevision: 0 })
@@ -1667,21 +1681,21 @@ import { describe, onTestFinished, test } from 'vitest';
                     body: JSON.stringify(placementBody(null))
                 })).status, 201);
 
-                const stale = await fixture.app.request(`http://ims.test${path()}`, {
+                const stale = await fixture.app.request(`http://ims.test${path().replace('/world-placement', '/placement')}`, {
                     method: 'DELETE',
                     headers: bearerHeaders({ 'content-type': 'application/json' }),
                     body: JSON.stringify({ expectedRevision: 2 })
                 });
                 assert.equal(stale.status, 409);
                 assert.equal((await stale.json() as { revision: number }).revision, 0);
-                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                assert.equal((await fixture.app.request(`http://ims.test${path().replace('/world-placement', '/placement')}`, {
                     method: 'DELETE',
                     headers: bearerHeaders({ 'content-type': 'application/json' }),
                     body: JSON.stringify({ expectedRevision: '0' })
                 })).status, 400);
 
                 fixture.inUse = true;
-                const inUse = await fixture.app.request(`http://ims.test${path()}`, {
+                const inUse = await fixture.app.request(`http://ims.test${path().replace('/world-placement', '/placement')}`, {
                     method: 'DELETE',
                     headers: bearerHeaders({ 'content-type': 'application/json' }),
                     body: JSON.stringify({ expectedRevision: 0 })
@@ -1694,7 +1708,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 });
 
                 fixture.inUse = false;
-                const removed = await fixture.app.request(`http://ims.test${path()}`, {
+                const removed = await fixture.app.request(`http://ims.test${path().replace('/world-placement', '/placement')}`, {
                     method: 'DELETE',
                     headers: {
                         ...cookieHeaders(true),
@@ -1707,7 +1721,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     success: true,
                     revision: 1
                 });
-                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                assert.equal((await fixture.app.request(`http://ims.test${path().replace('/world-placement', '/placement')}`, {
                     method: 'DELETE',
                     headers: bearerHeaders({ 'content-type': 'application/json' }),
                     body: JSON.stringify({ expectedRevision: 1 })
@@ -9374,7 +9388,6 @@ import { describe, onTestFinished, test } from 'vitest';
 
 // fudaba-public-routes.test.ts
 {
-    const NOW = Date.now();
     const CREATED_AT = "2026-08-02T00:00:00.000Z";
 
     class PublicMediaStorage implements ObjectStorage {
@@ -9534,6 +9547,7 @@ import { describe, onTestFinished, test } from 'vitest';
         } = {},
     ): RuntimeServices {
         const status = options.accountStatus ?? "active";
+        const now = Date.now();
         return {
             fudaba: fudaba.repository,
             storage: new PublicMediaStorage(),
@@ -9553,8 +9567,8 @@ import { describe, onTestFinished, test } from 'vitest';
                         sessionId: "platform-session",
                         csrfSecret: "csrf-secret",
                         jti: "access-token",
-                        iat: Math.floor(NOW / 1000),
-                        exp: Math.floor(NOW / 1000) + 300,
+                        iat: Math.floor(now / 1000),
+                        exp: Math.floor(now / 1000) + 300,
                     };
                 },
             },
@@ -9566,9 +9580,9 @@ import { describe, onTestFinished, test } from 'vitest';
                         token_hash: "hash",
                         previous_token_hash: null,
                         csrf_hash: "csrf-hash",
-                        expires_at: NOW + 60_000,
-                        created_at: NOW,
-                        updated_at: NOW,
+                        expires_at: now + 60_000,
+                        created_at: now,
+                        updated_at: now,
                         revoked_at: null,
                     };
                 },
@@ -9578,9 +9592,9 @@ import { describe, onTestFinished, test } from 'vitest';
                             id: "platform-viewer",
                             status,
                             token_version: 0,
-                            created_at: NOW,
-                            updated_at: NOW,
-                            deleted_at: status === "deleted" ? NOW : null,
+                            created_at: now,
+                            updated_at: now,
+                            deleted_at: status === "deleted" ? now : null,
                         },
                         profile: {
                             account_id: "platform-viewer",
@@ -9589,7 +9603,7 @@ import { describe, onTestFinished, test } from 'vitest';
                             avatar_external_url: null,
                             home_city: null,
                             bio: "",
-                            updated_at: NOW,
+                            updated_at: now,
                         },
                     };
                 },

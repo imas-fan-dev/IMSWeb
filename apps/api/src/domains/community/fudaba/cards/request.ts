@@ -143,9 +143,9 @@ function finiteNumber(
 function zIndex(value: unknown): number {
     if (
         typeof value !== 'number' || !Number.isSafeInteger(value) ||
-        value < 1 || value > 999
+        value < 1 || value > 2_147_483_000
     ) {
-        throw badRequest('zIndex 必须是 1 到 999 之间的整数');
+        throw badRequest('zIndex 超出墙面层级范围');
     }
     return value;
 }
@@ -188,10 +188,11 @@ export function parseFudabaCardPlacement(
     value: unknown
 ): FudabaCardPlacementSubmission {
     const body = object(value);
-    exactKeys(body, ['x', 'y', 'rotation', 'zIndex', 'expectedRevision']);
+    exactKeys(body, ['layoutVersion', 'x', 'y', 'rotation', 'zIndex', 'expectedRevision']);
+    if (body.layoutVersion !== 1) throw badRequest('layoutVersion 无效');
     return {
-        positionX: finiteNumber(body.x, 'x', 0, 100),
-        positionY: finiteNumber(body.y, 'y', 0, 100),
+        positionX: finiteNumber(body.x, 'x', -1_000_000, 1_000_000),
+        positionY: finiteNumber(body.y, 'y', -1_000_000, 1_000_000),
         rotation: finiteNumber(body.rotation, 'rotation', -12, 12),
         zIndex: zIndex(body.zIndex),
         expectedRevision: body.expectedRevision === null

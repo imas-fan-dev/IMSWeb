@@ -8,6 +8,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -37,6 +38,7 @@ import {
 } from "~/components/ui/tooltip"
 import type { FudabaCardPlacement, FudabaPlacedCard } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { WallViewport, type WallBounds, type WallFocus } from "./wall-viewport"
 
 export type WallPlacement = Pick<
   FudabaCardPlacement,
@@ -51,7 +53,12 @@ type PlacementCommit = (
 
 interface PlacedCardWallProps {
   cards: FudabaPlacedCard[]
+  focus?: WallFocus | null
+  total?: number
+  maxZIndex?: number
+  onRegionChange?: (bounds: WallBounds) => void
   editing?: boolean
+  onEditingChange?: (editing: boolean) => void
   pendingCardIds?: ReadonlySet<string>
   onPlacementPreview?: (cardId: string, placement: WallPlacement) => void
   onPlacementCommit?: PlacementCommit
@@ -59,7 +66,7 @@ interface PlacedCardWallProps {
 }
 
 interface WallCardProps {
-  board: HTMLDivElement | null
+  scale: number
   card: FudabaPlacedCard
   editing: boolean
   flipped: boolean
@@ -67,6 +74,7 @@ interface WallCardProps {
   selected: boolean
   onFlip: () => void
   onSelect: () => void
+  onActivate: () => boolean
   onPlacementPreview?: PlacedCardWallProps["onPlacementPreview"]
   onPlacementCommit?: PlacementCommit
 }
@@ -84,7 +92,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 function roundedCoordinate(value: number) {
-  return Math.round(clamp(value, 0, 100) * 10) / 10
+  return Math.round(clamp(value, -1_000_000, 1_000_000) * 10) / 10
 }
 
 function placementFields(placement: FudabaCardPlacement): WallPlacement {
@@ -132,7 +140,7 @@ function IconTooltip({
 }
 
 function WallCard({
-  board,
+  scale,
   card,
   editing,
   flipped,
@@ -140,12 +148,26 @@ function WallCard({
   selected,
   onFlip,
   onSelect,
+  onActivate,
   onPlacementPreview,
   onPlacementCommit,
 }: WallCardProps) {
   const dragStart = useRef<DragStart | null>(null)
+  const suppressPreview = useRef(false)
   const cardElement = useRef<HTMLDivElement | null>(null)
   const canMove = editing && card.viewerOwned && !pending
+
+  useEffect(() => {
+    if (!canMove) {
+      dragStart.current = null
+      if (cardElement.current) {
+        cardElement.current.style.left = String(card.placement.x) + "px"
+        cardElement.current.style.top = String(card.placement.y) + "px"
+        cardElement.current.dataset.placementX = String(card.placement.x)
+        cardElement.current.dataset.placementY = String(card.placement.y)
+      }
+    }
+  }, [canMove, card.placement.x, card.placement.y])
 
   function preview(placement: WallPlacement) {
     onPlacementPreview?.(card.id, placement)
@@ -153,7 +175,9 @@ function WallCard({
 
   function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
     if (!canMove || event.button !== 0) return
+    suppressPreview.current = false
     event.preventDefault()
+    event.currentTarget.focus()
     event.currentTarget.setPointerCapture?.(event.pointerId)
     const placement = card.placement
     dragStart.current = {
@@ -167,28 +191,20 @@ function WallCard({
 
   function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
     const start = dragStart.current
-    if (!start || start.pointerId !== event.pointerId || !board) return
-    const bounds = board.getBoundingClientRect()
-    if (!bounds.width || !bounds.height) return
+    if (!start || start.pointerId !== event.pointerId) return
     const next = {
       ...start.latest,
       x: roundedCoordinate(
-        start.placement.x +
-          ((event.clientX - start.clientX) / bounds.width) * 100
+        start.placement.x + (event.clientX - start.clientX) / scale
       ),
       y: roundedCoordinate(
-        start.placement.y +
-          ((event.clientY - start.clientY) / bounds.height) * 100
+        start.placement.y + (event.clientY - start.clientY) / scale
       ),
     }
     start.latest = next
     if (cardElement.current) {
-      cardElement.current.style.left =
-        `clamp(var(--wall-x-inset), ${next.x}%, ` +
-        "calc(100% - var(--wall-x-inset)))"
-      cardElement.current.style.top =
-        `clamp(var(--wall-y-inset), ${next.y}%, ` +
-        "calc(100% - var(--wall-y-inset)))"
+      cardElement.current.style.left = `${next.x}px`
+      cardElement.current.style.top = `${next.y}px`
       cardElement.current.dataset.placementX = String(next.x)
       cardElement.current.dataset.placementY = String(next.y)
     }
@@ -200,6 +216,7 @@ function WallCard({
     dragStart.current = null
     onSelect()
     if (!samePlacement(placementFields(start.placement), start.latest)) {
+      suppressPreview.current = true
       preview(start.latest)
       onPlacementCommit?.(card.id, start.placement, start.latest)
     }
@@ -209,22 +226,30 @@ function WallCard({
     const start = dragStart.current
     if (!start || start.pointerId !== event.pointerId) return
     dragStart.current = null
+    suppressPreview.current = true
     const previous = placementFields(start.placement)
     if (cardElement.current) {
-      cardElement.current.style.left =
-        `clamp(var(--wall-x-inset), ${previous.x}%, ` +
-        "calc(100% - var(--wall-x-inset)))"
-      cardElement.current.style.top =
-        `clamp(var(--wall-y-inset), ${previous.y}%, ` +
-        "calc(100% - var(--wall-y-inset)))"
+      cardElement.current.style.left = `${previous.x}px`
+      cardElement.current.style.top = `${previous.y}px`
       cardElement.current.dataset.placementX = String(previous.x)
       cardElement.current.dataset.placementY = String(previous.y)
     }
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "Escape" && dragStart.current) {
+      dragStart.current = null
+      suppressPreview.current = true
+      if (cardElement.current) {
+        cardElement.current.style.left = String(card.placement.x) + "px"
+        cardElement.current.style.top = String(card.placement.y) + "px"
+        cardElement.current.dataset.placementX = String(card.placement.x)
+        cardElement.current.dataset.placementY = String(card.placement.y)
+      }
+      return
+    }
     if (!canMove) return
-    const step = event.shiftKey ? 5 : 1
+    const step = event.shiftKey ? 80 : 16
     const movement = {
       ArrowDown: [0, step],
       ArrowLeft: [-step, 0],
@@ -251,17 +276,15 @@ function WallCard({
     <div
       ref={cardElement}
       className={cn(
-        "absolute w-[clamp(7rem,18vw,13rem)]",
-        "[--wall-x-inset:4.5rem] [--wall-y-inset:3.5rem]",
-        "sm:[--wall-x-inset:7.5rem] sm:[--wall-y-inset:6rem]",
+        "absolute w-60",
         selected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
       )}
       data-card-id={card.id}
       data-placement-x={card.placement.x}
       data-placement-y={card.placement.y}
       style={{
-        left: `clamp(var(--wall-x-inset), ${card.placement.x}%, calc(100% - var(--wall-x-inset)))`,
-        top: `clamp(var(--wall-y-inset), ${card.placement.y}%, calc(100% - var(--wall-y-inset)))`,
+        left: `${card.placement.x}px`,
+        top: `${card.placement.y}px`,
         zIndex: card.placement.zIndex,
         transform: `translate(-50%, -50%) rotate(${card.placement.rotation}deg)`,
       }}
@@ -270,8 +293,31 @@ function WallCard({
         src={flipped ? card.backImageUrl : card.frontImageUrl}
         alt={`${card.displayName}${side}`}
         previewLabel="名片"
-        className="aspect-3/2 w-full border bg-card shadow-sm"
+        className={cn(
+          "aspect-3/2 w-full border bg-card shadow-sm",
+          selected && canMove && "cursor-grab touch-none active:cursor-grabbing"
+        )}
         imageClassName="object-contain"
+        imageDraggable={false}
+        onPreviewRequest={() => {
+          if (suppressPreview.current) {
+            suppressPreview.current = false
+            return false
+          }
+          return onActivate()
+        }}
+        triggerProps={{
+          title: selected ? "查看大图" : "选中名片",
+          onPointerDown: (event) => {
+            suppressPreview.current = false
+            if (selected) handlePointerDown(event)
+          },
+          onPointerMove: handlePointerMove,
+          onPointerUp: handlePointerUp,
+          onPointerCancel: handlePointerCancel,
+          onLostPointerCapture: handlePointerCancel,
+          onKeyDown: handleKeyDown,
+        }}
       />
       <IconTooltip label={flipped ? "翻到正面" : "翻到背面"}>
         <Button
@@ -295,11 +341,16 @@ function WallCard({
               "absolute -top-3 -left-3 touch-none shadow-sm",
               canMove && "cursor-grab active:cursor-grabbing"
             )}
+            style={{
+              transform: `scale(${1 / scale})`,
+              transformOrigin: "center",
+            }}
             aria-label={`移动${card.displayName}`}
             aria-pressed={selected}
             disabled={pending}
             onFocus={onSelect}
             onKeyDown={handleKeyDown}
+            onLostPointerCapture={handlePointerCancel}
             onPointerCancel={handlePointerCancel}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -319,14 +370,23 @@ function WallCard({
 
 export function PlacedCardWall({
   cards,
+  focus,
+  total = cards.length,
+  maxZIndex = 0,
+  onRegionChange,
   editing = false,
+  onEditingChange,
   pendingCardIds = new Set<string>(),
   onPlacementPreview,
   onPlacementCommit,
   onRemove,
 }: PlacedCardWallProps) {
-  const [board, setBoard] = useState<HTMLDivElement | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [previousEditing, setPreviousEditing] = useState(editing)
+  if (editing !== previousEditing) {
+    setPreviousEditing(editing)
+    if (!editing) setSelectedId(null)
+  }
   const [flippedIds, setFlippedIds] = useState(() => new Set<string>())
   const [removeOpen, setRemoveOpen] = useState(false)
 
@@ -338,20 +398,22 @@ export function PlacedCardWall({
     () => [...cards].sort(compareCardStacking),
     [cards]
   )
-  const selectedCard = editing
-    ? (ownedCards.find((card) => card.id === selectedId) ??
-      ownedCards[0] ??
-      null)
-    : null
+  const activeCard =
+    cards.find((card) => card.id === selectedId) ??
+    (editing ? (ownedCards[0] ?? null) : null)
+  const selectedCard = editing ? activeCard : null
   const selectedPending = selectedCard
     ? pendingCardIds.has(selectedCard.id)
     : false
+  const selectedReadOnly = !selectedCard?.viewerOwned
   const maximumZIndex = Math.max(
-    0,
+    maxZIndex,
     ...cards.map((card) => card.placement.zIndex)
   )
   const selectedIsFrontmost =
-    selectedCard !== null && orderedCards.at(-1)?.id === selectedCard.id
+    selectedCard !== null &&
+    selectedCard.placement.zIndex === maximumZIndex &&
+    orderedCards.at(-1)?.id === selectedCard.id
 
   function flip(cardId: string) {
     setFlippedIds((current) => {
@@ -363,7 +425,7 @@ export function PlacedCardWall({
   }
 
   function commitSelected(patch: Partial<WallPlacement>) {
-    if (!selectedCard || selectedPending) return
+    if (!selectedCard || selectedReadOnly || selectedPending) return
     const previous = selectedCard.placement
     const next = { ...placementFields(previous), ...patch }
     if (samePlacement(placementFields(previous), next)) return
@@ -372,11 +434,17 @@ export function PlacedCardWall({
   }
 
   function bringSelectedToFront() {
-    if (!selectedCard || selectedPending || selectedIsFrontmost) return
+    if (
+      !selectedCard ||
+      selectedReadOnly ||
+      selectedPending ||
+      selectedIsFrontmost
+    )
+      return
     const previous = selectedCard.placement
     const next = {
       ...placementFields(previous),
-      zIndex: Math.min(999, maximumZIndex + 1),
+      zIndex: 2_147_483_000,
     }
     if (!samePlacement(placementFields(previous), next)) {
       onPlacementPreview?.(selectedCard.id, next)
@@ -387,25 +455,18 @@ export function PlacedCardWall({
   return (
     <TooltipProvider>
       <div
-        ref={setBoard}
-        className={cn(
-          "relative min-h-96 overflow-hidden border bg-muted/40",
-          "sm:aspect-video sm:min-h-0",
-          editing && "border-primary/35 bg-muted/55"
-        )}
-        aria-label="名片墙放置区域"
+        className="relative space-y-3"
+        aria-label="名片墙"
         aria-busy={pendingCardIds.size > 0}
       >
-        <SeriesAccentStrip className="absolute inset-x-0 top-0 z-1001 h-1" />
+        <SeriesAccentStrip className="h-1" />
 
         {editing ? (
           <div
             role="toolbar"
             aria-label="名片墙编辑工具"
             className={cn(
-              "absolute top-3 left-1/2 z-1002 flex max-w-[calc(100%-1.5rem)]",
-              "-translate-x-1/2 items-center gap-1 border bg-background/95",
-              "px-1.5 py-1 shadow-sm backdrop-blur"
+              "flex flex-wrap items-center gap-1 border bg-background px-1.5 py-1"
             )}
           >
             <span className="max-w-28 truncate px-1 text-xs font-medium sm:max-w-48">
@@ -417,7 +478,7 @@ export function PlacedCardWall({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="向左旋转名片"
-                disabled={!selectedCard || selectedPending}
+                disabled={!selectedCard || selectedReadOnly || selectedPending}
                 onClick={() =>
                   commitSelected({
                     rotation: clamp(
@@ -437,7 +498,7 @@ export function PlacedCardWall({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="向右旋转名片"
-                disabled={!selectedCard || selectedPending}
+                disabled={!selectedCard || selectedReadOnly || selectedPending}
                 onClick={() =>
                   commitSelected({
                     rotation: clamp(
@@ -458,7 +519,10 @@ export function PlacedCardWall({
                 size="icon-sm"
                 aria-label="将名片移到最前"
                 disabled={
-                  !selectedCard || selectedPending || selectedIsFrontmost
+                  !selectedCard ||
+                  selectedReadOnly ||
+                  selectedPending ||
+                  selectedIsFrontmost
                 }
                 onClick={bringSelectedToFront}
               >
@@ -486,7 +550,7 @@ export function PlacedCardWall({
                 size="icon-sm"
                 className="text-destructive hover:text-destructive"
                 aria-label="从名片墙移除"
-                disabled={!selectedCard || selectedPending}
+                disabled={!selectedCard || selectedReadOnly || selectedPending}
                 onClick={() => setRemoveOpen(true)}
               >
                 <Trash2Icon aria-hidden="true" />
@@ -495,32 +559,52 @@ export function PlacedCardWall({
           </div>
         ) : null}
 
-        {orderedCards.length ? (
-          orderedCards.map((card) => (
-            <WallCard
-              key={card.id}
-              board={board}
-              card={card}
-              editing={editing}
-              flipped={flippedIds.has(card.id)}
-              pending={pendingCardIds.has(card.id)}
-              selected={selectedCard?.id === card.id}
-              onFlip={() => flip(card.id)}
-              onSelect={() => setSelectedId(card.id)}
-              onPlacementPreview={onPlacementPreview}
-              onPlacementCommit={onPlacementCommit}
-            />
-          ))
-        ) : (
-          <p className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">
-            名片墙还是空的
-          </p>
-        )}
-
-        <div className="pointer-events-none absolute right-3 bottom-3 z-1001 flex items-center gap-1.5 border bg-background/90 px-2 py-1 text-xs text-muted-foreground">
-          <Repeat2Icon className="size-3.5" aria-hidden="true" />
-          {cards.length} 张名片
-        </div>
+        <WallViewport
+          editing={editing}
+          focus={focus}
+          onRegionChange={onRegionChange}
+        >
+          {(camera, interaction) => (
+            <>
+              {orderedCards.length ? (
+                orderedCards.map((card) => (
+                  <WallCard
+                    key={card.id}
+                    scale={camera.scale}
+                    card={card}
+                    editing={editing}
+                    flipped={flippedIds.has(card.id)}
+                    pending={pendingCardIds.has(card.id)}
+                    selected={activeCard?.id === card.id}
+                    onFlip={() => flip(card.id)}
+                    onSelect={() => setSelectedId(card.id)}
+                    onActivate={() => {
+                      if (!interaction.wasSelected) return false
+                      if (selectedId !== card.id) {
+                        setSelectedId(card.id)
+                        onEditingChange?.(true)
+                        return false
+                      }
+                      return true
+                    }}
+                    onPlacementPreview={onPlacementPreview}
+                    onPlacementCommit={onPlacementCommit}
+                  />
+                ))
+              ) : (
+                <p
+                  className="absolute w-80 -translate-x-1/2 text-center text-sm text-muted-foreground"
+                  style={{ left: camera.x, top: camera.y }}
+                >
+                  当前区域暂无名片，可平移或切换列表。
+                </p>
+              )}
+            </>
+          )}
+        </WallViewport>
+        <p className="text-xs text-muted-foreground">
+          {total} 张公开名片 · 当前显示 {cards.length} 张
+        </p>
       </div>
 
       <AlertDialog open={editing && removeOpen} onOpenChange={setRemoveOpen}>
@@ -542,9 +626,9 @@ export function PlacedCardWall({
             </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={!selectedCard || selectedPending}
+              disabled={!selectedCard || selectedReadOnly || selectedPending}
               onClick={() => {
-                if (!selectedCard) return
+                if (!selectedCard || selectedReadOnly) return
                 setRemoveOpen(false)
                 onRemove?.(selectedCard)
               }}

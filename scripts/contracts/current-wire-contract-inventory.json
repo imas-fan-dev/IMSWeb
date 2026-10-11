@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "b52dbf741b03e60162ac7e8899b02310a537e4309bd4d0bbb09cae7b6f6a1f0a",
+    "semanticDigest": "ae6e055fd98a228b35e981dfeb2aae2f00b12f7daaa050d5aae1cc0b42ceafd0",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 240,
-    "carriers": 303,
-    "reject": 52,
+    "mountedMethodPaths": 242,
+    "carriers": 307,
+    "reject": 54,
     "acceptAndProject": 161,
     "passthrough": 17,
-    "nonObjectApplicable": 73
+    "nonObjectApplicable": 75
   },
   "counts": {
-    "mountedRegistrations": 337,
-    "mountedMethodPaths": 247,
+    "mountedRegistrations": 339,
+    "mountedMethodPaths": 249,
     "noInputRoutes": 90,
-    "requestCarriers": 326,
+    "requestCarriers": 330,
     "policies": {
-      "reject": 52,
+      "reject": 54,
       "accept-and-project": 183,
       "passthrough": 18,
-      "non-object-applicable": 73
+      "non-object-applicable": 75
     },
     "responses": {
-      "total": 667,
-      "json": 603,
+      "total": 671,
+      "json": 607,
       "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 240,
-      "requestCarriers": 303,
+      "mountedMethodPaths": 242,
+      "requestCarriers": 307,
       "policies": {
-        "reject": 52,
+        "reject": 54,
         "accept-and-project": 161,
         "passthrough": 17,
-        "non-object-applicable": 73
+        "non-object-applicable": 75
       }
     },
     "explicitQueryAdditions": [
@@ -121,7 +121,7 @@
       "/api/cards": 1,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 51,
+      "/api/community": 53,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -3982,6 +3982,61 @@
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-public-office.ts",
           "kind": "json",
           "expression": "{ office : { ... view , cards } } satisfies FudabaOfficeDetailResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:officeSlug/wall",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleGetFudabaWall",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaOfficeSlugParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaWallQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/wall",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-wall.ts",
+          "kind": "json",
+          "expression": "{ error : \"Invalid Fudaba office slug\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-wall.ts",
+          "kind": "json",
+          "expression": "{ error : \"Fudaba office not found\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-wall.ts",
+          "kind": "json",
+          "expression": "{ office : { ... office , cards } , wall : result . wall , pageInfo : { hasNextPage , nextCursor : hasNextPage && last ? encodeWallCursor ( query . scope , last . pinnedAt , last . id ) : null , } , } satisfies FudabaWallResponse"
         }
       ]
     },
@@ -12657,7 +12712,7 @@
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
       },
-      "handlerSymbol": "handleSaveFudabaCardPlacement",
+      "handlerSymbol": "handleRejectLegacyFudabaPlacement",
       "carriers": [
         {
           "kind": "param",
@@ -12681,6 +12736,51 @@
           },
           "schemaSymbol": "fudabaCardPlacementSaveRequestSchema",
           "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/reject-legacy-placement.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_WALL_LAYOUT_CONFLICT\" , message : \"\\u540D\\u7247\\u5899\\u5E03\\u5C40\\u5DF2\\u5347\\u7EA7\\uFF0C\\u8BF7\\u66F4\\u65B0\\u5BA2\\u6237\\u7AEF\\u540E\\u91CD\\u65B0\\u8F7D\\u5165\\u3002\" , } satisfies FudabaErrorResponse"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "handlerSymbol": "handleSaveFudabaCardPlacement",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "schemaSymbol": "fudabaCardOfficePlacementParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "schemaSymbol": "fudabaWorldPlacementRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/wall",
           "schemaLocation": {
             "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
           },
@@ -14562,6 +14662,40 @@
       },
       "schemaSymbol": "fudabaEmptyQuerySchema",
       "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:officeSlug/wall",
+      "handlerSymbol": "handleGetFudabaWall",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaOfficeSlugParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:officeSlug/wall",
+      "handlerSymbol": "handleGetFudabaWall",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaWallQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/wall",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
       },
@@ -18346,7 +18480,7 @@
     {
       "method": "PUT",
       "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
-      "handlerSymbol": "handleSaveFudabaCardPlacement",
+      "handlerSymbol": "handleRejectLegacyFudabaPlacement",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -18363,7 +18497,7 @@
     {
       "method": "PUT",
       "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
-      "handlerSymbol": "handleSaveFudabaCardPlacement",
+      "handlerSymbol": "handleRejectLegacyFudabaPlacement",
       "kind": "json",
       "source": "validated",
       "location": {
@@ -18371,6 +18505,40 @@
       },
       "schemaSymbol": "fudabaCardPlacementSaveRequestSchema",
       "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
+      "handlerSymbol": "handleSaveFudabaCardPlacement",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "schemaSymbol": "fudabaCardOfficePlacementParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
+      "handlerSymbol": "handleSaveFudabaCardPlacement",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "schemaSymbol": "fudabaWorldPlacementRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/wall",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
       },
@@ -20043,6 +20211,30 @@
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-public-office.ts",
       "kind": "json",
       "expression": "{ office : { ... view , cards } } satisfies FudabaOfficeDetailResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:officeSlug/wall",
+      "handlerSymbol": "handleGetFudabaWall",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-wall.ts",
+      "kind": "json",
+      "expression": "{ error : \"Invalid Fudaba office slug\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:officeSlug/wall",
+      "handlerSymbol": "handleGetFudabaWall",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-wall.ts",
+      "kind": "json",
+      "expression": "{ error : \"Fudaba office not found\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:officeSlug/wall",
+      "handlerSymbol": "handleGetFudabaWall",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-wall.ts",
+      "kind": "json",
+      "expression": "{ office : { ... office , cards } , wall : result . wall , pageInfo : { hasNextPage , nextCursor : hasNextPage && last ? encodeWallCursor ( query . scope , last . pinnedAt , last . id ) : null , } , } satisfies FudabaWallResponse"
     },
     {
       "method": "GET",
@@ -23527,6 +23719,14 @@
     {
       "method": "PUT",
       "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
+      "handlerSymbol": "handleRejectLegacyFudabaPlacement",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/reject-legacy-placement.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_WALL_LAYOUT_CONFLICT\" , message : \"\\u540D\\u7247\\u5899\\u5E03\\u5C40\\u5DF2\\u5347\\u7EA7\\uFF0C\\u8BF7\\u66F4\\u65B0\\u5BA2\\u6237\\u7AEF\\u540E\\u91CD\\u65B0\\u8F7D\\u5165\\u3002\" , } satisfies FudabaErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
       "handlerSymbol": "handleSaveFudabaCardPlacement",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/save-card-placement.ts",
       "kind": "json",
@@ -23534,7 +23734,7 @@
     },
     {
       "method": "PUT",
-      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
       "handlerSymbol": "handleSaveFudabaCardPlacement",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/save-card-placement.ts",
       "kind": "json",
@@ -23542,7 +23742,7 @@
     },
     {
       "method": "PUT",
-      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
       "handlerSymbol": "handleSaveFudabaCardPlacement",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/save-card-placement.ts",
       "kind": "json",
@@ -23550,7 +23750,7 @@
     },
     {
       "method": "PUT",
-      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
       "handlerSymbol": "handleSaveFudabaCardPlacement",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/save-card-placement.ts",
       "kind": "json",
@@ -23558,7 +23758,7 @@
     },
     {
       "method": "PUT",
-      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
       "handlerSymbol": "handleSaveFudabaCardPlacement",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/save-card-placement.ts",
       "kind": "json",
@@ -23566,7 +23766,7 @@
     },
     {
       "method": "PUT",
-      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
+      "path": "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement",
       "handlerSymbol": "handleSaveFudabaCardPlacement",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/save-card-placement.ts",
       "kind": "json",
