@@ -3,6 +3,7 @@ import {
   Building2Icon,
   CreditCardIcon,
   MailIcon,
+  MessageSquareIcon,
   UserRoundIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -18,6 +19,7 @@ export type ProfileWorkspaceSection =
   | "favorites"
   | "offices"
   | "claims"
+  | "messages"
 
 export const profileWorkspaceSections = [
   {
@@ -55,6 +57,15 @@ export const profileWorkspaceSections = [
     description: "事务所资料与地图公开",
     descriptionKey: "platformAccount.app.sections.offices.description",
     icon: Building2Icon,
+  },
+  {
+    id: "messages",
+    label: "我的留言",
+    labelKey: "platformAccount.app.sections.messages.label",
+    shortLabel: "留言",
+    description: "查看、编辑与销毁留言",
+    descriptionKey: "platformAccount.app.sections.messages.description",
+    icon: MessageSquareIcon,
   },
   {
     id: "claims",
@@ -121,7 +132,7 @@ export function ProfileWorkspaceNavigation({
       </div>
 
       <nav
-        className="grid min-w-0 grid-cols-5 border-t lg:block"
+        className="grid min-w-0 grid-cols-3 border-t sm:grid-cols-6 lg:block"
         aria-label="个人档案菜单"
       >
         {profileWorkspaceSections.map((section) => {
@@ -141,7 +152,7 @@ export function ProfileWorkspaceNavigation({
                   ? "border-primary bg-accent/60 text-foreground lg:border-l-primary"
                   : "text-muted-foreground lg:border-l-transparent"
               )}
-              aria-label={t(section.labelKey)}
+              aria-label={t(section.labelKey, { defaultValue: section.label })}
               aria-current={active ? "page" : undefined}
               aria-controls={`profile-workspace-section-${section.id}`}
             >
@@ -157,13 +168,15 @@ export function ProfileWorkspaceNavigation({
                   className="hidden font-medium text-current lg:block"
                   aria-hidden="true"
                 >
-                  {t(section.labelKey)}
+                  {t(section.labelKey, { defaultValue: section.label })}
                 </span>
                 <span
                   className="mt-0.5 hidden truncate text-xs text-muted-foreground lg:block"
                   aria-hidden="true"
                 >
-                  {t(section.descriptionKey)}
+                  {t(section.descriptionKey, {
+                    defaultValue: section.description,
+                  })}
                 </span>
               </span>
             </NavigationLink>

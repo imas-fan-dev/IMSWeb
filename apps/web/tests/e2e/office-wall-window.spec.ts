@@ -1,6 +1,5 @@
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { expect, test } from "./fixtures/test"
-
 test("loads the complete wall observation area and replaces distant content without paging @mobile", async ({
   page,
   api,
@@ -60,7 +59,10 @@ test("loads the complete wall observation area and replaces distant content with
       updatedAt: "2026-08-02T08:00:00.000Z",
     },
   }))
-  const requests: { bounds: number[]; size: number }[] = []
+  const requests: {
+    bounds: number[]
+    size: number
+  }[] = []
   const writes: string[] = []
   page.on("request", (request) => {
     if (
@@ -106,9 +108,57 @@ test("loads the complete wall observation area and replaces distant content with
       })
     },
     "GET",
+    { min: 0, max: 30 }
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/offices/window-office/mixed-wall?*",
+    async (route) => {
+      const query = new URL(route.request().url()).searchParams
+      const bounds = query.get("bbox")!.split(",").map(Number)
+      const eligible = cards.filter(
+        (card) =>
+          card.placement.x >= bounds[0] - 160 &&
+          card.placement.x <= bounds[2] + 160 &&
+          card.placement.y >= bounds[1] - 120 &&
+          card.placement.y <= bounds[3] + 120
+      )
+      const offset = Number(query.get("cursor") ?? 0)
+      const size = Number(query.get("limit"))
+      const selected = eligible.slice(offset, offset + size)
+      const hasNextPage = offset + size < eligible.length
+      requests.push({ bounds, size: selected.length })
+      await route.fulfill({
+        json: {
+          office: { ...office },
+          wall: {
+            layoutVersion: 1,
+            left: 0,
+            top: 0,
+            right: 4800,
+            bottom: 900,
+            total: 61,
+            maxZIndex: 61,
+          },
+          pageInfo: {
+            hasNextPage,
+            nextCursor: hasNextPage ? String(offset + size) : null,
+          },
+          items: selected.map((card) => ({
+            kind: "card",
+            card,
+            canMove: card.viewerOwned === true,
+          })),
+          capabilities: {
+            canCreateMessage: false,
+            canArrangeWall: false,
+            canManageMessages: false,
+          },
+        },
+      })
+    },
+    "GET",
     { min: 4, max: 12 }
   )
-
   await page.goto("/community/exchange/offices/window-office")
   await expect(page.locator("[data-card-id]")).toHaveCount(60)
   await expect(page.getByRole("button", { name: "下一批名片" })).toHaveCount(0)
@@ -137,7 +187,6 @@ test("loads the complete wall observation area and replaces distant content with
     3
   )
   expect(requests.every((request) => request.size <= 50)).toBe(true)
-
   await page.clock.install()
   const beforePan = requests.length
   await viewport.scrollIntoViewIfNeeded()
@@ -163,7 +212,6 @@ test("loads the complete wall observation area and replaces distant content with
     "data-placement-x",
     "3300"
   )
-
   if (!isMobile) {
     await page
       .getByRole("heading", { name: "事务所名片墙", exact: true })
@@ -243,7 +291,6 @@ test("loads the complete wall observation area and replaces distant content with
     await expect(
       page.getByRole("button", { name: "平移墙面", exact: true })
     ).toHaveAttribute("aria-pressed", "false")
-
     await viewport.scrollIntoViewIfNeeded()
     const scrollBox = (await viewport.boundingBox())!
     const scrollY = await page.evaluate(() => window.scrollY)

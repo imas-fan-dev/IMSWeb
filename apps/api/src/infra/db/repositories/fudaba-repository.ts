@@ -1,3 +1,4 @@
+import { SqlFudabaMessageRepository } from '@/infra/db/repositories/fudaba-message-repository';
 import type { FudabaPublicWallRecord, FudabaWallQuery } from '@/ports/repositories/fudaba';
 import type {
     AuditLogInput,
@@ -635,6 +636,29 @@ function cardPlacementRecord(
 }
 
 export class SqlFudabaRepository implements FudabaRepository {
+    private messageStore?: SqlFudabaMessageRepository;
+    get messages(): SqlFudabaMessageRepository {
+        this.messageStore ??= new SqlFudabaMessageRepository(this.database, {
+            wall: (slug,actorId) => this.findPublicWall(slug,actorId,{limit:1,scope:'mixed-wall-base'}),
+            hydrate: (officeId,ids,actorId) => this.hydrateMessageWallCards(officeId,ids,actorId),
+        });
+        return this.messageStore;
+    }
+    private async hydrateMessageWallCards(officeId: string,ids: string[],actorId: string|null): Promise<FudabaPublicPlacedCardRecord[]> {
+        if(!ids.length)return [];
+        const rows=await queryAll<FudabaPublicPlacedCardRow>(this.database,
+            `SELECT ${PUBLIC_CARD_COLUMNS},placement.pinned_at,placement.world_x AS position_x,
+                placement.world_y AS position_y,placement.rotation,placement.z_index,
+                placement.revision,placement.updated_at,COALESCE(card.owner_account_id=?,FALSE) AS viewer_owned
+             FROM fudaba_office_cards placement JOIN fudaba_cards card ON card.id=placement.card_id
+             JOIN platform_accounts card_owner ON card_owner.id=card.owner_account_id
+             JOIN agencies card_series ON card_series.code=card.series_code AND card_series.wiki_enabled
+             JOIN fudaba_offices office ON office.id=placement.office_id
+             JOIN platform_accounts office_owner ON office_owner.id=office.owner_account_id
+             WHERE placement.office_id=? AND card.id IN (${ids.map(()=>'?').join(',')}) AND ${PUBLIC_CARD_ELIGIBILITY} AND ${PUBLIC_OFFICE_ELIGIBILITY}`,
+            [actorId,actorId,actorId,officeId,...ids]);
+        return this.attachCardSelections(this.database,rows.map(publicPlacedCardRecord));
+    }
     private initialized?: Promise<void>;
     private writeTail: Promise<void> = Promise.resolve();
 
@@ -3651,8 +3675,8 @@ export class SqlFudabaRepository implements FudabaRepository {
              JOIN platform_accounts account ON account.id=card.owner_account_id
              JOIN agencies series ON series.code=card.series_code
              WHERE placement.office_id=? AND placement.card_id=?
-               AND card.owner_account_id=?
-               AND account.status='active' AND account.deleted_at IS NULL
+               AND EXISTS (SELECT 1 FROM platform_accounts actor WHERE actor.id=? AND actor.status='active' AND actor.deleted_at IS NULL AND (actor.id=card.owner_account_id OR actor.id=office.owner_account_id))
+               AND account.status IN ('active','restricted') AND account.deleted_at IS NULL
                AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
                AND card.publication_status='published'
                AND card.media_rights_status='approved'
@@ -3682,10 +3706,11 @@ export class SqlFudabaRepository implements FudabaRepository {
              ) AS in_use
              FROM fudaba_office_cards placement
              JOIN fudaba_cards card ON card.id=placement.card_id
-             JOIN platform_accounts account ON account.id=card.owner_account_id
+             JOIN fudaba_offices office ON office.id=placement.office_id
+                     JOIN platform_accounts account ON account.id=card.owner_account_id
              WHERE placement.office_id=? AND placement.card_id=?
-               AND card.owner_account_id=?
-               AND account.status='active' AND account.deleted_at IS NULL`,
+               AND EXISTS (SELECT 1 FROM platform_accounts actor WHERE actor.id=? AND actor.status='active' AND actor.deleted_at IS NULL AND (actor.id=card.owner_account_id OR actor.id=office.owner_account_id))
+               AND account.status IN ('active','restricted') AND account.deleted_at IS NULL`,
             [input.officeId, input.cardId, input.ownerAccountId],
         );
         if (!current) return { status: "unavailable" };
@@ -3772,11 +3797,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                              ON series.code=card.series_code
                            WHERE office.id=placement.office_id
                              AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
-                             AND card.owner_account_id=?
+                             AND EXISTS (SELECT 1 FROM platform_accounts actor WHERE actor.id=? AND actor.status='active' AND actor.deleted_at IS NULL AND (actor.id=card.owner_account_id OR actor.id=office.owner_account_id))
                              AND card.publication_status='published'
                              AND card.media_rights_status='approved'
                              AND card.deleted_at IS NULL AND series.wiki_enabled
-                             AND account.status='active'
+                             AND account.status IN ('active','restricted')
                              AND account.deleted_at IS NULL
                        )
                      RETURNING ${CARD_PLACEMENT_COLUMNS}`,
@@ -3824,11 +3849,12 @@ export class SqlFudabaRepository implements FudabaRepository {
                    AND placement.revision=?
                    AND EXISTS (
                        SELECT 1 FROM fudaba_cards card
-                       JOIN platform_accounts account
+                       JOIN fudaba_offices office ON office.id=placement.office_id
+                     JOIN platform_accounts account
                          ON account.id=card.owner_account_id
                        WHERE card.id=placement.card_id
-                         AND card.owner_account_id=?
-                         AND account.status='active'
+                         AND EXISTS (SELECT 1 FROM platform_accounts actor WHERE actor.id=? AND actor.status='active' AND actor.deleted_at IS NULL AND (actor.id=card.owner_account_id OR actor.id=office.owner_account_id))
+                         AND account.status IN ('active','restricted')
                          AND account.deleted_at IS NULL
                    )
                    AND NOT EXISTS (
@@ -3868,25 +3894,26 @@ export class SqlFudabaRepository implements FudabaRepository {
         content: string;
         createdAt: string;
     }): Promise<boolean> {
-        return this.serializeWrite(async () => {
-            const result = await executeSql(
-                this.database,
-                `INSERT INTO fudaba_messages
-                    (id, office_id, author_account_id, content, created_at)
-                 SELECT ?, office.id, ?, ?, ?
-                 FROM fudaba_offices office
-                 WHERE office.id=? AND office.status<>'archived'
-                 ON CONFLICT(id) DO NOTHING`,
-                [
-                    input.id,
-                    input.authorAccountId,
-                    input.content,
-                    input.createdAt,
-                    input.officeId,
-                ],
-            );
-            return result.meta.changes === 1;
-        });
+        return this.serializeWrite(() => this.database.transaction(async (database) => {
+            const office = await queryOne<{ id: string }>(database,
+                `SELECT id FROM fudaba_offices WHERE id = ? AND status <> 'archived' FOR NO KEY UPDATE`,
+                [input.officeId]);
+            if (!office) return false;
+            const result = await executeSql(database, `
+                INSERT INTO fudaba_messages (id, office_id, author_account_id, content, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING
+            `, [input.id, input.officeId, input.authorAccountId, input.content, input.createdAt, input.createdAt]);
+            if (result.meta.changes !== 1) return false;
+            await executeSql(database, `INSERT INTO fudaba_office_walls (office_id) VALUES (?) ON CONFLICT DO NOTHING`, [input.officeId]);
+            const layer = await queryOne<{ max_z_index: number }>(database, `
+                UPDATE fudaba_office_walls SET max_z_index = max_z_index + 1 WHERE office_id = ? RETURNING max_z_index
+            `, [input.officeId]);
+            await executeSql(database, `
+                INSERT INTO fudaba_message_placements (message_id, office_id, pinned_at, world_x, world_y, z_index, updated_at)
+                VALUES (?, ?, ?, 800, 450, ?, ?)
+            `, [input.id, input.officeId, input.createdAt, layer!.max_z_index, input.createdAt]);
+            return true;
+        }));
     }
 
     createExchangeRequest(input: {

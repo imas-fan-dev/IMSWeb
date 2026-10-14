@@ -165,6 +165,11 @@
       "types": "./dist/fudaba/wall.d.ts",
       "require": "./dist/fudaba/wall.js",
       "default": "./dist/fudaba/wall.js"
+    },
+    "./fudaba/messages": {
+      "types": "./dist/fudaba/messages.d.ts",
+      "require": "./dist/fudaba/messages.js",
+      "default": "./dist/fudaba/messages.js"
     }
   },
   "scripts": {

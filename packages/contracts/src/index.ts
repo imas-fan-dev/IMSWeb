@@ -33,3 +33,5 @@ export * as common from "./common.js"
 export * as paths from "./paths.js"
 
 export * as communityContent from "./community-content.js"
+
+export * as fudabaMessages from "./fudaba/messages.js"

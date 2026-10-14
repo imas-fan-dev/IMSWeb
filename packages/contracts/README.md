@@ -170,3 +170,5 @@ entrypoint inventory、导出目标、root namespace、README、构建产物和 
 Zod-free loader。
 
 `@imsweb/contracts/community-content` exports community landing content, revisioned admin snapshots and updates, image upload responses, and HTTP errors. The root namespace is `communityContent`.
+
+- `@imsweb/contracts/fudaba/messages`: V2 mixed wall, torn-paper messages, author and moderation request/response contracts.

@@ -1,3 +1,4 @@
+import { MessagesPanel } from "../messages-panel"
 import {
   CircleAlertIcon,
   LockKeyholeIcon,
@@ -87,13 +88,7 @@ export function CommunityExchangeMeWorkspace(
   const platform = usePlatformSession()
   const accountScope = platform.session?.account.id ?? platform.status
 
-  return (
-    <ProfileWorkspace
-      key={accountScope}
-      {...props}
-      platform={platform}
-    />
-  )
+  return <ProfileWorkspace key={accountScope} {...props} platform={platform} />
 }
 
 function ProfileWorkspace({
@@ -525,6 +520,14 @@ function ProfileWorkspace({
             <FavoriteCollection series={state.series} />
           </section>
 
+          <section
+            id="profile-workspace-section-messages"
+            hidden={activeSection !== "messages"}
+          >
+            {activeSection === "messages" ? (
+              <MessagesPanel mode="mine" />
+            ) : null}
+          </section>
           <div
             id="profile-workspace-section-offices"
             className={sectionReadOnlyReason ? "mt-6" : undefined}

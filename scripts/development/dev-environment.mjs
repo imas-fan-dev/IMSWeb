@@ -316,6 +316,10 @@ function resolveFudabaDevelopmentEnvironment(environment) {
       environment,
       "IMS_DEV_FUDABA_WRITE_ENABLED",
     ),
+    IMS_FUDABA_MESSAGE_CREATE_ENABLED: developmentBooleanFlag(
+      environment,
+      "IMS_DEV_FUDABA_MESSAGE_CREATE_ENABLED",
+    ),
     IMS_FUDABA_MAP_ENABLED: mapEnabled,
     IMS_FUDABA_MAP_STYLE_URL: mapStyleUrl,
     IMS_FUDABA_MAP_STYLE_URLS: mapStyleUrls,

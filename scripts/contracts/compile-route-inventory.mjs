@@ -10,7 +10,8 @@ const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 // V1 adds GET office/wall (param + strict query) and PUT world-placement (param + strict JSON).
-const BASELINE = { mountedMethodPaths: 242, carriers: 307, reject: 54, acceptAndProject: 161, passthrough: 17, nonObjectApplicable: 75 };
+// V2 messages: 11 routes and 18 strict request carriers, preserving all V1 policies.
+const BASELINE = { mountedMethodPaths: 253, carriers: 325, reject: 63, acceptAndProject: 161, passthrough: 17, nonObjectApplicable: 84 };
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },

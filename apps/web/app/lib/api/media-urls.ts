@@ -1,3 +1,4 @@
+import type { FudabaMixedWallResponse } from "@imsweb/contracts/fudaba/messages"
 /**
  * Media-URL normalisation for API responses.
  *
@@ -608,4 +609,16 @@ export function normalizeProducerMapAdminUpdate(
   update: ProducerMapAdminUpdate
 ): ProducerMapAdminUpdate {
   return { ...update, content: normalizeProducerMapContent(update.content) }
+}
+
+export function normalizeFudabaMixedWallResponse(
+  response: FudabaMixedWallResponse
+): FudabaMixedWallResponse {
+  return {
+    ...response,
+    office: fudabaOffice(response.office),
+    items: response.items.map((item) =>
+      item.kind === "card" ? { ...item, card: fudabaCard(item.card) } : item
+    ),
+  }
 }

@@ -108,7 +108,9 @@ describe("AccountMePage", () => {
     expectAccountHeading()
     expect(main).toHaveAttribute("data-account-state", "loading")
     expect(main).toHaveAttribute("aria-busy", "true")
-    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(9)
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(
+      10
+    )
   })
 
   it("keeps all anonymous account and preference destinations reachable", () => {

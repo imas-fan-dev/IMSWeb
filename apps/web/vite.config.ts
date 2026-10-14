@@ -92,6 +92,7 @@ export default defineConfig({
       "@imsweb/contracts/fudaba/guest-submissions",
       "@imsweb/contracts/fudaba/runtime",
       "@imsweb/contracts/fudaba/wall",
+      "@imsweb/contracts/fudaba/messages",
       "@base-ui/react > use-sync-external-store/shim",
       "@base-ui/react > use-sync-external-store/shim/with-selector",
       "@tanstack/react-virtual",

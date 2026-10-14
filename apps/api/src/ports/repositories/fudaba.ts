@@ -1,3 +1,4 @@
+import type { FudabaMessagesRepository } from '@/ports/repositories/fudaba-messages';
 import type { AuditLogInput } from "@/ports/repositories/admin";
 import type { WikiImageTransform } from "@/ports/repositories/wiki";
 
@@ -678,6 +679,7 @@ export interface FudabaPublicWallRecord {
 }
 
 export interface FudabaRepository {
+    readonly messages: FudabaMessagesRepository;
     findPublicWall(slug: string, viewerAccountId: string | null, query: FudabaWallQuery): Promise<FudabaPublicWallRecord | null>;
     listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
     listPublicOffices(

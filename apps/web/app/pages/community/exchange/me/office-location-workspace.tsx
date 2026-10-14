@@ -1,3 +1,4 @@
+import { MessagesPanel } from "../messages-panel"
 import {
   Building2Icon,
   CircleAlertIcon,
@@ -562,6 +563,9 @@ export function OfficeLocationWorkspace({
               onReload={() => void reloadLocation()}
               onWithdraw={() => void withdrawLocation()}
             />
+            <div className="lg:col-span-2">
+              <MessagesPanel mode="office" officeId={office.id} />
+            </div>
           </div>
         ) : (
           <Empty className="mt-8 min-h-72 border-y">

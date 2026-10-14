@@ -154,6 +154,10 @@ export const resources = {
               label: "认领消息",
               description: "历史名片身份确认",
             },
+            messages: {
+              label: "我的留言",
+              description: "管理自己发布的便签留言",
+            },
           },
         },
         profileEditor: {
@@ -728,6 +732,10 @@ export const resources = {
             claims: {
               label: "Claim messages",
               description: "Confirm identities on historical cards",
+            },
+            messages: {
+              label: "My messages",
+              description: "Manage your wall messages",
             },
           },
         },

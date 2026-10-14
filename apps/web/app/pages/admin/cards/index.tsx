@@ -1,3 +1,4 @@
+import { MessagesPanel } from "~/pages/community/exchange/messages-panel"
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -38,7 +39,7 @@ import {
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
-  return [{ title: "名片审核 | IMSWeb" }]
+  return [{ title: "名片与留言管理 | IMSWeb" }]
 }
 
 async function loadCards(page: number) {
@@ -226,6 +227,7 @@ export default function AdminCardsPage() {
         <TabsList aria-label="名片审核类型">
           <TabsTrigger value="guest">游客投稿</TabsTrigger>
           <TabsTrigger value="registered">注册用户投稿</TabsTrigger>
+          <TabsTrigger value="messages">留言管理</TabsTrigger>
           <TabsTrigger value="claims">旧名片认领</TabsTrigger>
         </TabsList>
 
@@ -403,6 +405,9 @@ export default function AdminCardsPage() {
           <RegisteredCardReviewPanel />
         </TabsContent>
 
+        <TabsContent value="messages" className="pt-5">
+          <MessagesPanel mode="admin" />
+        </TabsContent>
         <TabsContent value="claims" className="pt-5">
           <CardClaimReviewPanel />
         </TabsContent>

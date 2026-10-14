@@ -181,6 +181,10 @@ test.describe('PostgreSQL migration', () => {
                 {
                     version: '20261010120000_fudaba_wall_world',
                     phase: 'post-data'
+                },
+                {
+                    version: '20261013120000_fudaba_message_wall_v2',
+                    phase: 'post-data'
                 }
             ]
         );
@@ -710,11 +714,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 51);
+        assert.equal(catalog.count, 52);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261010120000_fudaba_wall_world'
+            '20261013120000_fudaba_message_wall_v2'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1045,7 +1049,8 @@ test.describe('PostgreSQL migration', () => {
                 '20260913120000_platform_email_delivery_jobs',
                 '20260913130000_platform_email_request_cooldowns',
                 '20260918120000_platform_oauth_app_exchange',
-                '20261010120000_fudaba_wall_world'
+                '20261010120000_fudaba_wall_world',
+                '20261013120000_fudaba_message_wall_v2'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

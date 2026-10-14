@@ -1,3 +1,5 @@
+import { WallMessageNote } from "./wall-message-note"
+import type { FudabaPublicMessage } from "~/lib/api"
 import {
   BringToFrontIcon,
   GripIcon,
@@ -52,6 +54,17 @@ type PlacementCommit = (
 ) => void
 
 interface PlacedCardWallProps {
+  messages?: FudabaPublicMessage[]
+  canArrangeWall?: boolean
+  focusedMessageId?: string | null
+  pendingMessageIds?: ReadonlySet<string>
+  onReadMessage?: (message: FudabaPublicMessage) => void
+  onMessagePlacementCommit?: (
+    message: FudabaPublicMessage,
+    previous: FudabaCardPlacement,
+    placement: WallPlacement
+  ) => void
+
   cards: FudabaPlacedCard[]
   focus?: WallFocus | null
   total?: number
@@ -66,6 +79,7 @@ interface PlacedCardWallProps {
 }
 
 interface WallCardProps {
+  canArrangeWall?: boolean
   scale: number
   card: FudabaPlacedCard
   editing: boolean
@@ -140,6 +154,7 @@ function IconTooltip({
 }
 
 function WallCard({
+  canArrangeWall = false,
   scale,
   card,
   editing,
@@ -155,7 +170,7 @@ function WallCard({
   const dragStart = useRef<DragStart | null>(null)
   const suppressPreview = useRef(false)
   const cardElement = useRef<HTMLDivElement | null>(null)
-  const canMove = editing && card.viewerOwned && !pending
+  const canMove = editing && (card.viewerOwned || canArrangeWall) && !pending
 
   useEffect(() => {
     if (!canMove) {
@@ -331,7 +346,7 @@ function WallCard({
           <Repeat2Icon aria-hidden="true" />
         </Button>
       </IconTooltip>
-      {editing && card.viewerOwned ? (
+      {editing && (card.viewerOwned || canArrangeWall) ? (
         <IconTooltip label="移动名片">
           <Button
             type="button"
@@ -369,6 +384,12 @@ function WallCard({
 }
 
 export function PlacedCardWall({
+  messages = [],
+  canArrangeWall = false,
+  focusedMessageId,
+  pendingMessageIds = new Set<string>(),
+  onReadMessage,
+  onMessagePlacementCommit,
   cards,
   focus,
   total = cards.length,
@@ -381,7 +402,19 @@ export function PlacedCardWall({
   onPlacementCommit,
   onRemove,
 }: PlacedCardWallProps) {
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
+    focusedMessageId ?? null
+  )
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [previousFocusedMessageId, setPreviousFocusedMessageId] =
+    useState(focusedMessageId)
+  if (focusedMessageId !== previousFocusedMessageId) {
+    setPreviousFocusedMessageId(focusedMessageId)
+    if (focusedMessageId) {
+      setSelectedMessageId(focusedMessageId)
+      setSelectedId(null)
+    }
+  }
   const [previousEditing, setPreviousEditing] = useState(editing)
   if (editing !== previousEditing) {
     setPreviousEditing(editing)
@@ -391,21 +424,22 @@ export function PlacedCardWall({
   const [removeOpen, setRemoveOpen] = useState(false)
 
   const ownedCards = useMemo(
-    () => cards.filter((card) => card.viewerOwned),
-    [cards]
+    () => cards.filter((card) => card.viewerOwned || canArrangeWall),
+    [cards, canArrangeWall]
   )
   const orderedCards = useMemo(
     () => [...cards].sort(compareCardStacking),
     [cards]
   )
-  const activeCard =
-    cards.find((card) => card.id === selectedId) ??
-    (editing ? (ownedCards[0] ?? null) : null)
+  const activeCard = selectedMessageId
+    ? null
+    : (cards.find((card) => card.id === selectedId) ??
+      (editing ? (ownedCards[0] ?? null) : null))
   const selectedCard = editing ? activeCard : null
   const selectedPending = selectedCard
     ? pendingCardIds.has(selectedCard.id)
     : false
-  const selectedReadOnly = !selectedCard?.viewerOwned
+  const selectedReadOnly = !(selectedCard?.viewerOwned || canArrangeWall)
   const maximumZIndex = Math.max(
     maxZIndex,
     ...cards.map((card) => card.placement.zIndex)
@@ -566,44 +600,73 @@ export function PlacedCardWall({
         >
           {(camera, interaction) => (
             <>
-              {orderedCards.length ? (
-                orderedCards.map((card) => (
-                  <WallCard
-                    key={card.id}
-                    scale={camera.scale}
-                    card={card}
-                    editing={editing}
-                    flipped={flippedIds.has(card.id)}
-                    pending={pendingCardIds.has(card.id)}
-                    selected={activeCard?.id === card.id}
-                    onFlip={() => flip(card.id)}
-                    onSelect={() => setSelectedId(card.id)}
-                    onActivate={() => {
-                      if (!interaction.wasSelected) return false
-                      if (selectedId !== card.id) {
+              {orderedCards.length || messages.length ? (
+                <>
+                  {" "}
+                  {orderedCards.map((card) => (
+                    <WallCard
+                      key={card.id}
+                      scale={camera.scale}
+                      card={card}
+                      canArrangeWall={canArrangeWall}
+                      editing={editing}
+                      flipped={flippedIds.has(card.id)}
+                      pending={pendingCardIds.has(card.id)}
+                      selected={activeCard?.id === card.id}
+                      onFlip={() => flip(card.id)}
+                      onSelect={() => {
+                        setSelectedMessageId(null)
                         setSelectedId(card.id)
-                        onEditingChange?.(true)
-                        return false
+                      }}
+                      onActivate={() => {
+                        if (!interaction.wasSelected) return false
+                        if (selectedId !== card.id) {
+                          setSelectedMessageId(null)
+                          setSelectedId(card.id)
+                          onEditingChange?.(true)
+                          return false
+                        }
+                        return true
+                      }}
+                      onPlacementPreview={onPlacementPreview}
+                      onPlacementCommit={onPlacementCommit}
+                    />
+                  ))}{" "}
+                  {messages.map((message) => (
+                    <WallMessageNote
+                      key={"message:" + message.id}
+                      message={message}
+                      scale={camera.scale}
+                      selected={selectedMessageId === message.id}
+                      editing={editing}
+                      pending={pendingMessageIds.has(message.id)}
+                      onSelect={() => {
+                        setSelectedMessageId(message.id)
+                        setSelectedId(null)
+                        if (message.capabilities.canMove)
+                          onEditingChange?.(true)
+                      }}
+                      onRead={() => onReadMessage?.(message)}
+                      onCommit={(message, previous, placement) =>
+                        onMessagePlacementCommit?.(message, previous, placement)
                       }
-                      return true
-                    }}
-                    onPlacementPreview={onPlacementPreview}
-                    onPlacementCommit={onPlacementCommit}
-                  />
-                ))
+                    />
+                  ))}
+                </>
               ) : (
                 <p
                   className="absolute w-80 -translate-x-1/2 text-center text-sm text-muted-foreground"
                   style={{ left: camera.x, top: camera.y }}
                 >
-                  当前区域暂无名片，可平移或切换列表。
+                  当前区域暂无名片或留言，可平移或切换列表。
                 </p>
               )}
             </>
           )}
         </WallViewport>
         <p className="text-xs text-muted-foreground">
-          {total} 张公开名片 · 当前显示 {cards.length} 张
+          {total} 个公开物件 · 当前显示 {cards.length} 张名片、{messages.length}{" "}
+          条留言
         </p>
       </div>
 

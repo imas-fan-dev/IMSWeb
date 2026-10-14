@@ -135,6 +135,15 @@ test.describe('route inventory compiler', () => {
     const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
     const collected = collectRouteInventory(repositoryRoot);
     const current = routeInventoryArtifact(collected);
+    const messageRoutes = current.routes.filter(route => route.path.includes('/messages') || route.path.endsWith('/mixed-wall'));
+    assert.equal(messageRoutes.length, 11);
+    for (const route of messageRoutes) {
+      for (const carrier of route.carriers) {
+        if (carrier.kind === 'param') assert.equal(carrier.syntaxPolicy, 'reject', `${route.method} ${route.path} strict params`);
+        else assert.equal(carrier.policy, 'reject', `${route.method} ${route.path} strict ${carrier.kind}`);
+      }
+    }
+
     const artifact = JSON.parse(fs.readFileSync(
       path.join(repositoryRoot, "scripts/contracts/current-wire-contract-inventory.json"),
       "utf8",
@@ -142,15 +151,15 @@ test.describe('route inventory compiler', () => {
 
     // V1 adds region GET and world-placement PUT: two paths and four carriers.
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 339,
-      mountedMethodPaths: 249,
+      mountedRegistrations: 350,
+      mountedMethodPaths: 260,
       noInputRoutes: 90,
-      requestCarriers: 330,
+      requestCarriers: 348,
       policies: {
-        reject: 54,
+        reject: 63,
         "accept-and-project": 183,
         passthrough: 18,
-        "non-object-applicable": 75,
+        "non-object-applicable": 84,
       },
       responses: { total: 671, json: 607, nonJson: 64 },
       unresolved: 0,

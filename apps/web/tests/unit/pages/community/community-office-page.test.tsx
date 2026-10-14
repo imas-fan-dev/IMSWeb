@@ -21,6 +21,7 @@ import CommunityOfficePage from "~/pages/community/exchange/community-office-pag
 const apiMocks = vi.hoisted(() => ({
   deleteFudabaCardPlacement: vi.fn(),
   getFudabaWall: vi.fn(),
+  getFudabaMixedWall: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
   getFudabaSeries: vi.fn(),
   getPlatformProfile: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     ...actual,
     deleteFudabaCardPlacement: apiMocks.deleteFudabaCardPlacement,
     getFudabaWall: apiMocks.getFudabaWall,
+    getFudabaMixedWall: apiMocks.getFudabaMixedWall,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
     getFudabaSeries: apiMocks.getFudabaSeries,
     getPlatformProfile: apiMocks.getPlatformProfile,
@@ -131,6 +133,32 @@ describe("CommunityOfficePage", () => {
     }
     platformMocks.usePlatformSession.mockReturnValue(anonymous)
     platformMocks.useOptionalPlatformSession.mockReturnValue(anonymous)
+    apiMocks.getFudabaMixedWall.mockImplementation(
+      (slug: string, input: Record<string, unknown> = {}) => {
+        const { item, ...oldInput } = input
+        if (typeof item === "string" && item.startsWith("card:"))
+          oldInput.card = item.slice(5)
+        const method = apiMocks.getFudabaWall(slug, oldInput)
+        return {
+          ...method,
+          send: async () => {
+            const result = await method.send()
+            return {
+              ...result,
+              messages: [],
+              manageableCardIds: result.office.cards
+                .filter((card: { viewerOwned: boolean }) => card.viewerOwned)
+                .map((card: { id: string }) => card.id),
+              capabilities: {
+                canCreateMessage: false,
+                canArrangeWall: false,
+                canManageMessages: false,
+              },
+            }
+          },
+        }
+      }
+    )
     apiMocks.getFudabaWall.mockReturnValue({
       abort: vi.fn(),
       send: async () => {
