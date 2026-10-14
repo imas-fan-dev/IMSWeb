@@ -1,0 +1,6 @@
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Browser waits, strict API fixtures and full-domain coverage"}
+{"file":".trellis/spec/web/frontend/ci-orchestration.md","reason":"Required caller/callee secrets and actual changed-path consumers"}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Delivery owner and isolated PostgreSQL lifecycle"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Static route ownership across Web and API"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse existing owners and static policy"}
+{"file":".trellis/tasks/10-13-ci-optimization/research/approved-plan.md","reason":"Approved scope and historical evidence, restored from conversation"}

@@ -1,0 +1,10 @@
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] client build permits exact license assets but rejects other text files
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] client check rejects missing and extra release files
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] custom client verification stays manifest-closed
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] release clients package the Web build and encoded variants
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-01] root and index.html use the React document
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-02] real prerendered documents and selective SPA routes use build/client
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-04] unknown and ambiguous paths do not receive the SPA fallback
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-05] build assets require an exact entry in the real file set
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-06] build documents and generated prerenders own each other

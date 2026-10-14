@@ -1,0 +1,4 @@
+{"file":"apps/web/.rules","reason":"Web workspace code, formatting, App-target and testing rules for the planned UI change."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Responsive accessibility and virtualized-row constraints for desktop two-column rendering."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Unit and Playwright coverage requirements for visible responsive behavior."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Decision criteria for the shared public-listing header and limited breakpoint reuse."}

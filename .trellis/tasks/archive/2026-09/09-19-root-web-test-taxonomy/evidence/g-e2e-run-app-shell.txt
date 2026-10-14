@@ -1,0 +1,11 @@
+[WARN] Your node_modules are out of sync with your lockfile. The value of the enableGlobalVirtualStore setting has changed
+[WebServer] $ node scripts/dev-app.js
+
+Running 4 tests using 1 worker
+
+  ✓  1 [app-small] › tests/e2e/app-shell.spec.ts:105:3 › app shell › keeps the five App roots usable inside the safe area @app-landscape @app-webkit (2.2s)
+  ✓  2 [app-small] › tests/e2e/app-shell.spec.ts:161:3 › app shell › renders App community links as a two-column text list (1.5s)
+  ✓  3 [app-landscape] › tests/e2e/app-shell.spec.ts:105:3 › app shell › keeps the five App roots usable inside the safe area @app-landscape @app-webkit (1.8s)
+  ✓  4 [app-webkit] › tests/e2e/app-shell.spec.ts:105:3 › app shell › keeps the five App roots usable inside the safe area @app-landscape @app-webkit (2.0s)
+
+  4 passed (12.3s)

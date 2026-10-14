@@ -1,0 +1,189 @@
+tests/server/platform-email-settings.test.ts	platform email settings SMTP connections reject non-public and mixed DNS results
+tests/server/platform-email-settings.test.ts	platform email settings SMTP database compare-and-swap conflicts do not write the resend policy cache
+tests/server/platform-email-settings.test.ts	platform email settings SMTP policy cache failure does not change a committed settings result
+tests/server/platform-email-settings.test.ts	platform email settings SMTP policy cache timeout does not delay a committed settings result indefinitely
+tests/server/platform-email-settings.test.ts	platform email settings SMTP resend cooldown accepts boundaries and retains stored credentials
+tests/server/platform-email-settings.test.ts	platform email settings SMTP resend cooldown rejects out-of-range and non-integer values
+tests/server/platform-email-settings.test.ts	platform email settings SMTP settings never expose stored credentials
+tests/server/platform-email-settings.test.ts	platform email settings SMTP test send uses the complete draft without persisting it
+tests/server/platform-email-settings.test.ts	platform email settings enabled SMTP updates verify TLS before the optimistic write
+tests/server/platform-email-settings.test.ts	platform email settings platform email secret cipher preserves SMTP password bytes
+tests/server/platform-email-settings.test.ts	platform email settings real PostgreSQL stores one SMTP configuration with optimistic concurrency
+tests/server/platform-email-settings.test.ts	platform email settings saved SMTP settings write the returned resend policy revision through cache
+tests/server/platform-email-settings.test.ts	platform email settings stale SMTP writes return the current settings without opening a connection
+tests/server/platform-email-settings.test.ts	platform email settings worker SMTP delivery reads the active database configuration for every message
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches a link state binds the identity and never creates a session
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches a login state never reaches the account-linking write
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches a provider denial on a web state keeps the login redirect
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches a provider denial on an app state is handed back to the deep link
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches a second subject for one provider is reported as already bound
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches a subject owned by another account is refused without a session
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches login + app returns a one-time deep-link code instead of a session
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches login + web keeps the original callback redirect and sets the session cookies
+tests/server/platform-oauth-callback-branches.test.ts	platform oauth callback branches re-linking the same subject is an idempotent success
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange a replayed code is rejected after the first redemption
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange a valid code and verifier return a bearer session
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange a verifier that does not match the challenge is rejected
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange an account that cannot hold a session is refused
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange an expired or unknown code is rejected
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange an invalid exchange body is refused without leaking validation detail
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange exchanging without the bearer auth mode is refused
+tests/server/platform-oauth-exchange.test.ts	platform oauth exchange the exchange endpoint is rate limited
+tests/server/platform-oauth-provider-settings.test.ts	platform oauth provider settings OAuth provider writes reject private endpoint addresses
+tests/server/platform-oauth-provider-settings.test.ts	platform oauth provider settings OAuth settings expose every persisted provider in repository order
+tests/server/platform-oauth-provider-settings.test.ts	platform oauth provider settings generic OAuth exchange uses persisted protocol and nested profile paths
+tests/server/platform-oauth-provider-settings.test.ts	platform oauth provider settings loopback HTTP OAuth endpoints require the explicit development exception
+tests/server/platform-oauth-provider-settings.test.ts	platform oauth provider settings public OAuth settings include only complete enabled providers
+tests/server/platform-oauth-provider-settings.test.ts	platform oauth provider settings real PostgreSQL protects providers referenced by an OAuth state
+tests/server/platform-oauth-unlink-repository.test.ts	platform oauth unlink repository a disabled provider does not count as a surviving login method
+tests/server/platform-oauth-unlink-repository.test.ts	platform oauth unlink repository a password is a login method, so the only link can be unlinked
+tests/server/platform-oauth-unlink-repository.test.ts	platform oauth unlink repository an enabled sibling link lets the other one go
+tests/server/platform-oauth-unlink-repository.test.ts	platform oauth unlink repository another account link is never reachable
+tests/server/platform-oauth-unlink-repository.test.ts	platform oauth unlink repository the sole link of a password-less account survives its own removal
+tests/server/platform-oauth-wire-contract-conformance.test.ts	platform oauth wire contract conformance mounted OAuth discovery, start, and callback preserve their wire contracts
+tests/server/platform-oauth-wire-contract-conformance.test.ts	platform oauth wire contract conformance mounted OAuth provider administration emits exact success, conflict, and request-error DTOs
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform avatar reads stay 404 until the account stores an avatar object
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform avatar uploads ignore the Fudaba rollout switch
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform avatar uploads spend a Platform budget, not the Fudaba one
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform profile GET and text update expose a fenced owner projection
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform profile writes accept the boundary lengths their validator allows
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform profile writes consume the shared Platform write budget
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform profile writes ignore the Fudaba rollout switch
+tests/server/platform-profile.contract.test.ts	platform profile contract Platform profile writes reject every malformed submission before the repository
+tests/server/platform-profile.contract.test.ts	platform profile contract a committed avatar write recovers after the repository throws
+tests/server/platform-profile.contract.test.ts	platform profile contract a failed confirmation read preserves the ambiguous avatar object
+tests/server/platform-profile.contract.test.ts	platform profile contract anonymous callers cannot read or write the Platform profile
+tests/server/platform-profile.contract.test.ts	platform profile contract avatar removal clears both avatar columns and sweeps the stored object
+tests/server/platform-profile.contract.test.ts	platform profile contract avatar removal is fenced, validated, and refused for locked accounts
+tests/server/platform-profile.contract.test.ts	platform profile contract avatar uploads commit under owner CAS and sweep the replaced object
+tests/server/platform-profile.contract.test.ts	platform profile contract restricted Platform accounts keep profile reads but lose profile writes
+tests/server/platform-profile.contract.test.ts	platform profile contract suspended and deleted Platform accounts lose the profile route entirely
+tests/server/platform-session-security.contract.test.ts	platform session security contract Bearer callers refresh without cookies and only they receive tokens
+tests/server/platform-session-security.contract.test.ts	platform session security contract Platform and Backoffice reject each other even when their test secret is shared
+tests/server/platform-session-security.contract.test.ts	platform session security contract Platform logout is idempotent and Bearer authentication does not require CSRF
+tests/server/platform-session-security.contract.test.ts	platform session security contract Platform refresh has a dedicated 120 per 15 minute rate-limit bucket
+tests/server/platform-session-security.contract.test.ts	platform session security contract Platform refresh requires cookie, header, and stored CSRF before rotating state
+tests/server/platform-session-security.contract.test.ts	platform session security contract Platform session authenticates active and restricted accounts through a live family
+tests/server/platform-session-security.contract.test.ts	platform session security contract production Platform token service fixes HS256 and all realm/session claims
+tests/server/platform-session-security.contract.test.ts	platform session security contract real PostgreSQL emits refresh success only for the cross-instance CAS winner
+tests/server/platform-session-security.contract.test.ts	platform session security contract real PostgreSQL enforces Platform rotation, replay, logout, and event behavior
+tests/server/platform-session-security.contract.test.ts	platform session security contract refresh-session writes fence the current account token version atomically
+tests/server/platform-session-security.contract.test.ts	platform session security contract suspended and deleted Platform accounts are blocked and their family is revoked
+tests/server/postgresql-request-controls.test.ts	PostgreSQL idempotency serializes concurrent first claims
+tests/server/postgresql-request-controls.test.ts	PostgreSQL idempotency shares replay and fencing across connections
+tests/server/postgresql-request-controls.test.ts	PostgreSQL idempotency sweeps only expired terminal records
+tests/server/producer-map-content.test.ts	producer map content producer map admin updates are authenticated, audited, and revision guarded
+tests/server/producer-map-content.test.ts	producer map content producer map images are authenticated, audited, and publicly readable
+tests/server/producer-map-content.test.ts	producer map content producer map media is served from semantic object storage
+tests/server/producer-map-content.test.ts	producer map content producer map mounted JSON responses preserve shared schemas and project unknown update fields
+tests/server/producer-map-content.test.ts	producer map content producer map rejects unsafe links and duplicate provinces
+tests/server/producer-map-content.test.ts	producer map content producer map reports unconfigured content without serving defaults
+tests/server/public-object-url.test.ts	public object url public URL resolution preserves external, private, and unsupported fallbacks
+tests/server/public-object-url.test.ts	public object url public media URLs resolve legacy business paths to CDN object URLs
+tests/server/public-object-url.test.ts	public object url public media field rewriting changes only declared string fields
+tests/server/public-object-url.test.ts	public object url required public URLs can promote a legacy private object before resolving
+tests/server/public-object-url.test.ts	public object url required public URLs fail closed instead of returning an application fallback
+tests/server/request-observability.test.ts	request observability request IDs, health probes, and structured request logs stay correlated
+tests/server/request-validation-boundaries.test.ts	request validation boundaries param and query validators normalize invalid business input before handlers run
+tests/server/request-validation-boundaries.test.ts	request validation boundaries schema validators preserve legacy errors without accepting schema-invalid input
+tests/server/request-validation.test.ts	request validation json validator awaits asynchronous request parsers
+tests/server/request-validation.test.ts	request validation json validator can explicitly preserve mislabeled JSON compatibility
+tests/server/request-validation.test.ts	request validation json validator does not hide unexpected parser failures
+tests/server/request-validation.test.ts	request validation json validator exposes parsed request data through req.valid
+tests/server/request-validation.test.ts	request validation json validator normalizes malformed and invalid request errors
+tests/server/request-validation.test.ts	request validation param and query validators expose normalized request models
+tests/server/request-validation.test.ts	request validation schema JSON validators preserve malformed and mislabeled JSON behavior
+tests/server/request-validation.test.ts	request validation schema validator does not hide asynchronous adapter failures
+tests/server/request-validation.test.ts	request validation schema validator does not hide unexpected adapter failures
+tests/server/request-validation.test.ts	request validation schema validators await adapters and preserve custom validation errors
+tests/server/request-validation.test.ts	request validation schema validators preserve explicit strict, strip, and passthrough request policies
+tests/server/runtime-adapters.test.ts	runtime adapters FilesystemObjectStorage maps canonical business keys to owned roots
+tests/server/runtime-adapters.test.ts	runtime adapters Fudaba geocoding requires an identifiable configurable HTTPS provider
+tests/server/runtime-adapters.test.ts	runtime adapters Fudaba map configuration is disabled by default and strictly parsed
+tests/server/runtime-adapters.test.ts	runtime adapters Fudaba map source seeds accept complete style URLs
+tests/server/runtime-adapters.test.ts	runtime adapters Fudaba map style accepts trusted deployment URL shapes
+tests/server/runtime-adapters.test.ts	runtime adapters Fudaba public reads require S3 public object URL configuration
+tests/server/runtime-adapters.test.ts	runtime adapters Fudaba public reads require an explicit boolean feature flag
+tests/server/runtime-adapters.test.ts	runtime adapters Fudaba writes use an independent explicit boolean feature flag
+tests/server/runtime-adapters.test.ts	runtime adapters Node database accepts only a validated PostgreSQL configuration
+tests/server/runtime-adapters.test.ts	runtime adapters Node object storage defaults to S3 and requires explicit filesystem compatibility
+tests/server/runtime-adapters.test.ts	runtime adapters Node repository initialization closes every constructed resource after partial failure
+tests/server/runtime-adapters.test.ts	runtime adapters Node trusts proxy address headers only when Nginx is explicit
+tests/server/runtime-adapters.test.ts	runtime adapters NodeStaticAssets does not open a body for HEAD and opens only the requested byte range
+tests/server/runtime-adapters.test.ts	runtime adapters NodeStaticAssets negotiates precompressed assets without exposing encoded files
+tests/server/runtime-adapters.test.ts	runtime adapters early close does not poison a later Node service and concurrent close is idempotent
+tests/server/runtime-adapters.test.ts	runtime adapters filesystem compensation journal retries a failed idempotent delete to completion
+tests/server/runtime-adapters.test.ts	runtime adapters filesystem idempotency persists replay, rejects fingerprint reuse, and recovers failure
+tests/server/runtime-adapters.test.ts	runtime adapters graceful shutdown stops HTTP acceptance before closing runtime services
+tests/server/runtime-adapters.test.ts	runtime adapters story upload byte limit accepts only a positive bounded safe integer
+tests/server/s3-object-storage.test.ts	S3 object storage S3 compensation preserves public access scope after a delete failure
+tests/server/s3-object-storage.test.ts	S3 object storage S3 deferred public media stays private until publication moves it
+tests/server/s3-object-storage.test.ts	S3 object storage S3 deferred publication hides new objects and restores the previous version on rollback
+tests/server/s3-object-storage.test.ts	S3 object storage S3 ignores objects that have no managed semantic-key index
+tests/server/s3-object-storage.test.ts	S3 object storage S3 lifecycle fences owner and object identity mutations
+tests/server/s3-object-storage.test.ts	S3 object storage S3 listings resolve all readable versions with one metadata query
+tests/server/s3-object-storage.test.ts	S3 object storage S3 physical keys support both an optional custom prefix and no prefix
+tests/server/s3-object-storage.test.ts	S3 object storage S3 protection compensation restores private scope
+tests/server/s3-object-storage.test.ts	S3 object storage S3 public and protected objects share one bucket with distinct read paths
+tests/server/s3-object-storage.test.ts	S3 object storage S3 stale recovery and SQL compensation remove unreferenced physical versions
+tests/server/s3-object-storage.test.ts	S3 object storage ambiguous S3 publication removes an untracked public destination
+tests/server/s3-object-storage.test.ts	S3 object storage keeps owner tokens out of user metadata
+tests/server/s3-object-storage.test.ts	S3 object storage preserves logical keys across versioned CRUD, copy, and move
+tests/server/s3-object-storage.test.ts	S3 object storage removes a write when PutObject times out after persistence
+tests/server/s3-object-storage.test.ts	S3 object storage signs GET and HEAD reads without proxying object bodies
+tests/server/s3-object-storage.test.ts	S3 object storage stale S3 protection compensation does not privatize a newer version
+tests/server/s3-object-storage.test.ts	S3 object storage validates checksums and rejects unsafe logical keys
+tests/server/shared-json-error-contract.test.ts	shared json error contract central application JSON errors conform to the common error contract
+tests/server/shared-json-error-contract.test.ts	shared json error contract shared middleware JSON errors conform to their common contracts
+tests/server/shared-paths.test.ts	shared paths shared path builders normalize suffix separators without duplicate slashes
+tests/server/shared-paths.test.ts	shared paths shared path prefixes compose the canonical API and delivery paths
+tests/server/site-package-archive.test.ts	site package archive enforces archive, file, expanded total, and file-count bomb limits
+tests/server/site-package-archive.test.ts	site package archive parses a hiro-like isolated package into an immutable manifest
+tests/server/site-package-archive.test.ts	site package archive rejects invalid magic, blocked nested files, and missing HTML entry paths
+tests/server/site-package-archive.test.ts	site package archive rejects symlink and encrypted ZIP entries
+tests/server/site-package-archive.test.ts	site package archive rejects traversal, duplicate, and case-folded path collisions
+tests/server/site-package-archive.test.ts	site package archive requires PDF isolation and recognizes escaped PDF action names
+tests/server/site-package-archive.test.ts	site package archive safe packages reject JavaScript files and active HTML handlers
+tests/server/site-package-archive.test.ts	site package archive uses a conventional packaged icon and warns about unusable declarations
+tests/server/site-package-env.test.ts	site package env isolated site-package CSP uses an explicit content path for opaque origins
+tests/server/site-package-env.test.ts	site package env safe site-package CSP blocks scripts while allowing packaged styles
+tests/server/site-package-env.test.ts	site package env site-package content uses the current request origin
+tests/server/site-package-env.test.ts	site package env site-package frame ancestors accept loopback aliases only for local development
+tests/server/site-package-env.test.ts	site package env site-package upload limit is bounded by the archive parser maximum
+tests/server/site-package-repository.test.ts	site package repository PostgreSQL site packages create revisions and atomically switch rollback pointers
+tests/server/site-package-routes.test.ts	site package routes site-package routes share the main origin and enforce manifests, CSP, and revisions
+tests/server/sql-database.test.ts	sql database PostgreSQL implements the SQL port with one short transaction per batch
+tests/server/sql-database.test.ts	sql database PostgreSQL news pagination uses a bounded descending id range
+tests/server/sql-database.test.ts	sql database PostgreSQL parameter translation ignores quoted and commented question marks
+tests/server/sql-database.test.ts	sql database PostgreSQL reaction upsert qualifies the existing count
+tests/server/story-repository.test.ts	story repository PostgreSQL card edit updates shared card metadata without modifying source links
+tests/server/story-repository.test.ts	story repository PostgreSQL card source append requires the exact card and current media revision
+tests/server/story-repository.test.ts	story repository PostgreSQL catalog CRUD supports dynamic agencies and multi-group idols
+tests/server/story-repository.test.ts	story repository PostgreSQL category rename is scoped by idol assignment and preserves storage slug
+tests/server/story-repository.test.ts	story repository PostgreSQL group deletion preserves idols and their normalized stories
+tests/server/story-repository.test.ts	story repository PostgreSQL idol deletion preserves rows while hiding the idol and its stories
+tests/server/story-repository.test.ts	story repository PostgreSQL normalized stories keep one card and one link per source row
+tests/server/story-repository.test.ts	story repository PostgreSQL story cover assets are agency scoped, versioned, and protected in use
+tests/server/story-repository.test.ts	story repository PostgreSQL story lookup selects the requested row within its agency and idol
+tests/server/story-repository.test.ts	story repository PostgreSQL whole-card and category deletion reject stale revisions
+tests/server/upload-contract.test.ts	upload contract Node streaming multipart parser accepts exactly maxParts and rejects the next part
+tests/server/upload-contract.test.ts	upload contract Node streaming multipart parser accepts exactly the configured part limit
+tests/server/upload-contract.test.ts	upload contract Node streaming multipart parser counts unknown files against the file limit without Content-Length
+tests/server/upload-contract.test.ts	upload contract Node streaming multipart parser rejects one part beyond the configured limit
+tests/server/upload-contract.test.ts	upload contract Node streaming multipart parser rejects raw boundary overhead at maxBytes + 1
+tests/server/upload-contract.test.ts	upload contract Node streaming multipart parser reports interrupted bodies
+tests/server/upload-contract.test.ts	upload contract Sharp image processor validates and converts real image bytes with stable dimensions
+tests/server/upload-contract.test.ts	upload contract Sharp runtime includes the libvips fixes for inherited image decoder CVEs
+tests/server/upload-contract.test.ts	upload contract namecard normalization bounds only oversized JPEG output
+tests/server/upload-contract.test.ts	upload contract shared MD5 implementation matches RFC vectors and legacy Node hashes
+tests/server/upload-contract.test.ts	upload contract shared image upload contract accepts standard HEIC and HEIF uploads
+tests/server/upload-contract.test.ts	upload contract shared image upload contract rejects extension, MIME, decoded format, and corrupt payload mismatches
+tests/server/valkey-cache.test.ts	Valkey cache aborts a queued command at the caller deadline
+tests/server/valkey-cache.test.ts	Valkey cache namespaces values and applies an expiration command
+tests/server/valkey-cache.test.ts	Valkey cache rejects invalid keys and TTLs before issuing commands
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter domain and middleware code cannot depend on the Valkey rate limiter
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter exempts replayed identities without extra consumption
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter never stores raw keys or identities
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter rejects invalid buckets, limits, and windows
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter resets expired windows and reports reset timestamps
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter shares one atomic budget across limiter instances

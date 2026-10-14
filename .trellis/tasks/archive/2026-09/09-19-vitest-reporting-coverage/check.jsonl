@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/repository/ci.md", "reason": "核验 artifact 上传位置、命名与既有 lane 结构一致，且未引入未固定 SHA 的 action"}
+{"file": ".trellis/tasks/09-19-vitest-reporting-coverage/design.md", "reason": "核验阈值起点为实测基线、只单调上调，coverage.include 口径有明确决定"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "核验 Web 配置改动未破坏既有 Vitest 边界与用例编写约束"}

@@ -8,7 +8,7 @@ const { Pool } = require('pg');
 const packageRoot = path.resolve(__dirname, '../..');
 const DEFAULT_MIGRATIONS = path.join(packageRoot, 'migrations/postgresql');
 const MIGRATION_NAME = /^(?:(\d{4})|(\d{14}))_([a-z0-9_]+)\.sql$/;
-const LAST_SEQUENTIAL_MIGRATION = 19;
+const LAST_SEQUENTIAL_MIGRATION = 27;
 const PHASE_LINE = /^-- ims:migration-phase: (pre-data|post-data)$/m;
 
 function sha256(value) {

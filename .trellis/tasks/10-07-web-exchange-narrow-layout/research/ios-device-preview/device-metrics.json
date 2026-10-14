@@ -1,0 +1,77 @@
+[
+  {
+    "model": "iPhone 18 Pro",
+    "pixels": [
+      1206,
+      2622
+    ],
+    "scale": 3.0,
+    "points": [
+      402.0,
+      874.0
+    ],
+    "cornerRadius": 62.0,
+    "screenMask": "4E5532ED-1470-47D1-BDF4-7AA90C26957A",
+    "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 18 Pro.simdevicetype/Contents/Resources/capabilities.plist"
+  },
+  {
+    "model": "iPhone 18 Pro Max",
+    "pixels": [
+      1320,
+      2868
+    ],
+    "scale": 3.0,
+    "points": [
+      440.0,
+      956.0
+    ],
+    "cornerRadius": 62.0,
+    "screenMask": "EB31C0E2-52E0-430E-B4DA-4242D2881AFF",
+    "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 18 Pro Max.simdevicetype/Contents/Resources/capabilities.plist"
+  },
+  {
+    "model": "iPhone 17 Pro",
+    "pixels": [
+      1206,
+      2622
+    ],
+    "scale": 3.0,
+    "points": [
+      402.0,
+      874.0
+    ],
+    "cornerRadius": 62.0,
+    "screenMask": "4E5532ED-1470-47D1-BDF4-7AA90C26957A",
+    "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 17 Pro.simdevicetype/Contents/Resources/capabilities.plist"
+  },
+  {
+    "model": "iPhone 17 Pro Max",
+    "pixels": [
+      1320,
+      2868
+    ],
+    "scale": 3.0,
+    "points": [
+      440.0,
+      956.0
+    ],
+    "cornerRadius": 62.0,
+    "screenMask": "EB31C0E2-52E0-430E-B4DA-4242D2881AFF",
+    "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 17 Pro Max.simdevicetype/Contents/Resources/capabilities.plist"
+  },
+  {
+    "model": "iPhone 17",
+    "pixels": [
+      1206,
+      2622
+    ],
+    "scale": 3.0,
+    "points": [
+      402.0,
+      874.0
+    ],
+    "cornerRadius": 62.0,
+    "screenMask": "4E5532ED-1470-47D1-BDF4-7AA90C26957A",
+    "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 17.simdevicetype/Contents/Resources/capabilities.plist"
+  }
+]

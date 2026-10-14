@@ -1,0 +1,449 @@
+{
+ "generatedAt": "2026-09-19",
+ "rule": "同目录+同扩展名，按 basename 首个 kebab 段成族；族内用例数 >120 或单线程 >20s 时按二级前缀再切；单成员族保持原文件名",
+ "caps": {
+  "cases": 120,
+  "seconds": 20.0
+ },
+ "before": {
+  "files": 134,
+  "cases": 884,
+  "seconds": 90.7
+ },
+ "after": {
+  "files": 72,
+  "mergedTargets": 20,
+  "keptFiles": 52
+ },
+ "merges": [
+  {
+   "target": "server/platform-email.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "platform-email",
+   "members": [
+    "server/platform-email-auth.contract.test.ts",
+    "server/platform-email-binding.contract.test.ts",
+    "server/platform-email-cache.test.ts",
+    "server/platform-email-delivery-repository.test.ts",
+    "server/platform-email-delivery-service.test.ts",
+    "server/platform-email-job-payload.test.ts",
+    "server/platform-email-resend-policy-cache.test.ts",
+    "server/platform-email-settings-contract.test.ts",
+    "server/platform-email-settings.test.ts"
+   ],
+   "files": 9,
+   "cases": 98,
+   "seconds": 18.01,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/fudaba.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "fudaba",
+   "members": [
+    "server/fudaba-agency-catalog.test.ts",
+    "server/fudaba-agency-migration.test.ts",
+    "server/fudaba-card-claim-contract.test.ts",
+    "server/fudaba-card-interaction-routes.test.ts",
+    "server/fudaba-card-placement-repository.test.ts",
+    "server/fudaba-card-placement-routes.test.ts",
+    "server/fudaba-card-reaction-routes.test.ts",
+    "server/fudaba-card-review-handlers.test.ts",
+    "server/fudaba-claim-review-repository.test.ts",
+    "server/fudaba-domain-repository.test.ts",
+    "server/fudaba-location-repository.test.ts",
+    "server/fudaba-location-routes.test.ts",
+    "server/fudaba-map-delivery.test.ts",
+    "server/fudaba-office-management-repository.test.ts",
+    "server/fudaba-office-management-routes.test.ts",
+    "server/fudaba-owner-routes.test.ts",
+    "server/fudaba-owner-write-repository.test.ts",
+    "server/fudaba-public-read-repository.test.ts",
+    "server/fudaba-public-routes.test.ts"
+   ],
+   "files": 19,
+   "cases": 86,
+   "seconds": 9.66,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/platform-account.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "platform-account",
+   "members": [
+    "server/platform-account-admin-repository.test.ts",
+    "server/platform-account-management-repository.test.ts",
+    "server/platform-account-security.contract.test.ts"
+   ],
+   "files": 3,
+   "cases": 71,
+   "seconds": 6.85,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "node.test.js",
+   "dir": "",
+   "ext": "js",
+   "family": "node",
+   "members": [
+    "node-listener-probe.test.js",
+    "node-security.test.js"
+   ],
+   "files": 2,
+   "cases": 37,
+   "seconds": 2.3,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "migration/fudaba.test.js",
+   "dir": "migration",
+   "ext": "js",
+   "family": "fudaba",
+   "members": [
+    "migration/fudaba-media.test.js",
+    "migration/fudaba-metadata-import.test.js"
+   ],
+   "files": 2,
+   "cases": 31,
+   "seconds": 3.91,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "migration/legacy.test.js",
+   "dir": "migration",
+   "ext": "js",
+   "family": "legacy",
+   "members": [
+    "migration/legacy-about-avatars.test.js",
+    "migration/legacy-brand-assets.test.js",
+    "migration/legacy-information-media.test.js",
+    "migration/legacy-namecards.test.js",
+    "migration/legacy-producer-map.test.js"
+   ],
+   "files": 5,
+   "cases": 30,
+   "seconds": 0.05,
+   "risk": [
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/platform-oauth.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "platform-oauth",
+   "members": [
+    "server/platform-oauth-callback-branches.test.ts",
+    "server/platform-oauth-exchange.test.ts",
+    "server/platform-oauth-provider-settings.test.ts",
+    "server/platform-oauth-unlink-repository.test.ts",
+    "server/platform-oauth-wire-contract-conformance.test.ts"
+   ],
+   "files": 5,
+   "cases": 30,
+   "seconds": 2.64,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/handler.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "handler",
+   "members": [
+    "server/handler-model-contract.test.ts",
+    "server/handler-validation-compatibility.test.ts"
+   ],
+   "files": 2,
+   "cases": 26,
+   "seconds": 0.17,
+   "risk": [
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/admin.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "admin",
+   "members": [
+    "server/admin-accounts.contract.test.ts",
+    "server/admin-platform-users.contract.test.ts"
+   ],
+   "files": 2,
+   "cases": 16,
+   "seconds": 1.79,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/namecard.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "namecard",
+   "members": [
+    "server/namecard-media-keys.test.ts",
+    "server/namecard-metadata-repository.test.ts",
+    "server/namecard-ownership-migration.test.ts",
+    "server/namecard-reaction-reconciliation-migration.test.ts",
+    "server/namecard-unification-migration.test.ts"
+   ],
+   "files": 5,
+   "cases": 16,
+   "seconds": 2.67,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/site.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "site",
+   "members": [
+    "server/site-package-archive.test.ts",
+    "server/site-package-env.test.ts",
+    "server/site-package-repository.test.ts",
+    "server/site-package-routes.test.ts"
+   ],
+   "files": 4,
+   "cases": 15,
+   "seconds": 2.2,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/request.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "request",
+   "members": [
+    "server/request-observability.test.ts",
+    "server/request-validation-boundaries.test.ts",
+    "server/request-validation.test.ts"
+   ],
+   "files": 3,
+   "cases": 14,
+   "seconds": 0.05,
+   "risk": [
+    "新文件名"
+   ]
+  },
+  {
+   "target": "migration/wiki.test.js",
+   "dir": "migration",
+   "ext": "js",
+   "family": "wiki",
+   "members": [
+    "migration/wiki-media-sync.test.js",
+    "migration/wiki-metadata-audit.test.js"
+   ],
+   "files": 2,
+   "cases": 10,
+   "seconds": 0.01,
+   "risk": [
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/valkey.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "valkey",
+   "members": [
+    "server/valkey-cache.test.ts",
+    "server/valkey-rate-limiter.test.ts"
+   ],
+   "files": 2,
+   "cases": 9,
+   "seconds": 0.06,
+   "risk": [
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/auth.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "auth",
+   "members": [
+    "server/auth-refresh.contract.test.ts",
+    "server/auth-request-helper.test.ts"
+   ],
+   "files": 2,
+   "cases": 8,
+   "seconds": 1.37,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/events.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "events",
+   "members": [
+    "server/events-pagination.test.ts",
+    "server/events-response.test.ts"
+   ],
+   "files": 2,
+   "cases": 8,
+   "seconds": 1.81,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/object.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "object",
+   "members": [
+    "server/object-cleanup-lifecycle.test.ts",
+    "server/object-deletion-worker-fencing.test.ts",
+    "server/object-deletion-worker.test.ts",
+    "server/object-protection-compensation.test.ts",
+    "server/object-read-response.test.ts"
+   ],
+   "files": 5,
+   "cases": 8,
+   "seconds": 1.85,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "migration/namecard.test.js",
+   "dir": "migration",
+   "ext": "js",
+   "family": "namecard",
+   "members": [
+    "migration/namecard-thumbnail-backfill.test.js",
+    "migration/namecard-unification-reconcile.test.js"
+   ],
+   "files": 2,
+   "cases": 6,
+   "seconds": 1.42,
+   "risk": [
+    "postgres",
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/information.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "information",
+   "members": [
+    "server/information-data.test.ts",
+    "server/information-html-document.test.ts",
+    "server/information-public-response.test.ts",
+    "server/information-reorder.test.ts"
+   ],
+   "files": 4,
+   "cases": 5,
+   "seconds": 0.04,
+   "risk": [
+    "新文件名"
+   ]
+  },
+  {
+   "target": "server/shared.test.ts",
+   "dir": "server",
+   "ext": "ts",
+   "family": "shared",
+   "members": [
+    "server/shared-json-error-contract.test.ts",
+    "server/shared-paths.test.ts"
+   ],
+   "files": 2,
+   "cases": 4,
+   "seconds": 0.02,
+   "risk": [
+    "新文件名"
+   ]
+  }
+ ],
+ "kept": [
+  "assets/client-allowlist.test.js",
+  "assets/frontend-routing.contract.test.js",
+  "hono-app-contract.test.js",
+  "migration/cms-article-title-backfill.test.js",
+  "migration/information-to-community-posts.test.js",
+  "migration/local-upload-media.test.js",
+  "migration/postgres-migrations.test.js",
+  "migration/public-object-placement.test.js",
+  "migration/semantic-object-keys.test.js",
+  "migration/single-bucket-consolidation.test.js",
+  "operation-scripts.test.js",
+  "postgres-test-lifecycle.test.js",
+  "server/about-page-content.test.ts",
+  "server/abuse-protection.contract.test.ts",
+  "server/backoffice-auth-boundary.contract.test.ts",
+  "server/bilibili-cover.test.ts",
+  "server/brand-assets.test.ts",
+  "server/business-request-models.test.ts",
+  "server/cache-config.test.ts",
+  "server/chronicle-idempotency.contract.test.ts",
+  "server/client-address.test.ts",
+  "server/contract-json-helper.test.ts",
+  "server/core-runtime-contract.test.ts",
+  "server/cors-policy.test.ts",
+  "server/editorial-safeguards.test.ts",
+  "server/homepage-links.test.ts",
+  "server/idempotency-fencing.test.ts",
+  "server/live-schedule.test.ts",
+  "server/local-upload-sync.test.ts",
+  "server/media-article-assets.test.ts",
+  "server/migration-catalog.test.ts",
+  "server/news-pagination.test.ts",
+  "server/node-email-delivery-runner.test.ts",
+  "server/optional-platform-auth.test.ts",
+  "server/platform-profile-wire-contract-conformance.test.ts",
+  "server/platform-profile.contract.test.ts",
+  "server/platform-session-security.contract.test.ts",
+  "server/postgresql-request-controls.test.ts",
+  "server/producer-map-content.test.ts",
+  "server/public-object-url.test.ts",
+  "server/runtime-adapters.test.ts",
+  "server/s3-object-storage.test.ts",
+  "server/sql-database.test.ts",
+  "server/story-repository.test.ts",
+  "server/upload-contract.test.ts",
+  "wiki/admin-data.contract.test.ts",
+  "wiki/bilibili.contract.test.ts",
+  "wiki/dom.contract.test.ts",
+  "wiki/node-cleanup-compensation.contract.test.ts",
+  "wiki/public-data.contract.test.ts",
+  "wiki/security-crud.contract.test.ts",
+  "wiki/wire-contract-conformance.test.ts"
+ ]
+}

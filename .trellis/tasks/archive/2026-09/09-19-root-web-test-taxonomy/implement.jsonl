@@ -1,0 +1,10 @@
+{"file": ".trellis/tasks/09-19-root-web-test-taxonomy/prd.md", "reason": "本子任务需求、三域基线与 AC"}
+{"file": ".trellis/tasks/09-19-root-web-test-taxonomy/design.md", "reason": "三域的主题选取、e2e 取证方式与阈值规则"}
+{"file": ".trellis/tasks/09-19-root-web-test-taxonomy/implement.md", "reason": "批次顺序与验收命令"}
+{"file": ".trellis/tasks/09-19-vitest-ui-and-test-taxonomy/design.md", "reason": "父任务的两层归类规则与可检性约定"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "根域执行入口与仓库域配置调用方式"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Web 测试域规格：单测、e2e 命令与浏览器域要求"}
+{"file": "scripts/testing/run-test-owner.mjs", "reason": "根域三条 owner 调用与治理文件清单"}
+{"file": "scripts/testing/tests/run-test-owner.test.mjs", "reason": "被归类的根域测试样本，同时含精确断言"}
+{"file": "apps/web/package.json", "reason": "web 测试脚本入口与脚本数上限"}
+{"file": "apps/web/vitest.config.ts", "reason": "Web unit 域配置：jsdom、alias、include"}

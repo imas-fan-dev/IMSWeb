@@ -9,7 +9,6 @@ import {
   Settings2Icon,
   UserRoundIcon,
 } from "lucide-react"
-import { Link } from "react-router"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -53,6 +52,7 @@ import {
   StoryOutlineSkeleton,
   WorkbenchSkeleton,
 } from "./wiki-workbench-sections"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function WikiWorkbench() {
   const {
@@ -131,16 +131,22 @@ export function WikiWorkbench() {
               <Settings2Icon data-icon="inline-start" />
               类型与来源
             </Button>
-            <Link
+            <NavigationLink
               to={`/admin/stories/assets?agencyId=${selectedAgency?.id ?? ""}`}
               className={buttonVariants({ variant: "outline" })}
             >
               <ImagesIcon data-icon="inline-start" />
               企划素材库
-            </Link>
+            </NavigationLink>
             <Button
               variant="outline"
-              render={<a href={storyUrl} target="_blank" rel="noreferrer" />}
+              render={
+                <NavigationLink
+                  href={storyUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                />
+              }
               nativeButton={false}
             >
               <ArrowUpRightIcon data-icon="inline-start" />

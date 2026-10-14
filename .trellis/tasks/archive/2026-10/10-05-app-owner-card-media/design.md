@@ -1,0 +1,15 @@
+# Owner media loading
+
+Owner card URLs point to platform-authenticated binary routes. A plain App image request cannot attach the bearer header and receives 401. Same-origin Web image requests carry the session cookie.
+
+Use a dedicated owner-media helper inside the Fudaba API facade, importing `platformApiClient` directly and exporting runtime functions through `~/lib/api`. Build the allowlist prefix with `exchangePath("me/cards/")` from contracts and escape regex metacharacters. Resolve only HTTP(S) URLs on the configured API origin with the exact owner front/back path, an optional numeric `v` revision query, and no fragment. Decode and validate the card ID before allowing credentials. Return a relative route to the platform client so its existing request policy and refresh replay own authentication. Declare binary metadata explicitly as `authRealm: "platform"` and `responseType: "blob"` so the JSON wire audit recognizes this binary endpoint.
+
+A local hook fetches only allowlisted private sources in bearer mode. It associates each result with the source and platform session identity, aborts requests on effect cleanup, and revokes every object URL it creates. Stale results never render. Same-origin Web and local upload blobs pass through. Inventory and editor share this hook; editor passes the resolved blob to the existing preview/lightbox component. Failed private loads show a retry control without exposing a private URL to an image element.
+
+After `platformAuth` and `findCardForOwner`, the owner-media handler selects `objectReadResponse(..., { mode: "proxy" })` when the validated `platformAuthSource` is `authorization`. The API then reads bytes from storage and responds on the authenticated API origin. Cookie-authenticated GET and HEAD retain signed redirects when the storage adapter provides them. The handler preserves private no-store caching, Authorization/Cookie variance, byte metadata, HEAD and range handling through the existing response helper.
+
+This selection is necessary because S3 always provides `createReadUrl`. A bearer Blob fetch following its 307 still requires the storage host to be browser-accessible and permit Tauri CORS. Proxying at this private owner boundary removes that dependency; storage policies and public media delivery remain unchanged. The generic object reader is reused without modification. API authorization, the shared request policy and token store remain unchanged.
+
+The browser fixture keeps `createReadUrl` present and records byte reads, signed URL creation and storage requests. App success requires no signed storage hop. Cookie browser delivery follows a fixture signed target and must still decode. A separate opt-in acceptance runs the real S3 adapter against local RustFS with an isolated PostgreSQL database and unique object prefix; it verifies private unsigned rejection, native-origin API CORS and cleanup of only its own object.
+
+Rollback restores the owner handler's default delivery option and removes the helper and two call sites. Restoring default delivery would reintroduce the App storage-CORS dependency and requires a replacement delivery strategy before release.

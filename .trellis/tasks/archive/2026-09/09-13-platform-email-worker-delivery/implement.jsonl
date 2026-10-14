@@ -1,0 +1,12 @@
+{"file":".trellis/spec/api/backend/architecture.md","reason":"API ports, infrastructure, runtime composition, import direction and source placement."}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"PostgreSQL transaction ownership, repository boundaries and failure handling."}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"Secret handling, bounded structured logs and runtime configuration rules."}
+{"file":".trellis/spec/api/backend/testing.md","reason":"PostgreSQL test lifecycle and API quality commands."}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"Web API facade, parsed contract responses and local request state."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Countdown copy, interaction states, accessibility and responsive verification."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Web unit and Playwright ownership and validation requirements."}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"Exact HTTP JSON schema ownership and consumer synchronization."}
+{"file":".trellis/spec/contracts/shared/quality.md","reason":"Contracts build, conformance and cross-workspace verification."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"End-to-end persistence, API contract and Web flow consistency."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse of existing leased worker, runner and crypto patterns without generic abstractions."}
+{"file":".trellis/tasks/09-13-platform-email-worker-delivery/research/worker-architecture.md","reason":"Repository-specific worker, transaction, retry, encryption, deployment and rollback research."}

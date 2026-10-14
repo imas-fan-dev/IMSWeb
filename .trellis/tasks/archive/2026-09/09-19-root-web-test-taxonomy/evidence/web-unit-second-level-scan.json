@@ -1,0 +1,110 @@
+[
+  {
+    "path": "apps/web/tests/unit/lib/api/api.test.ts",
+    "runs": [
+      {
+        "parent": "Alova access-token refresh",
+        "parentLine": 333,
+        "member": null,
+        "fromLine": 359,
+        "toLine": 377,
+        "count": 2,
+        "phrase": "does not refresh",
+        "titles": [
+          "does not refresh a public request that returns 401",
+          "does not refresh or replay a failed admin logout"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "apps/web/tests/unit/lib/api/origin.test.ts",
+    "runs": [
+      {
+        "parent": "API origin",
+        "parentLine": 31,
+        "member": null,
+        "fromLine": 107,
+        "toLine": 113,
+        "count": 2,
+        "phrase": "resolves the site origin against the",
+        "titles": [
+          "resolves the site origin against the document for browser builds",
+          "resolves the site origin against the API for packaged builds"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "apps/web/tests/unit/mocks/data/editorial.test.ts",
+    "runs": [
+      {
+        "parent": "editorial fixture factories",
+        "parentLine": 18,
+        "member": null,
+        "fromLine": 49,
+        "toLine": 56,
+        "count": 2,
+        "phrase": "builds a spotlight",
+        "titles": [
+          "builds a spotlight item that matches its contract",
+          "builds a spotlight response that matches its contract"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "apps/web/tests/unit/mocks/data/namecards.test.ts",
+    "runs": [
+      {
+        "parent": "namecards fixture factories",
+        "parentLine": 10,
+        "member": null,
+        "fromLine": 19,
+        "toLine": 26,
+        "count": 2,
+        "phrase": "builds a namecard",
+        "titles": [
+          "builds a namecard that matches its contract",
+          "builds a namecard page that matches its contract"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "apps/web/tests/unit/pages/tier-list/tier-list-model.test.ts",
+    "runs": [
+      {
+        "parent": "removeItem / clearAll",
+        "parentLine": 132,
+        "member": null,
+        "fromLine": 134,
+        "toLine": 144,
+        "count": 2,
+        "phrase": "removes an item from",
+        "titles": [
+          "removes an item from the pool and the items map",
+          "removes an item from a tier row"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "apps/web/tests/unit/pages/tier-list/tier-list-storage.test.ts",
+    "runs": [
+      {
+        "parent": "tier-list-storage",
+        "parentLine": 9,
+        "member": null,
+        "fromLine": 28,
+        "toLine": 33,
+        "count": 2,
+        "phrase": "returns null for",
+        "titles": [
+          "returns null for corrupted storage",
+          "returns null for an unknown storage version"
+        ]
+      }
+    ]
+  }
+]

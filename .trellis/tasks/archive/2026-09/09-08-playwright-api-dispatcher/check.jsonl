@@ -1,0 +1,4 @@
+{"file":".trellis/spec/web/frontend/testing.md","reason":"检查聚焦和完整三浏览器Playwright证据"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"检查auth、CSRF和exact JSON语义"}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"检查contracts-owned schema和path来源"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/playwright-dispatcher.md","reason":"核对direct route清理和所有负向场景"}

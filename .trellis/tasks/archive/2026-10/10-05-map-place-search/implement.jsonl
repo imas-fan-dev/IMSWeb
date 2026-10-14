@@ -1,0 +1,11 @@
+{"file":".rules","reason":"Repository boundaries"}
+{"file":"apps/api/.rules","reason":"API implementation"}
+{"file":"apps/web/.rules","reason":"UI implementation"}
+{"file":"packages/contracts/.rules","reason":"Existing wire contracts"}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"Validation and errors"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"API facade and request state"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"UI regressions"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer scope"}
+{"file":".trellis/spec/api/backend/map-place-search.md","reason":"Executable search and provider contract"}
+{"file":".trellis/tasks/archive/2026-10/10-05-map-place-search/research/root-cause.md","reason":"Root cause and official provider sources"}
+{"file":".trellis/tasks/archive/2026-10/10-05-map-place-search/verification.md","reason":"Completed API and browser evidence, validation reproduction"}

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared review and quality-check conventions for evaluating the migration diffs."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Review criteria for Web test ownership, the Playwright/vitest split, and the prohibition on weakening assertions while removing boilerplate."}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Review criteria for API test coverage parity: migrated files must keep the same scenarios and assertions."}
+{"file":".trellis/spec/api/backend/architecture.md","reason":"Review criteria for keeping src/app.ts the only composition root while test-app.ts becomes the single test-side entry point."}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"Review criteria for the zod boundary and for fixture factories staying keyed to exported contract schemas."}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/web/frontend/index.md", "reason": "Web quality checklist"}
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "Responsive accessibility and safe-area review criteria"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Required automated and viewport validation"}
+{"file": ".trellis/tasks/09-03-community-updates-mobile/research/mobile-surface-map.md", "reason": "Expected scope known risks and regression gaps"}

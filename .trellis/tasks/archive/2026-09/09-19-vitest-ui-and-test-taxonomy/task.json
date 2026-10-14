@@ -1,0 +1,30 @@
+{
+  "id": "vitest-ui-and-test-taxonomy",
+  "name": "vitest-ui-and-test-taxonomy",
+  "title": "根级 Vitest UI 与全仓测试归类（test.describe）",
+  "description": "在根 package 提供 vitest/@vitest/ui 与 test.projects 面板，便于跨子包开发调试；并把全仓 node:test/Vitest 用例按「被测主体 → 行为类别」两层重新归类到 test.describe，统一结构而不改变用例语义与数量。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-09-19",
+  "completedAt": "2026-09-20",
+  "branch": "chore/vitest-ui-and-test-taxonomy",
+  "base_branch": "release/v1.1",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-19-root-vitest-ui",
+    "09-19-api-test-taxonomy",
+    "09-19-root-web-test-taxonomy"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

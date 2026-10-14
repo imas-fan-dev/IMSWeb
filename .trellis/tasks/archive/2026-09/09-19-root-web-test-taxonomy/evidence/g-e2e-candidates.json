@@ -1,0 +1,86 @@
+[
+  {
+    "domain": "web",
+    "spec": "community-exchange-map-attribution.spec.ts",
+    "cases": 5,
+    "describe": "community exchange map attribution",
+    "listLines": 5,
+    "exact": 0,
+    "prefixed": 5,
+    "fail": 0,
+    "runs": [
+      {
+        "prefix": "opens the attribution dialog from the",
+        "count": 3
+      }
+    ]
+  },
+  {
+    "domain": "web",
+    "spec": "namecard-claim-workflow.spec.ts",
+    "cases": 6,
+    "describe": "namecard claim workflow",
+    "listLines": 8,
+    "exact": 0,
+    "prefixed": 8,
+    "fail": 0,
+    "runs": [
+      {
+        "prefix": "claim dialog mobile constraints @mobile ›",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "domain": "web",
+    "spec": "namecard-mobile-browsing.spec.ts",
+    "cases": 9,
+    "describe": "namecard mobile browsing",
+    "listLines": 9,
+    "exact": 0,
+    "prefixed": 9,
+    "fail": 0,
+    "runs": [
+      {
+        "prefix": "keeps complete faces and preview controls",
+        "count": 3
+      }
+    ]
+  },
+  {
+    "domain": "app",
+    "spec": "app-navigation.spec.ts",
+    "cases": 14,
+    "describe": "app navigation",
+    "listLines": 21,
+    "exact": 0,
+    "prefixed": 21,
+    "fail": 0,
+    "runs": [
+      {
+        "prefix": "bounds restoration after",
+        "count": 2
+      },
+      {
+        "prefix": "returns to the account root",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "domain": "app",
+    "spec": "app-oauth-sign-in.spec.ts",
+    "cases": 2,
+    "describe": "(none)",
+    "listLines": 8,
+    "exact": 8,
+    "prefixed": 0,
+    "fail": 0,
+    "runs": [
+      {
+        "prefix": "app OAuth sign-in entry ›",
+        "count": 2
+      }
+    ]
+  }
+]

@@ -1,0 +1,549 @@
+.exchange-map-app-viewport::before {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 15;
+  height: calc(var(--app-header-inset) + 1.5rem);
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    to bottom,
+    rgb(248 252 253 / 82%) 0%,
+    rgb(248 252 253 / 58%) 48%,
+    rgb(248 252 253 / 18%) 78%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 40%,
+    rgb(0 0 0 / 72%) 64%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 40%,
+    rgb(0 0 0 / 72%) 64%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+}
+
+.exchange-map-detail-sheet[data-side="bottom"] {
+  max-height: min(78%, var(--safe-viewport-height));
+}
+
+.exchange-map-attribution-dialog-ios {
+  top: 50%;
+  left: 50%;
+  width: calc(100vw - 48px);
+  max-height: var(--overlay-safe-height);
+  padding: 24px;
+  border-radius: 25px;
+  transform: translate(-50%, -50%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.exchange-map-attribution-dialog-ios [data-slot="dialog-title"] {
+  margin-inline: 28px;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 28px;
+  text-align: center;
+}
+
+.exchange-map-attribution-dialog-ios > [data-slot="dialog-close"] {
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+}
+
+.exchange-map-attribution-dialog-ios [data-map-search-attributions] {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.exchange-map-filter-sheet[data-side="bottom"] {
+  max-height: min(82%, var(--safe-viewport-height));
+}
+
+.exchange-map-directory-sheet[data-side="bottom"] {
+  max-height: min(86%, var(--safe-viewport-height));
+}
+
+@layer components {
+  .exchange-map-app-control,
+  .exchange-map-app-surface {
+    color-scheme: light;
+    --background: oklch(0.995 0.002 90);
+    --foreground: oklch(0.17 0.008 270);
+    --muted-foreground: oklch(0.48 0.02 260);
+    --accent: oklch(0.95 0.025 348);
+    --primary: oklch(0.54 0.2 351);
+    /*
+   * The map material stays light in both themes. Pin the light glass tokens
+   * this surface reads and reuse the shared blur, saturate and float recipe,
+   * so the map carries no private copy of those numbers.
+   */
+    --glass-rgb: 255 255 255;
+    --glass-alpha: 0.88;
+    --glass-highlight: rgb(255 255 255 / 82%);
+    --glass-shadow-float: 0 6px 18px rgb(23 29 38 / 16%);
+    border-color: rgb(23 29 38 / 12%);
+    background-color: rgb(var(--glass-rgb) / var(--glass-alpha));
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      var(--glass-shadow-float);
+    -webkit-backdrop-filter: blur(var(--glass-blur))
+      saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  }
+
+  .exchange-map-app-control {
+    color: rgb(37 42 51);
+  }
+
+  .exchange-map-app-control:hover {
+    background-color: rgb(255 255 255 / 96%);
+    color: rgb(23 29 38);
+  }
+
+  .exchange-map-app-control:disabled {
+    opacity: 0.55;
+  }
+
+  /*
+ * The App joins the locate control and the map-tools trigger into one pill, the
+ * way Apple Maps stacks its own map controls. Both DOM twins keep their own box
+ * (the native path measures them), so only the outer corners curve and the
+ * shared edge stays straight. `9999px` resolves to half the shorter side, which
+ * is the same capsule radius the native renderer derives from the union of the
+ * two frames.
+ */
+  .exchange-map-app-pill-top {
+    border-start-start-radius: 9999px;
+    border-start-end-radius: 9999px;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    border-bottom-width: 0;
+  }
+
+  .exchange-map-app-pill-bottom {
+    position: relative;
+    border-start-start-radius: 0;
+    border-start-end-radius: 0;
+    border-end-start-radius: 9999px;
+    border-end-end-radius: 9999px;
+    border-top-width: 0;
+    /*
+   * The separator replaces the border on the shared edge, so the surface
+   * recipe's inset highlight would otherwise draw a bright second line there.
+   */
+    box-shadow: var(--glass-shadow-float);
+  }
+
+  .exchange-map-app-pill-bottom::before {
+    position: absolute;
+    inset-inline: 0.5rem;
+    top: 0;
+    height: 1px;
+    content: "";
+    background-color: rgb(23 29 38 / 12%);
+  }
+}
+
+@layer overrides {
+  @media (prefers-reduced-transparency: reduce) {
+    .exchange-map-app-viewport::before {
+      background: linear-gradient(
+        to bottom,
+        rgb(248 252 253 / 96%) 0%,
+        rgb(248 252 253 / 72%) 58%,
+        transparent 100%
+      );
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .exchange-map-app-control,
+    .exchange-map-app-surface {
+      background-color: rgb(255 255 255 / 98%);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}
+/* Page-local search shapes; global primitive radii remain unchanged. */
+@layer components {
+  .exchange-search-card {
+    --exchange-search-safe-bottom: max(12px, env(safe-area-inset-bottom));
+    position: absolute;
+    z-index: 20;
+    left: 8px;
+    right: 8px;
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - 16px);
+    margin-inline: auto;
+    padding: 0;
+    pointer-events: none;
+    color: var(--foreground);
+  }
+  .exchange-search-card > :not(.sr-only) {
+    pointer-events: auto;
+  }
+  .exchange-search-surface,
+  .exchange-search-tools,
+  .exchange-search-card > .exchange-search-content {
+    border: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
+    border-radius: 34px;
+    background: var(--background);
+    box-shadow: 0 4px 18px rgb(0 0 0 / 12%);
+  }
+  .exchange-search-surface {
+    position: relative;
+    flex-shrink: 0;
+    padding: 14px 12px 4px 56px;
+    min-height: 68px;
+  }
+  .exchange-search-card[data-detent="collapsed"]
+    .exchange-search-surface::before {
+    position: absolute;
+    top: 6px;
+    left: calc(50% - 18px);
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--muted-foreground);
+    pointer-events: none;
+    content: "";
+  }
+  .exchange-search-card[data-detent="collapsed"] .exchange-search-handle {
+    position: absolute;
+    inset: 14px auto auto 12px;
+    width: 44px;
+    height: 48px;
+    border-radius: 24px 0 0 24px;
+    background: var(--secondary);
+    color: var(--muted-foreground);
+  }
+  .exchange-search-handle svg {
+    width: 21px;
+    height: 21px;
+  }
+  .exchange-search-card:not([data-detent="collapsed"]) {
+    padding: 0 12px 12px;
+    pointer-events: auto;
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    background: var(--background);
+  }
+  .exchange-search-card:not([data-detent="collapsed"]) .exchange-search-surface,
+  .exchange-search-card:not([data-detent="collapsed"])
+    > .exchange-search-content {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+  .exchange-search-card[hidden] {
+    display: none;
+  }
+  .exchange-search-card[data-app-search] {
+    color-scheme: light;
+    --background: oklch(0.995 0.002 90);
+    --foreground: oklch(0.17 0.008 270);
+    --secondary: oklch(0.955 0.012 245);
+    --secondary-foreground: oklch(0.25 0.025 250);
+    --muted-foreground: oklch(0.48 0.02 260);
+    --glass-rgb: 255 255 255;
+    --glass-highlight: rgb(255 255 255 / 80%);
+    --glass-edge: rgb(255 255 255 / 55%);
+  }
+  .exchange-search-card[data-compact]:not([data-detent="collapsed"])
+    .exchange-search-handle {
+    display: none;
+  }
+  .exchange-search-card[data-compact]:not([data-detent="collapsed"]) {
+    padding-top: 8px;
+  }
+  .exchange-search-handle {
+    flex-shrink: 0;
+    height: 44px;
+    width: 100%;
+    touch-action: none;
+    display: grid;
+    place-items: center;
+    border-radius: 24px;
+  }
+  .exchange-search-handle span {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--muted-foreground);
+  }
+  .exchange-search-row {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .exchange-search-card .exchange-search-input {
+    height: 48px;
+    min-width: 0;
+    flex: 1;
+    border-radius: 24px;
+    justify-content: flex-start;
+  }
+  .exchange-search-card .exchange-search-round {
+    height: 44px;
+    width: 44px;
+    min-width: 44px;
+    border-radius: 22px;
+    flex-shrink: 0;
+  }
+  .exchange-search-tools,
+  .exchange-search-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-shrink: 0;
+  }
+  .exchange-search-tools {
+    padding: 0 8px;
+    border-radius: 22px;
+    margin-top: 12px;
+  }
+  .exchange-search-actions {
+    margin-top: 12px;
+  }
+  .exchange-search-tools .exchange-search-pill {
+    background: transparent;
+  }
+  .exchange-search-summary {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    height: auto;
+    padding: 4px 0;
+    white-space: normal;
+    text-align: left;
+    justify-content: flex-start;
+  }
+  .exchange-search-summary > svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+  .exchange-search-summary > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .exchange-search-summary strong,
+  .exchange-search-summary span span {
+    display: block;
+  }
+  .exchange-search-summary span span {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+  }
+  .exchange-map-side-controls {
+    position: absolute;
+    z-index: 20;
+    right: 8px;
+    width: 48px;
+    border-radius: 24px;
+    background: var(--background);
+    box-shadow: 0 4px 18px rgb(0 0 0 / 12%);
+  }
+  .exchange-map-refresh[data-standalone] {
+    position: absolute;
+    z-index: 20;
+    right: 8px;
+    border-radius: 24px;
+    background: var(--background);
+  }
+  .exchange-map-refresh-button {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+  }
+  @media (min-width: 768px) {
+    .exchange-search-card {
+      max-width: 560px;
+    }
+  }
+  @media (max-width: 767px) and (orientation: portrait) {
+    .exchange-search-card[data-app-search][data-detent="collapsed"] {
+      /* Same sizing tokens as AppTabBar's px-3 / max-w-sm fallback. Actual
+         visible nav measurements override these before paint. */
+      --exchange-navigation-default-width: min(
+        calc(100vw - var(--spacing) * 6),
+        var(--container-sm)
+      );
+      left: var(
+        --exchange-navigation-x,
+        calc((100% - var(--exchange-navigation-default-width)) / 2)
+      );
+      right: auto;
+      width: var(
+        --exchange-navigation-width,
+        var(--exchange-navigation-default-width)
+      );
+    }
+  }
+  .exchange-search-tools > * {
+    flex: 1;
+    min-width: 0;
+  }
+  .exchange-search-card .exchange-search-pill {
+    height: 44px;
+    border-radius: 22px;
+    padding-inline: 12px;
+  }
+  .exchange-search-content {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin-top: 8px;
+    padding: 4px;
+  }
+  .exchange-search-result {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 4px;
+    text-align: left;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid var(--border);
+  }
+  .exchange-search-result span {
+    color: var(--muted-foreground);
+  }
+  .exchange-search-selected {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .exchange-search-card .exchange-search-menu-item {
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px;
+    border-radius: 16px;
+  }
+  .exchange-search-card button:focus-visible,
+  .exchange-search-card a:focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (min-width: 1024px) {
+    .exchange-search-card:not([data-app-search]),
+    .exchange-map-refresh:not([data-app-search]) {
+      display: none;
+    }
+  }
+  @media (max-height: 500px) and (min-width: 640px) {
+    .exchange-search-card {
+      right: auto;
+      width: min(420px, max(320px, 48%));
+      max-width: none;
+      margin-inline: 0;
+    }
+    .exchange-search-handle {
+      height: 44px;
+    }
+  }
+}
+@layer overrides {
+  /* The side group owns one material; its independently measured twins do not. */
+  .exchange-map-side-controls.exchange-map-app-surface {
+    border-radius: 24px;
+    background-color: rgb(var(--glass-rgb) / var(--glass-alpha));
+  }
+  .exchange-map-side-controls .exchange-map-app-surface {
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .exchange-map-side-controls .exchange-map-refresh {
+    border-radius: 24px;
+    pointer-events: auto;
+  }
+  .exchange-map-side-controls [data-exchange-refresh-anchor] {
+    pointer-events: none;
+  }
+  .exchange-map-side-controls .exchange-map-refresh-button {
+    border-radius: 24px;
+  }
+  .exchange-map-side-controls .exchange-map-app-control {
+    border-start-start-radius: 24px;
+    border-start-end-radius: 24px;
+    border-end-start-radius: 24px;
+    border-end-end-radius: 24px;
+  }
+  .exchange-map-side-controls .exchange-map-app-control::before {
+    content: none;
+  }
+  .exchange-map-side-controls .exchange-map-app-control::after {
+    content: none;
+  }
+  .exchange-map-refresh[data-standalone] {
+    border-radius: 24px;
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .exchange-map-side-controls.exchange-map-app-surface {
+      background-color: rgb(255 255 255 / 98%);
+    }
+  }
+  .exchange-search-card[data-detent="collapsed"] .exchange-search-input {
+    border-radius: 0 24px 24px 0;
+  }
+  .exchange-search-card .exchange-search-summary {
+    height: auto;
+    min-height: 48px;
+    white-space: normal;
+    justify-content: flex-start;
+    padding: 4px 0;
+  }
+  .exchange-map-refresh-button {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+  }
+  .exchange-map-side-controls [data-native-glass-control="locate"] {
+    position: relative;
+    inset: auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+    border: 0;
+    box-shadow: none;
+  }
+  .exchange-search-card .exchange-search-input {
+    height: 48px;
+    border-radius: 24px;
+    justify-content: flex-start;
+  }
+  .exchange-search-tools .exchange-search-pill {
+    background: transparent;
+  }
+  .exchange-search-card .exchange-search-round {
+    height: 44px;
+    width: 44px;
+    border-radius: 22px;
+  }
+  .exchange-search-card .exchange-search-pill {
+    height: 44px;
+    border-radius: 22px;
+  }
+}

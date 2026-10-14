@@ -1,0 +1,10 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Required Web quality checks and ownership"}
+{"file":".trellis/spec/web/frontend/app-navigation.md","reason":"Four-section contract, queued intent race, back/scroll semantics and native evidence requirements"}
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"Verify App/Web separation and one source for tab ownership"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"Check state boundaries and reuse of existing API contracts"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Verify safe areas, modal suppression, Wiki and namecard interaction preservation"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Review regression quality and distinguish browser, native mock and device evidence"}
+{"file":".trellis/spec/guides/index.md","reason":"Cross-layer consistency and reusable ownership review"}
+{"file":".trellis/tasks/09-13-app-navigation-interaction/research/navigation-current-state.md","reason":"Baseline implementation and native uncertainty to verify against final behavior"}
+{"file":".trellis/tasks/09-13-app-navigation-interaction/research/navigation-options.md","reason":"User-approved interaction semantics and baseline browser observations"}
+{"file":".trellis/tasks/09-13-app-navigation-interaction/research/planning-context.md","reason":"Prior navigation requirements and independent namecard task boundaries"}

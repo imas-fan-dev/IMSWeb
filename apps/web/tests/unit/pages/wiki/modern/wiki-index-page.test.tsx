@@ -1,8 +1,10 @@
+import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import { WikiIndexPage } from "~/pages/wiki/modern/index"
 
 function response(payload: unknown) {
@@ -33,6 +35,7 @@ function agency(
     iconUrl: code === "sc" ? "/icon/agencies/6.webp" : null,
     idolCount,
     entryCount: idolCount,
+    imageTransform: defaultWikiImageTransform,
   }
 }
 
@@ -53,22 +56,26 @@ function catalogPayload(
           name: "天海春香",
           folderName: "amami_haruka",
           color: "#e22b30",
+          wikiUrl: null,
           imageUrl: "/image/haruka.webp",
           imageFit: "cover",
           textColor: "#ffffff",
           entryKind: "idol" as const,
           entrySubtype: null,
+          imageTransform: defaultWikiImageTransform,
         }
       : {
           id: 6,
           name: "樱木真乃",
           folderName: "sakuragi_mano",
           color: "#f1b0c9",
+          wikiUrl: null,
           imageUrl: "/image/mano.webp",
           imageFit: "cover",
           textColor: "#ffffff",
           entryKind: "idol" as const,
           entrySubtype: null,
+          imageTransform: defaultWikiImageTransform,
         }
   const groups = [
     {
@@ -77,6 +84,7 @@ function catalogPayload(
       name: selected === "765PRO" ? "765PRO" : "illumination STARS",
       color: selectedAgency.color,
       iconUrl: null,
+      imageTransform: defaultWikiImageTransform,
       idols: [idol],
     },
   ]
@@ -87,6 +95,7 @@ function catalogPayload(
       name: "Project Luminous",
       color: "#8b5cf6",
       iconUrl: null,
+      imageTransform: defaultWikiImageTransform,
       idols: [idol],
     })
   }
@@ -148,11 +157,13 @@ function catalogPayload(
                 name: "浅仓透",
                 folderName: "asakura_toru",
                 color: "#50d0d0",
+                wikiUrl: null,
                 imageUrl: "/image/toru.webp",
                 imageFit: "cover",
                 textColor: "#111111",
                 entryKind: "story" as const,
                 entrySubtype: "event" as const,
+                imageTransform: defaultWikiImageTransform,
               },
             ]
           : [],
@@ -175,10 +186,8 @@ function LocationProbe() {
 }
 
 describe("WikiIndexPage", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("switches dynamic agencies and filters the selected idol directory", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    installFetchMock((input) => {
       const url = new URL(
         input instanceof Request ? input.url : String(input),
         window.location.origin
@@ -201,7 +210,6 @@ describe("WikiIndexPage", () => {
       }
       return Promise.reject(new Error(`Unexpected request ${url.pathname}`))
     })
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     renderWiki()
@@ -277,28 +285,23 @@ describe("WikiIndexPage", () => {
   })
 
   it("switches agencies from the mobile rotary dial", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        if (url.pathname === "/api/wiki/random_bg") {
-          return response({ url: "" })
-        }
-        if (url.pathname === "/api/wiki/catalog") {
-          return response(
-            catalogPayload(
-              url.searchParams.get("agency") === "765PRO"
-                ? "765PRO"
-                : "闪耀色彩"
-            )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      if (url.pathname === "/api/wiki/random_bg") {
+        return response({ url: "" })
+      }
+      if (url.pathname === "/api/wiki/catalog") {
+        return response(
+          catalogPayload(
+            url.searchParams.get("agency") === "765PRO" ? "765PRO" : "闪耀色彩"
           )
-        }
-        return Promise.reject(new Error(`Unexpected request ${url.pathname}`))
-      })
-    )
+        )
+      }
+      return Promise.reject(new Error(`Unexpected request ${url.pathname}`))
+    })
     const user = userEvent.setup()
 
     renderWiki()
@@ -371,18 +374,15 @@ describe("WikiIndexPage", () => {
   })
 
   it("lists every cross-agency match as an independent modern story link", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload())
-      })
-    )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload())
+    })
     const user = userEvent.setup()
 
     renderWiki()
@@ -406,22 +406,19 @@ describe("WikiIndexPage", () => {
 
   it("keeps the agency rail stable while the next agency loads", async () => {
     const nextCatalog = deferred<Response>()
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        if (url.pathname === "/api/wiki/random_bg") {
-          return response({ url: "" })
-        }
-        if (url.searchParams.get("agency") === "765PRO") {
-          return nextCatalog.promise
-        }
-        return response(catalogPayload("闪耀色彩"))
-      })
-    )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      if (url.pathname === "/api/wiki/random_bg") {
+        return response({ url: "" })
+      }
+      if (url.searchParams.get("agency") === "765PRO") {
+        return nextCatalog.promise
+      }
+      return response(catalogPayload("闪耀色彩"))
+    })
     const user = userEvent.setup()
 
     renderWiki()
@@ -449,18 +446,15 @@ describe("WikiIndexPage", () => {
   })
 
   it("renders a cross-group idol without exposing public directory counts", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload("闪耀色彩", true))
-      })
-    )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload("闪耀色彩", true))
+    })
 
     renderWiki()
 
@@ -493,25 +487,22 @@ describe("WikiIndexPage", () => {
   })
 
   it("links to each group while keeping the complete directory visible", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(
-              catalogPayload(
-                url.searchParams.get("agency") === "765PRO"
-                  ? "765PRO"
-                  : "闪耀色彩",
-                true
-              )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(
+            catalogPayload(
+              url.searchParams.get("agency") === "765PRO"
+                ? "765PRO"
+                : "闪耀色彩",
+              true
             )
-      })
-    )
+          )
+    })
     const user = userEvent.setup()
 
     renderWiki()
@@ -551,18 +542,15 @@ describe("WikiIndexPage", () => {
   })
 
   it("links to ungrouped entries and ignores the legacy group query", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload("闪耀色彩", false, true))
-      })
-    )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload("闪耀色彩", false, true))
+    })
     renderWiki("/wiki?agency=闪耀色彩&group=999")
 
     const groupNavigation = await screen.findByRole("navigation", {
@@ -581,18 +569,15 @@ describe("WikiIndexPage", () => {
   })
 
   it("renders idols without memberships in a final ungrouped section", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload("闪耀色彩", false, true))
-      })
-    )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload("闪耀色彩", false, true))
+    })
 
     renderWiki()
 
@@ -616,7 +601,7 @@ describe("WikiIndexPage", () => {
 
   it("recovers from an API error", async () => {
     let catalogAttempts = 0
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    installFetchMock((input) => {
       const url = new URL(
         input instanceof Request ? input.url : String(input),
         window.location.origin
@@ -627,7 +612,6 @@ describe("WikiIndexPage", () => {
         ? Promise.reject(new TypeError("offline"))
         : response(catalogPayload())
     })
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     renderWiki()
@@ -647,60 +631,63 @@ describe("WikiIndexPage", () => {
       iconUrl: null,
       idolCount: 2,
       entryCount: 2,
+      imageTransform: defaultWikiImageTransform,
     }
     const voiced = {
       id: 2,
       name: "渋谷凛",
       folderName: "shibuya_rin",
       color: "#37b4e5",
+      wikiUrl: null,
       imageUrl: "/image/rin.webp",
       imageFit: "cover",
       textColor: "#ffffff",
       entryKind: "idol" as const,
       entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     }
     const unvoiced = {
       id: 3,
       name: "未付声演示",
       folderName: "unvoiced_demo",
       color: "#999999",
+      wikiUrl: null,
       imageUrl: "/image/unvoiced.webp",
       imageFit: "cover",
       textColor: "#ffffff",
       entryKind: "idol" as const,
       entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response({
-              status: "success",
-              agencies: [cgAgency],
-              searchEntries: [],
-              selection: {
-                agency: cgAgency,
-                layoutRevision: 0,
-                groups: [
-                  {
-                    id: 2,
-                    code: "cute",
-                    name: "Cute",
-                    color: cgAgency.color,
-                    iconUrl: null,
-                    idols: [voiced, unvoiced],
-                  },
-                ],
-                ungroupedIdols: [],
-              },
-            })
-      })
-    )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response({
+            status: "success",
+            agencies: [cgAgency],
+            searchEntries: [],
+            selection: {
+              agency: cgAgency,
+              layoutRevision: 0,
+              groups: [
+                {
+                  id: 2,
+                  code: "cute",
+                  name: "Cute",
+                  color: cgAgency.color,
+                  iconUrl: null,
+                  imageTransform: defaultWikiImageTransform,
+                  idols: [voiced, unvoiced],
+                },
+              ],
+              ungroupedIdols: [],
+            },
+          })
+    })
     const user = userEvent.setup()
 
     renderWiki("/wiki?agency=灰姑娘女孩")
@@ -721,18 +708,15 @@ describe("WikiIndexPage", () => {
   })
 
   it("does not render the voiced filter for non-Cinderella agencies", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload())
-      })
-    )
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload())
+    })
 
     renderWiki()
 
@@ -740,5 +724,27 @@ describe("WikiIndexPage", () => {
     expect(
       screen.queryByRole("button", { name: /未付声/ })
     ).not.toBeInTheDocument()
+  })
+
+  it("renders the empty catalog state after loading completes", async () => {
+    installFetchMock((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response({
+            status: "success",
+            agencies: [],
+            searchEntries: [],
+            selection: null,
+          })
+    })
+
+    renderWiki("/wiki")
+
+    expect(await screen.findByText("当前没有可展示的 Wiki 数据")).toBeVisible()
+    expect(screen.queryByLabelText("正在加载内容目录")).not.toBeInTheDocument()
   })
 })

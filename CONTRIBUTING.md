@@ -26,7 +26,7 @@ pnpm run check:root
 `.env`。API 独立启动时会自动读取被 Git 忽略的
 `apps/api/.env`，shell 或进程管理器变量优先；Compose 定制配置使用 `deploy/.env`。不要在
 `apps/web/.env` 中放置浏览器可见的密钥。完整流程见
-[AI 开发环境指南](docs/ai-development-environment.md)。
+[AI 开发环境指南](docs/development/ai-environment.md)。
 
 ## 选择修改位置
 
@@ -48,13 +48,14 @@ pnpm run check:root
 - Web 改动提交前运行 `pnpm --filter @imsweb/web format` 和
   `pnpm --filter @imsweb/web lint`。
 - 复用现有 port、adapter、API client 和 UI 原语，不在页面或业务域重复实现基础设施逻辑。
-- Wiki 线协议类型以 `apps/api/src/ports/wiki-contracts.ts` 为唯一来源；修改后运行
-  `node apps/api/scripts/contracts/generate-web-contracts.mjs` 并提交生成的 Web 声明，
-  `pnpm run check:root` 会校验漂移。
+- API↔Web wire contracts 以 `packages/contracts/` 为唯一来源；修改 schema、type 或 path
+  builder 时同步更新 API、Web、conformance test 和 package exports。
 - 保持 Pull Request 聚焦，不夹带无关格式化、生成产物或目录重构。
 
 修改前还应阅读根目录和目标 workspace 的 `.rules`；`AGENTS.md` 与 `CLAUDE.md` 是指向该
-文件的兼容软链接。规则文件变更后运行 `pnpm run check:rules` 校验所有作用域。
+文件的兼容软链接。规则文件变更后运行 `pnpm run check:rules` 校验所有作用域。仓库级文档必须遵循
+[文档中心与规范](docs/README.md)：只写跨发布的架构、开发、运维、迁移和治理知识，不提交
+日期快照、一次性测试证据或历史副本。
 
 ## 测试要求
 
@@ -79,9 +80,9 @@ Pull Request 中列出实际运行的命令和结果；无法运行的门禁要�
 - 未脱敏的用户数据或生产数据样本；
 - 来源、权利人和再分发许可不明确的图片、字体、音视频、品牌标识或内容数据。
 
-新增公开资产必须在 `docs/ASSET_PROVENANCE.md` 记录原始来源、权利人、许可证或
-书面授权、允许的使用范围、修改状态和文件 SHA-256。仅有外链、作者昵称或“非商用”说明不
-等于取得开源再分发许可。
+新增公开资产必须在 `docs/governance/assets.md` 记录原始来源、权利人、许可证或书面授权、
+允许的使用范围、修改状态和文件 SHA-256。仅有外链、作者昵称或“非商用”说明不等于取得
+开源再分发许可。
 
 不要绕过数据库对账、单写入端、媒体状态机、CSRF、路径策略或发布门禁。
 

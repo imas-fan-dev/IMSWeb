@@ -1,21 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { I18nextProvider } from "react-i18next"
-import { useState, type ReactNode } from "react"
+import { useState } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { I18nTestProvider } from "@/tests/unit/support/harness"
 import { i18n } from "~/i18n/config"
-import { defaultLanguage, defaultNamespace } from "~/i18n/resources"
+import { defaultLanguage } from "~/i18n/resources"
 import { ImageCompositionEditor } from "~/pages/admin/stories/components/image-composition-editor"
 import { defaultWikiImageTransform, type WikiImageTransform } from "~/lib/api"
-
-function TestI18nProvider({ children }: { children: ReactNode }) {
-  return (
-    <I18nextProvider i18n={i18n} defaultNS={defaultNamespace}>
-      {children}
-    </I18nextProvider>
-  )
-}
 
 function EditorHarness({
   initialTransform = defaultWikiImageTransform,
@@ -42,7 +34,7 @@ describe("ImageCompositionEditor", () => {
   })
 
   it("updates the existing focal fields from pointer and keyboard input", () => {
-    render(<EditorHarness />, { wrapper: TestI18nProvider })
+    render(<EditorHarness />, { wrapper: I18nTestProvider })
 
     const preview = screen.getByTestId("image-composition-preview")
     vi.spyOn(preview, "getBoundingClientRect").mockReturnValue({
@@ -84,7 +76,7 @@ describe("ImageCompositionEditor", () => {
           zoom: 1.4,
         }}
       />,
-      { wrapper: TestI18nProvider }
+      { wrapper: I18nTestProvider }
     )
 
     const preciseButton = screen.getByRole("button", { name: "精细调整" })

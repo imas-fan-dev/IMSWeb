@@ -1,0 +1,560 @@
+### tests/server/migration-catalog.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import fs from 'node:fs/promises';
+  [ 2] L   3-   3  other    import { onTestFinished, test } from 'vitest';
+  [ 3] L   4-   4  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 4] L   6-   6  other    const BOUNDARY = '20260816193000_namecard_ownership_foundation.sql';
+  [ 5] L   8-  15  test     migration catalog copies SQL files only before an existing boundary
+  [ 6] L  17-  22  test     migration catalog fails before creating a fixture for a missing boundary
+### tests/server/namecard-media-keys.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { ensureNamecardThumbnails } from '@/domains/community/fudaba/card-media-assets';
+  [ 3] L   4-  12  other    import { namecardCardMediaObjectKey, namecardClaimMediaObjectKey, namecardMediaObjectKeys, namecardOrigi
+  [ 4] L  14-  23  test     namecard thumbnail keys share the original stem under a thumbnail role
+  [ 5] L  25-  38  test     namecard thumbnail public URLs keep the original filename identity
+  [ 6] L  40-  48  test     namecard media key pairs cover the original and its stored thumbnail
+  [ 7] L  50-  63  test     legacy thumbnail paths map back to the canonical thumbnail key
+  [ 8] L  69-  83  test     claimed legacy media keeps the canonical namecards layout
+  [ 9] L  85-  97  test     claimed media round-trips through the public media chain
+  [10] L  99- 111  test     claimed media keeps the source extension and never reuses the source
+  [11] L 116- 124  test     card media keys stay readable by the namecard readers
+  [12] L 126- 150  other    function stubThumbnailRuntime(overrides: { exists: (key: string) => boolean | Promise<boolean>; get: (key: strin
+  [13] L 152- 162  test     ensureNamecardThumbnails skips sides whose thumbnails already exist
+  [14] L 164- 180  test     ensureNamecardThumbnails generates missing thumbnails from originals
+  [15] L 182- 194  test     ensureNamecardThumbnails rejects when the original object is missing
+### tests/server/namecard-metadata-repository.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+  [ 3] L   4-   4  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 4] L   5-   5  other    import { executeSql, queryOne } from '@/infra/db/sql/query';
+  [ 5] L   6-   6  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 6] L   7-   7  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [ 7] L   9-   9  other    const WITHDRAWAL_TOKEN_HASH = 'a'.repeat(64);
+  [ 8] L  11-  22  other    function guestInput(hashSuffix: string) { return { image1Url: `/uploads/namecard/original/${hashSuffix}-fron
+  [ 9] L  24- 128  test     PostgreSQL guest namecards persist ordered cross-series idol metadata atomically
+  [10] L 130- 169  test     PostgreSQL guest namecards may carry optional profile text
+  template-literal lines (not reindented): 156,157
+### tests/server/namecard-ownership-migration.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createRequire } from 'node:module';
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 5] L   6-   6  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 6] L   7-   7  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 7] L   9-   9  other    const require = createRequire(__filename);
+  [ 8] L  10-  15  other    const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as { migratePostgres(options:
+  [ 9] L  17-  17  other    const OWNERSHIP_MIGRATION = '20260816193000_namecard_ownership_foundation.sql';
+  [10] L  19- 110  test     namecard ownership migration preserves historical rows as legacy
+  template-literal lines (not reindented): 32,33,37,38,39,40,41,46,47,48,49,50,51,52,53,54,61,82,83,84,85,91,92,100,101,102
+### tests/server/namecard-reaction-reconciliation-migration.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createRequire } from 'node:module';
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 5] L   6-   6  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 6] L   7-   7  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 7] L   9-   9  other    const require = createRequire(__filename);
+  [ 8] L  10-  15  other    const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as { migratePostgres(options:
+  [ 9] L  17-  17  other    const RECONCILIATION_MIGRATION =
+  [10] L  20-  87  test     namecard reaction reconciliation resyncs namecard_reactions from card_emojis drift
+  template-literal lines (not reindented): 35,36,37,38,39,40,41,47,48,49,50,51,52,53,54,60,67,74,83
+### tests/server/namecard-unification-migration.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createRequire } from 'node:module';
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+  [ 5] L   6-   6  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 6] L   7-   7  other    import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+  [ 7] L   9-   9  other    const require = createRequire(__filename);
+  [ 8] L  10-  15  other    const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as { migratePostgres(options:
+  [ 9] L  17-  17  other    const UNIFICATION_MIGRATION = '20260819000000_namecard_unification_foundation.sql';
+  [10] L  19- 151  test     namecard unification migration folds legacy cards into one table
+  template-literal lines (not reindented): 30,31,36,37,38,39,40,41,42,46,47,48,49,50,51,52,69,70,71,72,73,74,75,76,77,84,85,86,104,114,125,142,143,144,145,146
+### tests/server/news-pagination.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { readContractJson as contractJson } from '../contracts/contract-json';
+  [ 4] L   5-  12  other    import { adminRecommendationListSchema, newsErrorResponseSchema, newsMutationErrorResponseSchema, newsMu
+  [ 5] L  13-  13  other    import { createHonoApp } from '@/app';
+  [ 6] L  14-  14  other    import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+  [ 7] L  15-  15  other    import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+  [ 8] L  16-  19  other    import { decodeDescendingIdCursor, encodeDescendingIdCursor } from '@/utils/validation/descending-id-cursor';
+  [ 9] L  20-  20  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [10] L  22-  29  other    interface CursorNewsPage { items: Recommendation[]; pageInfo: { nextCursor: string | null; hasNe
+  [11] L  31-  34  other    interface NewsFixture { request(pathname: string): Promise<Response>; insert(title: string): Promise<number>; }
+  [12] L  36-  67  other    async function createFixture(count: number): Promise<NewsFixture> { const connection = await createPostgresTestDatab
+  [13] L  69-  77  test     news keeps its legacy array response when pagination is not requested
+  [14] L  79- 119  test     news cursor pagination holds an id snapshot while rows are inserted
+  [15] L 121- 149  test     news cursor pagination validates limits, cursors, and empty snapshots
+  [16] L 151- 167  test     news list responses preserve a title with legacy leading or trailing whitespace verbatim
+  [17] L 169- 242  test     admin news parses exact success and mutation business-error envelopes
+### tests/server/node-email-delivery-runner.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createConnection, type AddressInfo } from 'node:net';
+  [ 2] L   3-   3  other    import { describe, onTestFinished, test } from 'vitest';
+  [ 3] L   4-   7  other    import { shutdownEmailWorker, startEmailWorker, } from '@/email-worker-main';
+  [ 4] L   8-  13  other    import type { PlatformEmailDeliveryClaim, PlatformEmailDeliveryWorkerStore, PlatformEmailJobPayloadCipher,
+  [ 5] L  14-  14  other    import { NodeEmailDeliveryRunner } from '@/runtime/node-email-delivery-runner';
+  [ 6] L  16-  24  other    function deferred<T = void>() { let resolve!: (value: T | PromiseLike<T>) => void; let reject!: (reason?: unknow
+  [ 7] L  26-  36  other    async function waitFor( predicate: () => boolean, message: string, timeoutMs = 1_000, ): Promise<void> {
+  [ 8] L  38-  50  other    function claim(index: number): PlatformEmailDeliveryClaim { return { jobId: `job-${index}`, purpose:
+  [ 9] L  52-  65  other    const payloadCipher: PlatformEmailJobPayloadCipher = { encrypt() { throw new Error('encrypt is not used by t
+  [10] L  67-  91  other    function workerStore( overrides: Partial<PlatformEmailDeliveryWorkerStore> = {}, ): PlatformEmailDeliveryWorkerStore
+  [11] L  93- 101  other    function acceptedSender( acceptedAt = Date.now(), ): PlatformEmailWorkerSender { return { async deliverV
+  [12] L 103- 154  test     email delivery runner polls immediately and enforces bounded concurrency
+  [13] L 156- 186  test     email delivery runner claims with a fresh post-maintenance timestamp
+  [14] L 188- 237  test     email delivery runner serializes lease renewals
+  [15] L 239- 348  describe email delivery runner cancels a claim when lease renewal is lost
+  [16] L 350- 411  test     email delivery runner contains claim failures and continues polling
+  [17] L 413- 443  test     email delivery runner recovers readiness after a failed PostgreSQL poll
+  [18] L 445- 488  test     email delivery runner drains claims committed while shutdown begins
+  [19] L 490- 548  test     email delivery runner leaves delayed claims for lease recovery after shutdown times out
+  [20] L 550- 647  test     email delivery runner waits for graceful work and bounds stalled shutdown
+  [21] L 649- 680  test     email delivery runner readiness expires and refreshes after a successful poll
+  [22] L 682- 735  test     shutdownEmailWorker bounds stalled service and active health-server close
+  [23] L 737- 797  test     email worker health follows runner readiness, stopping, and liveness
+### tests/server/object-cleanup-lifecycle.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { createServer } from "node:http";
+  [ 2] L   3-   3  other    import { once } from "node:events";
+  [ 3] L   4-   4  other    import { onTestFinished, test } from "vitest";
+  [ 4] L   5-  10  other    import type { CompensationService, ObjectCleanupRunner, ObjectDeletionWorker, ObjectStorage, } from "@/p
+  [ 5] L  11-  11  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [ 6] L  12-  12  other    import { NodeObjectCleanupRunner } from "@/runtime/node-object-cleanup-runner";
+  [ 7] L  13-  13  other    import { createNodeServiceLifecycle } from "@/runtime/node-services";
+  [ 8] L  14-  14  other    import { shutdownServer } from "@/main";
+  [ 9] L  16-  24  other    function signal(): { promise: Promise<void>; resolve: () => void } { let resolve!: () => void; return {
+  [10] L  26-  82  test     object cleanup runner stops scheduling and closes only after the active cycle is idle
+  [11] L  84- 137  test     Node service shutdown waits for object cleanup before closing its dependencies
+### tests/server/object-deletion-worker-fencing.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
+  [ 3] L   4-   4  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 4] L   5-   5  other    import { queryOne } from '@/infra/db/sql/query';
+  [ 5] L   6-   6  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [ 6] L   8-  14  other    function signal(): { promise: Promise<void>; resolve: () => void } { let resolve!: () => void; return {
+  [ 7] L  16-  71  test     object deletion lease fences stale worker failure after takeover
+  template-literal lines (not reindented): 39,40,41
+### tests/server/object-deletion-worker.test.ts
+  [ 0] L   1-   1  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 1] L   2-   2  other    import assert from 'node:assert/strict';
+  [ 2] L   3-   3  other    import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
+  [ 3] L   4-   4  other    import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
+  [ 4] L   5-   5  other    import type { ObjectStorage } from '@/ports/object-storage';
+  [ 5] L   6-   6  other    import { queryOne } from '@/infra/db/sql/query';
+  [ 6] L   7-   7  other    import { createPostgresTestDatabase } from '../postgres-test-database';
+  [ 7] L   9-  22  other    async function insertJob( database: ManagedSqlDatabase, id: string, resourceId: string, target: string,
+  [ 8] L  24- 145  test     PostgreSQL object deletion worker retries and atomically leases prefix jobs
+  template-literal lines (not reindented): 18,19,20
+### tests/server/object-protection-compensation.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { test } from "vitest";
+  [ 2] L   3-   3  other    import type { ObjectStorage } from "@/ports/object-storage";
+  [ 3] L   4-   4  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [ 4] L   5-   5  other    import { protectObjectWithCompensation } from "@/utils/storage/delete-object";
+  [ 5] L   7-  52  test     object protection and its compensation are fenced to one object version
+### tests/server/object-read-response.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import type { ObjectReadUrlOptions, ObjectStorage } from '@/ports/object-storage';
+  [ 3] L   4-   4  other    import { objectReadResponse } from '@/utils/http/object-read-response';
+  [ 4] L   6-  51  test     S3-capable media responses redirect GET and HEAD without loading object bytes
+  [ 5] L  53-  93  test     proxy mode bypasses signed URLs and preserves stored byte semantics
+  [ 6] L  95- 107  test     public redirects receive a bounded cache policy when the handler has none
+### tests/server/optional-platform-auth.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { Hono } from 'hono';
+  [ 3] L   4-   4  other    import type { AppEnvironment } from '@/app';
+  [ 4] L   5-   5  other    import { PLATFORM_ACCESS_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';
+  [ 5] L   6-   6  other    import { optionalPlatformAuth } from '@/middleware/hono-auth';
+  [ 6] L   7-   7  other    import type { PlatformJwtClaims } from '@/ports/security';
+  [ 7] L   8-   8  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 8] L  10-  10  other    const NOW = Date.now();
+  [ 9] L  11-  22  other    const CLAIMS: PlatformJwtClaims = { iss: 'imsweb', aud: 'ims-platform', kind: 'platform', id: 'platform-
+  [10] L  24-  84  other    function fixture(): { app: Hono<AppEnvironment>; verifiedTokens: string[]; } { const verifiedTokens: string[
+  [11] L  86-  94  test     optional Platform auth stays anonymous when Platform credentials are absent
+  [12] L  96- 107  test     optional Platform auth rejects invalid credentials instead of downgrading
+  [13] L 109- 117  test     optional Platform auth exposes only a fully validated Platform viewer
+### tests/server/platform-account-admin-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash } from 'node:crypto';
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 5] L   6-   6  other    import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 6] L   7-  11  other    import type { NewPlatformEmailAccountInput, NewPlatformOAuthAccountInput, PlatformSecurityEventInput } from
+  [ 7] L  12-  12  other    import type { PlatformOAuthProviderCode } from '@/ports/oauth';
+  [ 8] L  13-  13  other    import { createPostgresTestHarness } from '../integration/postgres-harness';
+  [ 9] L  25-  25  other    const AT = 1_776_000_000_000;
+  [10] L  26-  26  other    const HOUR = 60 * 60 * 1000;
+  [11] L  29-  31  other    function hashOf(value: string): string { return createHash('sha256').update(value).digest('hex'); }
+  [12] L  33-  38  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [13] L  40-  49  other    function profile(id: string, displayName = `Producer ${id}`) { return { displayName, avatarObjectKey
+  [14] L  51-  72  other    function emailAccount( id: string, options: { displayName?: string; email?: string } = {} ): NewPlatformEmailAcc
+  [15] L  74-  95  other    function oauthAccount( id: string, providerCode: PlatformOAuthProviderCode ): NewPlatformOAuthAccountInput {
+  [16] L  97- 108  other    function event(accountId: string, eventType: PlatformSecurityEventInput['eventType']) { return (): PlatformSecurityE
+  [17] L 110- 162  other    async function createFixture() { const harness = await createPostgresTestHarness(); const platform = new SqlPlat
+  [18] L 164- 245  test     admin list searches by id, email and display name and hides deleted accounts
+  [19] L 247- 262  test     admin list counts only live refresh sessions and reports them without leaking hashes
+  [20] L 264- 308  test     suspending bumps token_version, sweeps live sessions and is not affected by a lost race
+  [21] L 310- 325  test     a stale status write reports a conflict and leaves sessions alone
+  [22] L 327- 351  test     activating a restricted account is unsupported and unknown ids are not-found
+  [23] L 353- 383  test     force logout revokes every live session, bumps the version and is idempotent
+  [24] L 385- 395  test     the last-credential guard still refuses unlinking an OAuth-only account
+  template-literal lines (not reindented): 141
+### tests/server/platform-account-management-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash } from 'node:crypto';
+  [ 2] L   3-   3  other    import { onTestFinished } from 'vitest';
+  [ 3] L   4-   4  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 4] L   5-   5  other    import { createPostgresTestHarness, type PostgresTestHarness } from '../integration/postgres-harness';
+  [ 5] L   6-   6  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 6] L   7-   7  other    import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 7] L   8-  16  other    import type { CreatePlatformEmailCredentialInput, CreatePlatformOAuthIdentityForAccountInput, ForceLogoutPla
+  [ 8] L  17-  17  other    import type { PlatformOAuthProviderCode } from '@/ports/oauth';
+  [ 9] L  28-  28  other    const AT = 1_775_100_000_000;
+  [10] L  29-  34  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [11] L  36-  38  other    function sha(value: string): string { return createHash('sha256').update(value).digest('hex'); }
+  [12] L  40-  49  other    function profile(id: string) { return { displayName: `Producer ${id}`, avatarObjectKey: null,
+  [13] L  51-  73  other    function oauthAccount( id: string, providerCode: PlatformOAuthProviderCode = 'google', subject = `${provider
+  [14] L  75-  93  other    function emailAccount(id: string): NewPlatformEmailAccountInput { return { id, status: 'active',
+  [15] L  95- 106  other    function event(accountId: string, eventType: PlatformSecurityEventInput['eventType'] = 'auth.oauth.linked'): PlatformSec
+  [16] L 108- 117  other    function credentialInput(normalizedEmail: string): CreatePlatformEmailCredentialInput { return { normalizedE
+  [17] L 119- 134  other    function linkInput( accountId: string, providerCode: PlatformOAuthProviderCode, subject: string ): CreatePla
+  [18] L 136- 140  other    interface Fixture { harness: PostgresTestHarness; platform: SqlPlatformAccountRepository; second: SqlPlatfor
+  [19] L 142- 158  other    async function createFixture(): Promise<Fixture> { const harness = await createPostgresTestHarness(); onTestFini
+  [20] L 160- 174  other    async function insertVerificationCode( harness: PostgresTestHarness, codeHash: string, email: string ): Prom
+  [21] L 176- 187  other    async function verificationCodeRow( harness: PostgresTestHarness, email: string ): Promise<{ code_hash: string;
+  [22] L 189- 218  other    async function insertRefreshSession( harness: PostgresTestHarness, input: { id: string; accountI
+  [23] L 220- 228  other    async function accountStatus( fixture: Fixture, accountId: string ): Promise<{ status: string; token_version: nu
+  [24] L 230- 242  other    async function liveSessionCount( fixture: Fixture, accountId: string ): Promise<number> { const row = await
+  [25] L 246- 264  test     linking an identity writes the row and its audit event
+  [26] L 266- 287  test     re-linking the same subject to the same account is idempotent
+  [27] L 289- 308  test     a subject owned by another account is refused without a write
+  [28] L 310- 320  test     a second subject for the same provider on one account is a provider conflict
+  [29] L 322- 330  test     linking to a missing or inactive account is not found
+  [30] L 332- 355  test     two concurrent links of one subject resolve to exactly one owner
+  [31] L 357- 391  test     two unlinks cannot strip every login method
+  [32] L 395- 412  test     binding an email credential consumes the code and survives a password hash
+  [33] L 414- 432  test     binding a second credential for one account is already-bound and keeps the code
+  [34] L 434- 460  test     binding a taken address reports email-conflict and rolls the code back
+  [35] L 462- 485  test     a wrong binding code leaves the credential unwritten
+  [36] L 487- 518  test     migrating an email keeps the password hash, algorithm and salt
+  [37] L 520- 543  test     a stale migration expectation reports state-conflict
+  [38] L 545- 566  test     migrating without a bound credential reports not-bound
+  [39] L 568- 610  test     two concurrent binds for one account produce exactly one credential
+  [40] L 614- 640  test     a link state round-trips its account and intent
+  [41] L 642- 669  test     an app state carries its challenge and survives the read-only return-channel lookup
+  [42] L 673- 693  test     an exchange code is consumed exactly once
+  [43] L 695- 711  test     an expired exchange code is not returned
+  [44] L 713- 731  test     a concurrent exchange redeems the code for exactly one caller
+  [45] L 735- 830  test     admin listing searches by id, email and display name and excludes deleted accounts
+  [46] L 832- 871  test     suspending an account bumps the token version and revokes live sessions atomically
+  [47] L 873- 897  test     reactivating a suspended account restores it without bumping twice
+  [48] L 899- 915  test     a stale status revision reports conflict with the current projection
+  [49] L 917- 935  test     activating a restricted account is unsupported
+  [50] L 937- 965  test     forcing a logout revokes every live session and is idempotent
+  template-literal lines (not reindented): 168,169,170,183,202,203,204,205,237,259,282,304,351,605,749
+### tests/server/platform-account-security.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 2] L   3-   3  other    import { test } from 'vitest';
+  [ 3] L   4-   4  other    import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
+  [ 4] L   5-  11  other    import { platformOAuthLinkListResponseSchema, platformOAuthUnlinkResponseSchema, platformPasswordChangeRespo
+  [ 5] L  12-  33  other    import { ACCOUNT_ID, AccountSecurityFixture, CURRENT_PASSWORD, CURRENT_SESSION_ID, DISABLED_PROVIDER
+  [ 6] L  35-  35  other    const PASSWORD_URL = 'http://ims.test/api/platform/me/password';
+  [ 7] L  36-  36  other    const SESSIONS_URL = 'http://ims.test/api/platform/me/sessions';
+  [ 8] L  37-  37  other    const OAUTH_LINKS_URL = 'http://ims.test/api/platform/me/oauth-links';
+  [ 9] L  41-  44  other    const TWO_ENABLED_LINKS = [ oauthLink(GOOGLE_PROVIDER), oauthLink(GITHUB_PROVIDER, { created_at: 4_000 }) ];
+  [10] L  45-  48  other    const ONE_ENABLED_ONE_DISABLED = [ oauthLink(GOOGLE_PROVIDER), oauthLink(DISABLED_PROVIDER, { created_at: 4_000,
+  [11] L  50-  54  other    interface ErrorBody { code?: string; error?: string; success?: boolean; }
+  [12] L  56-  66  other    async function changePassword( fixture: AccountSecurityFixture, body: string, headers: Record<string, string
+  [13] L  68-  70  other    async function listSessions(fixture: AccountSecurityFixture): Promise<Response> { return await fixture.app.request(S
+  [14] L  72-  78  other    async function listOAuthLinks( fixture: AccountSecurityFixture ): Promise<Response> { return await fixture.app.r
+  [15] L  80-  89  other    async function unlink( fixture: AccountSecurityFixture, provider: string, headers: Record<string, string> =
+  [16] L  91- 116  test     platform account security raw JSON conforms across password, sessions, and OAuth unlink
+  [17] L 118- 145  test     platform account security rejects anonymous callers
+  [18] L 147- 170  test     a wrong current password is refused without disturbing the account
+  [19] L 172- 193  other    const invalidSubmissions: Array<{ body: string; label: string }> = [ { label: 'new password under 8 characters', bod
+  [20] L 195- 208  other    for (const submission of invalidSubmissions) { test(`password change rejects ${submission.label}`, async () => {
+  [21] L 210- 226  test     password change refuses to reuse the current password
+  [22] L 228- 240  test     password change requires a JSON content type
+  [23] L 242- 286  test     a successful password change keeps this session and drops the others
+  [24] L 288- 301  test     packaged clients receive the rotated tokens in the body
+  [25] L 303- 312  test     an account without an email credential cannot change a password
+  [26] L 314- 348  test     the session list never exposes a session secret
+  [27] L 350- 366  test     revoking one session only reaches this account
+  [28] L 368- 418  test     a session owned by another account cannot be revoked
+  [29] L 420- 437  test     signing out everywhere else keeps the calling session
+  [30] L 439- 470  test     a restricted account cannot write, but can still read its devices
+  [31] L 472- 489  test     cookie callers must present a matching CSRF token
+  [32] L 491- 536  test     the OAuth link list never exposes the third-party subject
+  [33] L 538- 555  test     an empty provider string is reported as no value, not as a blank name
+  [34] L 557- 575  test     a password makes a sole OAuth link removable
+  [35] L 577- 601  test     the link list reports whether a password exists at all
+  [36] L 603- 627  test     without a password, one of two enabled links can still go
+  [37] L 629- 663  test     a disabled provider does not count as a surviving login method
+  [38] L 665- 682  test     a password-less account cannot unlink its only provider
+  [39] L 684- 718  test     an unknown provider and another account\'s link are both just missing
+  [40] L 720- 753  test     anonymous and restricted callers cannot unlink
+  [41] L 755- 772  test     cookie callers must present a matching CSRF token to unlink
+  [42] L 774- 803  test     the OAuth link endpoints carry their own rate limit buckets
+  [43] L 805- 845  test     account security endpoints carry their own rate limit buckets
+### tests/server/platform-email-auth.contract.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { readContractJson as assertRawJsonConforms } from "../contracts/contract-json";
+  [ 2] L   3-   6  other    import { bearerTokenHeaders, setCookieHeaders as setCookies, } from "../fixtures/auth-request";
+  [ 3] L   7-   7  other    import { createHash, pbkdf2Sync, randomUUID } from "node:crypto";
+  [ 4] L   8-   8  other    import { onTestFinished, test as nodeTest } from "vitest";
+  [ 5] L   9-   9  other    import { postgresTest as test } from '../postgres-test-database';
+  [ 6] L  10-  10  other    import { successFlagSchema } from "@imsweb/contracts/common";
+  [ 7] L  11-  16  other    import { passwordResetIssueResponseSchema, platformHttpErrorSchema, platformRegistrationVerificationResponse
+  [ 8] L  17-  17  other    import { createTestApp, testRequest } from "./test-app";
+  [ 9] L  18-  18  other    import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
+  [10] L  19-  19  other    import { SqlPlatformEmailDeliveryRepository } from "@/infra/db/repositories/platform-email-delivery-repository";
+  [11] L  20-  20  other    import { PlatformEmailJobPayloadCipherAdapter } from "@/infra/email/smtp/platform-email-job-payload";
+  [12] L  21-  24  other    import type { ManagedSqlDatabase, SqlSchemaStrategy, } from "@/infra/db/sql/database";
+  [13] L  25-  25  other    import { MemoryCache } from "@/infra/cache/memory/cache";
+  [14] L  26-  26  other    import { BcryptPasswordVerifier } from "@/infra/security/bcrypt/password-verifier";
+  [15] L  27-  27  other    import { HmacPlatformTokenService } from "@/infra/security/hmac/platform-token-service";
+  [16] L  28-  28  other    import { NodeEmailDeliveryRunner } from '@/runtime/node-email-delivery-runner';
+  [17] L  29-  29  other    import { platformEmailVerificationCacheKey } from "@/domains/identity/platform-auth/registration/email-verification-cach
+  [18] L  30-  33  other    import { platformPasswordResetCacheKey, platformPasswordResetRecipientKey, } from "@/domains/identity/platform-a
+  [19] L  34-  34  other    import { isMigratedPbkdf2Parameters } from "@/domains/identity/platform-auth/contracts/credentials";
+  [20] L  35-  38  other    import type { NewPlatformEmailAccountInput, PlatformAccountStatus, } from "@/ports/repositories";
+  [21] L  39-  42  other    import type { PlatformEmailDeliveryPurpose, PlatformEmailJobPayloadCipher, } from "@/ports/email-delivery";
+  [22] L  43-  43  other    import type { CacheStore } from "@/ports/cache";
+  [23] L  44-  44  other    import type { RuntimeServices } from "@/ports/runtime-services";
+  [24] L  45-  45  other    import { createPostgresTestHarness } from "../integration/postgres-harness";
+  [25] L  47-  47  other    const PLATFORM_SECRET =
+  [26] L  49-  49  other    const PASSWORD = "correct horse battery staple";
+  [27] L  50-  50  other    const LEGACY_PASSWORD = "old-pass";
+  [28] L  51-  51  other    const ACCESS_COOKIE = "ims_platform_access";
+  [29] L  52-  52  other    const REFRESH_COOKIE = "ims_platform_refresh";
+  [30] L  53-  53  other    const CSRF_COOKIE = "ims_platform_csrf";
+  [31] L  54-  54  other    const PLATFORM_COOKIE_NAMES = [ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE];
+  [32] L  56-  61  other    const initializedPostgresSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform
+  [33] L  63-  71  other    interface Fixture { app: ReturnType<typeof createTestApp>; database: ManagedSqlDatabase; databaseUrl?: strin
+  [34] L  73-  91  other    class HangingCache implements CacheStore { private pending<T>(): Promise<T> { return new Promise<T>(() => un
+  [35] L  93- 107  other    class FailingCache implements CacheStore { async get(): Promise<string | null> { throw new Error("cache unav
+  [36] L 109- 130  other    function appWithPlatformEmail( repository: SqlPlatformAccountRepository, deliveryRepository: SqlPlatformEmailDel
+  [37] L 132- 162  other    function emailAccount( email: string, passwordHash: string, status: PlatformAccountStatus = "active", ): New
+  [38] L 164- 189  other    async function createFixture(): Promise<Fixture> { const harness = await createPostgresTestHarness(); onTestFini
+  [39] L 191- 201  other    async function waitFor( predicate: () => boolean, message: string, timeoutMs = 2_000, ): Promise<void> {
+  [40] L 203- 213  other    function jsonRequest( pathname: string, body: unknown, headers: HeadersInit = {}, ): Request { return ne
+  [41] L 215- 228  other    function assertPlatformCookies(response: Response): void { const cookies = setCookies(response); assert.deepEqua
+  [42] L 230- 235  other    function assertPrivateAuthResponse(response: Response): void { assert.equal(response.headers.get("cache-control"), "
+  [43] L 237- 263  other    async function completeNextDelivery( fixture: Fixture, purpose: PlatformEmailDeliveryPurpose, ): Promise<string>
+  [44] L 265- 284  other    async function requestVerificationCode( fixture: Fixture, email: string, ): Promise<string> { const response
+  [45] L 286- 440  other    async function assertFailedResendPreservesOldCode( dialect: "postgresql", ): Promise<void> { const fixture = awa
+  [46] L 442- 569  other    async function assertRegistrationAndLogin(): Promise<void> { const fixture = await createFixture(); const { app,
+  [47] L 571- 663  test     bearer callers get tokens from registration and login, cookie callers do not
+  [48] L 665- 707  test     password reset responses preserve exact JSON and reject invalid API email grammar
+  [49] L 709- 829  test     registration verification is hashed, cached, atomically consumed, and single use
+  [50] L 831- 896  test     verification requests enqueue without SMTP and staged codes remain unusable
+  [51] L 898- 959  test     durable HTTP enqueue is completed by a fresh worker runner
+  [52] L 961-1113  test     configured resend intervals and unknown password reset responses come from PostgreSQL
+  [53] L1115-1254  test     password reset cooldown is enumeration-safe with missing or failing cache
+  [54] L1256-1301  test     cache failure falls through to SQL cooldown with exact Retry-After
+  [55] L1303-1327  test     verification enqueue failure returns purpose-specific unavailable response
+  [56] L1329-1368  test     session fencing returns account unavailable without writing cookies
+  [57] L1370-1416  test     login returns one generic credential error and rejects blocked account states
+  [58] L1418-1518  test     migrated PBKDF2 credential logs in once and upgrades with bcrypt CAS
+  [59] L1520-1596  test     long migrated PBKDF2 passwords authenticate without unsafe bcrypt upgrade
+  [60] L1598-1620  test     bcrypt rejects passwords beyond 72 UTF-8 bytes instead of truncating
+  [61] L1622-1646  other    nodeTest("migrated PBKDF2 accepts only the declared Fudaba parameter contract", () => { const valid = { iter
+  [62] L1648-1720  test     email auth strictly validates JSON shapes and credential fields
+  [63] L1722-1775  other    nodeTest("Platform email auth routes use independent IP rate-limit buckets", async () => { const calls: Array<{
+  [64] L1777-1899  other    nodeTest("login account limiting shares a normalized digest across rotating IPs before lookup", async () => { const
+  [65] L1901-1943  test     real PostgreSQL keeps registration atomic under normalized email races
+  [66] L1945-1947  test     real PostgreSQL failed resend preserves old code across repository instances
+  template-literal lines (not reindented): 295,296,297,313,322,330,364,414,484,485,486,487,488,489,725,783,804,824,849,973,989,1009,1041,1052,1119,1144,1207,1214,1221,1231,1232,1233,1260,1297,1322,1449,1450,1451,1480,1553,1554,1555,1584,1934
+### tests/server/platform-email-binding.contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
+  [ 3] L   4-   9  other    import { platformEmailBindingResponseSchema, platformEmailCredentialResponseSchema, platformEmailVerificatio
+  [ 4] L  10-  10  other    import type { PlatformOAuthProviderSummary } from '@/ports/oauth';
+  [ 5] L  11-  13  other    import { hashPlatformEmailBindingCode } from '@/domains/identity/platform-account-security/email/email-binding-code'
+  [ 6] L  14-  14  other    import { hashPlatformEmailVerificationCode } from '@/domains/identity/platform-auth/registration/email-verification';
+  [ 7] L  15-  15  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 8] L  16-  23  other    import { ACCOUNT_ID, AccountSecurityFixture, CURRENT_PASSWORD, GITHUB_PROVIDER, bearerHeaders, s
+  [ 9] L  25-  25  other    const EMAIL_URL = 'http://ims.test/api/platform/me/email';
+  [10] L  26-  26  other    const CODE_URL = 'http://ims.test/api/platform/me/email/verification-code';
+  [11] L  27-  27  other    const BIND_URL = 'http://ims.test/api/platform/me/email/bind';
+  [12] L  28-  28  other    const CHANGE_URL = 'http://ims.test/api/platform/me/email/change';
+  [13] L  29-  29  other    const LINK_START_URL = 'http://ims.test/api/platform/me/oauth-links/github/start';
+  [14] L  30-  30  other    const LINK_START_UNAVAILABLE_URL =
+  [15] L  32-  32  other    const LINK_CALLBACK_URL = 'http://ims.test/api/platform/auth/oauth/github/callback';
+  [16] L  33-  33  other    const APP_CHALLENGE = 'c'.repeat(43);
+  [17] L  35-  39  other    interface ErrorBody { code?: string; error?: string; success?: boolean; }
+  [18] L  41-  52  other    async function sendJson( fixture: AccountSecurityFixture, url: string, body: unknown, headers: Record<st
+  [19] L  54-  78  test     platform email binding raw JSON conforms across read, code, and bind
+  [20] L  80- 111  test     email binding rejects anonymous callers on every route
+  [21] L 113- 130  test     the verification code is hashed with the binding domain, not the registration one
+  [22] L 132- 166  test     binding requires a valid code and leaves no credential on failure
+  [23] L 168- 183  test     binding a second email for an account already bound is refused
+  [24] L 185- 196  test     sending a code for an address owned by another account is refused up front
+  [25] L 198- 222  test     changing an email needs the current password and keeps the credential on refusal
+  [26] L 224- 260  test     changing an email preserves the password hash and every live session
+  [27] L 262- 281  test     changing to an address owned by another account is refused without a partial write
+  [28] L 283- 293  test     changing an email on a provider-only account reports not-bound
+  [29] L 295- 307  test     email binding and OAuth link start use their own account-dimension buckets
+  [30] L 309- 338  test     OAuth link start writes an intent=link state and redirects to the provider
+  [31] L 340- 352  test     an unavailable provider returns to account security with a reason
+  [32] L 354- 376  test     a provider that cannot build an authorization URL writes no state
+  [33] L 378- 385  test     OAuth link start demands a session
+  [34] L 387- 413  test     app OAuth link start returns the provider URL and records an app state
+  [35] L 415- 426  test     app OAuth link start demands a bearer session
+  [36] L 428- 440  test     app OAuth link start rejects an unusable challenge
+  [37] L 442- 458  test     app OAuth link start rejects an unknown body key
+  [38] L 460- 472  test     app OAuth link start reports an unavailable provider
+  [39] L 474- 497  test     an app link callback returns a one-time code with flow=link
+  [40] L 499- 517  test     a refused app link callback returns an error with flow=link
+  [41] L 519- 533  test     a web link callback still returns to account security with a reason
+  [42] L 535- 553  test     a provider denial on a link+app state keeps flow=link
+### tests/server/platform-email-cache.test.ts
+  [ 0] L   1-   1  other    import assert from "node:assert/strict";
+  [ 1] L   2-   2  other    import { test } from "vitest";
+  [ 2] L   3-   3  other    import type { CacheOperationOptions, CacheStore } from "@/ports/cache";
+  [ 3] L   4-   9  other    import { clearPlatformEmailVerificationCooldown, markPlatformEmailVerificationCooldown, platformEmailVerific
+  [ 4] L  10-  16  other    import { clearPlatformPasswordResetCooldown, markPlatformPasswordResetCooldown, platformPasswordResetCacheKe
+  [ 5] L  17-  17  other    import { MemoryCache } from "@/infra/cache/memory/cache";
+  [ 6] L  18-  18  other    import { withBoundedCacheOperation } from "@/utils/cache/bounded-operation";
+  [ 7] L  20-  54  other    class HangingCache implements CacheStore { abortedOperations = 0; private pending<T>(options?: CacheOperationOp
+  [ 8] L  56-  70  other    class FailingCache implements CacheStore { async get(): Promise<string | null> { throw new Error("cache unav
+  [ 9] L  72-  97  test     platform email cooldown uses an anonymous key, strict snapshot, and deadline TTL
+  [10] L  99- 121  test     platform email cooldown can be cleared after delivery or registration
+  [11] L 123- 158  test     platform email cooldown rejects malformed records and fails open when unavailable
+  [12] L 160- 219  test     email cooldown cache operations abort when the backend never settles
+  [13] L 221- 257  test     password reset cooldown uses the same strict snapshot without exposing email
+### tests/server/platform-email-delivery-repository.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { createHash, randomUUID } from 'node:crypto';
+  [ 2] L   3-   3  other    import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+  [ 3] L   4-   4  other    import { SqlPlatformEmailDeliveryRepository } from '@/infra/db/repositories/platform-email-delivery-repository';
+  [ 4] L   5-   5  other    import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platform-email-job-payload';
+  [ 5] L   6-   6  other    import { platformPasswordResetRecipientKey } from '@/domains/identity/platform-auth/password-reset/password-reset-cache'
+  [ 6] L   7-   7  other    import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
+  [ 7] L   8-   8  other    import { queryAll, queryOne } from '@/infra/db/sql/query';
+  [ 8] L   9-  14  other    import type { PlatformEmailDeliveryEnqueueInput, PlatformEmailDeliveryPurpose, PlatformPasswordResetEmailDel
+  [ 9] L  15-  18  other    import type { NewPlatformEmailAccountInput, NewVerifiedPlatformEmailAccountInput, } from '@/ports/repositories/p
+  [10] L  19-  23  other    import { connectPostgresTestDatabase, createPostgresTestDatabase, postgresTest as test, } from '../postgres-
+  [11] L  25-  25  other    const SECRET = 'platform-email-delivery-repository-test-secret-0123456789';
+  [12] L  26-  26  other    const cipher = new PlatformEmailJobPayloadCipherAdapter(SECRET);
+  [13] L  27-  32  other    const initializedSchema: SqlSchemaStrategy = { initializeCore: async () => undefined, initializePlatform: async
+  [14] L  34-  37  other    interface DeliveryFixture { input: PlatformEmailDeliveryEnqueueInput; code: string; }
+  [15] L  39-  49  other    interface JobState { state: string; attempts: number; next_attempt_at: number; deadline_at: number;
+  [16] L  51-  57  other    interface RequestCooldownState { purpose: string; recipient_key: string; enqueued_at: number; resend_aft
+  [17] L  59-  68  other    interface VerificationState { code_hash: string; expires_at: number; resend_after: number; attempts_rema
+  [18] L  70-  72  other    function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
+  [19] L  74- 108  other    function delivery( purpose: PlatformEmailDeliveryPurpose, email: string, marker: string, createdAt: numb
+  [20] L 110- 119  other    function passwordResetDeliveryInput( fixture: DeliveryFixture, ): PlatformPasswordResetEmailDeliveryEnqueueInput {
+  [21] L 121- 146  other    function emailAccount(email: string, now: number): NewPlatformEmailAccountInput { return { id: randomUUID(),
+  [22] L 148- 160  other    function verifiedAccount( fixture: DeliveryFixture, verifiedAt: number, ): NewVerifiedPlatformEmailAccountInput
+  [23] L 162- 173  other    function jobState( database: ManagedSqlDatabase, jobId: string, ): Promise<JobState | null> { return queryOn
+  [24] L 175- 186  other    function requestCooldownState( database: ManagedSqlDatabase, recipientKey: string, ): Promise<RequestCooldownSta
+  [25] L 188- 204  other    function verificationState( database: ManagedSqlDatabase, purpose: PlatformEmailDeliveryPurpose, email: stri
+  [26] L 206- 214  other    async function claimOne( repository: SqlPlatformEmailDeliveryRepository, now: number, leaseDurationMs = 15_0
+  [27] L 216- 223  other    async function useDatabase(label: string) { const database = await createPostgresTestDatabase(label); return {
+  [28] L 225- 329  test     registration enqueue is atomic, encrypted, and unusable until delivery completes
+  [29] L 331- 386  test     password reset activation uses acceptance time and remains unusable while queued
+  [30] L 388- 583  test     password reset request cooldowns are durable, anonymous, and preserve legacy authority
+  [31] L 585- 650  test     password reset request cooldown serializes simultaneous first requests
+  [32] L 652- 753  test     anonymous cooldown survives account creation and uses the next policy after expiry
+  [33] L 755- 870  test     failed resend preserves the active code and missing candidates never retry
+  [34] L 872- 996  test     password reset supersession and terminal failure preserve the active code
+  [35] L 998-1075  test     competing claims, lease expiry, renewal, and stale owners are fenced
+  [36] L1077-1158  test     retry, attempt, deadline, expiry, and retention limits are enforced
+  [37] L1160-1220  test     a 30-second policy supersedes queued, retrying, and running deliveries
+  [38] L1222-1310  test     completion-first and supersession-first ordering preserve the intended candidate
+  template-literal lines (not reindented): 169,170,182,183,199,200,201,250,394,480,487,488,502,541,542,543,579,593,630,631,646,658,671,678,686,687,691,711,742,749,796,878,1155,1164
+### tests/server/platform-email-delivery-service.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { ConfiguredPlatformEmailService } from '@/infra/email/smtp/platform-email-service';
+  [ 3] L   4-   7  other    import type { PlatformEmailConfigurationRecord, PlatformEmailConfigurationStore, } from '@/ports/email';
+  [ 4] L   9-   9  other    type TransportFactory = NonNullable<
+  [ 5] L  10-  10  other    ConstructorParameters<typeof ConfiguredPlatformEmailService>[2]
+  [ 6] L  11-  11  other    >;
+  [ 7] L  12-  12  other    type HostResolver = NonNullable<
+  [ 8] L  13-  13  other    ConstructorParameters<typeof ConfiguredPlatformEmailService>[3]
+  [ 9] L  14-  14  other    >;
+  [10] L  16-  16  other    const recipient = 'producer@example.com';
+  [11] L  18-  26  other    function deferred<T>() { let resolve!: (value: T | PromiseLike<T>) => void; let reject!: (reason?: unknown) => v
+  [12] L  28-  38  other    async function waitFor( predicate: () => boolean, message: string, timeoutMs = 1_000, ): Promise<void> {
+  [13] L  40-  56  other    function configuration( overrides: Partial<PlatformEmailConfigurationRecord> = {}, ): PlatformEmailConfigurationReco
+  [14] L  58-  68  other    const secretBox = { encrypt(value: string) { return `encrypted:${value}`; }, decrypt(value: string)
+  [15] L  70-  96  other    function createService(options: { getConfiguration?: () => Promise<PlatformEmailConfigurationRecord>; transportF
+  [16] L  98- 113  other    function deliver( service: ConfiguredPlatformEmailService, deadlineAt = Date.now() + 1_000, signal = new Abo
+  [17] L 115- 188  test     worker SMTP delivery classifies only bounded failure evidence
+  [18] L 190- 226  test     worker SMTP delivery contains unexpected factory, DNS, and configuration-store errors
+  [19] L 228- 290  test     worker SMTP delivery rejects IPv4 and IPv6 non-public DNS answers
+  [20] L 292- 318  test     worker SMTP delivery pins a public DNS address while retaining the TLS hostname
+  [21] L 320- 391  test     worker SMTP delivery enforces one absolute deadline across database, DNS, transport, and send
+  [22] L 393- 420  test     worker SMTP delivery rejects acceptance resolved after the absolute deadline
+  [23] L 422- 453  test     worker SMTP delivery contains a rejection that arrives after deadline closure
+  [24] L 455- 484  test     worker SMTP delivery closes the transport when its abort signal fires
+  [25] L 486- 506  test     worker SMTP delivery requires explicit acceptance of the intended recipient
+### tests/server/platform-email-job-payload.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platform-email-job-payload';
+  [ 3] L   4-   4  other    import { PlatformEmailSecretCipher } from '@/infra/email/smtp/platform-email-secrets';
+  [ 4] L   5-   8  other    import type { PlatformEmailJobIdentity, PlatformEmailJobPayload, } from '@/ports/email-delivery';
+  [ 5] L  10-  10  other    const SECRET = 'platform-email-job-payload-test-secret-0123456789';
+  [ 6] L  11-  16  other    const REGISTRATION_IDENTITY: PlatformEmailJobIdentity = { jobId: '1'.repeat(64), purpose: 'registration', de
+  [ 7] L  17-  22  other    const REGISTRATION_PAYLOAD: PlatformEmailJobPayload = { purpose: 'registration', normalizedEmail: 'producer@exam
+  [ 8] L  24-  31  other    function mutateCiphertext(value: string): string { const parts = value.split('.'); const ciphertext = parts[3];
+  [ 9] L  33-  55  test     platform email job payload cipher round trips one prepared delivery identity
+  [10] L  57-  84  test     platform email job payload cipher separates credential context and authenticates identity
+  [11] L  86-  97  test     platform email job payload cipher rejects authenticated ciphertext tampering
+  [12] L  99- 117  test     platform email job payload cipher preserves multibyte recipients
+  [13] L 119- 147  test     platform email job payload purpose fixes the verification lifetime
+### tests/server/platform-email-resend-policy-cache.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-   3  other    import { CachedPlatformEmailResendPolicyReader } from '@/infra/cache/valkey/platform-email-resend-policy-reader';
+  [ 3] L   4-   7  other    import { VALKEY_PLATFORM_EMAIL_RESEND_POLICY_WRITE_SCRIPT, ValkeyPlatformEmailResendPolicyCache, } from '@/infra
+  [ 4] L   8-  11  other    import type { PlatformEmailResendPolicyCache, PlatformEmailResendPolicyRecord, } from '@/ports/email-delivery';
+  [ 5] L  12-  15  other    import type { PlatformEmailConfigurationRecord, PlatformEmailConfigurationStore, } from '@/ports/email';
+  [ 6] L  16-  16  other    import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
+  [ 7] L  18-  18  other    const PREFIX = 'imsweb:test:';
+  [ 8] L  19-  19  other    const CACHE_KEY = `${PREFIX}platform-email-resend-policy:v1`;
+  [ 9] L  21-  24  other    interface StoredValue { value: string; expiresAt: number; }
+  [10] L  26-  35  other    function strictPolicy(value: unknown): value is PlatformEmailResendPolicyRecord { if (!value || typeof value !== 'ob
+  [11] L  37- 107  other    class FakeValkeyPolicyServer { readonly commands: string[][] = []; readonly commandSignals: Array<AbortSignal |
+  [12] L 109- 125  other    function configuration( overrides: Partial<PlatformEmailConfigurationRecord> = {}, ): PlatformEmailConfigurationReco
+  [13] L 127- 140  other    function configurationStore( current: PlatformEmailConfigurationRecord, ): PlatformEmailConfigurationStore & { reads
+  [14] L 142- 160  test     Valkey resend policy cache shares revisions across adapter instances
+  [15] L 162- 193  test     Valkey resend policy cache rejects delayed stale fills and refreshes equal revisions
+  [16] L 195- 224  test     Valkey resend policy cache replaces malformed data and validates replies
+  [17] L 226- 246  test     resend policy reader uses a strict cache hit without reading PostgreSQL
+  [18] L 248- 271  test     resend policy reader falls back to PostgreSQL when Valkey reads and refills fail
+  [19] L 273- 309  test     resend policy reader aborts stalled Valkey reads and refills
+  [20] L 311- 333  test     resend policy reader refills a cache miss with the PostgreSQL revision
+### tests/server/platform-email-settings-contract.test.ts
+  [ 0] L   1-   1  other    import assert from 'node:assert/strict';
+  [ 1] L   2-   2  other    import { test } from 'vitest';
+  [ 2] L   3-  11  other    import { adminPlatformEmailConfigurationTestRequestSchema, adminPlatformEmailConfigurationWriteRequestSchema,
+  [ 3] L  12-  12  other    import { adminApiPath } from '@imsweb/contracts/paths';
+  [ 4] L  13-  16  other    import { BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_CSRF_TOKEN_COOKIE, } from '@/domains/admin/backoffice-auth/b
+  [ 5] L  17-  17  other    import type { RuntimeServices } from '@/ports/runtime-services';
+  [ 6] L  18-  18  other    import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+  [ 7] L  19-  19  other    import { createWikiFixture } from '../wiki/fixture';
+  [ 8] L  21-  21  other    const ADMIN_EMAIL_URL = adminApiPath('/platform/email');
+  [ 9] L  23-  35  other    const settings = { enabled: false, configured: true, host: 'smtp.qiye.163.com', port: 465, security:
+  [10] L  37-  48  other    const writeRequest = { enabled: true, host: settings.host, port: settings.port, security: settings.secur
+  [11] L  50-  68  other    async function superAdminHeaders( fixture: ReturnType<typeof createWikiFixture>, ): Promise<Record<string, string>>
+  [12] L  70- 119  other    function configureFixture() { const fixture = createWikiFixture(); const writes: unknown[] = []; const tests
+  [13] L 121- 165  test     SMTP administration contracts enforce resend cooldown bounds
+  [14] L 167- 207  test     mounted SMTP administration enforces super-admin auth and exact contracts
+  [15] L 209- 240  test     SMTP administration returns contract-checked conflicts and strict request errors

@@ -1,0 +1,7 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web 规范入口和实现前检查"}
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"页面私有 hook、共享预览和测试所有权"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"设计 token、触控、安全区和可访问性"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"复用 API 门面和隔离预览请求状态"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"单元与浏览器验证约定"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"控制抽象范围并保留既有交互契约"}
+{"file":".trellis/tasks/09-05-card-mobile-browsing-redesign/research/current-browsing.md","reason":"名片墙证据、图片来源和兼容风险"}

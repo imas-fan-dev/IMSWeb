@@ -1,0 +1,568 @@
+import assert from 'node:assert/strict';
+import { onTestFinished, test, vi } from 'vitest';
+import {
+    DEFAULT_ADMIN_URL,
+    assertSafePostgresTestDatabaseName,
+    createPostgresTestAllocator,
+    createPostgresTestDatabaseName,
+    makePostgresTestConnectionCloseIdempotent,
+    postgresIntegrationEnabled,
+    postgresIntegrationSkipReason,
+    resolvePostgresTestConfig
+} from './postgres-test-lifecycle.js';
+
+const LOCAL_ADMIN_URL = 'postgresql://tester:secret@127.0.0.1:5432/postgres';
+
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+}
+
+function allocatorFixture(options = {}) {
+    const queries = [];
+    let ended = 0;
+    const migrations = [];
+    let nameIndex = 0;
+    const names = options.names ?? [
+        'ims_test_template_head_1_aaaaaaaaaaaa',
+        'ims_test_database_1_bbbbbbbbbbbb',
+        'ims_test_database_1_cccccccccccc'
+    ];
+    const pool = {
+        async query(sql, parameters) {
+            queries.push(sql);
+            if (options.queryFailure?.(sql)) throw new Error('injected query failure');
+            return options.queryResult?.(sql, parameters) ?? { rows: [] };
+        },
+        async end() {
+            ended += 1;
+            if (options.endFailure?.(ended)) throw new Error('injected admin close failure');
+        }
+    };
+    const allocator = createPostgresTestAllocator({
+        environment: { IMS_TEST_POSTGRES_ADMIN_URL: LOCAL_ADMIN_URL },
+        createAdminPool: () => pool,
+        createDatabaseName: () => names[nameIndex++],
+        databaseDrainTimeoutMs: options.databaseDrainTimeoutMs,
+        databaseDrainPollMs: options.databaseDrainPollMs,
+        delay: options.delay,
+        now: options.now,
+        async migratePostgres(migrationOptions) {
+            migrations.push(migrationOptions);
+            if (options.migratePostgres) {
+                return options.migratePostgres(migrationOptions);
+            }
+            if (options.migrationFailure) throw new Error('injected migration failure');
+        }
+    });
+    return {
+        allocator,
+        queries,
+        migrations,
+        ended: () => ended
+    };
+}
+
+test.describe('PostgreSQL test lifecycle', () => {
+    test.describe('PostgreSQL test', () => {
+        test('configuration is enabled by default and supports strict opt-out', () => {
+            assert.deepEqual(resolvePostgresTestConfig({}), {
+                enabled: true,
+                adminUrl: DEFAULT_ADMIN_URL,
+                source: 'default'
+            });
+            assert.equal(postgresIntegrationEnabled({ IMS_TEST_POSTGRES_ENABLED: 'true' }), true);
+            assert.equal(postgresIntegrationEnabled({ IMS_TEST_POSTGRES_ENABLED: 'false' }), false);
+            assert.equal(
+                postgresIntegrationSkipReason({ IMS_TEST_POSTGRES_ENABLED: 'false' }),
+                'PostgreSQL tests disabled by IMS_TEST_POSTGRES_ENABLED=false'
+            );
+            assert.equal(postgresIntegrationSkipReason({}), false);
+            for (const value of ['', 'TRUE', 'False', '1', 'yes', ' true', 'false ']) {
+                assert.throws(
+                    () => resolvePostgresTestConfig({ IMS_TEST_POSTGRES_ENABLED: value }),
+                    /must be exactly "true" or "false"/
+                );
+            }
+        });
+
+        test('URL precedence prefers the dedicated admin URL over the CI URL', () => {
+            const config = resolvePostgresTestConfig({
+                IMS_TEST_POSTGRES_ADMIN_URL: 'postgres://admin:secret@localhost:5433/admin',
+                IMS_TEST_DATABASE_URL: 'postgresql://ci:secret@127.0.0.1:5432/ci'
+            });
+            assert.equal(config.source, 'IMS_TEST_POSTGRES_ADMIN_URL');
+            assert.equal(config.adminUrl, 'postgres://admin:secret@localhost:5433/admin');
+
+            const ciConfig = resolvePostgresTestConfig({
+                IMS_TEST_DATABASE_URL: 'postgresql://ci:secret@[::1]:5432/ci'
+            });
+            assert.equal(ciConfig.source, 'IMS_TEST_DATABASE_URL');
+            assert.equal(ciConfig.adminUrl, 'postgresql://ci:secret@[::1]:5432/ci');
+        });
+
+        test('configuration rejects invalid protocols and non-loopback hosts', () => {
+            assert.throws(
+                () => resolvePostgresTestConfig({
+                    IMS_TEST_POSTGRES_ADMIN_URL: 'mysql://tester:secret@127.0.0.1/database'
+                }),
+                /must use the postgres or postgresql protocol/
+            );
+            assert.throws(
+                () => resolvePostgresTestConfig({
+                    IMS_TEST_DATABASE_URL: 'postgresql://tester:secret@db.example.test/database'
+                }),
+                /must target the local loopback interface/
+            );
+            assert.throws(
+                () => resolvePostgresTestConfig({ IMS_TEST_DATABASE_URL: 'not a URL' }),
+                /must be a valid PostgreSQL URL/
+            );
+        });
+
+        test('database names are normalized, bounded, and validated', () => {
+            const name = createPostgresTestDatabaseName(
+                'Node Security / A Label Far Longer Than PostgreSQL Needs',
+                { pid: 1234, entropy: 'abcdef012345' }
+            );
+            assert.equal(name, 'ims_test_node_security_a_label_fa_1234_abcdef012345');
+            assert.equal(Buffer.byteLength(name), name.length);
+            assert.ok(name.length <= 63);
+            assert.equal(assertSafePostgresTestDatabaseName(name), name);
+            for (const unsafe of [
+                'production',
+                'ims_test_bad-name',
+                'ims_test_bad"name',
+                `ims_test_${'a'.repeat(64)}`
+            ]) {
+                assert.throws(
+                    () => assertSafePostgresTestDatabaseName(unsafe),
+                    /Invalid PostgreSQL test database name/
+                );
+            }
+        });
+    });
+
+    test('allocator rejects an injected unsafe database name before admin queries', async () => {
+        const fixture = allocatorFixture({ names: ['production'] });
+
+        await assert.rejects(
+            fixture.allocator.allocate({
+                label: 'unsafe-name',
+                migrationsPath: '/tmp/custom-migrations'
+            }),
+            /Invalid PostgreSQL test database name/
+        );
+        await fixture.allocator.close();
+
+        assert.deepEqual(fixture.queries, []);
+        assert.equal(fixture.ended(), 0);
+    });
+
+    test('HEAD allocations clone one migrated template and track sibling connections', async () => {
+        const fixture = allocatorFixture();
+        const first = await fixture.allocator.allocate({ label: 'first' });
+        const second = await fixture.allocator.allocate({ label: 'second' });
+        const closed = [];
+        await first.openConnection(async (options) => ({
+            options,
+            async close() { closed.push('primary'); }
+        }));
+        first.registerConnection({
+            async end() { closed.push('sibling'); }
+        });
+
+        await first.close();
+        await second.close();
+        await fixture.allocator.close();
+
+        assert.deepEqual(closed, ['sibling', 'primary']);
+        assert.equal(fixture.migrations.length, 1);
+        assert.match(fixture.queries[0], /CREATE DATABASE .*database.* TEMPLATE template0/);
+        assert.match(fixture.queries[1], /CREATE DATABASE .*template_head.* TEMPLATE .*database/);
+        assert.match(fixture.queries[2], /CREATE DATABASE .* TEMPLATE .*database/);
+        assert.equal(fixture.queries.filter((sql) => /WITH \(FORCE\)/.test(sql)).length, 3);
+        assert.equal(fixture.ended(), 1);
+    });
+
+    test('shared connection close blocks force-drop until the real close completes', async () => {
+        const fixture = allocatorFixture({
+            names: ['ims_test_shared_close_1_aaaaaaaaaaaa']
+        });
+        const database = await fixture.allocator.allocate({
+            label: 'shared-close',
+            migrationsPath: '/tmp/custom-migrations'
+        });
+        const closeGate = deferred();
+        let closeCount = 0;
+        const connection = makePostgresTestConnectionCloseIdempotent({
+            async end() {
+                closeCount += 1;
+                await closeGate.promise;
+            }
+        });
+        database.registerConnection(connection);
+
+        const directClose = connection.end();
+        const databaseClose = database.close();
+        await new Promise(setImmediate);
+
+        assert.equal(closeCount, 1);
+        assert.equal(fixture.queries.filter((sql) =>
+            sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+        ).length, 0);
+
+        closeGate.resolve();
+        await Promise.all([directClose, databaseClose]);
+        assert.equal(closeCount, 1);
+        assert.equal(fixture.queries.filter((sql) =>
+            sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+        ).length, 1);
+        await fixture.allocator.close();
+    });
+
+    test.describe('database cleanup', () => {
+        test('waits for PostgreSQL backends to drain before force-drop', async () => {
+            let active = true;
+            let activityChecks = 0;
+            const fixture = allocatorFixture({
+                names: ['ims_test_backend_drain_1_aaaaaaaaaaaa'],
+                queryResult(sql, parameters) {
+                    if (!sql.includes('FROM pg_stat_activity')) return undefined;
+                    assert.deepEqual(parameters, ['ims_test_backend_drain_1_aaaaaaaaaaaa']);
+                    activityChecks += 1;
+                    return {
+                        rows: active
+                            ? [{ pid: 42, application_name: 'delayed-test-client' }]
+                            : []
+                    };
+                },
+                async delay(milliseconds) {
+                    assert.equal(milliseconds, 25);
+                    active = false;
+                }
+            });
+            const database = await fixture.allocator.allocate({
+                label: 'backend-drain',
+                migrationsPath: '/tmp/custom-migrations'
+            });
+            database.registerConnection({ async end() {} });
+
+            await database.close();
+
+            assert.equal(activityChecks, 2);
+            const activityIndex = fixture.queries.findIndex((sql) =>
+                sql.includes('FROM pg_stat_activity')
+            );
+            const dropIndex = fixture.queries.findIndex((sql) =>
+                sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+            );
+            assert.ok(activityIndex >= 0);
+            assert.ok(dropIndex > activityIndex);
+            await fixture.allocator.close();
+        });
+
+        test('bounds timeout diagnostics before force-drop', async () => {
+            let currentTime = 0;
+            const warnings = [];
+            // The previous runner restored a mocked method after every test; Vitest
+            // does not, so this spy restores itself as soon as the test finishes.
+            const warn = vi
+                .spyOn(console, 'warn')
+                .mockImplementation((message) => warnings.push(message));
+            onTestFinished(() => warn.mockRestore());
+            const fixture = allocatorFixture({
+                names: ['ims_test_backend_timeout_1_aaaaaaaaaaaa'],
+                databaseDrainTimeoutMs: 50,
+                databaseDrainPollMs: 25,
+                now: () => currentTime,
+                queryResult(sql) {
+                    if (!sql.includes('FROM pg_stat_activity')) return undefined;
+                    return {
+                        rows: Array.from({ length: 24 }, (_, index) => ({
+                            pid: 100 + index,
+                            application_name: index === 0 ? 'x'.repeat(200) : `client-${index}`
+                        }))
+                    };
+                },
+                async delay(milliseconds) {
+                    currentTime += milliseconds;
+                }
+            });
+            const database = await fixture.allocator.allocate({
+                label: 'backend-timeout',
+                migrationsPath: '/tmp/custom-migrations'
+            });
+            database.registerConnection({ async end() {} });
+
+            await database.close();
+
+            const activityQueries = fixture.queries.filter((sql) =>
+                sql.includes('FROM pg_stat_activity')
+            );
+            assert.equal(activityQueries.length, 3);
+            assert.match(activityQueries[0], /LIMIT 16/);
+            assert.equal(warnings.length, 1);
+            const warning = JSON.parse(warnings[0]);
+            assert.equal(
+                warning.event,
+                'postgres_test_database_force_drop_with_active_connections'
+            );
+            assert.equal(warning.databaseName, database.databaseName);
+            assert.equal(warning.connections.length, 16);
+            assert.equal(warning.connections[0].applicationName.length, 128);
+            assert.equal(fixture.queries.filter((sql) =>
+                sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+            ).length, 1);
+            await fixture.allocator.close();
+        });
+
+        test('still force-drops when backend observation fails', async () => {
+            const warnings = [];
+            const warn = vi
+                .spyOn(console, 'warn')
+                .mockImplementation((message) => warnings.push(message));
+            onTestFinished(() => warn.mockRestore());
+            const fixture = allocatorFixture({
+                names: ['ims_test_backend_observation_1_aaaaaaaaaaaa'],
+                queryFailure: (sql) => sql.includes('FROM pg_stat_activity')
+            });
+            const database = await fixture.allocator.allocate({
+                label: 'backend-observation',
+                migrationsPath: '/tmp/custom-migrations'
+            });
+
+            await database.close();
+
+            assert.equal(fixture.queries.filter((sql) =>
+                sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+            ).length, 1);
+            assert.deepEqual(warnings.map((warning) => JSON.parse(warning)), [{
+                event: 'postgres_test_database_drain_check_failed',
+                databaseName: database.databaseName
+            }]);
+            await fixture.allocator.close();
+        });
+
+        test('timing hooks reject invalid values', () => {
+            for (const [name, value] of [
+                ['databaseDrainTimeoutMs', 0],
+                ['databaseDrainTimeoutMs', 1.5],
+                ['databaseDrainPollMs', -1],
+                ['databaseDrainPollMs', Number.POSITIVE_INFINITY]
+            ]) {
+                assert.throws(
+                    () => allocatorFixture({ [name]: value }),
+                    new RegExp(`${name} must be a positive integer`)
+                );
+            }
+            assert.throws(
+                () => allocatorFixture({ now: 1 }),
+                /now must be a function/
+            );
+            assert.throws(
+                () => allocatorFixture({
+                    databaseDrainTimeoutMs: 25,
+                    databaseDrainPollMs: 50
+                }),
+                /databaseDrainPollMs must not exceed databaseDrainTimeoutMs/
+            );
+            assert.throws(
+                () => allocatorFixture({ delay: true }),
+                /delay must be a function/
+            );
+        });
+    });
+
+    test('custom migration catalogs use an isolated template0 database', async () => {
+        const fixture = allocatorFixture({
+            names: ['ims_test_custom_catalog_1_aaaaaaaaaaaa']
+        });
+        const database = await fixture.allocator.allocate({
+            label: 'custom',
+            migrationsPath: '/tmp/custom-migrations'
+        });
+        await database.close();
+        await fixture.allocator.close();
+
+        assert.equal(fixture.migrations.length, 1);
+        assert.equal(fixture.migrations[0].migrationsPath, '/tmp/custom-migrations');
+        assert.match(fixture.queries[0], /TEMPLATE template0/);
+        assert.doesNotMatch(fixture.queries[0], /template_head/);
+    });
+
+    test('migration failure force-drops the created database and closes the admin pool', async () => {
+        const fixture = allocatorFixture({
+            migrationFailure: true,
+            names: [
+                'ims_test_migration_failure_1_aaaaaaaaaaaa',
+                'ims_test_template_head_1_bbbbbbbbbbbb'
+            ]
+        });
+        await assert.rejects(
+            fixture.allocator.allocate({ label: 'migration-failure' }),
+            /injected migration failure/
+        );
+        await fixture.allocator.close();
+
+        assert.ok(fixture.queries.some((sql) => /DROP DATABASE IF EXISTS/.test(sql)));
+        assert.ok(fixture.queries.some((sql) => /WITH \(FORCE\)/.test(sql)));
+        assert.equal(fixture.ended(), 1);
+    });
+
+    test('ambiguous failure after create force-drops the possibly created database', async () => {
+        const fixture = allocatorFixture({
+            names: [
+                'ims_test_create_failure_1_aaaaaaaaaaaa',
+                'ims_test_template_head_1_bbbbbbbbbbbb'
+            ],
+            queryFailure: (sql) => sql.startsWith('CREATE DATABASE')
+        });
+        await assert.rejects(
+            fixture.allocator.allocate({ label: 'create-failure' }),
+            /injected query failure/
+        );
+        await fixture.allocator.close();
+
+        assert.equal(fixture.queries.filter((sql) => sql.startsWith('CREATE DATABASE')).length, 1);
+        assert.equal(fixture.queries.filter((sql) => sql.startsWith('DROP DATABASE')).length, 1);
+        assert.equal(fixture.ended(), 1);
+    });
+
+    test('failed force-drop remains registered and is retried during allocator shutdown', async () => {
+        let dropAttempts = 0;
+        const fixture = allocatorFixture({
+            names: ['ims_test_drop_retry_1_aaaaaaaaaaaa'],
+            queryFailure: (sql) => {
+                if (!sql.startsWith('DROP DATABASE')) return false;
+                dropAttempts += 1;
+                return dropAttempts === 1;
+            }
+        });
+        const database = await fixture.allocator.allocate({
+            label: 'drop-retry',
+            migrationsPath: '/tmp/custom-migrations'
+        });
+        await assert.rejects(database.close(), /injected query failure/);
+        await fixture.allocator.close();
+
+        assert.equal(dropAttempts, 2);
+        assert.equal(fixture.ended(), 1);
+    });
+
+    test('connection creation and retryable close failures still force-drop the database', async () => {
+        const fixture = allocatorFixture({
+            names: [
+                'ims_test_template_head_1_aaaaaaaaaaaa',
+                'ims_test_close_failure_1_bbbbbbbbbbbb'
+            ]
+        });
+        const database = await fixture.allocator.allocate({ label: 'close-failure' });
+        await assert.rejects(
+            database.openConnection(async () => {
+                throw new Error('injected connection creation failure');
+            }),
+            /injected connection creation failure/
+        );
+        let closeAttempts = 0;
+        database.registerConnection({
+            async close() {
+                closeAttempts += 1;
+                if (closeAttempts === 1) throw new Error('injected connection close failure');
+            }
+        });
+        await assert.rejects(database.close(), /injected connection close failure/);
+        assert.ok(fixture.queries.some((sql) =>
+            sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+        ));
+        await fixture.allocator.close();
+        assert.equal(closeAttempts, 2);
+        assert.equal(fixture.ended(), 1);
+    });
+
+    test('closing waits for allocation migration before dropping every owned database', async () => {
+        const migration = deferred();
+        const fixture = allocatorFixture({
+            names: ['ims_test_custom_race_1_aaaaaaaaaaaa'],
+            migratePostgres: () => migration.promise
+        });
+        const allocation = fixture.allocator.allocate({
+            label: 'custom-race',
+            migrationsPath: '/tmp/custom-migrations'
+        });
+        while (fixture.migrations.length === 0) await new Promise(setImmediate);
+        const closing = fixture.allocator.close();
+        migration.resolve();
+        const database = await allocation;
+        await closing;
+
+        assert.ok(fixture.queries.some((sql) =>
+            sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+        ));
+        await assert.rejects(
+            fixture.allocator.allocate({ label: 'after-close' }),
+            /allocator is closed/
+        );
+        assert.equal(fixture.ended(), 1);
+    });
+
+    test('connection resolving during close is disposed and never registered', async () => {
+        const fixture = allocatorFixture({
+            names: ['ims_test_open_race_1_aaaaaaaaaaaa']
+        });
+        const database = await fixture.allocator.allocate({
+            label: 'open-race',
+            migrationsPath: '/tmp/custom-migrations'
+        });
+        const opened = deferred();
+        let connectionCloseCount = 0;
+        const opening = database.openConnection(async (options) => {
+            assert.equal(options.connectionString, database.databaseUrl);
+            await opened.promise;
+            return {
+                async close() { connectionCloseCount += 1; }
+            };
+        }, { connectionString: 'postgresql://unsafe.example/production' });
+        const closing = database.close();
+        opened.resolve();
+
+        await assert.rejects(opening, /database is closed/);
+        await closing;
+        await fixture.allocator.close();
+        assert.equal(connectionCloseCount, 1);
+    });
+
+    test('allocator aggregates persistent connection and admin close failures', async () => {
+        const fixture = allocatorFixture({
+            names: ['ims_test_aggregate_1_aaaaaaaaaaaa'],
+            endFailure: () => true
+        });
+        const database = await fixture.allocator.allocate({
+            label: 'aggregate',
+            migrationsPath: '/tmp/custom-migrations'
+        });
+        database.registerConnection({
+            async close() { throw new Error('persistent connection close failure'); }
+        });
+
+        await assert.rejects(
+            fixture.allocator.close(),
+            (error) => {
+                assert.ok(error instanceof AggregateError);
+                const messages = error.errors.map((item) => item.message);
+                assert.ok(messages.some((message) => /connection close failure/.test(message)));
+                assert.ok(messages.some((message) => /admin close failure/.test(message)));
+                return true;
+            }
+        );
+        assert.ok(fixture.queries.some((sql) =>
+            sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+        ));
+        assert.equal(fixture.ended(), 1);
+    });
+});

@@ -1,0 +1,280 @@
+{
+  "kind": "authored device-size visual preview",
+  "nativeRuntimeProof": false,
+  "illustrativeContent": true,
+  "sourceDialogOwner": "ExchangeMapAttributionDialog",
+  "devices": [
+    {
+      "model": "iPhone 18 Pro",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "scale": 3,
+      "points": [
+        402,
+        874
+      ],
+      "cornerRadius": 62,
+      "screenMask": "4E5532ED-1470-47D1-BDF4-7AA90C26957A",
+      "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 18 Pro.simdevicetype/Contents/Resources/capabilities.plist"
+    },
+    {
+      "model": "iPhone 18 Pro Max",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "scale": 3,
+      "points": [
+        440,
+        956
+      ],
+      "cornerRadius": 62,
+      "screenMask": "EB31C0E2-52E0-430E-B4DA-4242D2881AFF",
+      "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 18 Pro Max.simdevicetype/Contents/Resources/capabilities.plist"
+    },
+    {
+      "model": "iPhone 17 Pro",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "scale": 3,
+      "points": [
+        402,
+        874
+      ],
+      "cornerRadius": 62,
+      "screenMask": "4E5532ED-1470-47D1-BDF4-7AA90C26957A",
+      "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 17 Pro.simdevicetype/Contents/Resources/capabilities.plist"
+    },
+    {
+      "model": "iPhone 17 Pro Max",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "scale": 3,
+      "points": [
+        440,
+        956
+      ],
+      "cornerRadius": 62,
+      "screenMask": "EB31C0E2-52E0-430E-B4DA-4242D2881AFF",
+      "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 17 Pro Max.simdevicetype/Contents/Resources/capabilities.plist"
+    },
+    {
+      "model": "iPhone 17",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "scale": 3,
+      "points": [
+        402,
+        874
+      ],
+      "cornerRadius": 62,
+      "screenMask": "4E5532ED-1470-47D1-BDF4-7AA90C26957A",
+      "profile": "/Library/Developer/CoreSimulator/Profiles/DeviceTypes/iPhone 17.simdevicetype/Contents/Resources/capabilities.plist"
+    }
+  ],
+  "canvasChecks": [
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "01-map",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "overflow": []
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "02-refresh",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "overflow": []
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "03-search",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "overflow": []
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "04-source-dialog",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "overflow": []
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "01-map",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "overflow": []
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "02-refresh",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "overflow": []
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "03-search",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "overflow": []
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "04-source-dialog",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "overflow": []
+    }
+  ],
+  "artifacts": [
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "01-map",
+      "label": "地图 · 待机",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/01-map.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/01-map.svg",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "points": [
+        402,
+        874
+      ]
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "02-refresh",
+      "label": "刷新 · 加载中",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/02-refresh.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/02-refresh.svg",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "points": [
+        402,
+        874
+      ]
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "03-search",
+      "label": "地点 · 搜索展开",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/03-search.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/03-search.svg",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "points": [
+        402,
+        874
+      ]
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro",
+      "scene": "04-source-dialog",
+      "label": "来源 · 已有授权 Dialog",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/04-source-dialog.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro/04-source-dialog.svg",
+      "pixels": [
+        1206,
+        2622
+      ],
+      "points": [
+        402,
+        874
+      ]
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "01-map",
+      "label": "地图 · 待机",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/01-map.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/01-map.svg",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "points": [
+        440,
+        956
+      ]
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "02-refresh",
+      "label": "刷新 · 加载中",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/02-refresh.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/02-refresh.svg",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "points": [
+        440,
+        956
+      ]
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "03-search",
+      "label": "地点 · 搜索展开",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/03-search.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/03-search.svg",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "points": [
+        440,
+        956
+      ]
+    },
+    {
+      "deviceGroup": "iphone-17-18-pro-max",
+      "scene": "04-source-dialog",
+      "label": "来源 · 已有授权 Dialog",
+      "png": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/04-source-dialog.png",
+      "svg": "/private/tmp/imsweb-ios-device-preview/iphone-17-18-pro-max/04-source-dialog.svg",
+      "pixels": [
+        1320,
+        2868
+      ],
+      "points": [
+        440,
+        956
+      ]
+    }
+  ],
+  "cutoutAndGlass": "Illustrative styling; screen pixel/point dimensions and scale are verified from official specs and installed CoreSimulator capabilities. Full native material, safe-area and motion validation is a separate gate."
+}

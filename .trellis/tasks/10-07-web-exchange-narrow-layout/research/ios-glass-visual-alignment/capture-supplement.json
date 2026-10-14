@@ -1,0 +1,68 @@
+{
+  "verdict": "pass",
+  "scope": "Supplemental capture qualification; existing matrix acceptance scope unchanged.",
+  "originalCaptureQualification": {
+    "path": "/tmp/imsweb-ios-glass-design-alignment/billing-collapsed-off-artifacts/.maestro/tests/2026-10-09_194202/billing-collapsed-off/takeScreenshot/collapsed-restored.png",
+    "sha256": "db2e11842d74ffac93bab221481bee3ab007761e715d0d2b1e09eb842f986564",
+    "finding": "iOS app-switcher thumbnail with clipped app content; not a steady full foreground screenshot. Original image remains unchanged."
+  },
+  "newForegroundCapture": {
+    "path": "/tmp/imsweb-ios-glass-design-alignment/parent-restored-foreground.png",
+    "sha256": "d6af1c360be75743b3e6b7adea1d61a88cf2e64f17d52c93d65f0664795d762b",
+    "pixels": [
+      1206,
+      2622
+    ],
+    "viewportPoints": [
+      402,
+      874
+    ],
+    "visualInspection": "Full portrait foreground IMSWeb map scene; whole dock,tools,locate and native tab bar visible; no app-switcher thumbnail. Controlled blank fixture backdrop after fixture restart,not a repeated matched synthetic comparison.",
+    "stateReceipt": "/tmp/imsweb-ios-glass-design-alignment/parent-foreground-state.log",
+    "publicState": [
+      "STATE app=0 motion=0 transparency=0",
+      "WINDOW key=1 hidden=0 bounds={{0, 0}, {402, 874}} safe={62, 0, 34, 0}",
+      "WINDOW key=0 hidden=0 bounds={{0, 0}, {402, 874}} safe={62, 0, 34, 0}",
+      "CONTROL 0x13e134000 ims-native-exchange-search frame={{28, 588}, {346, 156}} hidden=0",
+      "CONTROL 0x108a74000 ims-native-liquid-glass-tab-bar frame={{0, 791}, {402, 83}} hidden=0",
+      "CONTROL 0x13ff37200 ims-native-exchange-search-input frame={{268, 636}, {0, 48}} hidden=1",
+      "FIELD font=<UICTFont: 0x13fe5d900> font-family: \"UICTFontTextStyleBody\"; font-weight: normal; font-style: normal; font-size: 17.00pt text=",
+      "CONTROL 0x166518300 ims-native-exchange-refresh frame={{270, 636}, {44, 48}} hidden=0"
+    ]
+  },
+  "source": {
+    "trackedDiffSha256": "163554182234cfb73f29e93d88768e443c9f846abc647da2485c119bac6f4374",
+    "binarySha256": "81a64fd35838472afa93554fe688cae6425cba086b32b30ab572d4165c6862d6",
+    "installedBinaryPath": "/Users/texas/Library/Developer/CoreSimulator/Devices/B76BE6D2-18DB-434D-AAED-0061F8E621FF/data/Containers/Bundle/Application/4168CB9B-F00D-40DE-9CB2-CF9D19C824C8/IMSWeb.app/IMSWeb",
+    "appPid": 63484,
+    "appBirth": "Fri Oct  9 16:51:35 2026",
+    "appRelaunched": false,
+    "viewIdentityQualification": "Same surviving App process activated with stopApp:false. Home-to-map navigation recreates native views after the prior acknowledged teardown; current field0x13ff37200/refresh0x166518300 are recorded,not claimed identical to the removed prior generation."
+  },
+  "readiness": "Search,refresh/tool and native tab-bar presence asserted before capture; public UIApplication state0(active),key window402x874,default body17pt,motion0/transparency0 confirmed.",
+  "priorAbort": {
+    "ips": "/tmp/imsweb-ios-glass-design-alignment/matrix-app-abort.ips",
+    "rawSymbolication": "/tmp/imsweb-ios-glass-design-alignment/matrix-abort-symbols.txt",
+    "matchingUuidSymbolication": "/tmp/imsweb-ios-glass-design-alignment/matrix-abort-symbolicated.txt",
+    "crashedPid": 63911,
+    "captureTime": "2026-10-09 16:32:37.9446 +0800",
+    "successfulForegroundPhaseAfterCrash": true,
+    "successfulPhasePid": 63484,
+    "successfulPhaseStarted": "Fri Oct  9 16:51:35 2026",
+    "cause": "Unresolved; no speculative attribution. Original artifacts unchanged."
+  },
+  "originalReportPreservation": {
+    "archivePath": "/tmp/imsweb-ios-glass-design-alignment/visual-native-matrix-billing-recovered.before-capture-supplement.json",
+    "sha256": "bf1f4b3ecc6b0328543e7129f8a88c0e239634e8b5cdc79802576de79b15945d",
+    "method": "Original report archived byte-for-byte; authoritative report receives only an additive supplement link/qualification."
+  },
+  "ownedFixture": {
+    "pid": 98071,
+    "birth": "Fri Oct  9 22:23:59 2026",
+    "command": "node /tmp/imsweb-ios-glass-design-alignment/matrix-long-fixture.mjs",
+    "scriptSha256": "6dd67453cf811596f0241a0a96e4f37a2da2d4803d1326b2a709f326e9e7c4d0",
+    "ownership": "Fixture port was unused before this follow-up; launched exact retained fixture script; matching PID/command/birth recorded before stop."
+  },
+  "cleanup": "Final Home teardown passed; exact owned fixture stopped by SIGTERM.17 remains booted/Home/light/default large,motion0/transparency0;18Pro/ProMax unchanged shutdown. No recorder started.",
+  "manualNotes": "Humanizer applied. Fullscreen capture was visually inspected after public foreground-state verification."
+}

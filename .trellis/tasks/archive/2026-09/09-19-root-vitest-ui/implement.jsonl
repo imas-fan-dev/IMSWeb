@@ -1,0 +1,12 @@
+{"file": ".trellis/tasks/09-19-root-vitest-ui/prd.md", "reason": "本子任务需求与 AC"}
+{"file": ".trellis/tasks/09-19-root-vitest-ui/design.md", "reason": "改动面、projects 四点实测项、守卫设计与回滚"}
+{"file": ".trellis/tasks/09-19-root-vitest-ui/implement.md", "reason": "实施顺序与验收命令"}
+{"file": "package.json", "reason": "根 devDependencies 与 scripts 的改动目标"}
+{"file": "scripts/check-workspace-boundaries.mjs", "reason": "allowedRootDevDependencies 白名单必须扩展"}
+{"file": "tests/test_workspace_boundaries.py", "reason": "白名单断言与根脚本上限 57 的改动目标"}
+{"file": "apps/api/vitest.config.mts", "reason": "api 域配置：projects 引用项与形状守卫对象"}
+{"file": "apps/web/vitest.config.ts", "reason": "web 域配置：jsdom 环境与 alias 必须在面板内仍生效"}
+{"file": "scripts/testing/vitest/vitest.repository.config.mts", "reason": "仓库域无 import 纯对象配置，projects 模式下 root/include 解析的关键"}
+{"file": "scripts/testing/run-test-owner.mjs", "reason": "治理段注册新守卫；绝对路径配置调用不得回归"}
+{"file": "scripts/testing/tests/run-test-owner.test.mjs", "reason": "治理文件清单与被冻结计划断言"}
+{"file": "docs/development/testing.md", "reason": "脚本数与 test:ui 文档同步"}

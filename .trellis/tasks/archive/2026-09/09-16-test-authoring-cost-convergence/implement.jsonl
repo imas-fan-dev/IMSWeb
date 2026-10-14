@@ -1,0 +1,8 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared pre-development checklist and quality-check conventions for repository changes."}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web package structure, commands, and frontend ownership boundaries for the new tests/unit/support layer."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Web test ownership, vitest/Playwright split, and prohibited fixed-time waits the migrated unit tests must keep respecting."}
+{"file":".trellis/spec/api/backend/testing.md","reason":"API test ownership, required coverage, and the PostgreSQL-backed test signatures the new test-app factory and row builders must compose with rather than replace."}
+{"file":".trellis/spec/api/backend/architecture.md","reason":"Composition-root and dependency-direction rules that constrain test-app.ts to supplying services only and forbid a second assembly root."}
+{"file":".trellis/spec/contracts/shared/index.md","reason":"Contracts package layout used to pick the domain modules that the new fixture factories are keyed to."}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"zod boundary rules: tests must import schemas through @imsweb/contracts subpaths and must never import zod directly."}
+{"file":".trellis/spec/repository/ci.md","reason":"Affected-workspace lanes and command ownership so the migration does not change how tests are discovered or run in CI."}

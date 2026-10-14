@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/api/backend/index.md", "reason": "API spec map and pre-dev checklist to keep in sync"}
+{"file": ".trellis/spec/contracts/shared/index.md", "reason": "contracts spec map and authority model"}
+{"file": ".trellis/spec/web/frontend/index.md", "reason": "web spec map"}
+{"file": ".trellis/spec/repository/index.md", "reason": "repository spec map and boundary-check conventions"}
+{"file": ".trellis/spec/guides/index.md", "reason": "guide index and checklist style"}
+{"file": ".trellis/spec/api/backend/data-and-errors.md", "reason": "existing 7-section Scenario template to mirror"}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "host file for the new OAuth return-channel scenario"}

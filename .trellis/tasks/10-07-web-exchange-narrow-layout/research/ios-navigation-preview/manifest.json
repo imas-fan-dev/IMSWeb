@@ -1,0 +1,33 @@
+{
+  "kind": "authored visual design preview",
+  "implemented": false,
+  "screens": [
+    {
+      "name": "01-map",
+      "label": "地图 · 折叠态",
+      "png": "./01-map.png",
+      "svg": "./01-map.svg"
+    },
+    {
+      "name": "02-search",
+      "label": "地图 · 搜索展开",
+      "png": "./02-search.png",
+      "svg": "./02-search.svg"
+    },
+    {
+      "name": "03-community",
+      "label": "社区 · 内容页面",
+      "png": "./03-community.png",
+      "svg": "./03-community.svg"
+    },
+    {
+      "name": "04-profile",
+      "label": "我的 · 分组列表",
+      "png": "./04-profile.png",
+      "svg": "./04-profile.svg"
+    }
+  ],
+  "basis": "Existing native bottom Liquid Glass tab bar; compact matte map tools, plain result sheet, native content and grouped list hierarchy.",
+  "illustrativeContent": true,
+  "sourceNotice": "Existing source Dialog owns complete tile and search attribution; no standalone search footer. Illustrative artwork only."
+}

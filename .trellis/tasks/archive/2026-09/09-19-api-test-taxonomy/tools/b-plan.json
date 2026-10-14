@@ -1,0 +1,29 @@
+{
+    "batch": "B",
+    "note": "tests/wiki. The five contract files that already carry describes keep them; only the two below change (node-cleanup-compensation gains a subject suite, admin-data gains the two realizable second-level groups).",
+    "files": [
+        {
+            "path": "tests/wiki/node-cleanup-compensation.contract.test.ts",
+            "subject": "Node Wiki delete",
+            "wrapper": "test.describe",
+            "cases": [
+                0
+            ]
+        },
+        {
+            "path": "tests/wiki/admin-data.contract.test.ts",
+            "suiteBodyIndent": 1,
+            "note": "already wrapped by describe(\"Wiki admin dynamic data contract\") at L28, so its cases are not top-level statements; each run is named by the 1-based line range of its declarations",
+            "categories": [
+                {
+                    "title": "deleting",
+                    "lines": [467, 600]
+                },
+                {
+                    "title": "story_id",
+                    "lines": [735, 831]
+                }
+            ]
+        }
+    ]
+}

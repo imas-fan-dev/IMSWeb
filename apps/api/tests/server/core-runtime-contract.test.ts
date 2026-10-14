@@ -1,27 +1,33 @@
+import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import test, { type TestContext } from 'node:test';
+import { describe, onTestFinished } from 'vitest';
 import { createHonoApp } from '@/app';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
-import { PostgresqlRateLimiter } from '@/infra/cache/postgresql/rate-limiter';
+import {
+    ValkeyRateLimiter,
+    valkeyRateLimitWindowKey
+} from '@/infra/cache/valkey/rate-limiter';
+import { FakeValkeyRateLimitServer } from './fake-valkey';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
+import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+import { SqlReactionRepository } from '@/infra/db/repositories/reaction-repository';
 import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
-import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { CompensationService } from '@/ports/object-storage';
 import type {
-    AuditRepository,
-    AuthRepository,
     EventRepository,
-    NamecardRepository,
-    NewsRepository,
-    ReactionRepository
+    NewsRepository
 } from '@/ports/repositories';
 import type { ImageProcessor } from '@/ports/media';
 import type { ObjectStorage } from '@/ports/object-storage';
@@ -35,7 +41,8 @@ import {
     assertRouteUploadBoundaryContract,
     type ControlledUpload
 } from '../contracts/runtime-contracts.js';
-import { createPostgresTestDatabase } from './postgres-test-database';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+import { createPostgresTestDatabase } from '../postgres-test-database';
 
 const SECRET = 'node-contract-secret-at-least-32-bytes';
 const USERNAME = 'node-contract-op';
@@ -161,7 +168,7 @@ function clientAddress(client: string): string {
             : '203.0.113.100';
 }
 
-async function createFixture(t: TestContext): Promise<NodeFixture> {
+async function createFixture(): Promise<NodeFixture> {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-node-contract-'));
     const publicDir = path.join(root, 'public');
     const uploadsDir = path.join(root, 'uploads');
@@ -171,29 +178,48 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     await Promise.all([publicDir, uploadsDir, chronicleDir, storyDataDir].map((directory) =>
         fs.mkdir(directory, { recursive: true })));
 
-    const connection = await createPostgresTestDatabase(t, 'core-runtime');
+    const connection = await createPostgresTestDatabase('core-runtime');
     const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
+    const backofficeAuth = new SqlBackofficeAuthRepository(connection);
+    const audit = new SqlAuditRepository(connection);
+    const news = new SqlNewsRepository(connection);
+    const events = new SqlEventRepository(connection);
+    const reactions = new SqlReactionRepository(connection);
     await core.initialize();
+    await seedCanonicalFudabaAgencies(connection);
     await executeSql(connection,
         `INSERT INTO users (username, password, dept, producername, admin_role)
          VALUES (?, 'contract-digest', 'op', ?, 'admin')`,
         [USERNAME, PRODUCER]
     );
     await executeSql(connection,
-        `INSERT INTO cards (id, image1_url, image2_url, status)
-         VALUES (?, '/uploads/namecard/original/contract-seed-front.webp',
-                    '/uploads/namecard/original/contract-seed-back.webp', 'approved')`,
-        [APPROVED_CARD_ID]
+        `INSERT INTO fudaba_cards
+            (id, card_number, origin, front_object_key, back_object_key,
+             trade_note, available, media_rights_status, publication_status,
+             revision, created_at, updated_at)
+         VALUES (?, ?, 'legacy',
+                 'community/namecards/assets/contract-seed-front/image.webp',
+                 'community/namecards/assets/contract-seed-back/image.webp',
+                 NULL, FALSE, 'approved', 'published', 0,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [`legacy-${APPROVED_CARD_ID}`, APPROVED_CARD_ID]
     );
     await executeSql(connection,
-        `INSERT INTO cards (id, image1_url, image2_url, status)
-         VALUES (?, '/uploads/namecard/original/contract-seed-front.webp',
-                    '/uploads/namecard/original/contract-seed-back.webp', 'pending')`,
-        [PENDING_CARD_ID]
+        `INSERT INTO fudaba_cards
+            (id, card_number, origin, front_object_key, back_object_key,
+             trade_note, available, media_rights_status, publication_status,
+             revision, created_at, updated_at)
+         VALUES (?, ?, 'legacy',
+                 'community/namecards/assets/contract-seed-pending-front/image.webp',
+                 'community/namecards/assets/contract-seed-pending-back/image.webp',
+                 NULL, FALSE, 'unknown', 'pending', 0,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [`legacy-${PENDING_CARD_ID}`, PENDING_CARD_ID]
     );
 
     const parser = new ControlledUploadParser();
-    const limiter = new PostgresqlRateLimiter(connection);
+    const valkey = new FakeValkeyRateLimitServer();
+    const limiter = new ValkeyRateLimiter(valkey, { keyPrefix: 'contract:' });
     const delegate = new FilesystemObjectStorage({ publicDir, uploadsDir, chronicleDir, storyDataDir });
     await delegate.put(
         'community/namecards/assets/contract-seed-front/image.webp',
@@ -211,6 +237,22 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         'community/namecards/assets/contract-seed-back/thumbnail.jpg',
         Uint8Array.of(4)
     );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-front/image.webp',
+        Uint8Array.of(5)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-back/image.webp',
+        Uint8Array.of(6)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-front/thumbnail.jpg',
+        Uint8Array.of(7)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-back/thumbnail.jpg',
+        Uint8Array.of(8)
+    );
     const compensationDelegate = new FilesystemCompensationService(compensationDir);
     let businessInsertFailure = false;
     let deleteFailure = false;
@@ -218,7 +260,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     let publishFailure = false;
     let compensationEnqueueFailure = false;
     let storageMutations = 0;
-    const repository = new Proxy(core, {
+    const newsRepository = new Proxy(news, {
         get(target, property, receiver) {
             if (property === 'insertNews') {
                 return async (...args: Parameters<NewsRepository['insertNews']>) => {
@@ -226,6 +268,12 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                     return target.insertNews(...args);
                 };
             }
+            const value = Reflect.get(target, property, receiver) as unknown;
+            return typeof value === 'function' ? value.bind(target) : value;
+        }
+    }) as NewsRepository;
+    const eventRepository = new Proxy(events, {
+        get(target, property, receiver) {
             if (property === 'insertEvent') {
                 return async (...args: Parameters<EventRepository['insertEvent']>) => {
                     if (businessInsertFailure) throw new Error('injected event insert failure');
@@ -235,8 +283,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
             const value = Reflect.get(target, property, receiver) as unknown;
             return typeof value === 'function' ? value.bind(target) : value;
         }
-    }) as AuthRepository & AuditRepository & NewsRepository & EventRepository &
-        NamecardRepository & ReactionRepository;
+    }) as EventRepository;
     const compensation = new Proxy(compensationDelegate, {
         get(target, property, receiver) {
             if (property === 'enqueue') {
@@ -285,25 +332,25 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         }
     }) as ObjectStorage;
     const runtime: RuntimeServices = {
-        auth: repository,
-        audit: repository,
-        news: repository,
-        events: repository,
-        namecards: repository,
-        reactions: repository,
+        backofficeAuth,
+        audit,
+        news: newsRepository,
+        events: eventRepository,
+        namecards: core,
+        reactions,
         compensation,
         storage,
         objectDeletions: new PostgresqlObjectDeletionWorker(connection, storage),
         images,
         idempotency: new PostgresqlIdempotencyStore(connection),
         passwords: { async verify(value, digest) { return value === PASSWORD && digest === 'contract-digest'; } },
-        tokens: new HmacTokenService(SECRET),
+        backofficeTokens: new HmacBackofficeTokenService(SECRET),
         rateLimiter: limiter,
         uploads: parser,
         config: { cookieSecure: false, clientAddressSource: 'nginx' }
     };
     const app = createHonoApp(() => runtime);
-    t.after(async () => {
+    onTestFinished(async () => {
         await core.close();
         await fs.rm(root, { recursive: true, force: true });
     });
@@ -343,7 +390,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     const uploadSnapshot = async () => ({
         news: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM news'))!.count,
         events: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM events'))!.count,
-        cards: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM cards'))!.count,
+        cards: (await queryOne<{ count: number }>(connection,
+            "SELECT COUNT(*) AS count FROM fudaba_cards WHERE origin IN ('guest', 'legacy')"
+        ))!.count,
         chronicle: await chronicleRecordCount(path.join(chronicleDir, 'metadata')),
         objects: await objectCount()
     });
@@ -367,7 +416,8 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
             "SELECT id FROM events WHERE image_url<>'' ORDER BY id DESC LIMIT 1"
         ))?.id || 0,
         card: (await queryOne<{ id: number }>(connection,
-            'SELECT id FROM cards ORDER BY id DESC LIMIT 1'
+            `SELECT card_number AS id FROM fudaba_cards
+             WHERE origin IN ('guest', 'legacy') ORDER BY card_number DESC LIMIT 1`
         ))?.id || 0
     });
 
@@ -381,11 +431,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         return (await response.json() as { token: string }).token;
     };
     const rateCount = async (bucket: string, client: string): Promise<number> =>
-        (await queryOne<{ consumed: number }>(connection,
-            `SELECT consumed FROM rate_limit_windows
-             WHERE bucket=? AND limit_key=?`,
-            [bucket, clientAddress(client)]
-        ))?.consumed ?? 0;
+        valkey.consumedFor(
+            valkeyRateLimitWindowKey('contract:', bucket, clientAddress(client))
+        );
 
     return {
         request,
@@ -398,7 +446,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                 events: upload.events,
                 cards: upload.cards,
                 reactions: (await queryOne<{ count: number }>(connection,
-                    'SELECT COALESCE(SUM(count), 0) AS count FROM card_emojis'
+                    'SELECT COALESCE(SUM(count), 0) AS count FROM namecard_reactions'
                 ))!.count,
                 auditActions: audit.map((row) => row.action),
                 objects: upload.objects,
@@ -446,130 +494,132 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     };
 }
 
-test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters', async (t) => {
-    const fixture = await createFixture(t);
-    await assertCoreMutationContract({
-        runtime: 'Node',
-        username: USERNAME,
-        password: PASSWORD,
-        producername: PRODUCER,
-        approvedCardId: APPROVED_CARD_ID,
-        ...fixture
+describe('core runtime contract', () => {
+    test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters', async () => {
+        const fixture = await createFixture();
+        await assertCoreMutationContract({
+            runtime: 'Node',
+            username: USERNAME,
+            password: PASSWORD,
+            producername: PRODUCER,
+            approvedCardId: APPROVED_CARD_ID,
+            ...fixture
+        });
     });
-});
 
-test('[STATE-01] post-commit media failures preserve Node success semantics', async (t) => {
-    const fixture = await createFixture(t);
-    await assertPostCommitMediaContract({ runtime: 'Node', ...fixture });
-});
+    test('[STATE-01] post-commit media failures preserve Node success semantics', async () => {
+        const fixture = await createFixture();
+        await assertPostCommitMediaContract({ runtime: 'Node', ...fixture });
+    });
 
-test('[STATE-01] event image replacement keeps the published record on publish failure', async (t) => {
-    const fixture = await createFixture(t);
-    const token = await fixture.opToken();
-    const headers = {
-        Authorization: token,
-        'Content-Type': 'multipart/form-data; boundary=contract',
-        'Idempotency-Key': 'event-replacement-contract'
-    };
-    fixture.setUpload({
-        fields: {
-            title: 'Original event',
-            name: 'Original producer',
-            contact: 'original@example.test'
-        },
-        files: {
-            image: {
-                filename: 'original.png',
-                contentType: 'image/png',
-                body: Uint8Array.of(1, 2, 3)
+    test('[STATE-01] event image replacement keeps the published record on publish failure', async () => {
+        const fixture = await createFixture();
+        const token = await fixture.opToken();
+        const headers = {
+            Authorization: token,
+            'Content-Type': 'multipart/form-data; boundary=contract',
+            'Idempotency-Key': 'event-replacement-contract'
+        };
+        fixture.setUpload({
+            fields: {
+                title: 'Original event',
+                name: 'Original producer',
+                contact: 'original@example.test'
+            },
+            files: {
+                image: {
+                    filename: 'original.png',
+                    contentType: 'image/png',
+                    body: Uint8Array.of(1, 2, 3)
+                }
             }
-        }
-    });
-    const created = await fixture.request('/api/events', {
-        method: 'POST',
-        headers,
-        body: '--contract--'
-    });
-    assert.equal(created.status, 200);
-    const id = (await created.json() as { id: number }).id;
-    const before = await fixture.request(`/api/events/${id}`);
-    const beforeBody = await before.json() as Record<string, unknown>;
-    const beforeSnapshot = await fixture.snapshot();
+        });
+        const created = await fixture.request('/api/events', {
+            method: 'POST',
+            headers,
+            body: '--contract--'
+        });
+        assert.equal(created.status, 200);
+        const id = (await created.json() as { id: number }).id;
+        const before = await fixture.request(`/api/events/${id}`);
+        const beforeBody = await before.json() as Record<string, unknown>;
+        const beforeSnapshot = await fixture.snapshot();
 
-    fixture.setUpload({
-        fields: {
-            title: 'Replacement event',
-            name: 'Replacement producer',
-            contact: 'replacement@example.test'
-        },
-        files: {
-            image: {
-                filename: 'replacement.png',
-                contentType: 'image/png',
-                body: Uint8Array.of(4, 5, 6)
+        fixture.setUpload({
+            fields: {
+                title: 'Replacement event',
+                name: 'Replacement producer',
+                contact: 'replacement@example.test'
+            },
+            files: {
+                image: {
+                    filename: 'replacement.png',
+                    contentType: 'image/png',
+                    body: Uint8Array.of(4, 5, 6)
+                }
             }
-        }
-    });
-    fixture.failObjectPublishes(true);
-    const failed = await fixture.request(`/api/events/${id}`, {
-        method: 'PUT',
-        headers,
-        body: '--contract--'
-    });
-    fixture.failObjectPublishes(false);
+        });
+        fixture.failObjectPublishes(true);
+        const failed = await fixture.request(`/api/events/${id}`, {
+            method: 'PUT',
+            headers,
+            body: '--contract--'
+        });
+        fixture.failObjectPublishes(false);
 
-    assert.equal(failed.status, 500);
-    assert.deepEqual(await failed.json(), { error: '服务器错误' });
-    const after = await fixture.request(`/api/events/${id}`);
-    assert.deepEqual(await after.json(), beforeBody);
-    assert.deepEqual(await fixture.snapshot(), beforeSnapshot);
-});
-
-test('[STATE-01] namecard approval retries object publication before success', async (t) => {
-    const fixture = await createFixture(t);
-    const token = await fixture.opToken();
-    const approve = () => fixture.request(`/api/admin/cards/approve/${PENDING_CARD_ID}`, {
-        method: 'POST',
-        headers: { Authorization: token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expected_revision: 0 })
+        assert.equal(failed.status, 500);
+        assert.deepEqual(await failed.json(), { error: '服务器错误' });
+        const after = await fixture.request(`/api/events/${id}`);
+        assert.deepEqual(await after.json(), beforeBody);
+        assert.deepEqual(await fixture.snapshot(), beforeSnapshot);
     });
 
-    fixture.failObjectPublishes(true);
-    const failed = await approve();
-    assert.equal(failed.status, 500);
+    test('[STATE-01] namecard approval retries object publication before success', async () => {
+        const fixture = await createFixture();
+        const token = await fixture.opToken();
+        const approve = () => fixture.request(`/api/admin/cards/approve/${PENDING_CARD_ID}`, {
+            method: 'POST',
+            headers: { Authorization: token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expected_revision: 0 })
+        });
 
-    fixture.failObjectPublishes(false);
-    const retried = await approve();
-    assert.equal(retried.status, 200);
-    assert.deepEqual(await retried.json(), { success: true, revision: 2 });
-    assert.equal((await fixture.snapshot()).auditActions.filter(
-        (action) => action === '审核图片通过'
-    ).length, 1);
-});
+        fixture.failObjectPublishes(true);
+        const failed = await approve();
+        assert.equal(failed.status, 500);
 
-test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters', async (t) => {
-    const fixture = await createFixture(t);
-    await assertRouteUploadBoundaryContract({ runtime: 'Node', ...fixture });
-});
+        fixture.failObjectPublishes(false);
+        const retried = await approve();
+        assert.equal(retried.status, 200);
+        assert.deepEqual(await retried.json(), { success: true, revision: 2 });
+        assert.equal((await fixture.snapshot()).auditActions.filter(
+            (action) => action === '审核图片通过'
+        ).length, 1);
+    });
 
-test('[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing', async (t) => {
-    const fixture = await createFixture(t);
-    await assertChronicleRateContract({ runtime: 'Node', ...fixture });
-});
+    test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters', async () => {
+        const fixture = await createFixture();
+        await assertRouteUploadBoundaryContract({ runtime: 'Node', ...fixture });
+    });
 
-test('[STATE-01] concurrent rate identities remain atomic in memory', async () => {
-    const limiter = new MemoryRateLimiter();
-    const windows = (limiter as unknown as {
-        windows: Map<string, { identities: Set<string> }>;
-    }).windows;
-    await assertConcurrentRateLimiterContract({
-        runtime: 'Node',
-        consume: (client, identity) => limiter.consume(
-            'concurrent-contract', client, 30, 60 * 60,
-            { operation: 'chronicle:upload', identity }
-        ),
-        async count(client) {
-            return windows.get(`concurrent-contract\0${client}`)?.identities.size || 0;
-        }
+    test('[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing', async () => {
+        const fixture = await createFixture();
+        await assertChronicleRateContract({ runtime: 'Node', ...fixture });
+    });
+
+    test('[STATE-01] concurrent rate identities remain atomic in memory', async () => {
+        const limiter = new MemoryRateLimiter();
+        const windows = (limiter as unknown as {
+            windows: Map<string, { identities: Set<string> }>;
+        }).windows;
+        await assertConcurrentRateLimiterContract({
+            runtime: 'Node',
+            consume: (client, identity) => limiter.consume(
+                'concurrent-contract', client, 30, 60 * 60,
+                { operation: 'chronicle:upload', identity }
+            ),
+            async count(client) {
+                return windows.get(`concurrent-contract\0${client}`)?.identities.size || 0;
+            }
+        });
     });
 });

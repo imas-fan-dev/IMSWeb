@@ -209,6 +209,7 @@ export function ClassicWikiPage() {
         selectedAgency={requestedAgency || selection?.agency.name || null}
         disabled={!requestIsCurrent}
         visibilityClassName="min-[851px]:hidden"
+        view="classic"
         onSelectAgency={selectAgency}
       />
       <WikiMobileSearch

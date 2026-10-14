@@ -1,0 +1,8 @@
+apps/api/tests/assets/client-allowlist.test.js: template-literal lines=0 byte-differences=0
+apps/api/tests/assets/frontend-routing.contract.test.js: template-literal lines=0 byte-differences=0
+apps/api/tests/hono-app-contract.test.js: template-literal lines=143 byte-differences=0
+apps/api/tests/node-listener-probe.test.js: template-literal lines=0 byte-differences=0
+apps/api/tests/node-security.test.js: template-literal lines=0 byte-differences=0
+apps/api/tests/operation-scripts.test.js: template-literal lines=0 byte-differences=0
+apps/api/tests/postgres-test-lifecycle.test.js: template-literal lines=0 byte-differences=0
+total template lines compared=143, byte-differences=0

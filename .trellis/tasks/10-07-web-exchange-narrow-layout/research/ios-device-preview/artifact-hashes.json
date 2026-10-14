@@ -1,0 +1,175 @@
+{
+  "kind": "design preview, not native runtime proof",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "818a3f561f46a03629c3130971f55db1814bd5fedb33373fc791321ce9350093",
+      "bytes": 2781
+    },
+    {
+      "path": "render.cjs",
+      "sha256": "cc0e86bdd46ea6fb73cdd4e0b360f5b64ad6859c25c0fafaae05aa03b83cfa1e",
+      "bytes": 13838
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "ef61ab77eaf7cbca4ce8d7eb56fb71c44911f16c1e4ee3bc9555fcebb4317c9b",
+      "bytes": 7001
+    },
+    {
+      "path": "device-metrics.json",
+      "sha256": "f0e5d93ee3f89723319d39810d7da09caf18c5e2e497a44f75c7ac1c05ff2b93",
+      "bytes": 1871
+    },
+    {
+      "path": "iphone-17-18-pro-overview.png",
+      "sha256": "50fc4fe284c9e301cd882a0e5f7869f48a0b6791054e014e43ace9f6c96bdcbd",
+      "bytes": 1098974,
+      "pixels": [
+        3200,
+        2220
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro-overview.html",
+      "sha256": "54957bf71615a7fdb4b50211e9578b02abd715b3fe1e6bb8b836cb0ece4b06bc",
+      "bytes": 1698
+    },
+    {
+      "path": "iphone-17-18-pro-max-overview.png",
+      "sha256": "414ead6367390ba88240e96730b0b1e0d7f783bb163e3d66005e52f4d7e489cc",
+      "bytes": 1053761,
+      "pixels": [
+        3200,
+        2256
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro-max-overview.html",
+      "sha256": "ec28255574cadb09f2e37407c299a4af929abfda2714a5d7b254cc35aa8a7db8",
+      "bytes": 1717
+    },
+    {
+      "path": "iphone-17-18-pro/01-map.png",
+      "sha256": "24e1a9bea38db4e96d795df8aa0f2f5e5bb83c1b96587a79608ba613db7b84d6",
+      "bytes": 550088,
+      "pixels": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro/01-map.svg",
+      "sha256": "21d020809f6551fd2cce73e381876e3691d2f7a1bb7f93b499a1f1cec4988370",
+      "bytes": 10724
+    },
+    {
+      "path": "iphone-17-18-pro/02-refresh.png",
+      "sha256": "f247a1d3c87e1bf8d517bf94746a72ea6e30778b3c36834e243c98c1c3795934",
+      "bytes": 548062,
+      "pixels": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro/02-refresh.svg",
+      "sha256": "04e811848dfa14e28c13f5442c14751481ab35194e82b77bd67893257a788d2e",
+      "bytes": 12005
+    },
+    {
+      "path": "iphone-17-18-pro/03-search.png",
+      "sha256": "8ff0be1250482149180e783ba3711fbc328351ac13b5fce052042809495822f0",
+      "bytes": 242038,
+      "pixels": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro/03-search.svg",
+      "sha256": "82353004836aa350b8b1f31e6d2b73e4814b635927af1b0086bfdc3f7485b96d",
+      "bytes": 8878
+    },
+    {
+      "path": "iphone-17-18-pro/04-source-dialog.png",
+      "sha256": "649fac8993c0eb344394aaca76277c21d2b6a9fd9c2c02fa86829d2183f2dd08",
+      "bytes": 444480,
+      "pixels": [
+        1206,
+        2622
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro/04-source-dialog.svg",
+      "sha256": "9fc3fc2977e1f1d377f22506413b5a507734fd7a545adddc2589ac61e0cc33c2",
+      "bytes": 12178
+    },
+    {
+      "path": "iphone-17-18-pro/refresh-motion-design.svg",
+      "sha256": "81a3d3bd555930b0bbb37d4815fd5474664bec94a459fd774f1d579884df8aab",
+      "bytes": 12117
+    },
+    {
+      "path": "iphone-17-18-pro-max/01-map.png",
+      "sha256": "48965ea75404e6c62b0714c217046d3584e18a4f97b55ec867e5ff2f3e8a077f",
+      "bytes": 641300,
+      "pixels": [
+        1320,
+        2868
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro-max/01-map.svg",
+      "sha256": "0fd516dcc677e194606480fe69adb66284d636e5752ee1b32af5c34c00a09204",
+      "bytes": 10603
+    },
+    {
+      "path": "iphone-17-18-pro-max/02-refresh.png",
+      "sha256": "c2b67816d27d0087754ded0bf221ae4bb436192b2e9487e74063dd6837d3401e",
+      "bytes": 638185,
+      "pixels": [
+        1320,
+        2868
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro-max/02-refresh.svg",
+      "sha256": "119fe6637f2f49160152ebfe3ea3afbe73dfe383ea2c77a8746cf7f97d41985d",
+      "bytes": 11884
+    },
+    {
+      "path": "iphone-17-18-pro-max/03-search.png",
+      "sha256": "19c67ceadca6bc1bd87a7ef3258f22d6ff1c1e35438903c55f2eac1b3c9e701b",
+      "bytes": 301917,
+      "pixels": [
+        1320,
+        2868
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro-max/03-search.svg",
+      "sha256": "3a378fc58bfc1370e09894754fe2e675f197e5255aa82b51be7b971b313ca0b6",
+      "bytes": 8871
+    },
+    {
+      "path": "iphone-17-18-pro-max/04-source-dialog.png",
+      "sha256": "2a7a0ec9eda707731c87b34a5a36b4a9c46e45d57acfcb22a40f32df55cb85eb",
+      "bytes": 503478,
+      "pixels": [
+        1320,
+        2868
+      ]
+    },
+    {
+      "path": "iphone-17-18-pro-max/04-source-dialog.svg",
+      "sha256": "99fcf07316c07238610b342bf00cbc14516011a95a5a36cc54a0ce37cd5f26ec",
+      "bytes": 12057
+    },
+    {
+      "path": "iphone-17-18-pro-max/refresh-motion-design.svg",
+      "sha256": "24fe694e393c80c5dc51d8a80d6c34f300a9abb18d083e22768903217fefbb4f",
+      "bytes": 11996
+    }
+  ]
+}

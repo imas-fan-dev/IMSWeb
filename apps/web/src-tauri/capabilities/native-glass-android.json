@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "native-glass-android",
+  "description": "Allows Android to synchronize system-bar appearance after a theme change",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": ["native-glass:allow-update"]
+}

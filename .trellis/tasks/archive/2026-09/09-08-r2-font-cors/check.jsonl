@@ -1,0 +1,3 @@
+{"file":".trellis/spec/web/frontend/testing.md","reason":"检查三浏览器真实字体加载和 Web 门禁"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/r2-font-cors.md","reason":"检查生产控制面readback、HTTP正反证据和回滚记录"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/r2-test-bucket-addendum.md","reason":"检查测试桶快照、收紧回归和生产只读边界"}

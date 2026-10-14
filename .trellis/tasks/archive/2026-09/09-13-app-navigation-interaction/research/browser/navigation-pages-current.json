@@ -1,0 +1,164 @@
+[
+  {
+    "path": "/apps",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "全部入口",
+        "href": null
+      }
+    ],
+    "header": [
+      {
+        "text": "站内应用",
+        "actions": []
+      }
+    ],
+    "activeTabs": [
+      {
+        "tag": "A",
+        "text": "站内应用",
+        "href": "/apps"
+      }
+    ],
+    "links": [],
+    "actions": [
+      {
+        "tag": "BUTTON",
+        "text": "重试",
+        "href": null
+      }
+    ]
+  },
+  {
+    "path": "/events",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "社区动态",
+        "href": null
+      },
+      {
+        "tag": "H2",
+        "text": "社区动态列表",
+        "href": null
+      }
+    ],
+    "header": [
+      {
+        "text": "社区动态",
+        "actions": []
+      }
+    ],
+    "activeTabs": [
+      {
+        "tag": "A",
+        "text": "社区动态",
+        "href": "/events"
+      }
+    ],
+    "links": [],
+    "actions": []
+  },
+  {
+    "path": "/community/cards",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "制作人名片墙",
+        "href": null
+      }
+    ],
+    "header": [
+      {
+        "text": "站内应用",
+        "actions": [
+          {
+            "tag": "BUTTON",
+            "text": "返回",
+            "href": null
+          }
+        ]
+      },
+      {
+        "text": "制作人名片墙",
+        "actions": []
+      }
+    ],
+    "activeTabs": [
+      {
+        "tag": "A",
+        "text": "站内应用",
+        "href": "/apps"
+      }
+    ],
+    "links": [],
+    "actions": []
+  },
+  {
+    "path": "/account/me",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "帐号",
+        "href": null
+      },
+      {
+        "tag": "H2",
+        "text": "帐号入口",
+        "href": null
+      },
+      {
+        "tag": "H2",
+        "text": "偏好与帮助",
+        "href": null
+      }
+    ],
+    "header": [
+      {
+        "text": "帐号",
+        "actions": []
+      },
+      {
+        "text": "帐号 未登录",
+        "actions": []
+      }
+    ],
+    "activeTabs": [
+      {
+        "tag": "A",
+        "text": "帐号",
+        "href": "/account/me"
+      }
+    ],
+    "links": [
+      {
+        "tag": "A",
+        "text": "登录",
+        "href": "/account/login"
+      },
+      {
+        "tag": "A",
+        "text": "注册",
+        "href": "/account/register"
+      },
+      {
+        "tag": "A",
+        "text": "忘记密码？",
+        "href": "/account/password-reset"
+      },
+      {
+        "tag": "A",
+        "text": "关于",
+        "href": "/about"
+      }
+    ],
+    "actions": [
+      {
+        "tag": "BUTTON",
+        "text": "切换亮色或暗色模式",
+        "href": null
+      }
+    ]
+  }
+]

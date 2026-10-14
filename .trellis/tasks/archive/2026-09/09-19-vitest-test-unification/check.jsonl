@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "核验 PostgreSQL 生命周期 contract row 与 Tests Required 覆盖未回退，Signatures 已随实现更新"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "核验 CI lane 命令、artifact 上传与报表接线的命令形状一致"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "核验三域配置未出现重复定义、未引入不必要的新依赖"}
+{"file": ".trellis/tasks/09-19-vitest-test-unification/design.md", "reason": "按设计的风险表逐项核对缓解措施是否真实落地"}

@@ -1,0 +1,92 @@
+
+ RUN  v4.1.11 /Users/texas/Workspace/IMSWeb/.worktrees/vitest-ui-and-test-taxonomy/apps/api
+
+stderr | tests/server/platform-email-cache.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+stderr | tests/server/platform-account-security.contract.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+ ✓ tests/server/platform-email-cache.test.ts (5 tests) 255ms
+ ✓ tests/server/node-email-delivery-runner.test.ts (14 tests) 248ms
+stderr | tests/server/platform-email-binding.contract.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+ ✓ tests/server/platform-email-delivery-service.test.ts (9 tests) 103ms
+ ✓ tests/server/platform-email-resend-policy-cache.test.ts (7 tests) 504ms
+     ✓ aborts stalled Valkey reads and refills  502ms
+stderr | tests/server/platform-email-settings-contract.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+stderr | tests/server/platform-email-auth.contract.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+ ✓ tests/server/platform-email-settings-contract.test.ts (3 tests) 25ms
+ ✓ tests/server/platform-email-binding.contract.test.ts (24 tests) 78ms
+ ✓ tests/server/platform-account-security.contract.test.ts (38 tests) 126ms
+ ✓ tests/server/optional-platform-auth.test.ts (3 tests) 15ms
+ ✓ tests/server/object-read-response.test.ts (3 tests) 14ms
+ ✓ tests/server/migration-catalog.test.ts (2 tests) 6ms
+stderr | tests/server/object-cleanup-lifecycle.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+ ✓ tests/server/platform-email-job-payload.test.ts (5 tests) 4ms
+ ✓ tests/server/namecard-media-keys.test.ts (11 tests) 3ms
+stderr | tests/server/platform-email-delivery-repository.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+ ✓ tests/server/object-cleanup-lifecycle.test.ts (2 tests) 5ms
+ ✓ tests/server/platform-account-admin-repository.test.ts (7 tests) 1909ms
+     ✓ admin list searches by id, email and display name and hides deleted accounts  688ms
+stderr | tests/server/news-pagination.test.ts
+[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure development-only secret.
+[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure development-only Platform secret.
+
+ ✓ tests/server/platform-email-delivery-repository.test.ts (11 tests) 2957ms
+     ✓ registration enqueue is atomic, encrypted, and unusable until delivery completes  999ms
+ ✓ tests/server/namecard-metadata-repository.test.ts (2 tests) 1117ms
+     ✓ persist ordered cross-series idol metadata atomically  761ms
+ ✓ tests/server/news-pagination.test.ts (5 tests) 1307ms
+     ✓ keeps its legacy array response when pagination is not requested  661ms
+ ✓ tests/server/namecard-unification-migration.test.ts (1 test) 638ms
+     ✓ folds legacy cards into one table  636ms
+ ✓ tests/server/object-protection-compensation.test.ts (1 test) 1ms
+ ✓ tests/server/object-deletion-worker.test.ts (1 test) 811ms
+     ✓ retries and atomically leases prefix jobs  702ms
+ ✓ tests/server/namecard-reaction-reconciliation-migration.test.ts (1 test) 532ms
+     ✓ resyncs namecard_reactions from card_emojis drift  531ms
+ ✓ tests/server/platform-account-management-repository.test.ts (26 tests) 5713ms
+     ✓ linking an identity writes the row and its audit event  930ms
+     ✓ reactivating a suspended account restores it without bumping twice  329ms
+ ✓ tests/server/object-deletion-worker-fencing.test.ts (1 test) 719ms
+     ✓ object deletion lease fences stale worker failure after takeover  610ms
+ ✓ tests/server/namecard-ownership-migration.test.ts (1 test) 437ms
+     ✓ preserves historical rows as legacy  435ms
+ ✓ tests/server/platform-email-auth.contract.test.ts (20 tests) 12153ms
+     ✓ bearer callers get tokens from registration and login, cookie callers do not  1469ms
+     ✓ password reset responses preserve exact JSON and reject invalid API email grammar  791ms
+     ✓ registration verification is hashed, cached, atomically consumed, and single use  936ms
+     ✓ verification requests enqueue without SMTP and staged codes remain unusable  808ms
+     ✓ durable HTTP enqueue is completed by a fresh worker runner  420ms
+     ✓ configured resend intervals and unknown password reset responses come from PostgreSQL  496ms
+     ✓ password reset cooldown is enumeration-safe with missing or failing cache  1930ms
+     ✓ session fencing returns account unavailable without writing cookies  624ms
+     ✓ login returns one generic credential error and rejects blocked account states  1309ms
+     ✓ migrated PBKDF2 credential logs in once and upgrades with bcrypt CAS  622ms
+     ✓ bcrypt rejects passwords beyond 72 UTF-8 bytes instead of truncating  605ms
+     ✓ real PostgreSQL keeps registration atomic under normalized email races  1026ms
+     ✓ real PostgreSQL failed resend preserves old code across repository instances  614ms
+
+ Test Files  25 passed (25)
+      Tests  203 passed (203)
+   Start at  23:30:49
+   Duration  13.48s (transform 2.20s, setup 0ms, import 4.92s, tests 29.68s, environment 1ms)
+
+EXIT=0

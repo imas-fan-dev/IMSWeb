@@ -1,0 +1,98 @@
+{
+  "kind": "unapproved authored design proposal",
+  "illustrativeContent": true,
+  "nativeRuntimeProof": false,
+  "observedReference": "owned iOS27 Maps: 386pt half / 402pt expanded / 346pt selected minimum; candidate widths deliberately differ by product state",
+  "artifacts": [
+    {
+      "id": "a-browse",
+      "label": "A · 搜索胶囊与工具分组",
+      "points": [
+        402,
+        874
+      ],
+      "pixels": [
+        1206,
+        2622
+      ],
+      "kind": "authored proposal",
+      "nativeRuntimeProof": false,
+      "textOverflow": []
+    },
+    {
+      "id": "a-edit",
+      "label": "A · 输入与键盘",
+      "points": [
+        402,
+        874
+      ],
+      "pixels": [
+        1206,
+        2622
+      ],
+      "kind": "authored proposal",
+      "nativeRuntimeProof": false,
+      "textOverflow": []
+    },
+    {
+      "id": "a-results",
+      "label": "A · 地点结果",
+      "points": [
+        402,
+        874
+      ],
+      "pixels": [
+        1206,
+        2622
+      ],
+      "kind": "authored proposal",
+      "nativeRuntimeProof": false,
+      "textOverflow": []
+    },
+    {
+      "id": "a-selected",
+      "label": "A · 已选地点",
+      "points": [
+        402,
+        874
+      ],
+      "pixels": [
+        1206,
+        2622
+      ],
+      "kind": "authored proposal",
+      "nativeRuntimeProof": false,
+      "textOverflow": []
+    },
+    {
+      "id": "b-browse",
+      "label": "B · 搜索与工具合成宽卡",
+      "points": [
+        402,
+        874
+      ],
+      "pixels": [
+        1206,
+        2622
+      ],
+      "kind": "authored proposal",
+      "nativeRuntimeProof": false,
+      "textOverflow": []
+    },
+    {
+      "id": "c-browse",
+      "label": "导航对照 · 浏览态收起底栏",
+      "points": [
+        402,
+        874
+      ],
+      "pixels": [
+        1206,
+        2622
+      ],
+      "kind": "authored proposal",
+      "nativeRuntimeProof": false,
+      "textOverflow": []
+    }
+  ]
+}

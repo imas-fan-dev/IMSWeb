@@ -1,0 +1,30 @@
+appId: top.idol-master.imsweb
+---
+- launchApp:
+    clearState: false
+    stopApp: false
+- runFlow:
+    when:
+      visible: "取消"
+    commands:
+      - tapOn: "取消"
+- tapOn: "交换地图"
+- assertVisible: "查找地点"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- tapOn: "查找地点"
+- assertVisible:
+    id: "ims-native-exchange-search-input"
+- assertVisible:
+    id: "inputView"
+- assertNotVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- eraseText: 100
+- eraseText: 100
+- inputText: "S"
+- assertVisible:
+    text: "查找"
+    enabled: false
+- inputText: "hanghai"
+- takeScreenshot:
+    path: "NativeSearchLatinDraftKeyboard"

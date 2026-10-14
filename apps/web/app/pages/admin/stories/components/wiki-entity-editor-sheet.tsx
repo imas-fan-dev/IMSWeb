@@ -334,7 +334,7 @@ function WikiEntityEditorDialogContent({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[calc(100svh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+    <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <form
             className="flex max-h-[calc(100svh-2rem)] min-h-0 flex-col"
             onSubmit={submit}

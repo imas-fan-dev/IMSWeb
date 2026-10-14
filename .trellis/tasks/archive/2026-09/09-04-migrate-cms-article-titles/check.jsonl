@@ -1,0 +1,5 @@
+{"file":".trellis/spec/api/backend/index.md","reason":"API quality checklist and workspace conventions"}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"Verify transactionality, parameter binding, and persistence boundaries"}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"Verify reports and logs do not expose production content or secrets"}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Verify focused migration and PostgreSQL integration coverage"}
+{"file":".trellis/tasks/09-04-migrate-cms-article-titles/research/cms-article-title-backfill.md","reason":"Check implementation against researched repository patterns and constraints"}

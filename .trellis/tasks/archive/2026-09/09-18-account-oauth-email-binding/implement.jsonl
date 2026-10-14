@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-18-account-oauth-email-binding/research/01-oauth-login-flow.md", "reason": "既有 OAuth state/identity/回调全链路事实，绑定复用的依据"}
+{"file": ".trellis/tasks/09-18-account-oauth-email-binding/research/03-repository-primitives.md", "reason": "仓储原语缺口与 createVerifiedEmailAccount/deleteOAuthIdentity 模板"}
+{"file": ".trellis/spec/api/backend/data-and-errors.md", "reason": "请求校验边界、事务 batch、错误处理与响应契约"}
+{"file": ".trellis/spec/contracts/shared/schemas-and-exports.md", "reason": "account-security schema 归属、strict/exact、exports 同步点"}
+{"file": ".trellis/spec/api/backend/architecture.md", "reason": "domain/capability 边界、ports 依赖方向、paths 复用"}

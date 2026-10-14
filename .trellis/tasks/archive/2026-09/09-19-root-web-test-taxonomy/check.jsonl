@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "核对 e2e 命令与浏览器域验证要求未被改动"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "核对根域执行入口未变"}
+{"file": "scripts/testing/tests/run-test-owner.test.mjs", "reason": "归类后用例数与精确断言必须仍全绿"}
+{"file": "tests/test_workspace_boundaries.py", "reason": "脚本数与依赖白名单上限，禁止顺带新增脚本"}

@@ -1,0 +1,8 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared review and quality conventions."}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web package boundaries and required validation commands."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Review criteria for browser coverage, dispatcher strictness, and prohibited pass-through behavior."}
+{"file":".trellis/spec/repository/ci.md","reason":"Review criteria for job isolation, action pinning, and affected-workspace routing."}
+{"file":".trellis/tasks/09-15-e2e-ci-stability/research/planning-context.md","reason":"Baseline evidence and accepted scope for checking the implementation."}
+{"file":".trellis/tasks/09-15-e2e-ci-stability/research/e2e-inventory.md","reason":"Expected project counts, executing assertions, and authorized runtime skips."}
+{"file":".trellis/tasks/09-15-e2e-ci-stability/research/debug-retrospective.md","reason":"Review record for root-cause coverage and permanent prevention mechanisms."}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/test-governance-summary.md","reason":"Parent-task ownership and script-cap summary used to detect regressions."}

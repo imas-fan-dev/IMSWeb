@@ -1,0 +1,28 @@
+{
+  "id": "api-request-response-contracts",
+  "name": "api-request-response-contracts",
+  "title": "统一 API 请求响应契约",
+  "description": "将前后端共享的 request/response wire formats 统一迁移到 @imsweb/contracts，并升级边界规范与自动化门禁",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-09-06",
+  "completedAt": "2026-09-07",
+  "branch": "release/v1.1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-06-unified-json-wire-contract-migration"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

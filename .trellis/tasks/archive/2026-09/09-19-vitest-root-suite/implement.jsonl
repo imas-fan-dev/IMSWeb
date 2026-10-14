@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/09-19-vitest-root-suite/design.md", "reason": "计划函数替换形状、自举顺序与 Python 断言零改动判定的依据"}
+{"file": ".trellis/tasks/09-19-vitest-test-unification/design.md", "reason": "父设计 §1 与 §3：根配置布局与自举顺序的权威依据"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "governance/contracts/delivery owner 的命令形状与 CI lane 约束"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "owner 计划改写时复核是否把显式清单换成会削弱可见性的 glob"}

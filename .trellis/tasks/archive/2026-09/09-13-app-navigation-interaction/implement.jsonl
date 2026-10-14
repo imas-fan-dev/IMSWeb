@@ -1,0 +1,10 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web package ownership and pre-development checklist"}
+{"file":".trellis/spec/web/frontend/app-navigation.md","reason":"Implemented navigation contract and regression rules for subsequent changes"}
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"App-only layout and navigation boundaries; preserve ordinary Web routing"}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"Reuse existing homepage link requests and cache; keep navigation state separate from server data"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Safe areas, native/fallback UI, Wiki preservation and namecard preview boundaries"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Meaningful component and App browser tests with strict API fixtures"}
+{"file":".trellis/spec/guides/index.md","reason":"Shared cross-layer and reuse review guidance"}
+{"file":".trellis/tasks/09-13-app-navigation-interaction/research/navigation-current-state.md","reason":"Current owners, click/back behavior, native bridge and existing test inventory"}
+{"file":".trellis/tasks/09-13-app-navigation-interaction/research/navigation-options.md","reason":"Approved four-tab grouping and interaction decisions with browser evidence"}
+{"file":".trellis/tasks/09-13-app-navigation-interaction/research/planning-context.md","reason":"Authoritative design rules, previous task constraints and environment evidence"}

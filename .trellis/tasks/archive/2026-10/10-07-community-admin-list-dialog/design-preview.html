@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>制作人社区后台 · 设计预览</title>
+  <style>
+    :root { color-scheme: light; --primary: oklch(.54 .2 351); --background: oklch(.995 .002 90); --foreground: oklch(.17 .008 270); --surface: #fff; --muted: oklch(.96 .005 260); --subtle: oklch(.48 .02 260); --border: oklch(.9 .008 260); --danger: oklch(.58 .22 27); }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--foreground); background: var(--background); font: 14px/1.5 "Geist Variable", "Noto Sans SC", "PingFang SC", sans-serif; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .4; }
+    button, input, textarea, select { border-radius: 8px; }
+    :focus-visible { outline: 3px solid oklch(.54 .2 351 / .3); outline-offset: 2px; }
+    svg { display: block; flex-shrink: 0; }
+    .preview-note { padding: 10px 20px; border-bottom: 1px solid var(--border); color: var(--subtle); font-size: 12px; text-align: center; background: var(--muted); }
+    main { max-width: 1240px; padding: 32px; margin: auto; }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .page-heading { padding-left: 16px; border-left: 2px solid var(--primary); }
+    .eyebrow { margin: 0; color: var(--primary); font-size: 11px; font-weight: 600; }
+    h1 { margin: 8px 0; font-size: 28px; line-height: 1.25; font-weight: 600; }
+    h2 { margin: 0; font-size: 16px; font-weight: 500; }
+    p { margin: 0; }
+    .subtle { color: var(--subtle); }
+    .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 32px; padding: 6px 12px; border: 1px solid var(--border); color: var(--foreground); background: var(--surface); font-weight: 500; }
+    .btn:hover:not(:disabled) { background: var(--muted); }
+    .btn.primary { color: #fff; border-color: var(--primary); background: var(--primary); }
+    .btn.primary:hover:not(:disabled) { filter: brightness(.96); background: var(--primary); }
+    .btn.ghost { border-color: transparent; background: transparent; }
+    .btn.danger { color: var(--danger); }
+    .btn.icon { width: 32px; height: 32px; padding: 6px; }
+    .panel { margin-top: 24px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border-bottom: 1px solid var(--border); }
+    .panel-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .panel-description { margin-top: 4px; color: var(--subtle); font-size: 12px; }
+    .panel-body { padding: 16px; }
+    .base-fields { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
+    .field { display: flex; flex-direction: column; min-width: 0; gap: 8px; }
+    .field label, .field-label { font-weight: 500; }
+    .field small { color: var(--subtle); font-size: 12px; }
+    input:not([type=checkbox]), select, textarea { width: 100%; min-width: 0; padding: 8px 12px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); }
+    input:not([type=checkbox]), select { height: 40px; }
+    textarea { min-height: 68px; resize: vertical; }
+    .chip { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border-radius: 999px; color: var(--subtle); background: var(--muted); font-size: 12px; white-space: nowrap; }
+    .chip.visible { color: oklch(.34 .08 150); background: oklch(.65 .15 150 / .12); }
+    .chip.dirty { color: oklch(.4 .08 65); background: oklch(.8 .15 82 / .16); }
+    .status-line { margin-top: 16px; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--subtle); }
+    .dot.dirty { background: oklch(.65 .15 82); }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { padding: 10px 12px; text-align: left; font-weight: 500; color: var(--subtle); font-size: 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: oklch(.96 .005 260 / .5); }
+    .col-order { width: 48px; font-variant-numeric: tabular-nums; color: var(--subtle); }
+    .col-link { width: 19%; }
+    .col-range { width: 80px; }
+    .col-status { width: 80px; }
+    .col-actions { width: 164px; text-align: right; }
+    .entry-content { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+    .icon-frame { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); }
+    .icon-frame img { width: 100%; height: 100%; object-fit: contain; }
+    .entry-text { min-width: 0; }
+    .entry-name { font-weight: 500; overflow-wrap: anywhere; }
+    .entry-description { color: var(--subtle); font-size: 12px; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+    .entry-rule { color: var(--subtle); font-size: 12px; margin-top: 3px; }
+    .link-text { color: var(--subtle); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+    .row-actions { display: flex; justify-content: flex-end; gap: 2px; }
+    .mobile-meta, .mobile-actions { display: none; }
+    .empty { padding: 48px 16px; text-align: center; color: var(--subtle); }
+    .empty strong { display: block; margin-bottom: 8px; color: var(--foreground); }
+    dialog { padding: 0; width: min(760px, calc(100vw - 32px)); max-height: calc(100svh - 32px); border: 1px solid var(--border); border-radius: 12px; background: oklch(1 0 0 / .94); color: var(--foreground); box-shadow: 0 16px 56px oklch(.17 .008 270 / .14); }
+    dialog::backdrop { background: oklch(.17 .008 270 / .1); backdrop-filter: blur(4px); }
+    dialog[open] { display: flex; flex-direction: column; }
+    dialog form { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+    .dialog-header { position: relative; padding: 20px 52px 16px 20px; flex-shrink: 0; }
+    .dialog-header h2 { font-size: 18px; font-weight: 600; }
+    .dialog-header p { margin-top: 4px; font-size: 13px; color: var(--subtle); }
+    .close-dialog { position: absolute; top: 12px; right: 12px; }
+    .dialog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px; border-top: 1px solid var(--border); }
+    .editor-columns { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 24px; }
+    .media-section { min-width: 0; border-left: 1px solid var(--border); padding-left: 24px; }
+    .media-section h3 { font-size: 14px; font-weight: 500; margin: 0 0 20px; }
+    .media-fields { display: flex; flex-direction: column; gap: 20px; }
+    .dialog-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .wide { grid-column: 1 / -1; }
+    .checkbox-field { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); }
+    .image-area { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .image-area .icon-frame { width: 64px; height: 64px; }
+    .divider { height: 1px; background: var(--border); margin: 24px 0; }
+    .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border); background: oklch(.96 .005 260 / .5); flex-shrink: 0; }
+    .form-error { color: var(--danger); font-size: 13px; margin-top: 16px; }
+    .menu { position: fixed; z-index: 5; padding: 4px; min-width: 144px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px oklch(.17 .008 270 / .1); }
+    .menu button { display: flex; align-items: center; gap: 10px; padding: 10px; min-height: 44px; width: 100%; border: 0; background: transparent; text-align: left; }
+    .menu button:hover { background: var(--muted); }
+    #confirm-dialog { width: min(440px, calc(100vw - 32px)); }
+    @media (max-width: 760px) {
+      main { padding: 24px 16px; }
+      .page-header { align-items: flex-start; flex-direction: column; gap: 16px; }
+      .toolbar .btn, .panel-header .btn { min-height: 44px; }
+      h1 { font-size: 24px; }
+      .base-fields { grid-template-columns: 1fr; gap: 20px; }
+      .col-order, .col-link, .col-range, .col-status, .desktop-actions { display: none; }
+      .col-actions { width: 104px; }
+      .mobile-actions { display: flex; justify-content: flex-end; gap: 2px; }
+      .mobile-actions .btn.icon { width: 44px; height: 44px; }
+      .mobile-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+      .entry-content { gap: 8px; }
+      .icon-frame { width: 28px; height: 28px; }
+      td { padding: 12px 8px; }
+      .panel-header { align-items: flex-start; padding: 14px 12px; gap: 8px; }
+      .panel-description { max-width: 160px; }
+      .panel-header .btn { flex-shrink: 0; padding: 6px 10px; }
+      .panel-heading { gap: 6px; }
+      .dialog-fields { grid-template-columns: 1fr; }
+      .editor-columns { grid-template-columns: 1fr; }
+      .media-section { border-left: 0; border-top: 1px solid var(--border); padding: 24px 0 0; }
+      .dialog-header { padding: 16px 56px 16px 16px; }
+      .dialog-header p { font-size: 12px; }
+      .dialog-body { padding: 16px; }
+      .close-dialog { width: 44px !important; height: 44px !important; top: 8px; right: 8px; }
+      .dialog-footer { padding: 12px 16px; }
+      .dialog-footer .btn { min-height: 44px; flex: 1; }
+      .preview-note { text-align: left; padding: 8px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-note">设计预览 · 示例取自当前 Preview 社区配置 · 操作只作用于本页</div>
+  <main>
+    <header class="page-header">
+      <div class="page-heading">
+        <p class="eyebrow">COMMUNITY</p>
+        <h1>制作人社区</h1>
+        <p class="subtle">管理社区首页文字、入口与展示范围。</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="reload" type="button"><span data-icon="refresh"></span>重新读取</button>
+        <button class="btn primary" id="save" type="button" disabled><span data-icon="save"></span>保存配置</button>
+      </div>
+    </header>
+    <div class="status-line" aria-live="polite"><span class="dot" id="status-dot"></span><span id="status" class="subtle">已与服务器同步</span></div>
+    <section class="panel" aria-labelledby="base-title">
+      <div class="panel-header"><div><h2 id="base-title">基础设置</h2><p class="panel-description">显示在公共社区页的标题与简介。</p></div></div>
+      <div class="panel-body base-fields">
+        <div class="field"><label for="page-title">页面标题</label><input id="page-title" maxlength="80" required></div>
+        <div class="field"><label for="page-introduction">页面简介</label><textarea id="page-introduction" maxlength="300" rows="2"></textarea></div>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="entries-title">
+      <div class="panel-header">
+        <div><div class="panel-heading"><h2 id="entries-title">社区入口</h2><span class="chip" id="entry-count"></span></div><p class="panel-description">列表顺序即页面展示顺序。</p></div>
+        <button class="btn primary" id="add-entry" type="button"><span data-icon="plus"></span>新增入口</button>
+      </div>
+      <table id="entry-table" aria-label="社区入口列表">
+        <thead><tr><th class="col-order" scope="col">顺序</th><th scope="col">入口</th><th class="col-link" scope="col">跳转地址</th><th class="col-range" scope="col">范围</th><th class="col-status" scope="col">状态</th><th class="col-actions" scope="col">操作</th></tr></thead>
+        <tbody id="entry-rows"></tbody>
+      </table>
+      <div id="empty-state" class="empty" hidden><strong>暂无社区入口</strong><p>使用“新增入口”添加需要展示的内容。</p></div>
+    </section>
+  </main>
+  <div id="row-menu" class="menu" role="menu" aria-label="入口操作" hidden></div>
+  <dialog id="entry-dialog" aria-labelledby="editor-title" aria-describedby="editor-description">
+    <form id="entry-form">
+      <header class="dialog-header">
+        <h2 id="editor-title">编辑入口</h2>
+        <p id="editor-description">完成编辑后，使用页面“保存配置”统一保存。</p>
+        <button type="button" class="btn ghost icon close-dialog" id="close-editor" aria-label="关闭入口编辑器"><span data-icon="close"></span></button>
+      </header>
+      <div class="dialog-body">
+        <div class="editor-columns">
+        <div class="dialog-fields">
+          <div class="field"><label for="entry-title">名称</label><input id="entry-title" maxlength="80" required autofocus></div>
+          <div class="field"><label for="entry-id">入口 ID</label><input id="entry-id" maxlength="80" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required><small>小写字母、数字与连字符，不能重复。</small></div>
+          <div class="field wide"><label for="entry-href">跳转地址</label><input id="entry-href" maxlength="500" required><small>站内地址或 HTTP(S) 链接。</small></div>
+          <div class="field wide"><label for="entry-description">说明</label><textarea id="entry-description" maxlength="300" rows="2"></textarea></div>
+          <div class="field"><label for="entry-audience">展示范围</label><select id="entry-audience"><option value="all">Web / App</option><option value="web">仅 Web</option><option value="app">仅 App</option></select></div>
+          <div class="field"><label for="entry-availability">展示条件</label><select id="entry-availability"><option value="always">始终展示</option><option value="exchange">名片交换开放时展示</option></select></div>
+          <div class="field wide"><label class="checkbox-field" for="entry-enabled"><input id="entry-enabled" type="checkbox">显示入口</label></div>
+        </div>
+        <section class="media-section" aria-labelledby="media-heading">
+        <h3 id="media-heading">图标与图片</h3>
+        <div class="media-fields">
+          <div class="field"><label for="entry-icon">默认图标</label><select id="entry-icon"><option value="users">制作人 · Users</option><option value="building-2">事务所 · Building</option><option value="calendar-days">活动 · Calendar</option><option value="map-pin">地点 · Map pin</option><option value="gamepad-2">游戏 · Gamepad</option><option value="link-2">链接 · Link</option></select></div>
+          <div class="field"><span class="field-label">入口预览</span><div class="image-area"><div class="icon-frame" id="entry-preview"></div><button class="btn" id="clear-image" type="button" disabled>清除图片</button></div></div>
+          <div class="field wide"><label for="entry-image">自定义图片</label><input id="entry-image" type="file" accept="image/*"><small>图片替代默认图标。支持常用图片格式，最大 10 MB。</small></div>
+        </div>
+        </section>
+        </div>
+        <p id="entry-error" class="form-error" role="alert" hidden></p>
+      </div>
+      <footer class="dialog-footer"><button type="button" class="btn" id="cancel-editor">取消</button><button type="submit" class="btn primary" id="confirm-editor">完成编辑</button></footer>
+    </form>
+  </dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirmation-title" aria-describedby="confirmation-description">
+    <header class="dialog-header"><h2 id="confirmation-title"></h2><p id="confirmation-description"></p></header>
+    <footer class="dialog-footer"><button class="btn" id="cancel-confirmation" type="button">取消</button><button class="btn primary" id="accept-confirmation" type="button">确定</button></footer>
+  </dialog>
+  <script src="./preview-assets.js"></script>
+  <script>
+    const { icons, initial } = window.IMS_COMMUNITY_PREVIEW;
+    const byId = id => document.getElementById(id);
+    const copy = value => structuredClone(value);
+    const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    const icon = name => icons[name] || icons['link-2'];
+    const audienceLabel = value => ({ all:'Web / App', web:'Web', app:'App' }[value]);
+    let pageDraft = copy(initial), savedDraft = copy(initial), session = null, menuIndex = null, confirmation = null;
+    function isDirty() { return JSON.stringify(pageDraft) !== JSON.stringify(savedDraft); }
+    function updateStatus(message) {
+      byId('save').disabled = !isDirty();
+      byId('status').textContent = message || (isDirty() ? '有未保存修改' : '已与服务器同步');
+      byId('status-dot').classList.toggle('dirty', isDirty());
+    }
+    function actionButton(action, index, name, label, disabled = false) {
+      return `<button type="button" class="btn ghost icon ${action === 'delete' ? 'danger' : ''}" data-action="${action}" data-index="${index}" aria-label="${escape(label)}" title="${escape(label)}" ${disabled ? 'disabled' : ''}>${icon(name)}</button>`;
+    }
+    function renderRows() {
+      byId('entry-count').textContent = `${pageDraft.entries.length} 个入口`;
+      byId('add-entry').disabled = pageDraft.entries.length >= 100;
+      byId('entry-table').hidden = !pageDraft.entries.length;
+      byId('empty-state').hidden = Boolean(pageDraft.entries.length);
+      byId('entry-rows').innerHTML = pageDraft.entries.map((entry, i) => {
+        const image = entry.imageUrl ? `<img src="${escape(entry.imageUrl)}" alt="">` : icon(entry.icon);
+        const status = `<span class="chip ${entry.enabled ? 'visible' : ''}">${entry.enabled ? '显示' : '隐藏'}</span>`;
+        return `<tr><td class="col-order">${i + 1}</td><td><div class="entry-content"><div class="icon-frame">${image}</div><div class="entry-text"><p class="entry-name">${escape(entry.title)}</p><p class="entry-description">${escape(entry.description)}</p>${entry.availability === 'exchange' ? '<p class="entry-rule">名片交换开放时展示</p>' : ''}<div class="mobile-meta"><span class="chip">${i + 1}</span><span class="chip">${audienceLabel(entry.audience)}</span>${status}</div></div></div></td><td class="col-link"><span class="link-text" title="${escape(entry.href)}">${escape(entry.href)}</span></td><td class="col-range"><span class="chip">${audienceLabel(entry.audience)}</span></td><td class="col-status">${status}</td><td class="col-actions"><div class="row-actions desktop-actions">${actionButton('up',i,'up',`上移 ${entry.title}`,i === 0)}${actionButton('down',i,'down',`下移 ${entry.title}`,i === pageDraft.entries.length - 1)}${actionButton('edit',i,'pencil',`编辑 ${entry.title}`)}${actionButton('delete',i,'trash',`删除 ${entry.title}`)}</div><div class="mobile-actions">${actionButton('edit',i,'pencil',`编辑 ${entry.title}`)}${actionButton('more',i,'more',`更多操作 ${entry.title}`)}</div></td></tr>`;
+      }).join('');
+      updateStatus();
+    }
+    function renderPage() {
+      byId('page-title').value = pageDraft.title;
+      byId('page-introduction').value = pageDraft.introduction;
+      renderRows();
+    }
+    function previewImage() {
+      byId('entry-preview').innerHTML = session.entry.imageUrl ? `<img alt="入口图片预览" src="${escape(session.entry.imageUrl)}">` : icon(session.entry.icon);
+      byId('clear-image').disabled = !session.entry.imageUrl;
+    }
+    function openEditor(index, trigger) {
+      closeMenu();
+      const entry = index === null ? { id:`entry-${crypto.randomUUID()}`, title:'新入口', description:'', href:'/community', icon:'users', imageUrl:null, enabled:true, audience:'all', availability:'always' } : copy(pageDraft.entries[index]);
+      session = { index, entry, trigger };
+      byId('editor-title').textContent = index === null ? '新增入口' : '编辑入口';
+      byId('confirm-editor').textContent = index === null ? '添加入口' : '完成编辑';
+      for (const key of ['id','title','description','href','icon','audience','availability']) byId(`entry-${key}`).value = entry[key];
+      byId('entry-enabled').checked = entry.enabled;
+      byId('entry-image').value = '';
+      byId('entry-error').hidden = true;
+      previewImage();
+      byId('entry-dialog').showModal();
+      byId('entry-title').focus();
+    }
+    function closeEditor() {
+      const trigger = session?.trigger;
+      byId('entry-dialog').close();
+      session = null;
+      if (trigger?.isConnected) trigger.focus();
+    }
+    function askConfirmation(title, description, apply) {
+      closeMenu();
+      byId('confirmation-title').textContent = title;
+      byId('confirmation-description').textContent = description;
+      confirmation = apply;
+      byId('confirm-dialog').showModal();
+    }
+    function closeMenu() { byId('row-menu').hidden = true; menuIndex = null; }
+    function rowAction(action, index, trigger) {
+      if (action === 'edit') return openEditor(index, trigger);
+      if (action === 'delete') return askConfirmation('删除这个入口？','入口会从当前列表移除，保存配置后生效。',() => { pageDraft.entries.splice(index,1); renderRows(); byId('add-entry').focus(); });
+      if (action === 'more') {
+        menuIndex = index;
+        byId('row-menu').innerHTML = `<button type="button" role="menuitem" data-menu-action="up" ${index === 0 ? 'disabled' : ''}>${icon('up')}上移</button><button type="button" role="menuitem" data-menu-action="down" ${index === pageDraft.entries.length - 1 ? 'disabled' : ''}>${icon('down')}下移</button><button type="button" role="menuitem" class="danger" data-menu-action="delete">${icon('trash')}删除</button>`;
+        byId('row-menu').hidden = false;
+        const box = trigger.getBoundingClientRect();
+        const menuHeight = byId('row-menu').offsetHeight;
+        byId('row-menu').style.left = `${Math.max(16,Math.min(box.right - 144,innerWidth - 160))}px`;
+        byId('row-menu').style.top = `${Math.max(16,Math.min(box.bottom + 4,innerHeight - menuHeight - 16))}px`;
+        byId('row-menu').querySelector('button:not(:disabled)').focus();
+        return;
+      }
+      closeMenu();
+      const next = index + (action === 'up' ? -1 : 1);
+      if (next < 0 || next >= pageDraft.entries.length) return;
+      const [entry] = pageDraft.entries.splice(index,1);
+      pageDraft.entries.splice(next,0,entry);
+      renderRows();
+    }
+    byId('entry-rows').addEventListener('click',event => { const button = event.target.closest('[data-action]'); if (button) rowAction(button.dataset.action,Number(button.dataset.index),button); });
+    byId('row-menu').addEventListener('click',event => { const button = event.target.closest('[data-menu-action]'); if (button) rowAction(button.dataset.menuAction,menuIndex,button); });
+    document.addEventListener('click',event => { if (!event.target.closest('#row-menu') && !event.target.closest('[data-action=more]')) closeMenu(); });
+    document.addEventListener('keydown',event => { if (event.key === 'Escape' && !byId('row-menu').hidden) { closeMenu(); event.preventDefault(); } });
+    byId('add-entry').addEventListener('click',event => openEditor(null,event.currentTarget));
+    byId('cancel-editor').addEventListener('click',closeEditor);
+    byId('close-editor').addEventListener('click',closeEditor);
+    byId('entry-dialog').addEventListener('cancel',event => { event.preventDefault(); closeEditor(); });
+    byId('entry-dialog').addEventListener('click',event => { if (event.target === event.currentTarget) { const box = event.currentTarget.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeEditor(); } });
+    byId('entry-form').addEventListener('submit',event => {
+      event.preventDefault();
+      const candidate = copy(session.entry);
+      for (const key of ['id','title','description','href','icon','audience','availability']) candidate[key] = byId(`entry-${key}`).value;
+      candidate.enabled = byId('entry-enabled').checked;
+      let error = '';
+      if (!candidate.title.trim()) error = '请输入入口名称。';
+      if (pageDraft.entries.some((entry,i) => entry.id === candidate.id && i !== session.index)) error = '入口 ID 已被其他入口使用。';
+      try {
+        const decoded = decodeURIComponent(candidate.href);
+        if (/[\\\u0000-\u0020\u007f]/.test(candidate.href) || /[\\\u0000-\u0020\u007f]/.test(decoded)) throw Error();
+        if (!(candidate.href.startsWith('/') && !decoded.startsWith('//'))) { const url = new URL(candidate.href); if (!['http:','https:'].includes(url.protocol) || url.username || url.password) throw Error(); }
+      } catch { error = '请输入安全的站内地址或 HTTP(S) 链接。'; }
+      if (error) { byId('entry-error').textContent = error; byId('entry-error').hidden = false; return; }
+      const index = session.index;
+      if (index === null) pageDraft.entries.push(candidate); else pageDraft.entries[index] = candidate;
+      closeEditor();
+      renderRows();
+      if (index === null) byId('add-entry').focus();
+      else document.querySelector(`${innerWidth <= 760 ? '.mobile-actions' : '.desktop-actions'} [data-action=edit][data-index="${index}"]:not(:disabled)`)?.focus();
+    });
+    byId('entry-icon').addEventListener('change',event => { session.entry.icon = event.target.value; previewImage(); });
+    byId('clear-image').addEventListener('click',() => { session.entry.imageUrl = null; byId('entry-image').value = ''; previewImage(); });
+    byId('entry-image').addEventListener('change',event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) { byId('entry-error').textContent = '请选择不超过 10 MB 的图片。'; byId('entry-error').hidden = false; return; }
+      session.entry.imageUrl = URL.createObjectURL(file); previewImage();
+    });
+    for (const [id,key] of [['page-title','title'],['page-introduction','introduction']]) byId(id).addEventListener('input',event => { pageDraft[key] = event.target.value; updateStatus(); });
+    byId('save').addEventListener('click',() => { if (!byId('page-title').reportValidity()) return; savedDraft = copy(pageDraft); updateStatus('演示已保存，仅作用于本页'); });
+    byId('reload').addEventListener('click',() => { const apply = () => { pageDraft = copy(savedDraft); renderPage(); }; if (isDirty()) askConfirmation('重新读取配置？','当前未保存的修改将被丢弃。',apply); else apply(); });
+    byId('cancel-confirmation').addEventListener('click',() => { byId('confirm-dialog').close(); confirmation = null; });
+    byId('accept-confirmation').addEventListener('click',() => { const apply = confirmation; byId('confirm-dialog').close(); confirmation = null; apply?.(); });
+    document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.icon); });
+    renderPage();
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/contracts/shared/quality.md", "reason": "Wave 0 验收：契约质量、错误语义、迁移与跨层一致性"}
+{"file": ".trellis/spec/api/backend/data-and-errors.md", "reason": "Wave 0 验收：契约质量、错误语义、迁移与跨层一致性"}
+{"file": ".trellis/spec/repository/index.md", "reason": "Wave 0 验收：契约质量、错误语义、迁移与跨层一致性"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Wave 0 验收：契约质量、错误语义、迁移与跨层一致性"}
+{"file": ".trellis/tasks/09-18-account-oauth-email-binding/design.md", "reason": "验收 Wave 0 是否如实落地了该设计声明的接口"}
+{"file": ".trellis/tasks/09-18-admin-platform-user-management/design.md", "reason": "验收 Wave 0 是否如实落地了该设计声明的接口"}
+{"file": ".trellis/tasks/09-18-oauth-login-mobile-adaptation/design.md", "reason": "验收 Wave 0 是否如实落地了该设计声明的接口"}

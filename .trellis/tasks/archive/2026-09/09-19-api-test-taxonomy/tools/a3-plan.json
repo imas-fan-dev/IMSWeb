@@ -1,0 +1,183 @@
+{
+    "batch": "A3",
+    "note": "apps/api/tests/server, third slice of 25 basenames (migration-catalog ... platform-email-settings-contract). Every entry names the statement range(s) that go under the file's subject describe. `wrapper: describe` + `importVitestDescribe` is the PostgreSQL-adapter case (`postgresTest as test` has no `.describe`); `addVitestImport` covers the four adapter files that did not import anything from vitest at all. `existingSuite: true` marks the `describe` that node-email-delivery-runner.test.ts already owned: it becomes the second level, so it only shifts by one level and loses the ancestor prefix from its title.",
+    "files": [
+        {
+            "path": "tests/server/migration-catalog.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["migration catalog"], "from": 5, "to": 6 }]
+        },
+        {
+            "path": "tests/server/namecard-media-keys.test.ts",
+            "wrapper": "test.describe",
+            "segments": [
+                { "path": ["namecard media keys"], "from": 4, "to": 11 },
+                { "path": ["ensureNamecardThumbnails"], "from": 13, "to": 15 }
+            ]
+        },
+        {
+            "path": "tests/server/namecard-metadata-repository.test.ts",
+            "wrapper": "describe",
+            "addVitestImport": true,
+            "addVitestImportAfterLine": 2,
+            "segments": [{ "path": ["PostgreSQL guest namecards"], "from": 9, "to": 10 }]
+        },
+        {
+            "path": "tests/server/namecard-ownership-migration.test.ts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "segments": [{ "path": ["namecard ownership migration"], "from": 10, "to": 10 }]
+        },
+        {
+            "path": "tests/server/namecard-reaction-reconciliation-migration.test.ts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "segments": [{ "path": ["namecard reaction reconciliation"], "from": 10, "to": 10 }]
+        },
+        {
+            "path": "tests/server/namecard-unification-migration.test.ts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "segments": [{ "path": ["namecard unification migration"], "from": 10, "to": 10 }]
+        },
+        {
+            "path": "tests/server/news-pagination.test.ts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "segments": [
+                { "path": ["news"], "from": 13, "to": 13 },
+                { "path": ["news", "cursor pagination"], "from": 14, "to": 15 },
+                { "path": ["news"], "from": 16, "to": 17 }
+            ]
+        },
+        {
+            "path": "tests/server/node-email-delivery-runner.test.ts",
+            "wrapper": "test.describe",
+            "segments": [
+                { "path": ["email delivery runner"], "from": 12, "to": 14 },
+                {
+                    "path": ["email delivery runner", "cancels a claim when lease renewal is lost"],
+                    "from": 15,
+                    "to": 15,
+                    "existingSuite": true
+                },
+                { "path": ["email delivery runner"], "from": 16, "to": 21 },
+                { "path": ["email worker"], "from": 22, "to": 23 }
+            ]
+        },
+        {
+            "path": "tests/server/object-cleanup-lifecycle.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["object cleanup lifecycle"], "from": 10, "to": 11 }]
+        },
+        {
+            "path": "tests/server/object-deletion-worker-fencing.test.ts",
+            "wrapper": "describe",
+            "addVitestImport": true,
+            "addVitestImportAfterLine": 2,
+            "segments": [{ "path": ["object deletion worker fencing"], "from": 7, "to": 7 }]
+        },
+        {
+            "path": "tests/server/object-deletion-worker.test.ts",
+            "wrapper": "describe",
+            "addVitestImport": true,
+            "addVitestImportAfterLine": 2,
+            "segments": [{ "path": ["PostgreSQL object deletion worker"], "from": 8, "to": 8 }]
+        },
+        {
+            "path": "tests/server/object-protection-compensation.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["object protection and its compensation"], "from": 5, "to": 5 }]
+        },
+        {
+            "path": "tests/server/object-read-response.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["object read response"], "from": 4, "to": 6 }]
+        },
+        {
+            "path": "tests/server/optional-platform-auth.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["optional Platform auth"], "from": 11, "to": 13 }]
+        },
+        {
+            "path": "tests/server/platform-account-admin-repository.test.ts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "segments": [{ "path": ["platform account admin repository"], "from": 18, "to": 24 }]
+        },
+        {
+            "path": "tests/server/platform-account-management-repository.test.ts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "segments": [{ "path": ["platform account management repository"], "from": 25, "to": 50 }]
+        },
+        {
+            "path": "tests/server/platform-account-security.contract.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["platform account security"], "from": 16, "to": 43 }]
+        },
+        {
+            "path": "tests/server/platform-email-auth.contract.test.ts",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "segments": [{ "path": ["platform email auth"], "from": 47, "to": 66 }]
+        },
+        {
+            "path": "tests/server/platform-email-binding.contract.test.ts",
+            "wrapper": "test.describe",
+            "segments": [
+                { "path": ["platform email binding"], "from": 19, "to": 24 },
+                { "path": ["platform email binding", "changing an email"], "from": 25, "to": 26 },
+                { "path": ["platform email binding"], "from": 27, "to": 33 },
+                { "path": ["platform email binding", "app OAuth link start"], "from": 34, "to": 38 },
+                { "path": ["platform email binding"], "from": 39, "to": 42 }
+            ]
+        },
+        {
+            "path": "tests/server/platform-email-cache.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["platform email cooldown"], "from": 9, "to": 13 }]
+        },
+        {
+            "path": "tests/server/platform-email-delivery-repository.test.ts",
+            "wrapper": "describe",
+            "addVitestImport": true,
+            "addVitestImportAfterLine": 2,
+            "segments": [
+                { "path": ["platform email delivery repository"], "from": 28, "to": 29 },
+                {
+                    "path": ["platform email delivery repository", "password reset request"],
+                    "from": 30,
+                    "to": 31
+                },
+                { "path": ["platform email delivery repository"], "from": 32, "to": 38 }
+            ]
+        },
+        {
+            "path": "tests/server/platform-email-delivery-service.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["worker SMTP delivery"], "from": 17, "to": 25 }]
+        },
+        {
+            "path": "tests/server/platform-email-job-payload.test.ts",
+            "wrapper": "test.describe",
+            "segments": [
+                { "path": ["platform email job payload", "cipher"], "from": 9, "to": 12 },
+                { "path": ["platform email job payload"], "from": 13, "to": 13 }
+            ]
+        },
+        {
+            "path": "tests/server/platform-email-resend-policy-cache.test.ts",
+            "wrapper": "test.describe",
+            "segments": [
+                { "path": ["Valkey resend policy cache"], "from": 14, "to": 16 },
+                { "path": ["resend policy reader"], "from": 17, "to": 20 }
+            ]
+        },
+        {
+            "path": "tests/server/platform-email-settings-contract.test.ts",
+            "wrapper": "test.describe",
+            "segments": [{ "path": ["SMTP administration"], "from": 13, "to": 15 }]
+        }
+    ]
+}

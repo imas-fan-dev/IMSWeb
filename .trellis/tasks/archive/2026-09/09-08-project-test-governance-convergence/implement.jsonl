@@ -1,0 +1,12 @@
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"定义共享测试 abstraction 的抽取边界"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"约束跨 API、Web、CI 与外部存储的责任划分"}
+{"file":".trellis/spec/api/backend/testing.md","reason":"API 测试所有权与验证门禁"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Web unit、Playwright 与 routing 测试规范"}
+{"file":".trellis/spec/repository/ci.md","reason":"affected-workspace 和 CI lane 约束"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/prior-audit-baseline.md","reason":"已完成前置项和剩余治理基线"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/api-test-infrastructure.md","reason":"PostgreSQL 与 API helper 全量证据"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/r2-font-cors.md","reason":"R2生产资源链路、权限、变更和回滚证据"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/r2-test-bucket-addendum.md","reason":"测试桶现状、候选策略和独立授权边界"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/test-governance-summary.md","reason":"测试 taxonomy、脚本重复、Node/Platform 和 inventory 聚焦证据"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/playwright-dispatcher.md","reason":"118个API拦截点、dispatcher接口和迁移顺序"}
+{"file":".trellis/tasks/09-08-project-test-governance-convergence/research/frontend-route-metadata.md","reason":"路由多账本、单一描述源和API生成产物边界"}

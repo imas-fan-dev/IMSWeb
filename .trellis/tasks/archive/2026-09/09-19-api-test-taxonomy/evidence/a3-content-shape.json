@@ -1,0 +1,36 @@
+{
+  "classes": {
+    "wrapperLines": 34,
+    "vitestImport": 18,
+    "trimmedName": 67,
+    "retitledSuite": 1
+  },
+  "removedSubjects": [
+    "PostgreSQL guest namecards",
+    "PostgreSQL object deletion worker",
+    "SMTP administration",
+    "Valkey resend policy cache",
+    "app OAuth link start",
+    "changing an email",
+    "email delivery runner",
+    "email worker",
+    "ensureNamecardThumbnails",
+    "migration catalog",
+    "namecard ownership migration",
+    "namecard reaction reconciliation",
+    "namecard unification migration",
+    "news",
+    "news cursor pagination",
+    "object protection and its compensation",
+    "optional Platform auth",
+    "password reset request",
+    "platform account security",
+    "platform email binding",
+    "platform email cooldown",
+    "platform email job payload",
+    "platform email job payload cipher",
+    "resend policy reader",
+    "worker SMTP delivery"
+  ],
+  "unexpected": []
+}

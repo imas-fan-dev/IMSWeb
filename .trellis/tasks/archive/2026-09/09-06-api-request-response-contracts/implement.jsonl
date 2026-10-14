@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/contracts/shared/schemas-and-exports.md", "reason": "共享 schema 所有权、命名与 export 约束"}
+{"file": ".trellis/spec/api/backend/data-and-errors.md", "reason": "API wire response 与错误边界现状"}
+{"file": ".trellis/spec/web/frontend/api-state-and-contracts.md", "reason": "Web parsed response 与 endpoint 层约束"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/contract-inventory.md", "reason": "全部 API/Web request-response 声明与迁移分类"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/high-risk-drift.md", "reason": "Backoffice 与 Wiki 高风险兼容行为"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/unknown-request-fields.md", "reason": "223 端点和 283 request carrier 的 unknown-key 基线"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-d-final-evidence.md", "reason": "单一执行子任务的最终实现与验收映射"}

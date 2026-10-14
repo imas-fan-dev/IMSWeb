@@ -1,0 +1,78 @@
+# Web architecture
+
+## Routes and pages
+
+`apps/web/app/route-metadata.ts` is the typed route manifest. It declares a
+`RouteDescriptor` per route (`file`, `layout`, `targets`, `delivery`, and the
+optional `id`, `index`, `path`, and `prerender`) plus `SpaFallbackPattern`
+entries for SPA fallbacks. `apps/web/app/routes.ts` is a thin consumer: it reads
+`VITE_IMS_APP_TARGET`, calls `routeDescriptorsForTarget(target)`, and groups the
+result by layout. Keep new routes in `route-metadata.ts`; do not add a parallel
+list to `routes.ts`.
+
+`RouteDelivery` is meaningful to the build, not decoration:
+
+| Value | Meaning |
+| --- | --- |
+| `prerender` | Emitted ahead of time; the descriptor's `prerender` paths drive `prerenderRoutesForTarget` |
+| `spa` | Served by the client router, with `spaFallbackPatternsForTarget` deciding fallback matches |
+| `none` | No static output |
+
+Each descriptor points at a route-ready module under `app/pages/`. The page
+module owns its default component, metadata, loaders or actions when present,
+and URL parameter handling.
+
+Do not create pass-through `app/routes/` modules. Keep root, public, and admin
+layouts in `app/layouts/`. Page modules follow the URL and business hierarchy,
+including `app/pages/admin/<page>/` and nested account or community flows.
+
+The route manifest also separates Web and Tauri app targets. Each descriptor's
+`targets` decides which build graph receives it; exclude a module there when it
+must not enter the app build graph. Do not filter routes after importing their
+page modules.
+
+Route modules receive their props from the router, not from the caller. The
+React Router Vite plugin rewrites every route module's default export into a
+`UNSAFE_withComponentProps` wrapper that injects `params`, `loaderData`,
+`actionData`, and `matches`, and that wrapper drops any props passed where the
+export is rendered. A page that must show the same view as another route
+therefore imports a non-route module, exports its own default element, and
+passes explicit props (see `community-exchange-me-workspace.tsx` next to the
+`community-exchange-me-page.tsx` route module). Never render another route
+module's default export as a child component: the props silently disappear and
+unit tests still pass, because the plugin does not run under vitest. Cover that
+path in an app-target browser test.
+
+## Ownership by directory
+
+- Page-only UI stays beside its page, under a local `components/` directory
+  when the page is complex.
+- Page-only request state and browser cache behavior stay in local `hooks/`.
+- Pure draft types, labels, formatting, and validation use a focused
+  `*-model.ts` file.
+- Reusable business components live under `app/components/<domain>/`.
+- Foundational and generated primitives live in `app/components/ui/`.
+- Cross-page non-UI infrastructure and generic utilities live in `app/lib/`.
+- Layouts live in `app/layouts/`.
+
+Import page-private modules directly. Do not add page barrels, restore
+`app/features/`, or split a small page only to meet a line-count target.
+
+## Imports and formatting
+
+Use the `~/` alias for `app/` imports, kebab-case filenames, and PascalCase
+component exports. Follow `.prettierrc`: two spaces, no semicolons, double
+quotes, 80 columns, and the configured Tailwind class sorting.
+
+All unit tests stay under `tests/unit/` and mirror the production owner. Do not
+place `*.test.*` or `*.spec.*` files under `app/`.
+
+## Tauri app shell
+
+Device work goes through `apps/web/scripts/app-device.js` and the `app` or
+`app:doctor` package scripts. Target, profile, and device remain arguments. Do
+not add one script per combination or call the Tauri CLI from new wrappers.
+
+`apps/web/src-tauri/gen/` is derived output. Never commit or hand-edit it.
+Native plugin sources live under `src-tauri/plugins/<plugin>/`, and signing
+credentials stay outside the repository.

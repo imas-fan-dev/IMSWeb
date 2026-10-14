@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/web/frontend/app-navigation.md", "reason": "本任务要替换的核心契约：goBack 语义、appBackHierarchyTarget 签名、行为矩阵与必需断言都在这里，实现与 spec 更新都按它对齐"}
+{"file": ".trellis/spec/web/frontend/architecture.md", "reason": "确认 apps/web 的模块分层与 lib/components 归属，决定逻辑树模块放哪里"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "单元测试与 App E2E 的组织方式、断言约定与视口矩阵"}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "Android onBackButtonPress 与 iOS 边缘滑动的原生侧事实与验证要求"}
+{"file": ".trellis/tasks/09-17-app-back-navigation-logic-tree/research/app-back-affordances.md", "reason": "全量现状清单：31 条 App 路由、约 35 处页面内返回控件、跨栏目入口与 5 个测试文件锁定的历史语义，规则表与测试改写清单直接取自它"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复用既有前缀判断与状态机，避免新增第二套父级定义"}

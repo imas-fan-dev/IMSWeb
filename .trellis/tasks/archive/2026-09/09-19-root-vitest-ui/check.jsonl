@@ -1,0 +1,4 @@
+{"file": "tests/vitest-reporting.test.mjs", "reason": "守卫写法与不硬编码阈值的既有约定"}
+{"file": "scripts/testing/tests/run-test-owner.test.mjs", "reason": "治理段文件清单精确断言，需同步新增守卫文件"}
+{"file": "tests/test_workspace_boundaries.py", "reason": "根依赖与脚本上限断言必须仍覆盖非法依赖被拒绝"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "仓库域配置调用方式与根 UI 说明落点"}

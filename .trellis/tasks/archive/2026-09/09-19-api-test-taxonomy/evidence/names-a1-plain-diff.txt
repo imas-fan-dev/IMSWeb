@@ -1,0 +1,141 @@
+11,24c11,21
+< tests/server/abuse-protection.contract.test.ts	[SECURITY] shared JSON and abuse limits use the Node memory limiter
+< tests/server/abuse-protection.contract.test.ts	admin login shares auth throttling and cannot bypass body limits by content type
+< tests/server/abuse-protection.contract.test.ts	memory rate limiter sweeps expired identities on the request path
+< tests/server/admin-accounts.contract.test.ts	administrator deletion preserves Fudaba public-location reviewers
+< tests/server/admin-accounts.contract.test.ts	administrator deletion preserves resolved Fudaba moderation actors
+< tests/server/admin-accounts.contract.test.ts	audit logs use the shared response contract
+< tests/server/admin-accounts.contract.test.ts	only the super administrator can list op accounts
+< tests/server/admin-accounts.contract.test.ts	super administrator creates only regular op accounts and audits the mutation
+< tests/server/admin-accounts.contract.test.ts	super administrator deletes a regular op and revokes its refresh sessions
+< tests/server/admin-platform-users.contract.test.ts	OAuth unlinking honours the last-credential guard and records the refusal
+< tests/server/admin-platform-users.contract.test.ts	activating a restricted account is refused as unsupported
+< tests/server/admin-platform-users.contract.test.ts	force logout revokes sessions and is idempotent
+< tests/server/admin-platform-users.contract.test.ts	list query normalization defaults, clamps and escapes LIKE metacharacters
+< tests/server/admin-platform-users.contract.test.ts	password reset refuses suspended and OAuth-only accounts
+---
+> tests/server/abuse-protection.contract.test.ts	abuse protection [SECURITY] shared JSON and abuse limits use the Node memory limiter
+> tests/server/abuse-protection.contract.test.ts	abuse protection admin login shares auth throttling and cannot bypass body limits by content type
+> tests/server/abuse-protection.contract.test.ts	abuse protection memory rate limiter sweeps expired identities on the request path
+> tests/server/admin-accounts.contract.test.ts	admin accounts administrator deletion preserves Fudaba public-location reviewers
+> tests/server/admin-accounts.contract.test.ts	admin accounts administrator deletion preserves resolved Fudaba moderation actors
+> tests/server/admin-accounts.contract.test.ts	admin accounts audit logs use the shared response contract
+> tests/server/admin-accounts.contract.test.ts	admin accounts only the super administrator can list op accounts
+> tests/server/admin-accounts.contract.test.ts	admin accounts super administrator creates only regular op accounts and audits the mutation
+> tests/server/admin-accounts.contract.test.ts	admin accounts super administrator deletes a regular op and revokes its refresh sessions
+> tests/server/admin-platform-users.contract.test.ts	platform-user OAuth unlinking honours the last-credential guard and records the refusal
+> tests/server/admin-platform-users.contract.test.ts	platform-user activating a restricted account is refused as unsupported
+26a24
+> tests/server/admin-platform-users.contract.test.ts	platform-user force logout revokes sessions and is idempotent
+27a26,27
+> tests/server/admin-platform-users.contract.test.ts	platform-user list query normalization defaults, clamps and escapes LIKE metacharacters
+> tests/server/admin-platform-users.contract.test.ts	platform-user password reset refuses suspended and OAuth-only accounts
+29,43c29,43
+< tests/server/admin-platform-users.contract.test.ts	status changes are optimistic-locked and audited
+< tests/server/auth-refresh.contract.test.ts	access JWT login creates a rotating refresh session with CSRF binding
+< tests/server/auth-refresh.contract.test.ts	admin login issues a refresh session for op users
+< tests/server/auth-refresh.contract.test.ts	admin login rejects non-op users before creating a refresh session
+< tests/server/auth-refresh.contract.test.ts	logout revokes the refresh session and clears all authentication cookies
+< tests/server/auth-request-helper.test.ts	Bearer and CSRF primitives preserve explicit missing and mismatched states
+< tests/server/auth-request-helper.test.ts	Set-Cookie parsing preserves multiple headers and encoded equals signs
+< tests/server/auth-request-helper.test.ts	fixture hashing is deterministic SHA-256
+< tests/server/auth-request-helper.test.ts	realm wrappers keep Platform and Backoffice cookie names isolated
+< tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims
+< tests/server/backoffice-auth-boundary.contract.test.ts	canonical Backoffice auth lifecycle uses isolated routes and ims_admin cookies
+< tests/server/backoffice-auth-boundary.contract.test.ts	canonical login accepts editor accounts while the legacy admin login remains op-only
+< tests/server/backoffice-auth-boundary.contract.test.ts	legacy Backoffice endpoints are deprecated and old cookies only bridge into Backoffice
+< tests/server/backoffice-auth-boundary.contract.test.ts	logout revokes coexisting canonical and legacy refresh sessions
+< tests/server/backoffice-auth-boundary.contract.test.ts	realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
+---
+> tests/server/admin-platform-users.contract.test.ts	platform-user status changes are optimistic-locked and audited
+> tests/server/auth-refresh.contract.test.ts	auth refresh access JWT login creates a rotating refresh session with CSRF binding
+> tests/server/auth-refresh.contract.test.ts	auth refresh admin login issues a refresh session for op users
+> tests/server/auth-refresh.contract.test.ts	auth refresh admin login rejects non-op users before creating a refresh session
+> tests/server/auth-refresh.contract.test.ts	auth refresh logout revokes the refresh session and clears all authentication cookies
+> tests/server/auth-request-helper.test.ts	auth request helpers Bearer and CSRF primitives preserve explicit missing and mismatched states
+> tests/server/auth-request-helper.test.ts	auth request helpers Set-Cookie parsing preserves multiple headers and encoded equals signs
+> tests/server/auth-request-helper.test.ts	auth request helpers fixture hashing is deterministic SHA-256
+> tests/server/auth-request-helper.test.ts	auth request helpers realm wrappers keep Platform and Backoffice cookie names isolated
+> tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims
+> tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary canonical Backoffice auth lifecycle uses isolated routes and ims_admin cookies
+> tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary canonical login accepts editor accounts while the legacy admin login remains op-only
+> tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary legacy Backoffice endpoints are deprecated and old cookies only bridge into Backoffice
+> tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary logout revokes coexisting canonical and legacy refresh sessions
+> tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
+47,51c47,51
+< tests/server/brand-assets.test.ts	legacy series images and font resolve through canonical object storage
+< tests/server/business-request-models.test.ts	Wiki shared numeric params preserve Number aliases and reject non-positive IDs
+< tests/server/business-request-models.test.ts	event request models normalize valid fields and reject ambiguous values
+< tests/server/business-request-models.test.ts	namecard request models enforce IDs and preserve legacy parseInt pagination
+< tests/server/business-request-models.test.ts	news request models validate IDs, cursors, URLs, and normalized text
+---
+> tests/server/brand-assets.test.ts	brand assets legacy series images and font resolve through canonical object storage
+> tests/server/business-request-models.test.ts	business request models Wiki shared numeric params preserve Number aliases and reject non-positive IDs
+> tests/server/business-request-models.test.ts	business request models event request models normalize valid fields and reject ambiguous values
+> tests/server/business-request-models.test.ts	business request models namecard request models enforce IDs and preserve legacy parseInt pagination
+> tests/server/business-request-models.test.ts	business request models news request models validate IDs, cursors, URLs, and normalized text
+52a53
+> tests/server/cache-config.test.ts	cache configuration production cache configuration requires Valkey and validates its URL
+54d54
+< tests/server/cache-config.test.ts	production cache configuration requires Valkey and validates its URL
+79,85c79,85
+< tests/server/core-runtime-contract.test.ts	[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters
+< tests/server/core-runtime-contract.test.ts	[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters
+< tests/server/core-runtime-contract.test.ts	[STATE-01] concurrent rate identities remain atomic in memory
+< tests/server/core-runtime-contract.test.ts	[STATE-01] event image replacement keeps the published record on publish failure
+< tests/server/core-runtime-contract.test.ts	[STATE-01] namecard approval retries object publication before success
+< tests/server/core-runtime-contract.test.ts	[STATE-01] post-commit media failures preserve Node success semantics
+< tests/server/core-runtime-contract.test.ts	[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing
+---
+> tests/server/core-runtime-contract.test.ts	core runtime contract [CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters
+> tests/server/core-runtime-contract.test.ts	core runtime contract [MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters
+> tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] concurrent rate identities remain atomic in memory
+> tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] event image replacement keeps the published record on publish failure
+> tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] namecard approval retries object publication before success
+> tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] post-commit media failures preserve Node success semantics
+> tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing
+90a91,94
+> tests/server/editorial-safeguards.test.ts	Editorial all 17 Editorial passthrough JSON entrypoints accept one unknown top-level field
+> tests/server/editorial-safeguards.test.ts	Editorial event registration URLs only accept public HTTP(S) or local paths
+> tests/server/editorial-safeguards.test.ts	Editorial invalid spotlight entries are rejected without reporting success
+> tests/server/editorial-safeguards.test.ts	Editorial legacy HTML images become readable links during editorial migration
+92,103c96,103
+< tests/server/editorial-safeguards.test.ts	all 17 Editorial passthrough JSON entrypoints accept one unknown top-level field
+< tests/server/editorial-safeguards.test.ts	event registration URLs only accept public HTTP(S) or local paths
+< tests/server/editorial-safeguards.test.ts	invalid spotlight entries are rejected without reporting success
+< tests/server/editorial-safeguards.test.ts	legacy HTML images become readable links during editorial migration
+< tests/server/events-pagination.test.ts	cursor event pagination holds an id snapshot while new events are inserted
+< tests/server/events-pagination.test.ts	cursor event pagination returns an explicit empty snapshot
+< tests/server/events-pagination.test.ts	event cursors retain decimal BIGINT ids and reject invalid pagination modes
+< tests/server/events-pagination.test.ts	event list responses preserve a title with legacy leading or trailing whitespace verbatim
+< tests/server/events-pagination.test.ts	event updates require the expected current image reference
+< tests/server/events-pagination.test.ts	events mounted JSON routes preserve shared schemas and project query and multipart extras
+< tests/server/events-pagination.test.ts	legacy event pagination keeps its response shape and validates page and size
+< tests/server/events-response.test.ts	editorial event responses serialize PostgreSQL timestamps
+---
+> tests/server/events-pagination.test.ts	events pagination cursor event pagination holds an id snapshot while new events are inserted
+> tests/server/events-pagination.test.ts	events pagination cursor event pagination returns an explicit empty snapshot
+> tests/server/events-pagination.test.ts	events pagination event cursors retain decimal BIGINT ids and reject invalid pagination modes
+> tests/server/events-pagination.test.ts	events pagination event list responses preserve a title with legacy leading or trailing whitespace verbatim
+> tests/server/events-pagination.test.ts	events pagination event updates require the expected current image reference
+> tests/server/events-pagination.test.ts	events pagination events mounted JSON routes preserve shared schemas and project query and multipart extras
+> tests/server/events-pagination.test.ts	events pagination legacy event pagination keeps its response shape and validates page and size
+> tests/server/events-response.test.ts	events response editorial event responses serialize PostgreSQL timestamps
+108,110c108,110
+< tests/server/fudaba-card-claim-contract.test.ts	legacy card claims accept cross-series selections and enforce 1..20 unique idols
+< tests/server/fudaba-card-claim-contract.test.ts	namecard and claim views expose structured idol and claim metadata
+< tests/server/fudaba-card-claim-contract.test.ts	registered card fields accept ordered multi-idol JSON and reject invalid sets
+---
+> tests/server/fudaba-card-claim-contract.test.ts	Fudaba card claims legacy card claims accept cross-series selections and enforce 1..20 unique idols
+> tests/server/fudaba-card-claim-contract.test.ts	Fudaba card claims namecard and claim views expose structured idol and claim metadata
+> tests/server/fudaba-card-claim-contract.test.ts	Fudaba card claims registered card fields accept ordered multi-idol JSON and reject invalid sets
+112,115c112,115
+< tests/server/fudaba-card-interaction-routes.test.ts	interactions on unknown cards stay 404 and never leak repository state
+< tests/server/fudaba-card-interaction-routes.test.ts	liking and unliking a card round-trips through the repository
+< tests/server/fudaba-card-interaction-routes.test.ts	the favourite collection lists only cards the viewer favourited
+< tests/server/fudaba-card-placement-repository.test.ts	real PostgreSQL enforces the same Fudaba card placement contract
+---
+> tests/server/fudaba-card-interaction-routes.test.ts	card interaction routes interactions on unknown cards stay 404 and never leak repository state
+> tests/server/fudaba-card-interaction-routes.test.ts	card interaction routes liking and unliking a card round-trips through the repository
+> tests/server/fudaba-card-interaction-routes.test.ts	card interaction routes the favourite collection lists only cards the viewer favourited
+> tests/server/fudaba-card-placement-repository.test.ts	Fudaba card placement repository real PostgreSQL enforces the same Fudaba card placement contract

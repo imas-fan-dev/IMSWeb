@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-18-account-security-device-display/research/07-ua-samples.md", "reason": "解析器必须覆盖的真实 UA 样本集与边界输入，规则表以其为基准"}
+{"file": ".trellis/tasks/09-18-account-security-device-display/research/05-test-infrastructure.md", "reason": "既有 6 处 UA 断言 + 2 处 fixture 的确切位置与替换方式，单测落点建议"}
+{"file": ".trellis/tasks/09-18-account-security-device-display/research/06-i18n-keys.md", "reason": "加键规则：键名类型以 zh-CN 为准、两语言块同名、缺键静默回落"}
+{"file": ".trellis/spec/web/frontend/architecture.md", "reason": "新增页面私有 *-model.ts 的所有权约定与测试镜像规则"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "单测归属、别名与 role/可见态断言约定；本任务不新增 e2e"}

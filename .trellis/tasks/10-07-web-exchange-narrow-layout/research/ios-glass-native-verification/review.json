@@ -1,0 +1,226 @@
+{
+  "verdict": "pass",
+  "summary": "The occlusion lifetime repair passes the native simulator review. First-entry locate/card clearance and More center taps work on iPhone 17 and iPhone 18 Pro. Optimized Release runtime evidence proves pressed, busy, restored and live Reduce Motion states, source Dialog access and native More return, Dynamic Type refit, and route teardown. No product blockers remain in the reviewed scope.",
+  "evidenceRoot": "/tmp/imsweb-ios-liquid-glass-followup",
+  "branch": "codex/exchange-ios-polish",
+  "baseCommit": "375820be0a1989ff5d356bc707434e5a58689661",
+  "reviewedDiffSha256": "6f776f5cadf3b4901432a7bab818179ee39183d5105ab7181a17f51af657d695",
+  "previousFailedCandidateDiffSha256": "6fa0dfbe9aa076cdc21f6b7a6657c860479bbf41db5feed21078c976c5547ff4",
+  "sourceManifest": {
+    "path": "occlusion-source-manifest.json",
+    "sha256": "e553ff69841aeddb138a243c793bec2e55ae9b44bda32a749dfa4c5beef8df98",
+    "entries": 72,
+    "mismatches": 0,
+    "scope": "Reviewed source, tests, specs and authored preview artifacts. Authored previews are preserved context, not native runtime proof."
+  },
+  "sourceReview": {
+    "result": "pass",
+    "notes": [
+      "Measurement subscription cleanup no longer clears renderer-owned native occlusion when readiness, position, detent or callback dependencies change.",
+      "Modal presentation, genuine host teardown and unmount release occlusion. Acknowledged native removal transfers measurement ownership to the DOM fallback.",
+      "Generation cleanup retains the current snapshot; stale native work cannot clear a newer geometry snapshot.",
+      "Loaded-style licensing remains complete in the existing Dialog. Current-result and retained-selection notices remain available there; standalone App/native attribution is absent.",
+      "Native UIKit controls use public SDK APIs. Native bottom navigation retains its baseline. No backend API, provider, HTTP contract or dependency edits were made by this reviewer."
+    ],
+    "deltaReceipt": "occlusion-focused-repair3.json",
+    "deltaLog": "occlusion-focused-repair3-0.log",
+    "deltaTests": "Writer receipt: four files, 16 passing tests, including unchanged native geometry arriving before supported acknowledgment, modal/unmount cleanup, fallback ownership and source return intent.",
+    "staticReceipt": "occlusion-static-final.json",
+    "staticResults": "Writer lint, typecheck, check:rules and focused Prettier checks passed. These receipts were verified and reused.",
+    "priorReceipt": "final-checks.json",
+    "priorResults": "The original 86 focused tests and seven browser regressions remain prior evidence for unchanged behavior. They were not rerun or presented as fresh native provenance."
+  },
+  "optimizedRelease": {
+    "command": "pnpm run app ios --target simulator --release --device B76BE6D2-18DB-434D-AAED-0061F8E621FF",
+    "exitCode": 0,
+    "log": "occlusion-native-build.log",
+    "terminal": "occlusion-native-build-terminal.json",
+    "buildResult": "** BUILD SUCCEEDED **",
+    "swiftOptimization": "SWIFT_OPTIMIZATION_LEVEL=-O",
+    "binarySha256": "b8c5e569805099ec17d2d4b6f1e213ef372c9b867bfa5eaa2211fd28fee31b3e",
+    "binaryBytes": 10021504,
+    "sameBinaryInstalledOnBothProfiles": true,
+    "secondInstall": "Canonical app wrapper --target simulator --release --device 6DB4EF28-65DD-46D2-8DD6-624206AA57F3 --skip-build installed the identical optimized binary; receipt occlusion-18pro-terminal.json.",
+    "privateSwiftRsBuildSha256": "c898ceb06532fff9af211a194107a2752ef090a006ab508653f1d0974d2c0964",
+    "tooling": "Existing private adapted tooling retained. No shared Cargo registry, signing, generated-project source, allow-undefined, direct Tauri CLI or Debug substitution was used."
+  },
+  "devices": [
+    {
+      "udid": "B76BE6D2-18DB-434D-AAED-0061F8E621FF",
+      "profile": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+      "runtime": "iOS 27.0",
+      "points": [402, 874],
+      "pixels": [1206, 2622],
+      "firstEntry": "occlusion-first-entry-terminal.json",
+      "hierarchy": "occlusion-first-hierarchy.json",
+      "screen": "occlusion-first-screen.png"
+    },
+    {
+      "udid": "6DB4EF28-65DD-46D2-8DD6-624206AA57F3",
+      "profile": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro",
+      "runtime": "iOS 27.0",
+      "points": [402, 874],
+      "pixels": [1206, 2622],
+      "ownership": "New review-owned profile; shut down after verification.",
+      "firstEntry": "occlusion-18pro-first-terminal.json",
+      "hierarchy": "occlusion-18pro-owned-hierarchy.json",
+      "screen": "occlusion-18pro-first-screen.png"
+    }
+  ],
+  "runtimeProof": {
+    "firstEntry": {
+      "result": "pass",
+      "cardPoints": [12, 588, 390, 744],
+      "morePoints": [334, 636, 378, 684],
+      "moreCenter": [356, 660],
+      "locatePoints": [346, 532, 390, 576],
+      "locateTouchSize": [44, 44],
+      "gapPoints": 12,
+      "hitResult": "Direct native More taps opened 我的交换账号 and 地图来源 on first map entry on both profiles. No unrelated navigation workaround or offset tap was needed."
+    },
+    "pressBusyAndRestoration": {
+      "result": "pass",
+      "flows": ["occlusion-busy-terminal.json", "occlusion-restored-terminal.json"],
+      "barrierAttestation": "occlusion-busy-attestation.json",
+      "heldRequests": 3,
+      "requestCountsAtDuplicateTap": "Series, offices and cards each had exactly two calls: initial load and held refresh. A second native activation added no request.",
+      "buttonAddress": "0x108a87c00",
+      "boundsPoints": [44, 48],
+      "busyState": "Same button: enabled=0, showsActivityIndicator=1, visible animating UIActivityIndicatorView, accessibility value 正在刷新名录.",
+      "restoredState": "Explicit fixture release restored enabled=1, showsActivityIndicator=0 and empty busy accessibility value on the same button.",
+      "runtimeLogs": ["occlusion-runtime-idle2.log", "occlusion-runtime-busy.log", "occlusion-runtime-restored.log"],
+      "video": "occlusion-refresh-motion.mp4",
+      "videoPixels": [1206, 2622],
+      "videoDurationSeconds": 525.94,
+      "pressDerivatives": ["occlusion-press-frame-strip.png", "occlusion-press-frame-metrics.json"],
+      "pressObservation": "Recorded long press changes the refresh glyph footprint from 45x44 pixels to 42x42; stable runtime control bounds remain 44x48pt. The released idle glyph returns in the same full-screen recording.",
+      "activityDerivatives": ["occlusion-activity-frame-strip.png", "occlusion-activity-frame-metrics.json"],
+      "activityObservation": "Busy video samples at 50.00/50.13/50.27/50.40 seconds show successive spinner phases. Reduced samples at 385.00/385.13/385.27/385.40 seconds are pixel-identical static busy glyphs. Restored samples at 523 seconds show the idle refresh glyph.",
+      "derivativeLimits": "Strips are cropped, unscaled derivatives of the actual video, with labels added outside each crop. They do not replace the original full-screen recording or screenshots."
+    },
+    "liveReduceMotion": {
+      "result": "pass",
+      "settingsRoundTrip": [0, 1, 0],
+      "flows": ["occlusion-motion-switch-on-terminal.json", "occlusion-motion-switch-off-terminal.json"],
+      "runtimeLogs": ["occlusion-runtime-reduced2.log", "occlusion-runtime-motion-restored.log"],
+      "observation": "Setting changed while requests stayed held and the app session remained alive. Reduce Motion=1 removed the activity view and kept the disabled button and busy accessibility value. Returning to 0 restored an animating indicator while still busy. Button identity and bounds did not change."
+    },
+    "sourceDialog": {
+      "result": "pass",
+      "flows": ["occlusion-select-source-terminal.json", "occlusion-second-search-terminal.json", "occlusion-close-source-terminal.json", "occlusion-close-source-focus2-terminal.json"],
+      "currentAndSelection": "Results and selected Native Hall omit inline First attribution. More opens the existing Dialog with First attribution and the complete OpenFreeMap / © OpenMapTiles Data from / OpenStreetMap notice.",
+      "retainedSources": "A newer search yields Second attribution without replacing the selected First source. The Dialog contains both notices; native card and keyboard are absent.",
+      "screen": "occlusion-source-dialog-screen.png",
+      "retainedScreen": "occlusion-second-search-artifacts/.maestro/tests/2026-10-08_213451/occlusion-second-search/takeScreenshot/occlusion-retained-selection-sources.png",
+      "sourceVideo": "occlusion-source-motion.mp4",
+      "sourceVideoDurationSeconds": 455.086667,
+      "noTileFlow": "occlusion-18pro-no-tile-terminal.json",
+      "noTileObservation": "On the owned 18 Pro, route teardown and a fresh style load without attribution still allow More to open the search-source Dialog. Second notice is present; OpenFreeMap, OpenStreetMap and the loaded-style notice are absent. Native card and keyboard are absent.",
+      "noTileScreen": "occlusion-18pro-no-tile-dialog-screen.png",
+      "returnFlow": "occlusion-18pro-close-terminal.json",
+      "returnScreen": "occlusion-18pro-restored-screen.png"
+    },
+    "nativeMoreReturn": {
+      "result": "pass",
+      "runtimeLog": "occlusion-focus-notification2.log",
+      "terminal": "occlusion-focus-notification2-terminal.json",
+      "publicFunction": "UIAccessibilityPostNotification",
+      "notification": "UIAccessibilityLayoutChangedNotification",
+      "notificationValue": 1001,
+      "argumentLabel": "更多",
+      "argumentClass": "SearchActionButton in tauri_plugin_native_glass",
+      "observation": "A conditional public UIKit breakpoint captured the actual layout-change notification targeting the native More button after Dialog closure. Native More was actionable, selection remained, and no keyboard reopened. The debugger detached cleanly.",
+      "limit": "This proves the native notification target and usable return control. VoiceOver speech and screen-reader focus behavior were not measured."
+    },
+    "dynamicTypeAndLocate": {
+      "result": "pass",
+      "contentSizeRoundTrip": ["large", "accessibility-large", "large"],
+      "flows": ["occlusion-type-retained-terminal.json", "occlusion-large-dismiss-terminal.json", "occlusion-locate-center-terminal.json"],
+      "hierarchy": "occlusion-selected-large-hierarchy.json",
+      "screen": "occlusion-selected-live-large-screen.png",
+      "cardPoints": [12, 524, 390, 744],
+      "morePoints": [334, 572, 378, 632],
+      "locatePoints": [346, 468, 390, 512],
+      "locateTouchSize": [44, 44],
+      "gapPoints": 12,
+      "observation": "Live type changes refit the existing native card and readable controls. Selected Native Hall remains. A native hierarchy center tap on locate completed without opening More, losing selection or reopening the keyboard.",
+      "finalInputLog": "occlusion-final-input-state.log",
+      "finalInput": "UITextField text=Shanghai, firstResponder=0, markedText=0, hidden=1, fontSize=17, Reduce Motion=0 after restoration.",
+      "locationPermission": "Public CoreLocation authorizationStatus remained 3 before and after the locate tap; no permission setting changed. Successful GPS coordinates are not an acceptance claim."
+    },
+    "readinessAndTeardown": {
+      "result": "pass",
+      "flow": "occlusion-18pro-leave-terminal.json",
+      "screen": "occlusion-18pro-teardown-screen.png",
+      "observation": "Leaving Map removes both native search card and locate. Re-entering presents a usable native card; source Dialog presentation removes native card and keyboard, and closure restores native controls. Writer tests cover acknowledgment and generation lifetime edge cases."
+    }
+  },
+  "artifactHashes": {
+    "occlusion-first-screen.png": "0594b3adf93d8584578b0a5f060f4db323172655d6ddce88add6ef6ea6eafd70",
+    "occlusion-18pro-first-screen.png": "7f7f38f40b1bf1b1c222c6dfc15f4b713c6a8cda30408927713708b69bdffb96",
+    "occlusion-source-dialog-screen.png": "40acfb02c00b481451f0bd6dc8a1042abb38f034e8aab2a975297cc0eac9e9ce",
+    "occlusion-selected-live-large-screen.png": "2af31d57f89b387da50ba955fcb9d7fb7eb891893bba421b210215cdd92db896",
+    "occlusion-18pro-no-tile-dialog-screen.png": "e877f0600b8d33c7d1eb9e62bc1c7ba85e12d433a5070f28b6671752e8270925",
+    "occlusion-refresh-motion.mp4": "5f81a97e2519e7c7e3ef5b43e711c7df39651c9e3793fcaf2f473c59655c4190",
+    "occlusion-source-motion.mp4": "2409e6f7d47b30a4d9b69d82e4bb3f4413cee111e08b33452fd9b9bf36a85bb8",
+    "occlusion-focus-notification2.log": "dc4dcaf39f2cbbacedaa7e6fa9f5432106bd37fb5fc2d9c7c47b15c39e2dfcc0",
+    "native-review-recovered.json": "69c1b595a5cea92cbd9b94b8e6df1accd4992bacbe594ff3854af04a581f4397"
+  },
+  "retainedInfrastructureFindings": [
+    "occlusion-search-source stopped at Maestro's absolute screenshot-path containment check after its result assertions passed. A separate continuation selected the existing result and completed the Dialog checks; the failed receipt remains.",
+    "The first Settings text-row tap did not toggle Reduce Motion. Only the later actual switch hit, defaults value and UIKit receipts prove the live setting change. Earlier files remain.",
+    "The first focus-notification probe had an Objective-C type-expression error and is not focus evidence. The separately retained typed UIKit probe captured the intended native target and detached cleanly.",
+    "The initial large-text helper's exterior point (201,306) hit Clear: native bounds [8,302][378,382]. Its later First-source assertion therefore had an invalid selected-source precondition. Size-only validation retained selection; the measured exterior point (20,87) preserved it. Failure, menu screenshot/hierarchy and pre-change movie frame remain.",
+    "The decimal-percent locate attempt failed in Maestro's parser before a tap. A separate native hierarchy center tap passed; the parser failure remains.",
+    "The old hierarchy helper ignored its third UDID argument. occlusion-18pro-first-hierarchy is an iPhone 17 capture and is not 18 Pro evidence. occlusion-18pro-owned-hierarchy has the correct explicit 18 Pro UDID and exit 0."
+  ],
+  "preservationAndCleanup": {
+    "oldEvidenceManifest": "occlusion-retained-native-evidence.json",
+    "oldEvidenceHashMismatches": 0,
+    "originalReworkReportPreserved": true,
+    "repositoryStatusAllMatchesReviewedCheckpoint": true,
+    "reviewedSourceHashMismatches": 0,
+    "reviewerProductEdits": [],
+    "generatedCleanup": "Only 26 newly wrapper-generated untracked Android icon files were removed with apply_patch after all matched the preserved external review-wrapper-generated-android-icons.tar.gz archive byte for byte.",
+    "simulatorSettings": "Original iPhone 17 settings restored: light appearance, content size large, ReduceMotionEnabled=0. CoreLocation authorization remained 3.",
+    "ownedServices": "Fixture PID 50465 stopped; ports 65534, 4187 and 4188 have no listener. Both owned video recorders finished. No review runner or Maestro/xcodebuild diagnostic process remains.",
+    "simulatorEndState": "Original owned 17 remains booted with the optimized fixture-origin package; new owned 18 Pro is shut down.",
+    "delivery": "No phone installation/launch, publication, integration, commit, push, staging, shared registry or signing mutation."
+  },
+  "criteriaSatisfied": [
+    {
+      "id": "criterion-1",
+      "status": "satisfied",
+      "evidence": "Pass verdict supported by optimized Release receipts, real 1206x2622 captures on two owned profiles, measured 12pt clearance and More hits, deterministic busy/motion footage, public UIKit More notification, source/no-tile Dialog flows and restored settings. Residual limits are explicit below."
+    }
+  ],
+  "changedFiles": ["/tmp/imsweb-ios-liquid-glass-followup/native-occlusion-final-review.json"],
+  "testsAddedOrUpdated": [],
+  "commandsRun": [
+    {"command": "pnpm run app ios --target simulator --release --device B76BE6D2-18DB-434D-AAED-0061F8E621FF", "result": "passed", "summary": "Optimized Release built, installed and launched; Swift -O and BUILD SUCCEEDED."},
+    {"command": "pnpm run app ios --target simulator --release --device 6DB4EF28-65DD-46D2-8DD6-624206AA57F3 --skip-build", "result": "passed", "summary": "Same optimized binary installed and launched on a new owned 18 Pro."},
+    {"command": "Maestro native first-entry, busy/restored, switch-on/off, source/selection/retention, Dynamic Type, locate center, 18 Pro no-tile and teardown flows", "result": "passed", "summary": "Successful terminal receipts identified in runtimeProof; corrected infrastructure attempts are separately preserved and classified."},
+    {"command": "xcrun lldb public UIKit state reads and conditional UIAccessibilityPostNotification probe", "result": "passed", "summary": "Activity, identity, bounds, motion state, native More notification target and retained query/closed keyboard verified."},
+    {"command": "Original 86-test/seven-browser receipts and writer 16-test/static receipts", "result": "not-run", "summary": "Verified and reused at their recorded provenance; no fresh-run claim."},
+    {"command": "Source/evidence SHA-256 checks, git status --short --untracked-files=all, git diff --cached --name-only, simulator settings and owned listener/process checks", "result": "passed", "summary": "72 hashes match, prior failures unchanged, reviewed status preserved, index empty and cleanup complete."}
+  ],
+  "validationOutput": [
+    "No product blockers remain.",
+    "Initial card [12,588][390,744], locate [346,532][390,576]: 44pt target and 12pt gap; native More center [356,660] opens the menu on both profiles.",
+    "Accessibility-large selected card [12,524][390,744], locate [346,468][390,512]: 44pt target and 12pt gap.",
+    "Busy requests remain three after duplicate activation; Reduce Motion 0/1/0 changes animation while retaining disabled state and accessibility value; release restores idle.",
+    "Complete style licensing, current/selected search notices and search-only no-tile Dialog access pass; native More notification targets the correct SDK button without keyboard return.",
+    "All 16 full-screen occlusion-*screen.png captures checked are 1206x2622; original videos and unscaled derivatives retained."
+  ],
+  "residualRisks": [
+    "Runtime proof covers iOS 27 portrait simulators on iPhone 17 and owned iPhone 18 Pro with deterministic contract-validated fixture data. It does not establish physical-device, iOS 26, 17 Pro profile or production-provider behavior.",
+    "VoiceOver speech/focus traversal and real Pinyin marked-text composition were not measured. The UIKit notification target and Latin query/keyboard behavior are proved.",
+    "Original geometry-versus-capability IPC ordering was not instrumented. The source hypothesis is supported by the lifetime regression and corrected first-entry behavior.",
+    "Unsupported bridge and late-ack failure paths rely on inspected code and focused tests; native runtime failure injection was not performed.",
+    "The retained simulator package uses owned loopback fixture origins. Those services are stopped; this package is review evidence and was not delivered to a phone."
+  ],
+  "noStagedFiles": true,
+  "diffSummary": "Writer's reviewed native occlusion/source correction preserved. This reviewer added only private review scripts and evidence under /tmp, wrote this report, and cleaned verified wrapper-generated icons. Repository source, task artifacts and authored previews retain their reviewed bytes.",
+  "reviewFindings": ["no blockers"],
+  "manualNotes": "I inspected fresh native full-screen screenshots and actual video-derived press/loading/restoration frames, read the source repair and receipts, measured native hierarchy clearance, and captured public UIKit state on the optimized process. More is reachable on first entry; source Dialog access/return and Dynamic Type clearance pass. Prior rework evidence remains unchanged. Tooling and gesture mistakes remain recorded and are not counted as product failures or hidden retries. No phone or publication action occurred."
+}

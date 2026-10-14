@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/contracts/shared/quality.md", "reason": "quality gates the refreshed spec must not contradict"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "cross-layer rules the new contract scenarios must satisfy"}
+{"file": ".trellis/spec/repository/index.md", "reason": "commands and gates cited by the refreshed spec"}

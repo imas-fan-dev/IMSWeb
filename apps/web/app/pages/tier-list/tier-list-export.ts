@@ -223,17 +223,24 @@ function drawCover(
     ctx.fill()
     return
   }
-  const naturalWidth = image instanceof ImageBitmap
-    ? image.width
-    : image instanceof HTMLImageElement
-      ? image.naturalWidth
-      : 0
-  const naturalHeight = image instanceof ImageBitmap
-    ? image.height
-    : image instanceof HTMLImageElement
-      ? image.naturalHeight
-      : 0
-  if (!Number.isFinite(naturalWidth) || !Number.isFinite(naturalHeight) || naturalWidth <= 0 || naturalHeight <= 0) {
+  const naturalWidth =
+    image instanceof ImageBitmap
+      ? image.width
+      : image instanceof HTMLImageElement
+        ? image.naturalWidth
+        : 0
+  const naturalHeight =
+    image instanceof ImageBitmap
+      ? image.height
+      : image instanceof HTMLImageElement
+        ? image.naturalHeight
+        : 0
+  if (
+    !Number.isFinite(naturalWidth) ||
+    !Number.isFinite(naturalHeight) ||
+    naturalWidth <= 0 ||
+    naturalHeight <= 0
+  ) {
     drawRoundedRect(ctx, x, y, size, size, 6)
     ctx.fillStyle = "#a1a1aa"
     ctx.fill()

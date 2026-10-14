@@ -1,0 +1,388 @@
+{
+  "verdict": "pass",
+  "visualAcceptance": "Accepted for the covered iOS27 simulator/current-source matrix. Remaining platform scope is explicit below.",
+  "summary": "The Settings harness blocker is closed. Both reading and collapsed glass pass actual Reduce Transparency0/1/0; native refresh/Reduce Motion/input identity and the remaining440pt/landscape/largest-type cases now have current-binary evidence. Previously verified capsule,magnifier,safe-area and source Dialog repairs are retained.",
+  "task": ".trellis/tasks/10-07-web-exchange-narrow-layout",
+  "sourceProvenance": {
+    "branch": "codex/exchange-ios-polish",
+    "head": "375820be0a1989ff5d356bc707434e5a58689661",
+    "trackedDiffSha256": "163554182234cfb73f29e93d88768e443c9f846abc647da2485c119bac6f4374",
+    "binarySha256": "81a64fd35838472afa93554fe688cae6425cba086b32b30ab572d4165c6862d6",
+    "installedBinaries": [
+      {
+        "pid": 63484,
+        "path": "/Users/texas/Library/Developer/CoreSimulator/Devices/B76BE6D2-18DB-434D-AAED-0061F8E621FF/data/Containers/Bundle/Application/4168CB9B-F00D-40DE-9CB2-CF9D19C824C8/IMSWeb.app/IMSWeb",
+        "sha256": "81a64fd35838472afa93554fe688cae6425cba086b32b30ab572d4165c6862d6"
+      },
+      {
+        "pid": 90439,
+        "path": "/Users/texas/Library/Developer/CoreSimulator/Devices/3095451D-81E3-4B99-83B3-42B405E4D95C/data/Containers/Bundle/Application/F27E0E71-F7F6-4DF0-BBC0-792DF65CBE98/IMSWeb.app/IMSWeb",
+        "sha256": "81a64fd35838472afa93554fe688cae6425cba086b32b30ab572d4165c6862d6"
+      }
+    ],
+    "sourceHashes": {
+      "apps/web/src-tauri/plugins/native-glass/ios/Sources/GlassSearchView.swift": "9d2791dd4767c394fd0dffb9fdd536de6cc8c747e7af9ace6868ad485a649fc2",
+      ".trellis/tasks/10-07-web-exchange-narrow-layout/design.md": "b0621f14e128f45afe39d5a1f265697225dd033ff9648a92e3423eb9ab45c708",
+      ".trellis/tasks/10-07-web-exchange-narrow-layout/implement.md": "080187b1ef566fd317e4ca26f509ce4958197817e3b325aabc07a1103d644d44"
+    },
+    "privateSwiftRsBuildRsSha256": "c898ceb06532fff9af211a194107a2752ef090a006ab508653f1d0974d2c0964",
+    "build": "Reused optimized timeout1 canonical Release; only canonical --skip-build installs. No new build or product edit."
+  },
+  "coveredMatrix": [
+    {
+      "device": "17",
+      "udid": "B76BE6D2-18DB-434D-AAED-0061F8E621FF",
+      "runtime": "iOS27.0",
+      "viewportPoints": [
+        402,
+        874
+      ],
+      "capturePixels": [
+        1206,
+        2622
+      ],
+      "proof": "Retained current-binary blank/synthetic scenes,346/x28 dock,21pt magnifier,capsule fill,complete source Dialog/More return; new live transparency,motion,refresh,identity,maximum-five-result and acknowledged teardown evidence."
+    },
+    {
+      "device": "17 constrained320pt host",
+      "proof": "Current-binary largest body53pt,full valid five-result list with long Chinese/Latin labels and addresses,explicit keyboard/submit and retained same-binary Cancel proof. Handle tap expands medium377pt to large640.9pt; real result pan changes offset0->50 with unchanged large dock. Long-name selection,summary viewport scrolling,More open/dismiss pass. Visible tool targets74.667x205pt and More44pt width return their actual native controls. Earlier current-binary dock264x626/y118 and locate44pt at safeTop62/hit286,84 retained.",
+      "qualification": "Controlled usable-host constraint on402pt simulator; no320pt phone claim. Not every character of all five oversized cells was read end-to-end."
+    },
+    {
+      "device": "18Pro",
+      "udid": "6DB4EF28-65DD-46D2-8DD6-624206AA57F3",
+      "runtime": "iOS27.0",
+      "proof": "Retained same-current-binary1206x2622 native scenes/results/selection/source Dialog/More return and teardown. No unnecessary replay."
+    },
+    {
+      "device": "18ProMax",
+      "udid": "3095451D-81E3-4B99-83B3-42B405E4D95C",
+      "runtime": "iOS27.0",
+      "viewportPoints": [
+        440,
+        956
+      ],
+      "capturePixels": [
+        1320,
+        2868
+      ],
+      "proof": "New canonical same-binary install; dock360pt/x40/y670/height156,locate44pt and12pt gap; actual center406,636 hits locate. Native landscape/search keyboard/Cancel/portrait return passes."
+    }
+  ],
+  "liveStateProof": {
+    "readingTransparencyFlags": [
+      0,
+      1,
+      0
+    ],
+    "collapsedTransparencyFlags": [
+      0,
+      1,
+      0
+    ],
+    "reduceMotionFlags": [
+      0,
+      1,
+      0
+    ],
+    "readingFieldPointer": "0x1062c7200",
+    "refreshButtonPointer": "0x108a77c00",
+    "resultTablePointer": "0x1089c4000",
+    "query": "Shanghai retained through background Settings and refresh. Refresh collapses the sheet; field/table stay alive and query persists.",
+    "refresh": "Exactly3 held series/offices/cards requests; disabled duplicate tap leaves3; activity1/0/1 for motion0/1/0; released button enabled1/activity0.",
+    "collapsed": "Same field and refresh view pointers survive transparency0/1/0. Public UIGlassEffect is retained; UIKit supplies opaque accessibility appearance,then restores glass. Reading presentation is intentionally systemBackground with nil effect.",
+    "directoryLimits": [
+      "/api/community/exchange/cards?limit=8&available=true",
+      "/api/community/exchange/offices?limit=12"
+    ],
+    "receipts": [
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-baseline-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-transparency-on-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-transparency-off-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-before-refresh-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-held-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-motion-on-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-motion-off-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-live-restored-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/matrix-collapsed-baseline-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/billing-collapsed-on-runtime.log",
+      "/tmp/imsweb-ios-glass-design-alignment/billing-collapsed-off-runtime.log"
+    ]
+  },
+  "retainedMeasurements": {
+    "defaultDock": "x28/y588/346x156pt; capsule48pt; magnifier UIImageView21x21pt with body17pt",
+    "largest320Selected": "dock x28/y118/264x626pt; locate x264/y62/44x44pt;12pt gap; safeTop62pt/statusBar y0..54pt",
+    "actualLocateCenterHit": "directly initialized CGPoint286,84 hits GlassControlButton with label回到我的位置",
+    "capsulePixels": [
+      {
+        "label": "reference",
+        "path": ".trellis/tasks/10-07-web-exchange-narrow-layout/research/ios-device-preview/iphone-17-18-pro/01-map.png",
+        "sha256": "24e1a9bea38db4e96d795df8aa0f2f5e5bb83c1b96587a79608ba613db7b84d6",
+        "dimensions": [
+          1206,
+          2622
+        ],
+        "topLeftSamplePixels": [
+          300,
+          1890
+        ],
+        "rgb": [
+          240,
+          242,
+          246
+        ],
+        "luminanceByte": 241.8636
+      },
+      {
+        "label": "new-blank17",
+        "path": "/tmp/imsweb-ios-glass-design-alignment/timeout1-proof-artifacts/.maestro/tests/2026-10-09_150313/timeout1-proof/takeScreenshot/default-collapsed.png",
+        "sha256": "a695c329fbc18948a6631f0ed61323a03ca90bc72c2d31dcbe49601966aa4ec9",
+        "dimensions": [
+          1206,
+          2622
+        ],
+        "topLeftSamplePixels": [
+          300,
+          1940
+        ],
+        "rgb": [
+          242,
+          242,
+          247
+        ],
+        "luminanceByte": 242.361
+      },
+      {
+        "label": "new-synthetic17",
+        "path": "/tmp/imsweb-ios-glass-design-alignment/timeout1-scenes-artifacts/.maestro/tests/2026-10-09_150843/visual-scenes/takeScreenshot/collapsed.png",
+        "sha256": "f669464c61d784fa6b5c1e9605f5359da6d51537f7d18052a170f97e51ae34a3",
+        "dimensions": [
+          1206,
+          2622
+        ],
+        "topLeftSamplePixels": [
+          300,
+          1940
+        ],
+        "rgb": [
+          242,
+          242,
+          247
+        ],
+        "luminanceByte": 242.361
+      }
+    ],
+    "glyphInk": [
+      {
+        "label": "reference",
+        "crop": [
+          130,
+          1900,
+          205,
+          2005
+        ],
+        "threshold": "all RGB channels below180; excludes text",
+        "inkBoundsPixels": [
+          137,
+          1916,
+          186,
+          1965
+        ],
+        "inkSizePoints": [
+          16.333333333333332,
+          16.333333333333332
+        ]
+      },
+      {
+        "label": "new-synthetic17",
+        "crop": [
+          150,
+          1930,
+          240,
+          2040
+        ],
+        "threshold": "all RGB channels below180; excludes text",
+        "inkBoundsPixels": [
+          162,
+          1954,
+          213,
+          2005
+        ],
+        "inkSizePoints": [
+          17.0,
+          17.0
+        ]
+      }
+    ]
+  },
+  "remainingReferenceAdaptations": [
+    "Magnifier image target21x21pt; native ink17pt versus reference16.333pt from public system glyph geometry.",
+    "System rim/tab geometry,project refresh tint,44pt handle/targets and content-driven sheet height.",
+    "Content-driven complete source licensing Dialog354pt/r25/center20/padding24/separator and modal suppression.",
+    "Largest-type labels wrap and selected summary remains a bounded two-line summary; full long result data is retained in the scrollable list."
+  ],
+  "settingsResolution": "Reset only the owned Settings app navigation to its root,entered Accessibility and prepared the Display & Text Size row with supported centerElement scrolling. Destination headings/Bold Text/Reduce Transparency asserted before switching. Short label/disclosure taps on stale navigation had failed; no unsupported settings flag/private API/retry/timeout growth used.",
+  "movie": {
+    "path": "/tmp/imsweb-ios-glass-design-alignment/matrix-live-native.mp4",
+    "sha256": "db41c7ddf13f30522928b14494f8d72aa5fd6a0bb4748a85d3855152cbcee8ad",
+    "metadata": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 1206,
+          "height": 2622,
+          "avg_frame_rate": "285450/50111"
+        }
+      ],
+      "format": {
+        "duration": "2338.513333"
+      }
+    },
+    "scope": "Original native recorder captures live Settings,real refresh long-press/activity/reduced-motion/restoration and later largest-type controls. No animation mockup or reconstructed overlay.",
+    "ownerReceipt": "/tmp/imsweb-ios-glass-design-alignment/matrix-recorder-owner.json",
+    "stopReceipt": "/tmp/imsweb-ios-glass-design-alignment/matrix-recorder-stop-request.json"
+  },
+  "captureManifest": "/tmp/imsweb-ios-glass-design-alignment/billing-matrix-capture-manifest.json",
+  "keyEvidence": [
+    "/tmp/imsweb-ios-glass-design-alignment/matrix-promax-geometry.log",
+    "/tmp/imsweb-ios-glass-design-alignment/matrix-largest-results-runtime.log",
+    "/tmp/imsweb-ios-glass-design-alignment/matrix-largest-expanded-runtime.log",
+    "/tmp/imsweb-ios-glass-design-alignment/matrix-largest-panned-runtime.log",
+    "/tmp/imsweb-ios-glass-design-alignment/matrix-largest-control-hits.log",
+    "/tmp/imsweb-ios-glass-design-alignment/billing-matrix-cleanup.json"
+  ],
+  "retainedFailures": [
+    "Original rework/blocked reports,provider timeouts and subscription403 receipt remain intact.",
+    "Fractional47%-point predecessor46.7% was rejected by Maestro integer parsing before its tap.",
+    "Background LLDB observation stalled; previous appPID63911 later SIGABRT. IPS and matching-UUID symbolication retained. Cause is unresolved; it is not attributed to a source bug or billing. Current same-binary foreground-only sequencePID63484 completes repeated real Settings transitions without recurrence.",
+    "Earlier CGPointMake hit-probe y0 inference remains corrected; actual locate hit uses explicit x/y point assignments.",
+    "All Settings navigation failures retained; destination-confirmed live switching now succeeds."
+  ],
+  "criteriaSatisfied": [
+    {
+      "id": "criterion-1",
+      "status": "satisfied",
+      "evidence": "Current-source/binary matrix,actual public flags/native view identities,frame/hit/pixel/movie proof,cleanup and residual scope are recorded."
+    }
+  ],
+  "changedFiles": [],
+  "testsAddedOrUpdated": [],
+  "commandsRun": [
+    {
+      "command": "matrix-live-driver",
+      "result": "passed",
+      "summary": "matrix-live-driver exit0"
+    },
+    {
+      "command": "billing-collapsed-driver",
+      "result": "passed",
+      "summary": "billing-collapsed-driver exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid 3095451D-81E3-4B99-83B3-42B405E4D95C test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-map-artifacts /tmp/imsweb-ios-glass-design-alignment/timeout1-proof.yaml",
+      "result": "passed",
+      "summary": "matrix-map exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid 3095451D-81E3-4B99-83B3-42B405E4D95C test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-landscape-artifacts /tmp/imsweb-ios-glass-design-alignment/final1-landscape.yaml",
+      "result": "passed",
+      "summary": "matrix-landscape exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-largest-open-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-largest-open.yaml",
+      "result": "passed",
+      "summary": "matrix-largest-open exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-largest-expand-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-largest-expand.yaml",
+      "result": "passed",
+      "summary": "matrix-largest-expand exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-largest-pan-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-largest-pan.yaml",
+      "result": "passed",
+      "summary": "matrix-largest-pan exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-largest-pan-back-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-largest-pan-back.yaml",
+      "result": "passed",
+      "summary": "matrix-largest-pan-back exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-final-teardown-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-final-teardown.yaml",
+      "result": "passed",
+      "summary": "matrix-final-teardown exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/billing-final-teardown-artifacts /tmp/imsweb-ios-glass-design-alignment/billing-final-teardown.yaml",
+      "result": "passed",
+      "summary": "billing-final-teardown exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-live-transparency-on-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-live-transparency-on.yaml",
+      "result": "passed",
+      "summary": "matrix-live-transparency-on exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-live-transparency-off-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-live-transparency-off.yaml",
+      "result": "passed",
+      "summary": "matrix-live-transparency-off exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-busy-artifacts /tmp/imsweb-ios-glass-design-alignment/visual-busy.yaml",
+      "result": "passed",
+      "summary": "matrix-busy exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-live-motion-on-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-live-motion-on.yaml",
+      "result": "passed",
+      "summary": "matrix-live-motion-on exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-live-motion-off-artifacts /tmp/imsweb-ios-glass-design-alignment/matrix-live-motion-off.yaml",
+      "result": "passed",
+      "summary": "matrix-live-motion-off exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/matrix-restored-artifacts /tmp/imsweb-ios-glass-design-alignment/visual-restored.yaml",
+      "result": "passed",
+      "summary": "matrix-restored exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/billing-settings-reset-root-artifacts /tmp/imsweb-ios-glass-design-alignment/billing-settings-reset-root.yaml",
+      "result": "passed",
+      "summary": "billing-settings-reset-root exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/billing-collapsed-on-artifacts /tmp/imsweb-ios-glass-design-alignment/billing-collapsed-on.yaml",
+      "result": "passed",
+      "summary": "billing-collapsed-on exit0"
+    },
+    {
+      "command": "/tmp/imsweb-exchange-native-tools/maestro/bin/maestro --udid B76BE6D2-18DB-434D-AAED-0061F8E621FF test --debug-output /tmp/imsweb-ios-glass-design-alignment/billing-collapsed-off-artifacts /tmp/imsweb-ios-glass-design-alignment/billing-collapsed-off.yaml",
+      "result": "passed",
+      "summary": "billing-collapsed-off exit0"
+    }
+  ],
+  "validationOutput": [
+    "No new build/source edits; protected74 hashes match and index empty.",
+    "Reading and collapsed transparency0/1/0 pass with stable view identities.",
+    "Held3-request refresh,disabled duplicate guard,motion0/1/0 and restoration pass.",
+    "Current-source440pt cap,landscape/keyboard/portrait and largest-type maximum-five-result controls/scrolling pass.",
+    "Original capsule,magnifier,source Dialog and safe-top repairs retain exact current-binary evidence."
+  ],
+  "residualRisks": [
+    "A SIGABRT after stalled background debugger observation remains cause-unresolved; preserved diagnostic evidence is separate from the successful foreground live phase.",
+    "Scope is iOS27 owned simulators and controlled fixtures. No physical phone,iOS26,real VoiceOver/Pinyin,production geography or hosted UIKit CI proof.",
+    "Five oversized result cells were exercised with real scrolling/selection,not every character of every row end-to-end. IME composition and obsolete-generation races remain supported by existing tests rather than new dedicated native race instrumentation."
+  ],
+  "noStagedFiles": true,
+  "diffSummary": "Reviewer made no product changes or builds. Temporary evidence/harness scripts only; protected sources/references/reports/movies retained.",
+  "reviewFindings": [
+    "No remaining measured visual blocker in the covered source-specific simulator matrix.",
+    "Settings blocker closed with destination-confirmed public UI switching.",
+    "Opaque/glass appearance and native control identities verified independently of visible Settings labels."
+  ],
+  "manualNotes": "Humanizer applied. Exact owned fixture89208 stopped after matching command/birth; recorder finalized earlier.17 restored Home/light/default large/host bounds/motion0/transparency0;18Pro and owned ProMax shutdown. Parent integrity and all old failure/rework/blocked evidence preserved."
+}
