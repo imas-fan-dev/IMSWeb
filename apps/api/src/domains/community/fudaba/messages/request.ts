@@ -28,7 +28,7 @@ export function messageListQuery(url: string, scope: unknown) {
 }
 export function mixedWallQuery(
     url: string,
-    slug: string,
+    slug: string
 ): FudabaMixedWallQuery {
     const params = new URL(url).searchParams;
     const { limit, cursor } = messageListQuery(url, slug);
@@ -39,7 +39,7 @@ export function mixedWallQuery(
             values.length !== 4 ||
             values.some(
                 (value) =>
-                    !Number.isFinite(value) || Math.abs(value) > 1_000_000,
+                    !Number.isFinite(value) || Math.abs(value) > 1_000_000
             ) ||
             values[0] >= values[2] ||
             values[1] >= values[3] ||
@@ -60,18 +60,19 @@ export function mixedWallQuery(
 }
 
 export function parseFudabaMessageCreate(
-    input: FudabaMessageCreateInput,
+    input: FudabaMessageCreateInput
 ): FudabaMessageCreateInput {
     return {
         content: input.content.trim(),
         color: input.color,
+        ...(input.height === undefined ? {} : { height: input.height }),
         ...(input.center
             ? { center: { x: input.center.x, y: input.center.y } }
             : {}),
     };
 }
 export function parseFudabaMessageEdit(
-    input: FudabaMessageEditInput,
+    input: FudabaMessageEditInput
 ): FudabaMessageEditInput {
     return {
         ...parseFudabaMessageCreate(input),
@@ -79,7 +80,7 @@ export function parseFudabaMessageEdit(
     };
 }
 export function parseFudabaMessagePlacement(
-    input: FudabaMessagePlacementInput,
+    input: FudabaMessagePlacementInput
 ): FudabaMessagePlacementInput {
     return {
         layoutVersion: input.layoutVersion,
@@ -91,7 +92,7 @@ export function parseFudabaMessagePlacement(
     };
 }
 export function parseFudabaMessageModeration(
-    input: FudabaMessageModerationInput,
+    input: FudabaMessageModerationInput
 ): FudabaMessageModerationInput {
     return { hidden: input.hidden, expectedRevision: input.expectedRevision };
 }

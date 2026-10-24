@@ -1,3 +1,4 @@
+import { mockWallScene } from "./fixtures/wall-scene"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { expect, test } from "./fixtures/test"
 test("loads the complete wall observation area and replaces distant content without paging @mobile", async ({
@@ -110,7 +111,8 @@ test("loads the complete wall observation area and replaces distant content with
     "GET",
     { min: 0, max: 30 }
   )
-  await api.mockRoute(
+  await mockWallScene(
+    api,
     "**/api/community/exchange/offices/window-office/mixed-wall?*",
     async (route) => {
       const query = new URL(route.request().url()).searchParams

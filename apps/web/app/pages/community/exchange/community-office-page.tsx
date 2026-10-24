@@ -1,7 +1,10 @@
+import { getFudabaWallScene, type FudabaSceneResponse } from "~/lib/api"
+import { useWallLayoutIndex } from "./use-wall-layout-index"
+import { LocateMyCards } from "./locate-my-cards"
+import { wallLayoutIntersects, wallItemKey } from "./wall-scene-layout"
 import { MessageComposer, MessageReader } from "./wall-message-dialog"
 import { MessagePaper } from "./wall-message-note"
 import {
-  getFudabaMixedWall,
   placeFudabaMessage,
   type FudabaMessage,
   type FudabaPublicMessage,
@@ -161,23 +164,46 @@ export default function CommunityOfficePage() {
   const [confirmedPlacements, setConfirmedPlacements] = useState(
     () => new Map<string, FudabaCardPlacement>()
   )
+  const layoutIndex = useWallLayoutIndex(
+    officeSlug,
+    platform.session?.account.id
+  )
+  const layoutIndexRef = useRef(layoutIndex)
+  useEffect(() => {
+    layoutIndexRef.current = layoutIndex
+  }, [layoutIndex])
+  const sceneCache = useRef<
+    { bounds: WallBounds; result: FudabaSceneResponse }[]
+  >([])
   const [wallInfo, setWallInfo] = useState<FudabaV2WallResponse | null>(null)
   const [wallView, setWallView] = useState("wall")
   const [region, setRegion] = useState<WallBounds>([0, 0, 1600, 900])
   const [wallFocus, setWallFocus] = useState<WallFocus | null>(null)
+  const [preparedFocus, setPreparedFocus] = useState<WallFocus | null>(null)
+  if (layoutIndex.ready && preparedFocus !== wallFocus)
+    setPreparedFocus(wallFocus)
+  const officeLoadScope = useRef<string | null>(null)
+
   const loadedBounds = useRef<WallBounds | null>(null)
   const [knownOwnedPlacements, setKnownOwnedPlacements] = useState(
     () => new Set<string>()
   )
   const [wallLoading, setWallLoading] = useState(false)
+  const [sceneError, setSceneError] = useState<string | null>(null)
+  const wallSnapshot = useRef<FudabaV2WallResponse | null>(null)
+  useEffect(() => {
+    wallSnapshot.current = wallInfo
+  }, [wallInfo])
+
   const sceneGeneration = useRef(0)
   const activeSceneRequest = useRef<
     | ReturnType<typeof getFudabaWall>
-    | ReturnType<typeof getFudabaMixedWall>
+    | ReturnType<typeof getFudabaWallScene>
     | null
   >(null)
   const wallQuery = useRef<WallBounds>([-400, -225, 2000, 1125])
   const onRegionChange = useCallback((bounds: WallBounds) => {
+    setSceneError(null)
     setRegion((current) =>
       current.every((value, index) => Math.abs(value - bounds[index]) < 0.1)
         ? current
@@ -206,19 +232,25 @@ export default function CommunityOfficePage() {
       setState({ ...initialState, phase: "missing" })
       return
     }
+    const currentScope = `${officeSlug}:${platform.session?.account.id ?? "public"}`
+    if (officeLoadScope.current === currentScope)
+      void layoutIndexRef.current.reload()
+    officeLoadScope.current = currentScope
     const generation = ++requestGeneration.current
     sceneGeneration.current += 1
     activeSceneRequest.current?.abort()
     loadedBounds.current = null
+    sceneCache.current = []
     setWallLoading(false)
     setState((current) => ({ ...current, phase: "loading", error: null }))
     try {
       const [officeResult, seriesResult] = await Promise.allSettled([
-        getFudabaMixedWall(officeSlug, { bbox: [0, 0, 1600, 900] }).send(),
+        getFudabaWallScene(officeSlug, { bbox: [0, 0, 1600, 900] }).send(),
         getFudabaSeries().send(),
       ])
       if (requestGeneration.current !== generation) return
       if (officeResult.status === "rejected") throw officeResult.reason
+      layoutIndexRef.current.upsert(officeResult.value.layouts)
       setWallInfo(officeResult.value)
       setState({
         phase: "ready",
@@ -231,7 +263,7 @@ export default function CommunityOfficePage() {
       if (requestGeneration.current !== generation) return
       setState((current) => ({ ...current, ...detailFailure(error) }))
     }
-  }, [officeSlug])
+  }, [officeSlug, platform.session?.account.id])
 
   useEffect(() => {
     void loadOffice()
@@ -281,26 +313,74 @@ export default function CommunityOfficePage() {
       const generation = ++sceneGeneration.current
       activeSceneRequest.current?.abort()
       setWallLoading(true)
+      setSceneError(null)
       wallQuery.current = bounds
+      const cached = sceneCache.current.find((entry) =>
+        entry.bounds.every((value, index) => value === bounds[index])
+      )
+      const source = cached?.result ?? wallSnapshot.current
+      if (cached) {
+        setWallInfo(cached.result)
+        setState((current) => ({ ...current, office: cached.result.office }))
+      }
+      const layoutMap = new Map(
+        layoutIndexRef.current.items.map((item) => [wallItemKey(item), item])
+      )
+      const visible = (
+        kind: "card" | "message",
+        id: string,
+        placement: FudabaCardPlacement
+      ) =>
+        wallLayoutIntersects(
+          layoutMap.get(`${kind}:${id}`) ?? {
+            placement,
+            width: kind === "card" ? 240 : 242,
+            height: kind === "card" ? 160 : 277,
+          },
+          bounds
+        )
+      const cards = new Map<string, FudabaPlacedCard>(
+        (source?.office.cards ?? [])
+          .filter((card) => visible("card", card.id, card.placement))
+          .map((card) => [card.id, card])
+      )
+      const messages = new Map<string, FudabaPublicMessage>(
+        (source?.messages ?? [])
+          .filter((note) => visible("message", note.id, note.placement))
+          .map((note) => [note.id, note])
+      )
+      const manageable = new Set(source?.manageableCardIds ?? [])
+      const seen = new Set<string>(),
+        cursors = new Set<string>()
+      let cursor: string | undefined
+      let result: FudabaSceneResponse
       try {
-        const cards = new Map<string, FudabaPlacedCard>()
-        const messages = new Map<string, FudabaPublicMessage>()
-        const manageable = new Set<string>()
-        const cursors = new Set<string>()
-        let cursor: string | undefined
-        let result: FudabaV2WallResponse
         do {
-          const method = getFudabaMixedWall(officeSlug, {
+          const method = getFudabaWallScene(officeSlug, {
             bbox: bounds,
             cursor,
           })
           activeSceneRequest.current = method
           result = await method.send()
-          for (const message of result.messages)
-            messages.set(message.id, message)
-          for (const id of result.manageableCardIds) manageable.add(id)
           if (generation !== sceneGeneration.current) return null
-          for (const card of result.office.cards) cards.set(card.id, card)
+          for (const card of result.office.cards) {
+            cards.set(card.id, card)
+            seen.add(`card:${card.id}`)
+          }
+          for (const note of result.messages) {
+            messages.set(note.id, note)
+            seen.add(`message:${note.id}`)
+          }
+          for (const id of result.manageableCardIds) manageable.add(id)
+          layoutIndexRef.current.upsert(result.layouts)
+          const office = { ...result.office, cards: [...cards.values()] }
+          setWallInfo({
+            ...result,
+            office,
+            messages: [...messages.values()],
+            manageableCardIds: [...manageable],
+          })
+          setState((current) => ({ ...current, office }))
           cursor = result.pageInfo.hasNextPage
             ? (result.pageInfo.nextCursor ?? undefined)
             : undefined
@@ -308,26 +388,66 @@ export default function CommunityOfficePage() {
             throw new Error("墙面暂时无法完整载入，请重试。")
           if (cursor) cursors.add(cursor)
         } while (cursor)
+        for (const id of cards.keys())
+          if (!seen.has(`card:${id}`)) cards.delete(id)
+        for (const id of messages.keys())
+          if (!seen.has(`message:${id}`)) messages.delete(id)
+        const removed = new Set(
+          layoutIndexRef.current.items
+            .filter(
+              (item) =>
+                wallLayoutIntersects(item, bounds) &&
+                !seen.has(wallItemKey(item))
+            )
+            .map(wallItemKey)
+        )
+        layoutIndexRef.current.remove(removed)
         const office = { ...result.office, cards: [...cards.values()] }
-        loadedBounds.current = bounds
-        setWallInfo({
+        const complete = {
           ...result,
           office,
           messages: [...messages.values()],
           manageableCardIds: [...manageable],
-        })
+        }
+        sceneCache.current = [
+          { bounds, result: complete },
+          ...sceneCache.current
+            .filter(
+              (entry) =>
+                !entry.bounds.every((value, index) => value === bounds[index])
+            )
+            .map((entry) => ({
+              ...entry,
+              result: {
+                ...entry.result,
+                office: {
+                  ...entry.result.office,
+                  cards: entry.result.office.cards.filter(
+                    (card) => !removed.has(`card:${card.id}`)
+                  ),
+                },
+                messages: entry.result.messages.filter(
+                  (note) => !removed.has(`message:${note.id}`)
+                ),
+              },
+            })),
+        ].slice(0, 3)
+        loadedBounds.current = bounds
+        setWallInfo(complete)
         setMessageReader((current) =>
           current ? (messages.get(current.id) ?? null) : null
         )
         setState((current) => ({ ...current, office }))
         return office
       } catch (error) {
-        if (generation === sceneGeneration.current && notifyErrors)
-          toast.error(
+        if (generation === sceneGeneration.current) {
+          const message =
             error instanceof Error
               ? error.message
               : "墙面暂时无法载入，请重试。"
-          )
+          setSceneError(message)
+          if (notifyErrors) toast.error(message)
+        }
         return null
       } finally {
         if (generation === sceneGeneration.current) setWallLoading(false)
@@ -360,36 +480,6 @@ export default function CommunityOfficePage() {
     },
     [officeSlug]
   )
-
-  async function locateMine() {
-    if (!officeSlug) return
-    const pageGeneration = requestGeneration.current
-    const accountGeneration = editorGeneration.current
-    try {
-      const result = await getFudabaWall(officeSlug, {
-        owned: true,
-        limit: 1,
-      }).send()
-      if (
-        pageGeneration !== requestGeneration.current ||
-        accountGeneration !== editorGeneration.current
-      )
-        return
-      const card = result.office.cards[0]
-      if (!card) {
-        toast.info("你还没有在这面墙上放置名片。")
-        return
-      }
-      setWallFocus({
-        x: card.placement.x,
-        y: card.placement.y,
-        key: Date.now(),
-      })
-      setWallView("wall")
-    } catch {
-      toast.error("暂时无法定位名片，请重试。")
-    }
-  }
 
   const seriesMap = useMemo(
     () => new Map(state.series.map((item) => [item.code, item])),
@@ -464,6 +554,16 @@ export default function CommunityOfficePage() {
   }
 
   function replacePlacement(cardId: string, placement: FudabaCardPlacement) {
+    sceneCache.current = []
+    layoutIndexRef.current.upsert(
+      layoutIndexRef.current.items
+        .filter((item) => item.kind === "card" && item.id === cardId)
+        .map((item) => ({
+          ...item,
+          placement: { ...item.placement, ...placement },
+        }))
+    )
+
     setState((current) => {
       if (!current.office) return current
       return {
@@ -529,10 +629,12 @@ export default function CommunityOfficePage() {
       const generation = ++sceneGeneration.current
       activeSceneRequest.current?.abort()
       setWallLoading(false)
-      const method = getFudabaMixedWall(officeSlug, { item: `card:${cardId}` })
+      const method = getFudabaWallScene(officeSlug, { item: `card:${cardId}` })
       activeSceneRequest.current = method
       const result = await method.send()
       if (generation !== sceneGeneration.current) return null
+      layoutIndexRef.current.upsert(result.layouts)
+      sceneCache.current = []
       loadedBounds.current = null
       setWallInfo((current) => ({
         ...result,
@@ -662,6 +764,7 @@ export default function CommunityOfficePage() {
           toast.warning("名片已放到墙上，但最新墙面暂时无法重新载入。")
           return
         }
+        sceneCache.current = []
         forgetConfirmedPlacement(card.id)
       } catch {
         toast.warning("名片已放到墙上，但最新墙面暂时无法重新载入。")
@@ -691,6 +794,8 @@ export default function CommunityOfficePage() {
         card.placement.revision
       ).send()
       if (pageGeneration !== requestGeneration.current) return
+      layoutIndexRef.current.remove(new Set([`card:${card.id}`]))
+      sceneCache.current = []
       setKnownOwnedPlacements((current) => {
         const next = new Set(current)
         next.delete(card.id)
@@ -701,6 +806,12 @@ export default function CommunityOfficePage() {
         current
           ? {
               ...current,
+              office: {
+                ...current.office,
+                cards: current.office.cards.filter(
+                  (item) => item.id !== card.id
+                ),
+              },
               wall: {
                 ...current.wall,
                 total: Math.max(0, current.wall.total - 1),
@@ -732,7 +843,7 @@ export default function CommunityOfficePage() {
     const messageId = requestedMessageId
     if (!officeSlug || !messageId) return
     let alive = true
-    const request = getFudabaMixedWall(officeSlug, {
+    const request = getFudabaWallScene(officeSlug, {
       item: "message:" + messageId,
     })
     void request
@@ -789,7 +900,30 @@ export default function CommunityOfficePage() {
     state.phase,
     readWall,
   ])
-  function handleMessageSaved(note: FudabaMessage, created: boolean) {
+  function handleMessageSaved(
+    note: FudabaMessage,
+    created: boolean,
+    height = 277
+  ) {
+    sceneGeneration.current += 1
+    activeSceneRequest.current?.abort()
+    setWallLoading(false)
+    loadedBounds.current = null
+
+    sceneCache.current = []
+    layoutIndexRef.current.upsert([
+      {
+        kind: "message",
+        id: note.id,
+        placement: note.placement,
+        width: 242,
+        height,
+        layoutVersion: 1,
+        color: note.color,
+        contentRevision: note.contentRevision,
+      },
+    ])
+
     setWallInfo((current) =>
       current
         ? {
@@ -853,6 +987,12 @@ export default function CommunityOfficePage() {
         generation === requestGeneration.current &&
         actorGeneration === messageSessionGeneration.current
       ) {
+        sceneCache.current = []
+        layoutIndexRef.current.upsert(
+          layoutIndexRef.current.items
+            .filter((item) => item.kind === "message" && item.id === note.id)
+            .map((item) => ({ ...item, placement: result.message.placement }))
+        )
         update(result.message.placement)
         setWallInfo((current) =>
           current
@@ -1055,9 +1195,21 @@ export default function CommunityOfficePage() {
                 </NavigationLink>
               ) : null}
               {platform.status === "authenticated" ? (
-                <Button variant="outline" onClick={() => void locateMine()}>
-                  定位我的名片
-                </Button>
+                <LocateMyCards
+                  key={`${officeSlug}:${platform.session?.account.id ?? ""}`}
+                  items={layoutIndex.items}
+                  ready={layoutIndex.ready}
+                  onLocate={(item) => {
+                    setWallFocus({
+                      x: item.placement.x,
+                      y: item.placement.y,
+                      key: Date.now(),
+                      cardId: item.id,
+                    })
+                    setFocusedMessageId(null)
+                    setWallView("wall")
+                  }}
+                />
               ) : null}
               {platform.status === "anonymous" ? (
                 <NavigationLink
@@ -1215,7 +1367,35 @@ export default function CommunityOfficePage() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="wall" className="mt-3">
+                {!layoutIndex.ready ? (
+                  <div
+                    role="status"
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                  >
+                    {layoutIndex.phase === "error" ? (
+                      <>
+                        <span>{layoutIndex.error}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void layoutIndex.reload()}
+                        >
+                          重试准备占位
+                        </Button>
+                      </>
+                    ) : (
+                      <span>
+                        正在准备墙面占位… 已准备 {layoutIndex.items.length}{" "}
+                        个物件
+                      </span>
+                    )}
+                  </div>
+                ) : null}
                 <PlacedCardWall
+                  loadError={sceneError}
+                  onRetryLoad={() => void readWall(wallQuery.current)}
+                  layoutItems={layoutIndex.items}
+                  layoutBounds={region}
                   cards={office.cards}
                   messages={wallInfo?.messages ?? []}
                   canArrangeWall={wallInfo?.capabilities.canArrangeWall}
@@ -1227,7 +1407,7 @@ export default function CommunityOfficePage() {
                   }
                   total={wallInfo?.wall.total}
                   maxZIndex={wallInfo?.wall.maxZIndex}
-                  focus={wallFocus}
+                  focus={preparedFocus}
                   onRegionChange={onRegionChange}
                   editing={wallEditing}
                   onEditingChange={(editing) => {
@@ -1279,7 +1459,14 @@ export default function CommunityOfficePage() {
                       <div key={note.id} className="space-y-2">
                         <button
                           type="button"
-                          className="relative h-69.25 w-60.5 text-left"
+                          className="relative w-60.5 text-left"
+                          style={{
+                            height:
+                              layoutIndex.items.find(
+                                (item) =>
+                                  item.kind === "message" && item.id === note.id
+                              )?.height ?? 277,
+                          }}
                           aria-label={`阅读全文：${note.authorName}`}
                           onClick={() => setMessageReader(note)}
                         >
@@ -1346,7 +1533,9 @@ export default function CommunityOfficePage() {
           }}
           note={messageEditor.note}
           onClose={() => setMessageEditor(null)}
-          onSaved={(note) => handleMessageSaved(note, !messageEditor.note)}
+          onSaved={(note, height) =>
+            handleMessageSaved(note, !messageEditor.note, height)
+          }
         />
       ) : null}
       {messageReader ? (
@@ -1382,6 +1571,9 @@ export default function CommunityOfficePage() {
                     }
                   : current
               )
+            sceneCache.current = []
+            if (id) layoutIndexRef.current.remove(new Set([`message:${id}`]))
+            else void layoutIndexRef.current.reload()
             void readWall(wallQuery.current)
           }}
         />

@@ -94,6 +94,7 @@ export const fudabaMixedWallResponseSchema = exactJsonResponse({
 export const fudabaMessageCreateRequestSchema = strictRequestObject({
     content,
     color: fudabaMessageColorSchema,
+    height: z.number().int().min(160).max(560).optional(),
     center: strictRequestObject({
         x: z.number().finite().min(-1_000_000).max(1_000_000),
         y: z.number().finite().min(-1_000_000).max(1_000_000),
@@ -102,6 +103,7 @@ export const fudabaMessageCreateRequestSchema = strictRequestObject({
 export const fudabaMessageEditRequestSchema = strictRequestObject({
     content,
     color: fudabaMessageColorSchema,
+    height: z.number().int().min(160).max(560).optional(),
     expectedRevision: revision,
 });
 export const fudabaMessagePlacementRequestSchema = strictRequestObject({
@@ -212,4 +214,56 @@ export type FudabaPublicMessage = z.infer<typeof fudabaPublicMessageSchema>;
 export type FudabaMessageResponse = z.infer<typeof fudabaMessageResponseSchema>;
 export type FudabaMessageDestroyResponse = z.infer<
     typeof fudabaMessageDestroyResponseSchema
+>;
+
+// Scene v1 adds layout metadata without changing the existing exact responses.
+const scenePlacement = fudabaWorldPlacementSchema;
+const sceneBase = {
+    id: z.string(),
+    placement: scenePlacement,
+    width: z.number().positive(),
+    height: z.number().int().positive(),
+    layoutVersion: z.literal(1),
+};
+const tinyPreview = z
+    .string()
+    .max(2048)
+    .regex(/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/)
+    .nullable();
+export const fudabaWallLayoutItemSchema = z.discriminatedUnion('kind', [
+    exactJsonResponse({
+        ...sceneBase,
+        kind: z.literal('card'),
+        displayName: z.string(),
+        viewerOwned: z.boolean(),
+        preview: tinyPreview,
+        assetVersion: z.string(),
+        backPreview: tinyPreview.optional(),
+    }),
+    exactJsonResponse({
+        ...sceneBase,
+        kind: z.literal('message'),
+        color: fudabaMessageColorSchema,
+        contentRevision: revision,
+    }),
+]);
+export const fudabaWallLayoutResponseSchema = exactJsonResponse({
+    version: z.literal(1),
+    office: fudabaOfficeSchema,
+    wall: fudabaWallSchema,
+    items: z.array(fudabaWallLayoutItemSchema).max(100),
+    pageInfo: fudabaPageInfoSchema,
+});
+export const fudabaWallSceneResponseSchema = fudabaMixedWallResponseSchema
+    .extend({
+        version: z.literal(1),
+        layouts: z.array(fudabaWallLayoutItemSchema).max(100),
+    })
+    .strict();
+export type FudabaWallLayoutItem = z.infer<typeof fudabaWallLayoutItemSchema>;
+export type FudabaWallLayoutResponse = z.infer<
+    typeof fudabaWallLayoutResponseSchema
+>;
+export type FudabaWallSceneResponse = z.infer<
+    typeof fudabaWallSceneResponseSchema
 >;

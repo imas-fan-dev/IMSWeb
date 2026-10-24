@@ -1,3 +1,4 @@
+import type { FudabaWallLayoutItem } from '@imsweb/contracts/fudaba/messages';
 import type {
     FudabaMessage,
     FudabaMessageColor,
@@ -20,6 +21,8 @@ import type { ManagedSqlDatabase, SqlDatabase } from '@/infra/db/sql/database';
 import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 
 interface MessageRow {
+    display_height: number;
+    paper_layout_version: number;
     id: string;
     office_id: string;
     author_account_id: string;
@@ -92,7 +95,7 @@ function decodeCursor(value: string | undefined, scope: string): Cursor | null {
     let cursor: Cursor;
     try {
         cursor = JSON.parse(
-            Buffer.from(value, 'base64url').toString(),
+            Buffer.from(value, 'base64url').toString()
         ) as Cursor;
     } catch {
         throw Object.assign(new Error('游标无效'), { status: 400 });
@@ -107,7 +110,7 @@ function decodeCursor(value: string | undefined, scope: string): Cursor | null {
         cursor.id.length > 128 ||
         typeof cursor.pinned !== 'string' ||
         !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,6}Z$/.test(
-            cursor.pinned,
+            cursor.pinned
         ) ||
         !Number.isFinite(Date.parse(cursor.pinned))
     )
@@ -117,14 +120,14 @@ function decodeCursor(value: string | undefined, scope: string): Cursor | null {
 function encodeCursor(cursor: Cursor): string {
     return Buffer.from(JSON.stringify(cursor)).toString('base64url');
 }
-function bounds(x: number, y: number, rotation: number) {
+function bounds(x: number, y: number, rotation: number, height = 277) {
     const radians = (rotation * Math.PI) / 180;
     return [
         Math.abs(Math.cos(radians)) * 121 +
-            Math.abs(Math.sin(radians)) * 138.5 +
+            Math.abs(Math.sin(radians)) * (height / 2) +
             16,
         Math.abs(Math.sin(radians)) * 121 +
-            Math.abs(Math.cos(radians)) * 138.5 +
+            Math.abs(Math.cos(radians)) * (height / 2) +
             16,
         x,
         y,
@@ -137,25 +140,25 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         private readonly cards: {
             wall(
                 slug: string,
-                actorId: string | null,
+                actorId: string | null
             ): Promise<FudabaPublicWallRecord | null>;
             hydrate(
                 officeId: string,
                 ids: string[],
-                actorId: string | null,
+                actorId: string | null
             ): Promise<FudabaPublicPlacedCardRecord[]>;
-        },
+        }
     ) {}
     private async active(
         database: SqlDatabase,
         actorId: string,
-        lock = false,
+        lock = false
     ): Promise<boolean> {
         return !!(await queryOne(
             database,
             "SELECT id FROM platform_accounts WHERE id=? AND status='active' AND deleted_at IS NULL" +
                 (lock ? ' FOR UPDATE' : ''),
-            [actorId],
+            [actorId]
         ));
     }
     async read(id: string, actorId: string): Promise<FudabaMessageResult> {
@@ -171,47 +174,47 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             message: this.view(
                 row,
                 actorId,
-                await this.active(this.database, actorId),
+                await this.active(this.database, actorId)
             ),
         };
     }
     private async office(
         database: SqlDatabase,
-        id: string,
+        id: string
     ): Promise<OfficeRow | null> {
         await queryOne(
             database,
             'SELECT id FROM fudaba_offices WHERE id=? FOR NO KEY UPDATE',
-            [id],
+            [id]
         );
         return queryOne(
             database,
             `SELECT office.*, owner.status AS owner_status, owner.deleted_at AS owner_deleted_at FROM fudaba_offices office JOIN platform_accounts owner ON owner.id=office.owner_account_id WHERE office.id=?`,
-            [id],
+            [id]
         );
     }
     private async row(
         database: SqlDatabase,
         id: string,
-        lock = false,
+        lock = false
     ): Promise<MessageRow | null> {
         if (lock)
             await queryOne(
                 database,
                 'SELECT id FROM fudaba_messages WHERE id=? FOR UPDATE',
-                [id],
+                [id]
             );
         return queryOne<MessageRow>(
             database,
             `${selectMessage} WHERE message.id=?`,
-            [id],
+            [id]
         );
     }
     private view(
         row: MessageRow,
         actorId: string | null,
         active: boolean,
-        admin = false,
+        admin = false
     ): FudabaMessage {
         const mine = row.author_account_id === actorId;
         const owner = row.owner_account_id === actorId;
@@ -274,17 +277,18 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         y: number,
         rotation: number,
         z: number,
+        height = 277
     ): Promise<void> {
-        const [rx, ry] = bounds(x, y, rotation);
+        const [rx, ry] = bounds(x, y, rotation, height);
         await executeSql(
             database,
             `UPDATE fudaba_office_walls SET max_z_index=GREATEST(max_z_index,?), left_edge=LEAST(left_edge,floor(?/800.0)*800), top_edge=LEAST(top_edge,floor(?/450.0)*450), right_edge=GREATEST(right_edge,ceil(?/800.0)*800), bottom_edge=GREATEST(bottom_edge,ceil(?/450.0)*450) WHERE office_id=?`,
-            [z, x - rx, y - ry, x + rx, y + ry, officeId],
+            [z, x - rx, y - ry, x + rx, y + ry, officeId]
         );
     }
     private async writableOffice(
         database: SqlDatabase,
-        officeId: string,
+        officeId: string
     ): Promise<OfficeRow | FudabaMessageFailure> {
         const office = await this.office(database, officeId);
         if (!office) return { status: 'not-found' };
@@ -302,6 +306,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         officeId: string;
         actorId: string;
         content: string;
+        height?: number;
         color: FudabaMessageColor;
         center?: { x: number; y: number };
         keyHash: string;
@@ -312,7 +317,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             await queryOne(
                 database,
                 'SELECT id FROM platform_accounts WHERE id=? FOR UPDATE',
-                [input.actorId],
+                [input.actorId]
             );
             if (!(await this.active(database, input.actorId)))
                 return { status: 'forbidden' };
@@ -322,7 +327,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             }>(
                 database,
                 "SELECT request_hash,resource_id FROM fudaba_mutation_receipts WHERE scope='message-create' AND account_id=? AND key_hash=?",
-                [input.actorId, input.keyHash],
+                [input.actorId, input.keyHash]
             );
             if (receipt) {
                 if (receipt.request_hash !== input.requestHash)
@@ -348,7 +353,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             }>(
                 database,
                 'SELECT last_published_at FROM fudaba_message_publish_cooldowns WHERE account_id=? AND office_id=?',
-                [input.actorId, input.officeId],
+                [input.actorId, input.officeId]
             );
             if (cooldown) {
                 const remaining =
@@ -368,9 +373,10 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                 ry: number;
             }>(
                 database,
-                `SELECT world_x AS x,world_y AS y,abs(cos(radians(rotation)))*120+abs(sin(radians(rotation)))*80 AS rx,abs(sin(radians(rotation)))*120+abs(cos(radians(rotation)))*80 AS ry FROM fudaba_office_cards WHERE office_id=? UNION ALL SELECT world_x,world_y,abs(cos(radians(rotation)))*121+abs(sin(radians(rotation)))*138.5,abs(sin(radians(rotation)))*121+abs(cos(radians(rotation)))*138.5 FROM fudaba_message_placements WHERE office_id=?`,
-                [input.officeId, input.officeId],
+                `SELECT world_x AS x,world_y AS y,abs(cos(radians(rotation)))*120+abs(sin(radians(rotation)))*80 AS rx,abs(sin(radians(rotation)))*120+abs(cos(radians(rotation)))*80 AS ry FROM fudaba_office_cards WHERE office_id=? UNION ALL SELECT world_x,world_y,abs(cos(radians(rotation)))*121+abs(sin(radians(rotation)))*message.display_height/2.0,abs(sin(radians(rotation)))*121+abs(cos(radians(rotation)))*message.display_height/2.0 FROM fudaba_message_placements placement JOIN fudaba_messages message ON message.id=placement.message_id WHERE placement.office_id=?`,
+                [input.officeId, input.officeId]
             );
+            const height = input.height ?? 277;
             const center = input.center ?? { x: 800, y: 450 };
             const clamp = (value: number) =>
                 Math.min(999800, Math.max(-999800, value));
@@ -406,7 +412,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                             Math.abs(Number(item.x) - x) <
                                 Number(item.rx) + 137 &&
                             Math.abs(Number(item.y) - y) <
-                                Number(item.ry) + 155,
+                                Number(item.ry) + height / 2 + 16
                     )
                 ) {
                     found = true;
@@ -417,7 +423,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             const wall = await queryOne<{ max_z_index: number }>(
                 database,
                 'SELECT max_z_index FROM fudaba_office_walls WHERE office_id=?',
-                [input.officeId],
+                [input.officeId]
             );
             if (
                 !wall ||
@@ -428,7 +434,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             const z = Number(wall.max_z_index) + 1;
             await executeSql(
                 database,
-                'INSERT INTO fudaba_messages(id,office_id,author_account_id,content,color,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+                'INSERT INTO fudaba_messages(id,office_id,author_account_id,content,color,created_at,updated_at,display_height) VALUES(?,?,?,?,?,?,?,?)',
                 [
                     input.id,
                     input.officeId,
@@ -437,14 +443,15 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                     input.color,
                     input.now,
                     input.now,
-                ],
+                    height,
+                ]
             );
             await executeSql(
                 database,
                 'INSERT INTO fudaba_message_placements(message_id,office_id,pinned_at,world_x,world_y,z_index,updated_at) VALUES(?,?,?,?,?,?,?)',
-                [input.id, input.officeId, input.now, x, y, z, input.now],
+                [input.id, input.officeId, input.now, x, y, z, input.now]
             );
-            await this.expand(database, input.officeId, x, y, 0, z);
+            await this.expand(database, input.officeId, x, y, 0, z, height);
             await executeSql(
                 database,
                 "INSERT INTO fudaba_mutation_receipts(scope,account_id,key_hash,request_hash,resource_id,created_at) VALUES('message-create',?,?,?,?,?)",
@@ -454,19 +461,19 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                     input.requestHash,
                     input.id,
                     Date.parse(input.now),
-                ],
+                ]
             );
             await executeSql(
                 database,
                 'INSERT INTO fudaba_message_publish_cooldowns(account_id,office_id,last_published_at) VALUES(?,?,?) ON CONFLICT(account_id,office_id) DO UPDATE SET last_published_at=EXCLUDED.last_published_at',
-                [input.actorId, input.officeId, input.now],
+                [input.actorId, input.officeId, input.now]
             );
             return {
                 status: 'ok',
                 message: this.view(
                     (await this.row(database, input.id))!,
                     input.actorId,
-                    true,
+                    true
                 ),
             };
         });
@@ -475,7 +482,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         id: string,
         actorId: string,
         input: FudabaMessageEditInput,
-        now: string,
+        now: string
     ): Promise<FudabaMessageResult> {
         return this.database.transaction(async (database) => {
             if (!(await this.active(database, actorId, true)))
@@ -484,7 +491,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             if (!before) return { status: 'not-found' };
             const office = await this.writableOffice(
                 database,
-                before.office_id,
+                before.office_id
             );
             if (!('id' in office)) return office;
             const row = (await this.row(database, id, true))!;
@@ -503,15 +510,30 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                 };
             await executeSql(
                 database,
-                'UPDATE fudaba_messages SET content=?,color=?,content_revision=content_revision+1,updated_at=? WHERE id=?',
-                [input.content.trim(), input.color, now, id],
+                'UPDATE fudaba_messages SET content=?,color=?,display_height=?,content_revision=content_revision+1,updated_at=? WHERE id=?',
+                [
+                    input.content.trim(),
+                    input.color,
+                    input.height ?? Number(row.display_height),
+                    now,
+                    id,
+                ]
+            );
+            await this.expand(
+                database,
+                row.office_id,
+                Number(row.world_x),
+                Number(row.world_y),
+                Number(row.rotation),
+                Number(row.z_index),
+                input.height ?? Number(row.display_height)
             );
             return {
                 status: 'ok',
                 message: this.view(
                     (await this.row(database, id))!,
                     actorId,
-                    true,
+                    true
                 ),
             };
         });
@@ -520,7 +542,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         id: string,
         actorId: string,
         input: FudabaMessagePlacementInput,
-        now: string,
+        now: string
     ): Promise<FudabaMessageResult> {
         return this.database.transaction(async (database) => {
             if (!(await this.active(database, actorId, true)))
@@ -529,7 +551,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             if (!before) return { status: 'not-found' };
             const office = await this.writableOffice(
                 database,
-                before.office_id,
+                before.office_id
             );
             if (!('id' in office)) return office;
             const row = await this.row(database, id, true);
@@ -549,7 +571,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             const wall = await queryOne<{ max_z_index: number }>(
                 database,
                 'SELECT max_z_index FROM fudaba_office_walls WHERE office_id=?',
-                [row.office_id],
+                [row.office_id]
             );
             const z =
                 input.zIndex === Number(row.z_index)
@@ -559,7 +581,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             await executeSql(
                 database,
                 'UPDATE fudaba_message_placements SET world_x=?,world_y=?,rotation=?,z_index=?,revision=revision+1,updated_at=? WHERE message_id=?',
-                [input.x, input.y, input.rotation, z, now, id],
+                [input.x, input.y, input.rotation, z, now, id]
             );
             await this.expand(
                 database,
@@ -568,20 +590,21 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                 input.y,
                 input.rotation,
                 z,
+                Number(row.display_height)
             );
             return {
                 status: 'ok',
                 message: this.view(
                     (await this.row(database, id))!,
                     actorId,
-                    true,
+                    true
                 ),
             };
         });
     }
     async destroy(
         id: string,
-        actorId: string,
+        actorId: string
     ): Promise<{ status: 'ok' } | FudabaMessageFailure> {
         return this.database.transaction(async (database) => {
             if (!(await this.active(database, actorId, true)))
@@ -593,7 +616,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             await executeSql(
                 database,
                 'DELETE FROM fudaba_messages WHERE id=?',
-                [id],
+                [id]
             );
             return { status: 'ok' };
         });
@@ -604,7 +627,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         layer: 'office' | 'admin',
         hidden: boolean,
         expectedRevision: number,
-        now: string,
+        now: string
     ): Promise<FudabaMessageResult> {
         return this.database.transaction(async (database) => {
             if (
@@ -618,7 +641,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                     !(await queryOne(
                         database,
                         "SELECT id FROM backoffice_accounts WHERE id=? AND dept='op' AND admin_role='super_admin' FOR UPDATE",
-                        [actorId],
+                        [actorId]
                     )))
             )
                 return { status: 'forbidden' };
@@ -641,7 +664,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             await executeSql(
                 database,
                 `UPDATE fudaba_messages SET ${columns[0]}=?,${columns[1]}=?,moderation_revision=moderation_revision+1 WHERE id=?`,
-                [hidden ? now : null, hidden ? actorId : null, id],
+                [hidden ? now : null, hidden ? actorId : null, id]
             );
             await executeSql(
                 database,
@@ -654,7 +677,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                     layer === 'admin' ? actorId : null,
                     hidden,
                     now,
-                ],
+                ]
             );
             return {
                 status: 'ok',
@@ -662,7 +685,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                     (await this.row(database, id))!,
                     layer === 'office' ? actorId : null,
                     layer === 'office',
-                    layer === 'admin',
+                    layer === 'admin'
                 ),
             };
         });
@@ -682,7 +705,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                 !(await queryOne(
                     this.database,
                     "SELECT id FROM backoffice_accounts WHERE id=? AND dept='op' AND admin_role='super_admin'",
-                    [input.actorId],
+                    [input.actorId]
                 )))
         )
             return null;
@@ -700,7 +723,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             const owner = await queryOne(
                 this.database,
                 'SELECT id FROM fudaba_offices WHERE id=? AND owner_account_id=?',
-                [input.officeId, input.actorId],
+                [input.officeId, input.actorId]
             );
             if (!owner) return null;
             clauses.push('message.office_id=?');
@@ -723,7 +746,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         const rows = await queryAll<MessageRow & { cursor_time: string }>(
             this.database,
             `${selectMessage.replace('SELECT message.*,', `SELECT to_char(message.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time,message.*,`)} WHERE ${clauses.length ? clauses.join(' AND ') : 'TRUE'} ORDER BY message.created_at DESC,message.id DESC LIMIT ?`,
-            values,
+            values
         );
         const next = rows.length > input.limit;
         const page = rows.slice(0, input.limit);
@@ -734,8 +757,8 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                     row,
                     input.mode === 'admin' ? null : input.actorId,
                     active,
-                    input.mode === 'admin',
-                ),
+                    input.mode === 'admin'
+                )
             ),
             pageInfo: {
                 hasNextPage: next,
@@ -753,31 +776,31 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
     async readWall(
         slug: string,
         actorId: string | null,
-        query: FudabaMixedWallQuery,
+        query: FudabaMixedWallQuery
     ): Promise<FudabaMixedWallRecord | null> {
         const base = await this.cards.wall(slug, actorId);
         if (!base) return null;
         const office = await queryOne<OfficeRow>(
             this.database,
             `SELECT office.id,office.owner_account_id,office.status,office.is_open,owner.status AS owner_status,owner.deleted_at AS owner_deleted_at FROM fudaba_offices office JOIN platform_accounts owner ON owner.id=office.owner_account_id WHERE office.id=?`,
-            [base.office.id],
+            [base.office.id]
         );
         const active =
             actorId !== null && (await this.active(this.database, actorId));
         const owner = active && office!.owner_account_id === actorId;
         const cardSql = `SELECT card.id,'card' AS kind,placement.pinned_at,placement.world_x AS x,placement.world_y AS y,placement.rotation,120.0 AS rx,80.0 AS ry FROM fudaba_office_cards placement JOIN fudaba_cards card ON card.id=placement.card_id JOIN platform_accounts account ON account.id=card.owner_account_id JOIN agencies series ON series.code=card.series_code WHERE placement.office_id=? AND card.publication_status='published' AND card.media_rights_status='approved' AND card.deleted_at IS NULL AND account.status IN ('active','restricted') AND account.deleted_at IS NULL AND series.wiki_enabled`;
-        const messageSql = `SELECT message.id,'message' AS kind,placement.pinned_at,placement.world_x AS x,placement.world_y AS y,placement.rotation,121.0 AS rx,138.5 AS ry FROM fudaba_messages message JOIN fudaba_message_placements placement ON placement.message_id=message.id JOIN fudaba_offices office ON office.id=message.office_id JOIN platform_accounts author ON author.id=message.author_account_id JOIN platform_accounts owner ON owner.id=office.owner_account_id WHERE message.office_id=? AND ${publicMessage}`;
+        const messageSql = `SELECT message.id,'message' AS kind,placement.pinned_at,placement.world_x AS x,placement.world_y AS y,placement.rotation,121.0 AS rx,message.display_height / 2.0 AS ry FROM fudaba_messages message JOIN fudaba_message_placements placement ON placement.message_id=message.id JOIN fudaba_offices office ON office.id=message.office_id JOIN platform_accounts author ON author.id=message.author_account_id JOIN platform_accounts owner ON owner.id=office.owner_account_id WHERE message.office_id=? AND ${publicMessage}`;
         const clauses: string[] = [];
         const values: unknown[] = [base.office.id, base.office.id];
         if (query.bbox) {
             clauses.push(
-                'x+abs(cos(radians(rotation)))*rx+abs(sin(radians(rotation)))*ry+16>=? AND x-abs(cos(radians(rotation)))*rx-abs(sin(radians(rotation)))*ry-16<=? AND y+abs(sin(radians(rotation)))*rx+abs(cos(radians(rotation)))*ry+16>=? AND y-abs(sin(radians(rotation)))*rx-abs(cos(radians(rotation)))*ry-16<=?',
+                'x+abs(cos(radians(rotation)))*rx+abs(sin(radians(rotation)))*ry+16>=? AND x-abs(cos(radians(rotation)))*rx-abs(sin(radians(rotation)))*ry-16<=? AND y+abs(sin(radians(rotation)))*rx+abs(cos(radians(rotation)))*ry+16>=? AND y-abs(sin(radians(rotation)))*rx-abs(cos(radians(rotation)))*ry-16<=?'
             );
             values.push(
                 query.bbox[0],
                 query.bbox[2],
                 query.bbox[1],
-                query.bbox[3],
+                query.bbox[3]
             );
         }
         if (query.item) {
@@ -800,7 +823,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         const keys = await queryAll<MixedKey>(
             this.database,
             `SELECT id,kind,to_char(pinned_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS pinned FROM (${cardSql} UNION ALL ${messageSql}) mixed ${clauses.length ? 'WHERE ' + clauses.join(' AND ') : ''} ORDER BY pinned_at,kind,id LIMIT ?`,
-            values,
+            values
         );
         const page = keys.slice(0, query.limit);
         const cardIds = page
@@ -808,8 +831,8 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             .map((key) => key.id);
         const cardMap = new Map(
             (await this.cards.hydrate(base.office.id, cardIds, actorId)).map(
-                (card) => [card.id, card],
-            ),
+                (card) => [card.id, card]
+            )
         );
         const messageIds = page
             .filter((key) => key.kind === 'message')
@@ -818,11 +841,11 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             ? await queryAll<MessageRow>(
                   this.database,
                   `${selectMessage} WHERE message.id IN (${messageIds.map(() => '?').join(',')}) AND ${publicMessage}`,
-                  messageIds,
+                  messageIds
               )
             : [];
         const messageMap = new Map(
-            messages.map((row) => [row.id, this.view(row, actorId, active)]),
+            messages.map((row) => [row.id, this.view(row, actorId, active)])
         );
         const items: FudabaMixedWallRecord['items'] = [];
         for (const key of page) {
@@ -845,7 +868,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         const count = await queryOne<{ total: string }>(
             this.database,
             `SELECT COUNT(*) AS total FROM fudaba_messages message JOIN fudaba_offices office ON office.id=message.office_id JOIN platform_accounts author ON author.id=message.author_account_id JOIN platform_accounts owner ON owner.id=office.owner_account_id WHERE message.office_id=? AND ${publicMessage}`,
-            [base.office.id],
+            [base.office.id]
         );
         const next = keys.length > query.limit;
         const last = page.at(-1);
@@ -869,5 +892,233 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                 canManageMessages: owner,
             },
         };
+    }
+    async layouts(
+        items: FudabaMixedWallRecord['items'],
+        includeBack = false
+    ): Promise<FudabaWallLayoutItem[]> {
+        const ids = items
+            .filter((item) => item.kind === 'message')
+            .map((item) => item.message.id);
+        const heights = ids.length
+            ? await queryAll<{ id: string; display_height: number }>(
+                  this.database,
+                  `SELECT id,display_height FROM fudaba_messages WHERE id IN (${ids.map(() => '?').join(',')})`,
+                  ids
+              )
+            : [];
+        const byId = new Map(
+            heights.map((row) => [row.id, Number(row.display_height)])
+        );
+        const cardIds = items.flatMap((item) =>
+            item.kind === 'card' ? [item.card.id] : []
+        );
+        const mediaVersions = cardIds.length
+            ? await queryAll<{ id: string; revision: number }>(
+                  this.database,
+                  `SELECT id, revision FROM fudaba_cards WHERE id IN (${cardIds.map(() => '?').join(',')})`,
+                  cardIds
+              )
+            : [];
+        const mediaVersionById = new Map(
+            mediaVersions.map((row) => [row.id, row.revision])
+        );
+        const keys = items.flatMap((item) =>
+            item.kind === 'card'
+                ? [
+                      item.card.front_object_key,
+                      ...(includeBack ? [item.card.back_object_key] : []),
+                  ]
+                : []
+        );
+        const previews = keys.length
+            ? await queryAll<{
+                  object_key: string;
+                  asset_sha256: string;
+                  preview_data_url: string;
+              }>(
+                  this.database,
+                  `SELECT object_key,asset_sha256,preview_data_url FROM fudaba_card_media_previews WHERE object_key IN (${keys.map(() => '?').join(',')})`,
+                  keys
+              )
+            : [];
+        const byKey = new Map(previews.map((row) => [row.object_key, row]));
+        return items.map((item) => {
+            if (item.kind === 'message')
+                return {
+                    kind: 'message' as const,
+                    id: item.message.id,
+                    placement: item.message.placement,
+                    width: 242,
+                    height: byId.get(item.message.id) ?? 277,
+                    layoutVersion: 1 as const,
+                    color: item.message.color,
+                    contentRevision: item.message.contentRevision,
+                };
+            const card = item.card;
+            const preview = byKey.get(card.front_object_key);
+            return {
+                kind: 'card' as const,
+                id: card.id,
+                displayName: card.display_name,
+                viewerOwned: card.viewer_owned,
+                width: 240,
+                height: 160,
+                layoutVersion: 1 as const,
+                placement: {
+                    pinnedAt: timestamp(card.pinned_at),
+                    x: Number(card.position_x),
+                    y: Number(card.position_y),
+                    rotation: Number(card.rotation),
+                    zIndex: Number(card.z_index),
+                    revision: Number(card.revision),
+                    updatedAt: timestamp(card.updated_at),
+                },
+                preview: preview?.preview_data_url ?? null,
+                ...(includeBack
+                    ? {
+                          backPreview:
+                              byKey.get(card.back_object_key)
+                                  ?.preview_data_url ?? null,
+                      }
+                    : {}),
+                assetVersion: String(mediaVersionById.get(card.id) ?? 0),
+            };
+        });
+    }
+
+    async saveMediaPreview(
+        objectKey: string,
+        assetSha256: string,
+        preview: string | null,
+        guard: { cardId: string; revision: number; side: 'front' | 'back' }
+    ): Promise<boolean> {
+        return this.database.transaction(async (database) => {
+            const card = await queryOne<{
+                revision: number;
+                front_object_key: string;
+                back_object_key: string;
+                deleted_at: string | null;
+            }>(
+                database,
+                'SELECT revision, front_object_key, back_object_key, deleted_at FROM fudaba_cards WHERE id = ? FOR UPDATE',
+                [guard.cardId]
+            );
+            if (
+                !card ||
+                card.deleted_at ||
+                card.revision !== guard.revision ||
+                (guard.side === 'front'
+                    ? card.front_object_key
+                    : card.back_object_key) !== objectKey
+            ) {
+                return false;
+            }
+            if (!preview) {
+                await executeSql(
+                    database,
+                    'DELETE FROM fudaba_card_media_previews WHERE object_key = ?',
+                    [objectKey]
+                );
+                return true;
+            }
+            await executeSql(
+                database,
+                `INSERT INTO fudaba_card_media_previews (object_key, asset_sha256, preview_data_url)
+                VALUES (?, ?, ?) ON CONFLICT (object_key) DO UPDATE
+                SET asset_sha256 = EXCLUDED.asset_sha256, preview_data_url = EXCLUDED.preview_data_url, created_at = CURRENT_TIMESTAMP`,
+                [objectKey, assetSha256, preview]
+            );
+            return true;
+        });
+    }
+
+    async listLayoutBackfill(after: string, limit: number) {
+        const rows = await queryAll<{
+            id: string;
+            content: string;
+            content_revision: number;
+            display_height: number;
+        }>(
+            this.database,
+            'SELECT id,content,content_revision,display_height FROM fudaba_messages WHERE id>? ORDER BY id LIMIT ?',
+            [after, limit]
+        );
+        return rows.map((row) => ({
+            id: row.id,
+            content: row.content,
+            contentRevision: Number(row.content_revision),
+            height: Number(row.display_height),
+        }));
+    }
+    async applyLayoutBackfill(
+        id: string,
+        expectedRevision: number,
+        height: number
+    ): Promise<'ok' | 'conflict' | 'gone'> {
+        if (!Number.isInteger(height) || height < 160 || height > 560)
+            throw new Error('Invalid paper height');
+        return this.database.transaction(async (database) => {
+            const before = await this.row(database, id);
+            if (!before) return 'gone';
+            await queryOne(
+                database,
+                'SELECT id FROM fudaba_offices WHERE id=? FOR UPDATE',
+                [before.office_id]
+            );
+            const row = await this.row(database, id, true);
+            if (!row) return 'gone';
+            if (Number(row.content_revision) !== expectedRevision)
+                return 'conflict';
+            await executeSql(
+                database,
+                'UPDATE fudaba_messages SET display_height=?,paper_layout_version=1 WHERE id=?',
+                [height, id]
+            );
+            await this.expand(
+                database,
+                row.office_id,
+                Number(row.world_x),
+                Number(row.world_y),
+                Number(row.rotation),
+                Number(row.z_index),
+                height
+            );
+            return 'ok';
+        });
+    }
+    async listPreviewBackfill(
+        after: string,
+        limit: number
+    ): Promise<
+        {
+            objectKey: string;
+            cardId: string;
+            revision: number;
+            side: 'front' | 'back';
+        }[]
+    > {
+        const rows = await queryAll<{
+            object_key: string;
+            card_id: string;
+            revision: number;
+            side: 'front' | 'back';
+        }>(
+            this.database,
+            `SELECT DISTINCT ON (asset.object_key)
+            asset.object_key, card.id AS card_id, card.revision, asset.side
+            FROM fudaba_cards card
+            CROSS JOIN LATERAL (VALUES ('front', card.front_object_key), ('back', card.back_object_key)) AS asset(side, object_key)
+            LEFT JOIN fudaba_card_media_previews preview ON preview.object_key = asset.object_key
+            WHERE card.deleted_at IS NULL AND asset.object_key > ? AND preview.object_key IS NULL
+            ORDER BY asset.object_key, card.id, asset.side LIMIT ?`,
+            [after, limit]
+        );
+        return rows.map((row) => ({
+            objectKey: row.object_key,
+            cardId: row.card_id,
+            revision: row.revision,
+            side: row.side,
+        }));
     }
 }

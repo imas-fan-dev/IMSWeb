@@ -1,3 +1,4 @@
+import { mockWallScene } from "./fixtures/wall-scene"
 import { installCommunityContentMock } from "./fixtures/community-content"
 import AxeBuilder from "@axe-core/playwright"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
@@ -90,7 +91,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     discoveryTest
       ? { min: 1, max: 10 }
       : testInfo.title.startsWith("lets a card owner")
-        ? { min: 2, max: 3 }
+        ? { min: 2, max: 4 }
         : 1
   )
   if (!discoveryTest) return
@@ -212,7 +213,8 @@ test.describe("community exchange", () => {
       "GET",
       { min: 0, max: 30 }
     )
-    await api.mockRoute(
+    await mockWallScene(
+      api,
       "/api/community/exchange/offices/shanghai-weekend/mixed-wall?*",
       (route) =>
         route.fulfill({
@@ -450,7 +452,8 @@ test.describe("community exchange", () => {
       "GET",
       { min: 0, max: 30 }
     )
-    await api.mockRoute(
+    await mockWallScene(
+      api,
       "**/api/community/exchange/offices/shanghai-weekend/mixed-wall?*",
       async (route) => {
         await route.fulfill({
@@ -730,7 +733,8 @@ test.describe("community exchange", () => {
       "GET",
       { min: 0, max: 30 }
     )
-    await api.mockRoute(
+    await mockWallScene(
+      api,
       "**/api/community/exchange/offices/shanghai-weekend/mixed-wall?*",
       async (route) => {
         await route.fulfill({
@@ -816,9 +820,6 @@ test.describe("community exchange", () => {
       else await target.click()
     }
     await activateCard(firstCard)
-    await expect(page.getByRole("button", { name: "布置名片墙" })).toBeVisible()
-    await expect(page.getByRole("dialog")).toHaveCount(0)
-    await activateCard(firstCard)
     await expect(page.getByRole("button", { name: "完成布置" })).toBeVisible()
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await activateCard(firstCard)
@@ -852,7 +853,6 @@ test.describe("community exchange", () => {
     const moveHandle = page.getByRole("button", {
       name: "查看第二张公开名片正面",
     })
-    await activateCard(moveHandle)
     await activateCard(moveHandle)
     await expect(page.locator('[data-card-id="card-2"]')).toHaveClass(/ring-2/)
     await expect(page.getByRole("dialog")).toHaveCount(0)

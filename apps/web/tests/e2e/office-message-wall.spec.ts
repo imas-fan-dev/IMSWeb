@@ -1,3 +1,4 @@
+import { mockWallScene } from "./fixtures/wall-scene"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { expect, test } from "./fixtures/test"
 
@@ -67,7 +68,8 @@ test("撕边便签密集区域分页、全文与手机双指缩放 @mobile", asy
   )
   const notes = Array.from({ length: 61 }, (_, index) => note(index))
   const pages: number[] = []
-  await api.mockRoute(
+  await mockWallScene(
+    api,
     "**/api/community/exchange/offices/note-office/mixed-wall?*",
     async (route) => {
       const query = new URL(route.request().url()).searchParams
@@ -215,7 +217,8 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
   await api.mockRoute(
     "/api/community/exchange/series",
     (route) => route.fulfill({ json: { items: [] } }),
-    "GET"
+    "GET",
+    { min: 2, max: 4 }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards",
@@ -265,7 +268,8 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
       capabilities: { canEdit: true, canMove: true, canDestroy: true },
     }
   }
-  await api.mockRoute(
+  await mockWallScene(
+    api,
     "**/api/community/exchange/offices/note-office/mixed-wall?*",
     (route) =>
       route.fulfill({
@@ -326,9 +330,13 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
   )
   await api.mockRoute(
     "**/api/community/exchange/messages/note-0",
-    (route) => route.fulfill({ json: { success: true, message: current } }),
+    async (route) => {
+      // Exercise independently cancelled reader requests during StrictMode remounts.
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      return route.fulfill({ json: { success: true, message: current } })
+    },
     "GET",
-    { min: 1, max: 8 }
+    { min: 1, max: 12 }
   )
   await api.mockRoute(
     "**/api/community/exchange/messages/note-0",
@@ -418,8 +426,21 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
     .locator('[data-message-id="note-0"]')
     .getByRole("button", { name: "留言：作者", exact: true })
   await expect(paper).toHaveAttribute("aria-pressed", "true")
+  // Reload to read the public wall item, which must fetch author capabilities.
+  await page.reload()
+  await paper.scrollIntoViewIfNeeded()
   await paper.click()
+  await expect(paper).toHaveAttribute("aria-pressed", "true")
   const reader = page.getByRole("dialog", { name: "留言全文" })
+  await expect(reader).toHaveCount(0)
+  await paper.click()
+  await expect(
+    reader.getByRole("button", { name: "编辑", exact: true })
+  ).toBeVisible()
+  await expect(
+    reader.getByRole("button", { name: "撤回并销毁", exact: true })
+  ).toBeVisible()
+  await expect(reader.getByRole("alert")).toHaveCount(0)
   await reader.getByRole("button", { name: "编辑", exact: true }).click()
   const editor = page.getByRole("dialog", { name: "编辑留言" })
   const camera = await page.locator("[data-wall-scale]").getAttribute("style")
@@ -431,11 +452,20 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
     "style",
     camera!
   )
-  await page.getByRole("button", { name: "布置名片墙", exact: true }).click()
+  await expect(
+    page.getByRole("button", { name: "完成布置", exact: true })
+  ).toBeVisible()
   await paper.focus()
   const previousX = current.placement.x
   await page.keyboard.press("ArrowRight")
   await expect.poll(() => current.placement.x).toBe(previousX + 16)
+  const wallToolbar = page.getByRole("toolbar", { name: "名片墙编辑工具" })
+  await expect(
+    wallToolbar.getByRole("button", { name: "向右旋转留言", exact: true })
+  ).toBeVisible()
+  await expect(
+    wallToolbar.getByRole("button", { name: "从名片墙移除", exact: true })
+  ).toHaveCount(0)
   const moveHandle = page.getByRole("button", { name: "移动留言", exact: true })
   await moveHandle.scrollIntoViewIfNeeded()
   const handle = (await moveHandle.boundingBox())!
@@ -467,10 +497,9 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await page.getByRole("button", { name: "向右旋转留言", exact: true }).click()
   await expect.poll(() => current.placement.rotation).toBeGreaterThan(0)
-  await expect(async () => {
-    await paper.click()
-    await expect(reader).toBeVisible()
-  }).toPass({ timeout: 5000 })
+  // Toolbar focus does not clear the selected item or require an extra click.
+  await paper.click()
+  await expect(reader).toBeVisible()
   await reader.getByRole("button", { name: "撤回并销毁", exact: true }).click()
   const confirmation = page.getByRole("alertdialog")
   await expect(confirmation).toContainText("无法恢复")
@@ -494,7 +523,8 @@ test("远处便签深链接会定位并选中 @mobile", async ({ page, api }) =>
   )
   const remote = note(999, 52000, 450)
   const bounds: number[][] = []
-  await api.mockRoute(
+  await mockWallScene(
+    api,
     "**/api/community/exchange/offices/note-office/mixed-wall?*",
     (route) => {
       const query = new URL(route.request().url()).searchParams

@@ -26,6 +26,23 @@ describe("Vite file watching", () => {
 })
 
 describe("Vite dependency optimization", () => {
+  it("includes rebuilt contracts content in Vite's hashed optimizer options", () => {
+    expect(viteConfig.optimizeDeps?.rolldownOptions?.plugins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: expect.stringMatching(/^imsweb-contracts-build-[a-f0-9]{64}$/),
+        }),
+      ])
+    )
+    expect(viteConfig.plugins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "imsweb-contracts-dependency-cache",
+          apply: "serve",
+        }),
+      ])
+    )
+  })
   it("pre-bundles linked CommonJS runtime entrypoints", () => {
     expect(viteConfig.optimizeDeps?.include).toContain(
       "@imsweb/contracts/fudaba/runtime"

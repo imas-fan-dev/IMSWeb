@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -58,6 +65,31 @@ vi.mock("~/lib/api", async (importOriginal) => {
     deleteFudabaCardPlacement: apiMocks.deleteFudabaCardPlacement,
     getFudabaWall: apiMocks.getFudabaWall,
     getFudabaMixedWall: apiMocks.getFudabaMixedWall,
+    getFudabaWallScene: (
+      ...args: Parameters<typeof actual.getFudabaWallScene>
+    ) => {
+      const method = apiMocks.getFudabaMixedWall(...args)
+      return {
+        ...method,
+        send: async () => {
+          const result = await method.send()
+          return {
+            ...result,
+            layouts: result.office.cards.map((card: typeof placedCard) =>
+              makeCardLayout(card)
+            ),
+          }
+        },
+      }
+    },
+    getFudabaWallLayout: () => ({
+      abort: () => {},
+      send: async () => ({
+        items: [makeCardLayout(placedCard)],
+        pageInfo: { hasNextPage: false, nextCursor: null },
+      }),
+    }),
+
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
     getFudabaSeries: apiMocks.getFudabaSeries,
     getPlatformProfile: apiMocks.getPlatformProfile,
@@ -88,6 +120,21 @@ const unplacedOwnerCard = {
   ...ownerCard,
   id: "card-2",
   displayName: "第二张公开名片",
+}
+
+function makeCardLayout(card: typeof placedCard) {
+  return {
+    kind: "card" as const,
+    id: card.id,
+    placement: card.placement,
+    width: 240,
+    height: 160,
+    layoutVersion: 1 as const,
+    displayName: card.displayName,
+    viewerOwned: card.viewerOwned,
+    preview: null,
+    assetVersion: "fixture-front-v1",
+  }
 }
 
 function renderPage() {
@@ -122,6 +169,20 @@ function mockAuthenticatedPlatformSession() {
 
 describe("CommunityOfficePage", () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: () => true,
+      }))
+    )
+
     vi.clearAllMocks()
     const anonymous = {
       status: "anonymous",
@@ -377,8 +438,6 @@ describe("CommunityOfficePage", () => {
     const card = screen.getByRole("button", { name: "查看交换会用名片正面" })
     await user.click(card)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "布置名片墙" })).toBeVisible()
-    await user.click(card)
     expect(screen.getByRole("button", { name: "完成布置" })).toBeVisible()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(card.closest("[data-card-id]")).toHaveClass("ring-2")
@@ -414,6 +473,98 @@ describe("CommunityOfficePage", () => {
         }
       )
     })
+  })
+
+  it("adds a newly placed card to the locator without losing existing cards", async () => {
+    const user = userEvent.setup()
+    mockAuthenticatedPlatformSession()
+    apiMocks.sendOwnerCards.mockResolvedValue(
+      makeFudabaOwnerCardList({ items: [ownerCard, unplacedOwnerCard] })
+    )
+    const newCard = {
+      ...placedCard,
+      id: unplacedOwnerCard.id,
+      displayName: unplacedOwnerCard.displayName,
+      placement: { ...placedCard.placement, revision: 0, zIndex: 3 },
+    }
+    apiMocks.sendPlacement.mockResolvedValueOnce({
+      success: true,
+      placement: newCard.placement,
+    })
+    renderPage()
+    const editButton = await screen.findByRole("button", { name: "布置名片墙" })
+    const locateButton = screen.getByRole("button", {
+      name: "定位我的名片",
+    })
+    await waitFor(() => expect(locateButton).toBeEnabled())
+    const getWall = apiMocks.getFudabaWall.getMockImplementation()!
+    apiMocks.getFudabaWall.mockImplementation(
+      (slug, input: { card?: string } = {}) => {
+        const method = getWall(slug, input)
+        return input.card === newCard.id
+          ? method
+          : { ...method, send: () => new Promise<never>(() => undefined) }
+      }
+    )
+    apiMocks.sendOffice.mockResolvedValueOnce(
+      makeFudabaOfficeDetail({ cards: [newCard] })
+    )
+    apiMocks.sendOffice.mockResolvedValue(
+      makeFudabaOfficeDetail({ cards: [placedCard, newCard] })
+    )
+
+    await user.click(editButton)
+    await user.click(screen.getByRole("button", { name: "放到墙上" }))
+    await waitFor(() => expect(toastMocks.success).toHaveBeenCalled())
+    await user.click(locateButton)
+    const choices = screen.getByLabelText("选择要定位的名片")
+    expect(
+      within(choices).getByRole("button", { name: /第二张公开名片/ })
+    ).toBeInTheDocument()
+    expect(
+      within(choices).getByRole("button", { name: /交换会用名片/ })
+    ).toBeInTheDocument()
+  })
+
+  it("removes a withdrawn card from the locator and wall placeholders", async () => {
+    const user = userEvent.setup()
+    mockAuthenticatedPlatformSession()
+    apiMocks.deleteFudabaCardPlacement.mockReturnValue({
+      send: vi.fn().mockResolvedValue({ success: true }),
+    })
+    const { container } = renderPage()
+    const editButton = await screen.findByRole("button", { name: "布置名片墙" })
+    const locateButton = screen.getByRole("button", {
+      name: "定位我的名片",
+    })
+    await waitFor(() => expect(locateButton).toBeEnabled())
+    apiMocks.sendOffice.mockResolvedValue(makeFudabaOfficeDetail({ cards: [] }))
+
+    await user.click(editButton)
+    await user.click(screen.getByRole("button", { name: "从名片墙移除" }))
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "移除",
+      })
+    )
+    await waitFor(() =>
+      expect(apiMocks.deleteFudabaCardPlacement).toHaveBeenCalled()
+    )
+    await waitFor(() =>
+      expect(toastMocks.success).toHaveBeenCalledWith("名片已从墙上移除。")
+    )
+    await user.click(locateButton)
+    const choices = screen.getByLabelText("选择要定位的名片")
+    expect(
+      within(choices).queryByRole("button", { name: /交换会用名片/ })
+    ).not.toBeInTheDocument()
+    expect(
+      within(choices).getByText("当前墙上还没有我的名片。")
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-wall-placeholder="card:card-1"]')
+    ).toBeNull()
+    expect(container.querySelector('[data-card-id="card-1"]')).toBeNull()
   })
 
   it("keeps a successful placement out of the retry path when refresh fails", async () => {

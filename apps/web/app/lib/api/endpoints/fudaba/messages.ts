@@ -1,4 +1,9 @@
 import {
+  fudabaWallLayoutResponseSchema,
+  fudabaWallSceneResponseSchema,
+  type FudabaWallLayoutItem,
+} from "@imsweb/contracts/fudaba/messages"
+import {
   fudabaMixedWallResponseSchema,
   fudabaMessageCreateRequestSchema,
   fudabaMessageEditRequestSchema,
@@ -99,6 +104,8 @@ export function getFudabaPrivateMessage(id: string) {
       ...errors,
       meta: withPlatformAuth(),
       cacheFor: 0,
+      // Readers own cancellation independently, including StrictMode remounts.
+      shareRequest: false,
     })
   )
 }
@@ -208,4 +215,74 @@ export function getFudabaMessages(
           cacheFor: 0,
         })
       )
+}
+
+export interface FudabaSceneResponse extends FudabaV2WallResponse {
+  layouts: FudabaWallLayoutItem[]
+}
+
+export function getFudabaWallLayout(slug: string, cursor?: string) {
+  return platformApiClient.Get(
+    query(exchangePath(`/offices/${encodeURIComponent(slug)}/wall-layout`), {
+      cursor,
+      limit: "100",
+    }),
+    parsed(fudabaWallLayoutResponseSchema, {
+      ...errors,
+      meta: withPlatformAuth(),
+      cacheFor: 0,
+      shareRequest: false,
+    })
+  )
+}
+
+export function getFudabaWallScene(
+  slug: string,
+  input: {
+    bbox?: readonly [number, number, number, number]
+    cursor?: string
+    limit?: number
+    item?: string
+  } = {}
+) {
+  return platformApiClient.Get(
+    query(exchangePath(`/offices/${encodeURIComponent(slug)}/wall-scene`), {
+      bbox: input.bbox?.join(","),
+      cursor: input.cursor,
+      limit: String(input.limit ?? 50),
+      item: input.item,
+    }),
+    parsed(fudabaWallSceneResponseSchema, {
+      ...errors,
+      meta: withPlatformAuth(),
+      cacheFor: 0,
+      // Each wall read owns cancellation, including StrictMode remounts.
+      shareRequest: false,
+      select: (wire): FudabaSceneResponse => {
+        const result = normalizeFudabaMixedWallResponse({
+          office: wire.office,
+          wall: wire.wall,
+          items: wire.items,
+          pageInfo: wire.pageInfo,
+          capabilities: wire.capabilities,
+        })
+        const cards = result.items.flatMap((item) =>
+          item.kind === "card" ? [item.card] : []
+        )
+        return {
+          office: { ...result.office, cards },
+          layouts: wire.layouts,
+          wall: result.wall,
+          messages: result.items.flatMap((item) =>
+            item.kind === "message" ? [item.message] : []
+          ),
+          manageableCardIds: result.items.flatMap((item) =>
+            item.kind === "card" && item.canMove ? [item.card.id] : []
+          ),
+          pageInfo: result.pageInfo,
+          capabilities: result.capabilities,
+        }
+      },
+    })
+  )
 }

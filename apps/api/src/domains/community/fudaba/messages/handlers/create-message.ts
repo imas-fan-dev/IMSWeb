@@ -21,10 +21,10 @@ export function handleCreateMessage(c: MessageContext) {
                     code: 'FUDABA_MESSAGE_CREATE_DISABLED',
                     message: '留言发布暂未开放',
                 } satisfies FudabaMessageError,
-                503,
+                503
             );
         const input = parseFudabaMessageCreate(
-            await c.req.json<FudabaMessageCreateInput>(),
+            await c.req.json<FudabaMessageCreateInput>()
         );
         const content = input.content.trim();
         const key = c.req.header('Idempotency-Key');
@@ -35,7 +35,7 @@ export function handleCreateMessage(c: MessageContext) {
                     code: 'FUDABA_MESSAGE_INVALID',
                     message: '需要有效的提交标识',
                 } satisfies FudabaMessageError,
-                400,
+                400
             );
         const hash = (value: string) =>
             createHash('sha256').update(value).digest('hex');
@@ -46,6 +46,7 @@ export function handleCreateMessage(c: MessageContext) {
             actorId: c.get('platformUser')!.id,
             content,
             color: input.color,
+            height: input.height,
             center: input.center,
             keyHash: hash(key),
             requestHash: hash(
@@ -54,7 +55,8 @@ export function handleCreateMessage(c: MessageContext) {
                     content,
                     input.color,
                     input.center ?? null,
-                ]),
+                    ...(input.height === undefined ? [] : [input.height]),
+                ])
             ),
             now: new Date().toISOString(),
         });
@@ -64,7 +66,7 @@ export function handleCreateMessage(c: MessageContext) {
                       success: true,
                       message: result.message,
                   } satisfies FudabaMessageResponse,
-                  201,
+                  201
               )
             : failure(c, result);
     });

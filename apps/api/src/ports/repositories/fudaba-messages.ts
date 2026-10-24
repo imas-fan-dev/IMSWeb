@@ -1,3 +1,4 @@
+import type { FudabaWallLayoutItem } from '@imsweb/contracts/fudaba/messages';
 import type {
     FudabaMessage,
     FudabaMessageColor,
@@ -48,17 +49,48 @@ export interface FudabaMixedWallRecord {
     };
 }
 export interface FudabaMessagesRepository {
+    listLayoutBackfill(
+        after: string,
+        limit: number
+    ): Promise<
+        {
+            id: string;
+            content: string;
+            contentRevision: number;
+            height: number;
+        }[]
+    >;
+    applyLayoutBackfill(
+        id: string,
+        expectedRevision: number,
+        height: number
+    ): Promise<'ok' | 'conflict' | 'gone'>;
+    listPreviewBackfill(
+        after: string,
+        limit: number
+    ): Promise<(FudabaMediaPreviewGuard & { objectKey: string })[]>;
+    saveMediaPreview(
+        objectKey: string,
+        assetSha256: string,
+        preview: string | null,
+        guard: FudabaMediaPreviewGuard
+    ): Promise<boolean>;
+    layouts(
+        items: FudabaMixedWallRecord['items'],
+        includeBack?: boolean
+    ): Promise<FudabaWallLayoutItem[]>;
     read(messageId: string, actorId: string): Promise<FudabaMessageResult>;
     readWall(
         slug: string,
         actorId: string | null,
-        query: FudabaMixedWallQuery,
+        query: FudabaMixedWallQuery
     ): Promise<FudabaMixedWallRecord | null>;
     create(input: {
         id: string;
         officeId: string;
         actorId: string;
         content: string;
+        height?: number;
         color: FudabaMessageColor;
         center?: { x: number; y: number };
         keyHash: string;
@@ -69,17 +101,17 @@ export interface FudabaMessagesRepository {
         messageId: string,
         actorId: string,
         input: FudabaMessageEditInput,
-        now: string,
+        now: string
     ): Promise<FudabaMessageResult>;
     place(
         messageId: string,
         actorId: string,
         input: FudabaMessagePlacementInput,
-        now: string,
+        now: string
     ): Promise<FudabaMessageResult>;
     destroy(
         messageId: string,
-        actorId: string,
+        actorId: string
     ): Promise<{ status: 'ok' } | FudabaMessageFailure>;
     moderate(
         messageId: string,
@@ -87,7 +119,7 @@ export interface FudabaMessagesRepository {
         layer: 'office' | 'admin',
         hidden: boolean,
         expectedRevision: number,
-        now: string,
+        now: string
     ): Promise<FudabaMessageResult>;
     list(input: {
         actorId: string;
@@ -99,3 +131,9 @@ export interface FudabaMessagesRepository {
         scope: string;
     }): Promise<FudabaMessageListResponse | null>;
 }
+
+export type FudabaMediaPreviewGuard = {
+    cardId: string;
+    revision: number;
+    side: 'front' | 'back';
+};

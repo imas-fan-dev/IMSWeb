@@ -13,12 +13,19 @@ import {
   localExchangeMapAssets,
   TAURI_MAP_ORIGINS,
 } from "./vite-exchange-map-assets"
+import {
+  contractsDependencyCache,
+  contractsFingerprint,
+} from "./vite-contracts-cache"
 import { GENERATED_BUILD_WATCH_OPTIONS } from "./vite-watch"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
 const publicSiteProxyOrigin =
   process.env.IMS_PUBLIC_SITE_ORIGIN ?? "https://idol-master.top"
 const workspaceRoot = fileURLToPath(new URL("../..", import.meta.url))
+const contractsDist = fileURLToPath(
+  new URL("../../packages/contracts/dist", import.meta.url)
+)
 // `tauri android dev` and `tauri ios dev` export this when the app runs on a
 // real device, which reaches this server over the LAN instead of loopback.
 const isAppTarget = process.env.VITE_IMS_APP_TARGET === "app"
@@ -79,12 +86,21 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   plugins: [
+    contractsDependencyCache(contractsDist),
     mockWorkerScriptPlugin(),
     localExchangeMapAssets(workspaceRoot),
     tailwindcss(),
     reactRouter(),
   ],
   optimizeDeps: {
+    // Vite hashes optimizer plugin names; rebuilt linked CJS needs a new browser URL.
+    rolldownOptions: {
+      plugins: [
+        {
+          name: `imsweb-contracts-build-${contractsFingerprint(contractsDist)}`,
+        },
+      ],
+    },
     entries: ["app/**/*.{ts,tsx}"],
     include: [
       "@imsweb/contracts/**",

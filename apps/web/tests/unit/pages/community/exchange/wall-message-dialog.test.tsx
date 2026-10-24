@@ -103,6 +103,9 @@ describe("留言编辑与阅读", () => {
       target: { value: content },
     })
     fireEvent.click(screen.getByRole("button", { name: "雾蓝" }))
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "发布便签" })).toBeEnabled()
+    )
     fireEvent.click(screen.getByRole("button", { name: "发布便签" }))
     await screen.findByText("请重试")
     expect(screen.getByLabelText("留言正文")).toHaveValue(content)
@@ -142,6 +145,9 @@ describe("留言编辑与阅读", () => {
     fireEvent.change(screen.getByLabelText("留言正文"), {
       target: { value: "我的未保存草稿" },
     })
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "保存修改" })).toBeEnabled()
+    )
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }))
     await screen.findByText("内容冲突")
     expect(screen.getByRole("button", { name: "保存修改" })).toBeDisabled()

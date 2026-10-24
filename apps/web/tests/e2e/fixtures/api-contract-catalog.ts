@@ -1,4 +1,8 @@
 import {
+  fudabaWallLayoutResponseSchema,
+  fudabaWallSceneResponseSchema,
+} from "@imsweb/contracts/fudaba/messages"
+import {
   fudabaMixedWallQuerySchema,
   fudabaMixedWallResponseSchema,
   fudabaMessageCreateRequestSchema,
@@ -386,6 +390,22 @@ export function resolveApiContract(
     500: fudabaMessageErrorResponseSchema,
     503: fudabaMessageErrorResponseSchema,
   }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall-layout$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaWallLayoutResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall-scene$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaWallSceneResponseSchema, ...messageErrors },
+    }
   if (
     method === "GET" &&
     /^\/api\/community\/exchange\/offices\/[^/]+\/mixed-wall$/.test(path)

@@ -32,7 +32,11 @@ import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
 } from '@/routing/capability-router';
-import { handleReadMixedWall } from '@/domains/community/fudaba/messages/handlers/read-mixed-wall';
+import {
+    handleReadMixedWall,
+    handleReadWallLayout,
+    handleReadWallScene,
+} from '@/domains/community/fudaba/messages/handlers/read-mixed-wall';
 import { handleCreateMessage } from '@/domains/community/fudaba/messages/handlers/create-message';
 import { handleEditMessage } from '@/domains/community/fudaba/messages/handlers/edit-message';
 import { handlePlaceMessage } from '@/domains/community/fudaba/messages/handlers/place-message';
@@ -56,60 +60,76 @@ export function fudabaMessageRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         paramSchemaValidator(fudabaMessageSlugParamsSchema),
         querySchemaValidator(fudabaMixedWallQuerySchema),
-        handleReadMixedWall,
+        handleReadMixedWall
+    );
+    routes.get(
+        '/offices/:slug/wall-layout',
+        requireFudabaPublicRead,
+        optionalPlatformAuth,
+        paramSchemaValidator(fudabaMessageSlugParamsSchema),
+        querySchemaValidator(fudabaMixedWallQuerySchema),
+        handleReadWallLayout
+    );
+    routes.get(
+        '/offices/:slug/wall-scene',
+        requireFudabaPublicRead,
+        optionalPlatformAuth,
+        paramSchemaValidator(fudabaMessageSlugParamsSchema),
+        querySchemaValidator(fudabaMixedWallQuerySchema),
+        handleReadWallScene
     );
     routes.get(
         '/messages/:messageId',
         platformAuth,
         paramSchemaValidator(fudabaMessageIdParamsSchema),
-        handleReadPrivateMessage,
+        handleReadPrivateMessage
     );
     routes.get(
         '/me/messages',
         platformAuth,
         querySchemaValidator(fudabaMessageListQuerySchema),
-        handleListMessages('mine'),
+        handleListMessages('mine')
     );
     routes.get(
         '/offices/:officeId/messages',
         platformAuth,
         paramSchemaValidator(fudabaMessageOfficeParamsSchema),
         querySchemaValidator(fudabaMessageListQuerySchema),
-        handleListMessages('office'),
+        handleListMessages('office')
     );
     routes.post(
         '/offices/:officeId/messages',
         ...write,
         paramSchemaValidator(fudabaMessageOfficeParamsSchema),
         jsonSchemaValidator(fudabaMessageCreateRequestSchema),
-        handleCreateMessage,
+        handleCreateMessage
     );
     routes.put(
         '/messages/:messageId',
         ...write,
         paramSchemaValidator(fudabaMessageIdParamsSchema),
         jsonSchemaValidator(fudabaMessageEditRequestSchema),
-        handleEditMessage,
+        handleEditMessage
     );
     routes.put(
         '/messages/:messageId/placement',
         ...write,
         paramSchemaValidator(fudabaMessageIdParamsSchema),
         jsonSchemaValidator(fudabaMessagePlacementRequestSchema),
-        handlePlaceMessage,
+        handlePlaceMessage
     );
     routes.delete(
         '/messages/:messageId',
         ...write,
         paramSchemaValidator(fudabaMessageIdParamsSchema),
-        handleDestroyMessage,
+        handleDestroyMessage
     );
     routes.put(
         '/messages/:messageId/office-moderation',
         ...write,
         paramSchemaValidator(fudabaMessageIdParamsSchema),
         jsonSchemaValidator(fudabaMessageModerationRequestSchema),
-        handleModerateMessage('office'),
+        handleModerateMessage('office')
     );
     return routes;
 }
@@ -120,7 +140,7 @@ export function fudabaAdminMessageRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         superAdminOnly,
         querySchemaValidator(fudabaMessageListQuerySchema),
-        handleListMessages('admin'),
+        handleListMessages('admin')
     );
     routes.put(
         '/messages/:messageId/moderation',
@@ -129,7 +149,7 @@ export function fudabaAdminMessageRoutes(): ImsCapabilityRouter {
         backofficeCsrf,
         paramSchemaValidator(fudabaMessageIdParamsSchema),
         jsonSchemaValidator(fudabaMessageModerationRequestSchema),
-        handleModerateMessage('admin'),
+        handleModerateMessage('admin')
     );
     return routes;
 }

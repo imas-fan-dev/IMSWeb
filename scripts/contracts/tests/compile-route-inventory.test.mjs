@@ -135,6 +135,18 @@ test.describe('route inventory compiler', () => {
     const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
     const collected = collectRouteInventory(repositoryRoot);
     const current = routeInventoryArtifact(collected);
+  for (const suffix of ['wall-layout', 'wall-scene']) {
+    const route = current.routes.find((route) => route.method === 'GET' && route.path === `/api/community/exchange/offices/:slug/${suffix}`);
+    assert.ok(route, `${suffix} is registered`);
+    const param = route.carriers.find((carrier) => carrier.kind === 'param');
+    const query = route.carriers.find((carrier) => carrier.kind === 'query');
+    assert.equal(param?.syntaxPolicy, 'reject');
+    assert.equal(param?.schemaSymbol, 'fudabaMessageSlugParamsSchema');
+    assert.equal(query?.policy, 'reject');
+    assert.equal(query?.schemaModule, '@imsweb/contracts/fudaba/messages');
+    assert.equal(query?.schemaSymbol, 'fudabaMixedWallQuerySchema');
+  }
+
     const messageRoutes = current.routes.filter(route => route.path.includes('/messages') || route.path.endsWith('/mixed-wall'));
     assert.equal(messageRoutes.length, 11);
     for (const route of messageRoutes) {
@@ -151,15 +163,15 @@ test.describe('route inventory compiler', () => {
 
     // V1 adds region GET and world-placement PUT: two paths and four carriers.
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 350,
-      mountedMethodPaths: 260,
+      mountedRegistrations: 352,
+      mountedMethodPaths: 262,
       noInputRoutes: 90,
-      requestCarriers: 348,
+      requestCarriers: 352,
       policies: {
-        reject: 63,
+        reject: 65,
         "accept-and-project": 183,
         passthrough: 18,
-        "non-object-applicable": 84,
+        "non-object-applicable": 86,
       },
       responses: { total: 671, json: 607, nonJson: 64 },
       unresolved: 0,

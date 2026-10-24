@@ -11,7 +11,8 @@ const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "optio
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 // V1 adds GET office/wall (param + strict query) and PUT world-placement (param + strict JSON).
 // V2 messages: 11 routes and 18 strict request carriers, preserving all V1 policies.
-const BASELINE = { mountedMethodPaths: 253, carriers: 325, reject: 63, acceptAndProject: 161, passthrough: 17, nonObjectApplicable: 84 };
+// Wall layout and scene add two GET routes with params and strict query carriers.
+const BASELINE = { mountedMethodPaths: 255, carriers: 329, reject: 65, acceptAndProject: 161, passthrough: 17, nonObjectApplicable: 86 };
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },

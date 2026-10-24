@@ -1,22 +1,21 @@
+import type { FudabaWallLayoutItem } from "@imsweb/contracts/fudaba/messages"
+import { WallObjectPlaceholder } from "./wall-object-placeholder"
+import { wallLayoutIntersects } from "./wall-scene-layout"
+import { useWallImage } from "./use-wall-image"
+import {
+  useWallItemInteraction,
+  WallMoveHandle,
+} from "./wall-item-interactions"
 import { WallMessageNote } from "./wall-message-note"
 import type { FudabaPublicMessage } from "~/lib/api"
 import {
   BringToFrontIcon,
-  GripIcon,
-  LoaderCircleIcon,
   Repeat2Icon,
   RotateCcwIcon,
   RotateCwIcon,
   Trash2Icon,
 } from "lucide-react"
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-} from "react"
+import { useMemo, useState } from "react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
@@ -54,6 +53,10 @@ type PlacementCommit = (
 ) => void
 
 interface PlacedCardWallProps {
+  loadError?: string | null
+  onRetryLoad?: () => void
+  layoutItems?: FudabaWallLayoutItem[]
+  layoutBounds?: WallBounds
   messages?: FudabaPublicMessage[]
   canArrangeWall?: boolean
   focusedMessageId?: string | null
@@ -79,6 +82,7 @@ interface PlacedCardWallProps {
 }
 
 interface WallCardProps {
+  layout?: Extract<FudabaWallLayoutItem, { kind: "card" }>
   canArrangeWall?: boolean
   scale: number
   card: FudabaPlacedCard
@@ -93,20 +97,8 @@ interface WallCardProps {
   onPlacementCommit?: PlacementCommit
 }
 
-interface DragStart {
-  pointerId: number
-  clientX: number
-  clientY: number
-  placement: FudabaCardPlacement
-  latest: WallPlacement
-}
-
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value))
-}
-
-function roundedCoordinate(value: number) {
-  return Math.round(clamp(value, -1_000_000, 1_000_000) * 10) / 10
 }
 
 function placementFields(placement: FudabaCardPlacement): WallPlacement {
@@ -154,6 +146,7 @@ function IconTooltip({
 }
 
 function WallCard({
+  layout,
   canArrangeWall = false,
   scale,
   card,
@@ -167,129 +160,36 @@ function WallCard({
   onPlacementPreview,
   onPlacementCommit,
 }: WallCardProps) {
-  const dragStart = useRef<DragStart | null>(null)
-  const suppressPreview = useRef(false)
-  const cardElement = useRef<HTMLDivElement | null>(null)
   const canMove = editing && (card.viewerOwned || canArrangeWall) && !pending
+  const { elementRef, triggerProps, handleProps, requestActivation } =
+    useWallItemInteraction({
+      placement: card.placement,
+      scale,
+      canMove,
+      selected,
+      onSelect,
+      onActivate,
+      onPreview: (placement) => onPlacementPreview?.(card.id, placement),
+      onCommit: (previous, placement) =>
+        onPlacementCommit?.(card.id, previous, placement),
+    })
 
-  useEffect(() => {
-    if (!canMove) {
-      dragStart.current = null
-      if (cardElement.current) {
-        cardElement.current.style.left = String(card.placement.x) + "px"
-        cardElement.current.style.top = String(card.placement.y) + "px"
-        cardElement.current.dataset.placementX = String(card.placement.x)
-        cardElement.current.dataset.placementY = String(card.placement.y)
-      }
-    }
-  }, [canMove, card.placement.x, card.placement.y])
-
-  function preview(placement: WallPlacement) {
-    onPlacementPreview?.(card.id, placement)
-  }
-
-  function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!canMove || event.button !== 0) return
-    suppressPreview.current = false
-    event.preventDefault()
-    event.currentTarget.focus()
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    const placement = card.placement
-    dragStart.current = {
-      pointerId: event.pointerId,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      placement,
-      latest: placementFields(placement),
-    }
-  }
-
-  function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
-    const start = dragStart.current
-    if (!start || start.pointerId !== event.pointerId) return
-    const next = {
-      ...start.latest,
-      x: roundedCoordinate(
-        start.placement.x + (event.clientX - start.clientX) / scale
-      ),
-      y: roundedCoordinate(
-        start.placement.y + (event.clientY - start.clientY) / scale
-      ),
-    }
-    start.latest = next
-    if (cardElement.current) {
-      cardElement.current.style.left = `${next.x}px`
-      cardElement.current.style.top = `${next.y}px`
-      cardElement.current.dataset.placementX = String(next.x)
-      cardElement.current.dataset.placementY = String(next.y)
-    }
-  }
-
-  function handlePointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
-    const start = dragStart.current
-    if (!start || start.pointerId !== event.pointerId) return
-    dragStart.current = null
-    onSelect()
-    if (!samePlacement(placementFields(start.placement), start.latest)) {
-      suppressPreview.current = true
-      preview(start.latest)
-      onPlacementCommit?.(card.id, start.placement, start.latest)
-    }
-  }
-
-  function handlePointerCancel(event: ReactPointerEvent<HTMLButtonElement>) {
-    const start = dragStart.current
-    if (!start || start.pointerId !== event.pointerId) return
-    dragStart.current = null
-    suppressPreview.current = true
-    const previous = placementFields(start.placement)
-    if (cardElement.current) {
-      cardElement.current.style.left = `${previous.x}px`
-      cardElement.current.style.top = `${previous.y}px`
-      cardElement.current.dataset.placementX = String(previous.x)
-      cardElement.current.dataset.placementY = String(previous.y)
-    }
-  }
-
-  function handleKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
-    if (event.key === "Escape" && dragStart.current) {
-      dragStart.current = null
-      suppressPreview.current = true
-      if (cardElement.current) {
-        cardElement.current.style.left = String(card.placement.x) + "px"
-        cardElement.current.style.top = String(card.placement.y) + "px"
-        cardElement.current.dataset.placementX = String(card.placement.x)
-        cardElement.current.dataset.placementY = String(card.placement.y)
-      }
-      return
-    }
-    if (!canMove) return
-    const step = event.shiftKey ? 80 : 16
-    const movement = {
-      ArrowDown: [0, step],
-      ArrowLeft: [-step, 0],
-      ArrowRight: [step, 0],
-      ArrowUp: [0, -step],
-    }[event.key]
-    if (!movement) return
-    event.preventDefault()
-    onSelect()
-    const previous = card.placement
-    const next = {
-      ...placementFields(previous),
-      x: roundedCoordinate(previous.x + movement[0]),
-      y: roundedCoordinate(previous.y + movement[1]),
-    }
-    if (samePlacement(placementFields(previous), next)) return
-    preview(next)
-    onPlacementCommit?.(card.id, previous, next)
-  }
-
+  const originalImageSource = flipped ? card.backImageUrl : card.frontImageUrl
+  const imageSource = (() => {
+    if (!layout?.assetVersion || /^(data:|blob:)/.test(originalImageSource))
+      return originalImageSource
+    const hashAt = originalImageSource.indexOf("#")
+    const path =
+      hashAt < 0 ? originalImageSource : originalImageSource.slice(0, hashAt)
+    const hash = hashAt < 0 ? "" : originalImageSource.slice(hashAt)
+    return `${path}${path.includes("?") ? "&" : "?"}wall_asset=${encodeURIComponent(layout.assetVersion)}${hash}`
+  })()
+  const image = useWallImage(imageSource, elementRef)
   const side = flipped ? "背面" : "正面"
 
   return (
     <div
-      ref={cardElement}
+      ref={elementRef}
       className={cn(
         "absolute w-60",
         selected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
@@ -305,35 +205,62 @@ function WallCard({
       }}
     >
       <CoverImagePreview
-        src={flipped ? card.backImageUrl : card.frontImageUrl}
+        src={imageSource}
         alt={`${card.displayName}${side}`}
         previewLabel="名片"
         className={cn(
           "aspect-3/2 w-full border bg-card shadow-sm",
           selected && canMove && "cursor-grab touch-none active:cursor-grabbing"
         )}
-        imageClassName="object-contain"
+        imageClassName={cn(
+          "object-contain transition-opacity motion-reduce:transition-none",
+          !image.ready && "opacity-0"
+        )}
         imageDraggable={false}
-        onPreviewRequest={() => {
-          if (suppressPreview.current) {
-            suppressPreview.current = false
-            return false
-          }
-          return onActivate()
-        }}
+        onPreviewRequest={requestActivation}
         triggerProps={{
+          ...triggerProps,
           title: selected ? "查看大图" : "选中名片",
-          onPointerDown: (event) => {
-            suppressPreview.current = false
-            if (selected) handlePointerDown(event)
-          },
-          onPointerMove: handlePointerMove,
-          onPointerUp: handlePointerUp,
-          onPointerCancel: handlePointerCancel,
-          onLostPointerCapture: handlePointerCancel,
-          onKeyDown: handleKeyDown,
         }}
       />
+      {!image.ready ? (
+        <div
+          className="pointer-events-none absolute inset-0"
+          data-wall-image-loading={card.id}
+        >
+          <WallObjectPlaceholder
+            item={{
+              kind: "card",
+              id: card.id,
+              displayName: card.displayName,
+              viewerOwned: card.viewerOwned,
+              width: 240,
+              height: 160,
+              layoutVersion: 1,
+              preview:
+                (flipped ? layout?.backPreview : layout?.preview) ?? null,
+              assetVersion: layout?.assetVersion ?? imageSource,
+              placement: {
+                ...card.placement,
+                x: 120,
+                y: 80,
+                rotation: 0,
+                zIndex: 0,
+              },
+            }}
+          />
+        </div>
+      ) : null}
+      {image.error ? (
+        <Button
+          type="button"
+          size="sm"
+          className="absolute top-1/2 left-1/2 -translate-1/2"
+          onClick={image.retry}
+        >
+          重试图片
+        </Button>
+      ) : null}
       <IconTooltip label={flipped ? "翻到正面" : "翻到背面"}>
         <Button
           type="button"
@@ -347,43 +274,25 @@ function WallCard({
         </Button>
       </IconTooltip>
       {editing && (card.viewerOwned || canArrangeWall) ? (
-        <IconTooltip label="移动名片">
-          <Button
-            type="button"
-            variant={selected ? "default" : "outline"}
-            size="icon-sm"
-            className={cn(
-              "absolute -top-3 -left-3 touch-none shadow-sm",
-              canMove && "cursor-grab active:cursor-grabbing"
-            )}
-            style={{
-              transform: `scale(${1 / scale})`,
-              transformOrigin: "center",
-            }}
-            aria-label={`移动${card.displayName}`}
-            aria-pressed={selected}
-            disabled={pending}
-            onFocus={onSelect}
-            onKeyDown={handleKeyDown}
-            onLostPointerCapture={handlePointerCancel}
-            onPointerCancel={handlePointerCancel}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-          >
-            {pending ? (
-              <LoaderCircleIcon className="animate-spin" aria-hidden="true" />
-            ) : (
-              <GripIcon aria-hidden="true" />
-            )}
-          </Button>
-        </IconTooltip>
+        <WallMoveHandle
+          label={`移动${card.displayName}`}
+          selected={selected}
+          pending={pending}
+          scale={scale}
+          canMove={canMove}
+          onSelect={onSelect}
+          handlers={handleProps}
+        />
       ) : null}
     </div>
   )
 }
 
 export function PlacedCardWall({
+  loadError,
+  onRetryLoad,
+  layoutItems = [],
+  layoutBounds,
   messages = [],
   canArrangeWall = false,
   focusedMessageId,
@@ -405,7 +314,18 @@ export function PlacedCardWall({
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
     focusedMessageId ?? null
   )
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(
+    focus?.cardId ?? null
+  )
+  const [previousFocusKey, setPreviousFocusKey] = useState(focus?.key)
+  if (focus?.key !== previousFocusKey) {
+    setPreviousFocusKey(focus?.key)
+    if (focus?.cardId) {
+      setSelectedId(focus.cardId)
+      setSelectedMessageId(null)
+    }
+  }
+
   const [previousFocusedMessageId, setPreviousFocusedMessageId] =
     useState(focusedMessageId)
   if (focusedMessageId !== previousFocusedMessageId) {
@@ -418,7 +338,10 @@ export function PlacedCardWall({
   const [previousEditing, setPreviousEditing] = useState(editing)
   if (editing !== previousEditing) {
     setPreviousEditing(editing)
-    if (!editing) setSelectedId(null)
+    if (!editing) {
+      setSelectedId(null)
+      setSelectedMessageId(null)
+    }
   }
   const [flippedIds, setFlippedIds] = useState(() => new Set<string>())
   const [removeOpen, setRemoveOpen] = useState(false)
@@ -436,18 +359,36 @@ export function PlacedCardWall({
     : (cards.find((card) => card.id === selectedId) ??
       (editing ? (ownedCards[0] ?? null) : null))
   const selectedCard = editing ? activeCard : null
-  const selectedPending = selectedCard
-    ? pendingCardIds.has(selectedCard.id)
-    : false
-  const selectedReadOnly = !(selectedCard?.viewerOwned || canArrangeWall)
+  const selectedMessage = editing
+    ? (messages.find((message) => message.id === selectedMessageId) ?? null)
+    : null
+  const selectedPlacement =
+    selectedMessage?.placement ?? selectedCard?.placement
+  const selectedPending = selectedMessage
+    ? pendingMessageIds.has(selectedMessage.id)
+    : selectedCard
+      ? pendingCardIds.has(selectedCard.id)
+      : false
+  const selectedReadOnly = selectedMessage
+    ? !selectedMessage.capabilities.canMove
+    : !(selectedCard?.viewerOwned || canArrangeWall)
   const maximumZIndex = Math.max(
     maxZIndex,
-    ...cards.map((card) => card.placement.zIndex)
+    ...cards.map((card) => card.placement.zIndex),
+    ...messages.map((message) => message.placement.zIndex)
   )
   const selectedIsFrontmost =
-    selectedCard !== null &&
-    selectedCard.placement.zIndex === maximumZIndex &&
-    orderedCards.at(-1)?.id === selectedCard.id
+    selectedPlacement?.zIndex === maximumZIndex &&
+    (selectedMessage
+      ? !cards.some((card) => card.placement.zIndex === maximumZIndex) &&
+        !messages.some(
+          (message) =>
+            message.id !== selectedMessage.id &&
+            message.placement.zIndex === maximumZIndex
+        )
+      : orderedCards.at(-1)?.id === selectedCard?.id &&
+        !messages.some((message) => message.placement.zIndex === maximumZIndex))
+  const selectedKind = selectedMessage ? "留言" : "名片"
 
   function flip(cardId: string) {
     setFlippedIds((current) => {
@@ -459,31 +400,22 @@ export function PlacedCardWall({
   }
 
   function commitSelected(patch: Partial<WallPlacement>) {
-    if (!selectedCard || selectedReadOnly || selectedPending) return
-    const previous = selectedCard.placement
-    const next = { ...placementFields(previous), ...patch }
-    if (samePlacement(placementFields(previous), next)) return
-    onPlacementPreview?.(selectedCard.id, next)
-    onPlacementCommit?.(selectedCard.id, previous, next)
+    if (!selectedPlacement || selectedReadOnly || selectedPending) return
+    const next = { ...placementFields(selectedPlacement), ...patch }
+    if (samePlacement(placementFields(selectedPlacement), next)) return
+    if (selectedMessage) {
+      onMessagePlacementCommit?.(selectedMessage, selectedPlacement, next)
+    } else if (selectedCard) {
+      onPlacementPreview?.(selectedCard.id, next)
+      onPlacementCommit?.(selectedCard.id, selectedPlacement, next)
+    }
   }
 
   function bringSelectedToFront() {
-    if (
-      !selectedCard ||
-      selectedReadOnly ||
-      selectedPending ||
-      selectedIsFrontmost
-    )
-      return
-    const previous = selectedCard.placement
-    const next = {
-      ...placementFields(previous),
-      zIndex: 2_147_483_000,
-    }
-    if (!samePlacement(placementFields(previous), next)) {
-      onPlacementPreview?.(selectedCard.id, next)
-    }
-    onPlacementCommit?.(selectedCard.id, previous, next)
+    if (selectedIsFrontmost) return
+    commitSelected({
+      zIndex: selectedMessage ? maximumZIndex + 1 : 2_147_483_000,
+    })
   }
 
   return (
@@ -491,7 +423,7 @@ export function PlacedCardWall({
       <div
         className="relative space-y-3"
         aria-label="名片墙"
-        aria-busy={pendingCardIds.size > 0}
+        aria-busy={pendingCardIds.size > 0 || pendingMessageIds.size > 0}
       >
         <SeriesAccentStrip className="h-1" />
 
@@ -504,19 +436,23 @@ export function PlacedCardWall({
             )}
           >
             <span className="max-w-28 truncate px-1 text-xs font-medium sm:max-w-48">
-              {selectedCard?.displayName ?? "选择名片"}
+              {selectedMessage?.authorName ??
+                selectedCard?.displayName ??
+                "选择名片或留言"}
             </span>
             <IconTooltip label="向左旋转">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="向左旋转名片"
-                disabled={!selectedCard || selectedReadOnly || selectedPending}
+                aria-label={`向左旋转${selectedKind}`}
+                disabled={
+                  !selectedPlacement || selectedReadOnly || selectedPending
+                }
                 onClick={() =>
                   commitSelected({
                     rotation: clamp(
-                      (selectedCard?.placement.rotation ?? 0) - 2,
+                      (selectedPlacement?.rotation ?? 0) - 2,
                       -12,
                       12
                     ),
@@ -531,12 +467,14 @@ export function PlacedCardWall({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="向右旋转名片"
-                disabled={!selectedCard || selectedReadOnly || selectedPending}
+                aria-label={`向右旋转${selectedKind}`}
+                disabled={
+                  !selectedPlacement || selectedReadOnly || selectedPending
+                }
                 onClick={() =>
                   commitSelected({
                     rotation: clamp(
-                      (selectedCard?.placement.rotation ?? 0) + 2,
+                      (selectedPlacement?.rotation ?? 0) + 2,
                       -12,
                       12
                     ),
@@ -551,9 +489,9 @@ export function PlacedCardWall({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="将名片移到最前"
+                aria-label={`将${selectedKind}移到最前`}
                 disabled={
-                  !selectedCard ||
+                  !selectedPlacement ||
                   selectedReadOnly ||
                   selectedPending ||
                   selectedIsFrontmost
@@ -563,33 +501,39 @@ export function PlacedCardWall({
                 <BringToFrontIcon aria-hidden="true" />
               </Button>
             </IconTooltip>
-            <IconTooltip label="翻转名片">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="翻转选中名片"
-                disabled={!selectedCard}
-                onClick={() => {
-                  if (selectedCard) flip(selectedCard.id)
-                }}
-              >
-                <Repeat2Icon aria-hidden="true" />
-              </Button>
-            </IconTooltip>
-            <IconTooltip label="移除名片">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-destructive hover:text-destructive"
-                aria-label="从名片墙移除"
-                disabled={!selectedCard || selectedReadOnly || selectedPending}
-                onClick={() => setRemoveOpen(true)}
-              >
-                <Trash2Icon aria-hidden="true" />
-              </Button>
-            </IconTooltip>
+            {selectedMessage ? null : (
+              <>
+                <IconTooltip label="翻转名片">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="翻转选中名片"
+                    disabled={!selectedCard}
+                    onClick={() => {
+                      if (selectedCard) flip(selectedCard.id)
+                    }}
+                  >
+                    <Repeat2Icon aria-hidden="true" />
+                  </Button>
+                </IconTooltip>
+                <IconTooltip label="移除名片">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive hover:text-destructive"
+                    aria-label="从名片墙移除"
+                    disabled={
+                      !selectedCard || selectedReadOnly || selectedPending
+                    }
+                    onClick={() => setRemoveOpen(true)}
+                  >
+                    <Trash2Icon aria-hidden="true" />
+                  </Button>
+                </IconTooltip>
+              </>
+            )}
           </div>
         ) : null}
 
@@ -598,15 +542,45 @@ export function PlacedCardWall({
           focus={focus}
           onRegionChange={onRegionChange}
         >
-          {(camera, interaction) => (
+          {(camera) => (
             <>
-              {orderedCards.length || messages.length ? (
+              {orderedCards.length ||
+              messages.length ||
+              layoutItems.some(
+                (item) =>
+                  !layoutBounds || wallLayoutIntersects(item, layoutBounds)
+              ) ? (
                 <>
                   {" "}
+                  {layoutItems
+                    .filter(
+                      (item) =>
+                        (!layoutBounds ||
+                          wallLayoutIntersects(item, layoutBounds)) &&
+                        (item.kind === "card"
+                          ? !cards.some((card) => card.id === item.id)
+                          : !messages.some((message) => message.id === item.id))
+                    )
+                    .map((item) => (
+                      <WallObjectPlaceholder
+                        error={loadError}
+                        onRetry={onRetryLoad}
+                        key={`${item.kind}:${item.id}`}
+                        item={item}
+                      />
+                    ))}
                   {orderedCards.map((card) => (
                     <WallCard
                       key={card.id}
                       scale={camera.scale}
+                      layout={layoutItems.find(
+                        (
+                          item
+                        ): item is Extract<
+                          FudabaWallLayoutItem,
+                          { kind: "card" }
+                        > => item.kind === "card" && item.id === card.id
+                      )}
                       card={card}
                       canArrangeWall={canArrangeWall}
                       editing={editing}
@@ -619,7 +593,6 @@ export function PlacedCardWall({
                         setSelectedId(card.id)
                       }}
                       onActivate={() => {
-                        if (!interaction.wasSelected) return false
                         if (selectedId !== card.id) {
                           setSelectedMessageId(null)
                           setSelectedId(card.id)
@@ -635,6 +608,12 @@ export function PlacedCardWall({
                   {messages.map((message) => (
                     <WallMessageNote
                       key={"message:" + message.id}
+                      height={
+                        layoutItems.find(
+                          (item) =>
+                            item.kind === "message" && item.id === message.id
+                        )?.height ?? 277
+                      }
                       message={message}
                       scale={camera.scale}
                       selected={selectedMessageId === message.id}
@@ -645,6 +624,15 @@ export function PlacedCardWall({
                         setSelectedId(null)
                         if (message.capabilities.canMove)
                           onEditingChange?.(true)
+                      }}
+                      onActivate={() => {
+                        if (selectedMessageId !== message.id) {
+                          setSelectedMessageId(message.id)
+                          setSelectedId(null)
+                          onEditingChange?.(true)
+                          return false
+                        }
+                        return true
                       }}
                       onRead={() => onReadMessage?.(message)}
                       onCommit={(message, previous, placement) =>

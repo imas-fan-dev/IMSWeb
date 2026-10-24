@@ -16,6 +16,7 @@ export interface WallCamera {
   scale: number
 }
 export interface WallFocus {
+  cardId?: string
   x: number
   y: number
   key: number

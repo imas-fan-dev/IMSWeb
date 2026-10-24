@@ -3,28 +3,28 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "5e992c6e7c3b912114da76ad7f8004c98b9e43b9716c27da834f424fd0a663a8",
+    "semanticDigest": "103ffe51ce0347d2b66e27676bc32bb88b278ddfbf33805f113b84c5fa44a452",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 253,
-    "carriers": 325,
-    "reject": 63,
+    "mountedMethodPaths": 255,
+    "carriers": 329,
+    "reject": 65,
     "acceptAndProject": 161,
     "passthrough": 17,
-    "nonObjectApplicable": 84
+    "nonObjectApplicable": 86
   },
   "counts": {
-    "mountedRegistrations": 350,
-    "mountedMethodPaths": 260,
+    "mountedRegistrations": 352,
+    "mountedMethodPaths": 262,
     "noInputRoutes": 90,
-    "requestCarriers": 348,
+    "requestCarriers": 352,
     "policies": {
-      "reject": 63,
+      "reject": 65,
       "accept-and-project": 183,
       "passthrough": 18,
-      "non-object-applicable": 84
+      "non-object-applicable": 86
     },
     "responses": {
       "total": 671,
@@ -35,13 +35,13 @@
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 253,
-      "requestCarriers": 325,
+      "mountedMethodPaths": 255,
+      "requestCarriers": 329,
       "policies": {
-        "reject": 63,
+        "reject": 65,
         "accept-and-project": 161,
         "passthrough": 17,
-        "non-object-applicable": 84
+        "non-object-applicable": 86
       }
     },
     "explicitQueryAdditions": [
@@ -121,7 +121,7 @@
       "/api/cards": 1,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 62,
+      "/api/community": 64,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -4186,6 +4186,84 @@
         "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
       },
       "handlerSymbol": "handleReadMixedWall",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "schemaSymbol": "fudabaMessageSlugParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "schemaSymbol": "fudabaMixedWallQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:slug/wall-layout",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "handlerSymbol": "handleReadWallLayout",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "schemaSymbol": "fudabaMessageSlugParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "schemaSymbol": "fudabaMixedWallQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:slug/wall-scene",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "handlerSymbol": "handleReadWallScene",
       "carriers": [
         {
           "kind": "param",
@@ -9816,7 +9894,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) , }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
@@ -9831,7 +9909,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
           "kind": "json",
-          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CREATE_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u521B\\u5EFA\\u5931\\u8D25\" : messageFromError ( error ) }"
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CREATE_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u521B\\u5EFA\\u5931\\u8D25\" : messageFromError ( error ) , }"
         }
       ]
     },
@@ -13234,17 +13312,17 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : current . revision }"
+          "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : current . revision , }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) , }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : result . revision }"
+          "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : result . revision , }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
@@ -13254,12 +13332,12 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) , }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
           "kind": "json",
-          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_UPLOAD_INVALID\" , message : status > = 500 ? \"\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) }"
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_UPLOAD_INVALID\" , message : status > = 500 ? \"\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) , }"
         }
       ]
     },
@@ -15198,6 +15276,74 @@
       "method": "GET",
       "path": "/api/community/exchange/offices/:slug/mixed-wall",
       "handlerSymbol": "handleReadMixedWall",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "schemaSymbol": "fudabaMixedWallQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:slug/wall-layout",
+      "handlerSymbol": "handleReadWallLayout",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "schemaSymbol": "fudabaMessageSlugParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:slug/wall-layout",
+      "handlerSymbol": "handleReadWallLayout",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "schemaSymbol": "fudabaMixedWallQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:slug/wall-scene",
+      "handlerSymbol": "handleReadWallScene",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "schemaSymbol": "fudabaMessageSlugParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/offices/:slug/wall-scene",
+      "handlerSymbol": "handleReadWallScene",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -22569,7 +22715,7 @@
       "handlerSymbol": "handleCreateFudabaCard",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) , }"
     },
     {
       "method": "POST",
@@ -22593,7 +22739,7 @@
       "handlerSymbol": "handleCreateFudabaCard",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
       "kind": "json",
-      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CREATE_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u521B\\u5EFA\\u5931\\u8D25\" : messageFromError ( error ) }"
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CREATE_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u521B\\u5EFA\\u5931\\u8D25\" : messageFromError ( error ) , }"
     },
     {
       "method": "POST",
@@ -24481,7 +24627,7 @@
       "handlerSymbol": "handleUploadFudabaOwnedMedia",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : current . revision }"
+      "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : current . revision , }"
     },
     {
       "method": "PUT",
@@ -24489,7 +24635,7 @@
       "handlerSymbol": "handleUploadFudabaOwnedMedia",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) , }"
     },
     {
       "method": "PUT",
@@ -24497,7 +24643,7 @@
       "handlerSymbol": "handleUploadFudabaOwnedMedia",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : result . revision }"
+      "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : result . revision , }"
     },
     {
       "method": "PUT",
@@ -24513,7 +24659,7 @@
       "handlerSymbol": "handleUploadFudabaOwnedMedia",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) , }"
     },
     {
       "method": "PUT",
@@ -24521,7 +24667,7 @@
       "handlerSymbol": "handleUploadFudabaOwnedMedia",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
       "kind": "json",
-      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_UPLOAD_INVALID\" , message : status > = 500 ? \"\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) }"
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_UPLOAD_INVALID\" , message : status > = 500 ? \"\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) , }"
     },
     {
       "method": "PUT",

@@ -1,3 +1,4 @@
+import { useMessagePaperHeight } from "./use-message-paper-height"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "~/components/ui/button"
@@ -23,7 +24,25 @@ import {
   type FudabaPublicMessage,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import { MessagePaper, noteColors } from "./wall-message-note"
+import {
+  MessagePaper,
+  MessagePaperSurface,
+  liftedPaperShadow,
+  noteColors,
+} from "./wall-message-note"
+
+const liftedDialogClass =
+  "top-1/2 left-1/2 flex max-h-(--overlay-safe-height) w-(--overlay-safe-width) max-w-md -translate-1/2 flex-col gap-4 overflow-visible rounded-none border-0 bg-transparent p-0 text-foreground shadow-none backdrop-blur-none before:hidden after:hidden"
+const liftedDialogStyle = {
+  background: "transparent",
+  backgroundImage: "none",
+  border: 0,
+  boxShadow: "none",
+  backdropFilter: "none",
+  WebkitBackdropFilter: "none",
+} as const
+const floatingFooterClass =
+  "mx-0 mb-0 flex-row flex-wrap items-center justify-center gap-2 rounded-none border-0 bg-transparent p-0 sm:justify-center"
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : "操作暂时失败，请重试。"
@@ -39,7 +58,7 @@ export function MessageComposer({
   note?: FudabaMessage
   center?: { x: number; y: number }
   onClose: () => void
-  onSaved: (note: FudabaMessage) => void
+  onSaved: (note: FudabaMessage, height?: number) => void
 }) {
   const [content, setContent] = useState(note?.content ?? "")
   const [color, setColor] = useState<FudabaMessage["color"]>(
@@ -51,7 +70,11 @@ export function MessageComposer({
   const [latest, setLatest] = useState<FudabaMessage | null>(null)
   const [busy, setBusy] = useState(false)
   const initialCenter = useRef(center)
-  const intent = useRef({ fingerprint: "", key: crypto.randomUUID() })
+  const intent = useRef({
+    fingerprint: "",
+    height: 277,
+    key: crypto.randomUUID(),
+  })
   const alive = useRef(true)
   useEffect(() => {
     alive.current = true
@@ -60,8 +83,13 @@ export function MessageComposer({
     }
   }, [])
   const count = Array.from(content.trim()).length
+  const {
+    measureRef: paperMeasureRef,
+    height: paperHeight,
+    ready: paperReady,
+  } = useMessagePaperHeight(content)
   async function submit() {
-    if (busy || count < 1 || count > 280) return
+    if (busy || !paperReady || count < 1 || count > 280) return
     setBusy(true)
     setError(null)
     const fingerprint = JSON.stringify([
@@ -75,21 +103,29 @@ export function MessageComposer({
       intent.current.fingerprint !== fingerprint
     )
       intent.current.key = crypto.randomUUID()
+    if (intent.current.fingerprint !== fingerprint)
+      intent.current.height = paperHeight
     intent.current.fingerprint = fingerprint
     try {
       const result = note
         ? await editFudabaMessage(note.id, {
             content,
             color,
+            height: paperHeight,
             expectedRevision: revision,
           }).send()
         : await createFudabaMessage(
             officeId,
-            { content, color, center: initialCenter.current },
+            {
+              content,
+              color,
+              height: intent.current.height,
+              center: initialCenter.current,
+            },
             intent.current.key
           ).send()
       if (alive.current) {
-        onSaved(result.message)
+        onSaved(result.message, note ? paperHeight : intent.current.height)
         onClose()
       }
     } catch (failure) {
@@ -127,42 +163,80 @@ export function MessageComposer({
         if (!open && !busy) onClose()
       }}
     >
-      <DialogContent className="sm:max-w-2xl" layout="pinned" aria-busy={busy}>
-        <DialogHeader>
+      <DialogContent
+        className={liftedDialogClass}
+        style={liftedDialogStyle}
+        safeArea="custom"
+        layout="pinned"
+        overlayClassName="bg-black/25 backdrop-blur-sm"
+        aria-busy={busy}
+      >
+        <DialogHeader className="gap-1 px-8 text-center">
           <DialogTitle>{note ? "编辑留言" : "贴便签留言"}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs">
             纯文字与 emoji，每条最多 280 个计数；组合 emoji 可能占多个计数。
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-5 px-1">
-          <div>
-            <label
-              htmlFor="wall-message-content"
-              className="mb-2 block text-sm font-medium"
-            >
-              留言正文
-            </label>
-            <Textarea
-              id="wall-message-content"
-              value={content}
-              disabled={busy}
-              className="min-h-32"
-              onChange={(event) => setContent(event.target.value)}
-              aria-describedby="wall-message-count"
+        <DialogBody className="space-y-4 px-1 py-3">
+          <label htmlFor="wall-message-content" className="sr-only">
+            留言正文
+          </label>
+          <div
+            ref={paperMeasureRef}
+            aria-hidden="true"
+            data-message-measure="true"
+            className="pointer-events-none fixed top-0 -left-10000 w-60.5 opacity-0"
+          >
+            <MessagePaper
+              measurement
+              message={{
+                content: content.trim(),
+                color,
+                authorName: note?.authorName ?? "你的署名",
+                createdAt: note?.createdAt ?? "2026-01-01T00:00:00.000Z",
+              }}
             />
+          </div>
+          <div
+            style={{ height: paperHeight, filter: liftedPaperShadow }}
+            className="relative mx-auto w-60.5 shrink-0 focus-within:outline focus-within:outline-1 focus-within:outline-offset-4 focus-within:outline-primary/35"
+            aria-label="便签预览"
+            data-lifted-note="true"
+          >
+            <MessagePaper
+              lifted
+              message={{
+                content,
+                color,
+                authorName: note?.authorName ?? "你的署名",
+                createdAt: note?.createdAt ?? new Date().toISOString(),
+              }}
+              editor={
+                <Textarea
+                  id="wall-message-content"
+                  value={content}
+                  disabled={busy}
+                  onChange={(event) => setContent(event.target.value)}
+                  aria-describedby="wall-message-count"
+                  placeholder="写下想留在墙上的话…"
+                  className="absolute inset-0 field-sizing-fixed h-full min-h-0 resize-none rounded-none border-0 bg-transparent p-0 text-[15px] leading-[1.75] shadow-none outline-none focus-visible:border-transparent focus-visible:ring-0 md:text-[15px] dark:bg-transparent"
+                />
+              }
+            />
+          </div>
+          <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+            <span>直接在纸上书写</span>
+            <span aria-hidden="true">·</span>
             <p
               id="wall-message-count"
-              className={cn(
-                "mt-2 text-sm",
-                count > 280 ? "text-destructive" : "text-muted-foreground"
-              )}
+              className={cn("tabular-nums", count > 280 && "text-destructive")}
             >
               {count} / 280
             </p>
           </div>
-          <fieldset disabled={busy}>
-            <legend className="mb-2 text-sm font-medium">纸张颜色</legend>
-            <div className="flex flex-wrap gap-2">
+          <fieldset disabled={busy} className="mx-auto w-fit">
+            <legend className="sr-only">纸张颜色</legend>
+            <div className="flex justify-center gap-2">
               {noteColors.map((choice) => (
                 <button
                   key={choice.value}
@@ -170,33 +244,20 @@ export function MessageComposer({
                   aria-label={choice.name}
                   aria-pressed={color === choice.value}
                   className={cn(
-                    "size-11 rounded border",
+                    "size-11 rounded-full border-4 border-background/80 shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                     choice.swatch,
                     color === choice.value &&
-                      "ring-2 ring-primary ring-offset-2"
+                      "ring-2 ring-primary ring-offset-2 ring-offset-background"
                   )}
                   onClick={() => setColor(choice.value)}
                 />
               ))}
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-center text-xs text-muted-foreground">
               当前纸色：
               {noteColors.find((choice) => choice.value === color)?.name}
             </p>
           </fieldset>
-          <div
-            className="relative mx-auto h-69.25 w-60.5"
-            aria-label="便签预览"
-          >
-            <MessagePaper
-              message={{
-                content,
-                color,
-                authorName: note?.authorName ?? "你的署名",
-                createdAt: note?.createdAt ?? new Date().toISOString(),
-              }}
-            />
-          </div>
           {latest ? (
             <details className="rounded border p-3">
               <summary>服务器上的最新正文</summary>
@@ -218,12 +279,13 @@ export function MessageComposer({
             </Button>
           ) : null}
         </DialogBody>
-        <DialogFooter>
+        <DialogFooter className={floatingFooterClass}>
           <Button variant="outline" disabled={busy} onClick={onClose}>
             取消
           </Button>
           <Button
             disabled={
+              !paperReady ||
               busy ||
               count < 1 ||
               count > 280 ||
@@ -340,74 +402,99 @@ export function MessageReader({
           if (!open && !busy) onClose()
         }}
       >
-        <DialogContent className="sm:max-w-xl" layout="pinned" aria-busy={busy}>
-          <DialogHeader>
-            <DialogTitle>留言全文</DialogTitle>
-            <DialogDescription>
-              {value.authorName} ·{" "}
+        <DialogContent
+          className={liftedDialogClass}
+          style={liftedDialogStyle}
+          safeArea="custom"
+          layout="pinned"
+          overlayClassName="bg-black/25 backdrop-blur-sm"
+          aria-busy={busy}
+        >
+          <DialogHeader className="px-8 text-center">
+            <DialogTitle className="text-sm font-medium">留言全文</DialogTitle>
+            <DialogDescription className="sr-only">
+              {value.authorName}的留言，发表于
               {new Date(value.createdAt).toLocaleString("zh-CN")}
-              {value.updatedAt !== value.createdAt
-                ? ` · 更新于 ${new Date(value.updatedAt).toLocaleString("zh-CN")}`
-                : ""}
             </DialogDescription>
           </DialogHeader>
-          <DialogBody>
-            <p className="text-base/relaxed wrap-break-word whitespace-pre-wrap">
-              {value.content}
-            </p>
+          <MessagePaperSurface color={value.color} className="min-h-60 flex-1">
+            <DialogBody>
+              <p className="text-base/7 wrap-break-word whitespace-pre-wrap">
+                {value.content}
+              </p>
+            </DialogBody>
+            <div className="mt-6 shrink-0 border-t border-current/10 pt-4">
+              <p className="truncate text-sm font-medium">{value.authorName}</p>
+              <p className="mt-1 text-[11px] opacity-70">
+                发表于{" "}
+                <time dateTime={value.createdAt}>
+                  {new Date(value.createdAt).toLocaleString("zh-CN")}
+                </time>
+              </p>
+              {value.updatedAt !== value.createdAt ? (
+                <p className="mt-1 text-[11px] opacity-70">
+                  更新于{" "}
+                  <time dateTime={value.updatedAt}>
+                    {new Date(value.updatedAt).toLocaleString("zh-CN")}
+                  </time>
+                </p>
+              ) : null}
+            </div>
+
             {privateNote ? (
-              <p className="mt-4 text-sm text-muted-foreground">
+              <p className="mt-3 text-xs opacity-70">
                 支部：{privateNote.hiddenByOffice ? "已隐藏" : "未隐藏"} ·
-                后台：{privateNote.hiddenByAdmin ? "已隐藏" : "未隐藏"}
+                后台：
+                {privateNote.hiddenByAdmin ? "已隐藏" : "未隐藏"}
               </p>
             ) : null}
             {error ? (
-              <p role="alert" className="mt-4 text-sm text-destructive">
+              <p role="alert" className="mt-3 text-sm text-destructive">
                 {error}
               </p>
             ) : null}
-          </DialogBody>
-          <DialogFooter className="flex-wrap">
-            {privateNote?.capabilities.canEdit ? (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => onEdit(privateNote)}
-              >
-                编辑
+            <DialogFooter className="mx-0 mt-4 mb-0 flex-row flex-wrap items-center justify-end gap-2 rounded-none border-t border-current/10 bg-transparent px-0 pt-4 pb-0 sm:justify-end">
+              {privateNote?.capabilities.canEdit ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => onEdit(privateNote)}
+                >
+                  编辑
+                </Button>
+              ) : null}
+              {privateNote?.capabilities.canModerateOffice ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void moderate(false)}
+                >
+                  {privateNote.hiddenByOffice ? "解除支部隐藏" : "支部隐藏"}
+                </Button>
+              ) : null}
+              {privateNote?.capabilities.canModerateAdmin ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void moderate(true)}
+                >
+                  {privateNote.hiddenByAdmin ? "解除后台隐藏" : "后台隐藏"}
+                </Button>
+              ) : null}
+              {privateNote?.capabilities.canDestroy ? (
+                <Button
+                  variant="destructive"
+                  disabled={busy}
+                  onClick={() => setConfirm(true)}
+                >
+                  撤回并销毁
+                </Button>
+              ) : null}
+              <Button variant="outline" disabled={busy} onClick={onClose}>
+                关闭
               </Button>
-            ) : null}
-            {privateNote?.capabilities.canModerateOffice ? (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => void moderate(false)}
-              >
-                {privateNote.hiddenByOffice ? "解除支部隐藏" : "支部隐藏"}
-              </Button>
-            ) : null}
-            {privateNote?.capabilities.canModerateAdmin ? (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => void moderate(true)}
-              >
-                {privateNote.hiddenByAdmin ? "解除后台隐藏" : "后台隐藏"}
-              </Button>
-            ) : null}
-            {privateNote?.capabilities.canDestroy ? (
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={() => setConfirm(true)}
-              >
-                撤回并销毁
-              </Button>
-            ) : null}
-            <Button variant="outline" disabled={busy} onClick={onClose}>
-              关闭
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </MessagePaperSurface>
         </DialogContent>
       </Dialog>
       <ConfirmActionDialog

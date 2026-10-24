@@ -1,17 +1,8 @@
 import {
-  BringToFrontIcon,
-  GripIcon,
-  RotateCcwIcon,
-  RotateCwIcon,
-} from "lucide-react"
-import {
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent,
-  type KeyboardEvent,
-} from "react"
-import { Button } from "~/components/ui/button"
+  useWallItemInteraction,
+  WallMoveHandle,
+} from "./wall-item-interactions"
+import { type ReactNode, useEffect, useRef, useState } from "react"
 import type { FudabaCardPlacement, FudabaPublicMessage } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import type { WallPlacement } from "./exchange-card-wall"
@@ -48,54 +39,120 @@ export const noteColors = [
     swatch: "bg-[#d0bfe3]",
   },
 ] as const
+const paperTexture =
+  "repeating-linear-gradient(17deg,transparent 0 5px,#806d4420 5px 6px)"
+export const liftedPaperShadow =
+  "drop-shadow(0 18px 26px #00000040) drop-shadow(0 3px 5px #00000020)"
+
 const tornEdge =
   "polygon(0 0,100% 0,100% 97%,96% 99%,92% 96%,88% 100%,84% 97%,80% 99%,76% 96%,72% 100%,68% 97%,64% 99%,60% 96%,56% 100%,52% 97%,48% 99%,44% 96%,40% 100%,36% 97%,32% 99%,28% 96%,24% 100%,20% 97%,16% 99%,12% 96%,8% 100%,4% 97%,0 99%)"
+/** The reading surface keeps the torn paper behind independently scrollable content. */
+export function MessagePaperSurface({
+  color,
+  children,
+  className,
+}: {
+  color: FudabaPublicMessage["color"]
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      data-lifted-note="true"
+      className={cn("relative isolate flex min-h-0 flex-col", className)}
+      style={{ filter: liftedPaperShadow }}
+    >
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-0 rounded-xs",
+          noteColors.find((choice) => choice.value === color)?.paper
+        )}
+        style={{ clipPath: tornEdge, backgroundImage: paperTexture }}
+      />
+      <div className="relative flex min-h-0 flex-1 flex-col px-6 pt-9 pb-8 text-slate-800 dark:text-slate-100">
+        {children}
+      </div>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-2 left-7 h-7 w-20 -rotate-7 border border-amber-700/10 bg-amber-200/70 shadow-sm dark:bg-amber-300/40"
+        style={{ clipPath: "polygon(1% 7%,98% 0,100% 95%,3% 100%)" }}
+      />
+    </div>
+  )
+}
+
 export function MessagePaper({
   message,
+  measurement = false,
+  editor,
+  lifted = false,
 }: {
   message: Pick<
     FudabaPublicMessage,
     "content" | "color" | "authorName" | "createdAt"
   >
+  measurement?: boolean
+  editor?: ReactNode
+  lifted?: boolean
 }) {
   const copy = useRef<HTMLParagraphElement>(null)
   const [overflow, setOverflow] = useState(false)
   useEffect(() => {
-    const measure = () => {
-      if (copy.current)
-        setOverflow(copy.current.scrollHeight > copy.current.clientHeight + 1)
-    }
+    if (measurement) return
+    const element = copy.current
+    if (!element) return
+    const measure = () =>
+      setOverflow(element.scrollHeight > element.clientHeight + 1)
     measure()
     const observer =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
-    if (copy.current) observer?.observe(copy.current)
+    observer?.observe(element)
     window.addEventListener("resize", measure)
     return () => {
       observer?.disconnect()
       window.removeEventListener("resize", measure)
     }
-  }, [message.content])
+  }, [message.content, measurement])
   return (
     <>
       <div
         className={cn(
-          "absolute inset-0 flex flex-col rounded-xs px-5.5 pt-7.75 pb-7.5",
+          "flex flex-col rounded-xs px-5.5 pt-7.75 pb-7.5",
+          measurement ? "relative w-60.5" : "absolute inset-0",
           noteColors.find((color) => color.value === message.color)?.paper
         )}
         style={{
           clipPath: tornEdge,
-          backgroundImage:
-            "repeating-linear-gradient(17deg,transparent 0 5px,#806d4420 5px 6px)",
+          backgroundImage: paperTexture,
         }}
       >
-        <p
-          ref={copy}
-          className="line-clamp-5 text-[15px] leading-[1.75] wrap-break-word whitespace-pre-wrap"
-        >
-          {message.content}
-        </p>
-        {overflow ? <span className="mt-1 text-xs">查看全文</span> : null}
-        <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-[11px]">
+        {editor ? (
+          <div className="relative min-h-0 flex-1">
+            <p
+              ref={copy}
+              aria-hidden="true"
+              className="pointer-events-none invisible absolute inset-0 overflow-hidden text-[15px] leading-[1.75] wrap-break-word whitespace-pre-wrap"
+            >
+              {message.content}
+            </p>
+            {editor}
+          </div>
+        ) : (
+          <p
+            ref={copy}
+            className={cn(
+              "text-[15px] leading-[1.75] wrap-break-word whitespace-pre-wrap",
+              !measurement && "min-h-0 flex-1 overflow-hidden"
+            )}
+          >
+            {message.content}
+          </p>
+        )}
+        {!measurement && overflow ? (
+          <span className="mt-1 shrink-0 text-xs">查看全文</span>
+        ) : null}
+        <div className="mt-auto flex shrink-0 items-center justify-between gap-2 pt-3 text-[11px]">
           <span className="truncate">{message.authorName}</span>
           <time className="shrink-0" dateTime={message.createdAt}>
             {new Date(message.createdAt).toLocaleDateString("zh-CN", {
@@ -107,38 +164,35 @@ export function MessagePaper({
       </div>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -top-1.5 left-4.75 h-6.75 w-19.5 -rotate-10 border border-amber-700/10 bg-amber-200/65 dark:bg-amber-300/35"
+        className={cn(
+          "pointer-events-none absolute -top-1.5 left-4.75 h-6.75 w-19.5 -rotate-10 border border-amber-700/10 bg-amber-200/65 dark:bg-amber-300/35",
+          lifted && "-top-2 left-6 -rotate-7 shadow-sm"
+        )}
       />
     </>
   )
 }
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
-}
-function fields(placement: FudabaCardPlacement): WallPlacement {
-  return {
-    x: placement.x,
-    y: placement.y,
-    rotation: placement.rotation,
-    zIndex: placement.zIndex,
-  }
-}
+
 export function WallMessageNote({
   message,
+  height = 277,
   scale,
   selected,
   editing,
   pending,
   onSelect,
+  onActivate,
   onRead,
   onCommit,
 }: {
   message: FudabaPublicMessage
+  height?: number
   scale: number
   selected: boolean
   editing: boolean
   pending: boolean
   onSelect: () => void
+  onActivate: () => boolean
   onRead: () => void
   onCommit: (
     message: FudabaPublicMessage,
@@ -146,126 +200,30 @@ export function WallMessageNote({
     placement: WallPlacement
   ) => void
 }) {
-  const element = useRef<HTMLDivElement>(null)
-  const drag = useRef<{
-    id: number
-    x: number
-    y: number
-    placement: FudabaCardPlacement
-    latest: WallPlacement
-    moved: boolean
-  } | null>(null)
-  const suppressClick = useRef(false)
-  const canMove = editing && message.capabilities.canMove && !pending
   const placement = message.placement
-  useEffect(() => {
-    if (!canMove) drag.current = null
-    if (element.current) {
-      element.current.style.left = `${placement.x}px`
-      element.current.style.top = `${placement.y}px`
-    }
-  }, [canMove, placement.x, placement.y])
-  function down(event: PointerEvent<HTMLButtonElement>) {
-    if (!selected || !canMove || event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.focus()
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    suppressClick.current = false
-    drag.current = {
-      id: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
+  const canMove = editing && message.capabilities.canMove && !pending
+  const { elementRef, triggerProps, handleProps, requestActivation } =
+    useWallItemInteraction({
       placement,
-      latest: fields(placement),
-      moved: false,
-    }
-  }
-  function move(event: PointerEvent<HTMLButtonElement>) {
-    const start = drag.current
-    if (!start || start.id !== event.pointerId) return
-    if (
-      Math.hypot(event.clientX - start.x, event.clientY - start.y) < 4 &&
-      !start.moved
-    )
-      return
-    start.moved = true
-    start.latest = {
-      ...start.latest,
-      x:
-        Math.round(
-          clamp(
-            start.placement.x + (event.clientX - start.x) / scale,
-            -1_000_000,
-            1_000_000
-          ) * 10
-        ) / 10,
-      y:
-        Math.round(
-          clamp(
-            start.placement.y + (event.clientY - start.y) / scale,
-            -1_000_000,
-            1_000_000
-          ) * 10
-        ) / 10,
-    }
-    if (element.current) {
-      element.current.style.left = `${start.latest.x}px`
-      element.current.style.top = `${start.latest.y}px`
-    }
-  }
-  function up(event: PointerEvent<HTMLButtonElement>) {
-    const start = drag.current
-    if (!start || start.id !== event.pointerId) return
-    drag.current = null
-    if (start.moved) {
-      suppressClick.current = true
-      onCommit(message, start.placement, start.latest)
-    }
-  }
-  function cancel() {
-    if (!drag.current) return
-    drag.current = null
-    suppressClick.current = true
-    if (element.current) {
-      element.current.style.left = `${placement.x}px`
-      element.current.style.top = `${placement.y}px`
-    }
-  }
-  function key(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key === "Escape") {
-      cancel()
-      return
-    }
-    if (!canMove) return
-    const step = event.shiftKey ? 80 : 16
-    const offset = (
-      {
-        ArrowDown: [0, step],
-        ArrowUp: [0, -step],
-        ArrowLeft: [-step, 0],
-        ArrowRight: [step, 0],
-      } as Record<string, number[]>
-    )[event.key]
-    if (!offset) return
-    event.preventDefault()
-    onSelect()
-    onCommit(message, placement, {
-      ...fields(placement),
-      x: clamp(placement.x + offset[0], -1_000_000, 1_000_000),
-      y: clamp(placement.y + offset[1], -1_000_000, 1_000_000),
+      scale,
+      canMove,
+      selected,
+      onSelect,
+      onActivate,
+      onCommit: (previous, next) => onCommit(message, previous, next),
     })
-  }
   return (
     <div
-      ref={element}
+      ref={elementRef}
       data-message-id={message.id}
       data-placement-x={placement.x}
       data-placement-y={placement.y}
       className={cn(
-        "absolute h-69.25 w-60.5",
-        selected && "ring-2 ring-primary ring-offset-4 ring-offset-background"
+        "absolute w-60.5",
+        selected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
       )}
       style={{
+        height,
         left: placement.x,
         top: placement.y,
         zIndex: placement.zIndex,
@@ -276,99 +234,29 @@ export function WallMessageNote({
       <button
         type="button"
         className={cn(
-          "absolute inset-0 text-left",
+          "absolute inset-0 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
           selected && canMove && "cursor-grab touch-none active:cursor-grabbing"
         )}
         aria-label={`留言：${message.authorName}`}
         aria-pressed={selected}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={cancel}
-        onLostPointerCapture={cancel}
-        onKeyDown={key}
+        title={selected ? "查看全文" : "选中留言"}
+        {...triggerProps}
         onClick={() => {
-          if (suppressClick.current) {
-            suppressClick.current = false
-            return
-          }
-          if (selected) onRead()
-          else onSelect()
+          if (requestActivation()) onRead()
         }}
       >
         <MessagePaper message={message} />
       </button>
-      {selected && canMove ? (
-        <div
-          className="absolute -top-14 left-0 flex gap-1 rounded border bg-background p-1"
-          role="toolbar"
-          aria-label="留言摆放工具"
-          style={{
-            transform: `scale(${1 / scale})`,
-            transformOrigin: "bottom left",
-          }}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-11 touch-none"
-            aria-label="移动留言"
-            onPointerDown={down}
-            onPointerMove={move}
-            onPointerUp={up}
-            onPointerCancel={cancel}
-            onLostPointerCapture={cancel}
-            onKeyDown={key}
-          >
-            <GripIcon aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-11"
-            aria-label="向左旋转留言"
-            onClick={() =>
-              onCommit(message, placement, {
-                ...fields(placement),
-                rotation: clamp(placement.rotation - 2, -12, 12),
-              })
-            }
-          >
-            <RotateCcwIcon aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-11"
-            aria-label="向右旋转留言"
-            onClick={() =>
-              onCommit(message, placement, {
-                ...fields(placement),
-                rotation: clamp(placement.rotation + 2, -12, 12),
-              })
-            }
-          >
-            <RotateCwIcon aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-11"
-            aria-label="将留言移到最前"
-            onClick={() =>
-              onCommit(message, placement, {
-                ...fields(placement),
-                zIndex: 2_147_483_000,
-              })
-            }
-          >
-            <BringToFrontIcon aria-hidden="true" />
-          </Button>
-        </div>
+      {editing && message.capabilities.canMove ? (
+        <WallMoveHandle
+          label="移动留言"
+          selected={selected}
+          pending={pending}
+          scale={scale}
+          canMove={canMove}
+          onSelect={onSelect}
+          handlers={handleProps}
+        />
       ) : null}
     </div>
   )
