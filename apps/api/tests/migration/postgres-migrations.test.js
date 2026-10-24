@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { afterAll, onTestFinished, test } from 'vitest';
 import {
@@ -1002,6 +1003,78 @@ test.describe('PostgreSQL migration', () => {
     }
 
     test.describe('runner', () => {
+        test('LF and CRLF files share a checksum and parse their phase', async () => {
+            const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'imsweb-migration-eol-'));
+            onTestFinished(() => fs.rmSync(directory, { recursive: true, force: true }));
+            const filename = '0001_initial_compatibility.sql';
+            const sql = '-- ims:migration-phase: pre-data\nSELECT 1;\n';
+            const file = path.join(directory, filename);
+            fs.writeFileSync(file, sql);
+            const lfMigrations = readMigrations(directory);
+            fs.writeFileSync(file, sql.replace(/\n/g, '\r\n'));
+            const crlfMigrations = readMigrations(directory);
+
+            assert.deepEqual(crlfMigrations, lfMigrations);
+            const client = migrationClient(lfMigrations);
+            assert.deepEqual(
+                (await applyMigrations(client, { migrations: crlfMigrations })).executed,
+                []
+            );
+        });
+
+        test('accepts a historical raw CRLF checksum without rerunning SQL', async () => {
+            const [migration] = readMigrations();
+            const legacy = {
+                ...migration,
+                checksum: crypto.createHash('sha256')
+                    .update(migration.sql.replace(/\n/g, '\r\n')).digest('hex')
+            };
+            assert.notEqual(legacy.checksum, migration.checksum);
+            const client = migrationClient([legacy]);
+            const result = await applyMigrations(client, { migrations: [migration] });
+            assert.deepEqual(result.executed, []);
+            assert.equal(client.rows.length, 1);
+            assert.equal(client.rows[0].checksum, legacy.checksum);
+        });
+
+        test('rejects changed SQL behind a historical CRLF checksum', async () => {
+            const [migration] = readMigrations();
+            const legacy = {
+                ...migration,
+                checksum: crypto.createHash('sha256')
+                    .update(migration.sql.replace(/\n/g, '\r\n')).digest('hex')
+            };
+            const sql = migration.sql + 'SELECT 2;\n';
+            const changed = {
+                ...migration,
+                sql,
+                checksum: crypto.createHash('sha256').update(sql).digest('hex')
+            };
+            const client = migrationClient([legacy]);
+            await assert.rejects(
+                applyMigrations(client, { migrations: [changed] }),
+                /Applied PostgreSQL migration drifted/
+            );
+            assert.equal(client.rows.length, 1);
+        });
+
+        test('CRLF compatibility still rejects renamed files and changed phases', async () => {
+            const [migration] = readMigrations();
+            const checksum = crypto.createHash('sha256')
+                .update(migration.sql.replace(/\n/g, '\r\n')).digest('hex');
+            for (const overrides of [
+                { filename: '0001_renamed.sql' },
+                { phase: 'post-data' }
+            ]) {
+                const client = migrationClient([{ ...migration, checksum, ...overrides }]);
+                await assert.rejects(
+                    applyMigrations(client, { migrations: [migration] }),
+                    /Applied PostgreSQL migration drifted/
+                );
+                assert.equal(client.rows.length, 1);
+            }
+        });
+
         test('is repeatable and rejects checksum drift', async () => {
             const client = migrationClient();
             const migrations = readMigrations();

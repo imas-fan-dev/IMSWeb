@@ -10,3 +10,6 @@ apps/legacy/public/** -text
 # picking either side (task state lives in task.json, not index.md). See
 # .trellis/spec/cli/backend/directory-structure.md for details.
 .trellis/workspace/*/journal-*.md merge=union
+
+# PostgreSQL migration checksums use a canonical LF representation.
+apps/api/migrations/postgresql/*.sql text eol=lf

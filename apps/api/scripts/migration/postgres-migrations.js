@@ -64,7 +64,9 @@ function readMigrations(directory = DEFAULT_MIGRATIONS) {
     if (!filenames.length) throw new Error(`No PostgreSQL migrations found: ${migrationsPath}`);
     validateMigrationFilenames(filenames);
     return filenames.map((filename) => {
-        const sql = fs.readFileSync(path.join(migrationsPath, filename), 'utf8');
+        // Git checkouts may use LF or CRLF; both represent the same migration.
+        const sql = fs.readFileSync(path.join(migrationsPath, filename), 'utf8')
+            .replace(/\r\n/g, '\n');
         const phase = sql.match(PHASE_LINE)?.[1];
         if (!phase) throw new Error(`PostgreSQL migration has no phase marker: ${filename}`);
         return {
@@ -116,8 +118,14 @@ function validateAppliedMigrations(migrations, applied) {
     );
     for (const existing of applied.values()) {
         const migration = catalog.get(existing.version);
+        // Older runners stored the raw CRLF checksum. Accept only the CRLF
+        // encoding of the current canonical SQL, never an arbitrary old hash.
+        const legacyChecksumMatches = migration &&
+            migration.checksum === sha256(migration.sql) &&
+            existing.checksum === sha256(migration.sql.replace(/\n/g, '\r\n'));
         if (!migration || existing.filename !== migration.filename ||
-            existing.phase !== migration.phase || existing.checksum !== migration.checksum) {
+            existing.phase !== migration.phase ||
+            (existing.checksum !== migration.checksum && !legacyChecksumMatches)) {
             throw new Error(
                 `Applied PostgreSQL migration drifted from catalog: ` +
                 `${existing.version} (${existing.filename})`
