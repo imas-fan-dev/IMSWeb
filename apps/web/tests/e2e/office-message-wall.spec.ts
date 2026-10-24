@@ -328,11 +328,15 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
     "POST",
     2
   )
+  let releasePrivateMessage!: () => void
+  const privateMessageReady = new Promise<void>((resolve) => {
+    releasePrivateMessage = resolve
+  })
   await api.mockRoute(
     "**/api/community/exchange/messages/note-0",
     async (route) => {
-      // Exercise independently cancelled reader requests during StrictMode remounts.
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // Hold author capabilities until the reader is visibly mounted.
+      await privateMessageReady
       return route.fulfill({ json: { success: true, message: current } })
     },
     "GET",
@@ -434,6 +438,8 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
   const reader = page.getByRole("dialog", { name: "留言全文" })
   await expect(reader).toHaveCount(0)
   await paper.click()
+  await expect(reader).toBeVisible()
+  releasePrivateMessage()
   await expect(
     reader.getByRole("button", { name: "编辑", exact: true })
   ).toBeVisible()
