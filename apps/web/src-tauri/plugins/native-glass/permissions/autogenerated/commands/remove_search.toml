@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-remove-search"
+description = "Enables the remove_search command without any pre-configured scope."
+commands.allow = ["remove_search"]
+
+[[permission]]
+identifier = "deny-remove-search"
+description = "Denies the remove_search command without any pre-configured scope."
+commands.deny = ["remove_search"]

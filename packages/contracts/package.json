@@ -1,0 +1,367 @@
+{
+  "name": "@imsweb/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Cross-workspace wire-format contracts: zod schemas are the single source of truth shared by @imsweb/api and @imsweb/web.",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./wiki": {
+      "import": {
+        "types": "./dist/esm/wiki.d.ts",
+        "default": "./dist/esm/wiki.js"
+      },
+      "require": {
+        "types": "./dist/cjs/wiki.d.ts",
+        "default": "./dist/cjs/wiki.js"
+      }
+    },
+    "./platform": {
+      "import": {
+        "types": "./dist/esm/platform/index.d.ts",
+        "default": "./dist/esm/platform/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/platform/index.d.ts",
+        "default": "./dist/cjs/platform/index.js"
+      }
+    },
+    "./namecards": {
+      "import": {
+        "types": "./dist/esm/namecards.d.ts",
+        "default": "./dist/esm/namecards.js"
+      },
+      "require": {
+        "types": "./dist/cjs/namecards.d.ts",
+        "default": "./dist/cjs/namecards.js"
+      }
+    },
+    "./fudaba": {
+      "import": {
+        "types": "./dist/esm/fudaba/index.d.ts",
+        "default": "./dist/esm/fudaba/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/index.d.ts",
+        "default": "./dist/cjs/fudaba/index.js"
+      }
+    },
+    "./fudaba/guest-submissions": {
+      "import": {
+        "types": "./dist/esm/fudaba/guest-submissions.d.ts",
+        "default": "./dist/esm/fudaba/guest-submissions.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/guest-submissions.d.ts",
+        "default": "./dist/cjs/fudaba/guest-submissions.js"
+      }
+    },
+    "./fudaba/map-delivery": {
+      "import": {
+        "types": "./dist/esm/fudaba/map-delivery.d.ts",
+        "default": "./dist/esm/fudaba/map-delivery.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/map-delivery.d.ts",
+        "default": "./dist/cjs/fudaba/map-delivery.js"
+      }
+    },
+    "./fudaba/runtime": {
+      "import": {
+        "types": "./dist/esm/fudaba/runtime.d.ts",
+        "default": "./dist/esm/fudaba/runtime.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/runtime.d.ts",
+        "default": "./dist/cjs/fudaba/runtime.js"
+      }
+    },
+    "./fudaba/card-claims": {
+      "import": {
+        "types": "./dist/esm/fudaba/card-claims.d.ts",
+        "default": "./dist/esm/fudaba/card-claims.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/card-claims.d.ts",
+        "default": "./dist/cjs/fudaba/card-claims.js"
+      }
+    },
+    "./fudaba/admin-characters": {
+      "import": {
+        "types": "./dist/esm/fudaba/admin-characters.d.ts",
+        "default": "./dist/esm/fudaba/admin-characters.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/admin-characters.d.ts",
+        "default": "./dist/cjs/fudaba/admin-characters.js"
+      }
+    },
+    "./fudaba/admin-units": {
+      "import": {
+        "types": "./dist/esm/fudaba/admin-units.d.ts",
+        "default": "./dist/esm/fudaba/admin-units.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/admin-units.d.ts",
+        "default": "./dist/cjs/fudaba/admin-units.js"
+      }
+    },
+    "./fudaba/characters": {
+      "import": {
+        "types": "./dist/esm/fudaba/characters.d.ts",
+        "default": "./dist/esm/fudaba/characters.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/characters.d.ts",
+        "default": "./dist/cjs/fudaba/characters.js"
+      }
+    },
+    "./fudaba/location-review": {
+      "import": {
+        "types": "./dist/esm/fudaba/location-review.d.ts",
+        "default": "./dist/esm/fudaba/location-review.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/location-review.d.ts",
+        "default": "./dist/cjs/fudaba/location-review.js"
+      }
+    },
+    "./platform/admin": {
+      "import": {
+        "types": "./dist/esm/platform/admin.d.ts",
+        "default": "./dist/esm/platform/admin.js"
+      },
+      "require": {
+        "types": "./dist/cjs/platform/admin.d.ts",
+        "default": "./dist/cjs/platform/admin.js"
+      }
+    },
+    "./platform/admin-email": {
+      "import": {
+        "types": "./dist/esm/platform/admin-email.d.ts",
+        "default": "./dist/esm/platform/admin-email.js"
+      },
+      "require": {
+        "types": "./dist/cjs/platform/admin-email.d.ts",
+        "default": "./dist/cjs/platform/admin-email.js"
+      }
+    },
+    "./platform/admin-users": {
+      "import": {
+        "types": "./dist/esm/platform/admin-users.d.ts",
+        "default": "./dist/esm/platform/admin-users.js"
+      },
+      "require": {
+        "types": "./dist/cjs/platform/admin-users.d.ts",
+        "default": "./dist/cjs/platform/admin-users.js"
+      }
+    },
+    "./platform/account-security": {
+      "import": {
+        "types": "./dist/esm/platform/account-security.d.ts",
+        "default": "./dist/esm/platform/account-security.js"
+      },
+      "require": {
+        "types": "./dist/cjs/platform/account-security.d.ts",
+        "default": "./dist/cjs/platform/account-security.js"
+      }
+    },
+    "./live": {
+      "import": {
+        "types": "./dist/esm/live.d.ts",
+        "default": "./dist/esm/live.js"
+      },
+      "require": {
+        "types": "./dist/cjs/live.d.ts",
+        "default": "./dist/cjs/live.js"
+      }
+    },
+    "./events": {
+      "import": {
+        "types": "./dist/esm/events.d.ts",
+        "default": "./dist/esm/events.js"
+      },
+      "require": {
+        "types": "./dist/cjs/events.d.ts",
+        "default": "./dist/cjs/events.js"
+      }
+    },
+    "./editorial": {
+      "import": {
+        "types": "./dist/esm/editorial.d.ts",
+        "default": "./dist/esm/editorial.js"
+      },
+      "require": {
+        "types": "./dist/cjs/editorial.d.ts",
+        "default": "./dist/cjs/editorial.js"
+      }
+    },
+    "./news": {
+      "import": {
+        "types": "./dist/esm/news.d.ts",
+        "default": "./dist/esm/news.js"
+      },
+      "require": {
+        "types": "./dist/cjs/news.d.ts",
+        "default": "./dist/cjs/news.js"
+      }
+    },
+    "./information": {
+      "import": {
+        "types": "./dist/esm/information.d.ts",
+        "default": "./dist/esm/information.js"
+      },
+      "require": {
+        "types": "./dist/cjs/information.d.ts",
+        "default": "./dist/cjs/information.js"
+      }
+    },
+    "./chronicle": {
+      "import": {
+        "types": "./dist/esm/chronicle.d.ts",
+        "default": "./dist/esm/chronicle.js"
+      },
+      "require": {
+        "types": "./dist/cjs/chronicle.d.ts",
+        "default": "./dist/cjs/chronicle.js"
+      }
+    },
+    "./about": {
+      "import": {
+        "types": "./dist/esm/about.d.ts",
+        "default": "./dist/esm/about.js"
+      },
+      "require": {
+        "types": "./dist/cjs/about.d.ts",
+        "default": "./dist/cjs/about.js"
+      }
+    },
+    "./community-content": {
+      "import": {
+        "types": "./dist/esm/community-content.d.ts",
+        "default": "./dist/esm/community-content.js"
+      },
+      "require": {
+        "types": "./dist/cjs/community-content.d.ts",
+        "default": "./dist/cjs/community-content.js"
+      }
+    },
+    "./producer-map": {
+      "import": {
+        "types": "./dist/esm/producer-map.d.ts",
+        "default": "./dist/esm/producer-map.js"
+      },
+      "require": {
+        "types": "./dist/cjs/producer-map.d.ts",
+        "default": "./dist/cjs/producer-map.js"
+      }
+    },
+    "./homepage-links": {
+      "import": {
+        "types": "./dist/esm/homepage-links.d.ts",
+        "default": "./dist/esm/homepage-links.js"
+      },
+      "require": {
+        "types": "./dist/cjs/homepage-links.d.ts",
+        "default": "./dist/cjs/homepage-links.js"
+      }
+    },
+    "./site-packages": {
+      "import": {
+        "types": "./dist/esm/site-packages.d.ts",
+        "default": "./dist/esm/site-packages.js"
+      },
+      "require": {
+        "types": "./dist/cjs/site-packages.d.ts",
+        "default": "./dist/cjs/site-packages.js"
+      }
+    },
+    "./media": {
+      "import": {
+        "types": "./dist/esm/media.d.ts",
+        "default": "./dist/esm/media.js"
+      },
+      "require": {
+        "types": "./dist/cjs/media.d.ts",
+        "default": "./dist/cjs/media.js"
+      }
+    },
+    "./system": {
+      "import": {
+        "types": "./dist/esm/system.d.ts",
+        "default": "./dist/esm/system.js"
+      },
+      "require": {
+        "types": "./dist/cjs/system.d.ts",
+        "default": "./dist/cjs/system.js"
+      }
+    },
+    "./admin": {
+      "import": {
+        "types": "./dist/esm/admin.d.ts",
+        "default": "./dist/esm/admin.js"
+      },
+      "require": {
+        "types": "./dist/cjs/admin.d.ts",
+        "default": "./dist/cjs/admin.js"
+      }
+    },
+    "./z": {
+      "import": {
+        "types": "./dist/esm/z.d.ts",
+        "default": "./dist/esm/z.js"
+      },
+      "require": {
+        "types": "./dist/cjs/z.d.ts",
+        "default": "./dist/cjs/z.js"
+      }
+    },
+    "./common": {
+      "import": {
+        "types": "./dist/esm/common.d.ts",
+        "default": "./dist/esm/common.js"
+      },
+      "require": {
+        "types": "./dist/cjs/common.d.ts",
+        "default": "./dist/cjs/common.js"
+      }
+    },
+    "./paths": {
+      "import": {
+        "types": "./dist/esm/paths.d.ts",
+        "default": "./dist/esm/paths.js"
+      },
+      "require": {
+        "types": "./dist/cjs/paths.d.ts",
+        "default": "./dist/cjs/paths.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/derive-exports.mjs --check && node scripts/build.mjs && node scripts/check-entrypoints.mjs",
+    "build:cjs": "node scripts/build.mjs cjs",
+    "build:esm": "node scripts/build.mjs esm",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:entrypoints": "node scripts/check-entrypoints.mjs",
+    "check:entrypoints:source": "node scripts/check-entrypoints.mjs --source",
+    "generate:exports": "node scripts/derive-exports.mjs",
+    "prepare": "node build-if-sources.mjs"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

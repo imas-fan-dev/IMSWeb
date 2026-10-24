@@ -1,5 +1,5 @@
-import { Link } from "react-router"
-
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { PageShell } from "~/components/shared/page-shell"
 import { Card, CardContent } from "~/components/ui/card"
 import { cn } from "~/lib/utils"
 import {
@@ -14,7 +14,7 @@ export function meta() {
 
 export default function Works() {
   return (
-    <main id="main-content" className="mx-auto w-full max-w-5xl px-6 py-16">
+    <PageShell width="default">
       <h1 className="text-3xl font-semibold">系列作品</h1>
       <p className="mt-4 leading-7 text-muted-foreground">
         偶像大师系列官方企划介绍，以及由制作人创作和维护的游戏与专题内容。
@@ -27,7 +27,7 @@ export default function Works() {
         </h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {officialEntries.map((entry) => (
-            <Link
+            <NavigationLink
               key={entry.slug}
               to={getWorkDestination(entry)}
               aria-label={
@@ -52,7 +52,7 @@ export default function Works() {
                   </p>
                 </CardContent>
               </Card>
-            </Link>
+            </NavigationLink>
           ))}
         </div>
       </section>
@@ -67,7 +67,7 @@ export default function Works() {
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {fanEntries.map((entry) => (
-            <Link
+            <NavigationLink
               key={entry.slug}
               to={getWorkDestination(entry)}
               aria-label={
@@ -92,10 +92,10 @@ export default function Works() {
                   </p>
                 </CardContent>
               </Card>
-            </Link>
+            </NavigationLink>
           ))}
         </div>
       </section>
-    </main>
+    </PageShell>
   )
 }

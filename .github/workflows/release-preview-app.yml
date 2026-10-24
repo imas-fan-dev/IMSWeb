@@ -1,0 +1,270 @@
+name: Release preview app
+
+on:
+  push:
+    tags:
+      - "app-preview-ios-*"
+      - "app-preview-android-*"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build and publish
+        required: true
+        type: choice
+        options:
+          - ios
+          - android
+      confirm_preview_app_release:
+        description: I confirm this run should build and publish a preview app release
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve preview app release
+    if: github.event_name == 'push' || inputs.confirm_preview_app_release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      build_number: ${{ steps.resolve.outputs.build_number }}
+      platform: ${{ steps.resolve.outputs.platform }}
+      release_sha: ${{ steps.resolve.outputs.release_sha }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+      release_title: ${{ steps.resolve.outputs.release_title }}
+      version_suffix: ${{ steps.resolve.outputs.version_suffix }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve platform, version, and build number
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
+          EVENT_TAG: ${{ github.ref_name }}
+          INPUT_PLATFORM: ${{ inputs.platform }}
+        run: |
+          set -euo pipefail
+
+          source_branch="release/v1.1"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            platform="$INPUT_PLATFORM"
+          else
+            case "$EVENT_TAG" in
+              app-preview-ios-*) platform="ios" ;;
+              app-preview-android-*) platform="android" ;;
+              *)
+                echo "Tag $EVENT_TAG does not match app-preview-ios-* or app-preview-android-*." >&2
+                exit 1
+                ;;
+            esac
+          fi
+          if [[ "$platform" != "ios" && "$platform" != "android" ]]; then
+            echo "Resolved platform must be ios or android." >&2
+            exit 1
+          fi
+
+          release_sha="$(git rev-parse HEAD)"
+          if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ || "$release_sha" != "$EVENT_SHA" ]]; then
+            echo "Could not resolve the exact release commit." >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin "+refs/heads/${source_branch}:refs/remotes/origin/${source_branch}"
+          if ! git merge-base --is-ancestor "$release_sha" "refs/remotes/origin/${source_branch}"; then
+            echo "The release commit must be reachable from origin/${source_branch}." >&2
+            exit 1
+          fi
+
+          # The visible version (GitHub Release tag/title and the app's own
+          # CFBundleShortVersionString / versionName) is Pacific time
+          # YYYYMMDDHHmm. iOS --build-number and Android versionCode are both
+          # bounded 32-bit fields (Android caps at 2,100,000,000), so the raw
+          # 12-digit timestamp cannot be reused there; a minutes-since-epoch
+          # counter stays in range for millennia while remaining monotonic.
+          version_suffix="$(TZ='America/Los_Angeles' date +%Y%m%d%H%M)"
+          epoch_seconds="$(date -u -d '2026-01-01T00:00:00Z' +%s)"
+          now_seconds="$(date -u +%s)"
+          build_number=$(( (now_seconds - epoch_seconds) / 60 ))
+          if (( build_number < 1 || build_number > 2100000000 )); then
+            echo "Computed build number $build_number is out of the platform-safe range." >&2
+            exit 1
+          fi
+
+          release_tag="app-preview-${platform}-${version_suffix}"
+          readable_time="$(TZ='America/Los_Angeles' date +'%Y-%m-%d %H:%M %Z')"
+          platform_label="iOS"
+          [[ "$platform" == "android" ]] && platform_label="Android"
+          release_title="IMSWeb ${platform_label} Preview · ${readable_time}"
+
+          {
+            echo "build_number=$build_number"
+            echo "platform=$platform"
+            echo "release_sha=$release_sha"
+            echo "release_tag=$release_tag"
+            echo "release_title=$release_title"
+            echo "version_suffix=$version_suffix"
+          } >> "$GITHUB_OUTPUT"
+
+  build-ios:
+    name: Build and publish iOS preview
+    if: needs.resolve.outputs.platform == 'ios'
+    needs: resolve
+    # Tauri's iOS Xcode project template targets a project file format
+    # (objectVersion 77) that only recent Xcode releases can even open;
+    # macos-14's newest bundled Xcode (16.2) rejects it as "a future Xcode
+    # project file format", so this job needs the newest-Xcode runner image.
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    concurrency:
+      group: imsweb-preview-app-ios
+      cancel-in-progress: false
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.10.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install iOS Rust targets
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+
+      - name: Build unsigned iOS preview IPA
+        env:
+          VITE_IMS_API_ORIGIN: https://preview.idol-master.top
+          VITE_IMS_PUBLIC_SITE_ORIGIN: https://preview.idol-master.top
+        run: |
+          node scripts/app-release.js ios \
+            --version-suffix "${{ needs.resolve.outputs.version_suffix }}" \
+            --build-number "${{ needs.resolve.outputs.build_number }}" \
+            --out dist/app-release
+        working-directory: apps/web
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.resolve.outputs.release_sha }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+          RELEASE_TITLE: ${{ needs.resolve.outputs.release_title }}
+          VERSION_SUFFIX: ${{ needs.resolve.outputs.version_suffix }}
+        run: |
+          set -euo pipefail
+          artifact="apps/web/dist/app-release/imsweb-preview-ios-${VERSION_SUFFIX}.ipa"
+          test -f "$artifact"
+          notes="$(scripts/deployment/render-preview-app-release-notes.sh ios "$VERSION_SUFFIX")"
+          gh release create "$RELEASE_TAG" "$artifact" \
+            --title "$RELEASE_TITLE" \
+            --target "$RELEASE_SHA" \
+            --notes "$notes" \
+            --prerelease
+
+  build-android:
+    name: Build and publish Android preview
+    if: needs.resolve.outputs.platform == 'android'
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    environment:
+      name: preview
+    concurrency:
+      group: imsweb-preview-app-android
+      cancel-in-progress: false
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.10.0
+          run_install: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Android Rust target
+        run: rustup target add aarch64-linux-android
+
+      - name: Stage the preview signing keystore
+        env:
+          PREVIEW_ANDROID_KEYSTORE_BASE64: ${{ secrets.PREVIEW_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          : "${PREVIEW_ANDROID_KEYSTORE_BASE64:?Set preview secret PREVIEW_ANDROID_KEYSTORE_BASE64}"
+          install -d -m 0700 "$HOME/.android"
+          printf '%s' "$PREVIEW_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 0600 "$HOME/.android/debug.keystore"
+
+      - name: Build and sign Android preview APK
+        env:
+          VITE_IMS_API_ORIGIN: https://preview.idol-master.top
+          VITE_IMS_PUBLIC_SITE_ORIGIN: https://preview.idol-master.top
+        run: |
+          node scripts/app-release.js android \
+            --version-suffix "${{ needs.resolve.outputs.version_suffix }}" \
+            --build-number "${{ needs.resolve.outputs.build_number }}" \
+            --out dist/app-release
+        working-directory: apps/web
+
+      - name: Remove the staged keystore
+        if: always()
+        run: rm -f "$HOME/.android/debug.keystore"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.resolve.outputs.release_sha }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+          RELEASE_TITLE: ${{ needs.resolve.outputs.release_title }}
+          VERSION_SUFFIX: ${{ needs.resolve.outputs.version_suffix }}
+        run: |
+          set -euo pipefail
+          artifact="apps/web/dist/app-release/imsweb-preview-android-${VERSION_SUFFIX}.apk"
+          test -f "$artifact"
+          notes="$(scripts/deployment/render-preview-app-release-notes.sh android "$VERSION_SUFFIX")"
+          gh release create "$RELEASE_TAG" "$artifact" \
+            --title "$RELEASE_TITLE" \
+            --target "$RELEASE_SHA" \
+            --notes "$notes" \
+            --prerelease

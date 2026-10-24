@@ -1,8 +1,20 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
+import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter, useLocation } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { useLocation } from "react-router"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  makeWikiPublicAgency,
+  makeWikiPublicCatalog,
+  makeWikiPublicGroup,
+  makeWikiPublicIdol,
+  makeWikiPublicStories,
+  makeWikiPublicStoryCard,
+  makeWikiPublicStoryLink,
+} from "@/mocks/data/wiki"
+import { renderPage } from "@/tests/unit/support/harness"
 import { ClassicStoryPage } from "~/pages/wiki/classic/classic-story-page"
 import { ClassicWikiPage } from "~/pages/wiki/classic/index"
 
@@ -24,7 +36,7 @@ function LocationProbe() {
 }
 
 const agencies = [
-  {
+  makeWikiPublicAgency({
     id: 1,
     code: "765",
     name: "765PRO",
@@ -33,8 +45,8 @@ const agencies = [
     iconUrl: null,
     idolCount: 1,
     entryCount: 1,
-  },
-  {
+  }),
+  makeWikiPublicAgency({
     id: 6,
     code: "sc",
     name: "闪耀色彩",
@@ -43,7 +55,7 @@ const agencies = [
     iconUrl: null,
     idolCount: 2,
     entryCount: 2,
-  },
+  }),
 ]
 
 function catalogPayload(
@@ -55,45 +67,43 @@ function catalogPayload(
   const groups =
     agencyName === "765PRO"
       ? [
-          {
+          makeWikiPublicGroup({
             id: 1,
             code: "765pro",
             name: "765PRO",
             color: "#f34f6d",
             iconUrl: null,
             idols: [
-              {
+              makeWikiPublicIdol({
                 id: 1,
                 name: "天海春香",
                 folderName: "amami_haruka",
                 color: "#e22b30",
+                wikiUrl: null,
                 imageUrl: "/image/haruka.webp",
-                imageFit: "cover",
-                textColor: "#ffffff",
-              },
+              }),
             ],
-          },
+          }),
         ]
       : [
-          {
+          makeWikiPublicGroup({
             id: 31,
             code: "illumination-stars",
             name: "illumination STARS",
             color: "#ffd700",
             iconUrl: null,
             idols: [
-              {
+              makeWikiPublicIdol({
                 id: 6,
                 name: "樱木真乃",
                 folderName: "sakuragi_mano",
                 color: "#f1b0c9",
+                wikiUrl: null,
                 imageUrl: "/image/mano.webp",
-                imageFit: "cover",
-                textColor: "#ffffff",
-              },
+              }),
             ],
-          },
-          {
+          }),
+          makeWikiPublicGroup({
             id: 32,
             code: "straylight",
             name: "Straylight",
@@ -102,31 +112,29 @@ function catalogPayload(
             idols: [
               ...(duplicateIdolAcrossGroups
                 ? [
-                    {
+                    makeWikiPublicIdol({
                       id: 6,
                       name: "樱木真乃",
                       folderName: "sakuragi_mano",
                       color: "#f1b0c9",
+                      wikiUrl: null,
                       imageUrl: "/image/mano.webp",
-                      imageFit: "cover",
-                      textColor: "#ffffff",
-                    },
+                    }),
                   ]
                 : []),
-              {
+              makeWikiPublicIdol({
                 id: 7,
                 name: "芹泽朝日",
                 folderName: "serizawa_asahi",
                 color: "#f4bd00",
+                wikiUrl: null,
                 imageUrl: "/image/asahi.webp",
-                imageFit: "cover",
                 textColor: "#111111",
-              },
+              }),
             ],
-          },
+          }),
         ]
-  return {
-    status: "success",
+  return makeWikiPublicCatalog({
     agencies,
     searchEntries: [
       {
@@ -177,19 +185,19 @@ function catalogPayload(
       ungroupedIdols:
         agencyName === "闪耀色彩" && includeUngroupedIdol
           ? [
-              {
+              makeWikiPublicIdol({
                 id: 8,
                 name: "浅仓透",
                 folderName: "asakura_toru",
                 color: "#50d0d0",
+                wikiUrl: null,
                 imageUrl: "/image/toru.webp",
-                imageFit: "cover",
                 textColor: "#111111",
-              },
+              }),
             ]
           : [],
     },
-  }
+  })
 }
 
 function storyPayload(
@@ -198,35 +206,33 @@ function storyPayload(
   textColor = "#ffffff",
   wikiUrl: string | null = null
 ) {
-  return {
-    status: "success",
+  return makeWikiPublicStories({
     agency: {
       id: 6,
       code: "sc",
       name: "闪耀色彩",
       color: "#8dbbff",
     },
-    idol: {
+    idol: makeWikiPublicIdol({
       id: 6,
       name: "樱木真乃",
       folderName: "sakuragi_mano",
       color: idolColor,
       wikiUrl,
       imageUrl: "/image/mano.webp",
-      imageFit: "cover",
       textColor,
-    },
+    }),
     categories: [
       {
         name: "enza主线",
         cards: [
-          {
+          makeWikiPublicStoryCard({
             id: 401,
             name: "【W.I.N.G.編】",
             img: "/image/wing.webp",
             subtitle: "全话",
             links: [
-              {
+              makeWikiPublicStoryLink({
                 id: 1,
                 up: "投稿者一",
                 title: "卡片剧情",
@@ -234,8 +240,8 @@ function storyPayload(
                 contentType: "剧情",
                 contentTypeIcon: "phone",
                 sourcePlatform: "Bilibili",
-              },
-              {
+              }),
+              makeWikiPublicStoryLink({
                 id: 2,
                 up: "投稿者二",
                 title: "另一视角",
@@ -243,18 +249,18 @@ function storyPayload(
                 contentType: "语音",
                 contentTypeIcon: "mic-2",
                 sourcePlatform: "Bilibili",
-              },
+              }),
             ],
-          },
+          }),
           ...(includeCardsWithoutStory
             ? [
-                {
+                makeWikiPublicStoryCard({
                   id: 402,
                   name: "【仅语音】",
                   img: "/image/audio.webp",
                   subtitle: "语音收录",
                   links: [
-                    {
+                    makeWikiPublicStoryLink({
                       id: 3,
                       up: "投稿者三",
                       title: "语音试听",
@@ -262,113 +268,105 @@ function storyPayload(
                       contentType: "语音",
                       contentTypeIcon: "mic-2",
                       sourcePlatform: "Bilibili",
-                    },
+                    }),
                   ],
-                },
-                {
+                }),
+                makeWikiPublicStoryCard({
                   id: 403,
                   name: "【来源待补】",
                   img: "",
                   subtitle: "待编辑",
                   links: [],
-                },
+                }),
               ]
             : []),
         ],
       },
       { name: "特殊剧情", cards: [] },
     ],
-  }
+  })
 }
 
 function gakumasSCardPayload() {
-  return {
-    status: "success",
+  return makeWikiPublicStories({
     agency: {
       id: 7,
       code: "gk",
       name: "学园偶像大师",
       color: "#f39800",
     },
-    idol: {
+    idol: makeWikiPublicIdol({
       id: 42,
       name: "S卡",
       folderName: "s_card",
       color: "#f39800",
+      wikiUrl: null,
       imageUrl: "/image/s-card.webp",
-      imageFit: "cover",
-      textColor: "#ffffff",
-    },
+      entryKind: "story",
+      entrySubtype: "special",
+    }),
     categories: [
       {
         name: "S卡",
         cards: [
-          {
+          makeWikiPublicStoryCard({
             id: 501,
             name: "咲季与手毬登场",
             img: "",
             subtitle: "出场：咲季, 手毬",
             links: [],
-          },
-          {
+          }),
+          makeWikiPublicStoryCard({
             id: 502,
             name: "只有手毬登场",
             img: "",
             subtitle: "出场：手毬",
             links: [],
-          },
-          {
+          }),
+          makeWikiPublicStoryCard({
             id: 503,
             name: "尚未登记人物",
             img: "",
             subtitle: "",
             links: [],
-          },
+          }),
         ],
       },
     ],
-  }
+  })
 }
 
 describe("classic Wiki pages", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("keeps the template-style navigation and grouped classic story links", async () => {
     let backgroundRequest = 0
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
+    installFetchMock().mockImplementation((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      if (url.pathname === "/api/wiki/random_bg") {
+        backgroundRequest += 1
+        return response({
+          url:
+            backgroundRequest === 1
+              ? "/image/background.webp"
+              : "/image/background-two.webp",
+          card_name: backgroundRequest === 1 ? "【花风Smiley】" : "【映す光】",
+          idol_name: "樱木真乃",
+          agency_name: "闪耀色彩",
+        })
+      }
+      return response(
+        catalogPayload(
+          url.searchParams.get("agency") === "765PRO" ? "765PRO" : "闪耀色彩"
         )
-        if (url.pathname === "/api/wiki/random_bg") {
-          backgroundRequest += 1
-          return response({
-            url:
-              backgroundRequest === 1
-                ? "/image/background.webp"
-                : "/image/background-two.webp",
-            card_name:
-              backgroundRequest === 1 ? "【花风Smiley】" : "【映す光】",
-            idol_name: "樱木真乃",
-            agency_name: "闪耀色彩",
-          })
-        }
-        return response(
-          catalogPayload(
-            url.searchParams.get("agency") === "765PRO" ? "765PRO" : "闪耀色彩"
-          )
-        )
-      })
-    )
+      )
+    })
     const user = userEvent.setup()
 
-    const { container } = render(
-      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
-        <ClassicWikiPage />
-      </MemoryRouter>
-    )
+    const { container } = renderPage(<ClassicWikiPage />, {
+      route: "/wiki/classic?agency=闪耀色彩",
+    })
 
     expect(
       await screen.findByRole("heading", { name: "illumination STARS" })
@@ -518,25 +516,18 @@ describe("classic Wiki pages", () => {
   })
 
   it("lists duplicate names from every agency in the classic global search", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload())
-      })
-    )
+    installFetchMock().mockImplementation((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload())
+    })
     const user = userEvent.setup()
 
-    render(
-      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
-        <ClassicWikiPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicWikiPage />, { route: "/wiki/classic?agency=闪耀色彩" })
     await screen.findByRole("link", { name: /樱木真乃/ })
     await user.click(screen.getByRole("button", { name: "全局搜索内容页" }))
     await user.type(
@@ -561,33 +552,28 @@ describe("classic Wiki pages", () => {
 
   it("keeps the current series visible while the next catalog loads", async () => {
     const nextCatalog = deferred<Response>()
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        if (url.pathname === "/api/wiki/random_bg") {
-          return response({
-            url: "/image/background.webp",
-            idol_name: "樱木真乃",
-            agency_name: "闪耀色彩",
-          })
-        }
-        if (url.searchParams.get("agency") === "765PRO") {
-          return nextCatalog.promise
-        }
-        return response(catalogPayload("闪耀色彩"))
-      })
-    )
+    installFetchMock().mockImplementation((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      if (url.pathname === "/api/wiki/random_bg") {
+        return response({
+          url: "/image/background.webp",
+          idol_name: "樱木真乃",
+          agency_name: "闪耀色彩",
+        })
+      }
+      if (url.searchParams.get("agency") === "765PRO") {
+        return nextCatalog.promise
+      }
+      return response(catalogPayload("闪耀色彩"))
+    })
     const user = userEvent.setup()
 
-    const { container } = render(
-      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
-        <ClassicWikiPage />
-      </MemoryRouter>
-    )
+    const { container } = renderPage(<ClassicWikiPage />, {
+      route: "/wiki/classic?agency=闪耀色彩",
+    })
 
     expect(
       await screen.findByRole("heading", { name: "illumination STARS" })
@@ -634,24 +620,17 @@ describe("classic Wiki pages", () => {
   })
 
   it("keeps a cross-group idol without exposing classic directory counts", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload("闪耀色彩", true))
-      })
-    )
+    installFetchMock().mockImplementation((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload("闪耀色彩", true))
+    })
 
-    render(
-      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
-        <ClassicWikiPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicWikiPage />, { route: "/wiki/classic?agency=闪耀色彩" })
 
     const illumination = (
       await screen.findByRole("heading", { name: "illumination STARS" })
@@ -682,25 +661,21 @@ describe("classic Wiki pages", () => {
   })
 
   it("jumps to classic groups without hiding the rest of the directory", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload("闪耀色彩", false, true))
-      })
-    )
-    render(
-      <MemoryRouter
-        initialEntries={["/wiki/classic?agency=闪耀色彩&group=999"]}
-      >
+    installFetchMock().mockImplementation((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload("闪耀色彩", false, true))
+    })
+    renderPage(
+      <>
         <ClassicWikiPage />
         <LocationProbe />
-      </MemoryRouter>
+      </>,
+      { route: "/wiki/classic?agency=闪耀色彩&group=999" }
     )
 
     const banner = (
@@ -734,24 +709,17 @@ describe("classic Wiki pages", () => {
   })
 
   it("places ungrouped idols after every configured classic group", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response(catalogPayload("闪耀色彩", false, true))
-      })
-    )
+    installFetchMock().mockImplementation((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response(catalogPayload("闪耀色彩", false, true))
+    })
 
-    render(
-      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
-        <ClassicWikiPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicWikiPage />, { route: "/wiki/classic?agency=闪耀色彩" })
 
     const straylightHeading = await screen.findByRole("heading", {
       name: "Straylight",
@@ -767,19 +735,12 @@ describe("classic Wiki pages", () => {
   })
 
   it("filters classic categories and opens every dynamic story source", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload()))
     const user = userEvent.setup()
 
-    render(
-      <MemoryRouter
-        initialEntries={["/story/classic?agency=闪耀色彩&idol=樱木真乃"]}
-      >
-        <ClassicStoryPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicStoryPage />, {
+      route: "/story/classic?agency=闪耀色彩&idol=樱木真乃",
+    })
 
     expect(
       await screen.findByRole("heading", { name: "樱木真乃" })
@@ -830,29 +791,20 @@ describe("classic Wiki pages", () => {
   })
 
   it("shows the configured external Wiki link in the classic profile", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          Response.json(
-            storyPayload(
-              false,
-              "#f1b0c9",
-              "#ffffff",
-              "https://wiki.example.test/idols/sakuragi-mano"
-            )
-          )
+    installFetchMock().mockResolvedValue(
+      Response.json(
+        storyPayload(
+          false,
+          "#f1b0c9",
+          "#ffffff",
+          "https://wiki.example.test/idols/sakuragi-mano"
         )
+      )
     )
 
-    render(
-      <MemoryRouter
-        initialEntries={["/story/classic?agency=闪耀色彩&idol=樱木真乃"]}
-      >
-        <ClassicStoryPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicStoryPage />, {
+      route: "/story/classic?agency=闪耀色彩&idol=樱木真乃",
+    })
 
     const link = await screen.findByRole("link", { name: "查看 Wiki" })
     expect(link).toHaveAttribute(
@@ -863,21 +815,12 @@ describe("classic Wiki pages", () => {
   })
 
   it("temporarily filters Gakumas S cards by cast encoded in subtitles", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json(gakumasSCardPayload()))
-    )
+    installFetchMock().mockResolvedValue(Response.json(gakumasSCardPayload()))
     const user = userEvent.setup()
 
-    render(
-      <MemoryRouter
-        initialEntries={["/story/classic?agency=学园偶像大师&idol=S卡"]}
-      >
-        <ClassicStoryPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicStoryPage />, {
+      route: "/story/classic?agency=学园偶像大师&idol=S卡",
+    })
 
     expect(
       await screen.findByRole("region", { name: "出场偶像快速筛选" })
@@ -906,22 +849,13 @@ describe("classic Wiki pages", () => {
   })
 
   it("derives readable classic story colors from a pale idol accent", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          Response.json(storyPayload(false, "#dffaff", "#ffffff"))
-        )
+    installFetchMock().mockResolvedValue(
+      Response.json(storyPayload(false, "#dffaff", "#ffffff"))
     )
 
-    const { container } = render(
-      <MemoryRouter
-        initialEntries={["/story/classic?agency=闪耀色彩&idol=樱木真乃"]}
-      >
-        <ClassicStoryPage />
-      </MemoryRouter>
-    )
+    const { container } = renderPage(<ClassicStoryPage />, {
+      route: "/story/classic?agency=闪耀色彩&idol=樱木真乃",
+    })
 
     expect(
       await screen.findByRole("heading", { name: "樱木真乃" })
@@ -941,19 +875,12 @@ describe("classic Wiki pages", () => {
   })
 
   it("only keeps classic cards with story sources in full color", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload(true)))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload(true)))
     const user = userEvent.setup()
 
-    render(
-      <MemoryRouter
-        initialEntries={["/story/classic?agency=闪耀色彩&idol=樱木真乃"]}
-      >
-        <ClassicStoryPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicStoryPage />, {
+      route: "/story/classic?agency=闪耀色彩&idol=樱木真乃",
+    })
 
     const sourcedCard = await screen.findByRole("button", {
       name: /W\.I\.N\.G/,
@@ -987,63 +914,68 @@ describe("classic Wiki pages", () => {
       iconUrl: null,
       idolCount: 2,
       entryCount: 2,
+      imageTransform: defaultWikiImageTransform,
     }
     const voiced = {
       id: 2,
       name: "渋谷凛",
       folderName: "shibuya_rin",
       color: "#37b4e5",
+      wikiUrl: null,
       imageUrl: "/image/rin.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "idol",
+      entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     }
     const unvoiced = {
       id: 3,
       name: "未付声演示",
       folderName: "unvoiced_demo",
       color: "#999999",
+      wikiUrl: null,
       imageUrl: "/image/unvoiced.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "idol",
+      entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation((input) => {
-        const url = new URL(
-          input instanceof Request ? input.url : String(input),
-          window.location.origin
-        )
-        return url.pathname === "/api/wiki/random_bg"
-          ? response({ url: "" })
-          : response({
-              status: "success",
-              agencies: [cgAgency],
-              searchEntries: [],
-              selection: {
-                agency: cgAgency,
-                layoutRevision: 0,
-                groups: [
-                  {
-                    id: 2,
-                    code: "cute",
-                    name: "Cute",
-                    color: cgAgency.color,
-                    iconUrl: null,
-                    idols: [voiced, unvoiced],
-                  },
-                ],
-                ungroupedIdols: [],
-              },
-            })
-      })
-    )
+    installFetchMock().mockImplementation((input) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.origin
+      )
+      return url.pathname === "/api/wiki/random_bg"
+        ? response({ url: "" })
+        : response({
+            status: "success",
+            agencies: [cgAgency],
+            searchEntries: [],
+            selection: {
+              agency: cgAgency,
+              layoutRevision: 0,
+              groups: [
+                {
+                  id: 2,
+                  code: "cute",
+                  name: "Cute",
+                  color: cgAgency.color,
+                  iconUrl: null,
+                  imageTransform: defaultWikiImageTransform,
+                  idols: [voiced, unvoiced],
+                },
+              ],
+              ungroupedIdols: [],
+            },
+          })
+    })
     const user = userEvent.setup()
 
-    render(
-      <MemoryRouter initialEntries={["/wiki/classic?agency=灰姑娘女孩"]}>
-        <ClassicWikiPage />
-      </MemoryRouter>
-    )
+    renderPage(<ClassicWikiPage />, {
+      route: "/wiki/classic?agency=灰姑娘女孩",
+    })
 
     const voicedLink = await screen.findByRole("link", { name: /渋谷凛/ })
     expect(voicedLink).toBeVisible()

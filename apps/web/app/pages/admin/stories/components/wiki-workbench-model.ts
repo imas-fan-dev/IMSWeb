@@ -1,7 +1,5 @@
 import { isApiError } from "~/lib/api"
 import type {
-  WikiAdminAgency,
-  WikiAdminIdol,
   WikiAdminStories,
   WikiAdminStory,
   WikiAdminStoryCard,
@@ -54,21 +52,6 @@ export type DeleteTarget =
 
 export function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
-}
-
-export function uniqueAgencyIdols(agency?: WikiAdminAgency) {
-  if (!agency) return []
-  const idolsById = new Map<number, WikiAdminIdol>()
-  for (const idol of agency.idols) idolsById.set(idol.id, idol)
-  for (const group of agency.groups) {
-    for (const idol of group.idols) {
-      if (!idolsById.has(idol.id)) idolsById.set(idol.id, idol)
-    }
-  }
-  return [...idolsById.values()].sort(
-    (left, right) =>
-      left.displayOrder - right.displayOrder || left.id - right.id
-  )
 }
 
 export function positiveId(value: string | null) {

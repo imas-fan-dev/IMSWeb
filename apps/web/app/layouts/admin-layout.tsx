@@ -2,16 +2,18 @@ import { useRequest } from "alova/client"
 import {
   ArrowLeftIcon,
   BookOpenTextIcon,
-  CalendarDaysIcon,
   ChevronRightIcon,
   ContactRoundIcon,
   HistoryIcon,
   HomeIcon,
   InfoIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   LoaderCircleIcon,
   LogInIcon,
   LogOutIcon,
+  MailIcon,
+  MapPinCheckIcon,
   MapPinnedIcon,
   MegaphoneIcon,
   NewspaperIcon,
@@ -19,13 +21,14 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   RefreshCwIcon,
+  Settings2Icon,
   ShieldXIcon,
   UserRoundIcon,
   UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useState, type ReactNode } from "react"
-import { Link, Navigate, NavLink, Outlet, useNavigate } from "react-router"
+import { Navigate, Outlet, useLocation } from "react-router"
 import { toast } from "sonner"
 
 import { Badge } from "~/components/ui/badge"
@@ -40,6 +43,27 @@ import {
 } from "~/components/ui/tooltip"
 import { cn } from "~/lib/utils"
 import { getAdminSession, isApiError, logoutAdmin } from "~/lib/api"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "~/components/ui/collapsible"
+import {
+  NavigationLink,
+  NavigationNavLink,
+} from "~/components/navigation/navigation-link"
+import { useNavigation } from "~/lib/navigation/use-navigation"
+
+type AdminNavChild = {
+  /** Absent for a placeholder entry: rendered for layout review, not yet reachable. */
+  to?: string
+  label: string
+  /**
+   * Match `to` exactly instead of by prefix. Required whenever one child's path
+   * is a prefix of a sibling's, otherwise both light up at once.
+   */
+  end?: boolean
+}
 
 const navigation: Array<{
   to: string
@@ -49,6 +73,8 @@ const navigation: Array<{
   accent: string
   end?: boolean
   superOnly?: boolean
+  editorOnly?: boolean
+  children?: AdminNavChild[]
 }> = [
   {
     to: "/admin",
@@ -59,9 +85,18 @@ const navigation: Array<{
     end: true,
   },
   {
+    to: "/admin/community",
+    label: "制作人社区",
+    description: "社区首页文字与入口",
+    icon: UsersRoundIcon,
+    accent: "bg-franchise-sidem",
+    editorOnly: true,
+    end: true,
+  },
+  {
     to: "/admin/events",
-    label: "社区活动",
-    description: "公开活动发布",
+    label: "社区帖子",
+    description: "社区动态与首页精选",
     icon: MegaphoneIcon,
     accent: "bg-franchise-765",
   },
@@ -71,13 +106,6 @@ const navigation: Array<{
     description: "导航、友链与站点支持",
     icon: LayoutDashboardIcon,
     accent: "bg-franchise-sc",
-  },
-  {
-    to: "/admin/information",
-    label: "活动资讯",
-    description: "活动资讯与同人活动",
-    icon: CalendarDaysIcon,
-    accent: "bg-franchise-cg",
   },
   {
     to: "/admin/about",
@@ -94,6 +122,13 @@ const navigation: Array<{
     accent: "bg-franchise-sidem",
   },
   {
+    to: "/admin/community/exchange",
+    label: "事务所位置",
+    description: "公开区域位置审核",
+    icon: MapPinCheckIcon,
+    accent: "bg-franchise-ml",
+  },
+  {
     to: "/admin/recommendations",
     label: "向您推荐",
     description: "首页推荐与封面",
@@ -102,10 +137,17 @@ const navigation: Array<{
   },
   {
     to: "/admin/cards",
-    label: "名片审核",
-    description: "制作人名片投稿",
+    label: "名片管理",
+    description: "名片审核与资料维护",
     icon: ContactRoundIcon,
     accent: "bg-franchise-765",
+    children: [
+      { to: "/admin/cards", label: "名片审核", end: true },
+      { label: "信息修改" },
+      { to: "/admin/cards/characters", label: "角色列表" },
+      { to: "/admin/cards/units", label: "组合列表" },
+      { label: "标签管理" },
+    ],
   },
   {
     to: "/admin/site-packages",
@@ -115,11 +157,25 @@ const navigation: Array<{
     accent: "bg-franchise-sidem",
   },
   {
+    to: "/admin/idols",
+    label: "偶像管理",
+    description: "企划、栏目与条目资料",
+    icon: UserRoundIcon,
+    accent: "bg-franchise-sc",
+    editorOnly: true,
+    children: [
+      { to: "/admin/idols/agencies", label: "企划管理" },
+      { to: "/admin/idols/groups", label: "栏目管理" },
+      { to: "/admin/idols/entries", label: "条目管理" },
+    ],
+  },
+  {
     to: "/admin/stories",
     label: "剧情内容",
-    description: "剧情角色素材",
+    description: "剧情卡片、来源与封面",
     icon: BookOpenTextIcon,
     accent: "bg-franchise-sc",
+    editorOnly: true,
   },
   {
     to: "/admin/chronicle",
@@ -136,6 +192,37 @@ const navigation: Array<{
     accent: "bg-franchise-cg",
     superOnly: true,
   },
+  {
+    to: "/admin/platform/oauth",
+    label: "OAuth 登录",
+    description: "第三方登录凭据配置",
+    icon: KeyRoundIcon,
+    accent: "bg-franchise-765",
+    superOnly: true,
+  },
+  {
+    to: "/admin/platform/email",
+    label: "邮件服务",
+    description: "SMTP 发件服务配置",
+    icon: MailIcon,
+    accent: "bg-franchise-sc",
+    superOnly: true,
+  },
+  {
+    to: "/admin/platform/users",
+    label: "平台用户",
+    description: "C 端帐号检索与处置",
+    icon: UsersRoundIcon,
+    accent: "bg-franchise-cg",
+    superOnly: true,
+  },
+  {
+    to: "/admin/system",
+    label: "系统配置",
+    description: "地图分发与运行时设置",
+    icon: Settings2Icon,
+    accent: "bg-franchise-gk",
+  },
 ]
 
 function navClass(
@@ -148,6 +235,26 @@ function navClass(
     isActive
       ? "bg-admin-ink-muted text-admin-ink-foreground"
       : "text-admin-ink-subtle hover:bg-admin-ink-muted hover:text-admin-ink-foreground"
+  )
+}
+
+/** A group stays expanded while the location sits on one of its children. */
+function isRouteWithin(pathname: string, to: string, end?: boolean) {
+  if (end) return pathname === to
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
+
+function navChildClass(
+  { isActive }: { isActive: boolean },
+  placeholder: boolean
+) {
+  return cn(
+    "relative flex min-h-9 items-center rounded-lg py-1.5 pr-3 pl-10 text-[13px] whitespace-nowrap transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+    placeholder
+      ? "cursor-default text-admin-ink-subtle/45"
+      : isActive
+        ? "bg-admin-ink-muted font-medium text-admin-ink-foreground"
+        : "text-admin-ink-subtle hover:bg-admin-ink-muted hover:text-admin-ink-foreground"
   )
 }
 
@@ -190,11 +297,18 @@ function AdminAccessDenied() {
       title="无法访问管理工作台"
       description="当前登录账号没有内容运营权限。"
     >
-      <Button render={<Link to="/admin/login" />} nativeButton={false}>
+      <Button
+        render={<NavigationLink to="/admin/login" />}
+        nativeButton={false}
+      >
         <LogInIcon data-icon="inline-start" />
         切换管理账号
       </Button>
-      <Button variant="outline" render={<Link to="/" />} nativeButton={false}>
+      <Button
+        variant="outline"
+        render={<NavigationLink to="/" />}
+        nativeButton={false}
+      >
         <ArrowLeftIcon data-icon="inline-start" />
         返回站点
       </Button>
@@ -214,7 +328,11 @@ function AdminSessionFailure({ onRetry }: { onRetry: () => void }) {
         <RefreshCwIcon data-icon="inline-start" />
         重新验证
       </Button>
-      <Button variant="outline" render={<Link to="/" />} nativeButton={false}>
+      <Button
+        variant="outline"
+        render={<NavigationLink to="/" />}
+        nativeButton={false}
+      >
         <ArrowLeftIcon data-icon="inline-start" />
         返回站点
       </Button>
@@ -229,9 +347,21 @@ function isExpiredSession(error: unknown): boolean {
   )
 }
 
+function isEditorContentRoute(pathname: string): boolean {
+  return (
+    pathname === "/admin/community" ||
+    pathname === "/admin/idols" ||
+    pathname.startsWith("/admin/idols/") ||
+    pathname === "/admin/stories" ||
+    pathname.startsWith("/admin/stories/")
+  )
+}
+
 export default function AdminLayout() {
-  const navigate = useNavigate()
+  const navigate = useNavigation()
+  const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [hoveredMenu, setHoveredMenu] = useState<string | null>(null)
   const { data, loading, error, onError, send } = useRequest(getAdminSession())
   onError(() => undefined)
 
@@ -262,7 +392,12 @@ export default function AdminLayout() {
     )
   }
 
-  if (data.user.dept !== "op") {
+  const isEditor = data.user.dept === "editor"
+  const canAccessCurrentRoute =
+    data.user.dept === "op" ||
+    (isEditor && isEditorContentRoute(location.pathname))
+
+  if (!canAccessCurrentRoute) {
     return <AdminAccessDenied />
   }
 
@@ -281,12 +416,15 @@ export default function AdminLayout() {
       <SeriesAccentStrip className="h-1" />
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-400 items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <Link to="/admin" className="flex min-w-0 items-center gap-3">
+          <NavigationLink
+            to={isEditor ? "/admin/stories" : "/admin"}
+            className="flex min-w-0 items-center gap-3"
+          >
             <BrandWordmark className="h-8" />
             <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
               内容运营台
             </span>
-          </Link>
+          </NavigationLink>
           <div className="ml-auto flex min-w-0 items-center gap-3">
             <Badge variant="outline" className="hidden max-w-52 sm:flex">
               <UserRoundIcon data-icon="inline-start" aria-hidden="true" />
@@ -300,18 +438,20 @@ export default function AdminLayout() {
               }
               className="hidden md:flex"
             >
-              {data.user.adminRole === "super_admin"
-                ? "最高管理员"
-                : "一般管理员"}
+              {isEditor
+                ? "内容编辑"
+                : data.user.adminRole === "super_admin"
+                  ? "最高管理员"
+                  : "一般管理员"}
             </Badge>
-            <Link
+            <NavigationLink
               to="/"
               aria-label="返回主站"
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
               <HomeIcon data-icon="inline-start" aria-hidden="true" />
               <span className="hidden sm:inline">返回主站</span>
-            </Link>
+            </NavigationLink>
             <Button
               type="button"
               variant="outline"
@@ -391,13 +531,142 @@ export default function AdminLayout() {
                 </Tooltip>
               </div>
               {navigation
-                .filter(
-                  (item) =>
-                    !item.superOnly || data.user.adminRole === "super_admin"
+                .filter((item) =>
+                  isEditor
+                    ? item.editorOnly
+                    : !item.superOnly || data.user.adminRole === "super_admin"
                 )
                 .map((item) => {
+                  const children = item.children ?? []
+                  const hasChildren = children.length > 0
+                  const childActive =
+                    hasChildren &&
+                    children.some(
+                      (child) =>
+                        child.to &&
+                        isRouteWithin(location.pathname, child.to, child.end)
+                    )
+                  const expanded =
+                    hasChildren && (hoveredMenu === item.to || childActive)
+
+                  if (hasChildren && sidebarCollapsed) {
+                    return (
+                      <Tooltip key={item.to}>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              className={cn(
+                                navClass({ isActive: childActive }, true),
+                                "w-full cursor-pointer"
+                              )}
+                              aria-label={`展开侧栏以查看${item.label}`}
+                              onClick={() => setSidebarCollapsed(false)}
+                            />
+                          }
+                        >
+                          <item.icon
+                            className="size-4 shrink-0"
+                            aria-hidden="true"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          {item.label}
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  }
+
+                  if (hasChildren) {
+                    return (
+                      <Collapsible
+                        key={item.to}
+                        open={expanded}
+                        className="flex flex-col gap-1"
+                        onMouseEnter={() => setHoveredMenu(item.to)}
+                        onMouseLeave={() =>
+                          setHoveredMenu((current) =>
+                            current === item.to ? null : current
+                          )
+                        }
+                      >
+                        <CollapsibleTrigger
+                          className={cn(
+                            navClass({ isActive: childActive }, false),
+                            "w-full cursor-pointer text-left"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute inset-y-3 left-0 w-0.5 rounded-full transition-opacity",
+                              childActive ? "opacity-100" : "opacity-0",
+                              item.accent
+                            )}
+                            aria-hidden="true"
+                          />
+                          <item.icon
+                            className="size-4 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
+                            <span>{item.label}</span>
+                            <span className="hidden text-[10.88px]/4 font-normal text-admin-ink-subtle lg:block">
+                              {item.description}
+                            </span>
+                          </span>
+                          <ChevronRightIcon
+                            className="ml-auto hidden size-3 opacity-50 transition-transform duration-200 group-data-panel-open:rotate-90 motion-reduce:transition-none lg:block"
+                            aria-hidden="true"
+                          />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent
+                          className={cn(
+                            "flex h-(--collapsible-panel-height) flex-col overflow-hidden transition-[height] duration-200 ease-out motion-reduce:transition-none",
+                            "data-ending-style:h-0 data-starting-style:h-0",
+                            "[&[hidden]:not([hidden='until-found'])]:hidden"
+                          )}
+                        >
+                          <ul className="flex flex-col gap-1 pt-1">
+                            {children.map((child) => (
+                              <li key={child.label}>
+                                {child.to ? (
+                                  <NavigationNavLink
+                                    to={child.to}
+                                    end={child.end}
+                                    className={(state) =>
+                                      navChildClass(state, false)
+                                    }
+                                  >
+                                    <span
+                                      className={cn(
+                                        "absolute inset-y-2 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
+                                        item.accent
+                                      )}
+                                      aria-hidden="true"
+                                    />
+                                    {child.label}
+                                  </NavigationNavLink>
+                                ) : (
+                                  <span
+                                    aria-disabled="true"
+                                    className={navChildClass(
+                                      { isActive: false },
+                                      true
+                                    )}
+                                  >
+                                    {child.label}
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )
+                  }
+
                   const link = (
-                    <NavLink
+                    <NavigationNavLink
                       key={item.to}
                       to={item.to}
                       end={item.end}
@@ -432,7 +701,7 @@ export default function AdminLayout() {
                         )}
                         aria-hidden="true"
                       />
-                    </NavLink>
+                    </NavigationNavLink>
                   )
 
                   if (!sidebarCollapsed) {

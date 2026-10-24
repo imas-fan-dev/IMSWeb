@@ -1,26 +1,14 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { AgencyIconManager } from "~/pages/admin/stories/components/agency-icon-manager"
-
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return {
-      body: input.body,
-      headers: input.headers,
-      method: input.method,
-      url: input.url,
-    }
-  }
-  return {
-    body: init?.body ?? null,
-    headers: new Headers(init?.headers),
-    method: init?.method ?? "GET",
-    url: String(input),
-  }
-}
+import type { WikiAdminCatalog } from "~/lib/api"
 
 function catalogPayload(iconUrl: string | null) {
   return {
@@ -36,6 +24,15 @@ function catalogPayload(iconUrl: string | null) {
         displayOrder: 0,
         layoutRevision: 0,
         iconUrl,
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
+        },
+        mediaRevision: 0,
+        idols: [],
         groups: [],
       },
       {
@@ -48,25 +45,29 @@ function catalogPayload(iconUrl: string | null) {
         displayOrder: 1,
         layoutRevision: 0,
         iconUrl: null,
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
+        },
+        mediaRevision: 0,
+        idols: [],
         groups: [],
       },
     ],
-  }
+  } satisfies WikiAdminCatalog
 }
 
 describe("AgencyIconManager", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=wiki-agency-icon-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
+    setCsrfCookie("backoffice", "wiki-agency-icon-test")
   })
 
   it("uploads, previews, and removes the selected series icon", async () => {
     let iconUrl: string | null = "/icon/agencies/6.webp"
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+    const fetchMock = installFetchMock((...args) => {
       const request = requestDetails(args)
       const url = new URL(request.url, window.location.origin)
       if (
@@ -95,7 +96,6 @@ describe("AgencyIconManager", () => {
         new Error(`Unexpected request: ${request.method} ${url.pathname}`)
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
     const objectUrl = vi
       .spyOn(URL, "createObjectURL")
       .mockReturnValue("blob:series-icon-preview")

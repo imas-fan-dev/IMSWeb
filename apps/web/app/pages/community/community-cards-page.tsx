@@ -3,18 +3,22 @@ import {
   ArrowRightIcon,
   CalendarDaysIcon,
   ImagesIcon,
-  PlusIcon,
+  ShieldCheckIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import type { FormEvent } from "react"
-import { Link, useSearchParams } from "react-router"
+import type { SubmitEvent } from "react"
+import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
+import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import {
   NamecardPreview,
   type NamecardSide,
 } from "~/components/shared/namecard-preview"
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Card,
@@ -32,12 +36,6 @@ import {
 import { FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTitle,
-  PopoverTrigger,
-} from "~/components/ui/popover"
-import {
   Select,
   SelectContent,
   SelectGroup,
@@ -47,20 +45,40 @@ import {
 } from "~/components/ui/select"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
+  NamecardDetailDialog,
+  NamecardReactionSummary,
+  type NamecardReactionState,
+} from "~/pages/community/components/namecard-detail-dialog"
+import { NamecardThumbnail } from "~/pages/community/components/namecard-thumbnail"
+import { useNamecardMasonry } from "~/pages/community/hooks/use-namecard-masonry"
+import { useNamecardPaginationVisibility } from "~/pages/community/hooks/use-namecard-pagination-visibility"
+import { useNamecardDetailSession } from "~/pages/community/hooks/use-namecard-detail-session"
+import { useNamecardDetailReturn } from "~/pages/community/hooks/use-namecard-detail-return"
+import {
   addNamecardReaction,
   getNamecardPage,
   getNamecardReactions,
-  NAMECARD_REACTIONS,
 } from "~/lib/api"
-import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
+import type { Namecard, NamecardPage } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
-const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
-const SESSION_REACTION_LIMIT = 10
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
+const SESSION_REACTION_LIMIT = 10
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
   month: "long",
   day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Asia/Shanghai",
+})
+const NAMECARD_SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  month: "2-digit",
+  day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
   hourCycle: "h23",
@@ -71,9 +89,16 @@ function namecardCreatedAt(value?: string | null) {
   if (!value) return null
   const date = new Date(value)
   if (Number.isNaN(date.valueOf())) return null
+  const parts = Object.fromEntries(
+    NAMECARD_SHORT_DATE_FORMATTER.formatToParts(date).map(({ type, value }) => [
+      type,
+      value,
+    ])
+  )
   return {
     dateTime: date.toISOString(),
-    label: NAMECARD_DATE_FORMATTER.format(date),
+    label: `${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`,
+    description: `提交于 ${NAMECARD_DATE_FORMATTER.format(date)}（北京时间）`,
   }
 }
 
@@ -91,173 +116,100 @@ export function meta() {
   return [{ title: "制作人名片墙 | IMSWeb" }]
 }
 
-function NamecardReactionBar({ cardId }: { cardId: number }) {
-  const [reactions, setReactions] = useState<NamecardReactions>({})
-  const [busy, setBusy] = useState<string | null>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const sessionCounts = useRef(new Map<string, number>())
-
-  useEffect(() => {
-    let active = true
-    void getNamecardReactions(cardId)
-      .send()
-      .then((next) => {
-        if (active) setReactions(next)
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-    }
-  }, [cardId])
-
-  async function react(emoji: string) {
-    if (busy !== null) return
-    const sessionCount = sessionCounts.current.get(emoji) ?? 0
-    if (sessionCount >= SESSION_REACTION_LIMIT) {
-      toast.error("这个反应点得太多了")
-      return
-    }
-
-    setBusy(emoji)
-    try {
-      await addNamecardReaction(cardId, emoji).send()
-      sessionCounts.current.set(emoji, sessionCount + 1)
-      setReactions((current) => ({
-        ...current,
-        [emoji]: (current[emoji] ?? 0) + 1,
-      }))
-      setPickerOpen(false)
-    } catch {
-      toast.error("暂时无法添加反应")
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const activeReactions = Object.entries(reactions).filter(
-    ([emoji, count]) => count > 0 && NAMECARD_REACTION_SET.has(emoji)
-  )
-
-  return (
-    <div className="flex min-h-6 flex-wrap gap-1.5" aria-label="名片反应">
-      {activeReactions.map(([emoji, count]) => (
-        <Button
-          key={emoji}
-          type="button"
-          size="xs"
-          variant="outline"
-          disabled={busy !== null}
-          aria-label={`${emoji}，${count} 次反应`}
-          onClick={() => void react(emoji)}
-        >
-          <span aria-hidden="true">{emoji}</span>
-          {count}
-        </Button>
-      ))}
-
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="outline"
-              aria-label="添加反应"
-              disabled={busy !== null}
-            />
-          }
-        >
-          <PlusIcon aria-hidden="true" />
-        </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} className="w-64 sm:w-80">
-          <PopoverTitle className="mb-2">选择反应</PopoverTitle>
-          <div className="grid grid-cols-6 gap-1 sm:grid-cols-8">
-            {NAMECARD_REACTIONS.map((emoji) => (
-              <Button
-                key={emoji}
-                type="button"
-                size="icon"
-                variant={reactions[emoji] ? "secondary" : "ghost"}
-                className="text-base"
-                disabled={busy !== null}
-                aria-label={`${emoji}，添加反应`}
-                onClick={() => void react(emoji)}
-              >
-                <span aria-hidden="true">{emoji}</span>
-              </Button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
-}
-
 function NamecardItem({
   card,
-  onPreview,
+  reactions,
+  busy,
+  onOpenDetail,
+  onReact,
 }: {
   card: Namecard
-  onPreview: (
-    card: Namecard,
-    side: NamecardSide,
-    trigger: HTMLButtonElement
-  ) => void
+  reactions: NamecardReactionState
+  busy: boolean
+  onOpenDetail: (card: Namecard, trigger: HTMLButtonElement) => void
+  onReact: (cardId: number, emoji: string) => Promise<boolean>
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
   return (
-    <Card className="h-full">
-      <div className="grid grid-cols-2 gap-px bg-border">
-        {[card.image1_thumbnail_url, card.image2_thumbnail_url].map(
-          (thumbnail, index) => (
+    <Card
+      data-namecard-item
+      className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:h-full md:gap-0 md:self-stretch md:rounded-xl md:bg-muted/50"
+    >
+      <div className="grid gap-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
+        {(["front", "back"] as const).map((side) => {
+          const thumbnail =
+            side === "front"
+              ? card.image1_thumbnail_url
+              : card.image2_thumbnail_url
+          const original = side === "front" ? card.image1_url : card.image2_url
+          return (
             <button
-              key={`${card.id}-${index === 0 ? "front" : "back"}`}
+              key={side}
               type="button"
-              className="group relative aspect-3/2 w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              aria-label={`查看制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
-              title="查看大图"
-              onClick={(event) =>
-                onPreview(
-                  card,
-                  index === 0 ? "front" : "back",
-                  event.currentTarget
-                )
-              }
+              className="relative aspect-3/2 min-h-11 w-full overflow-hidden rounded-none bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+              aria-label={`查看制作人名片 ${card.id} ${side === "front" ? "正面" : "背面"}`}
+              title="查看名片详情"
+              onClick={(event) => onOpenDetail(card, event.currentTarget)}
             >
-              <img
-                src={thumbnail}
-                alt=""
-                loading="lazy"
-                className="size-full object-cover transition-transform group-hover:scale-[1.02]"
+              <NamecardThumbnail
+                key={`${thumbnail}:${original}`}
+                thumbnail={thumbnail}
+                original={original}
               />
-              <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-colors group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
-                <ImagesIcon
-                  className="size-5 drop-shadow-sm"
-                  aria-hidden="true"
-                />
-              </span>
             </button>
           )
-        )}
+        })}
       </div>
-      <CardHeader>
-        <CardDescription className="flex items-center gap-1.5 tabular-nums">
-          <CalendarDaysIcon aria-hidden="true" className="size-3.5" />
+      <CardHeader className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 md:min-h-8 md:px-4">
+        <CardDescription className="flex items-start gap-1.5 text-xs/5 whitespace-nowrap tabular-nums">
+          <CalendarDaysIcon
+            aria-hidden="true"
+            className="mt-0.5 size-3.5 shrink-0 max-md:hidden"
+          />
           {createdAt ? (
-            <time dateTime={createdAt.dateTime}>提交于 {createdAt.label}</time>
+            <time
+              dateTime={createdAt.dateTime}
+              title={createdAt.description}
+              aria-label={createdAt.description}
+            >
+              {createdAt.label}
+            </time>
           ) : (
-            <span>提交时间待补充</span>
+            <span title="提交时间缺失或无效">日期待补</span>
           )}
         </CardDescription>
+        {card.claimStatus === "claimed" ? (
+          <Badge
+            variant="outline"
+            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
+          >
+            <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+            {card.claimerName ?? "已由注册用户认领"}
+          </Badge>
+        ) : card.claimStatus === "pending" ? (
+          <Badge
+            variant="outline"
+            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap"
+          >
+            认领审核中
+          </Badge>
+        ) : null}
       </CardHeader>
-      <CardFooter className="mt-auto">
-        <NamecardReactionBar cardId={card.id} />
+      <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-1.5 md:px-4 md:pt-3 md:pb-4">
+        <NamecardReactionSummary
+          {...reactions}
+          busy={busy}
+          onOpen={(trigger) => onOpenDetail(card, trigger)}
+          onReact={(emoji) => onReact(card.id, emoji)}
+        />
       </CardFooter>
     </Card>
   )
 }
 
 export default function CommunityCardsPage() {
+  const platform = useOptionalPlatformSession()
+  const canClaim = platform.status === "authenticated"
   const [searchParams, setSearchParams] = useSearchParams()
   const page = pageFromSearchParam(searchParams.get("page"))
   const pageSize = pageSizeFromSearchParam(searchParams.get("size"))
@@ -265,12 +217,36 @@ export default function CommunityCardsPage() {
   const [result, setResult] = useState<NamecardPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [selectedCard, setSelectedCard] = useState<Namecard | null>(null)
-  const [selectedSide, setSelectedSide] = useState<NamecardSide>("front")
-  const previewReturnRef = useRef<{
-    trigger: HTMLButtonElement
-    scrollY: number
-  } | null>(null)
+  const [claimCard, setClaimCard] = useState<Namecard | null>(null)
+  const [previewSide, setPreviewSide] = useState<NamecardSide | null>(null)
+  const [previewReturnTarget, setPreviewReturnTarget] =
+    useState<HTMLButtonElement | null>(null)
+  const [reactionsByCard, setReactionsByCard] = useState<
+    Record<number, NamecardReactionState>
+  >({})
+  const reactionRequests = useRef(new Set<number>())
+  const reactionVersions = useRef(new Map<number, number>())
+  const reactionEmojiVersions = useRef(new Map<number, Map<string, number>>())
+  const reactionMutations = useRef(new Set<number>())
+  const sessionReactionCounts = useRef(new Map<string, number>())
+  const [busyReactionCards, setBusyReactionCards] = useState(new Set<number>())
+  const [reload, setReload] = useState(0)
+  const listContext = `${page}:${pageSize}`
+  const [loadedContext, setLoadedContext] = useState(listContext)
+  if (loadedContext !== listContext) {
+    setLoadedContext(listContext)
+    setLoading(true)
+    setError(false)
+    setResult(null)
+    setTargetPage(String(page))
+  }
+  const detail = useNamecardDetailSession(searchParams.toString())
+  const paginationRef = useNamecardPaginationVisibility()
+  const galleryRef = useNamecardMasonry(
+    !loading && !error ? result?.list : undefined
+  )
+  const { fallbackRef, remember, prepareRestore, restore } =
+    useNamecardDetailReturn(searchParams.toString())
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
@@ -302,14 +278,52 @@ export default function CommunityCardsPage() {
     return () => {
       active = false
     }
-  }, [page, pageSize])
+  }, [page, pageSize, reload])
+
+  useEffect(() => {
+    if (!result) return
+    for (const card of result.list) {
+      if (
+        reactionsByCard[card.id] !== undefined ||
+        reactionRequests.current.has(card.id)
+      )
+        continue
+      reactionRequests.current.add(card.id)
+      const version = reactionVersions.current.get(card.id) ?? 0
+      void getNamecardReactions(card.id)
+        .send()
+        .then((reactions) => {
+          setReactionsByCard((current) => {
+            const merged = { ...reactions }
+            for (const [emoji, changedAt] of reactionEmojiVersions.current.get(
+              card.id
+            ) ?? []) {
+              if (changedAt > version) {
+                merged[emoji] = current[card.id]?.reactions[emoji] ?? 0
+              }
+            }
+            return {
+              ...current,
+              [card.id]: { reactions: merged, loading: false },
+            }
+          })
+        })
+        .catch(() => {
+          setReactionsByCard((current) => ({
+            ...current,
+            [card.id]: {
+              reactions: current[card.id]?.reactions ?? {},
+              loading: false,
+            },
+          }))
+        })
+        .finally(() => reactionRequests.current.delete(card.id))
+    }
+  }, [result, reactionsByCard])
 
   function changePage(nextPage: number) {
     setTargetPage(String(nextPage))
     if (nextPage === page) return
-    setLoading(true)
-    setError(false)
-    setTargetPage("1")
     const next = new URLSearchParams(searchParams)
     next.set("page", String(nextPage))
     next.set("size", String(pageSize))
@@ -318,40 +332,86 @@ export default function CommunityCardsPage() {
 
   function changePageSize(value: unknown) {
     const nextPageSize = Number(value)
-    if (!NAMECARD_PAGE_SIZES.some((size) => size === nextPageSize)) return
-    setLoading(true)
-    setError(false)
+    if (
+      !NAMECARD_PAGE_SIZES.some((size) => size === nextPageSize) ||
+      nextPageSize === pageSize
+    )
+      return
     const next = new URLSearchParams(searchParams)
     next.set("page", "1")
     next.set("size", String(nextPageSize))
     setSearchParams(next)
   }
 
-  function openPreview(
-    card: Namecard,
-    side: NamecardSide,
-    trigger: HTMLButtonElement
-  ) {
-    previewReturnRef.current = { trigger, scrollY: window.scrollY }
-    setSelectedSide(side)
-    setSelectedCard(card)
+  function openDetail(card: Namecard, trigger: HTMLButtonElement) {
+    if (!result) return
+    remember(trigger)
+    detail.open(card)
   }
 
-  function handlePreviewOpenChange(open: boolean) {
-    if (open) return
-    const returnTarget = previewReturnRef.current
-    setSelectedCard(null)
-    window.requestAnimationFrame(() => {
-      if (!returnTarget) return
-      if (returnTarget.trigger.isConnected) {
-        returnTarget.trigger.focus({ preventScroll: true })
-      }
-      window.scrollTo({ top: returnTarget.scrollY, behavior: "auto" })
-      previewReturnRef.current = null
-    })
+  function recordReaction(cardId: number, emoji: string) {
+    const version = (reactionVersions.current.get(cardId) ?? 0) + 1
+    reactionVersions.current.set(cardId, version)
+    const emojiVersions =
+      reactionEmojiVersions.current.get(cardId) ?? new Map<string, number>()
+    emojiVersions.set(emoji, version)
+    reactionEmojiVersions.current.set(cardId, emojiVersions)
+    setReactionsByCard((current) => ({
+      ...current,
+      [cardId]: {
+        reactions: {
+          ...(current[cardId]?.reactions ?? {}),
+          [emoji]: (current[cardId]?.reactions[emoji] ?? 0) + 1,
+        },
+        loading: false,
+      },
+    }))
   }
 
-  function jumpToPage(event: FormEvent<HTMLFormElement>) {
+  async function reactToCard(cardId: number, emoji: string) {
+    if (reactionMutations.current.has(cardId)) return false
+    const sessionKey = `${cardId}:${emoji}`
+    const count = sessionReactionCounts.current.get(sessionKey) ?? 0
+    if (count >= SESSION_REACTION_LIMIT) {
+      toast.error("这个反应点得太多了")
+      return false
+    }
+    reactionMutations.current.add(cardId)
+    setBusyReactionCards((current) => new Set(current).add(cardId))
+    try {
+      await addNamecardReaction(cardId, emoji).send()
+      sessionReactionCounts.current.set(sessionKey, count + 1)
+      recordReaction(cardId, emoji)
+      return true
+    } catch {
+      toast.error("暂时无法添加反应")
+      return false
+    } finally {
+      reactionMutations.current.delete(cardId)
+      setBusyReactionCards((current) => {
+        const next = new Set(current)
+        next.delete(cardId)
+        return next
+      })
+    }
+  }
+
+  function closeDetail() {
+    if (previewSide !== null) return
+    prepareRestore()
+    detail.close()
+  }
+
+  function openPreview(side: NamecardSide, trigger: HTMLButtonElement) {
+    setPreviewReturnTarget(trigger)
+    setPreviewSide(side)
+  }
+
+  function closePreview() {
+    setPreviewSide(null)
+  }
+
+  function jumpToPage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const totalPages = Math.max(result?.totalPage ?? 0, 1)
     const nextPage = Number(targetPage)
@@ -363,40 +423,107 @@ export default function CommunityCardsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-12">
+    <PageShell
+      width="wide"
+      className={!IS_APP_TARGET ? "py-3 sm:py-3 md:py-8" : undefined}
+    >
       <NamecardPreview
-        card={selectedCard}
-        side={selectedSide}
-        onSideChange={setSelectedSide}
-        onOpenChange={handlePreviewOpenChange}
+        card={previewSide === null ? null : detail.card}
+        side={previewSide ?? "front"}
+        onSideChange={setPreviewSide}
+        onOpenChange={(open) => {
+          if (!open) closePreview()
+        }}
+        finalFocus={() => previewReturnTarget}
+      />
+      <NamecardDetailDialog
+        card={detail.card}
+        canClaim={canClaim}
+        busy={detail.card ? busyReactionCards.has(detail.card.id) : false}
+        reactions={
+          detail.card
+            ? (reactionsByCard[detail.card.id] ?? {
+                reactions: {},
+                loading: true,
+              })
+            : { reactions: {}, loading: false }
+        }
+        onOpenChange={(open) => {
+          if (!open) closeDetail()
+        }}
+        onOpenPreview={openPreview}
+        onClaim={setClaimCard}
+        onReact={(emoji) =>
+          detail.card
+            ? reactToCard(detail.card.id, emoji)
+            : Promise.resolve(false)
+        }
+        onReturnFocus={restore}
+      />
+      <NamecardClaimDialog
+        card={canClaim ? claimCard : null}
+        open={canClaim && claimCard !== null}
+        onOpenChange={(open) => {
+          if (!open) setClaimCard(null)
+        }}
+        onSubmitted={() => {
+          if (!claimCard) return
+          const update = (card: Namecard): Namecard => ({
+            ...card,
+            claimStatus: "pending",
+            viewerClaimState: "pending",
+          })
+          setResult((current) =>
+            current
+              ? {
+                  ...current,
+                  list: current.list.map((card) =>
+                    card.id === claimCard.id ? update(card) : card
+                  ),
+                }
+              : current
+          )
+          detail.updateCard(claimCard.id, update)
+        }}
       />
 
-      <Link
-        to="/community"
-        className={buttonVariants({ variant: "ghost", size: "sm" })}
-      >
-        <ArrowLeftIcon data-icon="inline-start" />
-        返回社区
-      </Link>
+      {!IS_APP_TARGET ? (
+        <NavigationLink
+          to="/community"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "min-h-11"
+          )}
+        >
+          <ArrowLeftIcon data-icon="inline-start" />
+          返回社区
+        </NavigationLink>
+      ) : null}
 
-      <header className="mt-8 max-w-3xl">
-        <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
-          Producer cards
-        </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">
+      <header className={cn("max-w-3xl", !IS_APP_TARGET && "mt-1 md:mt-3")}>
+        <h1 className="text-xl font-semibold wrap-anywhere md:text-2xl">
           制作人名片墙
         </h1>
-        <p className="mt-4 leading-7 text-muted-foreground">
-          浏览制作人公开提交的双面名片，并用表情留下回应。新投稿将在运营审核后显示。
-        </p>
       </header>
 
-      <section className="mt-10" aria-label="公开名片">
+      <section
+        ref={fallbackRef}
+        tabIndex={-1}
+        className="mt-3 md:mt-6"
+        aria-label="公开名片"
+        aria-busy={loading}
+      >
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-80 rounded-xl" />
-            ))}
+          <div role="status">
+            <span className="sr-only">正在读取名片墙…</span>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-3 md:gap-4">
+              {Array.from({ length: 4 }, (_, index) => (
+                <Skeleton
+                  key={index}
+                  className="aspect-3/4 rounded-lg md:aspect-2/1"
+                />
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -404,7 +531,20 @@ export default function CommunityCardsPage() {
           <Alert variant="destructive">
             <ImagesIcon aria-hidden="true" />
             <AlertTitle>暂时无法读取名片墙</AlertTitle>
-            <AlertDescription>请稍后刷新页面重试。</AlertDescription>
+            <AlertDescription>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => {
+                  setError(false)
+                  setLoading(true)
+                  setReload((current) => current + 1)
+                }}
+              >
+                重试读取名片墙
+              </Button>
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -424,107 +564,151 @@ export default function CommunityCardsPage() {
 
         {!loading && !error && result?.list.length ? (
           <>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div
+              ref={galleryRef}
+              data-namecard-gallery
+              className="group/namecards grid grid-cols-2 gap-x-2 gap-y-3 max-md:data-[masonry=ready]:grid-rows-(--namecard-rows) max-md:data-[masonry=ready]:gap-y-0 md:gap-4"
+            >
               {result.list.map((card) => (
                 <NamecardItem
                   key={card.id}
                   card={card}
-                  onPreview={openPreview}
+                  busy={busyReactionCards.has(card.id)}
+                  reactions={
+                    reactionsByCard[card.id] ?? {
+                      reactions: {},
+                      loading: true,
+                    }
+                  }
+                  onOpenDetail={openDetail}
+                  onReact={reactToCard}
                 />
               ))}
             </div>
-            <div className="mt-6 flex flex-col gap-4 border-t pt-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <FieldLabel
-                    htmlFor="namecard-page-size"
-                    className="shrink-0 font-normal text-muted-foreground"
-                  >
-                    每页显示
-                  </FieldLabel>
-                  <Select
-                    items={NAMECARD_PAGE_SIZES.map((size) => ({
-                      label: `${size} 张`,
-                      value: String(size),
-                    }))}
-                    value={String(pageSize)}
-                    onValueChange={changePageSize}
-                  >
-                    <SelectTrigger id="namecard-page-size" className="w-24">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start" alignItemWithTrigger={false}>
-                      <SelectGroup>
-                        {NAMECARD_PAGE_SIZES.map((size) => (
-                          <SelectItem key={size} value={String(size)}>
-                            {size} 张
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <span
-                  className="text-sm text-muted-foreground"
-                  aria-live="polite"
+            <nav
+              ref={paginationRef}
+              aria-label="名片分页"
+              className="mt-4 grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_44px] items-center gap-2 border-t pt-3 md:mt-6 md:grid-cols-[auto_minmax(0,1fr)_auto_auto] md:gap-y-4 md:pt-4"
+            >
+              <div className="col-span-2 col-start-3 row-start-2 flex min-w-0 items-center gap-1 justify-self-end md:col-span-1 md:col-start-1 md:row-start-1 md:gap-2 md:justify-self-start">
+                <FieldLabel
+                  htmlFor="namecard-page-size"
+                  className="shrink-0 text-xs font-normal text-muted-foreground md:text-sm"
                 >
-                  第 {page} / {Math.max(result.totalPage, 1)} 页，共{" "}
-                  {result.total} 张
+                  每页<span className="sr-only md:not-sr-only">显示</span>
+                </FieldLabel>
+                <Select
+                  items={NAMECARD_PAGE_SIZES.map((size) => ({
+                    label: `${size} 张`,
+                    value: String(size),
+                  }))}
+                  value={String(pageSize)}
+                  onValueChange={changePageSize}
+                >
+                  <SelectTrigger
+                    id="namecard-page-size"
+                    aria-label="每页显示"
+                    className="h-11 min-h-11 w-20 md:w-24"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {NAMECARD_PAGE_SIZES.map((size) => (
+                        <SelectItem
+                          key={size}
+                          value={String(size)}
+                          className="min-h-11"
+                        >
+                          {size} 张
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <span
+                className="col-span-2 col-start-1 row-start-2 min-w-0 text-xs/5 text-muted-foreground tabular-nums md:col-span-1 md:col-start-3 md:row-start-1 md:text-sm"
+                aria-live="polite"
+              >
+                第 {page} / {Math.max(result.totalPage, 1)} 页，共{" "}
+                {result.total} 张
+              </span>
+
+              <form
+                className="col-span-2 col-start-2 row-start-1 flex min-w-0 items-center justify-center gap-1 md:col-span-1 md:col-start-4 md:gap-2"
+                onSubmit={jumpToPage}
+                noValidate
+              >
+                <FieldLabel
+                  htmlFor="namecard-target-page"
+                  className="sr-only font-normal text-muted-foreground md:not-sr-only md:shrink-0"
+                >
+                  跳至
+                </FieldLabel>
+                <Input
+                  id="namecard-target-page"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={Math.max(result.totalPage, 1)}
+                  value={targetPage}
+                  className="h-11 w-14 min-w-0 text-center tabular-nums md:w-20"
+                  onChange={(event) => setTargetPage(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault()
+                      setTargetPage(String(page))
+                    }
+                  }}
+                />
+                <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+                  <span className="md:hidden">
+                    / {Math.max(result.totalPage, 1)}
+                  </span>
+                  <span className="hidden md:inline">页</span>
                 </span>
-
-                <form
-                  className="flex items-center gap-2"
-                  onSubmit={jumpToPage}
-                  noValidate
-                >
-                  <FieldLabel
-                    htmlFor="namecard-target-page"
-                    className="shrink-0 font-normal text-muted-foreground"
-                  >
-                    跳至
-                  </FieldLabel>
-                  <Input
-                    id="namecard-target-page"
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={Math.max(result.totalPage, 1)}
-                    value={targetPage}
-                    className="w-20"
-                    onChange={(event) => setTargetPage(event.target.value)}
-                  />
-                  <span className="text-sm text-muted-foreground">页</span>
-                  <Button type="submit" variant="secondary">
-                    跳转
-                  </Button>
-                </form>
-              </div>
-
-              <div className="flex items-center justify-between">
                 <Button
-                  type="button"
-                  variant="outline"
-                  disabled={page <= 1}
-                  onClick={() => changePage(page - 1)}
+                  type="submit"
+                  variant="secondary"
+                  className="h-11 min-w-11 shrink-0 px-2 md:px-3"
+                  disabled={targetPage === String(page)}
                 >
-                  <ArrowLeftIcon data-icon="inline-start" />
-                  上一页
+                  跳转
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={page >= result.totalPage}
-                  onClick={() => changePage(page + 1)}
-                >
-                  下一页
-                  <ArrowRightIcon data-icon="inline-end" />
-                </Button>
-              </div>
-            </div>
+              </form>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="上一页"
+                title="上一页"
+                className="col-start-1 row-start-1 size-11 justify-self-start md:row-start-2 md:w-auto md:px-3"
+                disabled={page <= 1}
+                onClick={() => changePage(page - 1)}
+              >
+                <ArrowLeftIcon aria-hidden="true" />
+                <span className="hidden md:inline">上一页</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="下一页"
+                title="下一页"
+                className="col-start-4 row-start-1 size-11 justify-self-end md:row-start-2 md:w-auto md:px-3"
+                disabled={page >= result.totalPage}
+                onClick={() => changePage(page + 1)}
+              >
+                <span className="hidden md:inline">下一页</span>
+                <ArrowRightIcon aria-hidden="true" />
+              </Button>
+            </nav>
           </>
         ) : null}
       </section>
-    </main>
+    </PageShell>
   )
 }

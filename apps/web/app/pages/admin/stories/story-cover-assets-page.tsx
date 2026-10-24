@@ -9,7 +9,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
-import { Link, useSearchParams } from "react-router"
+import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -56,6 +56,7 @@ import {
   type WikiAdminAgency,
   type WikiStoryCoverAsset,
 } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
@@ -177,13 +178,13 @@ export function StoryCoverAssetsPage() {
         description="集中管理同一企划内可复用的剧情封面。"
         actions={
           <>
-            <Link
+            <NavigationLink
               to={`/admin/stories?agencyId=${selectedAgency?.id ?? ""}`}
               className={cn(buttonVariants({ variant: "outline" }))}
             >
               <ArrowLeftIcon data-icon="inline-start" />
               返回剧情管理
-            </Link>
+            </NavigationLink>
             <Button
               type="button"
               variant="outline"

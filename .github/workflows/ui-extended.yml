@@ -1,0 +1,49 @@
+name: Extended Web UI
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-extended-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extended:
+    name: Validate extended Web UI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.10.0
+          run_install: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Web browsers
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
+          pnpm --filter @imsweb/web exec playwright install --with-deps chromium firefox
+      - name: Test extended Web UI
+        run: node scripts/testing/run-test-owner.mjs web extended
+      - name: Upload extended browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: web-ui-extended-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/imsweb-web-playwright-extended
+          if-no-files-found: ignore
+          retention-days: 7
