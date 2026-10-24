@@ -229,10 +229,14 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         )["scripts"]
 
         # The bounded surface includes mock API dev commands, test UI tooling,
-        # and the App E2E static preview pair (Web preview:app, API test:app-preview).
+        # the App E2E static preview pair, and the Fudaba scene backfill entry.
         self.assertEqual(len(root_scripts), 58)
-        self.assertEqual(len(api_scripts), 44)
+        self.assertEqual(len(api_scripts), 45)
         self.assertEqual(len(web_scripts), 22)
+        self.assertEqual(
+            api_scripts["migration:fudaba-scene"],
+            "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/fudaba-scene-backfill.ts",
+        )
         self.assertEqual(
             api_scripts["test:app-preview"],
             "TSX_TSCONFIG_PATH=tsconfig.tests.json node --import tsx tests/fixtures/app-static-preview-server.ts",
