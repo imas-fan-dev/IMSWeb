@@ -22,7 +22,7 @@ const claim = {
   legacyCardId: 42,
   targetCardId: null,
   seriesCode: "765",
-  favoriteIdols: [idol],
+  favoriteCharacters: [idol],
   state: "pending",
   message: "旧活动现场交换",
   reviewNote: "",
@@ -50,8 +50,8 @@ const ownerCard = {
   producerName: "春香P",
   displayName: "注册名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [idol],
+  favoriteCharacter: "天海春香",
+  favoriteCharacters: [idol],
   frontImageUrl: "/front.webp",
   backImageUrl: "/back.webp",
   accent: "#f34e6c",
@@ -130,7 +130,7 @@ describe("Fudaba card claim API", () => {
       createFudabaLegacyCardClaim(42, {
         targetCardId: null,
         seriesCode: "765",
-        favoriteIdolIds: [1, 2],
+        favoriteCharacterIds: [1, 2],
         message: "旧活动现场交换",
       }).send()
     ).resolves.toMatchObject({ claim: { legacyCardId: 42 } })
@@ -141,12 +141,12 @@ describe("Fudaba card claim API", () => {
     await expect(request!.json()).resolves.toEqual({
       targetCardId: null,
       seriesCode: "765",
-      favoriteIdolIds: [1, 2],
+      favoriteCharacterIds: [1, 2],
       message: "旧活动现场交换",
     })
   })
 
-  it("accepts a claim that leaves 企划 and 担当偶像 unset", async () => {
+  it("accepts a claim that leaves 企划 and 担当角色 unset", async () => {
     setCsrfCookie("platform", "platform-claim-csrf")
     let request: Request | null = null
     installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -158,7 +158,7 @@ describe("Fudaba card claim API", () => {
       createFudabaLegacyCardClaim(42, {
         targetCardId: null,
         seriesCode: null,
-        favoriteIdolIds: [],
+        favoriteCharacterIds: [],
         message: "",
       }).send()
     ).resolves.toMatchObject({ claim: { legacyCardId: 42 } })
@@ -166,7 +166,7 @@ describe("Fudaba card claim API", () => {
     await expect(request!.json()).resolves.toEqual({
       targetCardId: null,
       seriesCode: null,
-      favoriteIdolIds: [],
+      favoriteCharacterIds: [],
       message: "",
     })
   })

@@ -52,6 +52,15 @@ export async function seedCanonicalFudabaAgencies(
             agency.iconObjectKey
         ).run();
     }
+    // The explicit ids above do not advance the identity sequence, so an
+    // identity insert after this fixture would reuse id 1 and collide with
+    // agency 765. Push the sequence past the ids this fixture owns.
+    await database
+        .prepare(
+            `SELECT setval(pg_get_serial_sequence('agencies', 'id'),
+                           GREATEST((SELECT COALESCE(MAX(id), 0) FROM agencies), 1))`
+        )
+        .first();
     for (const idol of FUDABA_TEST_IDOLS) {
         await database.prepare(
             `INSERT INTO idols
@@ -74,5 +83,30 @@ export async function seedCanonicalFudabaAgencies(
             true,
             idol.order
         ).run();
+    }
+    // The catalog table only exists once the character-catalog migration has
+    // applied. `namecard_characters` is the renamed catalog the namecard
+    // selection paths now validate against, so it has to carry the same fixture
+    // characters or every selection test reads an empty catalog.
+    const characterCatalog = await database
+        .prepare(`SELECT to_regclass('public.namecard_characters') AS relation`)
+        .first<{ relation: string | null }>();
+    if (!characterCatalog?.relation) return;
+    for (const idol of FUDABA_TEST_IDOLS) {
+        await database
+            .prepare(
+                `INSERT INTO namecard_characters
+                    (id, agency_id, category, is_fallback, name_cn, name_ja,
+                     name_en, aliases, display_order, revision, created_at,
+                     updated_at)
+                 VALUES (?, ?, 'idol', FALSE, ?, NULL, NULL, NULL, ?, 0,
+                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 ON CONFLICT(id) DO UPDATE SET
+                     agency_id=excluded.agency_id,
+                     name_cn=excluded.name_cn,
+                     display_order=excluded.display_order`
+            )
+            .bind(idol.id, idol.agencyId, idol.name, idol.order)
+            .run();
     }
 }

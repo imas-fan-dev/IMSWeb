@@ -1,5 +1,5 @@
 import type {
-    CardIdolSelectionRecord
+    CardFavoriteSelectionRecord
 } from '@/ports/repositories/fudaba';
 
 export type NamecardSubmissionKind = 'guest' | 'legacy';
@@ -12,7 +12,7 @@ export interface PendingCardInput {
     ip: string;
     withdrawalTokenHash: string;
     seriesCode?: string | null;
-    idolIds?: number[];
+    characterIds?: number[];
     submissionKind?: NamecardSubmissionKind;
     producerName?: string | null;
     displayName?: string | null;
@@ -28,10 +28,10 @@ export interface CardMediaRecord {
     revision?: number;
     series_code?: string | null;
     submission_kind?: NamecardSubmissionKind;
-    favorite_idols?: CardIdolSelectionRecord[];
+    favorite_characters?: CardFavoriteSelectionRecord[];
     seriesCode?: string | null;
     submissionKind?: NamecardSubmissionKind;
-    favoriteIdols?: CardIdolSelectionRecord[];
+    favoriteCharacters?: CardFavoriteSelectionRecord[];
 }
 
 export type NamecardSubmissionStatus =
@@ -47,10 +47,10 @@ export interface NamecardSubmissionRecord extends CardMediaRecord {
     revision: number;
     series_code?: string | null;
     submission_kind?: NamecardSubmissionKind;
-    favorite_idols?: CardIdolSelectionRecord[];
+    favorite_characters?: CardFavoriteSelectionRecord[];
     seriesCode?: string | null;
     submissionKind?: NamecardSubmissionKind;
-    favoriteIdols?: CardIdolSelectionRecord[];
+    favoriteCharacters?: CardFavoriteSelectionRecord[];
     created_at: string | Date | null;
 }
 

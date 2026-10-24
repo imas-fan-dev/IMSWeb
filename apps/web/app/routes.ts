@@ -22,9 +22,27 @@ function routeEntry(descriptor: RouteDescriptor): RouteConfigEntry {
 }
 
 function entriesFor(layout: RouteLayout) {
-  return routeDescriptorsForTarget(target)
+  const entries = routeDescriptorsForTarget(target)
     .filter((descriptor) => descriptor.layout === layout)
     .map(routeEntry)
+  if (target !== "web" || layout !== "public") return entries
+  const mapPath = "community/exchange"
+  const children = entries.filter((entry) =>
+    entry.path?.startsWith(`${mapPath}/`)
+  )
+  return entries
+    .filter((entry) => !children.includes(entry))
+    .map((entry) =>
+      entry.path === mapPath
+        ? {
+            ...entry,
+            children: children.map((child) => ({
+              ...child,
+              path: child.path!.slice(mapPath.length + 1),
+            })),
+          }
+        : entry
+    )
 }
 
 export default [

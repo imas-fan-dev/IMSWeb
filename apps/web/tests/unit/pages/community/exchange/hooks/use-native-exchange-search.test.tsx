@@ -29,7 +29,7 @@ const snapshot: Omit<NativeGlassSearchSnapshot, "generation"> = {
   editing: false,
   query: "上海",
   busy: false,
-  message: "",
+  status: null,
   attribution: "© OpenStreetMap contributors",
   selected: "",
   filterApplied: false,
@@ -45,6 +45,45 @@ describe("useNativeExchangeSearch", () => {
     mocks.sync.mockResolvedValue({ supported: true })
     mocks.remove.mockResolvedValue(undefined)
   })
+  it("updates palette and directory refresh state without replacing the presentation", async () => {
+    const handler = vi.fn()
+    const hook = renderHook(
+      ({ value }) => useNativeExchangeSearch(value, handler),
+      { initialProps: { value: snapshot } }
+    )
+    await waitFor(() => expect(hook.result.current).toBe(true))
+    const generation = mocks.sync.mock.calls[0]![0].generation
+    const tint = { red: 0.1, green: 0.4, blue: 0.3, alpha: 1 }
+    hook.rerender({
+      value: { ...snapshot, tint, refreshing: true, dark: true },
+    })
+    await waitFor(() =>
+      expect(mocks.sync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          generation,
+          tint,
+          refreshing: true,
+          dark: true,
+          busy: false,
+        })
+      )
+    )
+    expect(mocks.remove).not.toHaveBeenCalled()
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent(NATIVE_GLASS_SEARCH_EVENT, {
+          detail: { ...snapshot, generation, action: "tool", value: "refresh" },
+        })
+      )
+    )
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "tool", value: "refresh" })
+    )
+    hook.unmount()
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith(snapshot.id, generation)
+    )
+  })
   it("waits for search-specific acknowledgment and rejects stale generations and result revisions", async () => {
     let resolve!: (status: { supported: boolean }) => void
     mocks.sync.mockReturnValueOnce(
@@ -53,11 +92,16 @@ describe("useNativeExchangeSearch", () => {
       })
     )
     const handler = vi.fn()
-    const hook = renderHook(() => useNativeExchangeSearch(snapshot, handler))
+    const ready = vi.fn()
+    const hook = renderHook(() =>
+      useNativeExchangeSearch(snapshot, handler, ready)
+    )
     await waitFor(() => expect(mocks.sync).toHaveBeenCalledOnce())
     expect(hook.result.current).toBe(false)
+    expect(ready).not.toHaveBeenCalled()
     await act(async () => resolve({ supported: true }))
     expect(hook.result.current).toBe(true)
+    expect(ready).toHaveBeenCalledOnce()
     const generation = mocks.sync.mock.calls[0]![0].generation
     for (const detail of [
       {
@@ -74,6 +118,8 @@ describe("useNativeExchangeSearch", () => {
         value: "place:1",
       },
       { ...snapshot, generation, action: "select", value: "unknown" },
+      { ...snapshot, generation, revision: 3, action: "tab", value: "offices" },
+      { ...snapshot, generation, revision: 3, action: "loadMore" },
     ])
       act(() =>
         window.dispatchEvent(
@@ -159,6 +205,45 @@ describe("useNativeExchangeSearch", () => {
     await act(async () => removed())
     await waitFor(() => expect(mocks.sync).toHaveBeenCalledTimes(2))
     expect(mocks.sync.mock.calls[1]![0].generation).toBeGreaterThan(generation)
+  })
+  it("carries source-return focus only into the restored session after modal teardown", async () => {
+    const handler = vi.fn()
+    const hook = renderHook(
+      ({ value }: { value: typeof snapshot | null }) =>
+        useNativeExchangeSearch(value, handler),
+      { initialProps: { value: snapshot as typeof snapshot | null } }
+    )
+    await waitFor(() => expect(hook.result.current).toBe(true))
+    const generation = mocks.sync.mock.calls[0]![0].generation
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent(NATIVE_GLASS_SEARCH_EVENT, {
+          detail: { ...snapshot, generation, action: "tool", value: "source" },
+        })
+      )
+    )
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({ value: "source" })
+    )
+    hook.rerender({ value: null })
+    await waitFor(() => expect(hook.result.current).toBe(false))
+    expect(mocks.remove).toHaveBeenCalledWith(snapshot.id, generation)
+    hook.rerender({ value: { ...snapshot, returnFocusMore: true } })
+    await waitFor(() => expect(hook.result.current).toBe(true))
+    expect(mocks.sync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ returnFocusMore: true, editing: false })
+    )
+    const restoredGeneration = mocks.sync.mock.calls.at(-1)![0].generation
+    expect(restoredGeneration).toBeGreaterThan(generation)
+    hook.rerender({ value: { ...snapshot, returnFocusMore: false } })
+    await waitFor(() =>
+      expect(mocks.sync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          returnFocusMore: false,
+          generation: restoredGeneration,
+        })
+      )
+    )
   })
   it("retries a transient removal failure before restoring fallback", async () => {
     const hook = renderHook(

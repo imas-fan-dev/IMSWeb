@@ -83,7 +83,7 @@ function createNodeSecurityFixture({ test, beforeAll, afterAll }) {
             db,
             `INSERT INTO fudaba_cards
                 (id, card_number, origin, producer_name, display_name,
-                 series_code, favorite_idol, accent, bio, trade_note,
+                 series_code, favorite_character, accent, bio, trade_note,
                  front_object_key, back_object_key, available,
                  media_rights_status, publication_status, legacy_card_id,
                  revision, created_at, updated_at, deleted_at)

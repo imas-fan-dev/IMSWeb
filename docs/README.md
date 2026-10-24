@@ -11,6 +11,14 @@ Issue、release record 或私有运维记录中。
 代码目录、workspace 运行方式和组件设计优先写在所属目录的 `README.md`、`DESIGN.md` 或
 `.rules`。仓库级文档链接到这些权威入口，不复制第二份实现说明。
 
+## Workspace 与部署入口
+
+- [API workspace](../apps/api/README.md)：Hono 运行入口、后端脚本和数据依赖。
+- [API domain 导航](../apps/api/src/domains/README.md)：业务域所有权和组合入口。
+- [Web workspace](../apps/web/README.md)：React Router、Web/App 构建和前端开发入口。
+- [共享 contracts](../packages/contracts/README.md)：JSON wire schemas、路径 builders 和 zod 封装。
+- [部署目录](../deploy/README.md)：Compose、配置模板和宿主机入口。
+
 ## 文档地图
 
 | 分类            | 用途                                            | 内容边界                                              |
@@ -31,6 +39,7 @@ Issue、release record 或私有运维记录中。
 - [Wiki 管理架构](architecture/wiki-management.md)：Wiki 数据模型、公开/后台 API 和媒体关系。
 - [URL 与公共路径架构](architecture/url-paths.md)：共享路径 builders、路由所有权和变更流程。
 - [玻璃折射的平台策略](architecture/glass-refraction-platform-strategy.md)：伪折射地板、Chromium 真折射封顶和跨引擎降级。
+- [地图渲染与当地语言策略](architecture/map-rendering.md)：底图资源分工、当地原名优先、Mapbox 样式兼容与多文字系统验收。
 - [@imsweb/contracts](../packages/contracts/README.md)：API↔Web wire contracts、路径 builders 和 zod 封装。
 
 ## 开发
@@ -38,9 +47,8 @@ Issue、release record 或私有运维记录中。
 - [AI 开发环境](development/ai-environment.md)：安装、启动器、端口覆盖、R2 模式和验证边界。
 - [测试规范](development/testing.md)：按风险选择测试、测试位置和提交前门禁。
 - [静态站点包编写规范](development/static-site-package-authoring.md)：归档、manifest、预览和发布约束。
-- [Tauri 移动端基础设施](development/tauri-mobile.md)：移动外壳现状、前置条件、跨源 API 契约和阻塞项。
+- [Tauri 移动端基础设施](development/tauri-mobile.md)：移动外壳、前置条件、跨源 API 与媒体契约、设备验收边界。
 - [App 设备安装与前置依赖](development/app-device-delivery.md)：设备体检、安装命令矩阵、产物定位和签名边界。
-- [液态玻璃升级与 App 外壳实施计划](development/liquid-glass-app-shell-plan.md)：分层模型、并发轨道编排、三批交付和验证门。
 
 ## 运维与迁移
 
@@ -131,6 +139,8 @@ pnpm run test:infra
 
 ## 自动检查
 
-`pnpm run check:rules` 运行 agent/source/docs 三类规则。docs checker 验证 taxonomy、元信息、
-相对链接、旧路径、日期快照和一次性文档命名；`tests/test_docs.py` 固定这些约束。修复漂移时应
+`pnpm run check:rules` 运行 agent/source/docs 三类规则。docs checker 对 `docs/**/*.md` 验证
+taxonomy、元信息、旧路径、日期快照和一次性文档命名，同时校验全仓库 Markdown 与 `.rules`
+（根 `README.md`、`CONTRIBUTING.md`、各 workspace 的 `README.md`/`DESIGN.md`、`deploy/`、
+`.agents/` 技能文档等）的相对链接存在性；`tests/test_docs.py` 固定这些约束。修复漂移时应
 更新权威文档或删除一次性记录，不得通过降低检查范围保留过期内容。

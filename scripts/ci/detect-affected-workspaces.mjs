@@ -44,7 +44,6 @@ const APP_SCRIPTS = new Set([
   "build-app.js",
   "dev-app.d.ts",
   "dev-app.js",
-  "preview-app.js",
 ]);
 
 const APP_CONTRACT_INPUTS = new Set([
@@ -79,7 +78,8 @@ const SHARED_WEB_FILES = new Set([
 const INTEGRATION_ONLY_FILES = new Set([
   "apps/api/scripts/build/build-client.js",
   "apps/api/scripts/build/check-client.js",
-  "apps/api/tests/assets/frontend-routing.contract.test.js",
+  "apps/api/tests/assets/frontend-routing.contract.test.ts",
+  "apps/api/tests/assets/static-preview.contract.test.ts",
 ]);
 
 const API_INTEGRATION_FILES = new Set([
@@ -153,7 +153,11 @@ function classifyPath(changedPath) {
   }
 
   if (changedPath === "apps/api/tests/fixtures/app-static-preview-server.ts") {
-    return ownedJobs("app", "api");
+    return ownedJobs("app", "api", "web", "integration");
+  }
+
+  if (changedPath === "apps/web/scripts/preview-app.js") {
+    return ownedJobs("app", "web", "integration");
   }
 
   if (

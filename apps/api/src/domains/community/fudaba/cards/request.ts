@@ -5,7 +5,7 @@ export interface FudabaCardFields {
     available: boolean;
     bio: string;
     displayName: string;
-    favoriteIdolIds: number[];
+    favoriteCharacterIds: number[];
     producerName: string;
     seriesCode: string;
     tradeNote: string;
@@ -27,7 +27,7 @@ const CARD_FIELDS = [
     'producerName',
     'displayName',
     'seriesCode',
-    'favoriteIdolIds',
+    'favoriteCharacterIds',
     'accent',
     'bio',
     'tradeNote',
@@ -62,13 +62,13 @@ function booleanValue(value: unknown): boolean {
     throw badRequest('available 必须是布尔值');
 }
 
-function favoriteIdolIds(value: unknown): number[] {
+function favoriteCharacterIds(value: unknown): number[] {
     let parsed = value;
     if (typeof value === 'string') {
         try {
             parsed = JSON.parse(value);
         } catch {
-            throw badRequest('favoriteIdolIds 无效');
+            throw badRequest('favoriteCharacterIds 无效');
         }
     }
     if (
@@ -76,7 +76,7 @@ function favoriteIdolIds(value: unknown): number[] {
         parsed.some((id) => !Number.isSafeInteger(id) || Number(id) <= 0) ||
         new Set(parsed).size !== parsed.length
     ) {
-        throw badRequest('favoriteIdolIds 无效');
+        throw badRequest('favoriteCharacterIds 无效');
     }
     return parsed.map(Number);
 }
@@ -92,7 +92,7 @@ function cardFields(value: Record<string, unknown>): FudabaCardFields {
         producerName: text(value.producerName, 'producerName', 80, true),
         displayName: text(value.displayName, 'displayName', 120, true),
         seriesCode,
-        favoriteIdolIds: favoriteIdolIds(value.favoriteIdolIds),
+        favoriteCharacterIds: favoriteCharacterIds(value.favoriteCharacterIds),
         accent,
         bio: text(value.bio, 'bio', 2000),
         tradeNote: text(value.tradeNote, 'tradeNote', 1000),

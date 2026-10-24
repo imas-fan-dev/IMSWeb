@@ -9,7 +9,7 @@ Use when validating repository/docs/agent-rule changes, running static quality g
 
 ## Procedure
 
-1. Read root `AGENTS.md` and the `.rules` files owning changed workspaces. Use `docs/development/testing.md` for test owners and `.trellis/spec/repository/index.md` for repository gates.
+1. Read root `AGENTS.md` and the `.rules` files owning changed workspaces. Use `docs/development/testing.md` for test owners and `docs/README.md` for repository gates and documentation scope.
 2. Select checks by scope:
    - Agent/source/docs rules and metadata/links: `pnpm run check:rules`.
    - Cross-workspace dependency boundaries: `pnpm run check:boundaries`.
@@ -38,7 +38,7 @@ Use when validating repository/docs/agent-rule changes, running static quality g
 ## Authority
 
 - `AGENTS.md` and owning `.rules` files
-- `.trellis/spec/repository/index.md`
+- `docs/README.md`
 - `docs/development/testing.md`
 - `docs/README.md` and `scripts/check-docs.mjs`
 - Root and workspace `package.json` scripts

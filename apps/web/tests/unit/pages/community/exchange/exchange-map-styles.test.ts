@@ -63,10 +63,7 @@ describe("exchange map stylesheet", () => {
   })
 
   it("reuses the shared glass tokens on the map surfaces", () => {
-    const body = blockBody(
-      mapStylesheet,
-      ".exchange-map-app-control,\n.exchange-map-app-surface {"
-    )
+    const body = blockBody(mapStylesheet, ".exchange-map-app-surface {")
 
     expect(body).toContain("var(--glass-blur)")
     expect(body).toContain("var(--glass-saturate)")

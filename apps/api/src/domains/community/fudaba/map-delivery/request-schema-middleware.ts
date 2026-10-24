@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import type { AppEnvironment } from '@/app';
+import { mapSourceRequestError } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
 
 interface RequestSchema<Output> {
     safeParse(value: unknown):
@@ -39,23 +40,10 @@ function invalidMessage(
     body: MapDeliveryRequest,
 ): string {
     if (kind === 'source') {
-        if (!hasExactKeys(body, ['name', 'styleUrl', 'revision'])) {
-            return '地图源请求格式无效';
-        }
-        const name = typeof body.name === 'string' ? body.name.trim() : '';
-        if (!name || name.length > 80 || /[\0-\x1f\x7f]/.test(name)) {
-            return '地图源名称格式无效';
-        }
-        if (typeof body.styleUrl !== 'string') {
-            return '地图样式地址格式无效';
-        }
-        if (body.revision !== null && typeof body.revision !== 'string') {
-            return '地图源 revision 格式无效';
-        }
-        return '地图样式地址格式无效';
+        return mapSourceRequestError(body);
     }
     if (kind === 'activate') {
-        if (!hasExactKeys(body, ['sourceId', 'revision'])) {
+        if (!hasExactKeys(body, 'routing' in body ? ['sourceId', 'revision', 'routing'] : ['sourceId', 'revision'])) {
             return '地图源激活请求格式无效';
         }
         const sourceMessage = sourceIdMessage(body.sourceId);

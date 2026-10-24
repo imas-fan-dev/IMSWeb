@@ -10,7 +10,7 @@ Compose 发布脚本。API 镜像同时包含 Hono 服务、独立邮件 Worker�
 migrations；主机配置、数据库卷、对象存储凭据和应用秘密不进入 GitHub 构建制品。
 
 production 自动部署适用于单台 Linux 主机上的 PostgreSQL、API、邮件 Worker Compose 栈、宿主机
-Nginx 和 Cloudflare R2。preview 使用同一主机上的独立 rootless Compose 项目、本地 Valkey，对象存储
+Nginx、独立 Valkey 服务和 Cloudflare R2。preview 使用同一主机上的独立 rootless Compose 项目、本地 Valkey，对象存储
 直接使用共享的 Cloudflare R2 测试桶（与本地开发的 `deploy/.env.r2-test` 同一个 bucket），不运行本地
 RustFS。PostgreSQL 和 API 运行时状态仍位于部署用户的 home 下。两个环境的 `api` 都是单副本；邮件
 Worker 默认一个副本，可通过 `IMS_EMAIL_WORKER_REPLICAS` 扩展到最多 32 个。容器重建会产生短暂
@@ -22,16 +22,19 @@ Worker 默认一个副本，可通过 `IMS_EMAIL_WORKER_REPLICAS` 扩展到最�
 
 ## 1. 工作流
 
-仓库包含四个工作流：
+发布与验证工作流按职责拆分：
 
-- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上按受影响工作区分派任务。`changes`
-  检测受影响的工作区，再由 `repository`、`app`、`web`、`api`、`integration` 按需运行，最后由
-  `result` 汇总选中与跳过的结果。`repository` 依次运行 `pnpm run check:root`、governance、
+- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上按受影响工作区分派任务；
+  `release/v1.1` push 必须运行全部核心验证。`changes` 检测受影响的工作区，`web-build` 独立
+  准备受校验候选产物，`web-browser` 与 integration 消费同次 run/attempt 的 Web build；
+  `web` 独立运行 lint、typecheck 与完整域单测。`result` 汇总全部选中与跳过的结果，成功后
+  仅受信任 release push 可以调用 Preview。`repository` 依次运行 `pnpm run check:root`、governance、
   contracts 和 `delivery repository`。CI 不调用 `pnpm run check` 这个聚合命令；
 - `.github/workflows/deploy.yml`：发布稳定 SemVer Tag，并允许从 GitHub Actions 页面重新部署
   已存在的 Tag；
-- `.github/workflows/deploy-preview.yml`：在 `release/v1.1` push 时自动构建和部署 preview，也允许
-  从该分支手动确认后重新部署当前 commit 已有的镜像；
+- `.github/workflows/deploy-preview.yml`：通过 CI 的 workflow_call 在 `release/v1.1` push
+  核心验证全部成功后构建和部署 preview，保留原 push SHA/ref 的 OIDC provenance。也允许
+  从该分支手动确认后重新部署当前 commit 已有的镜像，但仍须校验当前 head 的全部核心验证；
 - `.github/workflows/release-preview-app.yml`：在 `release/v1.1` 的 App preview tag 上构建移动端
   预览产物，见[预览 App 发布](preview-app-release.md)。
 
@@ -55,9 +58,13 @@ CI、发布构建和部署配置校验都从 `.nvmrc` 读取当前 Node.js 版�
 `engines.node` 仍表示最低兼容版本，不是 CI 或生产运行时的版本选择器。
 
 Tag 必须使用 `vMAJOR.MINOR.PATCH`，例如 `v1.4.0`，并指向 `origin/main` 已包含的 commit。
-Tag push 会运行完整门禁、构建 `apps/api/Dockerfile`、把镜像推送到 GHCR、生成 provenance，
+Tag push 会运行 `pnpm run check` 和 `pnpm run test`、构建 `apps/api/Dockerfile`、把镜像推送到 GHCR、生成 provenance，
 最后按 registry 返回的 `sha256` digest 部署。镜像同时记录 release Tag 和完整 commit SHA；
 部署前要求两个镜像标签解析到同一个 digest。
+
+根检查和根测试不包含 Web/App Playwright。浏览器套件由 `ci.yml` 的独立 lane 执行，
+Firefox 和广泛布局由 `ui-extended.yml` 执行。稳定 Tag 工作流不会额外校验候选提交的这些 CI
+结果；发布记录应单独关联目标提交的浏览器验证证据，不能把 Tag 工作流成功解释为浏览器验收完成。
 
 手动触发不会重新构建镜像。操作者输入已有 Tag，并确认该版本与当前生产数据兼容；工作流只解析
 这个 Tag 与 commit 标签共同指向的已有 digest。这样同一 release 不会因重新构建产生不同
@@ -74,9 +81,13 @@ Docker 的 Buildx、Registry Login 和 Build/Push Actions 分别使用 v4、v4 �
 版本声明使用 Node.js 24 Action runtime，并继续固定到完整 release commit SHA。它们要求
 Actions Runner `v2.327.1` 或更高版本，GitHub-hosted `ubuntu-24.04` runner 满足该要求。
 
-preview push 执行完整 `pnpm run check`、`pnpm run test`、镜像构建、provenance 生成与
-`gh attestation verify`。手动运行不重建同一 commit，只解析 commit 标签对应的已有 digest 并验证
-同一 provenance。构建阶段允许新提交取消旧构建；部署阶段串行且不取消进行中的远端操作。部署前
+Preview 使用 `scripts/ci/verified-candidate.mjs` 核对受信任 CI workflow ID/path、push 事件、
+仓库、release head/tree、run attempt 和每个必需 validation job 的成功结果；缺失、失败、取消、
+跳过、fork 或错误 SHA 均不能授权发布。验证不等待 publication 自身，publication 失败后仍可
+使用已成功的验证证据恢复。Preview 不重复运行整套 `pnpm check` 和 `pnpm test`；Docker 执行
+干净构建，再发布镜像、生成 provenance 并执行 `gh attestation verify`。手动运行不重建同一 commit，
+只解析 commit 标签对应的已有 digest 并验证同一 provenance。共享资源、发布和部署前重新核对
+新鲜度。构建阶段允许新提交取消旧构建；部署阶段串行且不取消进行中的远端操作。部署前
 再次读取 `release/v1.1` 远端 head，旧 commit 已过期时记录为跳过，避免较慢的旧 Workflow 覆盖
 新 preview。
 
@@ -192,8 +203,11 @@ IMS_POSTGRES_PASSWORD=<secret>
 
 IMS_API_NODE_ENV=production
 IMS_API_DATABASE_URL=postgresql://imsweb:<url-encoded-password>@postgres:5432/imsweb
+IMS_BACKOFFICE_JWT_SECRET=<high-entropy-backoffice-secret>
 IMS_JWT_SECRET=<high-entropy-legacy-backoffice-secret>
 IMS_PLATFORM_JWT_SECRET=<high-entropy-platform-secret>
+IMS_CACHE_BACKEND=valkey
+IMS_VALKEY_URL=rediss://<private-valkey-host>:6379
 IMS_EMAIL_WORKER_REPLICAS=1
 IMS_COOKIE_SECURE=true
 IMS_CLIENT_ADDRESS_SOURCE=nginx
@@ -213,6 +227,24 @@ AWS_SECRET_ACCESS_KEY=<bucket-scoped-secret>
 不要照搬 `deploy/.env.example` 的本地密码、RustFS profile 或 development 配置。环境文件必须是
 普通文件，且 group/others 不得有任何权限。若使用其他绝对路径，在部署用户的非交互 SSH 环境中
 设置 `IMS_RUNTIME_ENV_FILE`；默认路径是 `/etc/imsweb/production.env`。
+
+`IMS_BACKOFFICE_JWT_SECRET` 与 `IMS_PLATFORM_JWT_SECRET` 是运行时必填项，均须至少 32 UTF-8
+字节，Platform 密钥不得与当前或兼容期 Backoffice 密钥相同。`IMS_JWT_SECRET` 在运行时只用于旧
+Backoffice 会话的兼容验证，但当前 `deploy-compose-release.sh` 仍将它列为发布必填项，因此使用
+该部署器时仍须保留。滚动升级与退役条件见 [运行手册](runbook.md#backoffice-会话滚动迁移)，
+不要仅删除环境变量来结束兼容窗口。
+
+### 生产 Valkey 前置条件
+
+生产发布脚本强制清空 `COMPOSE_PROFILES`，只管理 PostgreSQL、邮件 Worker 和 API；不会启动
+`local-cache` profile 中的 Valkey。部署前由运维准备独立、受访问控制的 Valkey 或兼容托管服务，
+并负责其网络、认证和可用性。`IMS_VALKEY_URL` 必须是 API 容器内可达的 `redis://` 或 `rediss://`
+地址。上例使用 TLS；按服务实际配置端口与认证，凭据只保存在受保护的运行环境文件中。
+
+不能直接沿用开发默认的 `redis://valkey:6379`，除非已在容器网络中独立提供该名称；容器内的
+`127.0.0.1` 也不会指向宿主机 Valkey。部署前从目标容器网络验证 DNS、连接、认证和 `PING`，
+部署后检查 `/api/health/ready`，并验证共享限流与邮箱冷却行为。缓存初始化失败会阻止 API ready，
+生产不允许把 backend 改为 `memory` 绕过检查。职责和故障策略见 [缓存架构](../architecture/cache.md)。
 
 生产机还需预先安装并验证宿主机 Nginx。入口必须只代理到回环地址上的 Hono；完整配置见
 [`deploy/nginx/`](../../deploy/nginx/README.md)。

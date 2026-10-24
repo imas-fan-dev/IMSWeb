@@ -17,7 +17,9 @@ export default function PublicLayout() {
     location.pathname.length > 1
       ? location.pathname.replace(/\/+$/, "")
       : location.pathname
-  const isExchangeMap = normalizedPathname === "/community/exchange"
+  const isExchangeMap =
+    normalizedPathname === "/community/exchange" ||
+    normalizedPathname.startsWith("/community/exchange/")
   const isWikiCatalog =
     normalizedPathname === "/wiki" || normalizedPathname === "/wiki/modern"
   const isModernStory =

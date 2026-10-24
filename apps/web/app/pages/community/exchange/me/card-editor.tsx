@@ -30,7 +30,6 @@ import {
   type FudabaOwnerCard,
   type FudabaSeries,
   type PlatformProfile,
-  type WikiPublicSearchEntry,
 } from "~/lib/api"
 import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import { CardDeleteDialog } from "./card-delete-dialog"
@@ -58,7 +57,6 @@ export function CardEditor({
   creating,
   profile,
   series,
-  idols,
   readOnly,
   readOnlyReason,
   onCreated,
@@ -71,7 +69,6 @@ export function CardEditor({
   creating: boolean
   profile: PlatformProfile
   series: FudabaSeries[]
-  idols: WikiPublicSearchEntry[]
   readOnly: boolean
   readOnlyReason: string | null
   onCreated: (card: FudabaOwnerCard) => void
@@ -343,7 +340,6 @@ export function CardEditor({
         <CardFields
           draft={draft}
           series={series}
-          idols={idols}
           disabled={editDisabled}
           onChange={setDraft}
         />

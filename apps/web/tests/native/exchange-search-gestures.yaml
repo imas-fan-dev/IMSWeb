@@ -15,11 +15,11 @@ appId: top.idol-master.imsweb
     id: "ims-native-search-result-native-place:5"
 - takeScreenshot:
     path: "NativeSearchResultsScrolled"
-# Header starts at y134 on the owned 402x874 simulator. Dragging it down must
-# collapse the panel, independently of the result table's scroll gesture.
+# Measured on owned 402x874 host: handle [20,62][382,106], center y84.
+# Re-measure and adapt for another viewport; result scrolling is independent.
 - swipe:
-    start: "50%, 18%"
-    end: "50%, 81%"
+    start: "50%, 10%"
+    end: "50%, 70%"
     duration: 800
 - assertVisible: "查找地点"
 - assertNotVisible:

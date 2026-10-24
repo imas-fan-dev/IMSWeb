@@ -1019,7 +1019,7 @@ import { test } from 'vitest';
                             return {
                                 fields: {
                                     seriesCode: '765',
-                                    favoriteIdolIds: '[1]'
+                                    favoriteCharacterIds: '[1]'
                                 },
                                 files: {
                                     images: [
@@ -1113,7 +1113,7 @@ import { test } from 'vitest';
             const pending = {
                 id: 19,
                 seriesCode: null,
-                favoriteIdols: [],
+                favoriteCharacters: [],
                 image1_url: '/uploads/namecard/original/front.webp',
                 image2_url: '/uploads/namecard/original/back.webp',
                 status: 'pending' as const,
@@ -1148,7 +1148,7 @@ import { test } from 'vitest';
                 submission: {
                     id: 19,
                     seriesCode: null,
-                    favoriteIdols: [],
+                    favoriteCharacters: [],
                     frontImageUrl: '/uploads/namecard/original/front.webp',
                     backImageUrl: '/uploads/namecard/original/back.webp',
                     publicationStatus: 'pending',
@@ -1171,7 +1171,7 @@ import { test } from 'vitest';
                 submission: {
                     id: 19,
                     seriesCode: null,
-                    favoriteIdols: [],
+                    favoriteCharacters: [],
                     frontImageUrl: '/uploads/namecard/original/front.webp',
                     backImageUrl: '/uploads/namecard/original/back.webp',
                     publicationStatus: 'withdrawn',
@@ -1202,7 +1202,7 @@ import { test } from 'vitest';
             const pending = {
                 id: 19,
                 seriesCode: null,
-                favoriteIdols: [],
+                favoriteCharacters: [],
                 image1_url: '/uploads/namecard/original/front.webp',
                 image2_url: '/uploads/namecard/original/back.webp',
                 status: 'pending' as const,
@@ -1794,8 +1794,8 @@ import { test } from 'vitest';
                 status: 'pending',
                 revision: 0,
                 series_code: '765',
-                favorite_idols: [
-                    { idol_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 0 }
+                favorite_characters: [
+                    { character_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 0 }
                 ],
                 created_at: '2026-08-03T01:00:00.000Z'
             };
@@ -1820,7 +1820,7 @@ import { test } from 'vitest';
                 submission: {
                     id: 7,
                     seriesCode: '765',
-                    favoriteIdols: [{ id: 1, name: '天海春香', seriesCode: '765' }],
+                    favoriteCharacters: [{ id: 1, name: '天海春香', seriesCode: '765' }],
                     frontImageUrl: '/uploads/namecard/original/front.webp',
                     backImageUrl: '/uploads/namecard/original/back.webp',
                     publicationStatus: 'pending',
@@ -1840,7 +1840,7 @@ import { test } from 'vitest';
                 submission: {
                     id: 7,
                     seriesCode: '765',
-                    favoriteIdols: [{ id: 1, name: '天海春香', seriesCode: '765' }],
+                    favoriteCharacters: [{ id: 1, name: '天海春香', seriesCode: '765' }],
                     frontImageUrl: '/uploads/namecard/original/front.webp',
                     backImageUrl: '/uploads/namecard/original/back.webp',
                     publicationStatus: 'withdrawn',

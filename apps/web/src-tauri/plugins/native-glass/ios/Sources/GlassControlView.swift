@@ -86,7 +86,7 @@ private final class GlassControlOverlayView: UIView {
     }
     for interactiveView in interactiveViews
     where hitView === interactiveView || hitView.isDescendant(of: interactiveView) {
-      return hitView
+      return glassSurfaceContains(point, from: self, in: interactiveView) ? hitView : nil
     }
     return nil
   }
@@ -100,6 +100,10 @@ private final class GlassControlButton: UIControl {
   private let showsTitle: Bool
   private let glassEffect: UIGlassEffect?
   private let glassView: UIVisualEffectView?
+  var usesExternalSurface = false {
+    didSet { glassView?.isHidden = usesExternalSurface }
+  }
+  var externalHitBounds: CGRect?
   private let selectionView = UIView()
   private let iconView = UIImageView()
   private let titleLabel = UILabel()
@@ -116,6 +120,7 @@ private final class GlassControlButton: UIControl {
     self.glassBacked = glassBacked
     self.showsTitle = showsTitle
     let effect = glassBacked ? UIGlassEffect(style: .regular) : nil
+    effect?.isInteractive = true
     self.glassEffect = effect
     self.glassView = effect.map { UIVisualEffectView(effect: $0) }
     super.init(frame: .zero)
@@ -150,10 +155,19 @@ private final class GlassControlButton: UIControl {
     isAccessibilityElement = true
     accessibilityTraits = .button
     addTarget(self, action: #selector(handleActivate), for: .touchUpInside)
+    NotificationCenter.default.addObserver(self, selector: #selector(updatePress), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
   }
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+
+  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+    guard super.point(inside: point, with: event) else { return false }
+    if let externalHitBounds {
+      return GlassSurfaceGeometry.contains(point, in: externalHitBounds, radius: 24)
+    }
+    return usesExternalSurface || !glassBacked || GlassSurfaceGeometry.contains(point, in: bounds, radius: cornerRadius)
   }
 
   func configure(
@@ -179,14 +193,26 @@ private final class GlassControlButton: UIControl {
   override var isHighlighted: Bool {
     didSet {
       updateSelection()
-      let scale = isHighlighted ? glassControlPressScale : 1
-      UIView.animate(
-        withDuration: isHighlighted ? 0.1 : 0.2,
-        delay: 0,
-        options: [.allowUserInteraction, .beginFromCurrentState]
-      ) {
-        self.transform = CGAffineTransform(scaleX: scale, y: scale)
+      updatePress()
+    }
+  }
+
+  @objc private func updatePress() {
+    let content: [UIView] = [selectionView, iconView, titleLabel, badgeView] + (glassView.map { [$0] } ?? [])
+    guard !UIAccessibility.isReduceMotionEnabled else {
+      for view in content {
+        view.layer.removeAllAnimations()
+        view.transform = .identity
       }
+      return
+    }
+    let scale = isHighlighted ? glassControlPressScale : 1
+    UIView.animate(
+      withDuration: isHighlighted ? 0.1 : 0.2,
+      delay: 0,
+      options: [.allowUserInteraction, .beginFromCurrentState]
+    ) {
+      for view in content { view.transform = CGAffineTransform(scaleX: scale, y: scale) }
     }
   }
 
@@ -196,7 +222,7 @@ private final class GlassControlButton: UIControl {
     if let glassView {
       glassView.frame = bounds
       glassView.layer.cornerRadius = cornerRadius
-      glassView.layer.cornerCurve = .continuous
+      glassView.layer.cornerCurve = .circular
       glassView.clipsToBounds = true
     }
 
@@ -261,12 +287,14 @@ private final class GlassControlButton: UIControl {
 }
 
 /// Builds the native control views for one `setControls` payload. Rendering is
-/// a full replacement: the payload is the single source of truth, so the Web
-/// and native sides can never diverge on state.
+/// reconciled for standalone icon controls so repeated geometry snapshots do
+/// not interrupt an active touch. The payload remains the source of truth.
 @available(iOS 26.0, *)
 private final class GlassControlRenderer {
   private let overlay: GlassControlOverlayView
+  private var iconButtons: [String: GlassControlButton] = [:]
   var onEvent: ((String, String, String?) -> Void)?
+  var searchLocateFrame: CGRect?
 
   init(overlay: GlassControlOverlayView) {
     self.overlay = overlay
@@ -282,7 +310,15 @@ private final class GlassControlRenderer {
   ) -> Bool {
     guard assetsAvailable(for: controls) else { return false }
 
-    clear()
+    // Locate keeps one button across generic grouping and search ownership.
+    let iconIds = Set(controls.filter { $0.kind == "icon-button" && (($0.group ?? "").isEmpty || $0.id == "locate") }.map { $0.id })
+    for (id, button) in iconButtons where !iconIds.contains(id) {
+      button.removeFromSuperview()
+      iconButtons.removeValue(forKey: id)
+    }
+    for view in overlay.subviews where !iconButtons.values.contains(where: { $0 === view }) {
+      view.removeFromSuperview()
+    }
     overlay.overrideUserInterfaceStyle = dark ? .dark : .light
 
     var views: [UIView] = []
@@ -290,11 +326,13 @@ private final class GlassControlRenderer {
 
     // A group is the pill the Web side authored: its members keep their own
     // event ids, but they share one glass capsule instead of one each.
-    for members in groups(controls) {
+    let searchOwned = controls.filter { $0.id == "locate" && $0.kind == "icon-button" && searchLocateFrame != nil }
+    let generic = controls.filter { control in !searchOwned.contains { $0.id == control.id } }
+    for members in groups(generic) {
       views.append(contentsOf: makePill(members, offset: offset, interactive: &interactive))
     }
 
-    for control in controls where (control.group ?? "").isEmpty {
+    for control in generic.filter({ ($0.group ?? "").isEmpty }) + searchOwned {
       if control.kind == "menu" {
         views.append(makeMenu(control, offset: offset, interactive: &interactive))
       } else {
@@ -305,7 +343,7 @@ private final class GlassControlRenderer {
     }
 
     for view in views {
-      overlay.addSubview(view)
+      if view.superview !== overlay { overlay.addSubview(view) }
     }
     overlay.interactiveViews = interactive
     return true
@@ -332,16 +370,25 @@ private final class GlassControlRenderer {
       subview.removeFromSuperview()
     }
     overlay.interactiveViews = []
+    iconButtons.removeAll()
   }
 
   private func makeIconButton(
     _ control: NativeGlassControlPayload,
     offset: CGPoint
   ) -> GlassControlButton {
-    let button = GlassControlButton(glassBacked: true, showsTitle: false)
-    button.frame = rect(control.frame, offset: offset)
+    let button = iconButtons[control.id] ?? GlassControlButton(glassBacked: true, showsTitle: false)
+    iconButtons[control.id] = button
+    let grouped = control.id == "locate" && searchLocateFrame != nil
+    let frame = grouped ? searchLocateFrame! : rect(control.frame, offset: offset)
+    button.bounds = CGRect(origin: .zero, size: frame.size)
+    button.center = CGPoint(x: frame.midX, y: frame.midY)
     button.cornerRadius = CGFloat(control.cornerRadius)
+    button.usesExternalSurface = grouped
+    // This button owns the lower half of the search skin, not a separate circle.
+    button.externalHitBounds = grouped ? CGRect(x: 0, y: -48, width: 48, height: 96) : nil
     button.accessibilityLabel = control.label
+    button.accessibilityIdentifier = control.id
     button.configure(
       icon: control.icon,
       title: nil,
@@ -384,13 +431,19 @@ private final class GlassControlRenderer {
     let capsule = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
     capsule.frame = capsuleFrame
     capsule.layer.cornerRadius = radius
-    capsule.layer.cornerCurve = .continuous
+    capsule.layer.cornerCurve = .circular
     capsule.clipsToBounds = true
 
     var views: [UIView] = [capsule]
     for (index, member) in ordered.enumerated() {
       let frame = member.frame.offsetBy(dx: -capsuleFrame.minX, dy: -capsuleFrame.minY)
-      let segment = GlassControlButton(glassBacked: false, showsTitle: false)
+      let segment: GlassControlButton
+      if member.control.id == "locate", member.control.kind == "icon-button" {
+        segment = makeIconButton(member.control, offset: offset)
+        segment.usesExternalSurface = true
+      } else {
+        segment = GlassControlButton(glassBacked: false, showsTitle: false)
+      }
       segment.frame = frame
       segment.cornerRadius = radius
       segment.accessibilityLabel = member.control.label
@@ -527,7 +580,7 @@ private final class GlassControlRenderer {
     let panel = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
     panel.frame = frame
     panel.layer.cornerRadius = cornerRadius
-    panel.layer.cornerCurve = .continuous
+    panel.layer.cornerCurve = .circular
     panel.clipsToBounds = true
 
     let rowWidth = max(0, frame.width - glassControlPanelPadding * 2)
@@ -586,6 +639,19 @@ final class NativeGlassControlHostViewController: UIViewController {
   private lazy var renderer = GlassControlRenderer(overlay: overlay)
 
   var onEvent: ((String, String, String?) -> Void)?
+  private var currentControls: [NativeGlassControlPayload] = []
+  private var currentDark = false
+  private var currentOffset = CGPoint.zero
+
+  var hasLocate: Bool { currentControls.contains { $0.id == "locate" && $0.kind == "icon-button" } }
+
+  func setSearchLocateFrame(_ frame: CGRect?) {
+    guard renderer.searchLocateFrame != frame else { return }
+    renderer.searchLocateFrame = frame
+    if !currentControls.isEmpty {
+      _ = renderer.render(currentControls, dark: currentDark, offset: currentOffset)
+    }
+  }
 
   var overlayView: UIView {
     overlay
@@ -610,10 +676,15 @@ final class NativeGlassControlHostViewController: UIViewController {
     dark: Bool,
     offset: CGPoint
   ) -> Bool {
-    renderer.render(controls, dark: dark, offset: offset)
+    currentControls = controls
+    currentDark = dark
+    currentOffset = offset
+    return renderer.render(controls, dark: dark, offset: offset)
   }
 
   func clear() {
+    currentControls = []
+    renderer.searchLocateFrame = nil
     renderer.clear()
   }
 }

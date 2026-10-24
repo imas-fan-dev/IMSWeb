@@ -1,29 +1,43 @@
 import {
   Building2Icon,
   ChevronRightIcon,
-  CreditCardIcon,
+  ContactRoundIcon,
   EyeIcon,
-  InfoIcon,
   MapPinIcon,
   RadioTowerIcon,
   RefreshCwIcon,
   SearchIcon,
-  UserRoundCogIcon,
 } from "lucide-react"
 import type { FormEvent } from "react"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
-import { Button, buttonVariants } from "~/components/ui/button"
+import { Badge } from "~/components/ui/badge"
+import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "~/components/ui/empty"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip"
 import type { FudabaOffice, FudabaSeries } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { ExchangeSeriesFilter } from "./exchange-series-filter"
-import { NavigationLink } from "~/components/navigation/navigation-link"
+import { ExchangeMapToolsMenu } from "./exchange-map-tools-menu"
 
-interface ExchangeDiscoveryRailProps {
+export interface ExchangeDiscoveryRailProps {
+  embedded?: boolean
+  onSelectOffice?: (office: FudabaOffice) => void
   cityDraft: string
   seriesCodes: readonly string[]
   openOnly: boolean
@@ -40,8 +54,10 @@ interface ExchangeDiscoveryRailProps {
   onOpenChange: (openOnly: boolean) => void
   onResetFilters: () => void
   onRefresh: () => void
+  onOpenFilter: () => void
   onOpenOffices: () => void
   onOpenCards: () => void
+  modalOpen?: boolean
   /**
    * Present only while the map style carries a notice. The rail is the sole
    * container visible at `lg` and up, so this is the desktop's attribution
@@ -62,6 +78,8 @@ function officeSeriesLabel(
 }
 
 export function ExchangeDiscoveryRail({
+  embedded = false,
+  onSelectOffice,
   cityDraft,
   seriesCodes,
   openOnly,
@@ -78,66 +96,101 @@ export function ExchangeDiscoveryRail({
   onOpenChange,
   onResetFilters,
   onRefresh,
+  onOpenFilter,
   onOpenOffices,
   onOpenCards,
+  modalOpen,
   onOpenAttribution,
 }: ExchangeDiscoveryRailProps) {
+  const Title = embedded ? "h2" : "h1"
   return (
     <aside
       className={cn(
-        "relative z-10 hidden w-80 shrink-0 flex-col overflow-hidden border-r bg-background/97 shadow-[8px_0_24px_rgb(15_23_42/0.08)] lg:flex",
-        IS_APP_TARGET ? "h-(--app-content-height) self-start" : "h-full"
+        "relative z-10 shrink-0 flex-col overflow-hidden bg-background",
+        embedded
+          ? "exchange-web-discovery flex min-h-0 w-full"
+          : "hidden border-r lg:flex",
+        !embedded &&
+          (IS_APP_TARGET
+            ? "h-(--app-content-height) w-80 self-start"
+            : "h-full w-88 xl:w-96")
       )}
       aria-label="交换发现栏"
     >
       <SeriesAccentStrip className="absolute inset-x-0 top-0 z-10 h-1" />
 
-      <header className="shrink-0 border-b px-5 pt-6 pb-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-accent text-primary">
-            <RadioTowerIcon className="size-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-primary">
-              P-CARD EXCHANGE · SERIES SIGNAL
-            </p>
-            <h1 className="mt-1 text-lg font-semibold">名片交换信号地图</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {offices.length} 个事务所 · {cardCount} 张名片
+      <header className="shrink-0 border-b p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <RadioTowerIcon className="size-4" aria-hidden="true" />
+            </span>
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground">
+              P-CARD EXCHANGE
             </p>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="刷新交换区"
-            title="刷新"
-            disabled={refreshing}
-            onClick={onRefresh}
+          <div
+            className={cn(
+              "flex shrink-0 items-center gap-1",
+              embedded && "hidden"
+            )}
           >
-            <RefreshCwIcon
-              className={cn(
-                refreshing && "animate-spin motion-reduce:animate-none"
-              )}
-              aria-hidden="true"
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-lg"
+                    aria-label="刷新交换区"
+                    disabled={refreshing}
+                    onClick={onRefresh}
+                  />
+                }
+              >
+                <RefreshCwIcon
+                  className={cn(
+                    refreshing && "animate-spin motion-reduce:animate-none"
+                  )}
+                  aria-hidden="true"
+                />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">刷新交换区</TooltipContent>
+            </Tooltip>
+            <ExchangeMapToolsMenu
+              side="bottom"
+              triggerClassName="size-9 rounded-lg bg-transparent hover:bg-muted"
+              filterApplied={hasFilters}
+              modalOpen={modalOpen}
+              onOpenFilter={onOpenFilter}
+              onOpenOffices={onOpenOffices}
+              onOpenCards={onOpenCards}
+              onOpenAttribution={onOpenAttribution}
             />
-          </Button>
-          {onOpenAttribution ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="查看地图数据来源"
-              aria-haspopup="dialog"
-              title="数据来源"
-              onClick={(event) => onOpenAttribution(event.currentTarget)}
-            >
-              <InfoIcon aria-hidden="true" />
-            </Button>
-          ) : null}
+          </div>
         </div>
 
-        <form className="mt-4 flex gap-2" onSubmit={onCitySubmit}>
+        <Title className="mt-3 text-xl font-semibold tracking-tight">
+          名片交换信号地图
+        </Title>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-muted-foreground">
+          <Badge
+            variant="secondary"
+            className="gap-1.5 font-normal tabular-nums"
+          >
+            <Building2Icon aria-hidden="true" />
+            {offices.length} 个事务所
+          </Badge>
+          <Badge
+            variant="secondary"
+            className="gap-1.5 font-normal tabular-nums"
+          >
+            <ContactRoundIcon aria-hidden="true" />
+            {cardCount} 张名片
+          </Badge>
+        </div>
+
+        <form className="mt-5 flex gap-2" onSubmit={onCitySubmit}>
           <div className="relative min-w-0 flex-1">
             <SearchIcon
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -149,11 +202,16 @@ export function ExchangeDiscoveryRail({
               maxLength={100}
               placeholder="搜索城市"
               aria-label="搜索城市"
-              className="bg-background pl-9"
+              className="h-10 bg-muted/30 pl-9"
               onChange={(event) => onCityDraftChange(event.currentTarget.value)}
             />
           </div>
-          <Button type="submit" variant="outline" size="icon">
+          <Button
+            type="submit"
+            variant="secondary"
+            size="icon"
+            className="size-10"
+          >
             <SearchIcon aria-hidden="true" />
             <span className="sr-only">按城市查找</span>
           </Button>
@@ -185,9 +243,9 @@ export function ExchangeDiscoveryRail({
         </div>
       </header>
 
-      <section className="shrink-0 border-b p-3" aria-label="企划标签">
-        <div className="mb-1.5 flex min-h-7 items-center justify-between gap-3 px-1">
-          <h2 className="text-xs font-semibold">企划标签</h2>
+      <section className="shrink-0 border-b p-4" aria-label="企划标签">
+        <div className="mb-3 flex min-h-7 items-center justify-between gap-3 px-1">
+          <h2 className="text-sm font-semibold">企划标签</h2>
           {seriesCodes.length ? (
             <Button
               type="button"
@@ -209,61 +267,88 @@ export function ExchangeDiscoveryRail({
         />
       </section>
 
-      <section className="flex min-h-0 flex-1 flex-col" aria-label="附近事务所">
-        <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-3">
-          <h2 className="text-xs font-semibold">附近事务所</h2>
-          <span className="text-xs text-muted-foreground">
-            {offices.length} 个地点
-          </span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto border-y">
-          {offices.length ? (
-            <div className="divide-y">
-              {offices.map((office) => (
-                <NavigationLink
-                  key={office.id}
-                  to={`/community/exchange/offices/${encodeURIComponent(office.slug)}`}
-                  className="group relative flex min-w-0 gap-3 px-5 py-3 transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                >
-                  <span
-                    className="mt-1 block h-10 w-1 shrink-0 rounded-sm"
-                    style={{ backgroundColor: office.accent }}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-sm font-medium">
-                      {office.name}
-                    </strong>
-                    <span className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      <MapPinIcon
-                        className="size-3 shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span className="truncate">{office.address}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="truncate">
-                        {officeSeriesLabel(office, series) || "综合企划"}
+      {!embedded ? (
+        <section
+          className="flex min-h-0 flex-1 flex-col"
+          aria-label="公开事务所"
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-4">
+            <h2 className="text-sm font-semibold">公开事务所</h2>
+            <Badge variant="secondary" className="font-normal tabular-nums">
+              {offices.length} 个地点
+            </Badge>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {offices.length ? (
+              <div className="divide-y">
+                {offices.map((office) => (
+                  <NavigationLink
+                    key={office.id}
+                    to={`/community/exchange/offices/${encodeURIComponent(office.slug)}`}
+                    onClick={(event) => {
+                      if (
+                        !onSelectOffice ||
+                        event.button !== 0 ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey
+                      )
+                        return
+                      event.preventDefault()
+                      onSelectOffice(office)
+                    }}
+                    className="group relative flex min-w-0 items-start gap-3 px-5 py-4 transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+                  >
+                    <span
+                      className="mt-1 block h-10 w-1 shrink-0 rounded-full"
+                      style={{ backgroundColor: office.accent }}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <strong className="line-clamp-2 text-sm/6 font-semibold wrap-break-word">
+                        {office.name}
+                      </strong>
+                      <span className="mt-1 flex min-w-0 items-start gap-1.5 text-xs/5 text-muted-foreground">
+                        <MapPinIcon
+                          className="mt-1 size-3 shrink-0"
+                          aria-hidden="true"
+                        />
+                        <span className="line-clamp-2 wrap-break-word">
+                          {office.address}
+                        </span>
+                      </span>
+                      <span className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                        <span className="min-w-0 truncate">
+                          {officeSeriesLabel(office, series) || "综合企划"}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1 tabular-nums">
+                          <EyeIcon className="size-3" aria-hidden="true" />
+                          {office.visitorCount.toLocaleString("zh-CN")} 次访问
+                        </span>
                       </span>
                     </span>
-                    <span className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
-                      <EyeIcon className="size-3" aria-hidden="true" />
-                      {office.visitorCount.toLocaleString("zh-CN")} 次访问
-                    </span>
-                  </span>
-                  <ChevronRightIcon
-                    className="mt-3 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
-                    aria-hidden="true"
-                  />
-                </NavigationLink>
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-full min-h-28 items-center justify-center px-5 text-center text-sm text-muted-foreground">
-              当前筛选下没有公开事务所
-            </div>
-          )}
-        </div>
-      </section>
+                    <ChevronRightIcon
+                      className="mt-3 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+                      aria-hidden="true"
+                    />
+                  </NavigationLink>
+                ))}
+              </div>
+            ) : (
+              <Empty className="min-h-48 px-5">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Building2Icon aria-hidden="true" />
+                  </EmptyMedia>
+                  <EmptyTitle>当前筛选下没有公开事务所</EmptyTitle>
+                  <EmptyDescription>试试其他城市或企划标签。</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       {error ? (
         <p
@@ -273,27 +358,6 @@ export function ExchangeDiscoveryRail({
           {error}。地图结果仍可继续使用。
         </p>
       ) : null}
-
-      <nav
-        className="grid shrink-0 grid-cols-3 gap-2 p-3"
-        aria-label="交换快捷操作"
-      >
-        <Button type="button" variant="outline" onClick={onOpenOffices}>
-          <Building2Icon aria-hidden="true" />
-          事务所
-        </Button>
-        <Button type="button" variant="outline" onClick={onOpenCards}>
-          <CreditCardIcon aria-hidden="true" />
-          名片
-        </Button>
-        <NavigationLink
-          to="/community/exchange/me"
-          className={buttonVariants({ variant: "outline" })}
-        >
-          <UserRoundCogIcon aria-hidden="true" />
-          管理
-        </NavigationLink>
-      </nav>
     </aside>
   )
 }

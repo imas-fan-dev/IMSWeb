@@ -88,7 +88,7 @@ Worker 与 Web 热更新进程；它会禁用 `apps/api/.env` 并注入完整的
 ```sh
 pnpm run build
 pnpm run start
-pnpm run start:email-worker
+pnpm --filter @imsweb/api run start:email-worker
 ```
 
 生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度

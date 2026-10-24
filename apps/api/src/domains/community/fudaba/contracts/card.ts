@@ -1,5 +1,5 @@
 import { exchangePath } from '@imsweb/contracts/paths';
-import type { FudabaIdolSelection, FudabaOwnerCard } from '@imsweb/contracts/fudaba';
+import type { FudabaCharacterSelection, FudabaOwnerCard } from '@imsweb/contracts/fudaba';
 import type { FudabaCardRecord } from '@/ports/repositories';
 
 function badRequest(message: string): Error {
@@ -27,8 +27,8 @@ export function fudabaOwnerCardView(card: FudabaCardRecord): FudabaOwnerCard {
         producerName: card.producer_name,
         displayName: card.display_name,
         seriesCode: card.series_code,
-        favoriteIdol: card.favorite_idol,
-        favoriteIdols: card.favorite_idols.map(idolView),
+        favoriteCharacter: card.favorite_character,
+        favoriteCharacters: card.favorite_characters.map(characterView),
         frontImageUrl: exchangePath(`/me/cards/${encodeURIComponent(card.id)}/media/front?v=${card.revision}`),
         backImageUrl: exchangePath(`/me/cards/${encodeURIComponent(card.id)}/media/back?v=${card.revision}`),
         accent: card.accent,
@@ -43,12 +43,12 @@ export function fudabaOwnerCardView(card: FudabaCardRecord): FudabaOwnerCard {
     };
 }
 
-function idolView(
-    idol: FudabaCardRecord['favorite_idols'][number]
-): FudabaIdolSelection {
+function characterView(
+    character: FudabaCardRecord['favorite_characters'][number]
+): FudabaCharacterSelection {
     return {
-        id: idol.idol_id,
-        name: idol.name_cn,
-        seriesCode: idol.agency_code
+        id: character.character_id,
+        name: character.name_cn,
+        seriesCode: character.agency_code
     };
 }

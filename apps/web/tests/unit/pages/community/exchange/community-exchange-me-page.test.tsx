@@ -4,9 +4,11 @@ import { MemoryRouter, Route, Routes } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError, type PlatformProfile } from "~/lib/api"
+import { resetNamecardCharacterCatalogCache } from "~/lib/use-namecard-character-catalog"
 import AccountMeSectionPage from "~/pages/account/me/account-me-section-page"
 import CommunityExchangeMePage from "~/pages/community/exchange/me/community-exchange-me-page"
 import { ProfileEditor } from "~/pages/community/exchange/me/profile-editor"
+import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
 
 const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
@@ -25,6 +27,7 @@ const apiMocks = vi.hoisted(() => ({
   getFudabaOwnerCard: vi.fn(),
   getFudabaClaimEnvelopes: vi.fn(),
   getWikiCatalog: vi.fn(),
+  getNamecardCharacterCatalog: vi.fn(),
   updatePlatformProfile: vi.fn(),
   uploadPlatformAvatar: vi.fn(),
   removePlatformAvatar: vi.fn(),
@@ -37,6 +40,7 @@ const apiMocks = vi.hoisted(() => ({
   sendCards: vi.fn(),
   sendCard: vi.fn(),
   sendCatalog: vi.fn(),
+  sendCharacterCatalog: vi.fn(),
   sendEnvelopes: vi.fn(),
   sendProfileUpdate: vi.fn(),
   sendAvatarUpload: vi.fn(),
@@ -89,6 +93,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getFudabaOwnerCard: apiMocks.getFudabaOwnerCard,
     getFudabaClaimEnvelopes: apiMocks.getFudabaClaimEnvelopes,
     getWikiCatalog: apiMocks.getWikiCatalog,
+    getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
     updatePlatformProfile: apiMocks.updatePlatformProfile,
     uploadPlatformAvatar: apiMocks.uploadPlatformAvatar,
     removePlatformAvatar: apiMocks.removePlatformAvatar,
@@ -129,8 +134,8 @@ const card = {
   producerName: "春香P",
   displayName: "周末交换名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+  favoriteCharacter: "天海春香",
+  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
   backImageUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
   accent: "#f34e6c",
@@ -209,6 +214,7 @@ function renderAccountSection(section = "profile") {
 
 describe("CommunityExchangeMePage", () => {
   beforeEach(() => {
+    resetNamecardCharacterCatalogCache()
     vi.clearAllMocks()
     sessionMocks.usePlatformSession.mockReturnValue(authenticatedSession())
     apiMocks.getPlatformProfile.mockReturnValue({ send: apiMocks.sendProfile })
@@ -219,6 +225,12 @@ describe("CommunityExchangeMePage", () => {
       send: apiMocks.sendEnvelopes,
     })
     apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendCatalog })
+    apiMocks.sendCharacterCatalog.mockResolvedValue(
+      makeNamecardCharacterCatalog()
+    )
+    apiMocks.getNamecardCharacterCatalog.mockReturnValue({
+      send: apiMocks.sendCharacterCatalog,
+    })
     apiMocks.updatePlatformProfile.mockReturnValue({
       send: apiMocks.sendProfileUpdate,
     })
@@ -757,7 +769,7 @@ describe("CommunityExchangeMePage", () => {
         expect.objectContaining({
           displayName: "新交换名片",
           seriesCode: "765",
-          favoriteIdolIds: [1],
+          favoriteCharacterIds: [1],
           front: expect.any(File),
           back: expect.any(File),
         })

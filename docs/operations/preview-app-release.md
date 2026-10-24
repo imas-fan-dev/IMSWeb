@@ -19,8 +19,9 @@ GitHub Release，供人工测试者自助安装。移动外壳本身的结构、
   tag 后缀不做任何解析，仅需在仓库内唯一，例如：
 
   ```sh
-  git tag app-preview-ios-$(date +%s)
-  git push origin app-preview-ios-$(date +%s)
+  preview_tag="app-preview-ios-$(date +%s)"
+  git tag "$preview_tag"
+  git push origin "$preview_tag"
   ```
 
 - 或者在 GitHub Actions 页面手动运行 `Release preview app` workflow，选择 `platform`
@@ -67,9 +68,8 @@ iOS `--build-number` 与 Android `versionCode` 都是有界的数值字段（And
 
 两端构建都显式设置 `VITE_IMS_API_ORIGIN` 与 `VITE_IMS_PUBLIC_SITE_ORIGIN` 为
 `https://preview.idol-master.top`，产物因此只会连接 preview 后端，不会污染生产或本地开发
-环境；跨源 origin 契约与已知阻塞项见
-[Tauri 移动端基础设施](../development/tauri-mobile.md) 第 4 节与第 6 节——尤其是约 43 处
-组件仍依赖同源解析的已知限制，预览包会继承这一限制。
+环境。API 媒体由 endpoint 的 `select` 按 bundle、公开站点与 API 所有权归一化；跨源 origin
+契约与设备验收边界见 [Tauri 移动端基础设施](../development/tauri-mobile.md) 第 4 节与第 6 节。
 
 构建统一走 `apps/web/scripts/app-release.js`，本地也可以直接调用来复现 CI 产物：
 
@@ -94,7 +94,7 @@ Xcode 和 `aarch64-apple-ios` Rust target；Android 需要 Java 17-21、Android 
 | `xcodebuild` 报 `cannot be opened because it is in a future Xcode project file format` | Tauri 生成的 iOS 工程模板所用的 project 文件格式版本需要较新的 Xcode 才能打开；`build-ios` job 因此固定用 `runs-on: macos-26`（默认自带最新 Xcode），不要降级到更旧的 runner 镜像 |
 | Android APK 提示签名不一致，无法覆盖安装 | 预览签名密钥被重新生成过；用户需要先卸载旧版本再安装新版本 |
 | `--build-number` 或 Android `versionCode` 报超出范围 | 只应发生在系统时间被错误设置到基准时间之前；检查 runner/本机时钟 |
-| 本机重复清理/重建 `src-tauri/gen/apple` 后，iOS 真机归档提示 Swift 符号未定义（`swift_rs` / `native-glass` 相关符号） | 很可能来自本机残留状态而非代码或配置缺陷：`macos-26` runner 的全新 checkout 上完整走通了一次真机归档，未复现。这一判断只有一次 CI 成功作为依据，若在 CI 上复现，应按真实缺陷排查，而不是继续归因于缓存。本机复现时先清空 `src-tauri/target` 与 `src-tauri/gen/apple` 后重建 |
+| iOS 归档提示 Swift 符号未定义（`swift_rs` / `native-glass` 相关符号） | 保留首个 linker 错误和构建日志，核对 Xcode、Rust target、插件 Swift Package 接线与当前源码。对照同一提交的干净构建区分本机派生状态和源码问题；清理前确认 `src-tauri/target`、`src-tauri/gen/apple` 仅含可重建产物，不能仅凭另一次 CI 成功就归因于缓存 |
 
 改动触发方式、版本号规则或签名边界时，同一变更更新本文件并运行：
 

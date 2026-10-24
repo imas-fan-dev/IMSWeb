@@ -3,12 +3,11 @@ import {
   Building2Icon,
   ImagesIcon,
   MenuIcon,
-  PencilIcon,
-  PlusIcon,
   RefreshCwIcon,
   Settings2Icon,
   UserRoundIcon,
 } from "lucide-react"
+import { useLocation } from "react-router"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -42,7 +41,6 @@ import { StoryCategoryEditorDialog } from "~/pages/admin/stories/components/stor
 import { StoryEditorDialog } from "~/pages/admin/stories/components/story-editor-dialog"
 import { StoryOutline } from "~/pages/admin/stories/components/story-outline"
 import { StorySourceCatalogDialog } from "~/pages/admin/stories/components/story-source-catalog-dialog"
-import { WikiEntityEditorDialog } from "~/pages/admin/stories/components/wiki-entity-editor-sheet"
 import { WikiHierarchyExplorer } from "~/pages/admin/stories/components/wiki-hierarchy-explorer"
 import { useWikiWorkbenchState } from "./wiki-workbench-hooks"
 import { errorMessage } from "./wiki-workbench-model"
@@ -55,6 +53,7 @@ import {
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function WikiWorkbench() {
+  const location = useLocation()
   const {
     catalog,
     catalogLoading,
@@ -72,8 +71,6 @@ export function WikiWorkbench() {
     storyQuery,
     mobileExplorerOpen,
     setMobileExplorerOpen,
-    entityTarget,
-    setEntityTarget,
     storyEditor,
     setStoryEditor,
     categoryEditor,
@@ -84,7 +81,6 @@ export function WikiWorkbench() {
     chooseIdol,
     reloadStories,
     refreshAll,
-    handleEntitySaved,
     openCreateStory,
     setStoryQuery,
     setCategoryOpen,
@@ -98,19 +94,6 @@ export function WikiWorkbench() {
       agency={selectedAgency}
       selectedIdolId={selectedIdol?.id ?? null}
       onSelectIdol={chooseIdol}
-      onCreateGroup={() =>
-        setEntityTarget({ kind: "group", agency: selectedAgency, entity: null })
-      }
-      onEditGroup={(group) =>
-        setEntityTarget({
-          kind: "group",
-          agency: selectedAgency,
-          entity: group,
-        })
-      }
-      onCreateIdol={() =>
-        setEntityTarget({ kind: "idol", agency: selectedAgency, entity: null })
-      }
     />
   ) : null
 
@@ -119,7 +102,7 @@ export function WikiWorkbench() {
       <AdminPageHeader
         eyebrow="WIKI WORKBENCH"
         title="Wiki 内容工作台"
-        description="按企划、栏目与内容页定位资料，维护卡片媒体、来源平台和页面信息。"
+        description="按企划、栏目与内容页定位资料，维护剧情卡片、媒体和来源。"
         actions={
           <>
             <Button
@@ -217,33 +200,23 @@ export function WikiWorkbench() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">企划目录</p>
             <p className="text-xs text-muted-foreground">
-              创建首个企划后即可继续添加栏目与内容页。
+              请前往偶像管理建立企划与内容页。
             </p>
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          {selectedAgency ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setEntityTarget({
-                  kind: "agency",
-                  entity: selectedAgency,
-                })
-              }
-            >
-              <PencilIcon data-icon="inline-start" />
-              编辑企划
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            onClick={() => setEntityTarget({ kind: "agency", entity: null })}
+          <NavigationLink
+            to={`/admin/idols/entries?${new URLSearchParams({
+              ...(selectedAgency
+                ? { agencyId: String(selectedAgency.id) }
+                : {}),
+              ...(selectedIdol ? { idolId: String(selectedIdol.id) } : {}),
+              returnTo: `/admin/stories${location.search}`,
+            })}`}
+            className={buttonVariants({ variant: "outline" })}
           >
-            <PlusIcon data-icon="inline-start" />
-            新增企划
-          </Button>
+            偶像管理
+          </NavigationLink>
         </div>
       </section>
 
@@ -257,17 +230,16 @@ export function WikiWorkbench() {
             </EmptyMedia>
             <EmptyTitle>还没有 Wiki 企划</EmptyTitle>
             <EmptyDescription>
-              从企划开始建立栏目、内容页和剧情内容层级。
+              在偶像管理建立企划与内容页后，即可维护剧情。
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button
-              type="button"
-              onClick={() => setEntityTarget({ kind: "agency", entity: null })}
+            <NavigationLink
+              to="/admin/idols/agencies"
+              className={buttonVariants({ variant: "outline" })}
             >
-              <PlusIcon data-icon="inline-start" />
-              新增企划
-            </Button>
+              前往企划管理
+            </NavigationLink>
           </EmptyContent>
         </Empty>
       ) : (
@@ -296,17 +268,7 @@ export function WikiWorkbench() {
 
             {selectedIdol ? (
               <>
-                <IdolSummary
-                  agency={selectedAgency}
-                  idol={selectedIdol}
-                  onEdit={() =>
-                    setEntityTarget({
-                      kind: "idol",
-                      agency: selectedAgency,
-                      entity: selectedIdol,
-                    })
-                  }
-                />
+                <IdolSummary agency={selectedAgency} idol={selectedIdol} />
 
                 {storiesError ? (
                   <div className="p-4">
@@ -385,37 +347,16 @@ export function WikiWorkbench() {
                   </EmptyMedia>
                   <EmptyTitle>这个企划还没有内容页</EmptyTitle>
                   <EmptyDescription>
-                    可以直接新增内容页，也可以先建立栏目后再归档。
+                    请在偶像管理中建立内容页，也可以先建立栏目后再归档。
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      setEntityTarget({
-                        kind: "group",
-                        agency: selectedAgency,
-                        entity: null,
-                      })
-                    }
+                  <NavigationLink
+                    to={`/admin/idols/entries?agencyId=${selectedAgency.id}`}
+                    className={buttonVariants({ variant: "outline" })}
                   >
-                    <PlusIcon data-icon="inline-start" />
-                    新增栏目
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      setEntityTarget({
-                        kind: "idol",
-                        agency: selectedAgency,
-                        entity: null,
-                      })
-                    }
-                  >
-                    <PlusIcon data-icon="inline-start" />
-                    新增内容页
-                  </Button>
+                    前往条目管理
+                  </NavigationLink>
                 </EmptyContent>
               </Empty>
             )}
@@ -434,15 +375,6 @@ export function WikiWorkbench() {
           <div className="min-h-0 flex-1 overflow-y-auto">{explorer}</div>
         </SheetContent>
       </Sheet>
-
-      <WikiEntityEditorDialog
-        target={entityTarget}
-        open={Boolean(entityTarget)}
-        onOpenChange={(open) => {
-          if (!open) setEntityTarget(null)
-        }}
-        onSaved={handleEntitySaved}
-      />
 
       {selectedAgency && selectedIdol && storyEditor ? (
         <StoryEditorDialog

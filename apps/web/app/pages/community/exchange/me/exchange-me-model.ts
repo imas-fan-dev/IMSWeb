@@ -45,7 +45,9 @@ export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
     producerName: card.producerName,
     displayName: card.displayName,
     seriesCode: card.seriesCode,
-    favoriteIdolIds: card.favoriteIdols.map((idol) => idol.id),
+    favoriteCharacterIds: card.favoriteCharacters.map(
+      (character) => character.id
+    ),
     accent: card.accent,
     bio: card.bio,
     tradeNote: card.tradeNote,
@@ -61,7 +63,7 @@ export function emptyCardFields(
     producerName: profile.displayName,
     displayName: "",
     seriesCode: series[0]?.code ?? "",
-    favoriteIdolIds: [],
+    favoriteCharacterIds: [],
     accent: "#f34e6c",
     bio: profile.bio,
     tradeNote: "",

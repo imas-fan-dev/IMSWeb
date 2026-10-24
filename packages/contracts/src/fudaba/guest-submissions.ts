@@ -1,7 +1,8 @@
 import { z } from "zod"
 import { exactJsonError, legacyStripRequestObject, successEnvelope } from "../common.js"
 import {
-  fudabaIdolSelectionSchema,
+  NAMECARD_FAVORITE_CHARACTER_LIMIT,
+  fudabaCharacterSelectionSchema,
   fudabaRevisionSchema,
   publicMediaUrlSchema,
   seriesCodeSchema,
@@ -29,7 +30,9 @@ export const fudabaGuestSubmissionSummarySchema = z
 export const fudabaGuestSubmissionSchema = fudabaGuestSubmissionSummarySchema
   .extend({
     seriesCode: seriesCodeSchema.nullable(),
-    favoriteIdols: z.array(fudabaIdolSelectionSchema).max(20),
+    favoriteCharacters: z
+      .array(fudabaCharacterSelectionSchema)
+      .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
     frontImageUrl: publicMediaUrlSchema,
     backImageUrl: publicMediaUrlSchema,
     createdAt: timestampSchema.nullable(),

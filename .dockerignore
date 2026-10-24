@@ -2,6 +2,9 @@
 .github
 .agents
 .codex
+.candidate-verifier
+.deployment-workflow
+.ci-artifacts
 **/node_modules
 **/dist
 apps/web/build

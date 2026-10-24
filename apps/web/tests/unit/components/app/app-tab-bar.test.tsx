@@ -140,11 +140,13 @@ describe("AppTabBar platform material", () => {
         "/community/exchange"
       )
     })
-    expect(nativeMocks.update).toHaveBeenLastCalledWith({
-      dark: false,
-      hidden: false,
-      selectedColor: nativeSelectedColor,
-      selectedIndex: 2,
+    await waitFor(() => {
+      expect(nativeMocks.update).toHaveBeenLastCalledWith({
+        dark: false,
+        hidden: false,
+        selectedColor: nativeSelectedColor,
+        selectedIndex: 2,
+      })
     })
   })
 
@@ -161,11 +163,13 @@ describe("AppTabBar platform material", () => {
     expect(nativeMocks.configure).toHaveBeenCalledWith(
       expect.objectContaining({ dark: false, selectedIndex: 2 })
     )
-    expect(nativeMocks.update).toHaveBeenLastCalledWith({
-      dark: false,
-      hidden: false,
-      selectedColor: nativeSelectedColor,
-      selectedIndex: 2,
+    await waitFor(() => {
+      expect(nativeMocks.update).toHaveBeenLastCalledWith({
+        dark: false,
+        hidden: false,
+        selectedColor: nativeSelectedColor,
+        selectedIndex: 2,
+      })
     })
   })
 

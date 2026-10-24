@@ -30,7 +30,11 @@ export function renderPage(
   ui: ReactElement,
   options: { route?: string } = {}
 ): ReturnType<typeof render> {
-  return render(
-    <MemoryRouter initialEntries={[options.route ?? "/"]}>{ui}</MemoryRouter>
-  )
+  return render(ui, {
+    wrapper: ({ children }) => (
+      <MemoryRouter initialEntries={[options.route ?? "/"]}>
+        {children}
+      </MemoryRouter>
+    ),
+  })
 }

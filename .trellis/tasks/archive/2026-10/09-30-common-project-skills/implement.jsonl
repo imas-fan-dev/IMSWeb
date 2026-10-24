@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Web and App Playwright boundaries and authoring rules"}
-{"file": "docs/development/testing.md", "reason": "Authoritative test owner routing and command matrix"}
-{"file": "docs/development/app-device-delivery.md", "reason": "Authoritative local App device delivery commands and safety constraints"}
-{"file": ".trellis/spec/repository/index.md", "reason": "Repository quality and documentation validation gates"}

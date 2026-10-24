@@ -9,23 +9,18 @@ import {
   PUBLIC_SITE_PROXY_PATH_PREFIXES,
 } from "./app/lib/bundle-path-policy"
 import { mockWorkerScriptPlugin } from "./mocks/worker-script-plugin"
+import { localAMapServiceProxy } from "./vite-amap-service-proxy"
 import {
   localExchangeMapAssets,
   TAURI_MAP_ORIGINS,
 } from "./vite-exchange-map-assets"
-import {
-  contractsDependencyCache,
-  contractsFingerprint,
-} from "./vite-contracts-cache"
 import { GENERATED_BUILD_WATCH_OPTIONS } from "./vite-watch"
+import { localContractsOptimizer } from "./vite-contracts"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
 const publicSiteProxyOrigin =
   process.env.IMS_PUBLIC_SITE_ORIGIN ?? "https://idol-master.top"
 const workspaceRoot = fileURLToPath(new URL("../..", import.meta.url))
-const contractsDist = fileURLToPath(
-  new URL("../../packages/contracts/dist", import.meta.url)
-)
 // `tauri android dev` and `tauri ios dev` export this when the app runs on a
 // real device, which reaches this server over the LAN instead of loopback.
 const isAppTarget = process.env.VITE_IMS_APP_TARGET === "app"
@@ -86,21 +81,14 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   plugins: [
-    contractsDependencyCache(contractsDist),
     mockWorkerScriptPlugin(),
+    localContractsOptimizer(workspaceRoot),
+    localAMapServiceProxy(fileURLToPath(new URL(".", import.meta.url))),
     localExchangeMapAssets(workspaceRoot),
     tailwindcss(),
     reactRouter(),
   ],
   optimizeDeps: {
-    // Vite hashes optimizer plugin names; rebuilt linked CJS needs a new browser URL.
-    rolldownOptions: {
-      plugins: [
-        {
-          name: `imsweb-contracts-build-${contractsFingerprint(contractsDist)}`,
-        },
-      ],
-    },
     entries: ["app/**/*.{ts,tsx}"],
     include: [
       "@imsweb/contracts/**",
@@ -121,7 +109,8 @@ export default defineConfig({
       "@base-ui/react/toggle-group",
     ],
   },
-  // The linked contracts workspace publishes CommonJS; Node must load it in SSR.
+  // The linked contracts workspace publishes dual CJS/ESM; keep the package
+  // external so prerendering loads its own ESM build instead of a second copy.
   ssr: {
     external: ["@imsweb/contracts"],
   },

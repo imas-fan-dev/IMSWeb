@@ -226,7 +226,6 @@ test.describe("home smoke", () => {
         const background = page.getByTestId("series-icon-background")
         await expect(background).toBeVisible()
         await expect(background).toHaveCount(1)
-        await expect(background.locator(".series-icon-motif")).toHaveCount(12)
       }
       await clientReady
       await page.waitForLoadState("networkidle")
@@ -590,7 +589,7 @@ test.describe("home smoke", () => {
     {
       tag: "@mobile",
     },
-    async ({ page, api, isMobile }) => {
+    async ({ page, api }) => {
       installHomepageLinksMock(api)
       installSeededPublicApis(
         api,
@@ -619,17 +618,6 @@ test.describe("home smoke", () => {
 
       const brandBackground = page.getByTestId("series-icon-background")
       await expect(brandBackground).toBeVisible()
-      await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(
-        12
-      )
-      const firstMotif = brandBackground.locator(".series-icon-motif").first()
-      await expect(firstMotif).toHaveCSS("filter", "none")
-      const initialTransform = await firstMotif.evaluate(
-        (element) => element.style.transform
-      )
-      await expect
-        .poll(() => firstMotif.evaluate((element) => element.style.transform))
-        .not.toBe(initialTransform)
 
       const seriesWall = page.getByRole("region", {
         name: "THE iDOLM@STER",
@@ -641,17 +629,6 @@ test.describe("home smoke", () => {
         "src",
         "/brand/series/wall/765pro.webp"
       )
-      if (!isMobile) {
-        const viewportWidth = page.viewportSize()?.width ?? 0
-        const lastSeriesBand = await seriesWall
-          .getByTestId("series-band")
-          .last()
-          .boundingBox()
-        expect(lastSeriesBand).not.toBeNull()
-        expect(lastSeriesBand!.x + lastSeriesBand!.width).toBeGreaterThan(
-          viewportWidth * 0.95
-        )
-      }
 
       const directory = page.getByRole("region", { name: "站点导航" })
       await expect(

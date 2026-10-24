@@ -71,7 +71,11 @@ import {
 } from "./exchange-components"
 import type { WallPlacement } from "./exchange-card-wall"
 import type { WallBounds, WallFocus } from "./wall-viewport"
-import { NavigationLink } from "~/components/navigation/navigation-link"
+import {
+  ExchangePageSurface,
+  useExchangeMapDialog,
+  ExchangeMapReturnLink as NavigationLink,
+} from "./components/exchange-page-surface"
 
 function wallLoadBounds(viewport: WallBounds): WallBounds {
   const bufferX = (viewport[2] - viewport[0]) / 4
@@ -151,6 +155,7 @@ export function meta() {
 
 export default function CommunityOfficePage() {
   const { officeSlug } = useParams()
+  const embedded = useExchangeMapDialog()
   const platform = usePlatformSession()
   const [state, setState] = useState<DetailState>(initialState)
   const [wallEditor, setWallEditor] = useState<WallEditorState>(
@@ -1031,7 +1036,7 @@ export default function CommunityOfficePage() {
   }
   if (state.phase === "loading") {
     return (
-      <main
+      <ExchangePageSurface
         id="main-content"
         className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
       >
@@ -1039,7 +1044,7 @@ export default function CommunityOfficePage() {
         <Skeleton className="mt-6 aspect-16/5 w-full" />
         <Skeleton className="mt-8 h-12 w-2/3" />
         <Skeleton className="mt-8 min-h-96 w-full" />
-      </main>
+      </ExchangePageSurface>
     )
   }
 
@@ -1055,7 +1060,7 @@ export default function CommunityOfficePage() {
     }
 
     return (
-      <main
+      <ExchangePageSurface
         id="main-content"
         className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
       >
@@ -1082,7 +1087,7 @@ export default function CommunityOfficePage() {
             </NavigationLink>
           </div>
         </Empty>
-      </main>
+      </ExchangePageSurface>
     )
   }
 
@@ -1090,21 +1095,33 @@ export default function CommunityOfficePage() {
   const wallMutationPending = pendingCardIds.size > 0
 
   return (
-    <main id="main-content">
-      <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <NavigationLink
-          to="/community/exchange"
-          className={buttonVariants({ variant: "ghost", size: "sm" })}
-        >
-          <ArrowLeftIcon aria-hidden="true" />
-          返回事务所列表
-        </NavigationLink>
-      </div>
+    <ExchangePageSurface id="main-content">
+      {!embedded ? (
+        <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+          <NavigationLink
+            to="/community/exchange"
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+          >
+            <ArrowLeftIcon aria-hidden="true" />
+            返回事务所列表
+          </NavigationLink>
+        </div>
+      ) : null}
 
-      <section className="mt-4 border-y bg-background">
+      <section
+        className={cn(
+          "mt-4 border-y bg-background",
+          embedded && "mt-0 border-t-0"
+        )}
+      >
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           {office.coverUrl ? (
-            <div className="aspect-16/5 max-h-96 min-h-48 w-full overflow-hidden border-x bg-muted">
+            <div
+              className={cn(
+                "aspect-16/5 max-h-96 min-h-48 w-full overflow-hidden border-x bg-muted",
+                embedded && "aspect-5/1 max-h-44 min-h-28"
+              )}
+            >
               <img
                 src={office.coverUrl}
                 alt={`${office.name}封面`}
@@ -1112,7 +1129,12 @@ export default function CommunityOfficePage() {
               />
             </div>
           ) : (
-            <div className="relative flex aspect-16/5 max-h-96 min-h-48 w-full items-center justify-center overflow-hidden border-x bg-muted/50">
+            <div
+              className={cn(
+                "relative flex aspect-16/5 max-h-96 min-h-48 w-full items-center justify-center overflow-hidden border-x bg-muted/50",
+                embedded && "aspect-5/1 max-h-44 min-h-28"
+              )}
+            >
               <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
               <Building2Icon
                 className="size-12 text-muted-foreground/60"
@@ -1123,7 +1145,12 @@ export default function CommunityOfficePage() {
         </div>
       </section>
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8",
+          embedded && "py-5"
+        )}
+      >
         <header className="border-b pb-8">
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
             <div className="max-w-3xl min-w-0">
@@ -1578,6 +1605,6 @@ export default function CommunityOfficePage() {
           }}
         />
       ) : null}
-    </main>
+    </ExchangePageSurface>
   )
 }

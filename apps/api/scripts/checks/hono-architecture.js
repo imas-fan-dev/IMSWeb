@@ -223,6 +223,22 @@ const singleCapabilityRepositories = new Map([
     ],
     ["news-repository.ts", ["SqlNewsRepository", "NewsRepository", "content"]],
     [
+        "namecard-character-repository.ts",
+        [
+            "SqlNamecardCharacterRepository",
+            "NamecardCharacterRepository",
+            "namecard-characters",
+        ],
+    ],
+    [
+        "namecard-unit-repository.ts",
+        [
+            "SqlNamecardUnitRepository",
+            "NamecardUnitRepository",
+            "namecard-units",
+        ],
+    ],
+    [
         "reaction-repository.ts",
         ["SqlReactionRepository", "ReactionRepository", "namecards"],
     ],
@@ -304,6 +320,11 @@ const portContracts = new Map([
     ["repositories/fudaba.ts", ["FudabaRepository"]],
     ["repositories/fudaba-messages.ts", ["FudabaMessagesRepository"]],
     ["repositories/namecards.ts", ["NamecardRepository", "ReactionRepository"]],
+    [
+        "repositories/namecard-characters.ts",
+        ["NamecardCharacterRepository"],
+    ],
+    ["repositories/namecard-units.ts", ["NamecardUnitRepository"]],
     [
         "repositories/content.ts",
         ["NewsRepository", "EventRepository", "HomepageLinkRepository"],
@@ -562,7 +583,17 @@ const domainSections = new Map([
         "identity",
         ["platform-auth", "platform-profile", "platform-account-security"],
     ],
-    ["admin", ["backoffice-auth", "admin-accounts", "audit", "platform-users"]],
+    [
+        "admin",
+        [
+            "backoffice-auth",
+            "admin-accounts",
+            "audit",
+            "platform-users",
+            "namecard-characters",
+            "namecard-units",
+        ],
+    ],
     [
         "content",
         [
@@ -630,6 +661,8 @@ const validatedRequestDomains = new Set([
     "live-schedule",
     "media",
     "namecards",
+    "namecard-characters",
+    "namecard-units",
     "news",
     "platform-users",
     "producer-map",

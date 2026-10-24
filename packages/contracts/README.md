@@ -100,7 +100,10 @@ fudaba.fudabaOwnerCardListSchema.parse(body)
 
 `entrypoints.json` is the machine-readable inventory for every public package
 subpath. The root namespace column is for tools and conformance tests; business
-code imports the narrow public module.
+code imports the narrow public module. The `exports` map in `package.json` is
+generated from this inventory: a new module updates `src/`, this file, the root
+namespace, and this README, then runs the generator (or `build`, which checks
+the committed map).
 
 | Public module | Root namespace | Runtime class |
 | --- | --- | --- |
@@ -113,6 +116,9 @@ code imports the narrow public module.
 | `@imsweb/contracts/fudaba/map-delivery` | `fudabaMapDelivery` | schema |
 | `@imsweb/contracts/fudaba/runtime` | `fudabaRuntime` | zod-free |
 | `@imsweb/contracts/fudaba/card-claims` | `fudabaCardClaims` | schema |
+| `@imsweb/contracts/fudaba/admin-characters` | `fudabaAdminCharacters` | schema |
+| `@imsweb/contracts/fudaba/admin-units` | `fudabaAdminUnits` | schema |
+| `@imsweb/contracts/fudaba/characters` | `fudabaCharacters` | schema |
 | `@imsweb/contracts/fudaba/location-review` | `fudabaLocationReview` | schema |
 | `@imsweb/contracts/platform/admin` | `platformAdmin` | schema |
 | `@imsweb/contracts/platform/admin-email` | `platformAdminEmail` | schema |
@@ -152,8 +158,8 @@ UI 语义别名（如 `HomeInformationCard = InformationCard`）、请求/输入
 ## 消费规则
 
 - **Web**：endpoint 模块通过窄子路径导入 request type 以及 success、HTTP-error、
-  business-error schema，并交给 `parsed(...)` 校验。CJS runtime schema 只做 named
-  re-export；禁止 runtime `export *`。UI 输入校验、`File`/`FormData` 和 UI 语义类型留在 Web。
+  business-error schema，并交给 `parsed(...)` 校验。runtime schema（CJS/ESM 双发布）只做
+  named re-export；禁止 runtime `export *`。UI 输入校验、`File`/`FormData` 和 UI 语义类型留在 Web。
 - **API**：route request-validation 边界可以通过窄子路径运行 request schema；handler、
   response、domain logic、port、repository、infra 和 runtime composition 只使用
   `import type`。HTTP 测试在读取原始 JSON 后执行 shared response schema，并断言 parse 结果
@@ -164,10 +170,16 @@ UI 语义别名（如 `HomeInformationCard = InformationCard`）、请求/输入
 
 ## 构建
 
-CJS + d.ts，`build-if-sources.mjs` 守卫 `prepare`（Docker manifest 层安装时
-源码缺失则跳过）。`pnpm --filter @imsweb/contracts run build` 在 TypeScript 构建后检查
-entrypoint inventory、导出目标、root namespace、README、构建产物和 fresh-process
-Zod-free loader。
+双发布：`dist/cjs`（CommonJS）与 `dist/esm`（ESM）各带自己的 `.d.ts`，两个目录内的
+`package.json` 标记实际模块格式；每个子路径在 `exports` 中用 `import`/`require` 条件分别
+指向两棵树，并各自携带 `types`。`entrypoints.json` 的 `build` 字段拥有构建布局，
+`scripts/derive-exports.mjs` 从 inventory 生成 exports（`build` 第一步执行 `--check`，
+手改 exports 或漏跑生成器会直接失败）。
+
+`build-if-sources.mjs` 守卫 `prepare`（Docker manifest 层安装时源码缺失则跳过）。
+`pnpm --filter @imsweb/contracts run build` 在双树构建后检查 entrypoint inventory、两类
+导出目标、root namespace、README、两套构建产物、`dist/*/package.json` 格式标记，以及
+CJS `require` / ESM `import` 两种 fresh-process loader probe。
 
 `@imsweb/contracts/community-content` exports community landing content, revisioned admin snapshots and updates, image upload responses, and HTTP errors. The root namespace is `communityContent`.
 

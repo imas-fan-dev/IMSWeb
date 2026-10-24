@@ -23,6 +23,7 @@ import {
   makeInformationDetail,
   makeInformationList,
   makeLiveScheduleList,
+  makeNamecardCharacterCatalog,
   makeNamecardPage,
   makeNamecardReactions,
   makeProducerMapContent,
@@ -92,6 +93,11 @@ export const publicHandlers = [
   ),
   http.get(exchangePath("/series"), () =>
     HttpResponse.json(makeFudabaSeriesList())
+  ),
+  // The namecard picker's whole data source: it filters in memory, so one
+  // payload is enough to exercise every keystroke offline.
+  http.get(exchangePath("/characters"), () =>
+    HttpResponse.json(makeNamecardCharacterCatalog())
   ),
   http.get(exchangePath("/offices"), () =>
     HttpResponse.json(makeFudabaOfficePage())

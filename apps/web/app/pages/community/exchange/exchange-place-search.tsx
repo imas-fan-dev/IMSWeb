@@ -10,6 +10,7 @@ import {
   useExchangePlaceSearch,
   type ExchangePlaceSearchModel,
 } from "./hooks/use-exchange-place-search"
+import type { PlaceSearchDisplay } from "./hooks/use-place-search"
 
 export function ExchangePlaceSearch({
   disabled = false,
@@ -20,9 +21,32 @@ export function ExchangePlaceSearch({
   onSelect: (place: FudabaPlaceSearchResult) => void
   model?: ExchangePlaceSearchModel
 }) {
+  const localModel = useExchangePlaceSearch()
+  return (
+    <MapPlaceSearch
+      disabled={disabled}
+      onSelect={onSelect}
+      model={model ?? localModel}
+      resetLocal={!model}
+    />
+  )
+}
+
+export function MapPlaceSearch<Place extends PlaceSearchDisplay>({
+  disabled = false,
+  onSelect,
+  model,
+  resetLocal = false,
+  placeholder = "场馆、商圈或完整地址",
+}: {
+  disabled?: boolean
+  onSelect: (place: Place) => void
+  model: ExchangePlaceSearchModel<Place>
+  resetLocal?: boolean
+  placeholder?: string
+}) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
-  const localModel = useExchangePlaceSearch()
   const {
     query,
     edit,
@@ -33,11 +57,11 @@ export function ExchangePlaceSearch({
     searched,
     submit,
     resetResults,
-  } = model ?? localModel
+  } = model
 
-  function select(place: FudabaPlaceSearchResult) {
+  function select(place: Place) {
     edit(place.label)
-    if (!model) resetResults(true)
+    if (resetLocal) resetResults(true)
     inputRef.current?.focus()
     onSelect(place)
   }
@@ -47,7 +71,7 @@ export function ExchangePlaceSearch({
       <div>
         <Field data-disabled={disabled || undefined}>
           <FieldLabel htmlFor={inputId}>搜索地点</FieldLabel>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <Input
               ref={inputRef}
               id={inputId}
@@ -55,10 +79,10 @@ export function ExchangePlaceSearch({
               minLength={2}
               maxLength={120}
               disabled={disabled || busy}
-              placeholder="场馆、商圈或完整地址"
+              placeholder={placeholder}
               onChange={(event) => {
                 edit(event.currentTarget.value)
-                if (!model) resetResults()
+                if (resetLocal) resetResults()
               }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || event.nativeEvent.isComposing)
@@ -99,6 +123,11 @@ export function ExchangePlaceSearch({
         </p>
       ) : null}
 
+      {model.notice && !error ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          {model.notice}
+        </p>
+      ) : null}
       {error ? (
         <Alert variant="destructive">
           <SearchIcon aria-hidden="true" />
@@ -129,7 +158,9 @@ export function ExchangePlaceSearch({
                   {place.label}
                 </strong>
                 <span className="mt-1 block text-sm text-muted-foreground">
-                  {place.address}
+                  {[place.address, place.distanceLabel]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </span>
             </button>

@@ -1,6 +1,7 @@
 import { useState } from "react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import type { FudabaSeries } from "~/lib/api"
 import { cn } from "~/lib/utils"
@@ -60,7 +61,7 @@ export function ExchangeSeriesFilter({
 
   return (
     <div
-      className={cn("grid grid-cols-2 gap-1", className)}
+      className={cn("grid grid-cols-2 gap-1.5", className)}
       role="group"
       aria-label="企划标签"
     >
@@ -70,12 +71,12 @@ export function ExchangeSeriesFilter({
           <Button
             key={item.code}
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             className={cn(
-              "h-8 min-w-0 justify-start gap-2 rounded-sm px-2 text-xs",
+              "h-9 min-w-0 justify-start gap-2 border-transparent bg-muted/40 px-2 text-xs hover:bg-muted",
               active &&
-                "border border-primary/25 bg-primary/10 hover:bg-primary/15"
+                "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
             )}
             aria-pressed={active}
             onClick={() => onToggle(item.code)}
@@ -84,9 +85,12 @@ export function ExchangeSeriesFilter({
             <span className="min-w-0 flex-1 truncate text-left">
               {item.displayName}
             </span>
-            <span className="text-[0.6875rem] text-muted-foreground">
+            <Badge
+              variant="ghost"
+              className="min-w-5 rounded-md px-1 text-[0.6875rem] font-normal text-muted-foreground tabular-nums"
+            >
               {item.activeOfficeCount}
-            </span>
+            </Badge>
           </Button>
         )
       })}

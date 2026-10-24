@@ -168,6 +168,13 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn(f"bash -n {script}", package)
 
+    def test_extended_ui_has_independent_weekly_and_manual_results(self):
+        workflow = (PROJECT_ROOT / ".github/workflows/ui-extended.yml").read_text(encoding="utf-8")
+        for token in ["workflow_dispatch:", "schedule:", "cron:", "node scripts/testing/run-test-owner.mjs web extended", "pnpm install --frozen-lockfile", "playwright install --with-deps chromium firefox", "if: always()", "path: /tmp/imsweb-web-playwright-extended"]:
+            self.assertIn(token, workflow)
+        self.assertNotIn("pull_request:", workflow)
+        self.assertNotIn("contents: write", workflow)
+
     def test_ci_workflow_splits_affected_validation_lanes(self):
         ci = CI_WORKFLOW.read_text(encoding="utf-8")
         jobs_text = ci.split("\njobs:\n", maxsplit=1)[1]
@@ -186,7 +193,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
         self.assertEqual(
             job_names,
-            ["changes", "repository", "app", "web", "api", "integration", "result"],
+            ["changes", "repository", "app", "web", "web-build", "web-browser", "api", "integration", "result", "preview"],
         )
         for token in (
             "pull_request:",
@@ -226,7 +233,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         }
         for job_name, output in lane_outputs.items():
             job = jobs[job_name]
-            self.assertIn("needs: changes", job)
+            self.assertIn("needs: [changes, web-build]" if job_name == "integration" else "needs: changes", job)
             self.assertIn(f"needs.changes.outputs.{output} == 'true'", job)
             self.assertIn(CHECKOUT_ACTION, job)
             self.assertIn("persist-credentials: false", job)
@@ -269,8 +276,19 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         web = jobs["web"]
         self.assertIn("timeout-minutes: 60", web)
         self.assertIn("node scripts/testing/run-test-owner.mjs delivery web", web)
+        browser = jobs["web-browser"]
+        self.assertIn("needs: [changes, web-build]", browser)
+        self.assertNotIn("needs: [changes, web, web-build]", browser)
+        self.assertIn("web browser --artifact=.ci-artifacts/web.json", browser)
+        self.assertIn("node scripts/ci/build-artifact.mjs verify web", browser)
+        self.assertIn("web-candidate-${{ github.run_id }}-${{ github.run_attempt }}", browser)
+        self.assertIn("node scripts/ci/build-artifact.mjs record web", jobs["web-build"])
+        self.assertIn("include-hidden-files: true", jobs["web-build"])
+        self.assertIn("if-no-files-found: error", jobs["web-build"])
+        web = browser
         self.assertIn(GOOGLE_CHROME_APT_CLEANUP, web)
-        self.assertIn("playwright install --with-deps chromium firefox", web)
+        self.assertIn("playwright install --with-deps chromium", web)
+        self.assertNotIn("chromium firefox", web)
         self.assertIn("name: Upload Web browser failure evidence", web)
         self.assertIn("if: failure()", web)
         self.assertIn(UPLOAD_ARTIFACT_ACTION, web)
@@ -282,7 +300,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertIn("if-no-files-found: ignore", web)
         self.assertIn("retention-days: 7", web)
         self.assertEqual(ci.count(GOOGLE_CHROME_APT_CLEANUP), 2)
-        self.assertEqual(ci.count(UPLOAD_ARTIFACT_ACTION), 5)
+        self.assertEqual(ci.count(UPLOAD_ARTIFACT_ACTION), 6)
 
         # Every report lane uploads the artifacts its own run wrote, from one
         # shared step shape. Asserting the whole step keeps a renamed step, a
@@ -328,7 +346,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
                 ),
                 jobs[job_name],
             )
-        self.assertIn("pnpm --filter @imsweb/web run test -- ci", web)
+        self.assertIn("node scripts/testing/run-test-owner.mjs web validation", jobs["web"])
+        self.assertIn('IMS_TEST_COVERAGE_ENABLED: "true"', jobs["web"])
         self.assertNotIn("--unit-prepared", web)
 
         api = jobs["api"]
@@ -337,7 +356,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             self.assertNotIn(f"pnpm --filter @imsweb/api run {command}", api)
 
         integration = jobs["integration"]
-        self.assertIn("pnpm run test:web-routing", integration)
+        self.assertIn("delivery integration --artifact=.ci-artifacts/web.json", integration)
+        self.assertIn("web-candidate-${{ github.run_id }}-${{ github.run_attempt }}", integration)
         self.assertNotIn("pnpm --filter @imsweb/api run check:assets", integration)
 
         for job_name, job in jobs.items():
@@ -351,9 +371,11 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         result = jobs["result"]
         self.assertIn("name: Validate repository", result)
         self.assertIn("if: always()", result)
-        for dependency in job_names[:-1]:
+        for dependency in job_names[:-2]:
             self.assertIn(f"- {dependency}", result)
         self.assertIn("needs.changes.result", result)
+        self.assertIn('verify_lane web-build "$WEB_BUILD_SELECTED" "$WEB_BUILD_RESULT"', result)
+        self.assertIn('verify_lane web-browser "$WEB_SELECTED" "$WEB_BROWSER_RESULT"', result)
         for lane, prefix in (
             ("repository", "REPOSITORY"),
             ("app", "APP"),
@@ -369,11 +391,49 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertIn("validation selection/result mismatch", result)
         self.assertNotIn("success|skipped|cancelled", result)
 
-        self.assertEqual(ci.count(CHECKOUT_ACTION), 6)
-        self.assertEqual(ci.count(NODE_SETUP_ACTION), 6)
-        self.assertEqual(ci.count(PNPM_SETUP_ACTION), 5)
-        self.assertEqual(ci.count("node-version-file: .nvmrc"), 6)
-        self.assertEqual(ci.count("run: pnpm install --frozen-lockfile"), 5)
+        self.assertEqual(ci.count(CHECKOUT_ACTION), 8)
+        self.assertEqual(ci.count(NODE_SETUP_ACTION), 15)
+        self.assertEqual(ci.count(PNPM_SETUP_ACTION), 7)
+        self.assertEqual(ci.count("node-version-file: .nvmrc"), 15)
+        self.assertEqual(ci.count("run: pnpm install --frozen-lockfile"), 7)
+        self.assertEqual(ci.count("cache: pnpm"), 7)
+        self.assertEqual(ci.count("cache-dependency-path: pnpm-lock.yaml"), 7)
+        self.assertIn("- release/v1.1", ci)
+        self.assertIn("repo=true\\napp=true\\nweb=true\\napi=true\\nintegration=true", changes)
+        self.assertIn("needs: result", jobs["preview"])
+        self.assertIn("needs.result.result == 'success'", jobs["preview"])
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/release/v1.1'", jobs["preview"])
+        self.assertIn("uses: ./.github/workflows/deploy-preview.yml", jobs["preview"])
+
+    def test_reusable_preview_passes_only_required_environment_secret_names(self):
+        ci = CI_WORKFLOW.read_text(encoding="utf-8")
+        preview = PREVIEW_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+        caller = ci.split("\n  preview:\n", maxsplit=1)[1]
+        interface = preview.split("  workflow_call:\n", maxsplit=1)[1].split(
+            "  workflow_dispatch:", maxsplit=1
+        )[0]
+        names = ("PREVIEW_DEPLOY_SSH_PRIVATE_KEY", "PREVIEW_DEPLOY_SSH_KNOWN_HOSTS")
+        self.assertEqual(interface, "    secrets:\n" + "".join(
+            f"      {name}:\n        required: true\n" for name in names
+        ))
+        passage = caller.split("    secrets:\n", maxsplit=1)[1].split(
+            "    permissions:", maxsplit=1
+        )[0]
+        self.assertEqual(passage, "".join(
+            f"      {name}: ${{{{ secrets.{name} }}}}\n" for name in names
+        ))
+        self.assertNotIn("secrets: inherit", ci + preview)
+        self.assertNotIn("environment:", caller)
+        before_deploy, deploy = preview.split("\n  deploy:\n", maxsplit=1)
+        self.assertIn("environment:\n      name: preview", deploy)
+        for name in names:
+            self.assertEqual(ci.count(f"secrets.{name}"), 1)
+            self.assertNotIn(f"secrets.{name}", before_deploy)
+            self.assertEqual(deploy.count(f"{name}: ${{{{ secrets.{name} }}}}"), 2)
+            self.assertIn(f'"${{{name}:?Set preview secret {name}}}"', deploy)
+            self.assertNotIn(f"vars.{name}", ci + preview)
+        self.assertIn("workflow_dispatch:", preview)
+        self.assertIn("confirm_preview_deploy:", preview)
 
     def test_deployment_workflow_uses_complete_release_gates(self):
         deployment = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
@@ -461,19 +521,21 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
         for token in (
             "name: Deploy preview",
-            "push:\n    branches:\n      - release/v1.1",
+            "workflow_call:",
             "workflow_dispatch:",
             "confirm_preview_deploy:",
-            "github.event_name == 'push' || inputs.confirm_preview_deploy",
+            "github.event_name == 'workflow_dispatch' && inputs.confirm_preview_deploy",
             'expected_ref="refs/heads/${source_branch}"',
             'source_branch="release/v1.1"',
             'preview_id=preview-${release_sha:0:12}',
             'image_name="ghcr.io/${REPOSITORY,,}-api"',
-            "name: Test and publish preview image\n    if: github.event_name == 'push'",
-            "run: pnpm run check",
-            "run: pnpm run test",
+            "name: Publish validated preview image\n    if: github.event_name == 'push'",
+            "Verify complete trusted candidate validation",
+            "Verify candidate immediately before publication",
+            "Verify current complete candidate before deployment resources",
+            "no-cache: true",
+            "node .candidate-verifier/scripts/ci/verified-candidate.mjs",
             NODE_SETUP_ACTION,
-            PNPM_SETUP_ACTION,
             DOCKER_SETUP_BUILDX_ACTION,
             DOCKER_LOGIN_ACTION,
             DOCKER_BUILD_PUSH_ACTION,
@@ -515,6 +577,10 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             self.assertIn(token, preview)
 
         self.assertNotIn("pull_request:", preview)
+        self.assertNotIn("run: pnpm run check", preview)
+        self.assertNotIn("run: pnpm run test", preview)
+        self.assertNotIn("services:", preview)
+        self.assertNotIn("cache-from:", preview)
         self.assertNotIn("secrets.IMS_JWT_SECRET", preview)
         self.assertNotIn("secrets.AWS_SECRET_ACCESS_KEY", preview)
         self.assertNotIn("secrets.GHCR_TOKEN", preview)

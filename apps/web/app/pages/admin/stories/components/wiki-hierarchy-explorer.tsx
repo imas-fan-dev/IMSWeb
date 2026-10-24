@@ -1,16 +1,9 @@
-import {
-  ChevronDownIcon,
-  FolderOpenIcon,
-  PencilIcon,
-  PlusIcon,
-  UsersRoundIcon,
-} from "lucide-react"
+import { ChevronDownIcon, FolderOpenIcon, UsersRoundIcon } from "lucide-react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiEntryKindBadge } from "~/components/wiki/wiki-entry-kind"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
@@ -30,16 +23,10 @@ export function WikiHierarchyExplorer({
   agency,
   selectedIdolId,
   onSelectIdol,
-  onCreateGroup,
-  onEditGroup,
-  onCreateIdol,
 }: {
   agency: WikiAdminAgency
   selectedIdolId: number | null
   onSelectIdol: (idol: WikiAdminIdol) => void
-  onCreateGroup: () => void
-  onEditGroup: (group: WikiAdminGroup) => void
-  onCreateIdol: () => void
 }) {
   const idolCount = new Set(
     [...agency.idols, ...agency.groups.flatMap((group) => group.idols)].map(
@@ -65,26 +52,6 @@ export function WikiHierarchyExplorer({
             {agency.groups.length} 个栏目 · {idolCount} 个内容页
           </p>
         </div>
-        <div className="flex shrink-0 gap-1">
-          <Button
-            type="button"
-            size="xs"
-            variant="ghost"
-            onClick={onCreateGroup}
-          >
-            <PlusIcon data-icon="inline-start" />
-            栏目
-          </Button>
-          <Button
-            type="button"
-            size="xs"
-            variant="ghost"
-            onClick={onCreateIdol}
-          >
-            <PlusIcon data-icon="inline-start" />
-            内容页
-          </Button>
-        </div>
       </div>
 
       {agency.groups.length || ungroupedIdols.length ? (
@@ -95,7 +62,6 @@ export function WikiHierarchyExplorer({
               group={group}
               selectedIdolId={selectedIdolId}
               onSelectIdol={onSelectIdol}
-              onEdit={() => onEditGroup(group)}
             />
           ))}
           {ungroupedIdols.length ? (
@@ -133,7 +99,7 @@ export function WikiHierarchyExplorer({
             </EmptyMedia>
             <EmptyTitle>还没有内容</EmptyTitle>
             <EmptyDescription>
-              可直接新增未归档内容页，也可以先创建栏目。
+              请前往偶像管理维护栏目与内容页。
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -146,12 +112,10 @@ function GroupBranch({
   group,
   selectedIdolId,
   onSelectIdol,
-  onEdit,
 }: {
   group: WikiAdminGroup
   selectedIdolId: number | null
   onSelectIdol: (idol: WikiAdminIdol) => void
-  onEdit: () => void
 }) {
   return (
     <Collapsible defaultOpen>
@@ -184,10 +148,6 @@ function GroupBranch({
           </span>
           {group.isFallback ? <Badge variant="outline">默认</Badge> : null}
         </CollapsibleTrigger>
-        <Button type="button" size="xs" variant="ghost" onClick={onEdit}>
-          <PencilIcon data-icon="inline-start" />
-          编辑
-        </Button>
       </div>
 
       <CollapsibleContent>

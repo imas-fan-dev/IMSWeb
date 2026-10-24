@@ -1,9 +1,12 @@
 name: Deploy preview
 
 on:
-  push:
-    branches:
-      - release/v1.1
+  workflow_call:
+    secrets:
+      PREVIEW_DEPLOY_SSH_PRIVATE_KEY:
+        required: true
+      PREVIEW_DEPLOY_SSH_KNOWN_HOSTS:
+        required: true
   workflow_dispatch:
     inputs:
       confirm_preview_deploy:
@@ -14,11 +17,15 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   prepare:
     name: Resolve preview commit
-    if: github.event_name == 'push' || inputs.confirm_preview_deploy
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/release/v1.1' &&
+       github.event.repository.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm_preview_deploy)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -30,6 +37,7 @@ jobs:
       - name: Check out preview commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -37,17 +45,19 @@ jobs:
         id: preview
         env:
           REPOSITORY: ${{ github.repository }}
+          CANDIDATE_SHA: ${{ github.sha }}
+          CANDIDATE_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           source_branch="release/v1.1"
           expected_ref="refs/heads/${source_branch}"
-          if [[ "$GITHUB_REF" != "$expected_ref" ]]; then
+          if [[ "refs/heads/$CANDIDATE_BRANCH" != "$expected_ref" ]]; then
             echo "Preview deployments must run from $expected_ref." >&2
             exit 1
           fi
 
           release_sha="$(git rev-parse HEAD)"
-          if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ || "$release_sha" != "$GITHUB_SHA" ]]; then
+          if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ || "$release_sha" != "$CANDIDATE_SHA" ]]; then
             echo "Could not resolve the exact preview commit." >&2
             exit 1
           fi
@@ -63,8 +73,29 @@ jobs:
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
           echo "source_branch=$source_branch" >> "$GITHUB_OUTPUT"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check out trusted candidate verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .candidate-verifier
+          persist-credentials: false
+          sparse-checkout: scripts/ci/verified-candidate.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Verify complete trusted candidate validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.preview.outputs.release_sha }}
+          CANDIDATE_RUN_ID: ${{ github.event_name == 'push' && github.run_id || '' }}
+        run: node .candidate-verifier/scripts/ci/verified-candidate.mjs
+
   publish:
-    name: Test and publish preview image
+    name: Publish validated preview image
     if: github.event_name == 'push'
     needs: prepare
     runs-on: ubuntu-24.04
@@ -74,28 +105,14 @@ jobs:
       cancel-in-progress: true
     env:
       IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
-      IMS_TEST_DATABASE_URL: postgresql://imsweb:imsweb-test-password@127.0.0.1:5432/postgres
-    services:
-      postgres:
-        image: postgres:18.4-alpine
-        env:
-          POSTGRES_USER: imsweb
-          POSTGRES_PASSWORD: imsweb-test-password
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready --username=imsweb --dbname=postgres"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
     permissions:
       contents: read
+      actions: read
       packages: write
       attestations: write
       id-token: write
     outputs:
-      digest: ${{ steps.build.outputs.digest }}
+      digest: ${{ steps.publish-image.outputs.digest }}
     steps:
       - name: Check out preview commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -109,20 +126,21 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Check out trusted candidate verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          version: 11.10.0
-          run_install: false
+          ref: ${{ github.workflow_sha }}
+          path: .candidate-verifier
+          persist-credentials: false
+          sparse-checkout: scripts/ci/verified-candidate.mjs
+          sparse-checkout-cone-mode: false
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run static and architecture checks
-        run: pnpm run check
-
-      - name: Run repository tests
-        run: pnpm run test
+      - name: Verify candidate freshness before shared build resources
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+          CANDIDATE_RUN_ID: ${{ github.run_id }}
+        run: node .candidate-verifier/scripts/ci/verified-candidate.mjs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -134,26 +152,45 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push immutable preview image
+      - name: Build clean preview image
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: apps/api/Dockerfile
-          push: true
+          push: false
+          load: true
           tags: ${{ env.IMAGE_NAME }}:preview-sha-${{ needs.prepare.outputs.release_sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.prepare.outputs.release_sha }}
             org.opencontainers.image.version=${{ needs.prepare.outputs.preview_id }}
-          cache-from: type=gha,scope=imsweb-api
-          cache-to: type=gha,mode=max,scope=imsweb-api
+          no-cache: true
+
+      - name: Verify candidate immediately before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+          CANDIDATE_RUN_ID: ${{ github.run_id }}
+        run: node .candidate-verifier/scripts/ci/verified-candidate.mjs
+
+      - name: Publish immutable preview image
+        id: publish-image
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          tagged_image="${IMAGE_NAME}:preview-sha-${RELEASE_SHA}"
+          docker push "$tagged_image"
+          digest="$(docker buildx imagetools inspect "$tagged_image" | awk '$1 == "Digest:" { print $2; exit }')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Attest preview image provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-name: ${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-digest: ${{ steps.publish-image.outputs.digest }}
           push-to-registry: true
 
   resolve-image:
@@ -243,6 +280,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read
       packages: read
     environment:
       name: preview
@@ -262,8 +300,22 @@ jobs:
           ref: ${{ github.workflow_sha }}
           path: .deployment-workflow
           persist-credentials: false
-          sparse-checkout: scripts/deployment/run-authenticated-compose-release.sh
+          sparse-checkout: |
+            scripts/deployment/run-authenticated-compose-release.sh
+            scripts/ci/verified-candidate.mjs
           sparse-checkout-cone-mode: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Verify current complete candidate before deployment resources
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+          CANDIDATE_RUN_ID: ${{ github.event_name == 'push' && github.run_id || '' }}
+        run: node .deployment-workflow/scripts/ci/verified-candidate.mjs
 
       - name: Validate preview deployment configuration
         env:

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import re
+import shlex
 import unittest
 
 
@@ -41,6 +42,22 @@ def parse_environment_template(text):
     return values, documented
 
 
+def documented_shell_commands(text):
+    """Read documented shell invocations without executing them."""
+    for block in re.findall(r"^```sh\s*\n(.*?)^```", text, re.MULTILINE | re.DOTALL):
+        for line in re.sub(r"\\\r?\n", "", block).splitlines():
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|")
+            lexer.whitespace_split = True
+            command = []
+            for token in [*lexer, ";"]:
+                if re.fullmatch(r"[;&|]+", token):
+                    if command:
+                        yield command
+                    command = []
+                else:
+                    command.append(token)
+
+
 class OperationsDocumentationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -50,6 +67,26 @@ class OperationsDocumentationTests(unittest.TestCase):
         cls.ai_guide = AI_DEVELOPMENT_ENVIRONMENT.read_text(encoding="utf-8")
         cls.producer_map_migration = PRODUCER_MAP_MIGRATION.read_text(encoding="utf-8")
         cls.producer_map_sql = PRODUCER_MAP_SQL.read_text(encoding="utf-8")
+
+    def assert_guarded_producer_map_apply_examples(self, document):
+        prefix = ["pnpm", "run", "media:producer-map:sync", "--"]
+        commands = [
+            command[len(prefix):]
+            for command in documented_shell_commands(document)
+            if command[:len(prefix)] == prefix and "--apply" in command[len(prefix):]
+        ]
+        self.assertTrue(commands, "Document an executable Producer Map apply command")
+        for command in commands:
+            self.assertNotIn("--require-r2", command)
+            values = {}
+            for option in ("--source-base-url", "--confirm-source", "--confirm-bucket"):
+                self.assertEqual(command.count(option), 1, f"Require {option}: {command}")
+                index = command.index(option) + 1
+                self.assertLess(index, len(command), f"Missing value for {option}")
+                value = command[index]
+                self.assertTrue(value and not value.startswith("--"), option)
+                values[option] = value
+            self.assertEqual(values["--source-base-url"], values["--confirm-source"])
 
     def test_database_configuration_covers_postgresql_runtime_and_readiness(self):
         for token in (
@@ -326,12 +363,66 @@ class OperationsDocumentationTests(unittest.TestCase):
 
         for token in (
             "pnpm run media:producer-map:sync",
-            "pnpm run media:producer-map:sync -- --apply",
             "producer-map-r2-control-plane.sql",
             "ObjectStorage",
             "SHA-256",
         ):
             self.assertIn(token, self.producer_map_migration)
+        self.assert_guarded_producer_map_apply_examples(self.producer_map_migration)
+
+    def test_producer_map_apply_examples_allow_wrapping_and_option_order(self):
+        examples = (
+            "pnpm run media:producer-map:sync -- --apply "
+            "--source-base-url https://legacy.example.test "
+            "--confirm-source https://legacy.example.test --confirm-bucket approved-bucket",
+            "pnpm run media:producer-map:sync -- \\\n"
+            "  --confirm-bucket 'approved-bucket' \\\n"
+            "  --source-base-url https://legacy.example.test \\\n"
+            "  --apply --confirm-source https://legacy.example.test",
+        )
+        for command in examples:
+            with self.subTest(command=command):
+                self.assert_guarded_producer_map_apply_examples(f"```sh\n{command}\n```\n")
+
+    def test_producer_map_apply_examples_require_guards_in_the_same_command(self):
+        command = (
+            "pnpm run media:producer-map:sync -- --apply "
+            "--source-base-url https://legacy.example.test "
+            "--confirm-source https://legacy.example.test --confirm-bucket approved-bucket"
+        )
+        invalid_examples = {
+            "prose only": command,
+            "comment only": f"```sh\n# {command}\n```\n",
+        }
+        for option, value in (
+            ("--source-base-url", "https://legacy.example.test"),
+            ("--confirm-source", "https://legacy.example.test"),
+            ("--confirm-bucket", "approved-bucket"),
+        ):
+            invalid_examples[f"missing {option}"] = (
+                f"```sh\n{command.replace(f'{option} {value}', '')}\n```\n"
+            )
+        mismatched_source = command.replace(
+            "--confirm-source https://legacy.example.test",
+            "--confirm-source https://other.example.test",
+        )
+        invalid_examples["source mismatch"] = f"```sh\n{mismatched_source}\n```\n"
+        invalid_examples["read-only acceptance with apply"] = (
+            f"```sh\n{command} --require-r2\n```\n"
+        )
+        invalid_examples["missing bucket value"] = (
+            f"```sh\n{command.removesuffix(' approved-bucket')}\n```\n"
+        )
+        for separator in ("\n", "; ", "&& "):
+            separate_command = command.replace(
+                "--confirm-bucket", separator + "echo --confirm-bucket"
+            )
+            invalid_examples[f"separate command {separator!r}"] = (
+                f"```sh\n{separate_command}\n```\n"
+            )
+        for name, document in invalid_examples.items():
+            with self.subTest(case=name), self.assertRaises(AssertionError):
+                self.assert_guarded_producer_map_apply_examples(document)
 
 
 if __name__ == "__main__":

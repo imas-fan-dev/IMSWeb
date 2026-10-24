@@ -38,11 +38,11 @@ pnpm run check
 pnpm run test
 ```
 
-Use focused suites while iterating: `test:node`, `test:server`, `test:wiki`, and `test:assets`. Run the full `check` and `test` gates before submitting changes that cross domains.
+Use focused suites while iterating: `test:server`, `test:wiki`, `test:migration`, and `test:assets`. Run the full `check` and `test` gates before submitting changes that cross domains.
 
 ## Style & Tests
 
-Use strict TypeScript, four-space indentation, semicolons, and single quotes. Prefer kebab-case filenames and explicit domain names. Tests use Node's test runner for Node/server contracts. Name files `*.test.ts` or `*.test.js`. Persistence changes require a focused driver or repository regression plus the Node runtime contract.
+Use strict TypeScript, four-space indentation, semicolons, and single quotes. Prefer kebab-case filenames and explicit domain names. All API tests run under Vitest over `tests/**/*.test.{ts,js}`, including the cases that exercise built `dist/server` artifacts; there is no `node --test` lane. Name files `*.test.ts` or `*.test.js`. Persistence changes require a focused driver or repository regression plus the Node runtime contract.
 
 ## Migrations, Assets & Security
 

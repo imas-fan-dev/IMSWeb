@@ -1,5 +1,6 @@
+import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba/runtime';
 import type {
-    CardIdolSelectionRecord,
+    CardFavoriteSelectionRecord,
     CardMediaRecord,
     NamecardRepository,
     NamecardApprovalClaim,
@@ -22,11 +23,11 @@ import {
     publicMediaObjectKey
 } from '@/utils/storage/business-object-keys';
 
-type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_idols'>;
+type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
 
-type NamecardIdolRow = {
+type NamecardFavoriteRow = {
     card_id: number | string;
-    idol_id: number | string;
+    character_id: number | string;
     agency_code: string;
     name_cn: string;
     display_order: number | string;
@@ -88,17 +89,28 @@ export class SqlCoreRepository implements NamecardRepository {
     private async validateNamecardSelection(
         database: SqlDatabase,
         seriesCode: string | null,
-        idolIds: readonly number[],
+        characterIds: readonly number[],
         submissionKind: NamecardSubmissionKind
-    ): Promise<CardIdolSelectionRecord[]> {
+    ): Promise<CardFavoriteSelectionRecord[]> {
         if (submissionKind === 'guest' && !seriesCode) {
             throw new Error('Guest namecard submissions require a series code');
         }
-        if (submissionKind === 'guest' && (idolIds.length < 1 || idolIds.length > 20)) {
-            throw new Error('Guest namecard submissions require between 1 and 20 idols');
+        if (
+            submissionKind === 'guest' &&
+            (characterIds.length < 1 ||
+                characterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT)
+        ) {
+            throw new Error(
+                `Guest namecard submissions require between 1 and ${NAMECARD_FAVORITE_CHARACTER_LIMIT} characters`
+            );
         }
-        if (idolIds.length > 20 || new Set(idolIds).size !== idolIds.length) {
-            throw new Error('Namecard idol selections must be unique and contain at most 20 idols');
+        if (
+            characterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT ||
+            new Set(characterIds).size !== characterIds.length
+        ) {
+            throw new Error(
+                `Namecard character selections must be unique and contain at most ${NAMECARD_FAVORITE_CHARACTER_LIMIT} characters`
+            );
         }
         if (seriesCode) {
             const series = await queryOne<{ code: string }>(
@@ -108,53 +120,53 @@ export class SqlCoreRepository implements NamecardRepository {
             );
             if (!series) throw new Error('Namecard series does not exist');
         }
-        if (!idolIds.length) return [];
-        const placeholders = idolIds.map(() => '?').join(', ');
-        const rows = await queryAll<Omit<NamecardIdolRow, 'card_id' | 'display_order'>>(
+        if (!characterIds.length) return [];
+        const placeholders = characterIds.map(() => '?').join(', ');
+        const rows = await queryAll<Omit<NamecardFavoriteRow, 'card_id' | 'display_order'>>(
             database,
-            `SELECT idol.id AS idol_id, agency.code AS agency_code, idol.name_cn
-             FROM idols idol
-             JOIN agencies agency ON agency.id=idol.agency_id
-             WHERE idol.id IN (${placeholders}) AND idol.deleted_at IS NULL`,
-            idolIds
+            `SELECT character.id AS character_id, agency.code AS agency_code, character.name_cn
+             FROM namecard_characters character
+             JOIN agencies agency ON agency.id=character.agency_id
+             WHERE character.id IN (${placeholders}) AND character.deleted_at IS NULL`,
+            characterIds
         );
-        const byId = new Map(rows.map((row) => [Number(row.idol_id), row]));
-        if (byId.size !== idolIds.length) {
-            throw new Error('One or more selected namecard idols do not exist');
+        const byId = new Map(rows.map((row) => [Number(row.character_id), row]));
+        if (byId.size !== characterIds.length) {
+            throw new Error('One or more selected namecard characters do not exist');
         }
-        return idolIds.map((idolId, displayOrder) => {
-            const idol = byId.get(idolId)!;
+        return characterIds.map((characterId, displayOrder) => {
+            const character = byId.get(characterId)!;
             return {
-                idol_id: idolId,
-                agency_code: idol.agency_code,
-                name_cn: idol.name_cn,
+                character_id: characterId,
+                agency_code: character.agency_code,
+                name_cn: character.name_cn,
                 display_order: displayOrder
             };
         });
     }
 
-    private async listNamecardIdols(
+    private async listNamecardFavorites(
         database: SqlDatabase,
         internalIds: readonly string[]
-    ): Promise<Map<string, CardIdolSelectionRecord[]>> {
-        const grouped = new Map<string, CardIdolSelectionRecord[]>();
+    ): Promise<Map<string, CardFavoriteSelectionRecord[]>> {
+        const grouped = new Map<string, CardFavoriteSelectionRecord[]>();
         for (const internalId of internalIds) grouped.set(internalId, []);
         if (!internalIds.length) return grouped;
         const placeholders = internalIds.map(() => '?').join(', ');
-        const rows = await queryAll<NamecardIdolRow>(
+        const rows = await queryAll<NamecardFavoriteRow>(
             database,
-            `SELECT selected.card_id, selected.idol_id, agency.code AS agency_code,
-                    idol.name_cn, selected.display_order
-             FROM fudaba_card_idols selected
-             JOIN idols idol ON idol.id=selected.idol_id
-             JOIN agencies agency ON agency.id=idol.agency_id
+            `SELECT selected.card_id, selected.character_id, agency.code AS agency_code,
+                    character.name_cn, selected.display_order
+             FROM fudaba_card_favorite_characters selected
+             JOIN namecard_characters character ON character.id=selected.character_id
+             JOIN agencies agency ON agency.id=character.agency_id
              WHERE selected.card_id IN (${placeholders})
              ORDER BY selected.card_id, selected.display_order`,
             internalIds
         );
         for (const row of rows) {
             grouped.get(String(row.card_id))?.push({
-                idol_id: Number(row.idol_id),
+                character_id: Number(row.character_id),
                 agency_code: row.agency_code,
                 name_cn: row.name_cn,
                 display_order: Number(row.display_order)
@@ -176,20 +188,20 @@ export class SqlCoreRepository implements NamecardRepository {
         };
     }
 
-    private async attachNamecardIdols(
+    private async attachNamecardFavorites(
         database: SqlDatabase,
         rows: readonly NamecardCardRow[]
-    ): Promise<Array<NamecardSubmissionRow & { favorite_idols: CardIdolSelectionRecord[] }>> {
-        const idols = await this.listNamecardIdols(database, rows.map((row) => row.internal_id));
+    ): Promise<Array<NamecardSubmissionRow & { favorite_characters: CardFavoriteSelectionRecord[] }>> {
+        const characters = await this.listNamecardFavorites(database, rows.map((row) => row.internal_id));
         return rows.map((row) => {
-            const favoriteIdols = idols.get(row.internal_id) ?? [];
+            const favoriteCharacters = characters.get(row.internal_id) ?? [];
             const record = this.namecardRecordFromRow(row);
             return {
                 ...record,
-                favorite_idols: favoriteIdols,
+                favorite_characters: favoriteCharacters,
                 seriesCode: record.series_code ?? null,
                 submissionKind: record.submission_kind ?? 'legacy',
-                favoriteIdols
+                favoriteCharacters
             };
         });
     }
@@ -199,20 +211,20 @@ export class SqlCoreRepository implements NamecardRepository {
         row: NamecardCardRow | null
     ): Promise<NamecardSubmissionRecord | null> {
         if (!row) return null;
-        return (await this.attachNamecardIdols(database, [row]))[0] ?? null;
+        return (await this.attachNamecardFavorites(database, [row]))[0] ?? null;
     }
 
     async insertPendingCard(input: PendingCardInput): Promise<number> {
         const submissionKind = input.submissionKind ?? 'guest';
-        const idolIds = input.idolIds ?? [];
+        const characterIds = input.characterIds ?? [];
         const idPrefix = submissionKind === 'legacy' ? 'legacy' : 'guest';
         const frontKey = publicMediaObjectKey(input.image1Url);
         const backKey = publicMediaObjectKey(input.image2Url);
         return this.database.transaction(async (database) => {
-            const idols = await this.validateNamecardSelection(
+            const characters = await this.validateNamecardSelection(
                 database,
                 input.seriesCode ?? null,
-                idolIds,
+                characterIds,
                 submissionKind
             );
             const created = await queryOne<{ id: string; card_number: number | string }>(
@@ -243,11 +255,11 @@ export class SqlCoreRepository implements NamecardRepository {
                 ]
             );
             if (!created) throw new Error('Card insert did not return an ID');
-            if (idols.length) {
-                await database.batch(idols.map((idol) => database.prepare(
-                    `INSERT INTO fudaba_card_idols (card_id, idol_id, display_order)
+            if (characters.length) {
+                await database.batch(characters.map((character) => database.prepare(
+                    `INSERT INTO fudaba_card_favorite_characters (card_id, character_id, display_order)
                      VALUES (?, ?, ?)`
-                ).bind(created.id, idol.idol_id, idol.display_order)));
+                ).bind(created.id, character.character_id, character.display_order)));
             }
             await executeSql(database,
                 `INSERT INTO namecard_guest_attributes
@@ -286,7 +298,7 @@ export class SqlCoreRepository implements NamecardRepository {
              ORDER BY card_number DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
-        return await this.attachNamecardIdols(this.database, rows) as NamecardPublicRecord[];
+        return await this.attachNamecardFavorites(this.database, rows) as NamecardPublicRecord[];
     }
 
     async findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
@@ -308,7 +320,7 @@ export class SqlCoreRepository implements NamecardRepository {
              ORDER BY card_number DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
-        return this.attachNamecardIdols(this.database, rows);
+        return this.attachNamecardFavorites(this.database, rows);
     }
 
     async beginCardApproval(

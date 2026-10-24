@@ -1,4 +1,9 @@
 import type { FudabaCard, FudabaMapOffice, FudabaOffice, FudabaPlacedCard } from "@imsweb/contracts/fudaba";
+import type {
+    NamecardCharacterCatalogAgency,
+    NamecardCharacterCatalogEntry,
+    NamecardCharacterCatalogUnit,
+} from "@imsweb/contracts/fudaba/characters";
 import { regionalLocation } from "@/domains/community/fudaba/contracts/location";
 import type { ObjectStorage } from "@/ports/object-storage";
 import type {
@@ -6,12 +11,16 @@ import type {
     FudabaPublicMapOfficeRecord,
     FudabaPublicOfficeRecord,
     FudabaPublicPlacedCardRecord,
+    NamecardCharacterAgencyRecord,
+    NamecardCharacterRecord,
+    NamecardUnitRecord,
 } from "@/ports/repositories";
 import { requirePublicObjectUrl } from "@/utils/storage/public-object-url";
 
 export async function fudabaPublicOfficeView(
     storage: ObjectStorage | undefined,
     office: FudabaPublicOfficeRecord,
+    includeLocation = false,
 ): Promise<FudabaOffice> {
     let coverUrl: string | null = null;
     if (office.cover_object_key) {
@@ -37,6 +46,11 @@ export async function fudabaPublicOfficeView(
         isOpen: office.is_open,
         visitorCount: office.visitor_count,
         seriesCodes: office.series_codes,
+        ...(includeLocation ? {
+            location: office.public_latitude_e1 != null && office.public_longitude_e1 != null
+                ? regionalLocation(office.public_latitude_e1, office.public_longitude_e1)
+                : null
+        } : {}),
     };
 }
 
@@ -58,11 +72,11 @@ export async function fudabaPublicCardView(
         producerName: card.producer_name,
         displayName: card.display_name,
         seriesCode: card.series_code,
-        favoriteIdol: card.favorite_idol,
-        favoriteIdols: card.favorite_idols.map((idol) => ({
-            id: idol.idol_id,
-            name: idol.name_cn,
-            seriesCode: idol.agency_code,
+        favoriteCharacter: card.favorite_character,
+        favoriteCharacters: card.favorite_characters.map((character) => ({
+            id: character.character_id,
+            name: character.name_cn,
+            seriesCode: character.agency_code,
         })),
         frontImageUrl,
         backImageUrl,
@@ -119,5 +133,48 @@ export function fudabaPublicMapOfficeView(
         isOpen: office.is_open,
         seriesCodes: office.series_codes,
         location: regionalLocation(office.latitude_e1, office.longitude_e1),
+    };
+}
+
+export function namecardCharacterCatalogAgencyView(
+    agency: NamecardCharacterAgencyRecord,
+): NamecardCharacterCatalogAgency {
+    return {
+        id: agency.id,
+        code: agency.code,
+        name: agency.name_cn,
+        color: agency.color,
+    };
+}
+
+export function namecardCharacterCatalogEntryView(
+    character: NamecardCharacterRecord,
+): NamecardCharacterCatalogEntry {
+    return {
+        id: character.id,
+        agencyId: character.agency_id,
+        agencyCode: character.agency_code,
+        agencyName: character.agency_name,
+        agencyColor: character.agency_color,
+        category: character.category,
+        isFallback: character.is_fallback,
+        nameCn: character.name_cn,
+        nameJa: character.name_ja,
+        nameEn: character.name_en,
+        aliases: character.aliases,
+    };
+}
+
+export function namecardCharacterCatalogUnitView(
+    unit: NamecardUnitRecord,
+): NamecardCharacterCatalogUnit {
+    return {
+        id: unit.id,
+        nameCn: unit.name_cn,
+        nameJa: unit.name_ja,
+        nameEn: unit.name_en,
+        aliases: unit.aliases,
+        agencyIds: unit.agencies.map((agency) => agency.id),
+        memberIds: unit.members.map((member) => member.character_id),
     };
 }

@@ -91,110 +91,38 @@ test.describe('PostgreSQL migration', () => {
                 { version: '0026_platform_email_verification_delivery', phase: 'post-data' },
                 { version: '0027_fudaba_agency_catalog', phase: 'post-data' },
                 { version: '20260804095901_wiki_idol_url', phase: 'post-data' },
-                {
-                    version: '20260805090000_wiki_story_content_type_icons',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260811090000_community_experience_consistency',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260811100000_wiki_category_revision',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260813000000_namecard_rejected_at',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260814155304_shared_request_controls',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260814170000_object_deletion_jobs',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260816193000_namecard_ownership_foundation',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260818000000_platform_password_reset',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260818010000_platform_oauth_configuration',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260818101253_editorial_content_cms',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260819000000_namecard_unification_foundation',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260819090000_community_posts_unification',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260820000000_namecard_guest_profile',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260821000000_namecard_reaction_reconciliation',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260822100000_editorial_presentation',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260826130000_namecard_legacy_tables_read_only',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260901140000_dynamic_platform_oauth_providers',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260902120000_platform_session_devices',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260912210000_platform_email_configuration',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260913120000_platform_email_delivery_jobs',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260913130000_platform_email_request_cooldowns',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20260918120000_platform_oauth_app_exchange',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20261010120000_fudaba_wall_world',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20261013120000_fudaba_message_wall_v2',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20261020090000_fudaba_wall_scene',
-                    phase: 'post-data'
-                },
-                {
-                    version: '20261020100000_fudaba_preview_invalidation',
-                    phase: 'post-data'
-                }
+                { version: '20260805090000_wiki_story_content_type_icons', phase: 'post-data' },
+                { version: '20260811090000_community_experience_consistency', phase: 'post-data' },
+                { version: '20260811100000_wiki_category_revision', phase: 'post-data' },
+                { version: '20260813000000_namecard_rejected_at', phase: 'post-data' },
+                { version: '20260814155304_shared_request_controls', phase: 'post-data' },
+                { version: '20260814170000_object_deletion_jobs', phase: 'post-data' },
+                { version: '20260816193000_namecard_ownership_foundation', phase: 'post-data' },
+                { version: '20260818000000_platform_password_reset', phase: 'post-data' },
+                { version: '20260818010000_platform_oauth_configuration', phase: 'post-data' },
+                { version: '20260818101253_editorial_content_cms', phase: 'post-data' },
+                { version: '20260819000000_namecard_unification_foundation', phase: 'post-data' },
+                { version: '20260819090000_community_posts_unification', phase: 'post-data' },
+                { version: '20260820000000_namecard_guest_profile', phase: 'post-data' },
+                { version: '20260821000000_namecard_reaction_reconciliation', phase: 'post-data' },
+                { version: '20260822100000_editorial_presentation', phase: 'post-data' },
+                { version: '20260826130000_namecard_legacy_tables_read_only', phase: 'post-data' },
+                { version: '20260901140000_dynamic_platform_oauth_providers', phase: 'post-data' },
+                { version: '20260902120000_platform_session_devices', phase: 'post-data' },
+                { version: '20260912210000_platform_email_configuration', phase: 'post-data' },
+                { version: '20260913120000_platform_email_delivery_jobs', phase: 'post-data' },
+                { version: '20260913130000_platform_email_request_cooldowns', phase: 'post-data' },
+                { version: '20260918120000_platform_oauth_app_exchange', phase: 'post-data' },
+                { version: '20261010120000_fudaba_wall_world', phase: 'post-data' },
+                { version: '20261013120000_fudaba_message_wall_v2', phase: 'post-data' },
+                { version: '20261018120000_namecard_character_catalog', phase: 'post-data' },
+                { version: '20261018150000_namecard_unit_catalog', phase: 'post-data' },
+                { version: '20261018160000_namecard_favorite_characters', phase: 'post-data' },
+                // Kept so the ledger written by the previously deployed release stays reconcilable.
+                { version: '20261018180000_namecard_character_wiki_backfill', phase: 'post-data' },
+                { version: '20261020090000_fudaba_wall_scene', phase: 'post-data' },
+                { version: '20261020100000_fudaba_preview_invalidation', phase: 'post-data' },
+                { version: '20261024130000_namecard_catalog_snapshot', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -723,11 +651,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 54);
+        assert.equal(catalog.count, 59);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261020100000_fudaba_preview_invalidation'
+            '20261024130000_namecard_catalog_snapshot'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1132,8 +1060,13 @@ test.describe('PostgreSQL migration', () => {
                 '20260918120000_platform_oauth_app_exchange',
                 '20261010120000_fudaba_wall_world',
                 '20261013120000_fudaba_message_wall_v2',
+                '20261018120000_namecard_character_catalog',
+                '20261018150000_namecard_unit_catalog',
+                '20261018160000_namecard_favorite_characters',
+                '20261018180000_namecard_character_wiki_backfill',
                 '20261020090000_fudaba_wall_scene',
-                '20261020100000_fudaba_preview_invalidation'
+                '20261020100000_fudaba_preview_invalidation',
+                '20261024130000_namecard_catalog_snapshot'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

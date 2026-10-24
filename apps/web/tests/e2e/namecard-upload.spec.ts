@@ -2,6 +2,7 @@ import { expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installCharacterCatalogMock } from "./fixtures/fudaba-characters"
 import type { ApiDispatcher } from "./fixtures/api-dispatcher"
 import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
@@ -77,6 +78,8 @@ async function mockNamecardApi(
     },
     "GET"
   )
+
+  installCharacterCatalogMock(api, { min: 0, max: 1 })
 
   await api.mockRoute(
     "**/api/cards**",
@@ -208,7 +211,7 @@ test.describe("namecard upload", () => {
 
     expect(multipartBody.match(/name="images"/g)).toHaveLength(2)
     expect(multipartBody).toContain('name="seriesCode"')
-    expect(multipartBody).toContain('name="favoriteIdolIds"')
+    expect(multipartBody).toContain('name="favoriteCharacterIds"')
     expect(multipartBody).toContain("[1]")
     expect(multipartBody).toContain('filename="namecard-front.png"')
     expect(multipartBody).toContain('filename="namecard-back.png"')

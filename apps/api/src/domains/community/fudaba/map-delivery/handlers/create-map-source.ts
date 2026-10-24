@@ -8,6 +8,7 @@ import {
 } from '@/domains/community/fudaba/map-delivery/map-delivery-store';
 import type { FudabaMapSourceWrite } from '@imsweb/contracts/fudaba/map-delivery';
 import { fudabaMapDeliveryResponse } from '@/domains/community/fudaba/map-delivery/response';
+import { describeMapProvider } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import { services } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -18,27 +19,27 @@ export async function handleCreateFudabaMapSource(
     const runtime = services(c);
     const storage = runtime.storage;
     if (!storage) throw new Error('Object storage unavailable');
-    const seedStyleUrls = runtime.config?.fudabaMapStyleUrls ?? [];
     try {
         const payload = (
             c.req as unknown as { valid(target: 'json'): unknown }
         ).valid('json') as FudabaMapSourceWrite;
-        const current = await readFudabaMapDelivery(storage, seedStyleUrls);
+        const current = await readFudabaMapDelivery(storage, runtime.config?.fudabaMapSources ?? []);
+        const { revision: _revision, ...config } = payload;
         const source = {
             id: createFudabaMapSourceId(current.sources),
-            name: payload.name,
-            styleUrl: payload.styleUrl,
+            ...config,
         };
         const saved = await saveFudabaMapDelivery(
             storage,
             [...current.sources, source],
             current.activeSourceId,
             payload.revision,
+            current.routing,
         );
         await writeAudit(
             c,
             '新增交换地图源',
-            `${source.name} · ${source.styleUrl}`,
+            `${source.name} · ${describeMapProvider(source).auditLabel}`,
         );
         return c.json(
             {

@@ -9,10 +9,11 @@ appId: top.idol-master.imsweb
     commands:
       - tapOn: "取消"
 - tapOn: "交换地图"
-- assertVisible: "查找地点"
+- assertVisible: "查找事务所"
 - assertVisible:
     id: "ims-native-liquid-glass-tab-bar"
-- tapOn: "查找地点"
+- tapOn: "查找事务所"
+- tapOn: "地点"
 - assertVisible:
     id: "ims-native-exchange-search-input"
 - assertVisible:

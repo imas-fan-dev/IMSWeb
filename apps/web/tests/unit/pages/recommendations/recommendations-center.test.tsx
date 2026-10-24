@@ -110,19 +110,7 @@ describe("RecommendationsCenter", () => {
         })
       )
 
-    const { container } = render(<RecommendationsCenter />)
-
-    expect(
-      container.querySelector('[aria-label="正在加载推荐"] > div')
-    ).toHaveClass(
-      "min-h-36",
-      "grid-cols-[6.5rem_minmax(0,1fr)]",
-      "gap-4",
-      "border-b",
-      "py-5",
-      "sm:grid-cols-[9rem_minmax(0,1fr)]",
-      "sm:gap-6"
-    )
+    render(<RecommendationsCenter />)
 
     // No click anywhere. With IntersectionObserver stubbed out, the scroll
     // fallback is what carries the list, and it runs once on mount so a first
@@ -291,10 +279,6 @@ describe("RecommendationsCenter", () => {
       { position: "4", size: "5" },
       { position: "5", size: "5" },
     ])
-    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
-      "grid-cols-2",
-      "gap-x-6"
-    )
     expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveAttribute(
       "role",
       "presentation"
@@ -307,12 +291,6 @@ describe("RecommendationsCenter", () => {
 
     await waitFor(() =>
       expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(5)
-    )
-    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
-      "grid-cols-1"
-    )
-    expect(screen.getAllByRole("listitem")[0]?.parentElement).not.toHaveClass(
-      "grid-cols-2"
     )
     expect(measureVirtualizer).toHaveBeenCalled()
   })

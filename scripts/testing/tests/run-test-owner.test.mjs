@@ -34,11 +34,10 @@ const apiNodeCommand = [
   "exec",
   "vitest",
   "run",
-  "tests/hono-app-contract.test.js",
-  "tests/node-listener-probe.test.js",
-  "tests/node-security.test.js",
-  "tests/operation-scripts.test.js",
-  "tests/postgres-test-lifecycle.test.js",
+  "tests/hono-app-contract.test.ts",
+  "tests/node.test.ts",
+  "tests/operation-scripts.test.ts",
+  "tests/postgres-test-lifecycle.test.ts",
 ];
 
 // The API `all` profile collapses the whole API test tree into one Vitest run:
@@ -107,7 +106,7 @@ const testPaths = (plan) =>
     ),
   );
 
-test.describe('run-test-owner plan', () => {
+test.describe("run-test-owner plan", () => {
   test("governance, contracts, and delivery keep disjoint source lists", () => {
     const plans = {
       governance: buildOwnerPlan({ owner: "governance" }),
@@ -136,6 +135,7 @@ test.describe('run-test-owner plan', () => {
       governance: [
         "tests/development-environment.test.js",
         "tests/ci-affected-workspaces.test.js",
+        "scripts/ci/tests/candidate-pipeline.test.mjs",
         "scripts/testing/tests/run-test-owner.test.mjs",
         "tests/vitest-reporting.test.mjs",
         "tests/vitest-projects.test.mjs",
@@ -200,7 +200,8 @@ test.describe('run-test-owner plan', () => {
     const apiSteps = plan.filter((step) => step.args.includes("@imsweb/api"));
     const apiSuiteIndex = plan.findIndex(isApiSuiteStep);
     const apiBuildIndex = plan.findIndex(
-      (step) => step.args.includes("@imsweb/api") && step.args.at(-1) === "build",
+      (step) =>
+        step.args.includes("@imsweb/api") && step.args.at(-1) === "build",
     );
 
     assert.deepEqual(scripts(apiSteps), [
@@ -226,7 +227,9 @@ test.describe('run-test-owner plan', () => {
   });
 
   test("every API profile runs its tests in one explicit Vitest command", () => {
-    const nodeSteps = apiVitestSteps(buildOwnerPlan({ owner: "api", profile: "node" }));
+    const nodeSteps = apiVitestSteps(
+      buildOwnerPlan({ owner: "api", profile: "node" }),
+    );
     assert.equal(nodeSteps.length, 1);
     assert.equal(nodeSteps[0].executable, "pnpm");
     assert.deepEqual(nodeSteps[0].args, apiNodeCommand);
@@ -297,13 +300,29 @@ test.describe('run-test-owner plan', () => {
     const local = buildOwnerPlan({ owner: "web" });
     assert.deepEqual(scripts(local), ["test:unit"]);
     assert.equal(local.length, 1);
-    assert.deepEqual(scripts(buildOwnerPlan({ owner: "web", profile: "all" })), [
-      "test:unit",
-    ]);
+    assert.deepEqual(
+      scripts(buildOwnerPlan({ owner: "web", profile: "all" })),
+      ["test:unit"],
+    );
 
     const ci = buildOwnerPlan({ owner: "web", profile: "ci" });
     assert.deepEqual(scripts(ci), ["check", "test:e2e"]);
     assert.equal(ci.length, 2);
+  });
+
+  test("extended Web UI builds its own browser artifacts", () => {
+    const plan = buildOwnerPlan({ owner: "web", profile: "extended" });
+    assert.equal(plan.length, 2);
+    assert.equal(plan[0].args.at(-1), "build");
+    assert.deepEqual(plan[1].args, [
+      "--filter",
+      "@imsweb/web",
+      "exec",
+      "playwright",
+      "test",
+      "--config",
+      "playwright.extended.config.ts",
+    ]);
   });
 
   test("skip flags and ambiguous profiles fail closed", () => {
@@ -317,7 +336,7 @@ test.describe('run-test-owner plan', () => {
     );
     assert.throws(
       () => buildOwnerPlan({ owner: "web", profile: "unknown" }),
-      /Web profile must be all or ci/,
+      /Web profile must be all, ci, validation, browser, or extended/,
     );
     assert.throws(
       () => buildOwnerPlan({ owner: "unknown" }),

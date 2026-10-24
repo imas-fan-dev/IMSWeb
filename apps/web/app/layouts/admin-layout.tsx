@@ -44,10 +44,26 @@ import {
 import { cn } from "~/lib/utils"
 import { getAdminSession, isApiError, logoutAdmin } from "~/lib/api"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "~/components/ui/collapsible"
+import {
   NavigationLink,
   NavigationNavLink,
 } from "~/components/navigation/navigation-link"
 import { useNavigation } from "~/lib/navigation/use-navigation"
+
+type AdminNavChild = {
+  /** Absent for a placeholder entry: rendered for layout review, not yet reachable. */
+  to?: string
+  label: string
+  /**
+   * Match `to` exactly instead of by prefix. Required whenever one child's path
+   * is a prefix of a sibling's, otherwise both light up at once.
+   */
+  end?: boolean
+}
 
 const navigation: Array<{
   to: string
@@ -58,6 +74,7 @@ const navigation: Array<{
   end?: boolean
   superOnly?: boolean
   editorOnly?: boolean
+  children?: AdminNavChild[]
 }> = [
   {
     to: "/admin",
@@ -120,10 +137,17 @@ const navigation: Array<{
   },
   {
     to: "/admin/cards",
-    label: "名片审核",
-    description: "制作人名片投稿",
+    label: "名片管理",
+    description: "名片审核与资料维护",
     icon: ContactRoundIcon,
     accent: "bg-franchise-765",
+    children: [
+      { to: "/admin/cards", label: "名片审核", end: true },
+      { label: "信息修改" },
+      { to: "/admin/cards/characters", label: "角色列表" },
+      { to: "/admin/cards/units", label: "组合列表" },
+      { label: "标签管理" },
+    ],
   },
   {
     to: "/admin/site-packages",
@@ -133,9 +157,22 @@ const navigation: Array<{
     accent: "bg-franchise-sidem",
   },
   {
+    to: "/admin/idols",
+    label: "偶像管理",
+    description: "企划、栏目与条目资料",
+    icon: UserRoundIcon,
+    accent: "bg-franchise-sc",
+    editorOnly: true,
+    children: [
+      { to: "/admin/idols/agencies", label: "企划管理" },
+      { to: "/admin/idols/groups", label: "栏目管理" },
+      { to: "/admin/idols/entries", label: "条目管理" },
+    ],
+  },
+  {
     to: "/admin/stories",
     label: "剧情内容",
-    description: "剧情角色素材",
+    description: "剧情卡片、来源与封面",
     icon: BookOpenTextIcon,
     accent: "bg-franchise-sc",
     editorOnly: true,
@@ -198,6 +235,26 @@ function navClass(
     isActive
       ? "bg-admin-ink-muted text-admin-ink-foreground"
       : "text-admin-ink-subtle hover:bg-admin-ink-muted hover:text-admin-ink-foreground"
+  )
+}
+
+/** A group stays expanded while the location sits on one of its children. */
+function isRouteWithin(pathname: string, to: string, end?: boolean) {
+  if (end) return pathname === to
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
+
+function navChildClass(
+  { isActive }: { isActive: boolean },
+  placeholder: boolean
+) {
+  return cn(
+    "relative flex min-h-9 items-center rounded-lg py-1.5 pr-3 pl-10 text-[13px] whitespace-nowrap transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+    placeholder
+      ? "cursor-default text-admin-ink-subtle/45"
+      : isActive
+        ? "bg-admin-ink-muted font-medium text-admin-ink-foreground"
+        : "text-admin-ink-subtle hover:bg-admin-ink-muted hover:text-admin-ink-foreground"
   )
 }
 
@@ -293,6 +350,8 @@ function isExpiredSession(error: unknown): boolean {
 function isEditorContentRoute(pathname: string): boolean {
   return (
     pathname === "/admin/community" ||
+    pathname === "/admin/idols" ||
+    pathname.startsWith("/admin/idols/") ||
     pathname === "/admin/stories" ||
     pathname.startsWith("/admin/stories/")
   )
@@ -302,6 +361,7 @@ export default function AdminLayout() {
   const navigate = useNavigation()
   const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [hoveredMenu, setHoveredMenu] = useState<string | null>(null)
   const { data, loading, error, onError, send } = useRequest(getAdminSession())
   onError(() => undefined)
 
@@ -477,6 +537,134 @@ export default function AdminLayout() {
                     : !item.superOnly || data.user.adminRole === "super_admin"
                 )
                 .map((item) => {
+                  const children = item.children ?? []
+                  const hasChildren = children.length > 0
+                  const childActive =
+                    hasChildren &&
+                    children.some(
+                      (child) =>
+                        child.to &&
+                        isRouteWithin(location.pathname, child.to, child.end)
+                    )
+                  const expanded =
+                    hasChildren && (hoveredMenu === item.to || childActive)
+
+                  if (hasChildren && sidebarCollapsed) {
+                    return (
+                      <Tooltip key={item.to}>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              className={cn(
+                                navClass({ isActive: childActive }, true),
+                                "w-full cursor-pointer"
+                              )}
+                              aria-label={`展开侧栏以查看${item.label}`}
+                              onClick={() => setSidebarCollapsed(false)}
+                            />
+                          }
+                        >
+                          <item.icon
+                            className="size-4 shrink-0"
+                            aria-hidden="true"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          {item.label}
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  }
+
+                  if (hasChildren) {
+                    return (
+                      <Collapsible
+                        key={item.to}
+                        open={expanded}
+                        className="flex flex-col gap-1"
+                        onMouseEnter={() => setHoveredMenu(item.to)}
+                        onMouseLeave={() =>
+                          setHoveredMenu((current) =>
+                            current === item.to ? null : current
+                          )
+                        }
+                      >
+                        <CollapsibleTrigger
+                          className={cn(
+                            navClass({ isActive: childActive }, false),
+                            "w-full cursor-pointer text-left"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute inset-y-3 left-0 w-0.5 rounded-full transition-opacity",
+                              childActive ? "opacity-100" : "opacity-0",
+                              item.accent
+                            )}
+                            aria-hidden="true"
+                          />
+                          <item.icon
+                            className="size-4 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
+                            <span>{item.label}</span>
+                            <span className="hidden text-[10.88px]/4 font-normal text-admin-ink-subtle lg:block">
+                              {item.description}
+                            </span>
+                          </span>
+                          <ChevronRightIcon
+                            className="ml-auto hidden size-3 opacity-50 transition-transform duration-200 group-data-panel-open:rotate-90 motion-reduce:transition-none lg:block"
+                            aria-hidden="true"
+                          />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent
+                          className={cn(
+                            "flex h-(--collapsible-panel-height) flex-col overflow-hidden transition-[height] duration-200 ease-out motion-reduce:transition-none",
+                            "data-ending-style:h-0 data-starting-style:h-0",
+                            "[&[hidden]:not([hidden='until-found'])]:hidden"
+                          )}
+                        >
+                          <ul className="flex flex-col gap-1 pt-1">
+                            {children.map((child) => (
+                              <li key={child.label}>
+                                {child.to ? (
+                                  <NavigationNavLink
+                                    to={child.to}
+                                    end={child.end}
+                                    className={(state) =>
+                                      navChildClass(state, false)
+                                    }
+                                  >
+                                    <span
+                                      className={cn(
+                                        "absolute inset-y-2 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
+                                        item.accent
+                                      )}
+                                      aria-hidden="true"
+                                    />
+                                    {child.label}
+                                  </NavigationNavLink>
+                                ) : (
+                                  <span
+                                    aria-disabled="true"
+                                    className={navChildClass(
+                                      { isActive: false },
+                                      true
+                                    )}
+                                  >
+                                    {child.label}
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )
+                  }
+
                   const link = (
                     <NavigationNavLink
                       key={item.to}

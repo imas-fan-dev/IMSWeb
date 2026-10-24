@@ -17,7 +17,7 @@
       "responseKind": "compatibility-text-error",
       "reason": "The application fallback delegates to static assets and otherwise retains its text not-found response.",
       "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the application-level text/plain 404 fallback." },
-      "test": { "file": "apps/api/tests/assets/frontend-routing.contract.test.js", "symbol": "[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks" }
+      "test": { "file": "apps/api/tests/assets/frontend-routing.contract.test.ts", "symbol": "[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks" }
     },
     {
       "id": "DELIVERY-MEDIA-01",
@@ -80,7 +80,7 @@
       "responseKind": "redirect",
       "reason": "The root site index delegates to the static-asset binding and supports GET and HEAD.",
       "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the root static fallback text response." },
-      "test": { "file": "apps/api/tests/assets/frontend-routing.contract.test.js", "symbol": "[FRT-01] root and index.html use the React document" }
+      "test": { "file": "apps/api/tests/assets/frontend-routing.contract.test.ts", "symbol": "[FRT-01] root and index.html use the React document" }
     },
     {
       "id": "FUDABA-GUEST-MEDIA-01",

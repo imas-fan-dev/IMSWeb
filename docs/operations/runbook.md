@@ -73,6 +73,8 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；外部受信 Nginx 为 `nginx` |
 | `IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES` | 站点包 ZIP 上传上限 | `83886080`（80 MiB） |
 | `DATABASE_URL` | PostgreSQL 连接 | 必填，由密钥系统注入 |
+| `IMS_CACHE_BACKEND` | 共享缓存后端 | 生产要求 `valkey` |
+| `IMS_VALKEY_URL` | Valkey 连接 | 生产必填，须从 API 运行环境可达 |
 | `IMS_PUBLIC_DIR` | 不可变客户端目录 | `/srv/ims/current/apps/api/dist/node-client` |
 | `IMS_COMPENSATION_DIR` | 文件存储补偿 journal | release 外绝对目录 |
 | `IMS_UPLOADS_DIR` | 普通上传目录 | release 外绝对目录 |
@@ -82,6 +84,9 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_EMAIL_WORKER_REPLICAS` | 邮件 Worker 副本数 | 默认 1，最多 32 |
 
 请求幂等记录由 PostgreSQL 持有；共享限流窗口由 Valkey 通过原子 Lua 脚本持有（键为 SHA-256 匿名散列并随窗口 TTL 自动过期），生产多副本必须指向同一 Valkey。限流窗口是可丢失的短期状态，Valkey 重启只会重置限流计数，不影响幂等与账户数据。
+
+Compose 生产发布不会启动开发用 `local-cache` profile，独立 Valkey 的准备和验收见
+[部署指南](github-actions-deployment.md#生产-valkey-前置条件)。
 
 管理员会话使用 15 分钟的 access JWT 和 30 天滑动有效期的 refresh token。access 与 refresh
 分别写入 `ims_admin_access`、`ims_admin_refresh` 两个 `HttpOnly`、`SameSite=Lax` Cookie；

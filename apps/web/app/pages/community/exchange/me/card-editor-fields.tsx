@@ -7,7 +7,9 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
-import { IdolMultiSelect } from "~/components/community/idol-multi-select"
+import { toast } from "sonner"
+
+import { CharacterMultiSelect } from "~/components/community/character-multi-select"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Button } from "~/components/ui/button"
@@ -33,8 +35,8 @@ import type {
   FudabaCardFields,
   FudabaCardMediaSide,
   FudabaSeries,
-  WikiPublicSearchEntry,
 } from "~/lib/api"
+import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { useOwnerCardMedia } from "./use-owner-card-media"
 
 export function useObjectUrl(file: File | null) {
@@ -122,16 +124,22 @@ export function CardPreview({
 export function CardFields({
   draft,
   series,
-  idols,
   disabled,
   onChange,
 }: {
   draft: FudabaCardFields
   series: FudabaSeries[]
-  idols: WikiPublicSearchEntry[]
   disabled: boolean
   onChange: (draft: FudabaCardFields) => void
 }) {
+  const { catalog, loading, failed } = useNamecardCharacterCatalog()
+
+  useEffect(() => {
+    if (failed) {
+      toast.error("担当角色目录载入失败，请稍后重试")
+    }
+  }, [failed])
+
   return (
     <FieldGroup>
       <FieldGroup className="grid gap-5 sm:grid-cols-2">
@@ -192,13 +200,15 @@ export function CardFields({
         </Select>
       </Field>
 
-      <IdolMultiSelect
-        id="exchange-card-idols"
-        series={series}
-        idols={idols}
-        selectedIds={draft.favoriteIdolIds}
-        disabled={disabled}
-        onChange={(favoriteIdolIds) => onChange({ ...draft, favoriteIdolIds })}
+      <CharacterMultiSelect
+        id="exchange-card-characters"
+        catalog={catalog}
+        loading={loading}
+        selectedIds={draft.favoriteCharacterIds}
+        disabled={disabled || loading}
+        onChange={(favoriteCharacterIds) =>
+          onChange({ ...draft, favoriteCharacterIds })
+        }
       />
 
       <Field data-disabled={disabled || undefined}>

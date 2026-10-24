@@ -92,6 +92,7 @@ scripts/contracts/current-wire-contract-inventory.md
 # Test reports and coverage, written per workspace by Vitest
 coverage/
 reports/
+.ci-artifacts/
 
 # Trellis-generated local tooling
 # Regenerate integration files in a fresh clone with: trellis init --pi
@@ -110,10 +111,16 @@ reports/
 !.agents/skills/imsweb-playwright-e2e/
 !.agents/skills/imsweb-quality-and-release-readiness/
 !.agents/skills/imsweb-test-routing/
+!.agents/skills/imsweb-ui-testing-and-evidence/
 .agents/skills/imsweb-*/*
 !.agents/skills/imsweb-app-device-delivery/SKILL.md
 !.agents/skills/imsweb-local-dev-environment/SKILL.md
 !.agents/skills/imsweb-playwright-e2e/SKILL.md
 !.agents/skills/imsweb-quality-and-release-readiness/SKILL.md
 !.agents/skills/imsweb-test-routing/SKILL.md
+!.agents/skills/imsweb-ui-testing-and-evidence/SKILL.md
+!.agents/skills/imsweb-ui-testing-and-evidence/references/
+!.agents/skills/imsweb-ui-testing-and-evidence/references/*.md
+!.agents/skills/imsweb-ui-testing-and-evidence/scripts/
+!.agents/skills/imsweb-ui-testing-and-evidence/scripts/*.mjs
 .pi/

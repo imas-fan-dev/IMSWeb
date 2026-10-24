@@ -1,19 +1,19 @@
 import {
-  namecardIdolSchema,
+  namecardFavoriteCharacterSchema,
   namecardPageSchema,
   namecardSchema,
 } from "@imsweb/contracts/namecards"
 import { describe, expect, it } from "vitest"
 
 import { assertFactoryCoversSchema } from "@/mocks/data/schema-conformance"
-import { makeNamecard, makeNamecardIdol, makeNamecardPage } from "@/mocks/data/namecards"
+import { makeNamecard, makeNamecardFavoriteCharacter, makeNamecardPage } from "@/mocks/data/namecards"
 
 describe("namecards fixture factories", () => {
   it("builds an idol that matches its contract", () => {
-    const value = makeNamecardIdol()
+    const value = makeNamecardFavoriteCharacter()
 
-    assertFactoryCoversSchema(namecardIdolSchema, value)
-    expect(namecardIdolSchema.parse(value)).toEqual(value)
+    assertFactoryCoversSchema(namecardFavoriteCharacterSchema, value)
+    expect(namecardFavoriteCharacterSchema.parse(value)).toEqual(value)
   })
 
   it("builds a namecard that matches its contract", () => {
@@ -33,7 +33,7 @@ describe("namecards fixture factories", () => {
   it("layers overrides over the defaults without dropping nested keys", () => {
     const value = makeNamecard({
       id: 9,
-      favoriteIdols: [makeNamecardIdol({ id: 3, name: "如月千早" })],
+      favoriteCharacters: [makeNamecardFavoriteCharacter({ id: 3, name: "如月千早" })],
       claimStatus: "claimed",
     })
 

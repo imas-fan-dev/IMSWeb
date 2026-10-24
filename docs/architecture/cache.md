@@ -53,12 +53,15 @@ Valkey 只保存短期 cooldown，用于省掉每次发送前对权威表的读�
 
 ## 配置
 
-- `IMS_CACHE_BACKEND`: `valkey` 或 `memory`；测试默认 `memory`，开发和生产要求 `valkey`。
+- `IMS_CACHE_BACKEND`: `valkey` 或 `memory`；测试默认 `memory`，开发默认 `valkey`，生产强制 `valkey`。
 - `IMS_VALKEY_URL`: `redis://` 或 `rediss://` URL；生产必须显式配置。
 - `IMS_VALKEY_KEY_PREFIX`: 所有业务键的命名空间，默认 `imsweb:cache:`。
 - `IMS_VALKEY_CONNECT_TIMEOUT_MS`: 连接超时，范围 250–30000 ms。
 
-本地 `pnpm dev` 自动启动 `valkey/valkey:8.1.9-alpine`，并注入 `redis://127.0.0.1:6379`。Compose 通过 `local-cache` profile 管理本地实例。生产应使用独立、受访问控制的 Valkey 或托管兼容服务，不应把本地 Compose 实例作为高可用方案。
+本地 `pnpm dev` 自动启动 Compose 中配置的 Valkey 镜像，并注入 `redis://127.0.0.1:6379`。
+Compose 通过 `local-cache` profile 管理本地实例。生产应使用独立、受访问控制的 Valkey 或托管
+兼容服务，生产发布器不会启动该 profile；准备和验收见
+[部署指南](../operations/github-actions-deployment.md#生产-valkey-前置条件)。
 
 ## 运行与故障策略
 

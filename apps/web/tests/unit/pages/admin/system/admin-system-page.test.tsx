@@ -19,22 +19,26 @@ vi.mock("sonner", () => ({
 }))
 
 const officialSource = {
+  provider: "maplibre" as const,
   id: "source-official",
   name: "OpenFreeMap Positron",
   styleUrl: "https://tiles.openfreemap.org/styles/positron",
 }
 const r2Source = {
+  provider: "maplibre" as const,
   id: "source-r2",
   name: "R2 测试桶",
   styleUrl:
     "https://test.imas-assets.texasoct.tech/openmap/v1/exchange-style.json",
 }
 const selfHostedSource = {
+  provider: "maplibre" as const,
   id: "source-self-hosted",
   name: "站点自托管",
   styleUrl: "/maps/exchange-style.json",
 }
 const edgeSource = {
+  provider: "maplibre" as const,
   id: "source-edge",
   name: "边缘地图源",
   styleUrl: "https://edge.example.test/openmap/exchange-style.json",
@@ -125,6 +129,7 @@ describe("AdminSystemPage", () => {
     expect(await screen.findByText("边缘地图源 v2")).toBeVisible()
     const post = requests.find((request) => request.method === "POST")
     expect(await post?.json()).toEqual({
+      provider: "maplibre",
       name: edgeSource.name,
       styleUrl: edgeSource.styleUrl,
       revision: "etag-1",
@@ -134,6 +139,7 @@ describe("AdminSystemPage", () => {
         request.method === "PUT" && request.url.endsWith("source-edge")
     )
     expect(await put?.json()).toEqual({
+      provider: "maplibre",
       name: "边缘地图源 v2",
       styleUrl: edgeSource.styleUrl,
       revision: "etag-2",

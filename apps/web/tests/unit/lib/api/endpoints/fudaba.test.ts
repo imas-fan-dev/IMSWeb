@@ -48,6 +48,7 @@ import {
   getFudabaOwnerSeries,
   getFudabaMapConfig,
   getFudabaMapOffices,
+  getFudabaOfficePage,
   updateFudabaCard,
   updateFudabaOwnerOffice,
   uploadFudabaCardMedia,
@@ -113,7 +114,7 @@ const cardFields = {
   producerName: "春香P",
   displayName: "交换会用名片",
   seriesCode: "765",
-  favoriteIdolIds: [1],
+  favoriteCharacterIds: [1],
   accent: "#f34e6c",
   bio: "周末参加线下活动",
   tradeNote: "希望交换同系列名片",
@@ -371,13 +372,44 @@ describe("Fudaba Web API contracts", () => {
       ).toThrow()
     }
 
-    expect(
-      fudabaMapConfigSchema.parse({
-        styleUrl: "/api/community/exchange/map/style.json",
-      })
-    ).toEqual({ styleUrl: "/api/community/exchange/map/style.json" })
+    const currentMapConfig = {
+      provider: "maplibre" as const,
+      search: { provider: "nominatim" as const },
+      styleUrl: "/api/community/exchange/map/style.json",
+    }
+    expect(() =>
+      fudabaMapConfigSchema.parse({ styleUrl: currentMapConfig.styleUrl })
+    ).toThrow()
     expect(() =>
       fudabaMapConfigSchema.parse({
+        provider: "maplibre",
+        styleUrl: currentMapConfig.styleUrl,
+      })
+    ).toThrow()
+    expect(() =>
+      fudabaMapConfigSchema.parse({
+        ...currentMapConfig,
+        search: {
+          provider: "mapbox",
+          accessToken: "pk.public-test-token-1234567890",
+        },
+      })
+    ).toThrow()
+    expect(
+      fudabaMapConfigSchema.parse({
+        provider: "maplibre",
+        search: { provider: "nominatim" },
+        styleUrl: "/api/community/exchange/map/style.json",
+      })
+    ).toEqual({
+      provider: "maplibre",
+      search: { provider: "nominatim" },
+      styleUrl: "/api/community/exchange/map/style.json",
+    })
+    expect(() =>
+      fudabaMapConfigSchema.parse({
+        provider: "maplibre",
+        search: { provider: "nominatim" },
         styleUrl: " /api/community/exchange/map/style.json ",
       })
     ).toThrow()
@@ -393,7 +425,13 @@ describe("Fudaba Web API contracts", () => {
       "/styles/map\n.json",
       `/styles/${"x".repeat(2048)}`,
     ]) {
-      expect(() => fudabaMapConfigSchema.parse({ styleUrl })).toThrow()
+      expect(() =>
+        fudabaMapConfigSchema.parse({
+          provider: "maplibre",
+          search: { provider: "nominatim" },
+          styleUrl,
+        })
+      ).toThrow()
     }
   })
 
@@ -404,6 +442,8 @@ describe("Fudaba Web API contracts", () => {
       requests.push({ url, init })
       if (url.pathname.endsWith("/map/config")) {
         return Response.json({
+          provider: "maplibre",
+          search: { provider: "nominatim" },
           styleUrl: "/api/community/exchange/map/style.json",
         })
       }
@@ -435,6 +475,29 @@ describe("Fudaba Web API contracts", () => {
         new Headers(request.init?.headers).get(CSRF_HEADER_NAME)
       ).toBeNull()
     }
+  })
+
+  it("encodes literal office keywords and parses nullable public regional positions", async () => {
+    let requested: URL | undefined
+    const items = [
+      makeFudabaOffice({
+        location: { longitude: 121.5, latitude: 31.2, precision: "regional" },
+      }),
+      makeFudabaOffice({ id: "unlocated", location: null }),
+    ]
+    installFetchMock(async (input: RequestInfo | URL) => {
+      requested = new URL(String(input), "http://ims.test")
+      return Response.json(makeFudabaOfficePage({ items }))
+    })
+    const response = await getFudabaOfficePage({
+      q: " AbC%_ ",
+      cursor: "next-page",
+      open: false,
+    }).send()
+    expect(requested?.searchParams.get("q")).toBe("AbC%_")
+    expect(requested?.searchParams.get("cursor")).toBe("next-page")
+    expect(requested?.searchParams.get("open")).toBe("false")
+    expect(response.items).toEqual(items)
   })
 
   it("searches places through the authenticated same-origin endpoint", async () => {
@@ -634,7 +697,7 @@ describe("Fudaba Web API contracts", () => {
     expect(create.get("back")).toBe(back)
     expect(create.get("available")).toBe("true")
     expect(create.get("displayName")).toBe(cardFields.displayName)
-    expect(create.get("favoriteIdolIds")).toBe("[1]")
+    expect(create.get("favoriteCharacterIds")).toBe("[1]")
 
     expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
       ...cardFields,

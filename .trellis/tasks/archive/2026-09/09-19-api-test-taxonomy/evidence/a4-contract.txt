@@ -1,2 +1,0 @@
-non-JSON boundary manifest: 31 entries
-registered non-JSON handlers: 30

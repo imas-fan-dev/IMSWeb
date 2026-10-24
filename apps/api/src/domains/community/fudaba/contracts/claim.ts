@@ -1,10 +1,10 @@
 import type { FudabaCardClaimRecord } from '@/ports/repositories';
 
-function favoriteIdols(record: FudabaCardClaimRecord) {
-    return record.favorite_idols.map((idol) => ({
-        id: idol.idol_id,
-        name: idol.name_cn,
-        seriesCode: idol.agency_code
+function favoriteCharacters(record: FudabaCardClaimRecord) {
+    return record.favorite_characters.map((character) => ({
+        id: character.character_id,
+        name: character.name_cn,
+        seriesCode: character.agency_code
     }));
 }
 
@@ -14,7 +14,7 @@ export function fudabaCardClaimView(claim: FudabaCardClaimRecord) {
         legacyCardId: claim.legacy_card_id,
         targetCardId: claim.target_card_id,
         seriesCode: claim.series_code,
-        favoriteIdols: favoriteIdols(claim),
+        favoriteCharacters: favoriteCharacters(claim),
         state: claim.state,
         message: claim.message,
         reviewNote: claim.review_note,

@@ -161,10 +161,14 @@ describe("PublicLayout", () => {
     }
   )
 
-  it("keeps nested exchange pages in the normal public layout", () => {
+  it.each([
+    "/community/exchange/me",
+    "/community/exchange/offices/sample-office",
+    "/community/exchange/me/",
+  ])("keeps the map shell behind nested exchange pages at %s", (pathname) => {
     render(
       <I18nextProvider i18n={i18n}>
-        <MemoryRouter initialEntries={["/community/exchange/me"]}>
+        <MemoryRouter initialEntries={[pathname]}>
           <Routes>
             <Route element={<PublicLayout />}>
               <Route
@@ -180,9 +184,11 @@ describe("PublicLayout", () => {
     const shell = screen.getByTestId(
       "platform-session-boundary"
     ).firstElementChild
-    expect(shell).not.toHaveClass("h-dvh", "overflow-hidden")
-    expect(screen.getByTestId("series-icon-background")).toBeVisible()
-    expect(screen.getByText("站点页脚")).toBeVisible()
+    expect(shell).toHaveClass("h-dvh", "min-h-0", "overflow-hidden")
+    expect(
+      screen.queryByTestId("series-icon-background")
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText("站点页脚")).not.toBeInTheDocument()
     expect(screen.getByText("交换帐号内容")).toBeVisible()
   })
 

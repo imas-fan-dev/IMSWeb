@@ -8,6 +8,7 @@ import {
 } from "./fixtures/namecard-browsing"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
 const cardsUrl = "/community/cards?page=2&size=12"
 const nav = (page: Page) => page.getByRole("navigation", { name: "主导航" })
@@ -428,6 +429,14 @@ test.describe("app navigation", () => {
         route.fulfill({ json: { items: [] } })
       )
     }
+    api.mock(
+      {
+        method: "GET",
+        path: "/api/community/exchange/characters",
+        times: { min: 0, max: 2 },
+      },
+      (route) => route.fulfill({ json: makeCharacterCatalog() })
+    )
     api.mock(
       {
         method: "GET",

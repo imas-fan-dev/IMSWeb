@@ -177,7 +177,7 @@ export function ExchangeCard({
         </div>
         <p className="truncate text-sm text-muted-foreground">
           {card.producerName}
-          {card.favoriteIdol ? ` · ${card.favoriteIdol}` : ""}
+          {card.favoriteCharacter ? ` · ${card.favoriteCharacter}` : ""}
         </p>
       </CardHeader>
       <CardContent className="flex-1">

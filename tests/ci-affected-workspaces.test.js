@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "vitest";
@@ -38,6 +41,15 @@ const singlePathCases = [
   ["deploy/compose.yaml", REPOSITORY_ONLY],
   ["apps/web/src-tauri/tauri.conf.json", { ...REPOSITORY_ONLY, app: true }],
   ["apps/web/scripts/build-app.js", { ...REPOSITORY_ONLY, app: true }],
+  [
+    "apps/web/scripts/preview-app.js",
+    { ...REPOSITORY_ONLY, app: true, web: true, integration: true },
+  ],
+  ["apps/api/tests/fixtures/app-static-preview-server.ts", ALL_JOBS],
+  [
+    "apps/api/tests/assets/static-preview.contract.test.ts",
+    { ...REPOSITORY_ONLY, integration: true },
+  ],
   [
     "apps/web/tests/unit/pages/home/home-page.test.tsx",
     { ...REPOSITORY_ONLY, web: true },
@@ -93,7 +105,6 @@ test.describe('affected workspace classification', () => {
       "apps/web/scripts/app-device.js",
       "apps/web/scripts/app-toolchain.js",
       "apps/web/scripts/dev-app.js",
-      "apps/web/scripts/preview-app.js",
       "apps/web/scripts/android-release-network.js",
       "apps/web/playwright.app.config.ts",
       "apps/web/tests/e2e/app-shell.spec.ts",
@@ -111,7 +122,7 @@ test.describe('affected workspace classification', () => {
 
     assert.deepEqual(
       classifyChangedPaths(["apps/api/tests/fixtures/app-static-preview-server.ts"]),
-      { ...REPOSITORY_ONLY, app: true, api: true },
+      ALL_JOBS,
     );
 
     for (const changedPath of [
@@ -197,6 +208,81 @@ test.describe('affected workspace classification', () => {
   function successfulGit(stdout) {
     return { status: 0, stdout: Buffer.from(stdout), stderr: Buffer.alloc(0) };
   }
+
+  test("selects shared preview consumers from real PR merge-base and main-push additions, deletions and renames", async () => {
+    const { detectAffectedWorkspaces } = await detector;
+    const directory = mkdtempSync(path.join(os.tmpdir(), "ims-preview-affected-"));
+    const git = (args, input) => {
+      const result = spawnSync("git", args, {
+        cwd: directory,
+        input,
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: "Detector fixture",
+          GIT_AUTHOR_EMAIL: "fixture@example.invalid",
+          GIT_COMMITTER_NAME: "Detector fixture",
+          GIT_COMMITTER_EMAIL: "fixture@example.invalid",
+        },
+      });
+      assert.equal(result.status, 0, result.stderr?.toString());
+      return result;
+    };
+    // Disposable object histories exercise Git's actual rename records and
+    // merge-base selection without touching the repository index or refs.
+    const revision = (files, parent) => {
+      git(["read-tree", "--empty"]);
+      for (const name of files) {
+        const filename = path.join(directory, name);
+        mkdirSync(path.dirname(filename), { recursive: true });
+        writeFileSync(filename, "shared preview consumer fixture\n");
+        const blob = git(["hash-object", "-w", filename]).stdout.toString().trim();
+        git(["update-index", "--add", "--cacheinfo", `100644,${blob},${name}`]);
+      }
+      const tree = git(["write-tree"]).stdout.toString().trim();
+      return git(["commit-tree", tree, ...(parent ? ["-p", parent] : [])], "fixture\n")
+        .stdout.toString().trim();
+    };
+    try {
+      git(["init", "--quiet"]);
+      const empty = revision([]);
+      for (const [name, expected] of singlePathCases.filter(([name]) => [
+        "apps/web/scripts/preview-app.js",
+        "apps/api/tests/fixtures/app-static-preview-server.ts",
+        "apps/api/tests/assets/static-preview.contract.test.ts",
+      ].includes(name))) {
+        const present = revision([name], empty);
+        const removed = revision([], present);
+        const renamed = revision(["docs/renamed-preview.md"], present);
+        const renamedBack = revision([name], renamed);
+        for (const [beforeSha, headSha, status] of [
+          [empty, present, "A"],
+          [present, removed, "D"],
+          [present, renamed, "R100"],
+          [renamed, renamedBack, "R100"],
+        ]) {
+          const raw = git(["diff", "--name-status", "-z", "--find-renames", beforeSha, headSha]);
+          assert.equal(raw.stdout.toString().split("\0")[0], status);
+          for (const eventName of ["push", "pull_request"]) {
+            // PR base advances independently, so diffing base->head directly
+            // would falsely select all lanes for this unclassified base file.
+            const baseSha = revision(["base-only-input.xyz"], beforeSha);
+            const calls = [];
+            const result = detectAffectedWorkspaces({
+              eventName, beforeSha, baseSha, headSha,
+              runGit: (args) => { calls.push(args); return git(args); },
+            });
+            assert.deepEqual(result, expected, `${eventName} ${status} ${name}`);
+            assert.deepEqual(calls, [
+              ...(eventName === "pull_request" ? [["merge-base", baseSha, headSha]] : []),
+              ["diff", "--name-status", "-z", "--find-renames", beforeSha, headSha],
+            ]);
+          }
+        }
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
   test("detects additions, deletions, and rename ownership from a push diff", async () => {
     const { detectAffectedWorkspaces } = await detector;

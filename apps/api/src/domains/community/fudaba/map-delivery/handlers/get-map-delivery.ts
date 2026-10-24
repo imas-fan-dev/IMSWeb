@@ -10,15 +10,6 @@ export async function handleGetFudabaMapDelivery(
     const runtime = services(c);
     const storage = runtime.storage;
     if (!storage) throw new Error('Object storage unavailable');
-    const fallbackStyleUrl = runtime.config?.fudabaMapStyleUrl;
-    if (!fallbackStyleUrl) {
-        throw Object.assign(new Error('Fudaba map style is unavailable'), {
-            status: 503,
-        });
-    }
-    const delivery = await readFudabaMapDelivery(storage, [
-        fallbackStyleUrl,
-        ...(runtime.config?.fudabaMapStyleUrls ?? []),
-    ]);
+    const delivery = await readFudabaMapDelivery(storage, runtime.config?.fudabaMapSources ?? []);
     return c.json(fudabaMapDeliveryResponse(delivery));
 }

@@ -11,7 +11,7 @@ import {
 const card = {
   id: 42,
   seriesCode: "765",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   claimStatus: "unclaimed" as const,
   viewerClaimState: null,
   claimerName: null,

@@ -59,7 +59,7 @@ describe("community API contracts", () => {
       new File(["back"], "back.png", { type: "image/png" }),
       {
         seriesCode: "765",
-        favoriteIdolIds: [1],
+        favoriteCharacterIds: [1],
         producerName: "  草莓P  ",
         displayName: "",
         bio: "   ",
@@ -100,7 +100,7 @@ describe("community API contracts", () => {
       uploadFudabaGuestSubmission(
         new File(["front"], "front.png", { type: "image/png" }),
         new File(["back"], "back.png", { type: "image/png" }),
-        { seriesCode: "765", favoriteIdolIds: [1, 2] }
+        { seriesCode: "765", favoriteCharacterIds: [1, 2] }
       ).send()
     ).resolves.toMatchObject({
       submission: {
@@ -122,7 +122,7 @@ describe("community API contracts", () => {
             {
               id: 42,
               seriesCode: null,
-              favoriteIdols: [],
+              favoriteCharacters: [],
               image1_url: "/uploads/front.webp",
               image2_url: "/uploads/back.webp",
               image1_thumbnail_url:
@@ -158,7 +158,7 @@ describe("community API contracts", () => {
       const submission = {
         id: 19,
         seriesCode: null,
-        favoriteIdols: [],
+        favoriteCharacters: [],
         frontImageUrl: "/protected/front.webp",
         backImageUrl: "/protected/back.webp",
         publicationStatus: request.method === "GET" ? "pending" : "withdrawn",

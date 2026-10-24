@@ -8,7 +8,4 @@ appId: top.idol-master.imsweb
 - assertNotVisible:
     id: "ims-native-liquid-glass-tab-bar"
 - takeScreenshot:
-    path: "NativeSearchResultsMedium"
-- tapOn: "展开结果"
-- takeScreenshot:
     path: "NativeSearchResultsLarge"

@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "103ffe51ce0347d2b66e27676bc32bb88b278ddfbf33805f113b84c5fa44a452",
+    "semanticDigest": "fdbbb048c2c2713cdb136d50b73d801903ed6ea4901e4922f0c40d6b1d3e0b15",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 255,
-    "carriers": 329,
-    "reject": 65,
+    "mountedMethodPaths": 264,
+    "carriers": 342,
+    "reject": 74,
     "acceptAndProject": 161,
     "passthrough": 17,
-    "nonObjectApplicable": 86
+    "nonObjectApplicable": 90
   },
   "counts": {
-    "mountedRegistrations": 352,
-    "mountedMethodPaths": 262,
-    "noInputRoutes": 90,
-    "requestCarriers": 352,
+    "mountedRegistrations": 362,
+    "mountedMethodPaths": 271,
+    "noInputRoutes": 91,
+    "requestCarriers": 365,
     "policies": {
-      "reject": 65,
+      "reject": 75,
       "accept-and-project": 183,
-      "passthrough": 18,
-      "non-object-applicable": 86
+      "passthrough": 17,
+      "non-object-applicable": 90
     },
     "responses": {
-      "total": 671,
-      "json": 607,
+      "total": 702,
+      "json": 638,
       "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 255,
-      "requestCarriers": 329,
+      "mountedMethodPaths": 264,
+      "requestCarriers": 342,
       "policies": {
-        "reject": 65,
+        "reject": 74,
         "accept-and-project": 161,
         "passthrough": 17,
-        "non-object-applicable": 86
+        "non-object-applicable": 90
       }
     },
     "explicitQueryAdditions": [
@@ -77,7 +77,7 @@
         "module": "@imsweb/contracts/fudaba/map-delivery",
         "symbol": "fudabaMapDeliveryQuerySchema",
         "carriers": 1,
-        "policy": "passthrough",
+        "policy": "reject",
         "actualCarriers": 1,
         "routes": [
           "GET /api/admin/community/exchange/map-delivery"
@@ -116,12 +116,12 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 133,
+      "/api/admin": 142,
       "/api/card": 1,
       "/api/cards": 1,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 64,
+      "/api/community": 65,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -324,6 +324,116 @@
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
           "kind": "json",
           "expression": "{ success : true } satisfies NamecardMutationResponse"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/characters/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "handlerSymbol": "handleDeleteAdminNamecardCharacter",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "schemaSymbol": "namecardCharacterIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "schemaSymbol": "namecardCharacterDeleteQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/delete-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u540D\\u7247\\u89D2\\u8272\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/delete-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"NAMECARD_CHARACTER_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardCharacterConflict"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/delete-character.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/units/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "handlerSymbol": "handleDeleteAdminNamecardUnit",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "schemaSymbol": "namecardUnitIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "schemaSymbol": "namecardUnitDeleteQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/delete-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u540D\\u7247\\u7EC4\\u5408\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/delete-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"NAMECARD_UNIT_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardUnitConflict"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/delete-unit.ts",
+          "kind": "json",
+          "expression": "payload"
         }
       ]
     },
@@ -2088,6 +2198,96 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/characters",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminNamecardCharacters",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "schemaSymbol": "namecardCharacterListQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/list-characters.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/characters/agencies",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminNamecardCharacterAgencies",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/list-agencies.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/units",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminNamecardUnits",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "schemaSymbol": "namecardUnitListQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/list-units.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/chronicle",
       "registration": {
         "file": "apps/api/src/domains/content/editorial/chronicle/routes.ts"
@@ -2400,8 +2600,8 @@
           "schemaLocation": {
             "file": "apps/api/src/domains/community/fudaba/map-delivery/routes.ts"
           },
-          "policy": "passthrough",
-          "syntaxPolicy": "passthrough"
+          "policy": "reject",
+          "syntaxPolicy": "reject"
         }
       ],
       "responses": [
@@ -3273,6 +3473,37 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/characters",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleGetNamecardCharacterCatalog",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaEmptyQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-namecard-character-catalog.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/guest-submissions/:submissionId",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
@@ -3370,17 +3601,22 @@
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
           "kind": "json",
-          "expression": "{ styleUrl } satisfies FudabaMapConfig"
+          "expression": "fallback ( )"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
           "kind": "json",
-          "expression": "{ styleUrl : active ?. styleUrl ?? styleUrl } satisfies FudabaMapConfig"
+          "expression": "describeRegionalSearchMap ( mainland , overseas )"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
           "kind": "json",
-          "expression": "{ styleUrl } satisfies FudabaMapConfig"
+          "expression": "config"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+          "kind": "json",
+          "expression": "fallback ( )"
         }
       ]
     },
@@ -7661,6 +7897,146 @@
     },
     {
       "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "schemaSymbol": "namecardCharacterIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "schemaSymbol": "namecardCharacterUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u540D\\u7247\\u89D2\\u8272\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u4F01\\u5212\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u8BE5\\u4F01\\u5212\\u4E0B\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u89D2\\u8272\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u8BE5\\u5206\\u7C7B\\u5DF2\\u5B58\\u5728\\u515C\\u5E95\\u6761\\u76EE\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"NAMECARD_CHARACTER_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardCharacterConflict"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "schemaSymbol": "namecardUnitIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "schemaSymbol": "namecardUnitUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u540D\\u7247\\u7EC4\\u5408\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : `企划不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : `名片角色不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u540D\\u7247\\u7EC4\\u5408\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"NAMECARD_UNIT_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardUnitConflict"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/catalog/routes.ts"
@@ -8255,6 +8631,52 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/characters",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "handlerSymbol": "handleCreateAdminNamecardCharacter",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "schemaSymbol": "namecardCharacterCreateRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u4F01\\u5212\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u8BE5\\u4F01\\u5212\\u4E0B\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u89D2\\u8272\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u8BE5\\u5206\\u7C7B\\u5DF2\\u5B58\\u5728\\u515C\\u5E95\\u6761\\u76EE\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/reject/:id",
       "registration": {
         "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
@@ -8310,6 +8732,52 @@
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/reject-namecard.ts",
           "kind": "json",
           "expression": "{ success : true } satisfies NamecardMutationResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/units",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "handlerSymbol": "handleCreateAdminNamecardUnit",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "schemaSymbol": "namecardUnitCreateRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : `企划不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : `名片角色不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u540D\\u7247\\u7EC4\\u5408\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+          "kind": "json",
+          "expression": "payload"
         }
       ]
     },
@@ -13563,6 +14031,74 @@
     },
     {
       "method": "DELETE",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardCharacter",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "schemaSymbol": "namecardCharacterIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardCharacter",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "schemaSymbol": "namecardCharacterDeleteQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardUnit",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "schemaSymbol": "namecardUnitIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardUnit",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "schemaSymbol": "namecardUnitDeleteQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "DELETE",
       "path": "/api/admin/chronicle/:id",
       "handlerSymbol": "handleDeleteChronicleEntry",
       "kind": "param",
@@ -14377,6 +14913,40 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/characters",
+      "handlerSymbol": "handleListAdminNamecardCharacters",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "schemaSymbol": "namecardCharacterListQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/units",
+      "handlerSymbol": "handleListAdminNamecardUnits",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "schemaSymbol": "namecardUnitListQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/chronicle",
       "handlerSymbol": "handleListAdminChronicleEntries",
       "kind": "query",
@@ -14472,8 +15042,8 @@
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/map-delivery/routes.ts"
       },
-      "policy": "passthrough",
-      "syntaxPolicy": "passthrough"
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",
@@ -14728,6 +15298,23 @@
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
       },
       "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/characters",
+      "handlerSymbol": "handleGetNamecardCharacterCatalog",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaEmptyQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
       "syntaxPolicy": "reject"
     },
     {
@@ -16775,6 +17362,74 @@
     },
     {
       "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "schemaSymbol": "namecardCharacterIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "schemaSymbol": "namecardCharacterUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "schemaSymbol": "namecardUnitIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "schemaSymbol": "namecardUnitUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
       "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:f912848e5f2307e0:041a1a2d:0",
       "kind": "param",
@@ -17098,6 +17753,23 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/characters",
+      "handlerSymbol": "handleCreateAdminNamecardCharacter",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "schemaSymbol": "namecardCharacterCreateRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-characters",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/reject/:id",
       "handlerSymbol": "handleRejectNamecard",
       "kind": "param",
@@ -17129,6 +17801,23 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/units",
+      "handlerSymbol": "handleCreateAdminNamecardUnit",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "schemaSymbol": "namecardUnitCreateRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/admin-units",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "POST",
@@ -19535,6 +20224,54 @@
     },
     {
       "method": "DELETE",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/delete-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u540D\\u7247\\u89D2\\u8272\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/delete-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"NAMECARD_CHARACTER_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardCharacterConflict"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/delete-character.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/delete-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u540D\\u7247\\u7EC4\\u5408\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/delete-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"NAMECARD_UNIT_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardUnitConflict"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleDeleteAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/delete-unit.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "DELETE",
       "path": "/api/admin/chronicle/:id",
       "handlerSymbol": "handleDeleteChronicleEntry",
       "file": "apps/api/src/domains/content/editorial/chronicle/handlers/delete-entry.ts",
@@ -20311,6 +21048,30 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/characters",
+      "handlerSymbol": "handleListAdminNamecardCharacters",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/list-characters.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/characters/agencies",
+      "handlerSymbol": "handleListAdminNamecardCharacterAgencies",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/list-agencies.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/units",
+      "handlerSymbol": "handleListAdminNamecardUnits",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/list-units.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/chronicle",
       "handlerSymbol": "handleListAdminChronicleEntries",
       "file": "apps/api/src/domains/content/editorial/chronicle/handlers/list-admin-entries.ts",
@@ -20719,6 +21480,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/characters",
+      "handlerSymbol": "handleGetNamecardCharacterCatalog",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-namecard-character-catalog.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/guest-submissions/:submissionId",
       "handlerSymbol": "handleGetFudabaGuestSubmission",
       "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/get-submission.ts",
@@ -20755,7 +21524,7 @@
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "{ styleUrl } satisfies FudabaMapConfig"
+      "expression": "fallback ( )"
     },
     {
       "method": "GET",
@@ -20763,7 +21532,7 @@
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "{ styleUrl : active ?. styleUrl ?? styleUrl } satisfies FudabaMapConfig"
+      "expression": "describeRegionalSearchMap ( mainland , overseas )"
     },
     {
       "method": "GET",
@@ -20771,7 +21540,15 @@
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "{ styleUrl } satisfies FudabaMapConfig"
+      "expression": "config"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/map/config",
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+      "kind": "json",
+      "expression": "fallback ( )"
     },
     {
       "method": "GET",
@@ -21862,6 +22639,102 @@
       "expression": "sitePackageShell ( sitePackage . title , contentUrl , iconUrl )"
     },
     {
+      "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u540D\\u7247\\u89D2\\u8272\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u4F01\\u5212\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u8BE5\\u4F01\\u5212\\u4E0B\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u89D2\\u8272\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u8BE5\\u5206\\u7C7B\\u5DF2\\u5B58\\u5728\\u515C\\u5E95\\u6761\\u76EE\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"NAMECARD_CHARACTER_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardCharacterConflict"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/characters/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/update-character.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u540D\\u7247\\u7EC4\\u5408\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : `企划不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : `名片角色不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u540D\\u7247\\u7EC4\\u5408\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"NAMECARD_UNIT_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardUnitConflict"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
       "method": "POST",
       "path": "/api/admin/about/hero-image",
       "handlerSymbol": "handleUploadAboutHeroImage",
@@ -22023,6 +22896,38 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/characters",
+      "handlerSymbol": "handleCreateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u4F01\\u5212\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/characters",
+      "handlerSymbol": "handleCreateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u8BE5\\u4F01\\u5212\\u4E0B\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u89D2\\u8272\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/characters",
+      "handlerSymbol": "handleCreateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u8BE5\\u5206\\u7C7B\\u5DF2\\u5B58\\u5728\\u515C\\u5E95\\u6761\\u76EE\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/characters",
+      "handlerSymbol": "handleCreateAdminNamecardCharacter",
+      "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/reject/:id",
       "handlerSymbol": "handleRejectNamecard",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/reject-namecard.ts",
@@ -22052,6 +22957,38 @@
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/reject-namecard.ts",
       "kind": "json",
       "expression": "{ success : true } satisfies NamecardMutationResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/units",
+      "handlerSymbol": "handleCreateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : `企划不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/units",
+      "handlerSymbol": "handleCreateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : `名片角色不存在：${ result . missingIds . join ( \"\\u3001\" ) } `\n} satisfies FailureMessageResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/units",
+      "handlerSymbol": "handleCreateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u5DF2\\u5B58\\u5728\\u540C\\u540D\\u540D\\u7247\\u7EC4\\u5408\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/units",
+      "handlerSymbol": "handleCreateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
+      "kind": "json",
+      "expression": "payload"
     },
     {
       "method": "POST",

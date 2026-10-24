@@ -111,7 +111,7 @@ export async function mockNamecardBrowsing(
               return {
                 id,
                 seriesCode: null,
-                favoriteIdols: [],
+                favoriteCharacters: [],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
                 claimerName: null,

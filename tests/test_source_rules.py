@@ -252,6 +252,85 @@ class SourceRulesTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("c.json(...) body is unproven", result.stderr)
 
+    def test_wire_audit_collects_once_per_command_and_preserves_diagnostics(self):
+        for invalid in (False, True):
+            for command in ("check-source-rules.mjs", "audit-json-wire-contracts.mjs"):
+                with self.subTest(invalid=invalid, command=command), tempfile.TemporaryDirectory(
+                    prefix="ims-source-rules-"
+                ) as temporary:
+                    root = Path(temporary)
+                    self.make_fixture(root)
+                    audit_module = root / "scripts/audit-json-wire-contracts.mjs"
+                    source = audit_module.read_text(encoding="utf-8")
+                    audit_module.write_text(
+                        source.replace(
+                            "export function collectWireContractAudit(repositoryRoot) {",
+                            "export function collectWireContractAudit(repositoryRoot) {\n"
+                            "  fs.appendFileSync(path.join(repositoryRoot, 'collections.txt'), 'collected\\n');",
+                        ),
+                        encoding="utf-8",
+                    )
+                    if invalid:
+                        (root / "apps/api/src/domains/orders/routes.ts").write_text(
+                            "interface LocalOrderResponse { id: string }\n"
+                            "const body: LocalOrderResponse = { id: 'order-1' }\n"
+                            "export const route = (c) => c.json(body)\n",
+                            encoding="utf-8",
+                        )
+                    result = subprocess.run(
+                        ["node", f"scripts/{command}"], cwd=root,
+                        capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(
+                        (root / "collections.txt").read_text(encoding="utf-8"),
+                        "collected\n",
+                    )
+                    self.assertEqual(result.returncode, 1 if invalid else 0, result.stderr)
+                    if invalid:
+                        self.assertIn("JSON wire contract audit failed:", result.stderr)
+                        self.assertIn(
+                            "apps/api/src/domains/orders/routes.ts:3: c.json(...) body is unproven",
+                            result.stderr,
+                        )
+                        self.assertEqual(result.stdout, "")
+                    else:
+                        self.assertEqual(result.stderr, "")
+                        self.assertIn(
+                            "JSON wire contract audit (compiler-backed):\n"
+                            "  violations: 0\n"
+                            "  API c.json(...) emitters: 0\n"
+                            "  Web API client calls: 0\n"
+                            "  registered non-API static assets: 0\n",
+                            result.stdout,
+                        )
+
+    def test_wire_audit_formatter_supports_legacy_calls_and_collected_results(self):
+        with tempfile.TemporaryDirectory(prefix="ims-source-rules-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            result = subprocess.run(
+                ["node", "--input-type=module", "-e", """
+import assert from 'node:assert/strict';
+import { collectWireContractAudit, formatWireContractAudit } from './scripts/audit-json-wire-contracts.mjs';
+const root = process.cwd();
+const audit = collectWireContractAudit(root);
+assert.equal(formatWireContractAudit(root), formatWireContractAudit(root, { audit }));
+assert.equal(formatWireContractAudit(root, { details: true }), formatWireContractAudit(root, { audit, details: true }));
+const issue = { file: 'fixture.ts', line: 7, message: 'invalid wire body' };
+const invalid = { ...audit, diagnostics: [issue], jsonEmitters: 2, clientCalls: 3, registeredStaticAssets: 4 };
+assert.equal(formatWireContractAudit('/unreadable-root', { audit: invalid }), [
+  'JSON wire contract audit (compiler-backed):',
+  '  violations: 1',
+  '  API c.json(...) emitters: 2',
+  '  Web API client calls: 3',
+  '  registered non-API static assets: 4',
+  '  fixture.ts:7: invalid wire body',
+].join('\\n'));
+"""],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_wire_audit_accepts_contract_aliases_spreads_and_view_mapper(self):
         with tempfile.TemporaryDirectory(prefix="ims-source-rules-") as temporary:
             root = Path(temporary)

@@ -1,3 +1,4 @@
+import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba/runtime';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { services } from '@/middleware/hono-context';
@@ -17,7 +18,7 @@ const OPTIONAL_PROFILE_FIELDS = [
 ] as const;
 const UPLOAD_METADATA_FIELDS = [
     'seriesCode',
-    'favoriteIdolIds',
+    'favoriteCharacterIds',
     ...OPTIONAL_PROFILE_FIELDS,
 ] as const;
 
@@ -36,7 +37,7 @@ export interface GuestSubmissionWithdrawalRequest {
 export interface UploadGuestSubmissionRequest {
     images: UploadedFile[];
     seriesCode: string;
-    favoriteIdolIds: number[];
+    favoriteCharacterIds: number[];
     producerName: string | null;
     displayName: string | null;
     bio: string | null;
@@ -152,24 +153,24 @@ function uploadMetadata(fields: Record<string, string>): Omit<
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(seriesCode)) {
         invalidRequest('主企划无效');
     }
-    let favoriteIdolIds: unknown;
+    let favoriteCharacterIds: unknown;
     try {
-        favoriteIdolIds = JSON.parse(fields.favoriteIdolIds ?? '');
+        favoriteCharacterIds = JSON.parse(fields.favoriteCharacterIds ?? '');
     } catch {
-        invalidRequest('担当偶像无效');
+        invalidRequest('担当角色无效');
     }
     if (
-        !Array.isArray(favoriteIdolIds) ||
-        favoriteIdolIds.length < 1 ||
-        favoriteIdolIds.length > 20 ||
-        favoriteIdolIds.some((id) => !Number.isSafeInteger(id) || id <= 0) ||
-        new Set(favoriteIdolIds).size !== favoriteIdolIds.length
+        !Array.isArray(favoriteCharacterIds) ||
+        favoriteCharacterIds.length < 1 ||
+        favoriteCharacterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT ||
+        favoriteCharacterIds.some((id) => !Number.isSafeInteger(id) || id <= 0) ||
+        new Set(favoriteCharacterIds).size !== favoriteCharacterIds.length
     ) {
-        invalidRequest('担当偶像无效');
+        invalidRequest('担当角色无效');
     }
     return {
         seriesCode,
-        favoriteIdolIds: favoriteIdolIds as number[],
+        favoriteCharacterIds: favoriteCharacterIds as number[],
         producerName: optionalProfileText(fields, 'producerName', '制作人昵称', 80),
         displayName: optionalProfileText(fields, 'displayName', '名片名称', 120),
         bio: optionalProfileText(fields, 'bio', '简介', 2000),

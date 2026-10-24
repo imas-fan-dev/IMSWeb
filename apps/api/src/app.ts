@@ -33,6 +33,8 @@ import { isSensitiveRequestPath } from "@/middleware/static-path-policy";
 import { registerAuditRoutes } from "@/domains/admin/audit/routes";
 import { registerAdminAccountRoutes } from "@/domains/admin/admin-accounts/routes";
 import { registerAdminPlatformUserRoutes } from "@/domains/admin/platform-users/routes";
+import { registerAdminNamecardCharacterRoutes } from "@/domains/admin/namecard-characters/routes";
+import { registerAdminNamecardUnitRoutes } from "@/domains/admin/namecard-units/routes";
 import { registerAboutRoutes } from "@/domains/content/about/routes";
 import { registerBackofficeAuthRoutes } from "@/domains/admin/backoffice-auth/routes";
 import { registerBrandAssetRoutes } from "@/domains/content/brand-assets/routes";
@@ -270,6 +272,8 @@ export function createHonoApp<
     registerPlatformAccountSecurityRoutes(app);
     registerAdminAccountRoutes(app);
     registerAdminPlatformUserRoutes(app);
+    registerAdminNamecardCharacterRoutes(app);
+    registerAdminNamecardUnitRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);
     registerFudabaRoutes(app);

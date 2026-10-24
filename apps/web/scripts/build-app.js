@@ -112,8 +112,10 @@ export function runAppBuild(environment = process.env) {
       `and public site ${buildEnvironment.VITE_IMS_PUBLIC_SITE_ORIGIN}`
   )
 
-  const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
-  const result = spawnSync(command, ["exec", "react-router", "build"], {
+  const result = spawnSync("pnpm", ["exec", "react-router", "build"], {
+    // Windows exposes pnpm as a `pnpm.cmd` shim, which Node 22.13+ only
+    // spawns through a shell.
+    shell: process.platform === "win32",
     cwd: webWorkspaceRoot(),
     env: buildEnvironment,
     stdio: "inherit",

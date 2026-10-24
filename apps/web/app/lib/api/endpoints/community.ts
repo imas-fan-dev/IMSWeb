@@ -20,7 +20,7 @@ import { namecardPageSchema, reactionSchema } from "@imsweb/contracts/namecards"
 
 export {
   cardIdSchema,
-  namecardIdolSchema,
+  namecardFavoriteCharacterSchema,
   namecardMetadataSchema,
   namecardSchema,
   namecardPageSchema,

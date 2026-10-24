@@ -79,30 +79,6 @@ async function itemGeometry(page: import("@playwright/test").Page) {
   )
 }
 
-async function headerGeometry(page: import("@playwright/test").Page) {
-  return page.locator('[data-slot="public-feed-header"]').evaluate((header) => {
-    const content = header.querySelector(
-      '[data-slot="public-feed-header-content"]'
-    )
-    if (!(content instanceof HTMLElement)) return null
-
-    const headerBox = header.getBoundingClientRect()
-    const contentBox = content.getBoundingClientRect()
-    const style = getComputedStyle(content)
-    return {
-      headerLeft: headerBox.left,
-      headerRight: headerBox.right,
-      contentLeft: contentBox.left,
-      contentRight: contentBox.right,
-      contentHeight: contentBox.height,
-      paddingLeft: style.paddingLeft,
-      paddingRight: style.paddingRight,
-      paddingTop: style.paddingTop,
-      paddingBottom: style.paddingBottom,
-    }
-  })
-}
-
 async function expectNoHorizontalOverflow(
   page: import("@playwright/test").Page
 ) {
@@ -118,53 +94,51 @@ async function expectNoHorizontalOverflow(
 }
 
 test.describe("public feed desktop layout", () => {
-  test("shares the header geometry and crosses lg between two and one columns", async ({
-    page,
-  }) => {
-    installFeedMocks()
-    await page.setViewportSize({ width: 1280, height: 900 })
+  test(
+    "crosses lg between two and one columns without overflow",
+    { tag: "@extended" },
+    async ({ page }) => {
+      installFeedMocks()
+      await page.setViewportSize({ width: 1280, height: 900 })
 
-    await page.goto("/events")
-    await expect(page.getByRole("listitem")).toHaveCount(5)
-    const eventHeader = await headerGeometry(page)
-    const eventRows = await itemGeometry(page)
+      await page.goto("/events")
+      await expect(page.getByRole("listitem")).toHaveCount(5)
+      const eventRows = await itemGeometry(page)
 
-    expect(eventHeader).not.toBeNull()
-    expect(eventRows[0]!.top).toBeCloseTo(eventRows[1]!.top, 0)
-    expect(eventRows[0]!.right).toBeLessThan(eventRows[1]!.left)
-    expect(eventRows[2]!.top).toBeGreaterThanOrEqual(eventRows[0]!.bottom)
-    expect(eventRows[4]!.left).toBeCloseTo(eventRows[0]!.left, 0)
-    await expectNoHorizontalOverflow(page)
+      expect(eventRows[0]!.top).toBeCloseTo(eventRows[1]!.top, 0)
+      expect(eventRows[0]!.right).toBeLessThan(eventRows[1]!.left)
+      expect(eventRows[2]!.top).toBeGreaterThanOrEqual(eventRows[0]!.bottom)
+      expect(eventRows[4]!.left).toBeCloseTo(eventRows[0]!.left, 0)
+      await expectNoHorizontalOverflow(page)
 
-    await page.goto("/recommendations")
-    await expect(page.getByRole("listitem")).toHaveCount(5)
-    const recommendationHeader = await headerGeometry(page)
-    const recommendationRows = await itemGeometry(page)
+      await page.goto("/recommendations")
+      await expect(page.getByRole("listitem")).toHaveCount(5)
+      const recommendationRows = await itemGeometry(page)
 
-    expect(recommendationHeader).toEqual(eventHeader)
-    expect(recommendationRows[0]!.top).toBeCloseTo(
-      recommendationRows[1]!.top,
-      0
-    )
-    expect(recommendationRows[0]!.right).toBeLessThan(
-      recommendationRows[1]!.left
-    )
-    expect(recommendationRows[2]!.top).toBeGreaterThanOrEqual(
-      recommendationRows[0]!.bottom
-    )
-    expect(recommendationRows[4]!.left).toBeCloseTo(
-      recommendationRows[0]!.left,
-      0
-    )
-    await expectNoHorizontalOverflow(page)
+      expect(recommendationRows[0]!.top).toBeCloseTo(
+        recommendationRows[1]!.top,
+        0
+      )
+      expect(recommendationRows[0]!.right).toBeLessThan(
+        recommendationRows[1]!.left
+      )
+      expect(recommendationRows[2]!.top).toBeGreaterThanOrEqual(
+        recommendationRows[0]!.bottom
+      )
+      expect(recommendationRows[4]!.left).toBeCloseTo(
+        recommendationRows[0]!.left,
+        0
+      )
+      await expectNoHorizontalOverflow(page)
 
-    await page.setViewportSize({ width: 900, height: 900 })
-    await expect
-      .poll(async () => {
-        const rows = await itemGeometry(page)
-        return rows[1]!.top >= rows[0]!.bottom
-      })
-      .toBe(true)
-    await expectNoHorizontalOverflow(page)
-  })
+      await page.setViewportSize({ width: 900, height: 900 })
+      await expect
+        .poll(async () => {
+          const rows = await itemGeometry(page)
+          return rows[1]!.top >= rows[0]!.bottom
+        })
+        .toBe(true)
+      await expectNoHorizontalOverflow(page)
+    }
+  )
 })

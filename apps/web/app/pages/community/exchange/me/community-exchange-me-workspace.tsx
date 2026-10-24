@@ -8,7 +8,6 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLocation, useSearchParams } from "react-router"
 
-import { NavigationLink } from "~/components/navigation/navigation-link"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -26,13 +25,11 @@ import {
   getFudabaOwnerCards,
   getFudabaOwnerSeries,
   getPlatformProfile,
-  getWikiCatalog,
   hasPlatformSessionHint,
   type FudabaOwnerCard,
   type FudabaSeries,
   type PlatformAccountStatus,
   type PlatformProfile,
-  type WikiPublicSearchEntry,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { CardWorkspace } from "./card-workspace"
@@ -41,6 +38,11 @@ import { FavoriteCollection } from "./favorite-collection"
 import { apiMessage, isFeatureClosed } from "./exchange-me-model"
 import { OfficeLocationWorkspace } from "./office-location-workspace"
 import { ProfileEditor } from "./profile-editor"
+import {
+  ExchangePageSurface,
+  useExchangeMapDialog,
+  ExchangeMapReturnLink as NavigationLink,
+} from "../components/exchange-page-surface"
 import {
   isProfileWorkspaceSection,
   ProfileWorkspaceNavigation,
@@ -55,7 +57,6 @@ type WorkspaceState = {
   accountStatus: PlatformAccountStatus | null
   writeEnabled: boolean
   series: FudabaSeries[]
-  idols: WikiPublicSearchEntry[]
   cards: FudabaOwnerCard[]
   error: string | null
 }
@@ -66,7 +67,6 @@ const initialState: WorkspaceState = {
   accountStatus: null,
   writeEnabled: false,
   series: [],
-  idols: [],
   cards: [],
   error: null,
 }
@@ -98,6 +98,7 @@ function ProfileWorkspace({
 }: CommunityExchangeMeWorkspaceProps & {
   platform: ReturnType<typeof usePlatformSession>
 }) {
+  const embedded = useExchangeMapDialog()
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const [state, setState] = useState<WorkspaceState>(initialState)
@@ -124,13 +125,11 @@ function ProfileWorkspace({
       error: null,
     }))
     try {
-      const [profileResult, seriesResult, cardResult, catalogResult] =
-        await Promise.all([
-          getPlatformProfile().send(),
-          getFudabaOwnerSeries().send(),
-          getFudabaOwnerCards().send(),
-          getWikiCatalog().send(),
-        ])
+      const [profileResult, seriesResult, cardResult] = await Promise.all([
+        getPlatformProfile().send(),
+        getFudabaOwnerSeries().send(),
+        getFudabaOwnerCards().send(),
+      ])
       if (workspaceGeneration.current !== generation) return
       const canCreate =
         profileResult.account.status === "active" &&
@@ -141,7 +140,6 @@ function ProfileWorkspace({
         accountStatus: profileResult.account.status,
         writeEnabled: profileResult.capabilities.fudabaWrite,
         series: seriesResult.items,
-        idols: catalogResult.searchEntries,
         cards: cardResult.items,
         error: null,
       })
@@ -249,7 +247,7 @@ function ProfileWorkspace({
 
   if (waitingForSession || state.phase === "loading") {
     return (
-      <main
+      <ExchangePageSurface
         id="main-content"
         className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
         aria-label="正在载入个人档案"
@@ -260,13 +258,13 @@ function ProfileWorkspace({
           <Skeleton className="h-144 w-full" />
           <Skeleton className="h-176 w-full" />
         </div>
-      </main>
+      </ExchangePageSurface>
     )
   }
 
   if (platform.status === "anonymous") {
     return (
-      <main
+      <ExchangePageSurface
         id="main-content"
         className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
       >
@@ -280,6 +278,11 @@ function ProfileWorkspace({
               登录后可以维护制作人资料、双面名片与交换状态。
             </EmptyDescription>
           </EmptyHeader>
+          {embedded ? (
+            <NavigationLink to="/account/login" className={buttonVariants()}>
+              登录平台帐号
+            </NavigationLink>
+          ) : null}
           <NavigationLink
             to="/community/exchange"
             className={buttonVariants({ variant: "outline" })}
@@ -287,13 +290,13 @@ function ProfileWorkspace({
             返回交换事务所
           </NavigationLink>
         </Empty>
-      </main>
+      </ExchangePageSurface>
     )
   }
 
   if (platform.status === "error") {
     return (
-      <main
+      <ExchangePageSurface
         id="main-content"
         className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
       >
@@ -312,14 +315,14 @@ function ProfileWorkspace({
             重新载入帐号
           </Button>
         </Empty>
-      </main>
+      </ExchangePageSurface>
     )
   }
 
   if (state.phase !== "ready" || !state.profile) {
     const closed = state.phase === "closed"
     return (
-      <main
+      <ExchangePageSurface
         id="main-content"
         className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
       >
@@ -356,7 +359,7 @@ function ProfileWorkspace({
             </NavigationLink>
           </div>
         </Empty>
-      </main>
+      </ExchangePageSurface>
     )
   }
 
@@ -378,7 +381,7 @@ function ProfileWorkspace({
     activeSection === "profile" ? profileReadOnlyReason : exchangeReadOnlyReason
 
   return (
-    <main
+    <ExchangePageSurface
       id="main-content"
       className="min-w-0"
       data-account-section-layout={accountSectionBasePath ? "stack" : undefined}
@@ -388,15 +391,19 @@ function ProfileWorkspace({
           <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
             <div className="max-w-2xl min-w-0">
-              <NavigationLink
-                to="/community/exchange"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                名片交换事务所
-              </NavigationLink>
-              <h1 className="mt-3 text-2xl font-semibold text-balance">
-                个人档案
-              </h1>
+              {!embedded ? (
+                <NavigationLink
+                  to="/community/exchange"
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                >
+                  名片交换事务所
+                </NavigationLink>
+              ) : null}
+              {!embedded ? (
+                <h1 className="mt-3 text-2xl font-semibold text-balance">
+                  个人档案
+                </h1>
+              ) : null}
               <p className="mt-2 max-w-xl leading-7 text-muted-foreground">
                 管理你的社区身份、交换名片、事务所与历史名片认领。
               </p>
@@ -482,7 +489,7 @@ function ProfileWorkspace({
                 交换名片
               </h2>
               <p className="mt-2 text-sm/6 text-muted-foreground">
-                管理双面名片素材、担当偶像和公开交换状态。
+                管理双面名片素材、担当角色和公开交换状态。
               </p>
             </div>
             <div className="mt-6">
@@ -493,7 +500,6 @@ function ProfileWorkspace({
                 loadingDetail={loadingDetail}
                 profile={state.profile}
                 series={state.series}
-                idols={state.idols}
                 readOnly={exchangeReadOnly}
                 readOnlyReason={exchangeReadOnlyReason}
                 onSelect={(cardId) => void loadCard(cardId)}
@@ -550,6 +556,6 @@ function ProfileWorkspace({
           </div>
         </div>
       </div>
-    </main>
+    </ExchangePageSurface>
   )
 }

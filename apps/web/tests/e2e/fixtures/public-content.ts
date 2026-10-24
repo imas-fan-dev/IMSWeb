@@ -74,6 +74,8 @@ const emptyExchangeCards = {
   pageInfo: { hasNextPage: false, nextCursor: null },
 } satisfies FudabaCardPage
 const exchangeMapConfig = {
+  provider: "maplibre",
+  search: { provider: "nominatim" },
   styleUrl: "/maps/exchange-test-style.json",
 } satisfies FudabaMapConfig
 const emptyExchangeMapOffices = {

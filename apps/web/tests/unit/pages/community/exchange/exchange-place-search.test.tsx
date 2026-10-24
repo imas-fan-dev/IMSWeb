@@ -29,7 +29,10 @@ const response: FudabaPlaceSearchResponse = {
 describe("ExchangePlaceSearch", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.search.mockReturnValue({ send: mocks.send })
+    mocks.search.mockReturnValue({
+      send: mocks.send,
+      abort: vi.fn().mockResolvedValue(undefined),
+    })
     mocks.send.mockResolvedValue(response)
   })
 

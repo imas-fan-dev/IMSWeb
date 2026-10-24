@@ -1,5 +1,5 @@
 import type { FudabaCardClaimState } from '@/ports/repositories';
-import type { CardIdolSelectionRecord } from '@/ports/repositories';
+import type { CardFavoriteSelectionRecord } from '@/ports/repositories';
 import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
 import type {
     AdminNamecard,
@@ -7,7 +7,7 @@ import type {
     Namecard,
     NamecardEmptyResponse,
     NamecardErrorResponse,
-    NamecardIdolInput,
+    NamecardFavoriteCharacterInput,
     NamecardListErrorResponse,
     NamecardMutationResponse,
     NamecardPage,
@@ -16,7 +16,7 @@ import type {
 
 export type NamecardResponseId = number;
 
-export type NamecardIdolResponse = NamecardIdolInput;
+export type NamecardFavoriteCharacterResponse = NamecardFavoriteCharacterInput;
 export type PublicNamecardResponse = Namecard;
 export type AdminNamecardResponse = AdminNamecard;
 export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
@@ -31,7 +31,7 @@ interface NamecardRow {
     created_at?: unknown;
     revision?: unknown;
     series_code?: unknown;
-    favorite_idols?: unknown;
+    favorite_characters?: unknown;
     claim_status?: unknown;
     viewer_claim_state?: unknown;
     claimer_name?: unknown;
@@ -59,12 +59,12 @@ function responseSeriesCode(value: unknown): string | null {
     return typeof value === 'string' && value ? value : null;
 }
 
-function responseFavoriteIdols(value: unknown): NamecardIdolResponse[] {
+function responseFavoriteCharacters(value: unknown): NamecardFavoriteCharacterResponse[] {
     if (!Array.isArray(value)) return [];
-    return (value as CardIdolSelectionRecord[]).map((idol) => ({
-        id: idol.idol_id,
-        name: idol.name_cn,
-        seriesCode: idol.agency_code
+    return (value as CardFavoriteSelectionRecord[]).map((character) => ({
+        id: character.character_id,
+        name: character.name_cn,
+        seriesCode: character.agency_code
     }));
 }
 
@@ -91,7 +91,7 @@ export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardRespon
     const response = {
         id: responseId(row.id),
         seriesCode: responseSeriesCode(row.series_code),
-        favoriteIdols: responseFavoriteIdols(row.favorite_idols),
+        favoriteCharacters: responseFavoriteCharacters(row.favorite_characters),
         claimStatus: responseClaimStatus(row.claim_status),
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
         image1_url: image1Url,

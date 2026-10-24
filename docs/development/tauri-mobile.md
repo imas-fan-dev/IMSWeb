@@ -4,7 +4,7 @@
 > 状态：Active
 > 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/Cargo.toml`、`apps/web/src-tauri/src/lib.rs`、`apps/web/src-tauri/capabilities/geolocation.json`、`apps/web/src-tauri/icon-sources/app-icon.json`、`apps/web/src-tauri/icon-sources/ios-liquid-glass/`、`apps/web/scripts/sync-ios-app-icon.js`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/geolocation.ts`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
 
-本文件描述 Web workspace 中 Tauri 2 移动端外壳的当前状态、前置条件和尚未打通的契约。
+本文件描述 Web workspace 中 Tauri 2 移动端外壳、前置条件、跨源契约和设备验收边界。
 桌面与移动构建复用同一份 React Router SPA 产物，不存在第二套前端源码。
 
 本文件不描述应用商店发布、签名证书管理和灰度策略。设备安装链路的前置依赖体检、命令矩阵和
@@ -38,18 +38,21 @@
 - 外部 URL 在真实 Tauri runtime 中由 opener 插件交给系统浏览器或已注册 App，不替换当前
   WebView。支持 HTTP(S)、邮件、电话和自定义 App scheme；前端与 capability 都拒绝可执行或
   本地资源 scheme。
-- Rust 侧 `cargo check` 通过；iOS 与 Android 的 Rust target 已安装。
 - iOS 26 及以上通过仓库内 `native-glass` Tauri 插件安装系统 `UITabBarController` 底栏；它使用与
   React 相同的 Lucide 图标，宽度和安全区间距由 UIKit 自适应。iOS 26 以下与 Android 保留 Web 底栏，
   但不启用手指位置追踪或白色触点高光。
 - 跨源认证走 `Authorization: Bearer`，CORS 已放行打包客户端 origin，见第 5 节。
 
-尚未落地的部分见第 6 节。**打包后的应用可以登录并调用 Platform API，
-但仍有约 43 处组件的媒体地址依赖同源解析。**
+- API 媒体在 endpoint 的 `select` 层按资源所有权归一化，普通 Web 保持根相对地址，App
+  分别使用 bundle、公开站点或 API origin，见第 4 节。
+- App layout 提供冷启动遮罩，负责初始绘制，不等待认证也不承担引导。实现位于
+  `app/components/app/app-cold-start-mask.tsx`，hydration 后通过 rAF 和兜底计时器进入淡出状态。
+
+源码和浏览器测试不替代设备验收；第 6 节列出发布前必须覆盖的链路。
 
 ## 2. 前置条件
 
-Rust target（已安装，重建环境时需要）：
+按目标平台安装 Rust target，并用 `pnpm run app:doctor` 检查当前环境：
 
 ```sh
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
@@ -95,10 +98,10 @@ pnpm --filter @imsweb/web run tauri android dev --host <开发机局域网 IP> [
 ```
 
 Tauri 的 `dev` 和 `build` 会先运行 `icon:app`，因此 Android 生成工程被删除或重建后仍会恢复专用图层。`icon:app` 还会规范化 ICNS 顶层块顺序，使相同输入的重复生成不产生二进制差异。
-修改 `src-tauri/icon-sources/app-icon.svg` 后重跑 `--write` 与 `--full-icon`（命令见
-[资产来源记录](../../docs/governance/assets.md)）刷新源图，再运行上述命令检查派生图标。
+修改 `src-tauri/icon-sources/app-icon.svg` 时必须同步更新图层 PNG 和完整图标，维护边界见
+[资产来源记录](../governance/assets.md)，再运行 `icon:app` 检查平台派生图标。
 
-图标按平台分流。桌面使用 `src-tauri/icons/` 下的 `icon.icns` 和 `icon.ico`，Android 使用 `app-icon.json` 生成的三图层 adaptive icon 加旧版 launcher 位图；三者与 iOS 图层同源，都是扁平版（字面不再有金属渐变），亮色底板统一为 `#e0e1e3`。iOS 26 及以上加载 `src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon`：`scripts/sync-ios-app-icon.js` 把该目录复制到 `gen/apple/AppIcon.icon`，再给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，使 `actool` 把它编译成 `IconImageStack`。接线放在 `icon:app` 而不是 `build.rs`，因为 `icon:app` 是 `beforeBuildCommand`，在 xcodebuild 读取工程之前执行；`build.rs` 要等 xcodebuild 进入 cargo 阶段才运行，已经晚于工程读取。同步脚本幂等，`gen/apple` 不存在时静默跳过，桌面与 Android 构建不受影响。
+图标按平台分流。桌面使用 `src-tauri/icons/` 下的 `icon.icns` 和 `icon.ico`，Android 使用 `app-icon.json` 生成的三图层 adaptive icon 加旧版 launcher 位图；三者与 iOS 图层同源，都是扁平版（字面不再有金属渐变），亮色底板统一为 `#e0e1e3`。iOS 26 及以上加载 `src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon`：`apps/web/scripts/sync-ios-app-icon.js` 把该目录复制到 `gen/apple/AppIcon.icon`，再给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，使 `actool` 把它编译成 `IconImageStack`。接线放在 `icon:app` 而不是 `build.rs`，因为 `icon:app` 是 `beforeBuildCommand`，在 xcodebuild 读取工程之前执行；`build.rs` 要等 xcodebuild 进入 cargo 阶段才运行，已经晚于工程读取。同步脚本幂等，`gen/apple` 不存在时静默跳过，桌面与 Android 构建不受影响。
 
 `init` 会在 `src-tauri/gen/` 下生成平台工程。执行前先确认 identifier 与签名归属，
 identifier 变更后需要重新生成。`gen/` 始终是派生产物；iOS 原生源码放在
@@ -161,7 +164,7 @@ scheme 会把设备上的同源 API、媒体、`/sites` 和 `/site-content` 请�
 
 这条转发链有一个已知边界：iOS 上带 `Blob`/`File` 的请求体到不了 1420。WebKit 把这类请求体
 作为流交给 scheme handler，转发时被丢弃，Hono 只收到 `content-length: 0`，头像与名片上传因此
-返回 500。纯文本和只含字符串字段的 `FormData` 不受影响，实测 256 KiB 仍完整送达。上传路径的
+可能返回空请求体错误。纯文本和只含字符串字段的 `FormData` 不经过同一 Blob/流转发路径。上传路径的
 联调必须改用自包含包（`pnpm run app ios`），它的 `VITE_IMS_API_ORIGIN` 是绝对地址，请求不经过
 scheme handler。原生图片选择本身在热重载会话里是正常的，失败只发生在随后的上传请求。
 
@@ -190,7 +193,7 @@ pnpm --filter @imsweb/web run tauri ios build --release
 这个开关不能用于公网部署，且不应写入仓库或长期 shell 配置。Android Release 构建会在该开关
 存在且至少一个已校验 origin 使用 HTTP 时，把生成工程的 `usesCleartextTraffic` placeholder 设为
 `true`；其他构建一律恢复为 `false`，避免 LAN 设置污染线上包。`src-tauri/gen/` 仍是忽略的派生目录，
-该条件由 `scripts/android-release-network.js` 在每次 App build 后重新应用。若公开网站与 API 不同
+该条件由 `apps/web/scripts/android-release-network.js` 在每次 App build 后重新应用。若公开网站与 API 不同
 主机，仍需设置 HTTPS 的 `VITE_IMS_PUBLIC_SITE_ORIGIN`，供分享和系统浏览器跳转使用。
 
 地图源由后台 map-config 返回的完整 `styleUrl` 决定。官方 OpenFreeMap 使用绝对 HTTPS URL，
@@ -213,7 +216,11 @@ Dev 包不使用这个线上默认值，按第 3 节通过 Tauri dev URL 的同�
 - 留空时 `API_ORIGIN` 为空串，alova 拼接结果与改造前逐字节一致，Web 行为不变。
 - 非空时三个 alova client 统一加前缀，且请求 `credentials` 从 `same-origin` 切换为 `omit`：
   打包客户端用 Bearer 令牌认证，不需要任何 cookie 越过边界，API 也不下发凭据许可。
-- API 响应里回传的媒体 URL 用 `resolveMediaUrl()` 归一化；绝对地址、协议相对地址和 data URI 原样透传。
+- API 响应里的媒体字段在 endpoint 的 `select` 层调用
+  `app/lib/api/media-urls.ts` 的领域 helper，归一化发生在 contract parse 之后。
+  仓库随包资产保持本地路径，公开站点资产使用 `resolvePublicSiteMediaUrl()`，API 媒体使用
+  `resolveMediaUrl()`；nullable 字段保留 `null`。普通 Web 保持根相对路径，App 才拼接目标 origin。
+  新增媒体字段时同步补上所属领域的映射和跨源回归，不能依赖页面逐个补前缀。
 - 需要拼接站点 origin 的位置用 `resolveSiteOrigin()`，不要直接读 `window.location.origin`；
   但要离开本进程的链接改用 `resolveShareableOrigin()`，理由见下一节。
 
@@ -309,14 +316,13 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
 **已知取舍**：`localStorage` 不是安全存储。当前 WebView 只加载本地打包资源，没有第三方脚本，
 但换用系统钥匙串（Tauri secure storage 插件）仍是后续改进项。
 
-## 6. 遗留项与待补证据
+## 6. 发布前设备验收与能力边界
 
-这一节记录尚未收敛的部分，以及只能靠真机或模拟器拿到的证据。第 1 项仍未完成；第 2 项不影响
-打包客户端；第 3 项的功能已实现，仅剩真机结论（见第 4 项）。
+发布前使用模拟器或真机验证以下链路，执行结果保存在 PR、CI artifact 或 release record 中。
 
-1. **媒体 URL**：约 43 个组件把 API 返回的 URL 直接写进 `src`，依赖浏览器按当前页面解析相对地址。
-   已收敛 6 处到 `resolveSafeMediaUrl()`，其余（Wiki 事务所与偶像图标、名片正反面、
-   关于页头图、制作人地图、直播、编年史封面）跨源后仍会失效。
+1. **媒体 URL**：分别验证 bundle 静态资产、公开站点素材、API 公开媒体和受保护媒体，覆盖
+   Wiki 图标、名片正反面、头像、地图及编年史封面。endpoint 映射测试通过不能单独证明设备上
+   的跨源读取、签名 URL 和缓存行为正确。
 2. **Backoffice realm**：令牌通道只做了 Platform。app 产物已排除全部 admin 路由，
    所以这不阻塞打包客户端；若将来要在移动端进入后台，需要同样的改造。
 3. **Platform OAuth**：登录与帐号绑定（link）在 App 内均已走「系统浏览器授权 →
@@ -327,7 +333,7 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
    两条通道由 state 行的 `client_target` 分流，provider 配置未变。深链回调的
    `flow=link` 标识把绑定与登录分开投递（冷启动无监听者时按 flow 落到
    `/account/security` 或 `/account/login`）。iOS 从 303 跳自定义 scheme 的回前台行为
-   仍需真机结论（见第 4 项）。
+   必须纳入设备验收（见第 4 项）。
 
    深链需要在三处对齐：`apps/web/src-tauri/tauri.conf.json` 的 deep-link 插件注册 scheme
    `imsweb`、host `oauth`、pathPrefix `/callback`；`apps/web/src-tauri/capabilities/default.json`
@@ -342,5 +348,6 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
    `openSystemUrl` 在非 Tauri 环境下直接报错，所以浏览器里的 Playwright 跑不完
    「系统浏览器授权 → 深链回流」这一圈。深链投递、一次性码交换和 bearer session 只能由真机或
    模拟器提供证据，浏览器用例只能盖到打包外壳里的 OAuth 入口可见。
-4. **真机验证**：Platform 登录到拉取列表的完整链路仍需纳入发布前设备门禁；站点包的本地
-   LAN 访问和系统浏览器跳转已由构建、组件与浏览器回归测试覆盖。
+4. **完整链路**：验证 Platform 登录、会话恢复、列表与媒体加载、OAuth 登录和绑定的冷/热启动回流，
+   以及站点包的本地 LAN 访问和系统浏览器跳转。iOS 原生底栏与地图控件还要验证安全区、旋转、
+   弹层遮挡、Dynamic Type 和实时 Reduce Motion；App Playwright 只提供 DOM 路径证据。

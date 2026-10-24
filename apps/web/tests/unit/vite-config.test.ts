@@ -4,6 +4,7 @@ import { resolve, sep } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { localContractsOptimizer } from "../../vite-contracts"
 import {
   parseByteRange,
   resolveExchangeMapAssetPath,
@@ -26,18 +27,36 @@ describe("Vite file watching", () => {
 })
 
 describe("Vite dependency optimization", () => {
-  it("includes rebuilt contracts content in Vite's hashed optimizer options", () => {
-    expect(viteConfig.optimizeDeps?.rolldownOptions?.plugins).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: expect.stringMatching(/^imsweb-contracts-build-[a-f0-9]{64}$/),
-        }),
-      ])
-    )
+  it("registers a serve-only optimizer that invalidates linked contracts", async () => {
+    expect(localContractsOptimizer(process.cwd())).toMatchObject({
+      name: "imsweb-local-contracts-optimizer",
+      apply: "serve",
+    })
+    const optimizer = localContractsOptimizer(process.cwd())
+    if (typeof optimizer.config !== "function")
+      throw new Error("Expected an optimizer config hook")
+    expect(
+      await optimizer.config.call(
+        {} as never,
+        {},
+        { command: "serve", mode: "development" }
+      )
+    ).toMatchObject({
+      optimizeDeps: {
+        rolldownOptions: {
+          transform: {
+            define: {
+              __IMS_CONTRACTS_RUNTIME_DIGEST__:
+                expect.stringMatching(/^"[a-f0-9]{64}"$/),
+            },
+          },
+        },
+      },
+    })
     expect(viteConfig.plugins).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "imsweb-contracts-dependency-cache",
+          name: "imsweb-local-contracts-optimizer",
           apply: "serve",
         }),
       ])
@@ -48,6 +67,17 @@ describe("Vite dependency optimization", () => {
       "@imsweb/contracts/fudaba/runtime"
     )
   })
+})
+
+it("registers the local AMap security proxy without requiring credentials at build time", () => {
+  expect(viteConfig.plugins).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        name: "imsweb-local-amap-service-proxy",
+        apply: "serve",
+      }),
+    ])
+  )
 })
 
 describe("local exchange map asset delivery", () => {

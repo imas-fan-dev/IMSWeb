@@ -217,12 +217,12 @@ import { describe, onTestFinished, test } from 'vitest';
             ip: '127.0.0.1',
             withdrawalTokenHash: WITHDRAWAL_TOKEN_HASH,
             seriesCode: 'cg',
-            idolIds: [900_002, 900_001]
+            characterIds: [900_002, 900_001]
         };
     }
 
     describe('PostgreSQL guest namecards', () => {
-        postgresTest('persist ordered cross-series idol metadata atomically', async () => {
+        postgresTest('persist ordered cross-series character metadata atomically', async () => {
             const database = await createPostgresTestDatabase('namecard-metadata');
             await seedCanonicalFudabaAgencies(database);
             const repository = new SqlCoreRepository(
@@ -236,12 +236,12 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(pending.id, id);
             assert.equal(pending.seriesCode, 'cg');
             assert.equal(pending.submissionKind, 'guest');
-            assert.ok(pending.favoriteIdols);
+            assert.ok(pending.favoriteCharacters);
             assert.deepEqual(
-                pending.favoriteIdols.map((idol) => ({
-                    id: idol.idol_id,
-                    agency: idol.agency_code,
-                    order: idol.display_order
+                pending.favoriteCharacters.map((character) => ({
+                    id: character.character_id,
+                    agency: character.agency_code,
+                    order: character.display_order
                 })),
                 [
                     { id: 900_002, agency: 'cg', order: 0 },
@@ -256,44 +256,44 @@ import { describe, onTestFinished, test } from 'vitest';
             const [publicCard] = await repository.listApprovedCards(20, 0);
             assert.equal(publicCard.id, id);
             assert.equal(publicCard.seriesCode, 'cg');
-            assert.ok(publicCard.favoriteIdols);
+            assert.ok(publicCard.favoriteCharacters);
             assert.deepEqual(
-                publicCard.favoriteIdols.map((idol) => idol.idol_id),
+                publicCard.favoriteCharacters.map((character) => character.character_id),
                 [900_002, 900_001]
             );
             const media = await repository.findApprovedCardMedia(id);
             assert.deepEqual(
-                media?.favoriteIdols?.map((idol) => idol.idol_id),
+                media?.favoriteCharacters?.map((character) => character.character_id),
                 [900_002, 900_001]
             );
 
             await assert.rejects(
                 repository.insertPendingCard({
                     ...guestInput('empty'),
-                    idolIds: []
+                    characterIds: []
                 }),
-                /between 1 and 20 idols/
+                /between 1 and 200 characters/
             );
             await assert.rejects(
                 repository.insertPendingCard({
                     ...guestInput('duplicate'),
-                    idolIds: [900_001, 900_001]
+                    characterIds: [900_001, 900_001]
                 }),
                 /must be unique/
             );
             await assert.rejects(
                 repository.insertPendingCard({
                     ...guestInput('missing'),
-                    idolIds: [999_999]
+                    characterIds: [999_999]
                 }),
                 /do not exist/
             );
             await assert.rejects(
                 repository.insertPendingCard({
                     ...guestInput('too-many'),
-                    idolIds: Array.from({ length: 21 }, (_, index) => 910_000 + index)
+                    characterIds: Array.from({ length: 201 }, (_, index) => 910_000 + index)
                 }),
-                /between 1 and 20 idols/
+                /between 1 and 200 characters/
             );
             await assert.rejects(
                 repository.insertPendingCard({
@@ -318,14 +318,14 @@ import { describe, onTestFinished, test } from 'vitest';
                 ip: '127.0.0.1',
                 withdrawalTokenHash: 'b'.repeat(64),
                 seriesCode: null,
-                idolIds: [],
+                characterIds: [],
                 submissionKind: 'legacy'
             });
             const legacy = (await repository.listAdminCards(20, 0))
                 .find((card) => card.id === legacyId);
             assert.equal(legacy?.submissionKind, 'legacy');
             assert.equal(legacy?.seriesCode, null);
-            assert.deepEqual(legacy?.favoriteIdols, []);
+            assert.deepEqual(legacy?.favoriteCharacters, []);
         });
 
         postgresTest('may carry optional profile text', async () => {
@@ -464,14 +464,14 @@ import { describe, onTestFinished, test } from 'vitest';
                 legacy_card_id: null
             });
             const relations = await harness.connection.prepare(
-                `SELECT to_regclass('public.namecard_idols') AS namecard_idols,
-                to_regclass('public.fudaba_card_idols') AS fudaba_card_idols,
+                `SELECT to_regclass('public.namecard_favorite_characters') AS namecard_favorite_characters,
+                to_regclass('public.fudaba_card_favorite_characters') AS fudaba_card_favorite_characters,
                 to_regclass('public.fudaba_card_claims') AS claims,
                 to_regclass('public.fudaba_claim_envelopes') AS envelopes`
             ).first<Record<string, string | null>>();
             assert.deepEqual(relations, {
-                namecard_idols: 'namecard_idols',
-                fudaba_card_idols: 'fudaba_card_idols',
+                namecard_favorite_characters: 'namecard_favorite_characters',
+                fudaba_card_favorite_characters: 'fudaba_card_favorite_characters',
                 claims: 'fudaba_card_claims',
                 envelopes: 'fudaba_claim_envelopes'
             });

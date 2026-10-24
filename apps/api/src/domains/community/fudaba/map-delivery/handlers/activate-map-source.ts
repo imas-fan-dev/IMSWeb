@@ -7,6 +7,7 @@ import {
 } from '@/domains/community/fudaba/map-delivery/map-delivery-store';
 import type { FudabaMapSourceActivation } from '@imsweb/contracts/fudaba/map-delivery';
 import { fudabaMapDeliveryResponse } from '@/domains/community/fudaba/map-delivery/response';
+import { describeMapProvider } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import { services } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -23,7 +24,7 @@ export async function handleActivateFudabaMapSource(
         ).valid('json') as FudabaMapSourceActivation;
         const current = await readFudabaMapDelivery(
             storage,
-            runtime.config?.fudabaMapStyleUrls ?? [],
+            runtime.config?.fudabaMapSources ?? [],
         );
         const source = current.sources.find(
             (item) => item.id === payload.sourceId,
@@ -31,7 +32,8 @@ export async function handleActivateFudabaMapSource(
         if (!source) {
             throw Object.assign(new Error('地图源不存在'), { status: 404 });
         }
-        if (source.id === current.activeSourceId) {
+        if (source.id === current.activeSourceId && !current.routing && !payload.routing) {
+            if (payload.revision !== current.revision) throw Object.assign(new Error('地图源已被其他管理员更新，请刷新后重试'), { status: 409 });
             return c.json({
                 success: true,
                 delivery: fudabaMapDeliveryResponse(current),
@@ -42,11 +44,12 @@ export async function handleActivateFudabaMapSource(
             current.sources,
             source.id,
             payload.revision,
+            payload.routing ?? undefined,
         );
         await writeAudit(
             c,
             '激活交换地图源',
-            `${source.name} · ${source.styleUrl}`,
+            `${source.name} · ${payload.routing ? `地区分流 ${payload.routing.mainlandSourceId}/${payload.routing.overseasSourceId}` : describeMapProvider(source).auditLabel}`,
         );
         return c.json({
             success: true,

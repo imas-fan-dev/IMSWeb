@@ -21,21 +21,53 @@
 Delivery 的 `PROFILE` 是 `root`、`repository`、`app`、`web` 或 `integration`；每个 CI lane
 只调用自己拥有的 profile。
 
-Root、API 和 Web 的 package script 数量由 `tests/test_workspace_boundaries.py` 钉在 58、43 和
-21；新增 script 要同步这个期望值。不得新增 `test:all`，也不为准备状态增加 package alias 或
+Root、API 和 Web 的 package script 表面由 `tests/test_workspace_boundaries.py` 约束；
+添加或删除 script 要同步边界测试中的期望值。不得新增 `test:all`，也不为准备状态增加 package alias 或
 可独立调用的跳过参数。
+
+### 执行域与 runner
+
+仓库按运行环境划分执行域，每个执行域只使用一个 runner；它们不是同一类测试的两种实现：
+
+| 执行域 | Runner | 使用位置 |
+| --- | --- | --- |
+| JS/TS 单元、HTTP 契约、迁移与仓库契约 | Vitest | `apps/api/tests/**`、`apps/web/tests/unit/**`、`tests/**`、`scripts/**/tests/**` |
+| 浏览器流程 | Playwright | `apps/web/tests/e2e/**` |
+| 仓库边界、部署与规则（文件树/fixture 断言） | Python `unittest` | `tests/test_*.py` |
+| 无构建依赖的独立校验器 | `node:test` | 仅限独立 `.mjs` 校验器，如 `apps/web/tests/native/exchange-search-geometry.test.mjs` |
+
+API 测试全部由 Vitest 执行，包括 `apps/api/tests` 中验证编译后 `dist/server` 入口的用例；
+仓库不使用 Node 内置 runner 跑 API 测试，验证已构建产物的用例只是 Vitest plan 中的一个
+profile。
 
 Root `test` 由同一个 runner 进程按顺序运行 `check:root`、governance、contracts、delivery 的
 root 与 integration profile、完整 API owner，最后是 Web unit。
 Delivery integration profile 成功构建 Web 和 API 后，该进程才会运行不再构建的 API 阶段，
-该阶段包含 build、syntax、architecture 和一次覆盖整个 `apps/api/tests`（排除 `tests/assets/`）
-的 Vitest 全量运行；Node、server、Wiki 与 migration 已并入这一次运行。`tests/assets/` 断言的
+该阶段包含 build、syntax、architecture 和一次覆盖整个 `apps/api/tests`（排除 `apps/api/tests/assets/`）
+的 Vitest 全量运行；Node、server、Wiki 与 migration 已并入这一次运行。`apps/api/tests/assets/` 断言的
 是已构建的 Web 客户端（`apps/web/build/client`），只属于先构建 Web 的 delivery integration，
 因此不在 API owner 计划里：CI API lane 从不构建 Web，跑它只会在缺构建产物上失败，而不是暴
 露真实缺陷。这样 API 测试不会接受另一次运行留下的 `dist/server/main.js`。CI API lane 直接运
-行完整 API owner；本地 Web owner 默认只运行 unit；Web lane 使用 `ci` profile，在同一个 runner
-进程内依次运行 Web `check`（包含 unit）和完整普通 Playwright 套件。Integration job 没有跨 job artifact transfer，因此
-`delivery integration` 始终保留自己的 Web 与 API build。
+行完整 API owner；本地 Web owner 默认只运行 unit。CI Web `validation` profile 顺序运行 lint、
+typecheck 和完整域 unit，保留 coverage 阈值。独立 `web-build` job 构建 Web，`web-browser` 和
+integration 只依赖该 build 与 changes，因此浏览器可以在 unit 尚未完成时启动。
+本地 `ci` profile 仍运行完整 `check` 和核心浏览器；`web browser` 与 `delivery integration`
+默认保留构建前置条件。CI 显式传 `--artifact=.ci-artifacts/web.json`，owner 必须先调用
+`scripts/ci/build-artifact.mjs verify web`，核对候选 SHA/tree、同次 run/attempt、lockfile、target、
+origins、Node/pnpm/Vite/React Router/Playwright 版本和全部文件摘要。缺失、额外或篡改文件均拒绝。
+Web 与 App 使用独立 target 和输出目录；API integration 仍自行构建 API。pnpm store cache 由
+锁文件与固定 Node/pnpm 版本确定，每个消费 job 仍显式执行 frozen install。
+
+`release/v1.1` push 必须执行全部核心 lane；PR 检查 checkout 的 merge SHA/tree。
+`deploy-preview.yml` 由 CI result 成功后通过 workflow_call 启动，保留原 push SHA/ref 的
+OIDC provenance；`scripts/ci/verified-candidate.mjs` 使用 GitHub API
+核对受信任仓库、push 事件、release branch、当前 head/tree、workflow ID/path、run attempt 和
+每个必需 validation job 的成功结果，拒绝缺失、失败、取消、跳过、fork 或错误 SHA。
+自动调用不等待自身 publication 完成；publication 失败不清除已成功的验证证据。Preview 不重复运行
+`pnpm check` 和 `pnpm test`。手动重新部署也要求当前 head 的同一套验证成功，并校验已有镜像的
+digest/provenance。共享构建、镜像发布与部署资源使用前重新验证候选新鲜度。Docker 保留干净构建，
+镜像以不可变 digest 部署，构建和部署锁继续生效。容器升级与测试分片需要对应的性能测量、
+兼容性和 digest 证据，不能用历史时间代替本次收益。
 
 governance、contracts 和 delivery 的 Node 测试属于仓库域，CI 由 `apps/api` 承载：
 
@@ -67,7 +99,7 @@ pnpm exec vitest run --project=api   # 只跑某个项目
 - **面板默认就测覆盖率**：直接 `pnpm run test:ui` 即可，不用记得加 flag。面板的覆盖率是聚合结果，写到
   仓库根 `coverage/`，跑完后左侧栏出现「Show coverage」按钮，也可以直接打开
   `<面板地址>/__vitest__/coverage/index.html`。覆盖率在单次运行结束时才写盘，所以运行没结束前该路径
-  仍是 404。代价是每次运行都多付测量开销（仓库域那几个 CPU 密集契约用例约 5.8s → 25.6s），不想要报告
+  仍是 404。覆盖率采集会增加执行开销，不需要报告
   时用快路径：`pnpm run test:ui --coverage.enabled=false`。
 - **面板的覆盖率是视图，不是门禁**：根配置只写 `coverage: { enabled: true, htmlDir: 'coverage' }`
   两个键，不再加 thresholds／reporter／provider，因为面板里常常只跑一个子集，任何域级阈值都会变成假
@@ -80,7 +112,7 @@ pnpm exec vitest run --project=api   # 只跑某个项目
   （`scripts/testing/vitest/panel-workspace-cwd.setup.mts`）。两个域平时都由
   `pnpm --filter <workspace> run test` 从 workspace 目录启动，少数用例依赖这一点：Web 用
   `process.cwd()` 读 `app/`、`public/`、`DESIGN.md` 等夹具，API 的
-  `tests/migration/legacy-information-media.test.js` 交给 tsx hook，而 tsconfig 的 `@/*` 路径由
+  `apps/api/tests/migration/legacy.test.js` 交给 tsx hook，而 tsconfig 的 `@/*` 路径由
   cwd 决定。Vitest 给项目自己的 root／environment／pool，但不给单独的 cwd，所以根配置按项目传
   入 workspace 路径并在 worker 里 `chdir`；这只在面板里生效，CI 不加载根配置。仓库域不需要这
   一层：它本来就从仓库根跑，且用例按自身文件位置解析路径。
@@ -91,22 +123,44 @@ pnpm exec vitest run --project=api   # 只跑某个项目
   pnpm run build
   ```
 
-  未构建时 `frontend-routing.contract.test.js` 在收集阶段就失败（`Required build output is
-  missing`），`client-allowlist.test.js` 的 fs 访问在用例内，属运行期失败；其余用例不受影响。配置
+  未构建时 `frontend-routing.contract.test.ts` 在收集阶段就失败（`Required build output is
+  missing`），`client-allowlist` 套件的 fs 访问在用例内，属运行期失败；其余用例不受影响。配置
   层不做 exclude，否则 CI 与面板看到的测试集合就不再是同一个。
 
 根配置只列三条域配置路径，靠 `tests/vitest-projects.test.mjs` 守卫：路径不存在、被替换，或某个域
 配置的 `environment`／`include`、面板条目的 `root`（`include` 相对谁解析）与 api/web 的 cwd 桥漂
 移，都会让治理段失败。`include` 也在守卫范围内，根 UI 面板与 CI owner 用的是同一份 glob。
 
-面板与单域运行的用例集合一致，实测 api 134 文件 / 884 用例（含 `tests/assets`）、web 220 / 1534；
-仓库域是三条 CI 调用覆盖的 10 个文件加本守卫。
+面板与单域运行共享测试发现配置；具体文件与用例数量以当前配置和当次报告为准，不在文档中维护快照。
 
 ## 测试位置
 
+Web 浏览器默认使用 core：Chromium desktop 的功能与精选可用性场景，以及带 `@mobile` 的
+移动场景。广泛布局用例带 `@extended`，Firefox 的 `@firefox` 兼容场景也属于 extended。
+`playwright.config.ts` 的 `resolveWebUiProjects` 拥有选择规则，core 与 extended 的并集
+必须等于保留的完整项目清单，交集为空。App 全部现有项目保持必需验证。
+
+手动执行扩展 UI：
+
+```sh
+node scripts/testing/run-test-owner.mjs web extended
+```
+
+`.github/workflows/ui-extended.yml` 每周一和手动运行，独立报告结果及浏览器证据。
+扩展结果不参与核心候选发布判定。盘点用 `E2E_UI_TIER=all pnpm --filter @imsweb/web exec
+playwright test --list`；默认命令列 core，`--config playwright.extended.config.ts` 列 extended。
+两个 tier 都保持 workers=1、retries=0 和原有预算。单测仍执行完整域并使用原有 coverage 阈值。
+CI Web 使用 `build/client`，由 `pnpm preview` 在 4173 端口复用 Hono 静态路由策略；
+本地 Playwright 保留 dev 入口。Web CI 由独立 build job 准备产物，extended owner 在浏览器前
+执行构建。直接运行 `CI=1` 的 Playwright 命令前须先构建 Web。App 继续独立构建和服务
+`build-app/client`，使用其独立 origins 和 1420 端口。两种预览都不启动数据库或 API，
+严格 API dispatcher 和不可用后端陷阱保持有效。
+纯装饰数量、精确外观几何、动画实现和普通 class-list 断言可删除；混合场景保留功能、
+键盘、focus、遮挡、溢出与操作可达性。
+
 | 范围                        | 位置                                                                                | 主要工具                             |
 | --------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------ |
-| API Node、数据库、HTTP      | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Vitest、TypeScript                   |
+| API Node、数据库、HTTP      | `apps/api/tests/**`（`*.test.ts` / `*.test.js`）、`apps/api/tests/server/`、`apps/api/tests/integration/` | Vitest、TypeScript                   |
 | Wiki contract 与数据        | `apps/api/tests/wiki/`                                                              | Vitest、PostgreSQL fixture           |
 | API migration               | `apps/api/tests/migration/`                                                         | Vitest                               |
 | API packaged 资产         | `apps/api/tests/assets/`                                                             | Vitest（由 delivery integration 运行） |
@@ -117,11 +171,35 @@ pnpm exec vitest run --project=api   # 只跑某个项目
 | 仓库边界、部署和规则        | `tests/*.py`                                                                        | Python `unittest`                    |
 
 Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API 测试应靠近受测 workspace，
-但不可把生产实现复制进测试目录。Web 浏览器用例在 CI 预算、瞬时浮层与点击后状态断言上的
-编写约束见 [Web testing spec](../../.trellis/spec/web/frontend/testing.md) 的 CI-stable browser test
-authoring 一节；Web 单测的共享装配层（`tests/unit/support/`）、契约化 fixture 工厂与开发期
-mock API 的编写约定见同一 spec 的 shared assembly layer、contract-typed fixture fidelity 与
-dev-time API mocks 三节。
+但不可把生产实现复制进测试目录。Web 的 workspace 约束以 [Web rules](../../apps/web/.rules)
+为准，下列规则说明测试之间如何复用基础设施。
+
+### Web 浏览器用例
+
+- 从 [`apps/web/tests/e2e/fixtures/test.ts`](../../apps/web/tests/e2e/fixtures/test.ts) 导入 `test` 和
+  `expect`，通过 API dispatcher 声明请求与响应；它在 teardown 校验 contract 和调用次数。
+  放行真实请求必须提供名称和理由。
+- 保持 Web/App Playwright 配置中的超时、单 worker 和零重试预算。用可观察状态等待异步完成，
+  不通过固定 sleep、重试循环或扩大超时掩盖竞争。
+- 操作产生 toast 后，先确认操作完成及 toast 已挂载，再调用
+  [`settleToasts(page)`](../../apps/web/tests/e2e/fixtures/toast.ts)，等待退出动画结束后再点击
+  可能被它遮挡的控件。不要把预算花在自动消失计时器上，也不要在 toast 出现前提前清理。
+- 点击之后断言目标 URL、弹层开关、更新内容或持久化结果；控件可见、可用或 `.click()` 返回
+  都不能单独证明操作成功。需要响应证据时，在点击前注册响应等待。
+
+### Web 单测、fixture 与开发 mock
+
+- 复用 [`apps/web/tests/unit/support/`](../../apps/web/tests/unit/support/) 中的路由装配、i18n、请求、
+  CSRF、触控和样式读取 helper。`renderPage` 只提供 `MemoryRouter`，额外 provider 显式组合；
+  hoisted `vi.mock(...)` 留在测试文件中。
+- 可复用的领域 fixture 工厂放在 [`mocks/data/`](../../apps/web/mocks/data/)，从所属
+  `@imsweb/contracts/<domain>` 导入响应类型，提供完整合法默认值和类型化 overrides。
+  保留真实 envelope、必需的 nullable 字段，并区分 wire response 与 client 投影。
+- 工厂同时由 [`apps/web/tests/unit/mocks/data/`](../../apps/web/tests/unit/mocks/data/) 中的 schema parse
+  和必需字段断言验证，不能只依赖 TypeScript。
+- 开发 MSW handler 使用共享路径 builder 和上述工厂，详情响应回显请求的 ID/slug。
+  mock 限于读取与占位媒体，写操作交给真实后端；媒体匹配不得截获应用 bundle。
+  使用 Web workspace 的 `dev:mock` 启用，worker 注册完成后才进行 hydration。
 
 ## 风险到验证
 
@@ -187,8 +265,9 @@ pnpm --filter @imsweb/web run test:e2e
 Playwright E2E 不在 pre-commit hook 中；本地显式执行 `pnpm --filter @imsweb/web run test:e2e` 或
 `pnpm --filter @imsweb/web run test:e2e:app`，GitHub Actions 的 Web/App lane 仍强制执行各自套件。
 
-这个 opt-out 只用于本地 hook。CI 和 preview deployment workflow 不设置
-`IMS_TEST_POSTGRES_ENABLED=false`，数据库集成测试仍是强制检查；默认值仍为启用。要在 CI job 里
+这个 opt-out 只用于本地 hook。CI 的 API 验证不设置
+`IMS_TEST_POSTGRES_ENABLED=false`，数据库集成测试仍是强制检查；默认值仍为启用。
+Preview 复用这套 CI 证据，不重复执行 API 测试。若在 CI job 里
 意外跳过 PostgreSQL 测试时，测试必须失败而非显示为成功。
 
 ### pre-commit 覆盖边界
@@ -203,16 +282,15 @@ migration 套件会运行非数据库测试，PostgreSQL 集成用例只在本�
 | `pnpm --filter @imsweb/web run test:unit routes.test.ts` | 类型化 Web 路由清单长度与 prerender 数量 |
 
 这三个测试把仓库级计数写成期望值；新增路由、迁移或页面时必须同步更新，否则提交会在
-pre-commit 阶段被拒绝，而不是等到 CI 或部署。三个守护实测合计约 16s（contracts 11s、
-API migration 4s、Web routes 1s，均已从 Node test runner 换成 Vitest）。
+pre-commit 阶段被拒绝，而不是等到 CI 或部署。
 
-`check:pre-commit` 有意不覆盖 governance owner（实测约 144s，主要耗时在 9 个 Python unittest 文件）、API/Web owner 的完整套件和浏览器
+`check:pre-commit` 不覆盖 governance owner、API/Web owner 的完整套件和浏览器
 lane；CI 强制运行这些检查，本地可显式执行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前可运行
 `pnpm run test:infra`，并按需执行对应的 Web/App E2E 命令。
 
 Root `test:web-routing` 调用 delivery integration owner；该 owner 在当前 job 内构建两个
 workspace 后运行 frontend routing 与 packaged-client asset contracts。CI 的 Web lane 运行
-Chromium、移动 Chromium 与 Firefox 的普通 Web Playwright 矩阵；App Playwright 由独立 App
+Chromium 与移动 Chromium 的核心 Web Playwright 矩阵；Firefox 由扩展 workflow 安装并运行；App Playwright 由独立 App
 lane 运行。两个浏览器 lane 在 `playwright install --with-deps` 前只移除 GitHub runner 预装的
 Google Chrome apt source；Playwright 使用自己的固定浏览器版本，不依赖该 source，而保留
 `--with-deps` 继续安装所需的 Ubuntu 系统库。
@@ -232,11 +310,11 @@ owner plan 传 flag：CI 用写 JUnit 的同一次运行产出覆盖率，`run-t
 | Web | `apps/web/reports/junit-web.xml` | `apps/web/coverage/`，`include: ['app/**']`，阈值 lines 73 / branches 67 / functions 67 / statements 70 |
 | 仓库契约与治理 | 仓库根 `reports/junit-repository.xml` | 不采集，理由见下 |
 
-仓库契约与治理域不采集覆盖率：该 lane 是三次独立调用共用一份配置与同一个 `scripts/**` 分母，最小那次
-只覆盖 1.36% 的行，任何大于 1 的阈值都拦不住回归，却要为 CPU 密集的 contracts 固定付出约 40s。
+仓库契约与治理域不采集覆盖率：该 lane 是多次独立调用，共用一份配置与同一个 `scripts/**` 分母。
+单次调用并不覆盖整个域，不能使用域级阈值判断回归。
 
 覆盖率只在「这一次运行覆盖了整个域」时开启：配置读 `IMS_TEST_COVERAGE_ENABLED === 'true'`，只有
-ci.yml 里两个域级步骤设置它（Web lane 的 `test -- ci`、API lane 的 `run test`）。这样过滤运行——App lane
+ci.yml 里两个域级步骤设置它（Web lane 的 `web validation`、API lane 的 `run test`）。这样过滤运行——App lane
 只跑一个 Web 测试文件、integration lane 只跑 `test:assets`——不会被域级阈值压死：阈值是按域级运行实测
 出来的，部分运行本来就达不到。
 
@@ -258,7 +336,7 @@ CI 每个 lane 上传自己的 artifact（`if: always()`，名称 `<domain>-repo
 
 同一域的两次 Vitest 运行不要并发：它们共用 `coverage.reportsDirectory` 与同一个 JUnit 输出文件，会
 互相删掉临时文件并让其中一次失败（报错形如 `Something removed the coverage directory …`）。owner plan
-内部是顺序执行；确实要并发时换域或先清空该域的 `coverage/`。
+内部是顺序执行；确实要并发时换域，或为每次运行配置独立的覆盖率和 JUnit 输出路径。
 
 ## 测试命名与证据
 

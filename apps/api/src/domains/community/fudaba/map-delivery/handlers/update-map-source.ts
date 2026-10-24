@@ -9,6 +9,7 @@ import type {
     FudabaMapSourceWrite,
 } from '@imsweb/contracts/fudaba/map-delivery';
 import { fudabaMapDeliveryResponse } from '@/domains/community/fudaba/map-delivery/response';
+import { describeMapProvider } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import { services } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -27,7 +28,7 @@ export async function handleUpdateFudabaMapSource(
         const payload = request.valid('json') as FudabaMapSourceWrite;
         const current = await readFudabaMapDelivery(
             storage,
-            runtime.config?.fudabaMapStyleUrls ?? [],
+            runtime.config?.fudabaMapSources ?? [],
         );
         const existing = current.sources.find(
             (source) => source.id === sourceId,
@@ -35,9 +36,10 @@ export async function handleUpdateFudabaMapSource(
         if (!existing) {
             throw Object.assign(new Error('地图源不存在'), { status: 404 });
         }
+        const { revision: _revision, ...config } = payload;
         const sources = current.sources.map((source) =>
             source.id === sourceId
-                ? { ...source, name: payload.name, styleUrl: payload.styleUrl }
+                ? { id: source.id, ...config }
                 : source,
         );
         const saved = await saveFudabaMapDelivery(
@@ -45,11 +47,12 @@ export async function handleUpdateFudabaMapSource(
             sources,
             current.activeSourceId,
             payload.revision,
+            current.routing,
         );
         await writeAudit(
             c,
             '编辑交换地图源',
-            `${payload.name} · ${payload.styleUrl}`,
+            `${payload.name} · ${describeMapProvider(payload).auditLabel}`,
         );
         return c.json({
             success: true,

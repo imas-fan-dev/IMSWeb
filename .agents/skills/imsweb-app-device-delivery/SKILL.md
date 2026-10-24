@@ -18,6 +18,7 @@ Use when installing a locally built IMSWeb App, preparing a device check, diagno
 4. Use only the `app` wrapper and its documented flags. Do not invoke Tauri CLI directly for device work or edit `src-tauri/gen/`.
 5. Verify the exact device has the expected package/version and that launch succeeds. For locked/unavailable devices, report the state and request the needed action rather than claiming success.
 6. Report platform, target, source (local or release), profile/origin, version and evidence. Obtain explicit authorization before release distribution, signing changes, uninstall, downgrade, or data clearing.
+7. When the request also includes UI automation, screenshot acceptance or result reports, use [imsweb-ui-testing-and-evidence](../imsweb-ui-testing-and-evidence/SKILL.md) for orchestration; this skill continues to own package delivery and target selection.
 
 ## Pitfalls
 

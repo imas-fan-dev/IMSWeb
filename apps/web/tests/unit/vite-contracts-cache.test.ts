@@ -2,6 +2,7 @@
 
 import { EventEmitter } from "node:events"
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -18,10 +19,8 @@ import type {
 } from "vite"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import {
-  contractsDependencyCache,
-  contractsFingerprint,
-} from "@/vite-contracts-cache"
+import { contractsFingerprint } from "@/vite-contracts-cache"
+import { localContractsOptimizer } from "@/vite-contracts"
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>()
@@ -45,8 +44,10 @@ const hookContext = {
 
 const directories: string[] = []
 function outputDirectory() {
-  const directory = mkdtempSync(join(tmpdir(), "imsweb-contracts-cache-"))
-  directories.push(directory)
+  const workspace = mkdtempSync(join(tmpdir(), "imsweb-contracts-cache-"))
+  directories.push(workspace)
+  const directory = join(workspace, "packages/contracts/dist")
+  mkdirSync(directory, { recursive: true })
   return directory
 }
 afterEach(() => {
@@ -80,7 +81,7 @@ describe("contracts dependency cache", () => {
     writeFileSync(join(directory, "messages.js"), "exports.scene = undefined")
     const watcher = Object.assign(new EventEmitter(), { add: vi.fn() })
     const restart = vi.fn().mockResolvedValue(undefined)
-    const plugin = contractsDependencyCache(directory)
+    const plugin = localContractsOptimizer(join(directory, "../../.."))
     if (
       typeof plugin.configureServer !== "function" ||
       typeof plugin.closeBundle !== "function"
@@ -112,12 +113,12 @@ describe("contracts dependency cache", () => {
     await vi.advanceTimersByTimeAsync(499)
     expect(restart).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
-    expect(restart).toHaveBeenCalledOnce()
+    expect(restart).toHaveBeenCalledExactlyOnceWith(true)
     writeFileSync(join(directory, "messages.js"), "exports.layout = undefined")
     watcher.emit("all", "change", join(directory, "messages.js"))
     plugin.closeBundle.call({} as never)
     await vi.advanceTimersByTimeAsync(500)
-    expect(restart).toHaveBeenCalledOnce()
+    expect(restart).toHaveBeenCalledExactlyOnceWith(true)
     expect(watcher.listenerCount("all")).toBe(0)
   })
   it("waits for subsequent output events when a clean build removes a file during fingerprinting", async () => {
@@ -128,7 +129,7 @@ describe("contracts dependency cache", () => {
     const watcher = Object.assign(new EventEmitter(), { add: vi.fn() })
     const restart = vi.fn().mockResolvedValue(undefined)
     const error = vi.fn()
-    const plugin = contractsDependencyCache(directory)
+    const plugin = localContractsOptimizer(join(directory, "../../.."))
     if (
       typeof plugin.configureServer !== "function" ||
       typeof plugin.closeBundle !== "function"
@@ -151,7 +152,7 @@ describe("contracts dependency cache", () => {
     expect(error).not.toHaveBeenCalled()
     watcher.emit("all", "add", file)
     await vi.advanceTimersByTimeAsync(500)
-    expect(restart).toHaveBeenCalledOnce()
+    expect(restart).toHaveBeenCalledExactlyOnceWith(true)
     plugin.closeBundle.call({} as never)
   })
 })

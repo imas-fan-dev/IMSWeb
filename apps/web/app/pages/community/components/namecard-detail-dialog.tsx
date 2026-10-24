@@ -361,10 +361,10 @@ export function NamecardDetailDialog({
               <dd className="mt-1">{card?.seriesCode ?? "未设置"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">担当偶像</dt>
+              <dt className="text-xs text-muted-foreground">担当角色</dt>
               <dd className="mt-1">
-                {card?.favoriteIdols.length
-                  ? card.favoriteIdols.map((idol) => idol.name).join("、")
+                {card?.favoriteCharacters.length
+                  ? card.favoriteCharacters.map((idol) => idol.name).join("、")
                   : "未设置"}
               </dd>
             </div>

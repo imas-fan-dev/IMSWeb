@@ -4,11 +4,15 @@ import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { NamecardUploadDialog } from "~/components/community/namecard-upload-dialog"
+import { resetNamecardCharacterCatalogCache } from "~/lib/use-namecard-character-catalog"
+import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
 
 const apiMocks = vi.hoisted(() => ({
   sendCatalog: vi.fn(),
+  sendCharacterCatalog: vi.fn(),
   sendUpload: vi.fn(),
   getWikiCatalog: vi.fn(),
+  getNamecardCharacterCatalog: vi.fn(),
   uploadFudabaGuestSubmission: vi.fn(),
 }))
 
@@ -21,6 +25,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
     ...actual,
+    getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
     getWikiCatalog: apiMocks.getWikiCatalog,
     uploadFudabaGuestSubmission: apiMocks.uploadFudabaGuestSubmission,
   }
@@ -33,6 +38,7 @@ vi.mock("sonner", () => ({
 describe("NamecardUploadDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetNamecardCharacterCatalogCache()
     window.localStorage.clear()
     apiMocks.sendCatalog.mockResolvedValue({
       status: "success",
@@ -70,6 +76,12 @@ describe("NamecardUploadDialog", () => {
       selection: null,
     })
     apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendCatalog })
+    apiMocks.sendCharacterCatalog.mockResolvedValue(
+      makeNamecardCharacterCatalog()
+    )
+    apiMocks.getNamecardCharacterCatalog.mockReturnValue({
+      send: apiMocks.sendCharacterCatalog,
+    })
     apiMocks.sendUpload.mockResolvedValue({
       success: true,
       message: "已提交审核",
@@ -146,7 +158,7 @@ describe("NamecardUploadDialog", () => {
         back,
         {
           seriesCode: "765",
-          favoriteIdolIds: [1],
+          favoriteCharacterIds: [1],
         }
       )
       expect(apiMocks.sendUpload).toHaveBeenCalledOnce()

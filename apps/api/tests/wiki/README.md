@@ -29,7 +29,10 @@ The shared `pnpm --filter @imsweb/api run typecheck` gate covers `src/` and
 
 ## Legacy Flask test mapping
 
-| `tests/test_flask_security.py` | Shared Hono replacement |
+The left column lists historical Flask test names from the private predecessor repository;
+that file is not part of this repository, and the table records the shared Hono replacement.
+
+| Historical Flask test | Shared Hono replacement |
 | --- | --- |
 | `test_write_endpoints_reject_missing_token`, `test_read_health_endpoint_stays_public`, `test_write_endpoints_reject_missing_or_wrong_csrf`, `test_write_endpoints_reject_unapproved_role`, `test_editor_and_op_can_write_to_isolated_storage` | Cookie JWT/CSRF suite plus health and successful add contracts |
 | `test_invalid_image_is_rejected_before_database_write`, `test_spoofed_image_header_is_rejected_before_database_write` | Table-driven upload validation contract |

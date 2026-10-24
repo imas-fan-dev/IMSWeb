@@ -7,10 +7,7 @@ import { useEffect, useState, type FormEvent } from "react"
 
 import { toast } from "sonner"
 
-import {
-  IdolMultiSelect,
-  type IdolSeriesOption,
-} from "~/components/community/idol-multi-select"
+import { CharacterMultiSelect } from "~/components/community/character-multi-select"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -43,6 +40,7 @@ import {
   type Namecard,
   type WikiPublicCatalog,
 } from "~/lib/api"
+import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NEW_CARD_VALUE = "__new__"
@@ -64,9 +62,13 @@ export function NamecardClaimDialog({
   const [loadError, setLoadError] = useState(false)
   const [targetCardId, setTargetCardId] = useState(NEW_CARD_VALUE)
   const [seriesCode, setSeriesCode] = useState("")
-  const [favoriteIdolIds, setFavoriteIdolIds] = useState<number[]>([])
+  const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<number[]>([])
   const [message, setMessage] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const {
+    catalog: characterCatalog,
+    loading: characterCatalogLoading,
+  } = useNamecardCharacterCatalog(open)
 
   useEffect(() => {
     if (!open || platform.status !== "authenticated" || catalog) return
@@ -86,21 +88,19 @@ export function NamecardClaimDialog({
     }
   }, [catalog, open, platform.status])
 
-  const series: IdolSeriesOption[] = (catalog?.agencies ?? []).map(
-    (agency) => ({
-      code: agency.code,
-      displayName: agency.name,
-      color: agency.color,
-    })
-  )
+  const series = (catalog?.agencies ?? []).map((agency) => ({
+    code: agency.code,
+    displayName: agency.name,
+    color: agency.color,
+  }))
   const existingTarget = ownerCards.find((item) => item.id === targetCardId)
   const effectiveSeriesCode = existingTarget?.seriesCode ?? seriesCode
-  const effectiveIdolIds = existingTarget
-    ? existingTarget.favoriteIdols.map((idol) => idol.id)
-    : favoriteIdolIds
+  const effectiveCharacterIds = existingTarget
+    ? existingTarget.favoriteCharacters.map((character) => character.id)
+    : favoriteCharacterIds
   const authenticated = platform.status === "authenticated"
   const restricted = platform.status === "restricted"
-  // 企划 and 担当偶像 are not mandatory: they can be left unset here and filled
+  // 企划 and 担当角色 are not mandatory: they can be left unset here and filled
   // in from the owner card editor after the claim is approved. The API derives
   // the series for the claim record when neither is chosen.
   const ready = Boolean(card && authenticated && catalog)
@@ -120,7 +120,7 @@ export function NamecardClaimDialog({
       const result = await createFudabaLegacyCardClaim(card.id, {
         targetCardId: targetCardId === NEW_CARD_VALUE ? null : targetCardId,
         seriesCode: effectiveSeriesCode || null,
-        favoriteIdolIds: effectiveIdolIds,
+        favoriteCharacterIds: effectiveCharacterIds,
         message: message.trim(),
       }).send()
       onSubmitted(result.claim)
@@ -211,7 +211,7 @@ export function NamecardClaimDialog({
                     <AlertTitle>将绑定现有注册名片</AlertTitle>
                     <AlertDescription>
                       {existingTarget.displayName} ·{" "}
-                      {existingTarget.favoriteIdol}
+                      {existingTarget.favoriteCharacter}
                     </AlertDescription>
                   </Alert>
                 ) : (
@@ -227,7 +227,7 @@ export function NamecardClaimDialog({
                         }
                       >
                         <SelectTrigger id="claim-series" className="w-full">
-                          <SelectValue placeholder="留空则按偶像或历史名片推断" />
+                          <SelectValue placeholder="留空则按角色或历史名片推断" />
                         </SelectTrigger>
                         <SelectContent align="start">
                           <SelectGroup>
@@ -240,13 +240,13 @@ export function NamecardClaimDialog({
                         </SelectContent>
                       </Select>
                     </Field>
-                    <IdolMultiSelect
-                      id="claim-idols"
-                      series={series}
-                      idols={catalog.searchEntries}
-                      selectedIds={favoriteIdolIds}
-                      disabled={submitting}
-                      onChange={setFavoriteIdolIds}
+                    <CharacterMultiSelect
+                      id="claim-characters"
+                      catalog={characterCatalog}
+                      loading={characterCatalogLoading}
+                      selectedIds={favoriteCharacterIds}
+                      disabled={submitting || characterCatalogLoading}
+                      onChange={setFavoriteCharacterIds}
                     />
                   </>
                 )}

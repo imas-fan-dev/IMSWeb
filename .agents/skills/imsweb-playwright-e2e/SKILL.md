@@ -9,7 +9,7 @@ Use for changes to `apps/web/tests/e2e/*.spec.ts`, Playwright fixture behavior, 
 
 ## Procedure
 
-1. Read `.trellis/spec/web/frontend/testing.md` and `apps/web/.rules`. For test-owner selection beyond Playwright, use `imsweb-test-routing`.
+1. Read `docs/development/testing.md` and `apps/web/.rules`. For test-owner selection beyond Playwright, use `imsweb-test-routing`.
 2. Classify the target:
    - Ordinary Web: `pnpm --filter @imsweb/web run test:e2e`; config is `playwright.config.ts` and excludes `app-*.spec.ts`.
    - App WebView browser: `pnpm --filter @imsweb/web run test:e2e:app`; config is `playwright.app.config.ts` and includes `app-*.spec.ts`. It tests the App web surface, not native device integration.
@@ -18,6 +18,7 @@ Use for changes to `apps/web/tests/e2e/*.spec.ts`, Playwright fixture behavior, 
 5. For visible UI, cover a representative desktop and mobile viewport, keyboard behavior, roles, overflow and accessibility where applicable. Keep secondary project tests specific to invariants they own.
 6. If behavior crosses WebView and system browser, identify what the browser can prove. Tauri system URL opening, deep-link delivery and native callback exchange require simulator/device evidence, outside Playwright's proof.
 7. Run the smallest relevant Playwright project/spec and the source policy test when authoring rules are relevant. Preserve traces/screenshots and report the exact command and first failure cause.
+8. For App/Web UI acceptance matrices, native follow-up, screenshot overviews or result galleries, continue with [imsweb-ui-testing-and-evidence](../imsweb-ui-testing-and-evidence/SKILL.md); keep this skill as the Playwright authoring/configuration owner.
 
 ## Pitfalls
 
@@ -36,7 +37,7 @@ Use for changes to `apps/web/tests/e2e/*.spec.ts`, Playwright fixture behavior, 
 
 ## Authority
 
-- `.trellis/spec/web/frontend/testing.md`
+- `docs/development/testing.md`
 - `apps/web/playwright.config.ts`
 - `apps/web/playwright.app.config.ts`
 - `apps/web/tests/e2e/fixtures/test.ts`

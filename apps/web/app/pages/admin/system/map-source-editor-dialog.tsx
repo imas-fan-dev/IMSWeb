@@ -1,4 +1,11 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
+import {
+  defaultMapProvider,
+  mapProviderById,
+  mapProviderCatalog,
+  mapProviderFor,
+} from "~/lib/maps/provider-catalog"
+import type { MapProviderDraft } from "~/lib/maps/provider-definition"
 
 import { AdminConfigDialog } from "~/components/admin/admin-config-dialog"
 import {
@@ -9,15 +16,19 @@ import {
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import {
-  fudabaMapSourceNameSchema,
-  fudabaMapStyleUrlSchema,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "~/components/ui/select"
+import {
+  fudabaMapSourceWriteSchema,
   type FudabaMapSource,
+  type FudabaMapProviderConfig,
 } from "~/lib/api"
 
-interface MapSourceDraft {
-  name: string
-  styleUrl: string
-}
+export type MapSourceDraft = { name: string } & FudabaMapProviderConfig
 
 export function MapSourceEditorDialog({
   source,
@@ -30,17 +41,28 @@ export function MapSourceEditorDialog({
   onOpenChange: (open: boolean) => void
   onSave: (draft: MapSourceDraft) => void | Promise<void>
 }) {
-  const [draft, setDraft] = useState<MapSourceDraft>({
-    name: source?.name ?? "",
-    styleUrl: source?.styleUrl ?? "",
-  })
-
-  const valid = useMemo(
-    () =>
-      fudabaMapSourceNameSchema.safeParse(draft.name).success &&
-      fudabaMapStyleUrlSchema.safeParse(draft.styleUrl).success,
-    [draft]
+  const [name, setName] = useState(source?.name ?? "")
+  const [providerId, setProviderId] = useState(
+    () => (source ? mapProviderFor(source) : defaultMapProvider).id
   )
+  const [drafts, setDrafts] = useState<Record<string, MapProviderDraft>>(() =>
+    Object.fromEntries(
+      mapProviderCatalog.map((provider) => [
+        provider.id,
+        provider.createDraft(source ?? undefined),
+      ])
+    )
+  )
+  const provider = mapProviderById(providerId)
+  const draft = drafts[providerId] ?? provider.createDraft()
+  const payload: MapSourceDraft = {
+    name: name.trim(),
+    ...provider.toConfig(draft),
+  }
+  const valid = fudabaMapSourceWriteSchema.safeParse({
+    ...payload,
+    revision: null,
+  }).success
 
   return (
     <AdminConfigDialog
@@ -52,10 +74,30 @@ export function MapSourceEditorDialog({
       saving={saving}
       onOpenChange={onOpenChange}
       onSubmit={() => {
-        if (valid) return onSave(draft)
+        if (valid) return onSave(payload)
       }}
     >
       <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="map-source-provider">地图服务商</FieldLabel>
+          <Select
+            value={providerId}
+            onValueChange={(value) => {
+              if (value) setProviderId(mapProviderById(value).id)
+            }}
+          >
+            <SelectTrigger id="map-source-provider">
+              <SelectValue>{provider.label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {mapProviderCatalog.map((entry) => (
+                <SelectItem key={entry.id} value={entry.id}>
+                  {entry.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
         <Field>
           <FieldLabel htmlFor="map-source-name">配置名称</FieldLabel>
           <Input
@@ -63,32 +105,33 @@ export function MapSourceEditorDialog({
             required
             maxLength={80}
             autoFocus
-            value={draft.name}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                name: event.target.value,
-              }))
-            }
+            value={name}
+            onChange={(event) => setName(event.target.value)}
           />
         </Field>
-        <Field>
-          <FieldLabel htmlFor="map-source-style-url">地图样式地址</FieldLabel>
-          <Input
-            id="map-source-style-url"
-            required
-            maxLength={2048}
-            spellCheck={false}
-            value={draft.styleUrl}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                styleUrl: event.target.value,
-              }))
-            }
-          />
-          <FieldDescription>完整 HTTP(S) 地址或站点根路径。</FieldDescription>
-        </Field>
+        {provider.fields.map((field) => (
+          <Field key={`${provider.id}:${field.key}`}>
+            <FieldLabel htmlFor={field.id}>{field.label}</FieldLabel>
+            <Input
+              id={field.id}
+              value={draft[field.key] ?? ""}
+              required={field.required}
+              maxLength={field.maxLength}
+              spellCheck={false}
+              onChange={(event) => {
+                const value = event.target.value
+                setDrafts((current) => ({
+                  ...current,
+                  [provider.id]: {
+                    ...current[provider.id],
+                    [field.key]: value,
+                  },
+                }))
+              }}
+            />
+            <FieldDescription>{field.description}</FieldDescription>
+          </Field>
+        ))}
       </FieldGroup>
     </AdminConfigDialog>
   )

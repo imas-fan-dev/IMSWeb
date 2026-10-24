@@ -16,6 +16,8 @@ import type {
     NewsRepository,
 } from "@/ports/repositories/content";
 import type { SitePackageRepository } from "@/ports/repositories/site-packages";
+import type { NamecardCharacterRepository } from "@/ports/repositories/namecard-characters";
+import type { NamecardUnitRepository } from "@/ports/repositories/namecard-units";
 import type { StoryRepository } from "@/ports/repositories/wiki";
 
 export interface RepositoryServices {
@@ -31,6 +33,8 @@ export interface RepositoryServices {
     reactions: ReactionRepository;
     homepageLinks: HomepageLinkRepository;
     sitePackages: SitePackageRepository;
+    namecardCharacters: NamecardCharacterRepository;
+    namecardUnits: NamecardUnitRepository;
     story: StoryRepository;
 }
 
@@ -40,4 +44,6 @@ export * from "@/ports/repositories/fudaba";
 export * from "@/ports/repositories/namecards";
 export * from "@/ports/repositories/content";
 export * from "@/ports/repositories/site-packages";
+export * from "@/ports/repositories/namecard-characters";
+export * from "@/ports/repositories/namecard-units";
 export * from "@/ports/repositories/wiki";

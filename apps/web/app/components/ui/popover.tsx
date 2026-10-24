@@ -13,6 +13,7 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
 
 function PopoverContent({
   className,
+  anchor,
   side = "bottom",
   sideOffset = 4,
   align = "center",
@@ -21,13 +22,14 @@ function PopoverContent({
 }: PopoverPrimitive.Popup.Props &
   Pick<
     PopoverPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset"
+    "anchor" | "align" | "alignOffset" | "side" | "sideOffset"
   >) {
   const collisionBoundary = useSafeAreaCollisionBoundary()
 
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
+        anchor={anchor}
         collisionBoundary={collisionBoundary}
         side={side}
         sideOffset={sideOffset}

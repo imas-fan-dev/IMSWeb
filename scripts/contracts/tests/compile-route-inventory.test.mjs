@@ -161,19 +161,19 @@ test.describe('route inventory compiler', () => {
       "utf8",
     ));
 
-    // V1 adds region GET and world-placement PUT: two paths and four carriers.
+    // The combined office-wall and directory APIs retain every request and response.
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 352,
-      mountedMethodPaths: 262,
-      noInputRoutes: 90,
-      requestCarriers: 352,
+      mountedRegistrations: 362,
+      mountedMethodPaths: 271,
+      noInputRoutes: 91,
+      requestCarriers: 365,
       policies: {
-        reject: 65,
+        reject: 75,
         "accept-and-project": 183,
-        passthrough: 18,
-        "non-object-applicable": 86,
+        passthrough: 17,
+        "non-object-applicable": 90,
       },
-      responses: { total: 671, json: 607, nonJson: 64 },
+      responses: { total: 702, json: 638, nonJson: 64 },
       unresolved: 0,
     });
     const wallRead = current.routes.find((route) => route.method === "GET"

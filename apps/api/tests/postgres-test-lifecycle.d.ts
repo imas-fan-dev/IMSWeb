@@ -69,6 +69,9 @@ export function createPostgresTestDatabaseName(
     options?: { pid?: number; entropy?: string }
 ): string;
 export function assertSafePostgresTestDatabaseName(name: string): string;
+export function makePostgresTestConnectionCloseIdempotent<
+    T extends ManagedPostgresTestConnection
+>(connection: T): T;
 export function connectionOptions(
     connectionString: string,
     overrides?: PostgresConnectionOverrides

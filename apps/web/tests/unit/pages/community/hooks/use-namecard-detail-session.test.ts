@@ -8,7 +8,7 @@ function card(id: number): Namecard {
   return {
     id,
     seriesCode: null,
-    favoriteIdols: [],
+    favoriteCharacters: [],
     claimStatus: "unclaimed",
     viewerClaimState: null,
     claimerName: null,

@@ -16,7 +16,8 @@ export async function handleListFudabaPublicOffices(
     const hasNextPage = rows.length > query.limit;
     const page = hasNextPage ? rows.slice(0, query.limit) : rows;
     const items = await Promise.all(page.map((office) =>
-        fudabaPublicOfficeView(services(c).storage, office)
+        fudabaPublicOfficeView(services(c).storage, office,
+            Boolean(query.filters.q) && services(c).config?.fudabaMapEnabled === true)
     ));
     const last = page.at(-1);
     return c.json({

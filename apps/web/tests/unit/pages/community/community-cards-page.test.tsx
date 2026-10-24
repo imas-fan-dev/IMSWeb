@@ -11,7 +11,9 @@ import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { NamecardPage } from "~/lib/api"
+import { resetNamecardCharacterCatalogCache } from "~/lib/use-namecard-character-catalog"
 import CommunityCardsPage from "~/pages/community/community-cards-page"
+import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
 
 const elementScrollToDescriptor = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
@@ -21,9 +23,11 @@ const elementScrollToDescriptor = Object.getOwnPropertyDescriptor(
 const apiMocks = vi.hoisted(() => ({
   getNamecardPage: vi.fn(),
   getNamecardReactions: vi.fn(),
+  getNamecardCharacterCatalog: vi.fn(),
   addNamecardReaction: vi.fn(),
   sendPage: vi.fn(),
   sendReactions: vi.fn(),
+  sendCharacterCatalog: vi.fn(),
   sendAddReaction: vi.fn(),
 }))
 
@@ -43,6 +47,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     addNamecardReaction: apiMocks.addNamecardReaction,
     getNamecardReactions: apiMocks.getNamecardReactions,
     getNamecardPage: apiMocks.getNamecardPage,
+    getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
   }
 })
 
@@ -59,7 +64,7 @@ function pageResult(ids = [42]): NamecardPage {
     list: ids.map((id) => ({
       id,
       seriesCode: null,
-      favoriteIdols: [],
+      favoriteCharacters: [],
       claimStatus: "unclaimed",
       viewerClaimState: null,
       claimerName: null,
@@ -106,6 +111,13 @@ function desktopReaction(summary: HTMLElement, emoji: string, count: number) {
 describe("CommunityCardsPage", () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    resetNamecardCharacterCatalogCache()
+    apiMocks.sendCharacterCatalog.mockResolvedValue(
+      makeNamecardCharacterCatalog()
+    )
+    apiMocks.getNamecardCharacterCatalog.mockReturnValue({
+      send: apiMocks.sendCharacterCatalog,
+    })
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,
       value: vi.fn(),
@@ -168,7 +180,7 @@ describe("CommunityCardsPage", () => {
         {
           id: 459,
           seriesCode: null,
-          favoriteIdols: [],
+          favoriteCharacters: [],
           claimStatus: "unclaimed",
           viewerClaimState: null,
           claimerName: null,
@@ -272,7 +284,7 @@ describe("CommunityCardsPage", () => {
         {
           id: 42,
           seriesCode: "765",
-          favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+          favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
           claimStatus: "unclaimed",
           viewerClaimState: null,
           claimerName: null,
@@ -346,7 +358,7 @@ describe("CommunityCardsPage", () => {
         {
           id: 42,
           seriesCode: null,
-          favoriteIdols: [],
+          favoriteCharacters: [],
           claimStatus: "unclaimed",
           viewerClaimState: null,
           claimerName: null,
@@ -928,7 +940,7 @@ describe("CommunityCardsPage", () => {
         {
           id: 42,
           seriesCode: null,
-          favoriteIdols: [],
+          favoriteCharacters: [],
           claimStatus: "unclaimed",
           viewerClaimState: null,
           claimerName: null,
@@ -1408,7 +1420,7 @@ describe("CommunityCardsPage", () => {
         {
           id: 42,
           seriesCode: null,
-          favoriteIdols: [],
+          favoriteCharacters: [],
           claimStatus: "unclaimed",
           viewerClaimState: null,
           claimerName: null,

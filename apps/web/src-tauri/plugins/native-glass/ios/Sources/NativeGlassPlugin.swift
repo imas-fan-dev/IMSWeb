@@ -17,7 +17,7 @@ let imsTabBarSelectedColor = UIColor(
   alpha: 1
 )
 
-private struct NativeColor: Decodable {
+struct NativeColor: Decodable {
   let red: Double
   let green: Double
   let blue: Double
@@ -81,6 +81,7 @@ private final class NativeTabBarOverlayView: UIView {
 
 private final class NativeGlassTabBarHostViewController: UIViewController {
   let systemTabController: UITabBarController
+  var onLayout: (() -> Void)?
   private let overlayView = NativeTabBarOverlayView()
 
   init(tabBarController: UITabBarController) {
@@ -117,6 +118,42 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
 
     systemTabController.tabBar.accessibilityIdentifier = "ims-native-liquid-glass-tab-bar"
     overlayView.interactiveView = systemTabController.tabBar
+    if #available(iOS 17.0, *) {
+      registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitHorizontalSizeClass.self, UITraitVerticalSizeClass.self]) {
+        (host: NativeGlassTabBarHostViewController, _: UITraitCollection) in host.view.setNeedsLayout()
+      }
+    }
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    onLayout?()
+  }
+
+  override func viewLayoutMarginsDidChange() {
+    super.viewLayoutMarginsDidChange()
+    view.setNeedsLayout()
+  }
+
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    view.setNeedsLayout()
+  }
+
+  func navigationRange(in target: UIView) -> CGRect? {
+    guard let root = systemTabController.viewIfLoaded else { return nil }
+    let margins = root.layoutMargins
+    guard let range = ExchangeSearchLayout.navigationRange(bounds: root.bounds, leftMargin: margins.left, rightMargin: margins.right, safeLeft: root.safeAreaInsets.left, safeRight: root.safeAreaInsets.right) else { return nil }
+    return root.convert(range, to: target)
+  }
+
+  func navigationDockingFrame(in target: UIView) -> CGRect? {
+    guard #available(iOS 26.0, *), !systemTabController.isTabBarHidden else { return nil }
+    let bar = systemTabController.tabBar
+    guard !bar.isHidden, bar.alpha > 0, let window = bar.window, target.window === window else { return nil }
+    // Public tab-strip bounds are a docking input, not an exact glass contour.
+    let frame = bar.convert(bar.bounds, to: target)
+    return ExchangeSearchLayout.validDOMNavigation(frame, viewport: target.bounds) ? frame : nil
   }
 }
 
@@ -134,6 +171,9 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   private var controlHost: UIViewController?
   private var searchHost: UIViewController?
   private var searchGeneration: UInt64 = 0
+  private var navigationLayoutGeneration = UInt64(Date().timeIntervalSince1970 * 1000)
+  private var navigationLayoutRevision: UInt64 = 0
+  private var navigationLayoutSignature: String?
 
   @objc public func setSearch(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(NativeSearchArgs.self)
@@ -147,6 +187,12 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         return
       }
       self.searchGeneration = args.generation
+      self.publishExchangeNavigationLayout(force: true)
+      guard ["refresh-cw", "loader-circle"].allSatisfy({ UIImage(named: $0) != nil }) else {
+        self.removeSearchHost()
+        invoke.resolve(["supported": false, "reason": "missing-search-icon"])
+        return
+      }
       guard let parent = self.manager.viewController, let webview = self.webview,
         args.host.width > 24, args.host.height > 120,
         ["collapsed", "medium", "large"].contains(args.detent) else {
@@ -171,6 +217,21 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         self.searchHost = host
       }
       host.webview = webview
+      host.navigationRange = { [weak self, weak host] in
+        guard let host else { return nil }
+        return self?.tabBarHost?.navigationRange(in: host.view)
+      }
+      host.navigationDockingFrame = { [weak self, weak host] in
+        guard let host else { return nil }
+        return self?.tabBarHost?.navigationDockingFrame(in: host.view)
+      }
+      host.hasLocate = (self.controlHost as? NativeGlassControlHostViewController)?.hasLocate == true
+      host.onSideLayout = { [weak self, weak host] frame in
+        guard let self, let host,
+          let controls = self.controlHost as? NativeGlassControlHostViewController else { return }
+        let converted = frame.map { host.view.convert($0, to: controls.overlayView) }
+        controls.setSearchLocateFrame(converted)
+      }
       host.onEvent = { [weak self] detail in
         guard let data = try? JSONSerialization.data(withJSONObject: detail),
           let literal = String(data: data, encoding: .utf8) else { return }
@@ -178,6 +239,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
       }
       parent.view.layoutIfNeeded()
       host.render(args)
+      self.orderSearchAndControlHosts(in: parent)
       invoke.resolve(["supported": true])
     }
   }
@@ -189,6 +251,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         host.snapshot?.id == args.id, host.snapshot?.generation == args.generation {
         self.removeSearchHost()
       }
+      if #available(iOS 26.0, *) { self.publishExchangeNavigationLayout(force: true) }
       invoke.resolve()
     }
   }
@@ -290,6 +353,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
       // must still report success so the Web side clears `data-native-glass`.
       if args.controls.isEmpty {
         (self.controlHost as? NativeGlassControlHostViewController)?.clear()
+        (self.searchHost as? NativeGlassSearchHost)?.hasLocate = false
         invoke.resolve(["supported": true])
         return
       }
@@ -309,11 +373,18 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
       host.view.layoutIfNeeded()
       let offset = self.controlOffset(in: host.overlayView, webview: webview)
       if host.render(controls: args.controls, dark: args.dark, offset: offset) {
+        if let search = self.searchHost as? NativeGlassSearchHost {
+          search.hasLocate = host.hasLocate
+          search.view.setNeedsLayout()
+          search.view.layoutIfNeeded()
+          host.setSearchLocateFrame(search.locateFrame.map { search.view.convert($0, to: host.overlayView) })
+        }
         invoke.resolve(["supported": true])
       } else {
         // Any missing Lucide asset fails the whole set rather than drawing a
         // partial control surface. The DOM twins stay visible.
         host.clear()
+        (self.searchHost as? NativeGlassSearchHost)?.hasLocate = false
         invoke.resolve(["supported": false, "reason": "lucide-icon-unavailable"])
       }
     }
@@ -361,6 +432,14 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
 
     self.tabBarController = tabController
     self.tabBarHost = tabBarHost
+    navigationLayoutGeneration += 1
+    tabBarHost.onLayout = { [weak self] in
+      guard let self else { return }
+      self.searchHost?.view.setNeedsLayout()
+      self.publishExchangeNavigationLayout()
+    }
+    hostController.view.layoutIfNeeded()
+    publishExchangeNavigationLayout(force: true)
     selectTab(at: args.selectedIndex)
     applyAppearance(dark: args.dark)
     setBarHidden(args.hidden ?? false, animated: false)
@@ -400,6 +479,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     isSynchronizingSelection = true
     defer { isSynchronizingSelection = false }
     tabBarController.selectedTab = tabBarController.tabs[selectedIndex]
+    publishExchangeNavigationLayout(force: true)
   }
 
   private func clampedIndex(_ index: Int) -> Int {
@@ -417,6 +497,36 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   @available(iOS 18.0, *)
   private func setBarHidden(_ hidden: Bool, animated: Bool) {
     tabBarController?.setTabBarHidden(hidden, animated: animated)
+    if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true) }
+  }
+
+  @available(iOS 26.0, *)
+  private func publishExchangeNavigationLayout(force: Bool = false, removedRoute: String? = nil) {
+    guard let webview, webview.bounds.width > 0, webview.bounds.height > 0 else { return }
+    let route = removedRoute ?? (items.indices.contains(selectedIndex) ? items[selectedIndex].route : "")
+    let range = tabBarHost?.navigationRange(in: webview)
+    let inset = webview.scrollView.adjustedContentInset
+    let available = range != nil && tabBarController != nil
+    let visible = available && tabBarController?.isTabBarHidden == false
+    var detail: [String: Any] = [
+      "layoutGeneration": navigationLayoutGeneration,
+      "route": route, "available": available, "visible": visible,
+      "viewport": ["width": webview.bounds.width, "height": webview.bounds.height],
+      "provenance": "native-public-layout-calibrated"
+    ]
+    // UIKit exposes the docking tab-strip, not its painted glass body. Use
+    // the conservative body floor rather than misreporting safe-area height.
+    if available { detail["bodyHeight"] = 44 }
+    if let range {
+      detail["inline"] = ["x": range.minX - inset.left, "width": range.width]
+    } else { detail["inline"] = NSNull() }
+    guard let signatureData = try? JSONSerialization.data(withJSONObject: detail, options: [.sortedKeys]),
+      let signature = String(data: signatureData, encoding: .utf8), force || signature != navigationLayoutSignature else { return }
+    navigationLayoutSignature = signature
+    navigationLayoutRevision += 1
+    detail["revision"] = navigationLayoutRevision
+    guard let data = try? JSONSerialization.data(withJSONObject: detail), let literal = String(data: data, encoding: .utf8) else { return }
+    webview.evaluateJavaScript("window.dispatchEvent(new CustomEvent('ims:exchange-navigation-layout',{detail:\(literal)}))", completionHandler: nil)
   }
 
   @available(iOS 18.0, *)
@@ -431,6 +541,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     }
 
     selectedIndex = index
+    if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true) }
     if #available(iOS 26.0, *), selectedTab.identifier != "/community/exchange",
       let host = searchHost as? NativeGlassSearchHost {
       searchGeneration = max(searchGeneration, (host.snapshot?.generation ?? searchGeneration) + 1)
@@ -452,8 +563,11 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
 
   private func removeBar(animated: Bool) {
     guard let tabBarHost, let tabBarController else { return }
+    let removedRoute = items.indices.contains(selectedIndex) ? items[selectedIndex].route : ""
     self.tabBarHost = nil
     self.tabBarController = nil
+    navigationLayoutGeneration += 1
+    if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true, removedRoute: removedRoute) }
     tabBarController.delegate = nil
     items = []
 
@@ -485,6 +599,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     in hostController: UIViewController
   ) -> NativeGlassControlHostViewController {
     if let existing = controlHost as? NativeGlassControlHostViewController {
+      orderSearchAndControlHosts(in: hostController)
       return existing
     }
 
@@ -500,7 +615,16 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     ])
     host.didMove(toParent: hostController)
     controlHost = host
+    orderSearchAndControlHosts(in: hostController)
     return host
+  }
+
+  /// The search host owns the shared material; locate ink must composite above
+  /// that material after either installation order or modal reinstallation.
+  private func orderSearchAndControlHosts(in parent: UIViewController) {
+    guard let search = searchHost, let controls = controlHost,
+      search.view.superview === parent.view, controls.view.superview === parent.view else { return }
+    parent.view.insertSubview(controls.view, aboveSubview: search.view)
   }
 
   @available(iOS 26.0, *)

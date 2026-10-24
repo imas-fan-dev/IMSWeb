@@ -26,7 +26,7 @@ export type FudabaGuestSubmissionMediaSide = "front" | "back"
 
 export interface UploadFudabaGuestSubmissionMetadata {
   seriesCode: string
-  favoriteIdolIds: number[]
+  favoriteCharacterIds: number[]
   producerName?: string
   displayName?: string
   bio?: string
@@ -42,7 +42,7 @@ export function uploadFudabaGuestSubmission(
   form.append("images", front)
   form.append("images", back)
   form.append("seriesCode", metadata.seriesCode)
-  form.append("favoriteIdolIds", JSON.stringify(metadata.favoriteIdolIds))
+  form.append("favoriteCharacterIds", JSON.stringify(metadata.favoriteCharacterIds))
   for (const field of [
     "producerName",
     "displayName",

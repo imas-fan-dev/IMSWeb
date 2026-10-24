@@ -3,7 +3,9 @@ import { api, expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installSeededPublicApis } from "./fixtures/public-content"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -81,7 +83,7 @@ const catalog = {
   selection: null,
 }
 
-const favoriteIdol = { id: 1, name: "天海春香", seriesCode: "765" }
+const favoriteCharacter = { id: 1, name: "天海春香", seriesCode: "765" }
 
 async function mockAnonymousPlatformSession() {
   await api.mockRoute(
@@ -142,7 +144,7 @@ test.describe("namecard claim workflow", () => {
               {
                 id: 42,
                 seriesCode: "765",
-                favoriteIdols: [favoriteIdol],
+                favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
                 claimerName: null,
@@ -196,6 +198,13 @@ test.describe("namecard claim workflow", () => {
       "GET"
     )
     await api.mockRoute(
+      "**/api/community/exchange/characters",
+      async (route) => {
+        await route.fulfill({ json: makeCharacterCatalog() })
+      },
+      "GET"
+    )
+    await api.mockRoute(
       "**/api/community/exchange/me/cards",
       async (route) => {
         await route.fulfill({ json: { items: [] } })
@@ -211,7 +220,7 @@ test.describe("namecard claim workflow", () => {
               {
                 id: 42,
                 seriesCode: "765",
-                favoriteIdols: [favoriteIdol],
+                favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
                 claimerName: null,
@@ -257,7 +266,7 @@ test.describe("namecard claim workflow", () => {
               legacyCardId: 42,
               targetCardId: null,
               seriesCode: "765",
-              favoriteIdols: [favoriteIdol],
+              favoriteCharacters: [favoriteCharacter],
               state: "pending",
               message: "旧活动现场交换所得",
               reviewNote: "",
@@ -298,7 +307,7 @@ test.describe("namecard claim workflow", () => {
         // 企划 is left to the server: it derives one from the selected idol's
         // agency, the bound card, or the legacy card itself.
         seriesCode: null,
-        favoriteIdolIds: [1],
+        favoriteCharacterIds: [1],
         message: "旧活动现场交换所得",
       },
       csrf: "claim-workflow-csrf",
@@ -321,7 +330,7 @@ test.describe("namecard claim workflow", () => {
     })
   })
 
-  test("submits a claim with neither 企划 nor 担当偶像 chosen", async ({
+  test("submits a claim with neither 企划 nor 担当角色 chosen", async ({
     page,
   }) => {
     await mockClaimSurface(page)
@@ -339,7 +348,7 @@ test.describe("namecard claim workflow", () => {
               legacyCardId: 42,
               targetCardId: null,
               seriesCode: "765",
-              favoriteIdols: [],
+              favoriteCharacters: [],
               state: "pending",
               message: "旧活动现场交换所得",
               reviewNote: "",
@@ -362,7 +371,7 @@ test.describe("namecard claim workflow", () => {
     expect(submitted).toEqual({
       targetCardId: null,
       seriesCode: null,
-      favoriteIdolIds: [],
+      favoriteCharacterIds: [],
       message: "旧活动现场交换所得",
     })
   })
@@ -376,6 +385,13 @@ test.describe("namecard claim workflow", () => {
       "**/api/wiki/catalog**",
       async (route) => {
         await route.fulfill({ json: catalog })
+      },
+      "GET"
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/characters",
+      async (route) => {
+        await route.fulfill({ json: makeCharacterCatalog() })
       },
       "GET"
     )
@@ -395,7 +411,7 @@ test.describe("namecard claim workflow", () => {
               {
                 id: 42,
                 seriesCode: "765",
-                favoriteIdols: [favoriteIdol],
+                favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
                 claimerName: null,
@@ -501,7 +517,7 @@ test.describe("namecard claim workflow", () => {
       expect(close!.width).toBeGreaterThanOrEqual(44)
       expect(close!.height).toBeGreaterThanOrEqual(44)
       const rowHeights = await dialog
-        .locator('[aria-label="担当偶像候选"] label')
+        .locator('[aria-label="担当角色候选"] label')
         .evaluateAll((nodes) =>
           nodes.map((node) => node.getBoundingClientRect().height)
         )
@@ -548,8 +564,8 @@ test.describe("namecard claim workflow", () => {
     producerName: "注册制作人",
     displayName: "待审核注册名片",
     seriesCode: "765",
-    favoriteIdol: "天海春香",
-    favoriteIdols: [favoriteIdol],
+    favoriteCharacter: "天海春香",
+    favoriteCharacters: [favoriteCharacter],
     frontImageUrl: FRONT_IMAGE,
     backImageUrl: BACK_IMAGE,
     accent: "#f34e6c",
@@ -566,6 +582,16 @@ test.describe("namecard claim workflow", () => {
   test("same-ID envelope asks the owner before submitting an admin-reviewed claim", async ({
     page,
   }) => {
+    installSeededPublicApis(api, [
+      { path: "/api/community/exchange/series", times: 1 },
+      { path: "/api/community/exchange/offices", times: 1 },
+      { path: "/api/community/exchange/cards", times: 1 },
+      { path: "/api/community/exchange/map/config", times: 1 },
+      {
+        path: "/api/community/exchange/map/offices",
+        times: { min: 0, max: 8 },
+      },
+    ])
     await mockPlatformSession(page)
     await api.mockRoute(
       "**/api/platform/me",
@@ -619,6 +645,13 @@ test.describe("namecard claim workflow", () => {
       "**/api/wiki/catalog**",
       async (route) => {
         await route.fulfill({ json: catalog })
+      },
+      "GET"
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/characters",
+      async (route) => {
+        await route.fulfill({ json: makeCharacterCatalog() })
       },
       "GET"
     )
@@ -687,7 +720,7 @@ test.describe("namecard claim workflow", () => {
               legacyCardId: 42,
               targetCardId: "42",
               seriesCode: "765",
-              favoriteIdols: [favoriteIdol],
+              favoriteCharacters: [favoriteCharacter],
               state: "pending",
               message: "同 ID 旧名片身份确认",
               reviewNote: "",
@@ -737,7 +770,7 @@ test.describe("namecard claim workflow", () => {
     legacyCardId: 42,
     targetCardId: null,
     seriesCode: "765",
-    favoriteIdols: [favoriteIdol],
+    favoriteCharacters: [favoriteCharacter],
     state: "pending",
     message: "旧活动现场交换所得",
     reviewNote: "",

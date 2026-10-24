@@ -332,6 +332,7 @@ export function useNativeGlassControl(
 ): {
   controlRef: (element: HTMLElement | null) => void
   panelRef: (element: HTMLElement | null) => void
+  refreshGeometry: () => void
 } {
   const api = useContext(NativeGlassControlsContext)
   const elementRef = useRef<HTMLElement | null>(null)
@@ -364,6 +365,10 @@ export function useNativeGlassControl(
     [api]
   )
 
+  // Position-only changes are not delivered by ResizeObserver. Callers request
+  // a measurement after committing the layout change that they own.
+  const refreshGeometry = useCallback(() => api?.schedule(), [api])
+
   // The provider holds the same object, so the latest spec and handler are
   // visible to the next sync without re-registering.
   useEffect(() => {
@@ -391,5 +396,5 @@ export function useNativeGlassControl(
     return () => observer.disconnect()
   }, [api])
 
-  return { controlRef, panelRef }
+  return { controlRef, panelRef, refreshGeometry }
 }

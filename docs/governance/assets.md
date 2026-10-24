@@ -21,15 +21,17 @@
 
 `public/brand/imsweb-app-icon.png` 是桌面客户端的应用图标源文件，画布 1024 x 1024。它现在是**派生**资产：
 由 `apps/web/src-tauri/icon-sources/app-icon.svg` 的几何配上亮色底板（`#e0e1e3`，与 `icon.json` 的 light fill 同值）
-栅格化而来，与应用图标同源同算法。`pnpm run icon:app` 由它派生出 `src-tauri/icons/` 下的桌面图标、
-iOS 旧系统 `AppIcon.appiconset` 的 18 张 PNG，以及 Android 旧版 launcher（`ic_launcher.png`、`ic_launcher_round.png`）。
-重生成命令：
+栅格化而来，与应用图标同源同算法。`pnpm --filter @imsweb/web run icon:app` 由它派生出 `src-tauri/icons/` 下的桌面图标、
+iOS 旧系统 `AppIcon.appiconset`，以及 Android 旧版 launcher（`ic_launcher.png`、`ic_launcher_round.png`）。
+从仓库根目录重新生成平台图标：
 
 ```sh
-python3 .trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layers.py \
-    --full-icon apps/web/public/brand/imsweb-app-icon.png \
-    --android-background apps/web/src-tauri/icon-sources/android-background.png
+pnpm --filter @imsweb/web run icon:app
 ```
+
+该命令消费已经提交的 PNG 与 `AppIcon.icon`，不会从 SVG 重建图层。仓库当前没有维护 SVG 到
+图层 PNG 的独立栅格化入口；修改几何时必须同时更新完整图标、Android 和 iOS 图层，检查各平台
+组合效果并更新本文件的摘要，不能只运行 `icon:app` 就认定 SVG 改动已经进入产物。
 
 沿革：本文件先前是仓库维护者用已配置的 `gpt-image-2` 图像生成与图像编辑 API 制作的金属版
 （1254 x 1254 输出标准化为 1024 x 1024，提示词只限定与主站 logo 呼应的左上 `im`、右下 `@s` 阶梯布局、
@@ -46,14 +48,9 @@ Android launcher icon 另有三张仓库内图层源文件。背景层是与 iOS
 现与 iOS 一并扁平化：形状取同一份 SVG 几何，涂色改为 `icon.json` 的三色纯平值，字面光泽、白环与立体挤出都不再保留；
 单色层是描边层的 alpha，供 Android 13 及以上的主题图标使用。这些处理未引入第三方图像。
 
-前景层与单色层由 `apps/web/src-tauri/icon-sources/app-icon.svg` 派生，结构说明见下一节。等价的栅格化脚本记录在 `.trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layers.py`，只作任务记录，不参与构建：
-
-```sh
-python3 .trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layers.py \
-    --write --svg apps/web/src-tauri/icon-sources/app-icon.svg --out /tmp/icon-layers
-```
-
-`app-icon.svg` 是几何真相源。它不含 `<text>`、字体引用或栅格图像；改控制点、圆角半径或描边宽度后跑 `--write`，即可重生成五张 PNG。
+前景层与单色层由 `apps/web/src-tauri/icon-sources/app-icon.svg` 派生，结构说明见下一节。
+`app-icon.svg` 是几何真相源，不含 `<text>`、字体引用或栅格图像。PNG 是平台构建实际消费的
+图层源文件，两者必须在同一变更中保持一致；临时任务目录中的生成工具不属于构建依赖。
 
 | 仓库路径 | 字节数 | SHA-256 |
 | -------------------------------------------------------- | ------ | ------------------------------------------------------------------ |
@@ -61,7 +58,7 @@ python3 .trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layer
 | `apps/web/src-tauri/icon-sources/android-foreground.png` | 12492 | `397228e63326d96507843a287ea88f850db1a8467c82fdd5ebbd39cabef38efb` |
 | `apps/web/src-tauri/icon-sources/android-monochrome.png` | 8174 | `af3bb8109d7064878302a05345b50045842c22979c9bf267fd709541153cc4aa` |
 
-`apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm run icon:app` 派生，不单独登记；命令会在生成后规范化 ICNS 顶层块顺序，保证相同源图产生相同的版本库内容。替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
+`apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm --filter @imsweb/web run icon:app` 派生，不单独登记；命令会在生成后规范化 ICNS 顶层块顺序，保证相同源图产生相同的版本库内容。替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
 
 ### iOS Liquid Glass 图标
 
@@ -81,11 +78,14 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 
 `app-icon.svg` 渲染回栅格时，每条 primitive 按自己的 `fill` / `stroke` / `fill-rule` 单独出图，再按 `data-layer` 取 alpha 并集；先生成 4096 px，再盒式降采样到 1024，所以描边宽度和曲线在最终尺寸上都是平滑的。
 
-字面层在这之后还有一步修正。`@` 自己的黑边画在**最底层**（描边层），而字面白在它上面，所以凡是字面横跨 `@` 黑边的地方（`m` 右腿压住 `@` 环顶部、`s` 压住 `@` 右下），黑边都会被白盖掉，`@` 看起来直接贴着字面。栅格化因此在字面层上再减去 `@` 外围 6 px 到 20 px 的一条环带，把黑边让回来；内圈 6 px 以内保留，因为 9 px 白衬线只有 4.5 px 露在外面。这条环带一定落在黑框内部（脚本会断言，否则报错退出），所以不会在字面上开出透底的空洞。
+字面层在这之后还有一步修正。`@` 自己的黑边画在**最底层**（描边层），而字面白在它上面，所以凡是字面横跨 `@` 黑边的地方（`m` 右腿压住 `@` 环顶部、`s` 压住 `@` 右下），黑边都会被白盖掉，`@` 看起来直接贴着字面。栅格化因此在字面层上再减去 `@` 外围 6 px 到 20 px 的一条环带，把黑边让回来；内圈 6 px 以内保留，因为 9 px 白衬线只有 4.5 px 露在外面。更新图层时必须检查环带仍落在黑框内部，避免在字面上开出透底的空洞。
 
 图层分组与材质：`@` 单独成组（Liquid Glass 的材质参数是组级属性），开启 `glass`，并配 `specular`、`translucency`、`blur-material` 和 `lighting: individual`，阴影浅色用 `layer-color`、暗色用 `neutral`，让红色 `@` 读起来像玻璃珠（`@` 的独立黑边来自描边层，与这层玻璃互不干扰）。字面与描边所在的 `Mark` 组保持无 `glass`：带 `glass: true` 时系统会在每层边界叠加约 8 px 宽的边缘高光，白色字面上不可见，但会在描边和 `@` 边界上留下偏粉的亮带。`ictool` 导出时忽略该标志，所以分组的实际效果只能在真机或模拟器构建上验证。处理未引入第三方图像。
 
-`icon.json` 保持在 Icon Composer 1.5 能生成的形态：不含顶层 `features` 数组，组上也不含 `refractivity` 对象。这两个键由 Icon Composer 2.0（随 Xcode 27 发布）写入，Xcode 26 的 `actool` 读不了，归档时会先报 `Could not open "AppIcon.icon"`、再抛一个 nil 对象异常并中断，而预览版 iOS 任务所用的 runner 镜像最高只有 Xcode 26.6，留着任一键都会让每次 iOS 预览发布失败。等 runner 镜像带上 Xcode 27 再恢复；`tests/tauri-build-configuration.test.js` 断言这两个键缺席，回退时会在本地检查就先暴露，不必等 CI 跑到 macOS 任务。
+`icon.json` 保持预览构建要求的兼容形态：不含顶层 `features` 数组，组上也不含 `refractivity`
+对象。`tests/tauri-build-configuration.test.js` 断言这两个键缺席。用新版 Icon Composer 保存文档时
+必须检查是否引入这些键；只有目标 CI Xcode 的 `actool` 完成兼容归档验证后，才能同步调整文档和
+测试约束。runner 与 Xcode 选择以 `release-preview-app.yml` 为准，不在资产清单中维护版本快照。
 
 | 仓库路径 | 字节数 | SHA-256 |
 | ----------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------ |
@@ -95,7 +95,7 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 | `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/Wordmark.png` | 12185 | `f4e6b52023433ef141d1d1a45e43fbdc86c612522ee831924663749192059fc8` |
 | `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/At.png` | 8939 | `1e49386990e4ca42da78baad5c277ec7e11734c2685dbdd48f842f3f24ffb2a3` |
 
-`apps/web/scripts/sync-ios-app-icon.js` 由 `pnpm run icon:app` 调用。它把该目录复制进派生的 `gen/apple/AppIcon.icon`，并给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，让 `actool` 把 `.icon` 当作图标栈，而不是资源目录里的普通文件。
+`apps/web/scripts/sync-ios-app-icon.js` 由 `pnpm --filter @imsweb/web run icon:app` 调用。它把该目录复制进派生的 `gen/apple/AppIcon.icon`，并给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，让 `actool` 把 `.icon` 当作图标栈，而不是资源目录里的普通文件。
 
 ### 系列墙与随机 icon
 
@@ -112,9 +112,10 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 | `public/brand/series/wall/shiny-colors.webp`     | `public/assets/images/Production/Shinyintro.png`      | `4a9a82a34437c63e5a199b9436b5ace253518cb3003d25364547cf8e2e28e7e0` |
 | `public/brand/series/wall/gakuen.webp`           | `public/assets/images/Production/Gakuenintro.png`     | `81c8e42a8592e7ee382e99740c9e640d51dfe7f24adc0175b0ef089c64a0220f` |
 
-文件由源图转换为 WebP，未改变构图；系列商标和人物图像的权利仍归各自权利人。浏览器
-随机 icon 使用 `image/webp` 类型，页面代码必须从 `seriesWallItems` 读取这些路径，不得
-重新建立另一套 icon 清单。
+文件由源图转换为 WebP，未改变构图；系列商标和人物图像的权利仍归各自权利人。
+系列墙从 `seriesWallItems` 读取这些路径；浏览器随机 icon 由
+`app/components/shared/series-browser-icon.tsx` 从 Wiki catalog 的 `agency.iconUrl` 选择，
+不得另建静态 icon 清单或改用系列墙图片。
 
 `public/favicon.ico` 是站点默认 fallback。未来替换时必须补充作者、原始来源、许可证或书面
 授权、使用范围、修改情况和 SHA-256。

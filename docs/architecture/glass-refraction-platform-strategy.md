@@ -2,60 +2,55 @@
 
 > 文档类型：架构
 > 状态：Decision
-> 权威来源：`apps/web/app/app.css` 入口与其 `apps/web/app/styles/` 分层文件、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/playwright.config.ts` 和 MDN `backdrop-filter` 兼容表
+> 权威来源：`apps/web/app/styles/glass.css`、`apps/web/app/styles/accessibility.css`、`apps/web/app/layouts/root-layout.tsx`、`apps/web/app/components/shared/glass-filter-defs.tsx`、`apps/web/app/lib/native-glass.ts`、`apps/web/src-tauri/plugins/native-glass/` 和 `apps/web/DESIGN.md`
 
-本决策记录液态玻璃中「折射」这一层的实现路线，以及由此产生的跨平台观感差异。
-实施步骤见 [液态玻璃升级与 App 外壳实施计划](../development/liquid-glass-app-shell-plan.md)。
+Web 与 App DOM 共用 CSS 玻璃材质，折射滤镜只作用于装饰层；iOS 26 及以上的 App 底栏和地图
+浮动控件在能力协商成功后使用 UIKit。材质 token 和组件采纳规则见
+[Web 设计系统](../../apps/web/DESIGN.md)，构建、跨源和设备链路见
+[Tauri 移动端基础设施](../development/tauri-mobile.md)。
 
 ## 背景
 
-液态玻璃与传统毛玻璃的区别在于折射：玻璃应当扭曲背后的内容，而不只是把它模糊掉。
-IMSWeb 需要同一套视觉语言同时覆盖 Web 浏览器和 Tauri 打包的 Android 与 iOS 应用。
-
-Web 上实现真折射的唯一可行路径是 `backdrop-filter: url(#svg-filter)` 配合 `feDisplacementMap`。
-调查发现该路径在三大引擎上的行为并不一致，且失败模式不同。
+IMSWeb 需要在浏览器、Android WebView 与 iOS WKWebView 中保持可读、可操作的表面。引用式
+`backdrop-filter` 的渲染效果不能仅凭普通 blur 的 CSS 支持判断，因而内容可见性不得依赖该滤镜。
+不支持引用滤镜或没有稳定性能证据时，静态材质和导航仍必须完整可用。
 
 ## 平台矩阵
 
-| 运行环境 | 渲染引擎 | `backdrop-filter: url()` 行为 |
+| 运行环境 | 材质路径 | 维护边界 |
 | --- | --- | --- |
-| Web Chrome / Edge | Chromium | 正常渲染 |
-| Web Safari | WebKit | 静默丢弃，无软件回退 |
-| Web Firefox | Gecko | 元素不渲染 |
-| App Android Web 内容与底栏 | Chromium WebView | 正常渲染 |
-| App iOS Web 内容与旧系统回退底栏 | WKWebView | 静默丢弃，无软件回退 |
-| App iOS 26+ 原生底栏 | UIKit `UITabBarController` | 系统原生材质与自适应宽度，不经过 CSS |
-| App iOS 26+ 地图浮动控件 | UIKit `UIGlassEffect` 与 `UIGlassContainerEffect` | 系统原生材质，采样其下方原生层与地图，不经过 CSS |
+| Web 各浏览器 | CSS 静态材质、blur 与装饰层引用滤镜 | 内容始终留在父元素，按目标引擎验证渲染 |
+| Android App、旧 iOS 与原生能力失败回退 | 共用 CSS 材质与 DOM 导航 | 不依赖原生插件成功，不启用指针跟随高光 |
+| iOS 26+ App 底栏 | UIKit `UITabBarController` | 插件确认支持后才隐藏 Web 回退 |
+| iOS 26+ App 地图浮动控件 | UIKit `UIGlassEffect` 与 `UIGlassContainerEffect` | 定位与搜索独立协商，成功后隐藏对应 DOM 孪生 |
 
-WebKit 的丢弃发生在 `RenderLayerBacking::updateBackdropFilters()`，它在 `hasReferenceFilter()` 处短路。
-与 `filter: url()` 不同，这条路径没有软件回退。
-
-Firefox 的表现是正确性事故而非保真度问题：应用了引用滤镜的元素会整个消失。
-
-结果是一个反直觉的局面：液态玻璃源自 Apple 的设计语言，但真折射恰恰在 Apple 的引擎上做不出来。
+本表描述仓库选择的实现路径，不将某次引擎探测结果作为长期兼容性保证。
 
 ## 决策
 
 WebView 和浏览器内容采用地板加封顶的两层结构；iOS 26 及以上的 App 底栏与地图页浮动控件采用
 UIKit 原生例外。
 
-**地板：伪折射，全平台生效。** 用边缘渐变带、内阴影和高光模拟透镜边缘，产生厚度与折射的观感，
-不扭曲背后的真实内容。所有引擎都能看到，包括 iOS 应用与 Safari。
+**静态材质是基础。** 边缘渐变、内阴影、高光和填色不依赖引用式滤镜。普通 blur 与 saturation
+位于 `@supports` 内；密集列表、表格和虚拟滚动使用不承担 backdrop blur 的 `.glass-quiet`。
 
-**封顶：真折射，仅 Chromium。** 在支持的引擎上叠加 `backdrop-filter: url(#displacement)`，
-让背景内容真正发生位移。
+**引用滤镜作为增强。** 根布局统一设置 `data-glass-refraction="on"` 并挂载 `GlassFilterDefs`，
+没有按浏览器品牌关闭的分支。`glass.css` 在普通 blur 支持条件内为装饰层设置
+`url("#glass-displacement")`；这项 CSS 条件不能证明引用滤镜一定生效，实际效果由目标引擎验收。
 
 **折射只挂在装饰层上。** 真折射施加于 `.glass-refract::before`，一个不承载任何
 内容的伪元素。这把引擎层面的不确定性转化为有界损失：即使某个引擎拒绝渲染它，
-代价也只是少一圈镜边，而不是整个表面消失。该结构选择取代了原先设想的引擎崅探式
-关闭开关，理由见下方实测。
+代价也只是缺少装饰。父元素使用 `isolation: isolate`，装饰层不接收指针事件，不承载文字、
+焦点或操作区域。不得把引用滤镜移到内容容器。
 
 两层叠加时需要保证边缘处理不重复，避免出现双重轮廓。
 
 **iOS 26+ App 底栏：原生 Liquid Glass。** 仓库内 Tauri 插件在 WKWebView 上方安装系统
 `UITabBarController`，由 UIKit 负责原生材质、按压反馈、安全区和宽度。原生 tab 复用 React 的 Lucide
 图标 ID。Web 底栏只有在插件返回 `supported: true` 后才隐藏。iOS 26 以下与 Android 保留 Web 回退，
-但移动 App 底栏不启用手指位置追踪或白色触点高光；旧系统只保留静态玻璃、单枚透镜与按压缩放。
+生产 DOM 表面均不启用指针位置追踪或白色触点高光。根布局不挂载 `GlassSheenTracker`，
+不得重新给生产表面加上 `glass-sheen`、`glass-control` 或 `data-glass-interactive`。
+Web 回退保留静态材质、单枚透镜和常规按压缩放。
 
 **iOS 26+ App 地图浮动控件：原生绘制。** 交换地图页的定位按钮与底部搜索卡片交给 UIKit 绘制，
 玻璃折射其下方实时地图。搜索卡片包含原生输入、结果和更多工具，使用独立的能力确认与 IPC。
@@ -78,64 +73,33 @@ Web。这与底栏受的约束同源，也是它没有推广到全部页面 UI �
 
 除上述两处例外，页面内容的 CSS 玻璃仍走两层策略。
 
-## 实测结果
+## 可访问性与性能
 
-上述引擎行为来自公开追踪记录，不能直接当作本项目的结论。因此对实际要发布的
-标记做了一次三引擎探测：先连拍两张关闭状态的截图建立噪声基线，再对比开启后的截图。
-
-| 引擎 | 表头高度 | 基线像素稳定 | 开启后变化 | 结论 |
-| --- | --- | --- | --- | --- |
-| Chromium | 64px | 是 | 是 | 真折射确实生效 |
-| Firefox | 64px | 否 | 否 | 保真度无法判定，但未破坏渲染 |
-| WebKit | 64px | 否 | — | 保真度无法判定，但未破坏渲染 |
-
-关键结论有两条。一是 Chromium 上效果可测得到。二是**三个引擎都没有丢失表头**，
-说明装饰层隔离的兵形确实拦住了 Firefox 那条元素不渲染的风险。基于此，真折射在
-根元素上默认开启，不再需要按引擎关闭。
-
-Firefox 与 WebKit 的基线不稳定，推测与系列图标背景的持续动画有关。这意味着
-「它们到底有没有渲染折射」尚未定论，需要一个能冻结背景动画的用例才能回答。
-该项列为待办，不阻塞发布，因为它只影响观感而不影响正确性。
-
-## 被否决的方案
-
-**全平台统一伪折射。** 实现最简单、观感最一致，也不存在 Firefox 风险。
-否决原因是它主动放弃了 Chromium 上本可获得的效果上限，而 Android 应用与多数桌面用户都在 Chromium 上。
-
-**只做真折射，不支持就退回模糊。** 实现量最小。
-否决原因是 iOS 应用与 Safari 用户会拿到整套设计里最素的版本，而项目的日常验收大概率发生在 iOS 设备上，
-容易造成验收错位与反复调参。
-
-**WebGL 或 Skia 着色器。** 该路线在 Web 上不成立。
-浏览器不提供廉价采样「玻璃背后真实 DOM 内容」的能力，Skia 的 Web 后端也未把运行时着色器实现为图像滤镜。
-已知的复刻案例都是在着色器内部程序化生成一个假背景，那并不是折射真实页面内容。
-
-**等待标准化。** CSSWG 中相关讨论仍处于开放阶段，没有可移植的标准实现，不能作为交付依赖。
+- `prefers-reduced-transparency` 使用不透明表面，移除 backdrop 滤镜和装饰高光。
+- `forced-colors` 移除渐变、阴影、滤镜和边缘蒙版，使用系统颜色边框。
+- `prefers-reduced-motion` 停止滚动凝结、透镜移动、形变、图标弹跳和按压缩放，并关闭相关
+  transition 和平滑滚动。UIKit 控件单独读取系统 Reduce Motion，不能用 CSS 验证替代原生设置验证。
+- backdrop blur 半径不得参与动画。调节 alpha、位置或 transform 前也应验证低端设备开销。
+- 玻璃材质不设跨 GPU 的精确像素截图基线；行为、焦点、遮挡、滚动和操作可达性仍须有回归。
+  截图可以作为当次人工验收证据。性能阈值必须建立在目标设备测量上，不在文档中保存一次测量快照。
 
 ## 后果
 
-- iOS 与 Android 应用会有可见的观感差异。Android 的 WebView 表面可拿到真折射封顶；iOS 页面
-  内容仍使用伪折射地板，但 iOS 26+ 底栏与地图浮动控件改用系统原生 Liquid Glass。iOS 26 以下使用无白色触点高光
-  的 Web 回退。该差异必须写入验收标准并标注为预期行为，否则会被反复当作缺陷提交。
+- CSS 与 UIKit 材质存在预期观感差异，验收关注各路径的可读性、反馈和操作完整性，不要求逐像素一致。
 - 定位按钮的几何由 Web 侧测量后推送给原生层。搜索卡片由 Web 提供宿主边界和导航净空，
   UIKit 处理键盘与本地拖动并回传实际遮挡矩形；两类渲染器使用同一份业务状态和文案。
 - 原生控件的折射无法在浏览器里验证。`pnpm run app ios` 构建通过不等于观感通过，必须跑 iOS 26 模拟器
   或真机，并覆盖有刘海与无刘海两种情况、旋转与菜单展开三类布局变化。
-- 折射需要维护两套实现，各自调参。
-- Firefox 的关闭属于正确性措施，需要有自动化守护。
-  现有 `playwright.config.ts` 只有 `chromium-desktop` 与 `chromium-mobile` 两个 project，
-  全部基于 Chromium，因此必须新增 Firefox project，否则元素消失事故在持续集成中必然漏网。
-- 真折射的开销集中在移动端。已有公开实践只在有能力的桌面浏览器上开启该滤镜，手机与低端设备一律关闭。
-  低端 Android WebView 上的帧率尚无实测数据，需要先取基线再决定是否收窄启用条件。
-- 若未来 WebKit 支持引用式 `backdrop-filter`，iOS 页面内容和旧系统回退可以直接复用封顶层；
-  iOS 26+ 原生底栏与地图浮动控件不受这项变化影响。
+- CSS 与原生实现分别维护材质和可访问性，业务状态、文案和导航仍由同一应用模型提供。
+- 变更引用滤镜时必须检查 Chromium、Firefox 和 WebKit 的内容可见性；不能以 CSS 源码测试
+  通过替代实际渲染。Firefox 已在 Web extended tier 中，无需另建关闭开关或重复 project。
 
-## 证据
+## 验证入口
 
-- Apple WWDC25「Meet Liquid Glass」与 UIKit Liquid Glass 开发讲座，说明交互式原生玻璃 API，
-  包括 `UIGlassEffect`、`UIGlassContainerEffect` 与其采样范围。
-- MDN `backdrop-filter` 属性页与浏览器兼容表。
-- WebKit Pull Request 68614，说明引用式 backdrop filter 被静默丢弃且无软件回退。
-- WebKit Bug 245510，`backdrop-filter: url()` 与 `feDisplacementMap` 不工作。
-- Firefox Bug 1787623，`backdrop-filter: url()` 导致元素不渲染。
-- W3C CSSWG drafts Issue 12316，关于用 CSS 复刻该效果的开放讨论。
+- `apps/web/tests/unit/lib/glass-material.test.ts` 守护 CSS 降级和 reduced-motion 源码约束；
+  `native-glass*` 单测守护能力协商、IPC 和 DOM 回退。
+- 核心 Web 浏览器验证使用 `pnpm --filter @imsweb/web run test:e2e`；Firefox 和广泛布局使用
+  `node scripts/testing/run-test-owner.mjs web extended`。
+- App DOM 验证使用 `pnpm --filter @imsweb/web run test:e2e:app`，UIKit 材质、几何、动态字体和
+  实时 Reduce Motion 使用 iOS 模拟器或真机。记录运行系统、构建来源和观察结果到 PR 或 release
+  record。测试所有权与证据边界见 [测试规范](../development/testing.md)。

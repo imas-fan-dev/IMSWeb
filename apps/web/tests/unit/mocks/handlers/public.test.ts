@@ -16,6 +16,7 @@ import {
   fudabaOfficePageSchema,
   fudabaSeriesListSchema,
 } from "@imsweb/contracts/fudaba"
+import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
 import { homepageLinksSchema } from "@imsweb/contracts/homepage-links"
 import {
   informationDetailSchema,
@@ -92,6 +93,7 @@ const routeCases: RouteCase[] = [
   { path: wikiPath("/random_idol"), schema: wikiRandomIdolSchema },
   { path: apiPath("/live-schedule"), schema: liveScheduleListSchema },
   { path: exchangePath("/series"), schema: fudabaSeriesListSchema },
+  { path: exchangePath("/characters"), schema: namecardCharacterCatalogSchema },
   { path: exchangePath("/offices"), schema: fudabaOfficePageSchema },
   { path: exchangePath("/cards"), schema: fudabaCardPageSchema },
   {

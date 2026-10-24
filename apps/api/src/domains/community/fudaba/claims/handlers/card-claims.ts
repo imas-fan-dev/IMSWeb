@@ -101,7 +101,7 @@ export async function handleRespondFudabaClaimEnvelope(
         const target = validFudabaCardId(targetCardId)
             ? await repository.findCardForOwner(targetCardId, accountId)
             : null;
-        if (!target || target.favorite_idols.length < 1) {
+        if (!target || target.favorite_characters.length < 1) {
             return c.json({ success: false, code: 'FUDABA_CLAIM_TARGET_UNAVAILABLE' }, 409);
         }
         const now = new Date().toISOString();
@@ -111,7 +111,7 @@ export async function handleRespondFudabaClaimEnvelope(
             recipientAccountId: accountId,
             targetCardId,
             seriesCode: target.series_code,
-            idolIds: target.favorite_idols.map((idol) => idol.idol_id),
+            characterIds: target.favorite_characters.map((character) => character.character_id),
             message: '同 ID 旧名片身份确认',
             expectedRevision: action.expectedRevision,
             actionedAt: now,
@@ -180,7 +180,7 @@ export async function handleCreateFudabaLegacyCardClaim(
             claimantAccountId: c.get('platformUser')!.id,
             targetCardId: input.targetCardId,
             seriesCode: input.seriesCode,
-            idolIds: input.favoriteIdolIds,
+            characterIds: input.favoriteCharacterIds,
             message: input.message,
             createdAt: now,
             updatedAt: now

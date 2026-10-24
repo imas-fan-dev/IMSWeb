@@ -79,11 +79,13 @@ async function settle() {
 function LocateTwin({
   group,
   onEvent,
+  geometryTrigger = false,
 }: {
   group?: string
   onEvent?: (event: NativeGlassControlEvent) => void
+  geometryTrigger?: boolean
 }) {
-  const { controlRef } = useNativeGlassControl(
+  const { controlRef, refreshGeometry } = useNativeGlassControl(
     "locate",
     {
       kind: "icon-button",
@@ -95,14 +97,19 @@ function LocateTwin({
   )
 
   return (
-    <button
-      ref={controlRef}
-      type="button"
-      data-native-glass-control="locate"
-      style={{ borderRadius: "10px" }}
-    >
-      回到我的位置
-    </button>
+    <>
+      <button
+        ref={controlRef}
+        type="button"
+        data-native-glass-control="locate"
+        style={{ borderRadius: "10px" }}
+      >
+        回到我的位置
+      </button>
+      {geometryTrigger ? (
+        <button onClick={refreshGeometry}>同步位置</button>
+      ) : null}
+    </>
   )
 }
 
@@ -239,6 +246,39 @@ describe("native glass control overlay", () => {
     await waitFor(() =>
       expect(document.documentElement.dataset.nativeGlass).toBe("controls")
     )
+  })
+
+  it("syncs a position-only change after the owner requests committed geometry", async () => {
+    render(
+      <NativeGlassControlsProvider>
+        <LocateTwin geometryTrigger />
+      </NativeGlassControlsProvider>
+    )
+    const control = locateButton()
+    const trigger = screen.getByRole("button", { name: "同步位置" })
+    measure(control, { x: 12, y: 400, width: 44, height: 44 })
+    measureCornerRadius(control, "22px")
+    await settle()
+    expect(lastControls()[0]?.frame).toEqual({
+      x: 12,
+      y: 400,
+      width: 44,
+      height: 44,
+    })
+    const count = mocks.sync.mock.calls.length
+    measure(control, { x: 12, y: 300, width: 44, height: 44 })
+    await settle()
+    expect(mocks.sync).toHaveBeenCalledTimes(count)
+    act(() => trigger.click())
+    await settle()
+    expect(mocks.sync).toHaveBeenCalledTimes(count + 1)
+    expect(lastControls()[0]?.frame).toEqual({
+      x: 12,
+      y: 300,
+      width: 44,
+      height: 44,
+    })
+    expect(document.documentElement.dataset.nativeGlass).toBe("controls")
   })
 
   it("keeps the twins when the plugin declines the control set", async () => {

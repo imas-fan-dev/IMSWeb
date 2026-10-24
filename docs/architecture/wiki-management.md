@@ -2,7 +2,7 @@
 
 > 文档类型：架构
 > 状态：Active
-> 权威来源：`apps/api/src/domains/content/wiki/`、`packages/contracts/src/wiki.ts` 和 Wiki contract tests
+> 权威来源：`apps/api/src/domains/content/wiki/`、`apps/web/app/pages/admin/idols/`、`apps/web/app/pages/admin/stories/`、`packages/contracts/src/wiki.ts` 和 Wiki contract tests
 
 ## 运行模型
 
@@ -15,9 +15,12 @@ Wiki 的企划、栏目、内容页、栏目归档关系、剧情分类、剧情
   -> /api/wiki/catalog、/api/wiki/stories
   -> Hono Wiki handlers -> StoryRepository -> PostgreSQL
 
-后台 /admin/stories
-  -> /api/admin/wiki/catalog、/api/admin/wiki/stories
-  -> 企划/栏目/内容页 CRUD 与剧情写接口
+后台 /admin/idols（企划、栏目、内容页维护）
+  -> /api/admin/wiki/catalog 与目录/实体媒体写接口
+  -> StoryRepository + ObjectStorage
+
+后台 /admin/stories（目录筛选与只读资料、剧情维护）
+  -> /api/admin/wiki/catalog、/api/admin/wiki/stories 与剧情写接口
   -> StoryRepository + ObjectStorage
 ```
 
@@ -211,10 +214,16 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
 | `DELETE /api/admin/wiki/story-source-platforms/:optionId` | 仅删除未被任何来源引用的平台   |
 
 剧情写接口保留在现有 `/api/wiki/*` 路径以兼容客户端，但和 `/api/admin/wiki/*` 一样受管理写权限
-与 CSRF 保护。旧的企划图标和内容页媒体兼容接口仍存在于路由层；新的工作台使用上表三个按实体 ID
+与 CSRF 保护。旧的企划图标和内容页媒体兼容接口仍存在于路由层；偶像管理使用上表三个按实体 ID
 寻址、带构图和版本控制的 `PUT` 接口。
 
 ## 管理工作台
+
+`/admin/idols` 进入独立偶像管理，企划、栏目与条目各有列表。条目按现有内容页类型区分偶像、
+组合、剧情专题和其他内容；列表支持企划、类型和关键词筛选，按内容页 ID 去重，停用对象仍可维护。
+企划、栏目、内容页共用实体编辑 Dialog，可维护归档关系、上传图片并实时预览构图。
+组合类型表示内容页，不在此维护名片组合成员。名片角色和组合仍由名片管理独立维护。
+目录与剧情管理均允许现有 `editor`、`op` 账号访问，迁移页面职责不改变 API 权限或删除联动。
 
 `/admin/stories` 直接呈现 Wiki 内容工作台，层级与公开剧情页一致：
 
@@ -225,8 +234,8 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
 - 顶部切换企划；左侧树按栏目展开内容页，未归档内容固定在末尾；桌面为双栏，移动端使用侧边
   Sheet。
 - 同一内容页出现在多个栏目时以同一个内容页 ID 选中，右侧仍只有一份资料和剧情内容。
-- 企划、栏目、内容页共用实体编辑 Dialog；内容页通过分段控件选择类型，并可归入多个栏目。
-- 实体编辑器内可上传图片，并实时预览适配方式、焦点、缩放和 90 度旋转。
+- 企划、栏目和内容页资料只读；工作台不挂载目录实体编辑器。偶像管理入口携带所选企划、内容页
+  与剧情返回地址，资料维护后可回到原有筛选位置。
 - 右侧按分类 -> 卡片 -> 内容来源折叠展示；每条来源显示内容类型、来源平台和发布者，卡片汇总内容
   类型数与来源数。分类和卡片均有独立二次编辑入口；新增卡片时可不添加来源，也可在同一个 Dialog 中添加多种
   内容与多条来源，已有卡片可继续批量添加，单条来源也可独立编辑或删除。
@@ -235,7 +244,8 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
   卡片编辑器可在共享素材、独立上传和无封面之间切换。
 - 当前企划和内容页写入 URL 查询参数 `agencyId`、`idolId`，刷新或分享后台地址时可恢复工作位置。
 
-写入成功后工作台重新读取 catalog 或当前内容页 stories，服务端读模型始终是最终显示依据。
+偶像管理写入成功后重新读取 catalog；剧情写入成功后重新读取当前内容页 stories。剧情工作台
+保留手动刷新目录与剧情的能力，返回工作台时重新读取资料，服务端读模型始终是最终显示依据。
 
 ## 一致性边界
 

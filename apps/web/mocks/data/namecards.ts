@@ -2,14 +2,14 @@ import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
 
 /**
  * The namecard schema embeds this idol shape but exports no type for it, so it
- * is read off the card's `favoriteIdols` array rather than re-derived with
+ * is read off the card's `favoriteCharacters` array rather than re-derived with
  * `z.infer`.
  */
-type NamecardIdol = Namecard["favoriteIdols"][number]
+type NamecardFavoriteCharacter = Namecard["favoriteCharacters"][number]
 
-export function makeNamecardIdol(
-  overrides: Partial<NamecardIdol> = {}
-): NamecardIdol {
+export function makeNamecardFavoriteCharacter(
+  overrides: Partial<NamecardFavoriteCharacter> = {}
+): NamecardFavoriteCharacter {
   return {
     id: 1,
     name: "天海春香",
@@ -22,7 +22,7 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
   return {
     id: 1,
     seriesCode: "765",
-    favoriteIdols: [],
+    favoriteCharacters: [],
     claimStatus: "unclaimed",
     viewerClaimState: null,
     claimerName: null,

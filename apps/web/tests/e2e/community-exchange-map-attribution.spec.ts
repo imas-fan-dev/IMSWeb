@@ -76,7 +76,11 @@ const emptyPage = {
   pageInfo: { hasNextPage: false, nextCursor: null },
 }
 
-function installMapMocks(api: ApiDispatcher, configuredStyleUrl = styleUrl) {
+function installMapMocks(
+  api: ApiDispatcher,
+  configuredStyleUrl = styleUrl,
+  seriesReads = 1
+) {
   // The mounted workspace also renders series icons, which read the wiki
   // catalog for their fallback artwork. It is unrelated to this workflow, so it
   // gets a deterministic empty catalog instead of a live-call pass-through.
@@ -88,7 +92,7 @@ function installMapMocks(api: ApiDispatcher, configuredStyleUrl = styleUrl) {
     method: "GET",
     path: "/api/community/exchange/series",
     responses: { 200: fudabaSeriesListSchema },
-    times: 1,
+    times: seriesReads,
     handle: () => ({ status: 200, json: { items: [] } }),
   })
   api.expect({
@@ -115,7 +119,14 @@ function installMapMocks(api: ApiDispatcher, configuredStyleUrl = styleUrl) {
     path: "/api/community/exchange/map/config",
     responses: { 200: fudabaMapConfigSchema },
     times: 1,
-    handle: () => ({ status: 200, json: { styleUrl: configuredStyleUrl } }),
+    handle: () => ({
+      status: 200,
+      json: {
+        provider: "maplibre",
+        search: { provider: "nominatim" },
+        styleUrl: configuredStyleUrl,
+      },
+    }),
   })
   api.expect({
     name: "attribution map offices",
@@ -130,11 +141,10 @@ function installMapMocks(api: ApiDispatcher, configuredStyleUrl = styleUrl) {
 
 const searchCard = (page: Page) =>
   page.getByRole("region", { name: "地点查找" })
-const discoveryRail = (page: Page) =>
-  page.locator('aside[aria-label="交换发现栏"]')
+const discoveryRail = (page: Page) => searchCard(page)
 
-function attributionTrigger(scope: Locator) {
-  return scope.getByRole("button", { name: "查看地图数据来源" })
+function attributionTrigger(page: Page) {
+  return page.getByRole("menuitem", { name: "查看地图数据来源" })
 }
 
 async function expectAttributionDialog(page: Page) {
@@ -165,16 +175,18 @@ async function expectAttributionDialog(page: Page) {
   return dialog
 }
 
-async function openAndCloseAttribution(page: Page, trigger: Locator) {
-  await expect(trigger).toBeVisible()
-  await trigger.click()
+async function openAndCloseAttribution(page: Page, more: Locator) {
+  await expect(more).toBeVisible()
+  await more.click()
+  await attributionTrigger(page).click()
   const dialog = await expectAttributionDialog(page)
 
   await page.keyboard.press("Escape")
   await expect(dialog).toHaveCount(0)
-  await expect(trigger).toBeFocused()
+  await expect(more).toBeFocused()
 
-  await trigger.click()
+  await more.click()
+  await attributionTrigger(page).click()
   await expectAttributionDialog(page)
   await page
     .locator('[data-slot="dialog-overlay"]')
@@ -182,7 +194,7 @@ async function openAndCloseAttribution(page: Page, trigger: Locator) {
   await expect(page.getByRole("dialog", { name: "地图数据来源" })).toHaveCount(
     0
   )
-  await expect(trigger).toBeFocused()
+  await expect(more).toBeFocused()
 }
 
 async function openWorkspace(page: Page) {
@@ -190,6 +202,10 @@ async function openWorkspace(page: Page) {
   await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({
     timeout: 15_000,
   })
+  await expect(page.locator("[data-map-office-count]")).toHaveText("0")
+  await page.getByRole("button", { name: "展开地图面板" }).click()
+  await page.getByRole("tab", { name: "地点", exact: true }).click()
+  await page.getByRole("button", { name: "收起地图面板" }).click()
 }
 
 test.beforeEach(async ({ page }) => {
@@ -256,11 +272,9 @@ test.describe("community exchange map attribution", () => {
     })
     await openWorkspace(page)
     const card = searchCard(page)
-    await card.getByRole("button", { name: "查找地点" }).click()
-    await card.getByRole("button", { name: "展开结果" }).click()
     await card.getByRole("textbox", { name: "搜索地点" }).fill("上海场馆")
     expect(requests).toBe(0)
-    const submit = card.getByRole("button", { name: "查找", exact: true })
+    const submit = card.getByRole("button", { name: "搜索", exact: true })
     await submit.click()
     const result = card.getByRole("button", {
       name: `${place.label} ${place.address}`,
@@ -280,9 +294,9 @@ test.describe("community exchange map attribution", () => {
     await expect(card.getByRole("alert")).toContainText("地点搜索服务尚未配置")
     await expect(result).toBeVisible()
     await submit.click()
-    await expect(
-      card.getByText("没有找到地点，请尝试城市加场馆名或完整地址。")
-    ).toBeVisible()
+    const emptyStatus = card.getByRole("status")
+    await expect(emptyStatus).toContainText("没有找到地点")
+    await expect(emptyStatus).toContainText("请尝试城市加场馆名或完整地址。")
     await expect(result).toHaveCount(0)
     expect(
       await page.evaluate(
@@ -290,7 +304,7 @@ test.describe("community exchange map attribution", () => {
       )
     ).toBe(true)
   })
-  test("drags search detents, retains a draft and returns focus through Escape @mobile", async ({
+  test("retains the editable draft through drawer collapse, Escape and responsive layouts @mobile", async ({
     api,
     page,
   }) => {
@@ -298,69 +312,70 @@ test.describe("community exchange map attribution", () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await openWorkspace(page)
     const card = searchCard(page)
-    const handle = card.getByRole("button", { name: "展开地点查找" })
-    const box = await handle.boundingBox()
-    expect(box).not.toBeNull()
-    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(box!.x + box!.width / 2, box!.y - 180, { steps: 8 })
-    await page.mouse.up()
-    await expect(card).toHaveAttribute("data-detent", "medium")
     const input = card.getByRole("textbox", { name: "搜索地点" })
+    const retained = await input.elementHandle()
+    const canvas = page.locator("canvas.maplibregl-canvas")
+    const mapBox = await canvas.boundingBox()
     await input.fill("上海长地点名称")
     await input.press("Escape")
-    await expect(card.getByRole("button", { name: "取消" })).toBeFocused()
-    await page.keyboard.press("Escape")
-    const trigger = card.getByRole("button", { name: "查找地点" })
-    await expect(trigger).toBeFocused()
-    await trigger.click()
+    await expect(input).toBeFocused()
+    await expect(card).toHaveAttribute("data-drawer-open", "false")
+    await card.getByRole("button", { name: "展开地图面板" }).click()
     await expect(input).toHaveValue("上海长地点名称")
-    await card.getByRole("button", { name: "取消" }).click()
+    await card.getByRole("button", { name: "收起地图面板" }).click()
+    await expect.poll(() => canvas.boundingBox()).toEqual(mapBox)
     expect(
       await page.evaluate(() => document.scrollingElement?.scrollTop)
     ).toBe(0)
     await page.setViewportSize({ width: 1024, height: 768 })
-    await expect(card).toBeHidden()
-    await expect(page.locator("[data-exchange-desktop-search]")).toBeFocused()
+    await expect(input).toBeVisible()
     await page.setViewportSize({ width: 390, height: 844 })
-    await expect(trigger).toBeVisible()
-    await expect(card).toHaveAttribute("data-detent", "collapsed")
+    await expect(input).toBeVisible()
+    expect(
+      await input.evaluate(
+        (element, original) => element === original,
+        retained
+      )
+    ).toBe(true)
+    await expect(input).toHaveValue("上海长地点名称")
   })
   test("keeps rounded search actions reachable in a dark short viewport with reduced motion @mobile", async ({
     api,
     page,
-  }) => {
+  }, testInfo) => {
     installMapMocks(api)
     await page.setViewportSize({ width: 667, height: 375 })
     await page.emulateMedia({ reducedMotion: "reduce" })
     await openWorkspace(page)
     await page.evaluate(() => document.documentElement.classList.add("dark"))
-    const card = searchCard(page)
-    const trigger = card.getByRole("button", { name: "查找地点" })
-    expect(
-      await card.evaluate(
-        (element) => getComputedStyle(element).borderTopLeftRadius
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const locate = document.querySelector(
+            '[data-native-glass-control="locate"]'
+          )!
+          const refresh = document.querySelector(".exchange-web-refresh")!
+          return (
+            getComputedStyle(locate).backgroundColor ===
+            getComputedStyle(refresh).backgroundColor
+          )
+        })
       )
-    ).toBe("28px")
-    expect(
-      await trigger.evaluate((element) => ({
-        height: element.getBoundingClientRect().height,
-        radius: getComputedStyle(element).borderTopLeftRadius,
-      }))
-    ).toEqual({ height: 48, radius: "24px" })
-    await trigger.click()
+      .toBe(true)
+    const card = searchCard(page)
+    const input = card.getByRole("textbox", { name: "搜索地点" })
+    await input.fill("上海")
     const actions = [
-      card.getByRole("textbox", { name: "搜索地点" }),
-      card.getByRole("button", { name: "取消" }),
-      card.getByRole("button", { name: "查找", exact: true }),
+      input,
+      card.getByRole("button", { name: "收起地图面板" }),
+      card.getByRole("button", { name: "搜索", exact: true }),
     ]
     for (const action of actions) {
       const rect = await action.boundingBox()
       expect(rect!.y).toBeGreaterThanOrEqual(0)
       expect(rect!.y + rect!.height).toBeLessThanOrEqual(375)
     }
-    await card.getByRole("textbox", { name: "搜索地点" }).fill("上海")
-    const cancel = card.getByRole("button", { name: "取消" })
+    const cancel = card.getByRole("button", { name: "收起地图面板" })
     expect(
       await cancel.evaluate((element) => {
         const rect = element.getBoundingClientRect()
@@ -373,7 +388,17 @@ test.describe("community exchange map attribution", () => {
       })
     ).toBe(true)
     await cancel.click()
-    await expect(trigger).toBeFocused()
+    await input.focus()
+    await input.press("Escape")
+    await expect(input).toBeFocused()
+    expect(
+      await card
+        .locator(".exchange-web-drawer")
+        .evaluate((element) => getComputedStyle(element).transitionDuration)
+    ).toBe("0s")
+    await page.screenshot({
+      path: testInfo.outputPath("dark-map-controls.png"),
+    })
   })
   for (const [width, height] of [
     [320, 568],
@@ -396,8 +421,7 @@ test.describe("community exchange map attribution", () => {
       await expect(page.locator('section[aria-label="地图工具"]')).toHaveCount(
         0
       )
-      await expect(attributionTrigger(discoveryRail(page))).toBeHidden()
-      const controls = card.getByRole("button")
+      const controls = card.locator(".exchange-web-search-dock button:enabled")
       const geometry = await controls.evaluateAll((elements) =>
         elements.map((element) => {
           const box = element.getBoundingClientRect()
@@ -431,7 +455,14 @@ test.describe("community exchange map attribution", () => {
       ).toBeLessThanOrEqual(0)
       const more = card.getByRole("button", { name: "更多地图工具" })
       await more.click()
-      await attributionTrigger(card).click()
+      await expect(
+        page.getByRole("menuitem", { name: "我的交换账号" })
+      ).toBeInViewport()
+      await expect(attributionTrigger(page)).toBeInViewport()
+      await page.screenshot({
+        path: `/tmp/exchange-search-menu-web-${width}x${height}.png`,
+      })
+      await attributionTrigger(page).click()
       const dialog = await expectAttributionDialog(page)
       await page.keyboard.press("Escape")
       await expect(dialog).toHaveCount(0)
@@ -450,8 +481,13 @@ test.describe("community exchange map attribution", () => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await openWorkspace(page)
 
-    await expect(searchCard(page)).toBeHidden()
-    await openAndCloseAttribution(page, attributionTrigger(discoveryRail(page)))
+    await expect(
+      searchCard(page).getByRole("textbox", { name: "搜索地点" })
+    ).toBeVisible()
+    await openAndCloseAttribution(
+      page,
+      discoveryRail(page).getByRole("button", { name: "更多地图工具" })
+    )
   })
 
   test("returns source focus to the visible entry after a desktop breakpoint crossing @mobile", async ({
@@ -465,15 +501,18 @@ test.describe("community exchange map attribution", () => {
       name: "更多地图工具",
     })
     await more.click()
-    await attributionTrigger(searchCard(page)).click()
+    await attributionTrigger(page).click()
     const dialog = await expectAttributionDialog(page)
     await page.setViewportSize({ width: 1024, height: 768 })
     await page.keyboard.press("Escape")
     await expect(dialog).toHaveCount(0)
-    const desktop = attributionTrigger(discoveryRail(page))
+    const desktop = discoveryRail(page).getByRole("button", {
+      name: "更多地图工具",
+    })
     await expect(desktop).toBeFocused()
 
     await desktop.click()
+    await attributionTrigger(page).click()
     await expectAttributionDialog(page)
     await page.setViewportSize({ width: 1023, height: 768 })
     await page.keyboard.press("Escape")
@@ -491,16 +530,193 @@ test.describe("community exchange map attribution", () => {
     // The bottom search card covers both narrow ranges; desktop uses the rail.
     for (const width of [400, 900, 1280]) {
       await page.setViewportSize({ width, height: 800 })
-      if (width < 1024)
-        await searchCard(page)
-          .getByRole("button", { name: "更多地图工具" })
-          .click()
+      await (width < 1024 ? searchCard(page) : discoveryRail(page))
+        .getByRole("button", { name: "更多地图工具" })
+        .click()
       await expect(
-        page.getByRole("button", { name: "查看地图数据来源" })
+        page.getByRole("menu", { name: "更多地图工具内容" })
+      ).toBeVisible()
+      await expect(
+        page.getByRole("menuitem", { name: "查看地图数据来源" })
       ).toHaveCount(0)
       await expect(
         page.getByRole("dialog", { name: "地图数据来源" })
       ).toHaveCount(0)
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("menu")).toHaveCount(0)
     }
   })
+
+  test("retains the same visible tools trigger across responsive layouts @mobile", async ({
+    api,
+    page,
+  }) => {
+    installMapMocks(api)
+    await page.setViewportSize({ width: 1280, height: 844 })
+    await openWorkspace(page)
+    const more = page.getByRole("button", { name: "更多地图工具" })
+    for (const width of [390, 1280]) {
+      await more.click()
+      await expect(page.getByRole("menu")).toBeVisible()
+      await page.setViewportSize({ width, height: 844 })
+      await expect(page.getByRole("menu")).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(more).toBeFocused()
+    }
+  })
+
+  for (const width of [390, 1440]) {
+    test(`floats filters and preserves the map, search draft and count at ${width}px @mobile`, async ({
+      api,
+      page,
+    }, testInfo) => {
+      installMapMocks(api, styleUrl, 4)
+      await page.setViewportSize({ width, height: 844 })
+      await openWorkspace(page)
+      const input = page.getByRole("textbox", { name: "搜索地点" })
+      const retainedInput = await input.elementHandle()
+      const canvas = page.locator("canvas.maplibregl-canvas")
+      const retainedCanvas = await canvas.elementHandle()
+      const frame = await canvas.boundingBox()
+      const count = page.locator("[data-map-office-count]")
+      const retainedCount = await count.elementHandle()
+      await input.fill("保留的搜索草稿")
+      await expect(
+        page.getByRole("complementary", { name: "交换发现栏" })
+      ).toHaveCount(0)
+      const more = page.getByRole("button", { name: "更多地图工具" })
+      const dialog = page.getByRole("dialog", { name: "筛选地图" })
+      const openFilter = async () => {
+        await more.click()
+        await page.getByRole("menuitem", { name: /^打开筛选/ }).click()
+        await expect(
+          dialog.getByRole("heading", { name: "筛选地图" })
+        ).toBeFocused()
+        await expect(dialog).toHaveCSS("opacity", "1")
+      }
+      await openFilter()
+      await expect(dialog).toHaveClass(/exchange-web-filter-popover/)
+      await page.screenshot({
+        path: testInfo.outputPath("floating-filter.png"),
+      })
+      await dialog.getByRole("textbox", { name: "城市" }).fill(" 上海 ")
+      await dialog.getByRole("button", { name: "按城市查找" }).click()
+      await expect(dialog).toHaveCount(0)
+      await expect(more).toBeFocused()
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("city"))
+        .toBe("上海")
+      await openFilter()
+      await expect(dialog.getByRole("textbox", { name: "城市" })).toHaveValue(
+        "上海"
+      )
+      await dialog.getByRole("checkbox", { name: "仅看开放事务所" }).click()
+      await expect(page).toHaveURL(/open=true/)
+      await dialog.getByRole("button", { name: "清除筛选" }).click()
+      await expect.poll(() => new URL(page.url()).search).toBe("")
+      await expect(dialog.getByRole("textbox", { name: "城市" })).toHaveValue(
+        ""
+      )
+      await input.click()
+      await expect(dialog).toHaveCount(0)
+      await expect(input).toBeFocused()
+      await expect(input).toHaveValue("保留的搜索草稿")
+      await openFilter()
+      await page.keyboard.press("Escape")
+      await expect(dialog).toHaveCount(0)
+      await expect(more).toBeFocused()
+      await openFilter()
+      await dialog.getByRole("button", { name: "关闭筛选浮窗" }).click()
+      await expect(dialog).toHaveCount(0)
+      await expect(more).toBeFocused()
+      await openFilter()
+      await page.getByRole("button", { name: "更多地图工具" }).click()
+      await expect(
+        page.getByRole("menu", { name: "更多地图工具内容" })
+      ).toBeVisible()
+      await expect(dialog).toHaveCount(0)
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(more).toBeFocused()
+      expect(
+        await input.evaluate((node, old) => node === old, retainedInput)
+      ).toBe(true)
+      expect(
+        await canvas.evaluate((node, old) => node === old, retainedCanvas)
+      ).toBe(true)
+      expect(
+        await count.evaluate((node, old) => node === old, retainedCount)
+      ).toBe(true)
+      expect(await canvas.boundingBox()).toEqual(frame)
+    })
+  }
+
+  for (const width of [390, 900, 1280]) {
+    test(`opens compact map tools and restores their trigger at ${width}px @mobile`, async ({
+      api,
+      page,
+    }, testInfo) => {
+      installMapMocks(api)
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto("/community/exchange?open=true")
+      await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible()
+      const more = page.getByRole("button", { name: "更多地图工具" })
+      await expect(more).toHaveAccessibleDescription("已应用筛选")
+      await expect(page.getByRole("menuitem")).toHaveCount(0)
+      await page.screenshot({ path: testInfo.outputPath("compact-tools.png") })
+      for (const [entry, title, tab] of [
+        ["打开筛选，已应用筛选", "筛选地图", null],
+        ["打开事务所名录", "公开交换名录", "事务所"],
+        ["打开名片名录", "公开交换名录", "名片"],
+      ] as const) {
+        await more.click()
+        const menu = page.getByRole("menu", { name: "更多地图工具内容" })
+        await expect(menu).toBeInViewport()
+        await page.screenshot({
+          path: testInfo.outputPath(`menu-${tab ?? "filter"}.png`),
+        })
+        await menu.getByRole("menuitem", { name: entry }).click()
+        const dialog = page.getByRole("dialog", { name: title })
+        await expect(dialog).toBeVisible()
+        if (tab)
+          await expect(
+            dialog.getByRole("tab", { name: tab, exact: true })
+          ).toHaveAttribute("aria-selected", "true")
+        else {
+          await expect(
+            dialog.getByRole("checkbox", { name: "仅看开放事务所" })
+          ).toBeChecked()
+          await expect(dialog).toHaveClass(/exchange-web-filter-popover/)
+          await expect(page.locator('[data-slot="sheet-overlay"]')).toHaveCount(
+            0
+          )
+          const box = await dialog.boundingBox()
+          expect(box!.x).toBeGreaterThanOrEqual(0)
+          expect(box!.y).toBeGreaterThanOrEqual(0)
+          expect(box!.x + box!.width).toBeLessThanOrEqual(width)
+          expect(box!.y + box!.height).toBeLessThanOrEqual(844)
+          await page.screenshot({
+            path: testInfo.outputPath("floating-filter.png"),
+          })
+        }
+        await page.keyboard.press("Escape")
+        await expect(dialog).toHaveCount(0)
+        await expect(more).toBeFocused()
+      }
+      await more.press("ArrowDown")
+      await expect(
+        page.getByRole("menuitem", { name: "打开筛选，已应用筛选" })
+      ).toBeFocused()
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(more).toBeFocused()
+      await more.click()
+      await expect(page.getByRole("menu")).toBeVisible()
+      await expect(more).toHaveAttribute("aria-expanded", "true")
+      await page.mouse.click(4, 300)
+      await expect(page.getByRole("menu")).toHaveCount(0)
+      await expect(more).toHaveAttribute("aria-expanded", "false")
+    })
+  }
 })

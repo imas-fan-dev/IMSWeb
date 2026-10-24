@@ -92,8 +92,8 @@ const card = {
   producerName: "春香P",
   displayName: "周末交换会名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+  favoriteCharacter: "天海春香",
+  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -151,7 +151,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       await route.fulfill({ json: series })
     },
     "GET",
-    { min: 1, max: 4 }
+    { min: 1, max: 5 }
   )
   await api.mockRoute(
     "**/api/community/exchange/offices?*",
@@ -182,6 +182,137 @@ test.beforeEach(async ({ page, api }, testInfo) => {
 })
 
 test.describe("community exchange map", () => {
+  test("retains committed counts and cluster nodes through a real pan and equal response @mobile", async ({
+    page,
+    api,
+  }, testInfo) => {
+    const records = [
+      mapOffices[0]!,
+      {
+        ...mapOffices[1]!,
+        location: { latitude: 31.3, longitude: 121.6, precision: "regional" },
+      },
+    ]
+    let requests = 0
+    let hold = false
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await api.mockRoute(
+      "/api/community/exchange/map/config",
+      (route) =>
+        route.fulfill({
+          json: {
+            provider: "maplibre",
+            search: { provider: "nominatim" },
+            styleUrl: "/maps/exchange-test-style.json",
+          },
+        }),
+      "GET",
+      1
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/map/offices?*",
+      async (route) => {
+        requests++
+        if (hold) await gate
+        return route.fulfill({
+          json: {
+            items: requests > 1 ? [...records].reverse() : records,
+            truncated: false,
+          },
+        })
+      },
+      "GET",
+      { min: 2, max: 4 }
+    )
+    try {
+      await page.goto("/community/exchange")
+      const map = page.getByRole("region", { name: "区域地图", exact: true })
+      const count = page.locator("[data-map-office-count]")
+      await expect(count).toHaveText("2")
+      const cluster = page.getByRole("button", {
+        name: "2 个区域点，放大查看",
+        exact: true,
+      })
+      await expect(cluster).toBeVisible()
+      const original = await cluster.elementHandle()
+      await count.evaluate((element) => {
+        const watched = Object.assign(element, { counterWrites: 0 })
+        new MutationObserver(() => {
+          watched.counterWrites++
+        }).observe(element, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        })
+      })
+      hold = true
+      await page.locator("canvas.maplibregl-canvas").press("ArrowRight")
+      await expect(map).toHaveAttribute("data-map-results-state", "loading")
+      await expect(count).toHaveText("2")
+      expect(
+        await cluster.evaluate(
+          (element, previous) => element === previous,
+          original
+        )
+      ).toBe(true)
+      release()
+      await expect(map).toHaveAttribute("data-map-results-state", "ready")
+      await page.getByRole("button", { name: "更多地图工具" }).click()
+      await page.getByRole("menuitem", { name: "打开事务所名录" }).click()
+      await expect(
+        page.getByRole("dialog", { name: "公开交换名录" })
+      ).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(
+        page.getByRole("dialog", { name: "公开交换名录" })
+      ).toHaveCount(0)
+      expect(
+        await cluster.evaluate(
+          (element, previous) => element === previous,
+          original
+        )
+      ).toBe(true)
+      expect(
+        await count.evaluate((element) => Reflect.get(element, "counterWrites"))
+      ).toBe(0)
+      await page.screenshot({
+        path: testInfo.outputPath("stable-count-after-pan.png"),
+      })
+      await page.getByRole("button", { name: "范围内事务所列表" }).click()
+      await page
+        .getByRole("region", { name: "当前范围事务所列表" })
+        .getByRole("link", { name: /上海周末交换事务所/ })
+        .click()
+      const selected = page.getByRole("button", {
+        name: "上海周末交换事务所，1 个事务所",
+        exact: true,
+      })
+      await expect(selected).toHaveAttribute("aria-pressed", "true")
+      const popup = page.getByRole("dialog", { name: "事务所详情" })
+      await expect(
+        popup.getByRole("heading", { name: "上海周末交换事务所" })
+      ).toBeVisible()
+      await page.getByRole("button", { name: "范围内事务所列表" }).click()
+      await page
+        .getByRole("region", { name: "当前范围事务所列表" })
+        .getByRole("link", { name: /上海周末交换事务所/ })
+        .click()
+      await expect(
+        popup.getByRole("heading", { name: "事务所详情", exact: true })
+      ).toBeFocused()
+      await popup.getByRole("button", { name: "关闭事务所详情" }).click()
+      await expect(cluster).toBeVisible()
+      expect(
+        await count.evaluate((element) => Reflect.get(element, "counterWrites"))
+      ).toBe(0)
+    } finally {
+      release()
+    }
+  })
+
   test(
     "searches a place explicitly and recenters the public map",
     { tag: "@mobile" },
@@ -194,7 +325,11 @@ test.describe("community exchange map", () => {
         "/api/community/exchange/map/config",
         (route) =>
           route.fulfill({
-            json: { styleUrl: "/maps/exchange-test-style.json" },
+            json: {
+              provider: "maplibre",
+              search: { provider: "nominatim" },
+              styleUrl: "/maps/exchange-test-style.json",
+            },
           }),
         "GET"
       )
@@ -244,12 +379,10 @@ test.describe("community exchange map", () => {
         "ready",
         { timeout: 15_000 }
       )
-      const trigger = page.getByRole("button", {
-        name: "查找地点",
-        exact: true,
-      })
-      await trigger.click()
       const query = page.getByRole("textbox", { name: "搜索地点" })
+      await page.getByRole("button", { name: "展开地图面板" }).click()
+      await page.getByRole("tab", { name: "地点", exact: true }).click()
+      await expect(query).toBeVisible()
       await query.fill("上海市")
       expect(placeQueries).toHaveLength(0)
       await query.press("Enter")
@@ -260,10 +393,10 @@ test.describe("community exchange map", () => {
       await expect(result).toBeVisible()
       expect(placeQueries).toEqual(["上海市"])
       await result.click()
+      await expect(query).toBeFocused()
       await expect(
         page.getByRole("status").filter({ hasText: "已定位：上海市" })
       ).toBeVisible()
-      await expect(trigger).toBeFocused()
       await expect(
         page.getByRole("img", { name: "搜索地点：上海市" })
       ).toBeVisible()
@@ -285,7 +418,7 @@ test.describe("community exchange map", () => {
           })
         )
         .toBe(true)
-      const geometry = await trigger.boundingBox()
+      const geometry = await query.boundingBox()
       expect(geometry).not.toBeNull()
       expect(geometry!.x).toBeGreaterThanOrEqual(0)
       expect(geometry!.x + geometry!.width).toBeLessThanOrEqual(
@@ -305,11 +438,16 @@ test.describe("community exchange map", () => {
     },
     async ({ page, isMobile }, testInfo) => {
       test.slow()
+      if (!isMobile) await page.setViewportSize({ width: 1280, height: 800 })
       await api.mockRoute(
         "/api/community/exchange/map/config",
         (route) =>
           route.fulfill({
-            json: { styleUrl: "/maps/exchange-test-style.json" },
+            json: {
+              provider: "maplibre",
+              search: { provider: "nominatim" },
+              styleUrl: "/maps/exchange-test-style.json",
+            },
           }),
         "GET"
       )
@@ -339,7 +477,7 @@ test.describe("community exchange map", () => {
           await route.fulfill({ json: { items: mapOffices, truncated: false } })
         },
         "GET",
-        { min: 4, max: 11 }
+        { min: 3, max: 11 }
       )
 
       await page.goto("/community/exchange/?view=map&bbox=100,20,130,45")
@@ -366,6 +504,8 @@ test.describe("community exchange map", () => {
         .toBe(true)
 
       if (!isMobile) {
+        await page.getByRole("button", { name: "更多地图工具" }).click()
+        await page.getByRole("menuitem", { name: "打开筛选" }).click()
         const agencyChannel = page.getByRole("button", { name: /765PRO/ })
         await expect(agencyChannel.locator("img")).toHaveAttribute(
           "src",
@@ -382,6 +522,7 @@ test.describe("community exchange map", () => {
               .some((url) => new URL(url).searchParams.get("series") === "765")
           )
           .toBe(true)
+        await page.keyboard.press("Escape")
       }
 
       const groupMarker = page
@@ -391,7 +532,7 @@ test.describe("community exchange map", () => {
         })
       await expect(groupMarker).toBeVisible()
       const pointCount = page.locator("[data-map-point-count]")
-      await expect(pointCount).toHaveCount(0)
+      await expect(pointCount.locator("output")).toHaveText("2")
       await expect
         .poll(async () => {
           const screenshot = await canvas.screenshot()
@@ -474,13 +615,12 @@ test.describe("community exchange map", () => {
             "canvas.maplibregl-canvas"
           )
           const mapTools = document.querySelector<HTMLElement>(
-            ".exchange-search-card"
+            ".exchange-web-search-dock"
           )
           if (
             !header ||
             !workspace ||
             !mapRegion ||
-            !discoveryRail ||
             !mapContainer ||
             !mapCanvas
           ) {
@@ -489,7 +629,6 @@ test.describe("community exchange map", () => {
           const headerRect = header.getBoundingClientRect()
           const workspaceRect = workspace.getBoundingClientRect()
           const mapRegionRect = mapRegion.getBoundingClientRect()
-          const discoveryRailRect = discoveryRail.getBoundingClientRect()
           const containerRect = mapContainer.getBoundingClientRect()
           const canvasRect = mapCanvas.getBoundingClientRect()
           return {
@@ -506,12 +645,7 @@ test.describe("community exchange map", () => {
             mapRegionBottom: mapRegionRect.bottom,
             mapRegionWidth: mapRegionRect.width,
             mapRegionHeight: mapRegionRect.height,
-            discoveryRailDisplay: getComputedStyle(discoveryRail).display,
-            discoveryRailLeft: discoveryRailRect.left,
-            discoveryRailRight: discoveryRailRect.right,
-            discoveryRailTop: discoveryRailRect.top,
-            discoveryRailBottom: discoveryRailRect.bottom,
-            discoveryRailWidth: discoveryRailRect.width,
+            hasDiscoveryRail: Boolean(discoveryRail),
             containerLeft: containerRect.left,
             containerRight: containerRect.right,
             containerTop: containerRect.top,
@@ -561,31 +695,29 @@ test.describe("community exchange map", () => {
           Math.abs(geometry.containerHeight - geometry.canvasHeight) <= 1 &&
           geometry.scrollWidth <= geometry.viewportWidth &&
           geometry.scrollHeight <= geometry.viewportHeight
-        if (!commonGeometryMatches) return false
+        if (!commonGeometryMatches || geometry.hasDiscoveryRail) return false
 
         if (narrow) {
           return (
-            geometry.discoveryRailDisplay === "none" &&
-            geometry.discoveryRailWidth === 0 &&
             Math.abs(geometry.mapRegionLeft) <= 1 &&
             geometry.headerBottom <= 49 &&
             geometry.mapToolsTop !== null &&
             geometry.mapToolsTop > geometry.workspaceTop &&
             geometry.mapToolsHeight !== null &&
-            geometry.mapToolsHeight >= 120 &&
+            geometry.mapToolsHeight >= 44 &&
+            geometry.mapToolsHeight <= 96 &&
             geometry.mapToolsTop + geometry.mapToolsHeight <=
               geometry.workspaceBottom
           )
         }
 
         return (
-          geometry.discoveryRailDisplay !== "none" &&
-          geometry.discoveryRailWidth >= 300 &&
-          geometry.discoveryRailWidth <= 360 &&
-          Math.abs(geometry.discoveryRailLeft) <= 1 &&
-          Math.abs(geometry.discoveryRailRight - geometry.mapRegionLeft) <= 1 &&
-          Math.abs(geometry.discoveryRailTop - geometry.workspaceTop) <= 1 &&
-          Math.abs(geometry.discoveryRailBottom - geometry.workspaceBottom) <= 1
+          Math.abs(geometry.mapRegionLeft - geometry.workspaceLeft) <= 1 &&
+          geometry.mapToolsTop !== null &&
+          geometry.mapToolsTop > geometry.workspaceTop &&
+          geometry.mapToolsHeight !== null &&
+          geometry.mapToolsHeight >= 44 &&
+          geometry.mapToolsHeight <= 96
         )
       }
 
@@ -601,47 +733,118 @@ test.describe("community exchange map", () => {
         .toBe(true)
 
       await groupMarker.click()
+      const popup = page.getByRole("dialog", { name: "事务所详情" })
+      await expect(popup).toHaveClass(/exchange-map-point-popup/)
+      await expect(popup.getByText("上海活动交换事务所")).toBeVisible()
+      await expect(
+        popup.getByRole("link", { name: "查看事务所" }).first()
+      ).toHaveAttribute("href", "/community/exchange/offices/shanghai-weekend")
+      await expect(page.locator(".exchange-web-drawer")).toHaveAttribute(
+        "data-open",
+        "false"
+      )
 
-      if (isMobile) {
-        await expect(
-          page.getByRole("dialog").getByText("上海活动交换事务所")
-        ).toBeVisible()
-        await expect(
-          page.getByRole("link", { name: "查看事务所" }).first()
-        ).toHaveAttribute(
-          "href",
-          "/community/exchange/offices/shanghai-weekend"
+      const assertAnchored = async () => {
+        await expect
+          .poll(async () => {
+            const marker = await groupMarker.boundingBox()
+            const arrow = await popup
+              .locator("[data-map-point-arrow]")
+              .boundingBox()
+            return marker && arrow
+              ? Math.abs(
+                  marker.x + marker.width / 2 - arrow.x - arrow.width / 2
+                )
+              : Infinity
+          })
+          .toBeLessThanOrEqual(2)
+        expect(["top", "bottom"]).toContain(
+          await popup.getAttribute("data-side")
         )
-        await page.keyboard.press("Escape")
-      } else {
-        await expect(page.getByText("上海活动交换事务所")).toBeVisible()
-        await expect(
-          page.getByRole("link", { name: "查看事务所" }).first()
-        ).toHaveAttribute(
-          "href",
-          "/community/exchange/offices/shanghai-weekend"
+        const box = await popup.boundingBox()
+        expect(box).not.toBeNull()
+        expect(box!.x).toBeGreaterThanOrEqual(0)
+        expect(box!.x + box!.width).toBeLessThanOrEqual(
+          page.viewportSize()!.width
         )
-        await page.setViewportSize({ width: 900, height: 760 })
-        await expect(
-          page
-            .getByRole("dialog", { name: "区域交换事务所" })
-            .getByText("上海活动交换事务所")
-        ).toBeVisible()
-        await page.keyboard.press("Escape")
-        await page.setViewportSize({ width: 1180, height: 760 })
-        await expect(
-          page
-            .getByRole("region", { name: "区域地图" })
-            .getByText("上海活动交换事务所")
-        ).toBeVisible()
+        expect(box!.y + box!.height).toBeLessThanOrEqual(
+          page.viewportSize()!.height
+        )
       }
+      await assertAnchored()
+      const start = (await groupMarker.boundingBox())!
+      await canvas.press("ArrowLeft")
+      await expect
+        .poll(async () => (await groupMarker.boundingBox())!.x - start.x)
+        .toBeGreaterThan(40)
+      await assertAnchored()
+      await canvas.press("+")
+      await assertAnchored()
+      if (!isMobile) {
+        const mapBox = (await canvas.boundingBox())!
+        await page.mouse.move(
+          mapBox.x + mapBox.width * 0.85,
+          mapBox.y + mapBox.height * 0.7
+        )
+        await page.mouse.down()
+        await page.mouse.move(
+          mapBox.x + mapBox.width * 0.85 + 50,
+          mapBox.y + mapBox.height * 0.7 - 20,
+          { steps: 8 }
+        )
+        await page.mouse.up()
+        await assertAnchored()
+      }
+      await expect(popup).toHaveCSS("opacity", "1")
+      await expect(
+        popup.getByRole("region", { name: "点位事务所资料" })
+      ).toHaveAttribute("tabindex", "0")
+      if (isMobile) {
+        const reading = popup.getByRole("region", { name: "点位事务所资料" })
+        await reading.press("End")
+        await expect
+          .poll(() => reading.evaluate((element) => element.scrollTop))
+          .toBeGreaterThan(0)
+        await reading.press("Home")
+      }
+      expect(
+        (
+          await new AxeBuilder({ page })
+            .include(".exchange-map-point-popup")
+            .analyze()
+        ).violations
+      ).toEqual([])
+      await page.screenshot({
+        path: testInfo.outputPath("anchored-point-popup.png"),
+      })
+
+      await popup.getByRole("link", { name: "查看事务所" }).first().click()
+      const fullDetails = page.locator(".exchange-map-page-dialog")
+      await expect(fullDetails).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(fullDetails).toBeHidden()
+      await expect(popup).toBeVisible()
+      if (!isMobile) {
+        await page.setViewportSize({ width: 900, height: 760 })
+        await expect(popup.getByText("上海活动交换事务所")).toBeVisible()
+        await page.setViewportSize({ width: 1180, height: 760 })
+      }
+      await popup.getByRole("button", { name: "关闭事务所详情" }).click()
+      await expect(popup).toBeHidden()
+      await expect(groupMarker).toBeFocused()
+      await page.emulateMedia({ reducedMotion: "reduce" })
+      await groupMarker.press("Enter")
+      await expect(popup).toBeVisible()
+      await expect(popup).toHaveCSS("transition-duration", "0s")
+      await page.keyboard.press("Escape")
+      await expect(popup).toBeHidden()
+      await expect(groupMarker).toBeFocused()
 
       const mapRequestCount = requests.filter((url) =>
         url.includes("/api/community/exchange/map/offices?")
       ).length
-      if (isMobile) {
-        await page.getByRole("button", { name: "打开筛选" }).click()
-      }
+      await page.getByRole("button", { name: "更多地图工具" }).click()
+      await page.getByRole("menuitem", { name: "打开筛选" }).click()
       await page.getByRole("checkbox", { name: "仅看开放事务所" }).click()
       await expect(page).toHaveURL(/open=true/)
       await expect
@@ -665,10 +868,11 @@ test.describe("community exchange map", () => {
         expect(new URL(url).searchParams.get("limit")).toBe("200")
       }
 
-      if (isMobile) await page.keyboard.press("Escape")
+      await page.keyboard.press("Escape")
+      await page.getByRole("button", { name: "更多地图工具" }).click()
       await page
-        .getByRole("button", {
-          name: isMobile ? "打开事务所名录" : "事务所",
+        .getByRole("menuitem", {
+          name: "打开事务所名录",
           exact: true,
         })
         .click()

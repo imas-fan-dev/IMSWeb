@@ -40,8 +40,12 @@ This is the only package allowed to declare or directly import `zod`. The
 package's `src/z.ts` is the supported zod entry point for consumers. Keep schema
 output as the wire contract; export `z.input` variants only where coercion or
 transformation means the API's emitted shape requires them. The package builds
-CommonJS with declarations under `dist/`, and `prepare` must remain safe when
-source files are not present during a Docker manifest-only install.
+dual CommonJS (`dist/cjs`) and ESM (`dist/esm`) trees with declarations in each,
+selected by conditional `exports`; `main`/`types` keep the CommonJS fallback.
+`entrypoints.json` owns the build layout and `scripts/derive-exports.mjs`
+regenerates the export map from it (`--check` runs in `build`). `prepare` must
+remain safe when source files are not present during a Docker manifest-only
+install.
 
 Existing request objects state whether they are strict, strip, or passthrough;
 new request objects are strict. Response schemas are exact and must not coerce,

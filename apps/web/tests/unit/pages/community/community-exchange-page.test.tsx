@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderPage } from "@/tests/unit/support/harness"
 import { ApiError } from "~/lib/api"
 import CommunityExchangePage from "~/pages/community/exchange/community-exchange-page"
+import type { ExchangeSearchCardTools } from "~/pages/community/exchange/components/exchange-search-card"
 
 const apiMocks = vi.hoisted(() => ({
   getFudabaSeries: vi.fn(),
@@ -34,12 +35,25 @@ vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
     series?: readonly string[]
     open?: boolean
     onSwitchDirectory: () => void
+    searchTools?: ExchangeSearchCardTools
   }) => {
     mapSectionMock.renders(props)
     return (
-      <button type="button" onClick={props.onSwitchDirectory}>
-        模拟地图内容
-      </button>
+      <>
+        <button
+          type="button"
+          ref={(node) => {
+            if (props.searchTools?.filterAnchorRef)
+              props.searchTools.filterAnchorRef.current = node
+          }}
+          onClick={() => props.searchTools?.onOpenFilter()}
+        >
+          打开筛选
+        </button>
+        <button type="button" onClick={props.onSwitchDirectory}>
+          模拟地图内容
+        </button>
+      </>
     )
   },
 }))
@@ -63,7 +77,7 @@ const card = {
   producerName: "春香P",
   displayName: "交换会用名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
+  favoriteCharacter: "天海春香",
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -165,11 +179,11 @@ describe("CommunityExchangePage", () => {
       })
     )
     expect(
-      screen.getByRole("complementary", { name: "交换发现栏" })
-    ).toBeInTheDocument()
+      screen.queryByRole("complementary", { name: "交换发现栏" })
+    ).not.toBeInTheDocument()
     expect(
-      screen.getByRole("heading", { name: "名片交换信号地图" })
-    ).toBeVisible()
+      screen.queryByRole("heading", { name: "名片交换信号地图" })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("navigation", { name: "交换地图导航" })
     ).not.toBeInTheDocument()
@@ -184,6 +198,10 @@ describe("CommunityExchangePage", () => {
           onRefresh: expect.any(Function),
         }),
       })
+    )
+    await user.click(screen.getByRole("button", { name: "打开筛选" }))
+    expect(await screen.findByRole("dialog", { name: "筛选地图" })).toHaveClass(
+      "exchange-web-filter-popover"
     )
     const agencyButton = screen.getByRole("button", { name: /765PRO/ })
     expect(agencyButton).toHaveAttribute("aria-pressed", "false")
@@ -201,6 +219,7 @@ describe("CommunityExchangePage", () => {
       }
     )
 
+    await user.click(screen.getByRole("button", { name: "关闭筛选浮窗" }))
     await user.click(map)
     expect((await screen.findAllByText("上海周末交换事务所"))[0]).toBeVisible()
     expect(screen.getByLabelText("21 次访问")).toBeVisible()
@@ -215,6 +234,7 @@ describe("CommunityExchangePage", () => {
       ).not.toBeInTheDocument()
     })
 
+    await user.click(screen.getByRole("button", { name: "打开筛选" }))
     await user.click(screen.getByRole("checkbox", { name: "仅看开放事务所" }))
 
     await waitFor(() => {
@@ -237,6 +257,7 @@ describe("CommunityExchangePage", () => {
       { route: "/community/exchange" }
     )
 
+    await user.click(await screen.findByRole("button", { name: "打开筛选" }))
     await user.click(await screen.findByRole("button", { name: /765PRO/ }))
     await user.click(screen.getByRole("button", { name: /灰姑娘女孩/ }))
 
@@ -312,6 +333,7 @@ describe("CommunityExchangePage", () => {
       expect.objectContaining({ city: "上海" })
     )
 
+    await user.click(screen.getByRole("button", { name: "打开筛选" }))
     await user.click(screen.getByRole("button", { name: "清除筛选" }))
     await waitFor(() => {
       const search = new URLSearchParams(
@@ -323,6 +345,28 @@ describe("CommunityExchangePage", () => {
     await user.click(screen.getByRole("button", { name: "模拟地图内容" }))
     expect((await screen.findAllByText("上海周末交换事务所"))[0]).toBeVisible()
     expect(screen.getByRole("heading", { name: "公开交换名录" })).toBeVisible()
+  })
+
+  it("applies a city from the floating filter and restores its trigger", async () => {
+    const user = userEvent.setup()
+    renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
+    const trigger = await screen.findByRole("button", { name: "打开筛选" })
+    await user.click(trigger)
+    await user.type(screen.getByRole("textbox", { name: "城市" }), " 上海 ")
+    await user.click(screen.getByRole("button", { name: "按城市查找" }))
+    await waitFor(() => {
+      expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ city: "上海" })
+      )
+      expect(
+        screen.queryByRole("dialog", { name: "筛选地图" })
+      ).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+    })
+    await user.click(trigger)
+    expect(screen.getByRole("textbox", { name: "城市" })).toHaveValue("上海")
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it("shows the neutral closed state for the server feature flag", async () => {
@@ -406,6 +450,7 @@ describe("CommunityExchangePage", () => {
         screen.queryByRole("heading", { name: "公开交换名录" })
       ).not.toBeInTheDocument()
     })
+    await user.click(screen.getByRole("button", { name: "打开筛选" }))
     await user.click(screen.getByRole("checkbox", { name: "仅看开放事务所" }))
 
     await waitFor(() => {

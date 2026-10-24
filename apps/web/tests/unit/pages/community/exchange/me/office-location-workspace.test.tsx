@@ -197,6 +197,7 @@ describe("OfficeLocationWorkspace", () => {
     })
     apiMocks.searchFudabaPlaces.mockReturnValue({
       send: apiMocks.sendPlaceSearch,
+      abort: vi.fn().mockResolvedValue(undefined),
     })
     apiMocks.withdrawFudabaOwnerLocation.mockReturnValue({
       send: apiMocks.sendLocationWithdrawal,

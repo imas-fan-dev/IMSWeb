@@ -62,7 +62,7 @@ describe("NamecardSubmissionPage", () => {
       submission: {
         id: 81,
         seriesCode: "765",
-        favoriteIdols: [],
+        favoriteCharacters: [],
         frontImageUrl: "/protected/front.webp",
         backImageUrl: "/protected/back.webp",
         publicationStatus: "pending",
@@ -75,7 +75,7 @@ describe("NamecardSubmissionPage", () => {
       submission: {
         id: 81,
         seriesCode: "765",
-        favoriteIdols: [],
+        favoriteCharacters: [],
         frontImageUrl: "/protected/front.webp",
         backImageUrl: "/protected/back.webp",
         publicationStatus: "withdrawn",

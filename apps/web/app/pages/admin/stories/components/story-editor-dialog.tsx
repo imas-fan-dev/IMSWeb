@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
-import { ImageCompositionEditor } from "~/pages/admin/stories/components/image-composition-editor"
+import { ImageCompositionEditor } from "~/components/admin/image-composition-editor"
 import {
   createWikiStoryBatch,
   createWikiStorySources,
@@ -373,7 +373,7 @@ export function StoryEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-   <DialogContent className="overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="overflow-y-auto sm:max-w-4xl">
         <form className="contents" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>

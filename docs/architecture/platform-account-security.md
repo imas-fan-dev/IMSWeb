@@ -174,7 +174,7 @@ JOIN `platform_oauth_providers` 落地。
 复核必须拼进 DELETE 自己的 WHERE 子句，不能先查再删；否则两个并发解绑请求各自看到
 「还有另一个」，然后双双成功。
 
-这条规则由 `apps/api/tests/server/platform-oauth-unlink-repository.test.ts` 对真实 SQL 钉住。
+这条规则由 `apps/api/tests/server/platform-oauth.test.ts` 对真实 SQL 钉住。
 走内存桩的契约测试盖不到它：把 `AND provider.enabled=TRUE` 从仓储里删掉，整套契约
 测试依然全绿。
 

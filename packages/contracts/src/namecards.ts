@@ -7,11 +7,14 @@ import {
   numberedPageInfoSchema,
   successEnvelope,
 } from "./common.js"
-import { namecardReactionEmojiSchema } from "./fudaba/index.js"
+import {
+  NAMECARD_FAVORITE_CHARACTER_LIMIT,
+  namecardReactionEmojiSchema,
+} from "./fudaba/index.js"
 
 export const cardIdSchema = z.number().int().positive()
 
-export const namecardIdolSchema = z
+export const namecardFavoriteCharacterSchema = z
   .object({
     id: z.number().int().positive(),
     name: z.string().min(1),
@@ -21,7 +24,9 @@ export const namecardIdolSchema = z
 
 export const namecardMetadataSchema = {
   seriesCode: z.string().min(1).nullable(),
-  favoriteIdols: z.array(namecardIdolSchema).max(20),
+  favoriteCharacters: z
+    .array(namecardFavoriteCharacterSchema)
+    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
   claimStatus: z.enum(["unclaimed", "pending", "claimed"]),
   viewerClaimState: z
     .enum(["pending", "approving", "approved", "rejected", "cancelled"])
@@ -79,7 +84,9 @@ export type AdminNamecardListResponse = z.infer<typeof adminNamecardListResponse
 
 export type NamecardInput = z.input<typeof namecardSchema>
 
-export type NamecardIdolInput = z.input<typeof namecardIdolSchema>
+export type NamecardFavoriteCharacterInput = z.input<
+  typeof namecardFavoriteCharacterSchema
+>
 
 export type NamecardPageInput = z.input<typeof namecardPageSchema>
 

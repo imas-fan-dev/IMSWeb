@@ -3,6 +3,9 @@ import { installCommunityContentMock } from "./fixtures/community-content"
 import AxeBuilder from "@axe-core/playwright"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { api, expect, test } from "./fixtures/test"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
+import { settleToasts } from "./fixtures/toast"
+
 const series = {
   items: [
     {
@@ -57,8 +60,8 @@ const card = {
   producerName: "春香P",
   displayName: "周末交换会名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+  favoriteCharacter: "天海春香",
+  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -92,9 +95,8 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       ? { min: 1, max: 10 }
       : testInfo.title.startsWith("lets a card owner")
         ? { min: 2, max: 4 }
-        : 1
+        : { min: 1, max: 2 }
   )
-  if (!discoveryTest) return
   await api.mockRoute(
     "**/api/community/exchange/offices?*",
     async (route) => {
@@ -126,10 +128,13 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     (route) =>
       route.fulfill({
         json: {
+          provider: "maplibre",
+          search: { provider: "nominatim" },
           styleUrl: "/maps/exchange-test-style.json",
         },
       }),
-    "GET"
+    "GET",
+    discoveryTest || testInfo.title.startsWith("lets a card owner") ? 2 : 1
   )
   await api.mockRoute(
     "/api/community/exchange/map/offices",
@@ -159,15 +164,16 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     "GET",
     { min: 0, max: 8 }
   )
-  await api.mockRoute(
-    "/api/community/exchange/cards/card-1/reactions",
-    (route) =>
-      route.fulfill({
-        json: { success: true, cardId: "card-1", reactions: [] },
-      }),
-    "GET",
-    2
-  )
+  if (discoveryTest)
+    await api.mockRoute(
+      "/api/community/exchange/cards/card-1/reactions",
+      (route) =>
+        route.fulfill({
+          json: { success: true, cardId: "card-1", reactions: [] },
+        }),
+      "GET",
+      2
+    )
 })
 test.describe("community exchange", () => {
   test("discovers an exchange office and preserves the detail deep link", async ({
@@ -268,11 +274,12 @@ test.describe("community exchange", () => {
     await exchangeLink.click()
     await expect(page).toHaveURL(/\/community\/exchange$/)
     await expect(
-      page.getByRole("heading", {
-        name: isMobile ? "名片交换事务所" : "名片交换信号地图",
-        exact: true,
-      })
+      page.getByRole("textbox", { name: "搜索事务所" })
     ).toBeVisible()
+    await expect(
+      page.getByRole("complementary", { name: "交换发现栏" })
+    ).toHaveCount(0)
+
     const mobileNavigation = page.getByRole("navigation", {
       name: "交换地图导航",
     })
@@ -280,32 +287,11 @@ test.describe("community exchange", () => {
       name: "返回首页",
       exact: true,
     })
-    if (isMobile) {
-      await expect(homeShortcut).toBeVisible()
-      await expect(homeShortcut).toHaveAttribute("href", "/")
-      await expect(mobileNavigation).toBeVisible()
-      await expect(
-        mobileNavigation.getByRole("button", { name: "地图" })
-      ).toHaveAttribute("aria-current", "page")
-      await expect(
-        mobileNavigation.getByText("筛选", { exact: true })
-      ).toBeVisible()
-      await expect(
-        mobileNavigation.getByText("事务所", { exact: true })
-      ).toBeVisible()
-      await expect(
-        mobileNavigation.getByText("名片", { exact: true })
-      ).toBeVisible()
-      await expect(
-        mobileNavigation.getByText("我的", { exact: true })
-      ).toBeVisible()
-    } else {
-      await expect(homeShortcut).toBeHidden()
-      await expect(mobileNavigation).toBeHidden()
-    }
-    if (isMobile) {
-      await page.getByRole("button", { name: "打开筛选" }).click()
-    }
+    await expect(homeShortcut).toBeHidden()
+    await expect(mobileNavigation).toBeHidden()
+
+    await page.getByRole("button", { name: "更多地图工具" }).click()
+    await page.getByRole("menuitem", { name: "打开筛选" }).click()
     const firstSeriesTag = page.getByRole("button", { name: /765PRO/ })
     const secondSeriesTag = page.getByRole("button", { name: /灰姑娘女孩/ })
     await firstSeriesTag.click()
@@ -323,10 +309,12 @@ test.describe("community exchange", () => {
     expect(new URL(page.url()).searchParams.getAll("series")).toEqual([])
     await page.getByRole("checkbox", { name: "仅看开放事务所" }).click()
     await expect(page).toHaveURL(/open=true/)
-    if (isMobile) await page.keyboard.press("Escape")
+    await page.keyboard.press("Escape")
+
+    await page.getByRole("button", { name: "更多地图工具" }).click()
     await page
-      .getByRole("button", {
-        name: isMobile ? "打开事务所名录" : "事务所",
+      .getByRole("menuitem", {
+        name: "打开事务所名录",
         exact: true,
       })
       .click()
@@ -579,8 +567,8 @@ test.describe("community exchange", () => {
         producerName: "春香P",
         displayName: "周末交换会名片",
         seriesCode: "765",
-        favoriteIdol: "天海春香",
-        favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+        favoriteCharacter: "天海春香",
+        favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
         frontImageUrl: "/brand/series/wall/765pro.webp",
         backImageUrl: "/brand/series/wall/cinderella-girls.webp",
         accent: "#f34e6c",
@@ -598,8 +586,8 @@ test.describe("community exchange", () => {
         producerName: "春香P",
         displayName: "第二张公开名片",
         seriesCode: "765",
-        favoriteIdol: "天海春香",
-        favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+        favoriteCharacter: "天海春香",
+        favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
         frontImageUrl: "/brand/series/wall/cinderella-girls.webp",
         backImageUrl: "/brand/series/wall/765pro.webp",
         accent: "#2581c7",
@@ -638,8 +626,8 @@ test.describe("community exchange", () => {
         producerName: ownerCard.producerName,
         displayName: ownerCard.displayName,
         seriesCode: ownerCard.seriesCode,
-        favoriteIdol: ownerCard.favoriteIdol,
-        favoriteIdols: ownerCard.favoriteIdols,
+        favoriteCharacter: ownerCard.favoriteCharacter,
+        favoriteCharacters: ownerCard.favoriteCharacters,
         frontImageUrl: ownerCard.frontImageUrl,
         backImageUrl: ownerCard.backImageUrl,
         accent: ownerCard.accent,
@@ -697,6 +685,14 @@ test.describe("community exchange", () => {
       },
       "GET",
       2
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/characters",
+      async (route) => {
+        await route.fulfill({ json: makeCharacterCatalog() })
+      },
+      "GET",
+      { min: 0, max: 2 }
     )
     await api.mockRoute(
       "**/api/community/exchange/me/cards",
@@ -967,16 +963,17 @@ test.describe("community exchange", () => {
       page.getByRole("button", { name: "查看第二张公开名片背面" })
     ).toBeVisible()
     await page.getByRole("tab", { name: "墙面" }).focus()
-    await page.keyboard.press("Escape")
     await page.mouse.move(0, 0)
     await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
+    await expect(page.getByRole("dialog", { name: "事务所详情" })).toBeVisible()
+    await settleToasts(page)
     const accessibility = await new AxeBuilder({ page }).analyze()
     const viewportGeometry = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
       scrollX: window.scrollX,
       overflowingElements: Array.from(
-        document.querySelectorAll("main#main-content *")
+        document.querySelectorAll(".exchange-map-page-dialog *")
       )
         .filter((element) => !element.closest("[data-wall-camera-x]"))
         .map((element) => {

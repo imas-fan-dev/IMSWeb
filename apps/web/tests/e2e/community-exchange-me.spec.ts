@@ -2,7 +2,9 @@ import AxeBuilder from "@axe-core/playwright"
 import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { settleToasts } from "./fixtures/toast"
+import { installSeededPublicApis } from "./fixtures/public-content"
 
 const avatarFixture = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
@@ -27,8 +29,8 @@ const card = {
   producerName: "浏览器制作人",
   displayName: "浏览器交换名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+  favoriteCharacter: "天海春香",
+  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -84,7 +86,14 @@ const publishedLocation: LocationFixture = {
   reviewNote: "区域范围合适",
 }
 
-test.beforeEach(async ({ context, page }) => {
+test.beforeEach(async ({ context, page, api: dispatcher }) => {
+  installSeededPublicApis(dispatcher, [
+    { path: "/api/community/exchange/series", times: 1 },
+    { path: "/api/community/exchange/offices", times: 1 },
+    { path: "/api/community/exchange/cards", times: 1 },
+    { path: "/api/community/exchange/map/config", times: 1 },
+    { path: "/api/community/exchange/map/offices", times: { min: 0, max: 8 } },
+  ])
   let currentProfile: PlatformProfile = { ...profile }
   await context.addCookies([
     {
@@ -304,6 +313,13 @@ test.beforeEach(async ({ context, page }) => {
     "GET"
   )
   await api.mockRoute(
+    "**/api/community/exchange/characters",
+    async (route) => {
+      await route.fulfill({ json: makeCharacterCatalog() })
+    },
+    "GET"
+  )
+  await api.mockRoute(
     "**/api/community/exchange/me/claim-envelopes",
     async (route) => {
       await route.fulfill({ json: { items: [] } })
@@ -346,11 +362,12 @@ test.beforeEach(async ({ context, page }) => {
           card: {
             ...card,
             displayName: submission.displayName,
-            favoriteIdol: "天海春香、涩谷凛",
-            favoriteIdols: submission.favoriteIdolIds.map((idolId: number) =>
-              idolId === 1
-                ? { id: 1, name: "天海春香", seriesCode: "765" }
-                : { id: 2, name: "涩谷凛", seriesCode: "cg" }
+            favoriteCharacter: "天海春香、涩谷凛",
+            favoriteCharacters: submission.favoriteCharacterIds.map(
+              (idolId: number) =>
+                idolId === 1
+                  ? { id: 1, name: "天海春香", seriesCode: "765" }
+                  : { id: 2, name: "涩谷凛", seriesCode: "cg" }
             ),
             revision: 4,
             updatedAt: "2026-08-02T10:00:00.000Z",
@@ -509,7 +526,9 @@ test.describe("community exchange me", () => {
       mimeType: "image/svg+xml",
       buffer: avatarFixture,
     })
-    const cropDialog = page.getByRole("dialog")
+    const cropDialog = page
+      .getByRole("dialog")
+      .filter({ has: page.getByRole("button", { name: "使用此头像" }) })
     await expect(cropDialog).toContainText("使用此头像")
     const cropCanvas = cropDialog.getByTestId("avatar-crop-canvas")
     await expect(cropCanvas).toBeVisible()
@@ -647,14 +666,15 @@ test.describe("community exchange me", () => {
 
     const cardName = page.getByRole("textbox", { name: "名片标题" })
     await cardName.fill("更新后的浏览器名片")
-    await page.getByRole("tab", { name: "灰姑娘女孩" }).click()
+    await page.getByRole("combobox", { name: "企划", exact: true }).click()
+    await page.getByRole("option", { name: "CINDERELLA GIRLS" }).click()
     await page.getByRole("searchbox", { name: "" }).fill("凛")
     await page.getByRole("checkbox", { name: /涩谷凛/ }).click()
     await expect(
-      page.getByLabel("已选担当偶像").getByText("天海春香")
+      page.getByLabel("已选担当角色").getByText("天海春香")
     ).toBeVisible()
     await expect(
-      page.getByLabel("已选担当偶像").getByText("涩谷凛")
+      page.getByLabel("已选担当角色").getByText("涩谷凛")
     ).toBeVisible()
     await page.getByRole("button", { name: "保存名片资料" }).click()
     await expect(page.getByText("名片资料已保存。")).toBeVisible()
@@ -733,6 +753,7 @@ test.describe("community exchange me", () => {
       `${isMobile ? "mobile" : "desktop"} exchange-me overflow`
     ).toBe(true)
 
+    await settleToasts(page)
     const accessibility = await new AxeBuilder({ page })
       .setLegacyMode()
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

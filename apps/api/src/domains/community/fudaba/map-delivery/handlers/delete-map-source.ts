@@ -9,6 +9,7 @@ import type {
     FudabaMapSourceDelete,
 } from '@imsweb/contracts/fudaba/map-delivery';
 import { fudabaMapDeliveryResponse } from '@/domains/community/fudaba/map-delivery/response';
+import { describeMapProvider } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import { services } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -27,7 +28,7 @@ export async function handleDeleteFudabaMapSource(
         const payload = request.valid('json') as FudabaMapSourceDelete;
         const current = await readFudabaMapDelivery(
             storage,
-            runtime.config?.fudabaMapStyleUrls ?? [],
+            runtime.config?.fudabaMapSources ?? [],
         );
         const source = current.sources.find((item) => item.id === sourceId);
         if (!source) {
@@ -43,11 +44,12 @@ export async function handleDeleteFudabaMapSource(
             current.sources.filter((item) => item.id !== sourceId),
             current.activeSourceId,
             payload.revision,
+            current.routing,
         );
         await writeAudit(
             c,
             '删除交换地图源',
-            `${source.name} · ${source.styleUrl}`,
+            `${source.name} · ${describeMapProvider(source).auditLabel}`,
         );
         return c.json({
             success: true,

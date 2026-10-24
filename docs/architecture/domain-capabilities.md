@@ -167,9 +167,10 @@ handler 依赖的能力封装按四层归位，不建泛化桶：
    zod schema 是 API↔Web 传输面的唯一事实源，静态类型由 `z.infer` 派生，
    两端通过 `workspace:*` 消费同一个运行时对象：Web 用 schema 解析响应，
    API 用派生类型标注 response 序列化并在
-   `tests/wiki/wire-contract-conformance.test.ts` 里用同一 schema `parse` 真实路由
+   `apps/api/tests/wiki/wire-contract-conformance.test.ts` 里用同一 schema `parse` 真实路由
    输出；fudaba、platform、namecards 的线契约（包内 `fudaba`、
-   `fudaba/card-claims`、`fudaba/location-review`、`platform`、`namecards` 子路径）
+   `fudaba/card-claims`、`fudaba/characters`、`fudaba/location-review`、`platform`、
+   `namecards` 子路径）
    则在既有 HTTP 路由测试的响应读取点内联 `parse` 执法。包内采用 flat-first
    分级：单文件域平铺，多文件大业务用文件夹（见
    `packages/contracts/README.md`）。漂移在结构上不可能，而非靠复制检查拦截；旧的生成管线与

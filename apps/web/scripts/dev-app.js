@@ -127,9 +127,8 @@ export function runAppDev(environment = process.env) {
       `with ${apiDescription} and local site-package proxying`
   )
 
-  const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
   const result = spawnSync(
-    command,
+    "pnpm",
     [
       "exec",
       "react-router",
@@ -139,6 +138,9 @@ export function runAppDev(environment = process.env) {
       "--strictPort",
     ],
     {
+      // Windows exposes pnpm as a `pnpm.cmd` shim, which Node 22.13+ only
+      // spawns through a shell.
+      shell: process.platform === "win32",
       cwd: webWorkspaceRoot(),
       env: devEnvironment,
       stdio: "inherit",

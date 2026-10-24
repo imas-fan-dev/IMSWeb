@@ -4,7 +4,7 @@
 > 状态：Active
 > 权威来源：`scripts/development/dev-environment.mjs`、root `package.json` 和各 workspace `.rules`
 
-本指南供 AI 编码代理在 IMSWeb 仓库中初始化、启动和验证本地开发环境。开始前仍须读取根
+本指南供 AI 编码代理在 IMSWeb 仓库中初始化、启动和验证本地开发环境。开始前仍须读取
 根目录、目标 workspace 及 `packages/contracts/` 的 `.rules`；同目录的 `AGENTS.md` 与
 `CLAUDE.md` 均为兼容软链接。
 本指南不授权生产部署、数据迁移或清理用户已有修改。
@@ -133,6 +133,13 @@ pnpm dev
 不需要准备本地地图 release。
 `/maps/exchange-test-style.json` 仅用于无 PMTiles 资源的组件和端到端测试，不是开发实例的默认地图。
 
+修改共享 contracts 源码后先运行 `pnpm --filter @imsweb/contracts run build`。
+Web 开发插件将构建后 JS 内容摘要纳入 Vite 依赖缓存标识，并监听 dist 内容变更重新优化，
+避免 API 已返回新配置而浏览器仍用旧 schema 拒绝解析。只改时间戳或声明文件不会重新优化。
+该刷新针对客户端预打包；如果改动影响开发服务端已经加载的外部模块（contracts 已双发布
+CJS/ESM），仍须重启 Web 进程以清除 Node 模块缓存。通过 `pnpm dev` 启动时，其子进程退出会连带停止其他应用子进程，
+需要恢复完整开发入口；不要仅停止 Web 后误以为 API 和邮件 Worker 仍在运行。
+
 只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。地点搜索默认关闭；需要
 验证事务所地点选择时，配置 Nominatim-compatible HTTPS 搜索端点和可识别的 User-Agent：
 
@@ -161,8 +168,12 @@ node scripts/maps/prepare-exchange-map.mjs --apply --activate
 glyph、sprite、Natural Earth raster，至少需要 12 GiB 可用空间。Vite 只在开发 serve 模式把
 `data/maps/current/` 映射为 `/maps/exchange/`，不会把大型地图资源复制进 Web 或 App build。
 可用 `IMS_DEV_FUDABA_MAP_STYLE_URLS` 首次生成 `/maps/exchange-style.json` 配置，也可以在后台
-直接新增该自分发源；保存后无需重启开发服务。
-完整合同见[地图资源交付](../operations/map-delivery.md)。
+直接新增该自分发源；保存后无需重启开发服务。高德与 Mapbox 配置和安全代理见
+[地图资源交付](../operations/map-delivery.md)。组合模式固定 Mapbox 底图，大陆搜索用高德，
+海外（含港澳台）搜索用 Mapbox；按提交时的地图中心判定，不按 IP 或搜索词猜测。不切换引擎、
+不叠加高德环境 POI。候选转换到临时 WGS84 后按有效用户位置直线距离排序，缺定位或定位过期时
+明确显示距地图中心。验收要使用真实两家搜索响应，检查底图不重建、排序参考/署名和取消；
+Canvas 数量或模拟边界测试不能单独证明功能完成。
 
 需要在 API/Web 热更新期间使用 Cloudflare R2 测试桶时，使用显式入口：
 
@@ -220,7 +231,6 @@ API 独立启动时自动读取 `apps/api/.env`，已有 shell 或进程管理�
 `migration:postgresql` 也读取同一文件。`apps/api/.env.example` 是生产和高级配置模板，不能在
 未填写必需值时原样用于开发。
 
-Platform 注册邮箱验证码在 `NODE_ENV=development` 且未设置
 Platform 缓存默认使用 Valkey；开发启动器会注入 `IMS_CACHE_BACKEND=valkey` 和本地
 `IMS_VALKEY_URL`。邮箱验证码哈希、尝试次数和消费仍由 PostgreSQL 保存，Valkey 只保存不含
 邮箱和验证码的短期 cooldown 标记，缓存异常时回退 PostgreSQL。

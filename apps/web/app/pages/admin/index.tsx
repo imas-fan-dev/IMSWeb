@@ -10,6 +10,7 @@ import {
   NewspaperIcon,
   PackageOpenIcon,
   Settings2Icon,
+  UserRoundIcon,
 } from "lucide-react"
 
 import { Badge } from "~/components/ui/badge"
@@ -83,12 +84,20 @@ const workspaces = [
     scope: ["隔离预览", "版本发布", "历史回滚"],
   },
   {
+    title: "偶像管理",
+    description: "企划、栏目与各类内容页资料维护",
+    to: "/admin/idols",
+    icon: UserRoundIcon,
+    accent: "bg-franchise-sc",
+    scope: ["企划资料", "条目类型", "图片构图"],
+  },
+  {
     title: "剧情内容",
-    description: "原版剧情档案录入界面",
+    description: "剧情卡片、来源与封面维护",
     to: "/admin/stories",
     icon: BookOpenTextIcon,
     accent: "bg-franchise-sc",
-    scope: ["事务所", "角色素材", "对象存储"],
+    scope: ["剧情分类", "内容来源", "封面素材"],
   },
   {
     title: "活动纪年",

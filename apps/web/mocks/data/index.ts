@@ -8,6 +8,7 @@
  * re-exported here: it is a test-side helper, not mock data.
  */
 export * from "./about"
+export * from "./characters"
 export * from "./chronicle"
 export * from "./community"
 export * from "./editorial"

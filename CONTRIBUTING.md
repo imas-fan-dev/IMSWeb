@@ -59,8 +59,9 @@ pnpm run check:root
 
 ## 测试要求
 
-测试应放在受影响 workspace 附近，并使用仓库已有的 Node test runner、Vitest、Testing
-Library、Playwright 或 Python `unittest`。文件名遵循现有 `*.test.*`、`*.spec.ts` 或
+测试应放在受影响 workspace 附近，并按执行域选择 runner：JS/TS 单元、HTTP 契约与仓库契约
+使用 Vitest，浏览器流程使用 Playwright，仓库边界/部署/规则检查使用 Python `unittest`；
+`node:test` 只用于无需构建的独立校验器。文件名遵循现有 `*.test.*`、`*.spec.ts` 或
 `test_*.py` 约定。
 
 - 缺陷修复应加入能够在修复前失败的回归测试。

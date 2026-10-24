@@ -123,7 +123,7 @@ Android 的 ABI 由目标设备决定：脚本读取 `ro.product.cpu.abi` 并只
 
 ## 4. 产物与 origin
 
-安装脚本不自行拼接 API 地址。构建前它调用 `scripts/build-app.js` 的同一套校验并打印生效 origin，
+安装脚本不自行拼接 API 地址。构建前它调用 `apps/web/scripts/build-app.js` 的同一套校验并打印生效 origin，
 因此非法组合在 Rust 编译前就会失败。默认值和覆盖规则见
 [Tauri 移动端基础设施](tauri-mobile.md) 第 4 节。
 

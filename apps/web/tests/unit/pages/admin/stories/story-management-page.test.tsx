@@ -218,6 +218,23 @@ describe("StoryManagementPage", () => {
     const search = await screen.findByRole("textbox", { name: "搜索剧情" })
     expect(search).toHaveValue("第一")
     expect(screen.getByText("【第一话】")).toBeVisible()
+    for (const name of [
+      "编辑企划",
+      "新增企划",
+      "新增栏目",
+      "新增内容页",
+      "编辑内容页",
+    ]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument()
+    }
+    const manageLink = new URL(
+      screen.getByRole("link", { name: "偶像管理" }).getAttribute("href")!,
+      window.location.origin
+    )
+    expect(manageLink.searchParams.get("idolId")).toBe("10")
+    expect(manageLink.searchParams.get("returnTo")).toContain(
+      "query=%E7%AC%AC%E4%B8%80&expanded=1"
+    )
 
     await user.clear(search)
     await user.type(search, "开场")

@@ -5,12 +5,14 @@
 business domain，第三层是 capability。`admin/` 承载管理后台专属能力，后续可独立维护。`handlers/`、`request.ts` 和 `response.ts` 是
 capability 内的技术角色。
 
-当前快照：5 个板块、20 个 domain、279 个 TypeScript 模块、144 个 handler。数量只用于
-发现规模，能力边界以本索引和各 domain 的 `README.md` 为准。
+当前快照：5 个板块、26 个 domain、412 个 TypeScript 模块、215 个 handler 模块。数量只用于
+发现规模，能力边界以本索引、各 domain 的 `README.md` 与
+`apps/api/scripts/checks/hono-architecture.js` 的注册表为准。
 
 结构原则是“整体偏扁平”：domain 默认扁平（`routes.ts` + `handlers/` + 命名模型文件）；
 只有较大的复杂业务模块（约 20+ 模块或多个独立参与者/生命周期）才建 capability
-目录。当前仅四个：`fudaba`(56)、`wiki`(38)、`namecards`(25)、`platform-auth`(24)。
+目录。当前有六个：`fudaba`(86)、`wiki`(40)、`platform-auth`(34)、`editorial`(34)、
+`platform-account-security`(25)、`namecards`(17)。
 
 ## 产品领域导航
 
@@ -22,11 +24,15 @@ capability 内的技术角色。
 | Admin | `backoffice-auth` | 后台操作员会话 | `sessions` |
 | Admin | `admin-accounts` | 后台账号管理 | `accounts` |
 | Admin | `audit` | 后台审计写入和查询 | `write` `read` |
+| Admin | `platform-users` | 平台用户检索、状态处置与登录方式管理 | 扁平 |
+| Admin | `namecard-characters` | 名片角色目录管理 | 扁平 |
+| Admin | `namecard-units` | 名片企划与组合目录管理 | 扁平 |
 | Content | `wiki` | 企划、内容页、剧情、来源目录和素材 | `catalog` `stories` `media` |
-| Content | `information` | 资讯公开阅读、后台编排与素材 | 扁平（10 个 handler） |
+| Content | `information` | 资讯公开阅读、后台编排与素材 | 扁平 |
 | Content | `news` | 新闻发布和公开列表 | `news` |
 | Content | `events` | 活动生命周期和媒体 | `events` |
-| Content | `chronicle` | 编年史活动、媒体审核与服务 | 扁平（11 个 handler） |
+| Content | `chronicle` | 编年史活动、媒体审核与服务 | 扁平 |
+| Content | `editorial` | 社区帖子、编年史与首页聚焦编排 | `posts` `chronicle` `spotlight` `assets` |
 | Content | `about` | 关于页和图片 | `page` `media` |
 | Content | `community-content` | 制作人社区整页配置与图片 | 扁平 |
 | Content | `producer-map` | 制作人地图和图片 | `map` `media` |
@@ -37,7 +43,7 @@ capability 内的技术角色。
 | Community | `namecards` | 名片投稿、公开名片、表情反应和审核 | `public-cards` `submissions` `moderation` `reactions` |
 | Delivery | `media` | 跨域媒体读取与授权 | `public-objects` |
 | Delivery | `site` | 站点入口与静态资源渲染 | `rendering` |
-| Delivery | `site-packages` | 站点包发布、归档和读取 | 扁平（S，2 个 handler） |
+| Delivery | `site-packages` | 站点包发布、归档和读取 | 扁平（S） |
 
 产品板块已是物理目录：import 路径统一为 `@/domains/<板块>/<domain>/...`，`app.ts` 只
 挂载各 domain 根 `routes.ts(x)`。`reactions` 已并入 `namecards` 成为其 capability，因为

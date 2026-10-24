@@ -57,7 +57,7 @@ async function handleUploadGuestSubmission(
         const {
             images: files,
             seriesCode,
-            favoriteIdolIds,
+            favoriteCharacterIds,
             producerName,
             displayName,
             bio,
@@ -122,7 +122,7 @@ async function handleUploadGuestSubmission(
                 new TextEncoder().encode(withdrawalToken),
             ),
             seriesCode,
-            idolIds: favoriteIdolIds,
+            characterIds: favoriteCharacterIds,
             submissionKind: 'guest',
             producerName,
             displayName,

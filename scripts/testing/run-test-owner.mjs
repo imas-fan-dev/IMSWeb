@@ -49,6 +49,7 @@ const repositoryVitestCommand = (label, files) =>
 const governanceNodeTests = Object.freeze([
   "tests/development-environment.test.js",
   "tests/ci-affected-workspaces.test.js",
+  "scripts/ci/tests/candidate-pipeline.test.mjs",
   "scripts/testing/tests/run-test-owner.test.mjs",
   "tests/vitest-reporting.test.mjs",
   "tests/vitest-projects.test.mjs",
@@ -65,11 +66,10 @@ const governancePythonTests = Object.freeze([
   "tests/test_workspace_boundaries.py",
 ]);
 const apiNodeTests = Object.freeze([
-  "tests/hono-app-contract.test.js",
-  "tests/node-listener-probe.test.js",
-  "tests/node-security.test.js",
-  "tests/operation-scripts.test.js",
-  "tests/postgres-test-lifecycle.test.js",
+  "tests/hono-app-contract.test.ts",
+  "tests/node.test.ts",
+  "tests/operation-scripts.test.ts",
+  "tests/postgres-test-lifecycle.test.ts",
 ]);
 // `tests/assets` verifies the built Web client (apps/web/build/client), so it
 // needs the delivery integration profile that builds it. The standalone API
@@ -98,7 +98,7 @@ function contractsPlan() {
   ]);
 }
 
-function deliveryPlan(profile) {
+function deliveryPlan(profile, artifact) {
   if (profile === "root") {
     return freezePlan([
       repositoryVitestCommand("root delivery contracts", [
@@ -139,12 +139,16 @@ function deliveryPlan(profile) {
   }
   if (profile === "integration") {
     return freezePlan([
-      command("build Web delivery artifacts", "pnpm", [
-        "--filter",
-        "@imsweb/web",
-        "run",
-        "build",
-      ]),
+      ...(artifact
+        ? [verifyArtifact(artifact)]
+        : [
+            command("build Web delivery artifacts", "pnpm", [
+              "--filter",
+              "@imsweb/web",
+              "run",
+              "build",
+            ]),
+          ]),
       command("build API delivery artifacts", "pnpm", [
         "--filter",
         "@imsweb/api",
@@ -195,7 +199,7 @@ function apiPlan(profile, buildPrepared = false) {
   // the config's `include` already resolves `tests/**`, so the per-suite
   // `test:server` / `test:wiki` / `test:migration` steps are subsumed. The
   // packaged-Web suite stays out of it, because only delivery integration
-  // builds the Web client it asserts. The `node` profile still names its five
+  // builds the Web client it asserts. The `node` profile still names its four
   // built-artifact files explicitly so a test dropping out of that plan stays
   // visible.
   plan.push(
@@ -216,9 +220,71 @@ function apiPlan(profile, buildPrepared = false) {
   return freezePlan(plan);
 }
 
-function webPlan(profile) {
+function verifyArtifact(artifact) {
+  return command("verify same-run Web artifacts", "node", [
+    "scripts/ci/build-artifact.mjs",
+    "verify",
+    "web",
+    artifact,
+  ]);
+}
+
+function webPlan(profile, artifact) {
+  if (profile === "browser") {
+    return freezePlan([
+      ...(artifact
+        ? [verifyArtifact(artifact)]
+        : [
+            command("build Web browser artifacts", "pnpm", [
+              "--filter",
+              "@imsweb/web",
+              "run",
+              "build",
+            ]),
+          ]),
+      command("test Web in browsers", "pnpm", [
+        "--filter",
+        "@imsweb/web",
+        "run",
+        "test:e2e",
+      ]),
+    ]);
+  }
+  if (profile === "validation") {
+    return freezePlan(
+      ["lint", "typecheck", "test:unit"].map((script) =>
+        command(`validate Web ${script}`, "pnpm", [
+          "--filter",
+          "@imsweb/web",
+          "run",
+          script,
+        ]),
+      ),
+    );
+  }
+  if (profile === "extended") {
+    return freezePlan([
+      command("build Web browser artifacts", "pnpm", [
+        "--filter",
+        "@imsweb/web",
+        "run",
+        "build",
+      ]),
+      command("test extended Web UI in browsers", "pnpm", [
+        "--filter",
+        "@imsweb/web",
+        "exec",
+        "playwright",
+        "test",
+        "--config",
+        "playwright.extended.config.ts",
+      ]),
+    ]);
+  }
   if (profile !== "all" && profile !== "ci") {
-    throw new Error("Web profile must be all or ci");
+    throw new Error(
+      "Web profile must be all, ci, validation, browser, or extended",
+    );
   }
 
   if (profile === "ci") {
@@ -266,7 +332,11 @@ export function parseOwnerArguments(argv) {
   for (const argument of argv) {
     if (argument === "--") continue;
     if (argument === "--list") options.list = true;
-    else if (argument.startsWith("-")) {
+    else if (argument.startsWith("--artifact=")) {
+      if (options.artifact || !argument.slice(11))
+        throw new Error("Expected one artifact manifest");
+      options.artifact = argument.slice(11);
+    } else if (argument.startsWith("-")) {
       throw new Error(`Unknown option: ${argument}`);
     } else positionals.push(argument);
   }
@@ -278,7 +348,18 @@ export function parseOwnerArguments(argv) {
   return { owner, profile, ...options };
 }
 
-export function buildOwnerPlan({ owner, profile }) {
+export function buildOwnerPlan({ owner, profile, artifact }) {
+  if (
+    artifact &&
+    !(
+      (owner === "web" && profile === "browser") ||
+      (owner === "delivery" && profile === "integration")
+    )
+  ) {
+    throw new Error(
+      "Artifact reuse belongs to Web browser or delivery integration",
+    );
+  }
   if (owner === "root") {
     if (profile) throw new Error("root does not accept a profile");
     return rootPlan();
@@ -291,9 +372,9 @@ export function buildOwnerPlan({ owner, profile }) {
     if (profile) throw new Error("contracts does not accept a profile");
     return contractsPlan();
   }
-  if (owner === "delivery") return deliveryPlan(profile);
+  if (owner === "delivery") return deliveryPlan(profile, artifact);
   if (owner === "api") return apiPlan(profile ?? "all");
-  if (owner === "web") return webPlan(profile ?? "all");
+  if (owner === "web") return webPlan(profile ?? "all", artifact);
   throw new Error(`Unknown test owner: ${owner}`);
 }
 

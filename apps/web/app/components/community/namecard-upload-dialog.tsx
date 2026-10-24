@@ -6,15 +6,12 @@ import {
   UploadIcon,
   UserRoundIcon,
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
 
 import { toast } from "sonner"
 
-import {
-  IdolMultiSelect,
-  type IdolSeriesOption,
-} from "~/components/community/idol-multi-select"
+import { CharacterMultiSelect } from "~/components/community/character-multi-select"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -49,6 +46,7 @@ import {
   type WikiPublicCatalog,
 } from "~/lib/api"
 import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
+import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import {
   namecardSubmissionManagePath,
   saveNamecardSubmissionReceipt,
@@ -74,7 +72,7 @@ export function NamecardUploadDialog() {
   const [catalog, setCatalog] = useState<WikiPublicCatalog | null>(null)
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [seriesCode, setSeriesCode] = useState("")
-  const [favoriteIdolIds, setFavoriteIdolIds] = useState<number[]>([])
+  const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<number[]>([])
   const [producerName, setProducerName] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [bio, setBio] = useState("")
@@ -92,14 +90,23 @@ export function NamecardUploadDialog() {
   const back = backImage.file
   const preparing = frontImage.preparing || backImage.preparing
   const busy = uploading || preparing
+  const {
+    catalog: characterCatalog,
+    loading: characterCatalogLoading,
+    failed: characterCatalogFailed,
+  } = useNamecardCharacterCatalog(open)
 
-  const series: IdolSeriesOption[] = (catalog?.agencies ?? []).map(
-    (agency) => ({
-      code: agency.code,
-      displayName: agency.name,
-      color: agency.color,
-    })
-  )
+  useEffect(() => {
+    if (characterCatalogFailed) {
+      toast.error("担当角色目录载入失败，请稍后重试")
+    }
+  }, [characterCatalogFailed])
+
+  const series = (catalog?.agencies ?? []).map((agency) => ({
+    code: agency.code,
+    displayName: agency.name,
+    color: agency.color,
+  }))
 
   async function loadCatalog() {
     if (catalog || catalogLoading) return
@@ -109,7 +116,7 @@ export function NamecardUploadDialog() {
       setCatalog(result)
       setSeriesCode((current) => current || result.agencies[0]?.code || "")
     } catch {
-      toast.error("担当偶像目录载入失败，请稍后重试")
+      toast.error("企划目录载入失败，请稍后重试")
     } finally {
       setCatalogLoading(false)
     }
@@ -131,8 +138,8 @@ export function NamecardUploadDialog() {
       toast.error("请同时选择名片正面和背面")
       return
     }
-    if (!seriesCode || favoriteIdolIds.length === 0) {
-      toast.error("请选择主企划和至少一位担当偶像")
+    if (!seriesCode || favoriteCharacterIds.length === 0) {
+      toast.error("请选择主企划和至少一位担当角色")
       return
     }
     setUploading(true)
@@ -140,7 +147,7 @@ export function NamecardUploadDialog() {
     try {
       const response = await uploadFudabaGuestSubmission(front, back, {
         seriesCode,
-        favoriteIdolIds,
+        favoriteCharacterIds,
         // Descriptive fields are optional, so an untouched field sends nothing
         // rather than an empty string.
         ...(producerName.trim() ? { producerName: producerName.trim() } : {}),
@@ -342,13 +349,13 @@ export function NamecardUploadDialog() {
               />
             </Field>
 
-            <IdolMultiSelect
-              id="guest-namecard-idols"
-              series={series}
-              idols={catalog?.searchEntries ?? []}
-              selectedIds={favoriteIdolIds}
-              disabled={busy || catalogLoading}
-              onChange={setFavoriteIdolIds}
+            <CharacterMultiSelect
+              id="guest-namecard-characters"
+              catalog={characterCatalog}
+              loading={characterCatalogLoading}
+              selectedIds={favoriteCharacterIds}
+              disabled={busy || characterCatalogLoading}
+              onChange={setFavoriteCharacterIds}
             />
 
             <FieldGroup className="grid gap-5 md:grid-cols-2">
@@ -411,7 +418,7 @@ export function NamecardUploadDialog() {
                 !front ||
                 !back ||
                 !seriesCode ||
-                favoriteIdolIds.length === 0
+                favoriteCharacterIds.length === 0
               }
             >
               <UploadIcon data-icon="inline-start" />

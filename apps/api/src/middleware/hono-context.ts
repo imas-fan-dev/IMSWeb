@@ -9,6 +9,8 @@ import type {
     EventRepository,
     FudabaRepository,
     NamecardRepository,
+    NamecardCharacterRepository,
+    NamecardUnitRepository,
     NewsRepository,
     PlatformAccountRepository,
     ReactionRepository,
@@ -67,6 +69,18 @@ export function editorialRepository(c: Context<AppEnvironment>): EditorialReposi
 
 export function namecardRepository(c: Context<AppEnvironment>): NamecardRepository {
     return requireRepository(c, 'namecards');
+}
+
+export function namecardCharacterRepository(
+    c: Context<AppEnvironment>
+): NamecardCharacterRepository {
+    return requireRepository(c, 'namecardCharacters');
+}
+
+export function namecardUnitRepository(
+    c: Context<AppEnvironment>
+): NamecardUnitRepository {
+    return requireRepository(c, 'namecardUnits');
 }
 
 export function reactionRepository(c: Context<AppEnvironment>): ReactionRepository {

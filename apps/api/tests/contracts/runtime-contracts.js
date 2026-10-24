@@ -971,7 +971,7 @@ async function assertCoreMutationContract(fixture) {
     fixture.setUpload({
         fields: {
             seriesCode: '765',
-            favoriteIdolIds: '[900001]'
+            favoriteCharacterIds: '[900001]'
         },
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
@@ -1015,7 +1015,7 @@ async function assertCoreMutationContract(fixture) {
     fixture.setUpload({
         fields: {
             seriesCode: '765',
-            favoriteIdolIds: '[900001]'
+            favoriteCharacterIds: '[900001]'
         },
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
@@ -1165,7 +1165,7 @@ async function assertPostCommitMediaContract(fixture) {
             fixture.setUpload({
                 fields: {
                     seriesCode: '765',
-                    favoriteIdolIds: '[900001]'
+                    favoriteCharacterIds: '[900001]'
                 },
                 files: {
                     images: [
@@ -1262,7 +1262,7 @@ async function assertPostCommitMediaContract(fixture) {
     fixture.setUpload({
         fields: {
             seriesCode: '765',
-            favoriteIdolIds: '[900001]'
+            favoriteCharacterIds: '[900001]'
         },
         files: {
             images: [
@@ -1397,7 +1397,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
     let before = await fixture.uploadSnapshot();
     fixture.setUpload({ fields: {
         seriesCode: '765',
-        favoriteIdolIds: '[900001]'
+        favoriteCharacterIds: '[900001]'
     }, files: {
         images: [uploadedFile('front.png', 3 * MiB, 11), uploadedFile('back.png', 3 * MiB, 12)]
     } });
@@ -1417,7 +1417,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
     before = after;
     fixture.setUpload({ fields: {
         seriesCode: '765',
-        favoriteIdolIds: '[900001]'
+        favoriteCharacterIds: '[900001]'
     }, files: {
         images: [uploadedFile('front-too-large.png', 3 * MiB + 1, 13), uploadedFile('back.png', 1, 14)]
     } });
@@ -1429,7 +1429,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
 
     fixture.setUpload({ fields: {
         seriesCode: '765',
-        favoriteIdolIds: '[900001]'
+        favoriteCharacterIds: '[900001]'
     }, files: {
         images: [uploadedFile('one.png', 1, 15), uploadedFile('two.png', 1, 16), uploadedFile('three.png', 1, 17)]
     } });

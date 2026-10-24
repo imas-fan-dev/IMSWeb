@@ -18,6 +18,7 @@ import {
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
 const activeSource = {
+  provider: "maplibre" as const,
   id: "source-r2",
   name: "R2 test",
   styleUrl: "https://objects.example.test/exchange/v3/exchange-style.json",
@@ -26,6 +27,7 @@ const snapshot = {
   sources: [
     {
       id: "source-official",
+      provider: "maplibre" as const,
       name: "OpenFreeMap Positron",
       styleUrl: "https://tiles.openfreemap.org/styles/positron",
     },
@@ -94,17 +96,18 @@ describe("Fudaba map delivery API", () => {
       return Response.json({ success: true, delivery: snapshot })
     })
 
-    await createAdminFudabaMapSource(
-      "R2 test",
-      activeSource.styleUrl,
-      '"revision-1"'
-    ).send()
-    await updateAdminFudabaMapSource(
-      activeSource.id,
-      "R2 test v2",
-      activeSource.styleUrl,
-      '"revision-2"'
-    ).send()
+    await createAdminFudabaMapSource({
+      provider: "maplibre",
+      name: "R2 test",
+      styleUrl: activeSource.styleUrl,
+      revision: '"revision-1"',
+    }).send()
+    await updateAdminFudabaMapSource(activeSource.id, {
+      provider: "maplibre",
+      name: "R2 test v2",
+      styleUrl: activeSource.styleUrl,
+      revision: '"revision-2"',
+    }).send()
     await activateAdminFudabaMapSource(activeSource.id, '"revision-3"').send()
     await deleteAdminFudabaMapSource(activeSource.id, '"revision-4"').send()
 
@@ -123,11 +126,13 @@ describe("Fudaba map delivery API", () => {
       expect(request.headers.get(CSRF_HEADER_NAME)).toBe("map-delivery-csrf")
     }
     await expect(requests[0]?.json()).resolves.toEqual({
+      provider: "maplibre",
       name: "R2 test",
       styleUrl: activeSource.styleUrl,
       revision: '"revision-1"',
     })
     await expect(requests[1]?.json()).resolves.toEqual({
+      provider: "maplibre",
       name: "R2 test v2",
       styleUrl: activeSource.styleUrl,
       revision: '"revision-2"',

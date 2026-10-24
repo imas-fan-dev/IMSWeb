@@ -10,35 +10,45 @@ import type { ExchangeMapAttribution } from "~/pages/community/exchange/exchange
 
 interface ExchangeMapAttributionDialogProps {
   attribution: ExchangeMapAttribution | null
+  searchAttributions?: string[]
+  iosMapPresentation?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
 /**
- * Renders the parsed OpenMapTiles notice. Segments keep the authored order, so
+ * Renders the active providers' notices. Segments keep the authored order, so
  * links and plain text stay interleaved exactly as the style file spells them.
  * Nothing here builds HTML, which is why untrusted anchor markup can render
  * through React instead of `dangerouslySetInnerHTML`.
  */
 export function ExchangeMapAttributionDialog({
   attribution,
+  searchAttributions = [],
+  iosMapPresentation = false,
   open,
   onOpenChange,
 }: ExchangeMapAttributionDialogProps) {
-  if (!attribution) return null
+  if (!attribution && !searchAttributions.length) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        safeArea={iosMapPresentation ? "custom" : "inset"}
+        className={
+          iosMapPresentation ? "exchange-map-attribution-dialog-ios" : undefined
+        }
+      >
         <DialogHeader>
           <DialogTitle>地图数据来源</DialogTitle>
           <DialogDescription>
-            地图数据来自 OpenFreeMap、OpenMapTiles 与
-            OpenStreetMap。以下授权信息按许可要求保留。
+            {attribution
+              ? "当前地图使用以下数据来源，授权信息按许可要求保留。"
+              : "以下地点搜索授权信息按许可要求保留。"}
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm/relaxed text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
-          {attribution.segments.map((segment, index) =>
+          {attribution?.segments.map((segment, index) =>
             segment.kind === "link" ? (
               <NavigationLink
                 key={`link-${index}`}
@@ -53,6 +63,17 @@ export function ExchangeMapAttributionDialog({
             )
           )}
         </p>
+        {searchAttributions.length ? (
+          <div
+            data-map-search-attributions
+            className="text-sm/relaxed text-muted-foreground"
+          >
+            <p>地点搜索</p>
+            {searchAttributions.map((notice) => (
+              <p key={notice}>{notice}</p>
+            ))}
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

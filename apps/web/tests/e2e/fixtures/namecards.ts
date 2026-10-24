@@ -17,7 +17,7 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
   return {
     id: 1,
     seriesCode: null,
-    favoriteIdols: [],
+    favoriteCharacters: [],
     claimStatus: "unclaimed",
     viewerClaimState: null,
     claimerName: null,

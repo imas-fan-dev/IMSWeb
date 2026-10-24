@@ -1731,7 +1731,7 @@ function validateTargetOperation(operation) {
             assertText(row.owner_account_id, "card owner id", 1, 128);
             assertText(row.producer_name, "card producer_name", 1, 80, true);
             assertText(row.display_name, "card display_name", 1, 120, true);
-            assertText(row.favorite_idol, "card favorite_idol", 0, 200);
+            assertText(row.favorite_character, "card favorite_character", 0, 200);
             assertText(row.bio, "card bio", 0, 2000);
             assertText(row.trade_note, "card trade_note", 0, 1000);
             assertText(row.front_object_key, "card front object key", 1, 1024);
@@ -2379,7 +2379,7 @@ function operationForRow(table, row, descriptor, context) {
                     producer_name: row.producer_name,
                     display_name: row.display_name,
                     series_code: mapping.code,
-                    favorite_idol: row.favorite_idol,
+                    favorite_character: row.favorite_idol,
                     front_object_key: resolveMedia(
                         context.mediaIndex,
                         context.rightsIndex,

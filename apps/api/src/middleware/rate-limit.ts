@@ -167,6 +167,13 @@ export const FUDABA_MAP_READ_LIMIT = {
   windowSeconds: 15 * 60,
 } as const;
 
+// Viewport traffic must not consume the budget needed to bootstrap the map.
+export const FUDABA_MAP_CONFIG_READ_LIMIT = {
+    bucket: 'fudaba-map-config-ip',
+    limit: 300,
+    windowSeconds: 15 * 60,
+} as const;
+
 export const FUDABA_LOCATION_WRITE_LIMIT = {
   bucket: "fudaba-location-ip",
   limit: 60,
@@ -241,13 +248,12 @@ function requestSpecificLimit(
   method: string,
   pathname: string,
 ): RateLimitOptions | null {
-  if (
-    method === "GET" &&
-    (pathname === exchangePath('/map/config') ||
-      pathname === exchangePath('/map/offices'))
-  ) {
-    return FUDABA_MAP_READ_LIMIT;
-  }
+    if (method === 'GET' && pathname === exchangePath('/map/config')) {
+        return FUDABA_MAP_CONFIG_READ_LIMIT;
+    }
+    if (method === 'GET' && pathname === exchangePath('/map/offices')) {
+        return FUDABA_MAP_READ_LIMIT;
+    }
   if (
     ["PUT", "DELETE"].includes(method) &&
     exchangeOfficeLocationPattern.test(pathname)

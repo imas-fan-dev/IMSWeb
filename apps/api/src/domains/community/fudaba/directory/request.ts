@@ -13,6 +13,7 @@ const OFFICE_SLUG_PATTERN =
 const DECIMAL_PATTERN = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
 export interface FudabaOfficeFilters {
+    q?: string;
     city?: string;
     seriesCodes?: string[];
     isOpen?: boolean;
@@ -282,13 +283,15 @@ export function parseFudabaOfficeQuery(url: string): FudabaOfficeQuery {
     const parameters = searchParameters(url);
     validateQueryKeys(
         parameters,
-        new Set(["city", "series", "open", "limit", "cursor"]),
+        new Set(["q", "city", "series", "open", "limit", "cursor"]),
         new Set(["series"]),
     );
     const city = optionalText(parameters.get("city"), "city", 100);
+    const q = optionalText(parameters.get('q'), 'q', 120);
     const seriesCodes = parseSeriesCodes(parameters);
     const isOpen = optionalBoolean(parameters.get("open"), "open");
     const filters = {
+        ...(q ? { q } : {}),
         ...(city ? { city } : {}),
         ...(seriesCodes.length ? { seriesCodes } : {}),
         ...(isOpen === undefined ? {} : { isOpen }),

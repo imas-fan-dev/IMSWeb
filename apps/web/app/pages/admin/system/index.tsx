@@ -39,8 +39,14 @@ import {
   updateAdminFudabaMapSource,
   type FudabaMapDeliverySnapshot,
   type FudabaMapSource,
+  type FudabaMapRouting,
 } from "~/lib/api"
-import { MapSourceEditorDialog } from "~/pages/admin/system/map-source-editor-dialog"
+import {
+  MapSourceEditorDialog,
+  type MapSourceDraft,
+} from "~/pages/admin/system/map-source-editor-dialog"
+import { MapRoutingEditor } from "./map-routing-editor"
+import { mapProviderFor } from "~/lib/maps/provider-catalog"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
@@ -99,23 +105,20 @@ export default function AdminSystemPage() {
     toast.error(errorMessage(mutationError))
   }
 
-  async function saveSource(draft: { name: string; styleUrl: string }) {
+  async function saveSource(draft: MapSourceDraft) {
     if (!snapshot || editorSource === undefined) return
     const action = editorSource ? `edit-${editorSource.id}` : "create"
     setPendingAction(action)
     try {
       const result = editorSource
-        ? await updateAdminFudabaMapSource(
-            editorSource.id,
-            draft.name,
-            draft.styleUrl,
-            snapshot.revision
-          ).send()
-        : await createAdminFudabaMapSource(
-            draft.name,
-            draft.styleUrl,
-            snapshot.revision
-          ).send()
+        ? await updateAdminFudabaMapSource(editorSource.id, {
+            ...draft,
+            revision: snapshot.revision,
+          }).send()
+        : await createAdminFudabaMapSource({
+            ...draft,
+            revision: snapshot.revision,
+          }).send()
       applyDelivery(result.delivery)
       setEditorSource(undefined)
       toast.success(editorSource ? "地图源已更新" : "地图源已添加")
@@ -140,6 +143,29 @@ export default function AdminSystemPage() {
     } catch (mutationError) {
       await handleMutationError(mutationError)
       setActivateSource(null)
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  async function saveRouting(
+    fallbackSourceId: string,
+    routing: FudabaMapRouting | null
+  ) {
+    if (!snapshot) return
+    setPendingAction("routing")
+    try {
+      const result = await activateAdminFudabaMapSource(
+        fallbackSourceId,
+        snapshot.revision,
+        routing
+      ).send()
+      applyDelivery(result.delivery)
+      toast.success(
+        routing ? "Mapbox 底图＋地区搜索已生效" : "已切换为统一地图源"
+      )
+    } catch (mutationError) {
+      await handleMutationError(mutationError)
     } finally {
       setPendingAction(null)
     }
@@ -202,10 +228,12 @@ export default function AdminSystemPage() {
               aria-hidden="true"
             />
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">当前地图源</p>
+              <p className="text-xs text-muted-foreground">
+                {snapshot.routing ? "统一模式地图源" : "当前地图源"}
+              </p>
               <p className="mt-1 text-sm font-semibold">{activeSource.name}</p>
               <p className="mt-1 font-mono text-xs break-all text-muted-foreground">
-                {activeSource.styleUrl}
+                {mapProviderFor(activeSource).describe(activeSource)}
               </p>
             </div>
           </div>
@@ -217,7 +245,9 @@ export default function AdminSystemPage() {
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">配置状态</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Badge>线上激活</Badge>
+                <Badge>
+                  {snapshot.routing ? "Mapbox 底图＋地区搜索" : "线上激活"}
+                </Badge>
                 <Badge variant="secondary">
                   {snapshot.sources.length} 个地图源
                 </Badge>
@@ -265,6 +295,12 @@ export default function AdminSystemPage() {
           </div>
         ) : snapshot?.sources.length ? (
           <div className="flex min-w-0 flex-col gap-5">
+            <MapRoutingEditor
+              key={snapshot.revision ?? "initial"}
+              snapshot={snapshot}
+              saving={busy || loading}
+              onSave={saveRouting}
+            />
             {error ? (
               <Alert variant="destructive">
                 <AlertTitle>重新读取失败</AlertTitle>
@@ -275,6 +311,9 @@ export default function AdminSystemPage() {
               <legend className="sr-only">地图源配置</legend>
               {snapshot.sources.map((source) => {
                 const active = source.id === snapshot.activeSourceId
+                const referenced =
+                  source.id === snapshot.routing?.mainlandSourceId ||
+                  source.id === snapshot.routing?.overseasSourceId
                 const selected = source.id === selectedSourceId
                 return (
                   <div
@@ -300,10 +339,23 @@ export default function AdminSystemPage() {
                           <span className="text-sm font-semibold">
                             {source.name}
                           </span>
-                          {active ? <Badge>线上激活</Badge> : null}
+                          <Badge variant="secondary">
+                            {mapProviderFor(source).shortLabel}
+                          </Badge>
+                          {active ? (
+                            <Badge>
+                              {snapshot.routing ? "默认源" : "线上激活"}
+                            </Badge>
+                          ) : null}
+                          {source.id === snapshot.routing?.mainlandSourceId ? (
+                            <Badge>中国大陆</Badge>
+                          ) : null}
+                          {source.id === snapshot.routing?.overseasSourceId ? (
+                            <Badge>海外</Badge>
+                          ) : null}
                         </span>
                         <span className="mt-1 block font-mono text-xs break-all text-muted-foreground">
-                          {source.styleUrl}
+                          {mapProviderFor(source).describe(source)}
                         </span>
                       </span>
                     </label>
@@ -324,12 +376,14 @@ export default function AdminSystemPage() {
                         variant="ghost"
                         size="icon-sm"
                         title={
-                          active
-                            ? "当前激活地图源不能删除"
-                            : `删除 ${source.name}`
+                          referenced
+                            ? "地区搜索配置正在引用此地图源"
+                            : active
+                              ? "当前激活地图源不能删除"
+                              : `删除 ${source.name}`
                         }
                         aria-label={`删除 ${source.name}`}
-                        disabled={active || busy}
+                        disabled={active || referenced || busy}
                         onClick={() => setDeleteSource(source)}
                       >
                         <Trash2Icon />
@@ -395,7 +449,11 @@ export default function AdminSystemPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>激活此地图源？</AlertDialogTitle>
             <AlertDialogDescription>
-              {activateSource?.name} 将立即成为客户端读取的线上地图配置。
+              {activateSource?.name} 将成为统一地图源。
+              {snapshot?.routing
+                ? "现有 Mapbox 底图＋地区搜索模式将关闭。"
+                : ""}
+              后续地图加载使用新配置。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

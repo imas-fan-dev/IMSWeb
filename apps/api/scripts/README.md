@@ -11,7 +11,7 @@ S3-compatible 对象存储。
 | 开发快照 | `development/container-data.js` | 导出或恢复本地 PostgreSQL 与 RustFS | `pnpm run dev:data:export` / `pnpm run dev:data:restore` |
 | 测试桶同步 | `development/sync-r2-to-rustfs.js` | 默认只读盘点；`--apply` 写 RustFS | `pnpm run dev:rustfs:sync-r2` |
 | PostgreSQL schema | `migration/postgres-migrations.js` | 应用版本化 migration | `pnpm run migration:postgresql` |
-| Fudaba 元数据 | `migration/fudaba-command.js` | 默认导出或对账；导入命令写 PostgreSQL | `pnpm --filter @imsweb/api run migration:fudaba -- extract` / `pnpm run migration:fudaba:{import,reconcile}` |
+| Fudaba 元数据 | `migration/fudaba-command.js` | 默认导出或对账；导入命令写 PostgreSQL | `pnpm --filter @imsweb/api run migration:fudaba -- extract` / `pnpm run migration:fudaba:import` / `pnpm run migration:fudaba:reconcile` |
 | Fudaba 媒体 | `migration/fudaba-media-sync.js` | 默认生成计划；显式 `--apply` 写对象存储 | `pnpm run media:fudaba:sync` |
 | 品牌素材导入 | `migration/legacy-brand-assets.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:brand-assets:sync` |
 | 关于页头像 | `migration/legacy-about-avatars.js` | 默认只读；显式确认后写头像对象与关于页配置 | `pnpm run media:about-avatars:sync` |

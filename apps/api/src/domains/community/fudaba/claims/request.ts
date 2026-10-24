@@ -1,7 +1,8 @@
+import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba/runtime';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 
 export interface LegacyCardClaimInput {
-    favoriteIdolIds: number[];
+    favoriteCharacterIds: number[];
     message: string;
     seriesCode: string | null;
     targetCardId: string | null;
@@ -46,13 +47,13 @@ function revision(value: unknown): number {
     return Number(value);
 }
 
-function idolIds(value: unknown): number[] {
+function characterIds(value: unknown): number[] {
     if (
-        !Array.isArray(value) || value.length > 20 ||
+        !Array.isArray(value) || value.length > NAMECARD_FAVORITE_CHARACTER_LIMIT ||
         value.some((id) => !Number.isSafeInteger(id) || Number(id) <= 0) ||
         new Set(value).size !== value.length
     ) {
-        throw badRequest('favoriteIdolIds 无效');
+        throw badRequest('favoriteCharacterIds 无效');
     }
     return value.map(Number);
 }
@@ -77,7 +78,7 @@ export function parseLegacyCardId(value: string): number {
 
 export function parseLegacyCardClaim(value: unknown): LegacyCardClaimInput {
     const body = object(value);
-    allowedKeys(body, ['targetCardId', 'seriesCode', 'favoriteIdolIds', 'message']);
+    allowedKeys(body, ['targetCardId', 'seriesCode', 'favoriteCharacterIds', 'message']);
     const targetCardId = body.targetCardId;
     if (
         targetCardId !== null &&
@@ -88,7 +89,7 @@ export function parseLegacyCardClaim(value: unknown): LegacyCardClaimInput {
     return {
         targetCardId,
         seriesCode: optionalSeriesCode(body.seriesCode),
-        favoriteIdolIds: idolIds(body.favoriteIdolIds ?? []),
+        favoriteCharacterIds: characterIds(body.favoriteCharacterIds ?? []),
         message: text(body.message, 'message', 1000)
     };
 }

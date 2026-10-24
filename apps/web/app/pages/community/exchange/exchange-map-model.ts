@@ -2,18 +2,10 @@ import { MAPS_PATH_PREFIX } from "@imsweb/contracts/paths"
 import type { SourceSpecification, StyleSpecification } from "maplibre-gl"
 
 import type { FudabaMapBounds, FudabaMapOffice, FudabaSeries } from "~/lib/api"
+import type { MapBounds, MapViewport } from "~/lib/maps/map-engine"
 
-export interface MapViewportBounds {
-  west: number
-  south: number
-  east: number
-  north: number
-}
-
-export interface ExchangeMapViewport {
-  center: [number, number]
-  zoom: number
-}
+export type MapViewportBounds = MapBounds
+export type ExchangeMapViewport = MapViewport
 
 export interface ExchangeMapFilters {
   city: string
@@ -22,7 +14,9 @@ export interface ExchangeMapFilters {
 }
 
 export const EXCHANGE_MAP_MIN_ZOOM = 2.3
-export const EXCHANGE_MAP_MAX_ZOOM = 11
+// Marker clustering is independent of each SDK's camera zoom range.
+export const EXCHANGE_MAP_CLUSTER_MAX_ZOOM = 10
+export const EXCHANGE_MAP_SEARCH_ZOOM = 13
 /**
  * The App draws the locate control and the map-tools trigger as one glass pill,
  * so both register under this group and the native renderer fills the union of
@@ -125,8 +119,7 @@ function validExchangeMapViewport(
     latitude <= 85.051129 &&
     typeof value.zoom === "number" &&
     Number.isFinite(value.zoom) &&
-    value.zoom >= EXCHANGE_MAP_MIN_ZOOM &&
-    value.zoom <= EXCHANGE_MAP_MAX_ZOOM
+    value.zoom >= EXCHANGE_MAP_MIN_ZOOM
   )
 }
 
@@ -144,6 +137,29 @@ export function rememberExchangeMapViewport(viewport: ExchangeMapViewport) {
     viewport: {
       center: viewport.center.map(stableCoordinate),
       zoom: Number(viewport.zoom.toFixed(4)),
+    },
+  })
+}
+
+/** Native provider coordinates are isolated from the canonical WGS84 viewport. */
+export function exchangeMapProviderViewport(
+  provider: string
+): ExchangeMapViewport | null {
+  const stored = readExchangeMapSessionState().providerViewports
+  const viewport = isRecord(stored) ? stored[provider] : undefined
+  return validExchangeMapViewport(viewport) ? viewport : null
+}
+
+export function rememberExchangeMapProviderViewport(
+  provider: string,
+  viewport: ExchangeMapViewport
+) {
+  if (!validExchangeMapViewport(viewport)) return
+  const stored = readExchangeMapSessionState().providerViewports
+  writeExchangeMapSessionState({
+    providerViewports: {
+      ...(isRecord(stored) ? stored : {}),
+      [provider]: viewport,
     },
   })
 }
@@ -509,4 +525,61 @@ export function groupMapOffices(
   }
 
   return [...groups.values()]
+}
+
+/** Keep committed records (and their order) when the wire data is equivalent. */
+export function reconcileMapOffices(
+  previous: FudabaMapOffice[],
+  incoming: FudabaMapOffice[]
+): FudabaMapOffice[] {
+  const signature = (office: FudabaMapOffice) =>
+    JSON.stringify([
+      office.id,
+      office.slug,
+      office.name,
+      office.city,
+      office.address,
+      office.accent,
+      office.isOpen,
+      [...office.seriesCodes].sort((a, b) => a.localeCompare(b)),
+      office.location.latitude,
+      office.location.longitude,
+      office.location.precision,
+    ])
+  const known = new Map(previous.map((office) => [office.id, office]))
+  const next = incoming.map((office) => {
+    const current = known.get(office.id)
+    return current && signature(current) === signature(office)
+      ? current
+      : office
+  })
+  if (
+    next.length === previous.length &&
+    next.every((office) => known.get(office.id) === office)
+  )
+    return previous
+  return next.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+/** World-anchored cells do not change membership just because the camera pans. */
+export function groupMapMarkers(
+  groups: readonly FudabaMapOfficeGroup[],
+  zoom: number
+) {
+  const cells = new Map<string, FudabaMapOfficeGroup[]>()
+  const worldSize = 512 * 2 ** Math.floor(zoom)
+  for (const group of [...groups].sort((a, b) => a.key.localeCompare(b.key))) {
+    const sine = Math.sin((group.latitude * Math.PI) / 180)
+    const x = ((group.longitude + 180) / 360) * worldSize
+    const y =
+      (0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI)) * worldSize
+    const key =
+      zoom >= EXCHANGE_MAP_CLUSTER_MAX_ZOOM + 1
+        ? group.key
+        : `${Math.floor(x / 56)}:${Math.floor(y / 56)}`
+    const cell = cells.get(key) ?? []
+    cell.push(group)
+    cells.set(key, cell)
+  }
+  return [...cells.values()]
 }

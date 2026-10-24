@@ -6,6 +6,7 @@ import { writeFile } from "node:fs/promises"
 import { makeFudabaOwnerCard } from "../../mocks/data/fudaba"
 import { expect, test } from "./fixtures/test"
 import { installOwnerCardMediaRoutes } from "./fixtures/owner-card-media"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
 let server: ChildProcess
 let runtimeOrigin: string
@@ -155,6 +156,7 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
       })
   )
   for (const [routePath, json] of [
+    ["/api/community/exchange/characters", makeCharacterCatalog()],
     ["/api/community/exchange/me/cards", { items: [card] }],
     ["/api/community/exchange/me/cards/owner-card", { card }],
     ["/api/community/exchange/me/series", { items: [] }],

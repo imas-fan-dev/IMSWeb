@@ -36,7 +36,12 @@ pnpm dev
 只启动 Web，适合已经单独启动 API 或只修改静态界面的场景。
 
 开发代理和 Playwright 的环境变量模板位于 [`.env.example`](.env.example)。工具只读取启动
-进程已有的环境变量，不会把 `IMS_API_ORIGIN` 暴露给浏览器代码：
+进程已有的环境变量，不会把 `IMS_API_ORIGIN` 暴露给浏览器代码。高德本地安全代理是文件读取的
+独立例外：在 Git 忽略的 `apps/web/.env.local` 填写 `IMS_DEV_AMAP_JS_API_KEY` 和
+`IMS_DEV_AMAP_SECURITY_JS_CODE`，开发服务器会处理 `/_AMapService/`，并仅在发往高德的请求中
+附加安全密钥。JS API Key 须与后台高德地图源一致，后台安全代理地址填写 `/_AMapService`。
+该代理只在开发 serve 模式生效，不进入生产产物；生产按
+[地图资源交付](../../docs/operations/map-delivery.md)配置入口代理。
 
 默认 API 代理目标已经是 `http://127.0.0.1:3000`。只有 API 使用非默认端口时才需要在启动
 Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端口自动完成同步。
@@ -51,7 +56,7 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 | `pnpm build`        | 生成生产前端产物与预渲染页面             |
 | `pnpm build:app`    | 生成带已验证远程 origin 的 App 静态产物  |
 | `pnpm design:lint`  | 校验根目录 `DESIGN.md` 设计规范          |
-| `pnpm preview`      | 在 `127.0.0.1` 上预览已构建产物          |
+| `pnpm preview`      | 通过 Hono 在 `127.0.0.1:4173` 预览 Web 编译产物 |
 | `pnpm lint`         | 执行 ESLint 与 Tailwind canonical 类检查 |
 | `pnpm typecheck`    | 生成路由类型并执行 TypeScript 检查       |
 | `pnpm test:unit`    | 运行 Vitest 单元与组件测试               |
@@ -64,9 +69,12 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 | `pnpm app`          | 设备安装入口，参数选目标、配置与设备     |
 
 Web test owner 本地默认只运行 unit。需要本地运行浏览器套件时，显式执行 `pnpm test:e2e`；
-App 浏览器矩阵使用 `pnpm test:e2e:app`。CI 使用 runner 的 `ci` profile，在同一进程中依次
-运行 `check`（包含 unit）和完整普通 Playwright 套件，不重复 unit suite，也不暴露可绕过
-unit 的独立参数。
+App 浏览器矩阵使用 `pnpm test:e2e:app`。本地 `ci` owner 顺序运行 `check` 和 core Playwright；
+CI 分开运行完整域 `web validation`、Web build 和 core browsers，浏览器与 delivery owner
+必须先校验同次 run/attempt 产物的身份与全部文件摘要。默认本地 owner 保留构建前置条件。
+广泛布局与 Firefox 兼容场景使用
+`node ../../scripts/testing/run-test-owner.mjs web extended`，手动和每周独立报告结果。
+App 保持全部现有功能矩阵；两个 Web tier 的并集覆盖所有保留用例。
 
 `app` 是唯一的设备入口，目标与配置都是参数：
 
@@ -103,7 +111,10 @@ App 底栏依次为首页、社区、交换地图、资料、我的。社区聚�
 
 切换栏目会恢复本次 App 使用期间的最近页面和阅读位置。重选当前栏目回到栏目首页，在首页再次点选则回到顶部；交换地图根页保留视角、筛选和 URL，不执行窗口回顶。返回沿实际浏览历史执行，因此跨栏目切换也会成为返回路径；从外部直接进入详情时，返回会替换为所属栏目首页。
 
-续看保留地址中的分页、筛选与 hash，不承诺刷新或进程重启后恢复，也不保存表单草稿和弹层。Wiki 内部交互与地图视角仍由各自页面管理。实现与回归约定见 [App 导航规范](../../.trellis/spec/web/frontend/app-navigation.md)。
+续看保留地址中的分页、筛选与 hash，不承诺刷新或进程重启后恢复，也不保存表单草稿和弹层。Wiki 内部交互与地图视角仍由各自页面管理。实现与回归约定见导航状态模块 [`app/lib/app-navigation-state.ts`](app/lib/app-navigation-state.ts)、
+解析层 [`app/lib/navigation/`](app/lib/navigation/)、单元测试
+[`tests/unit/lib/app-navigation-state.test.ts`](tests/unit/lib/app-navigation-state.test.ts) 与浏览器用例
+[`tests/e2e/app-navigation.spec.ts`](tests/e2e/app-navigation.spec.ts)。
 
 ## 目录边界
 

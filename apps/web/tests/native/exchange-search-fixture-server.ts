@@ -53,7 +53,11 @@ const routes = new Map<
     "/api/community/exchange/map/config",
     {
       response: fudabaMapConfigSchema,
-      value: { styleUrl: "/maps/exchange-native-test-style.json" },
+      value: {
+        provider: "maplibre",
+        search: { provider: "nominatim" },
+        styleUrl: "/maps/exchange-native-test-style.json",
+      },
     },
   ],
   [

@@ -45,6 +45,12 @@ function renderAdminLayout(initialEntry = "/admin") {
           <Route path="community/exchange" element={<h1>位置审核</h1>} />
           <Route path="stories" element={<h1>Wiki 剧情管理</h1>} />
           <Route path="stories/assets" element={<h1>Wiki 素材管理</h1>} />
+          <Route path="idols" element={<h1>偶像管理入口</h1>} />
+          <Route path="idols/agencies" element={<h1>企划资料</h1>} />
+          <Route path="idols/groups" element={<h1>栏目资料</h1>} />
+          <Route path="idols/entries" element={<h1>条目资料</h1>} />
+          <Route path="cards" element={<h1>名片审核列表</h1>} />
+          <Route path="cards/characters" element={<h1>角色列表</h1>} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -152,6 +158,38 @@ describe("AdminLayout", () => {
         expect(
           screen.getByRole("heading", { name: "无法访问管理工作台" })
         ).toBeVisible()
+    }
+  )
+
+  it.each(["editor", "op"])(
+    "keeps %s access to the independent catalog",
+    (dept) => {
+      mocks.useRequest.mockReturnValue({
+        data: {
+          success: true,
+          user: {
+            id: 4,
+            username: "editor",
+            producername: "Editor",
+            dept,
+            adminRole: null,
+          },
+        },
+        loading: false,
+        error: undefined,
+        onError: mocks.onError,
+        send: mocks.send,
+      })
+      renderAdminLayout("/admin/idols/entries")
+      expect(screen.getByRole("heading", { name: "条目资料" })).toBeVisible()
+      expect(screen.getByRole("link", { name: "条目管理" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      )
+      expect(screen.getByRole("link", { name: "企划管理" })).toHaveAttribute(
+        "href",
+        "/admin/idols/agencies"
+      )
     }
   )
 
@@ -285,5 +323,115 @@ describe("AdminLayout", () => {
       "href",
       "/admin/stories"
     )
+  })
+
+  it("keeps the card group open on a child route and expands it on hover", async () => {
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 3,
+          username: "operator",
+          producername: "Operator",
+          dept: "op",
+          adminRole: "admin",
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+    const user = userEvent.setup()
+
+    renderAdminLayout("/admin/cards")
+
+    const group = screen.getByRole("button", { name: /名片管理/ })
+
+    expect(group).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("link", { name: "名片审核" })).toHaveAttribute(
+      "href",
+      "/admin/cards"
+    )
+    expect(screen.getByText("信息修改")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    )
+    expect(
+      screen.queryByRole("link", { name: "信息修改" })
+    ).not.toBeInTheDocument()
+
+    await user.unhover(group)
+    await user.hover(group)
+
+    expect(group).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByText("标签管理")).toBeVisible()
+  })
+
+  it("marks only the matching card child as current", () => {
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 3,
+          username: "operator",
+          producername: "Operator",
+          dept: "op",
+          adminRole: "admin",
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+
+    renderAdminLayout("/admin/cards/characters")
+
+    // 名片审核 is an exact match, so a deeper sibling must not light it up.
+    expect(screen.getByRole("link", { name: "名片审核" })).not.toHaveAttribute(
+      "aria-current"
+    )
+    expect(screen.getByRole("link", { name: "角色列表" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+  })
+
+  it("collapses the card group away from its routes until it is hovered", async () => {
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 3,
+          username: "operator",
+          producername: "Operator",
+          dept: "op",
+          adminRole: "admin",
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+    const user = userEvent.setup()
+
+    renderAdminLayout()
+
+    const group = screen.getByRole("button", { name: /名片管理/ })
+
+    expect(group).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("名片审核")).not.toBeInTheDocument()
+
+    await user.hover(group)
+
+    expect(group).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("link", { name: "名片审核" })).toBeVisible()
+
+    await user.unhover(group)
+
+    expect(group).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("名片审核")).not.toBeInTheDocument()
   })
 })

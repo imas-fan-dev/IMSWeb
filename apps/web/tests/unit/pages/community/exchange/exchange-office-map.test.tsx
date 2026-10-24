@@ -162,17 +162,18 @@ describe("ExchangeOfficeMap App viewport memory", () => {
       center: [127.1, 31.2],
       zoom: 4.05,
     })
+    expect(firstMap?.options).not.toHaveProperty("maxZoom")
 
     if (!firstMap) throw new Error("地图实例未创建")
     firstMap.center = [121.473701, 31.230416]
-    firstMap.zoom = 8.125
+    firstMap.zoom = 18.125
     firstRoute.unmount()
 
     render(<ExchangeOfficeMap {...mapProps} />)
 
     expect(maplibreMocks.instances[1]?.options).toMatchObject({
       center: [121.473701, 31.230416],
-      zoom: 8.125,
+      zoom: 18.125,
     })
   })
 
@@ -181,11 +182,9 @@ describe("ExchangeOfficeMap App viewport memory", () => {
       id: "way:200",
       label: "西岸艺术中心",
       address: "上海西岸",
-      city: "上海",
-      location: {
-        longitude: 121.4665,
-        latitude: 31.1842,
-        precision: "exact" as const,
+      target: {
+        kind: "wgs84" as const,
+        position: [121.4665, 31.1842] as [number, number],
       },
     }
     const view = render(<ExchangeOfficeMap {...mapProps} />)
@@ -237,13 +236,15 @@ describe("ExchangeOfficeMap App viewport memory", () => {
     })
   })
 
-  it("animates back to the current user location", async () => {
+  it("gives manual location priority over the initial readiness attempt", async () => {
     const user = userEvent.setup()
+    const claim = vi.fn(() => new AbortController().signal)
 
-    render(<ExchangeOfficeMap {...mapProps} />)
+    render(<ExchangeOfficeMap {...mapProps} claimInitialLocation={claim} />)
     await user.click(screen.getByRole("button", { name: "回到我的位置" }))
 
     expect(geolocationMocks.getCurrentCoordinates).toHaveBeenCalledOnce()
+    expect(claim).toHaveBeenCalledOnce()
     const map = maplibreMocks.instances[0]
     expect(map?.easeTo).toHaveBeenCalledWith({
       center: [121.473701, 31.230416],

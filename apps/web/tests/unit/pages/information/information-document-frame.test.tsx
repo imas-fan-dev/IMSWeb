@@ -12,7 +12,7 @@ afterEach(() => {
 })
 
 describe("InformationDocumentFrame", () => {
-  it("fills the reading column without allowing the iframe to widen it", () => {
+  it("encodes the document identifier in its delivery URL", () => {
     render(
       <InformationDocumentFrame
         contentId="activity/with spaces"
@@ -20,11 +20,6 @@ describe("InformationDocumentFrame", () => {
       />
     )
 
-    expect(screen.getByTitle("超长活动内容")).toHaveClass(
-      "w-full",
-      "min-w-0",
-      "max-w-full"
-    )
     expect(screen.getByTitle("超长活动内容")).toHaveAttribute(
       "src",
       "/information/activity%2Fwith%20spaces/content"

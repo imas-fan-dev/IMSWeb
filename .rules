@@ -32,7 +32,7 @@ preflight, local data configuration, service startup, and validation evidence.
 - `pnpm run check`: run static, architecture, migration, lint, test, and build checks.
 - `pnpm run check:pre-commit`: run the fast checks enforced by the Git pre-commit hook.
 - `pnpm run test`: run infrastructure, API, Web unit, and routing-contract tests.
-- `pnpm run test:web`: run Web unit tests locally; opt in to browser tests with `pnpm --filter @imsweb/web run test:e2e` (or `test:e2e:app` for App). GitHub CI still requires the full Web Playwright suite.
+- `pnpm run test:web`: run full-domain Web unit tests locally; opt in to core browsers with `pnpm --filter @imsweb/web run test:e2e` (or `test:e2e:app` for the full App matrix). GitHub CI requires core Web Playwright. Broad layout and Firefox compatibility run through `node scripts/testing/run-test-owner.mjs web extended`, manually and weekly with an independent result.
 - `pnpm run test:web-routing`: validate the built Web client against Hono route ownership and packaged-client asset contracts.
 
 ### Tauri App Delivery
@@ -62,7 +62,7 @@ Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and
 
 ## Testing Guidelines
 
-Tests use Node's runner, Vitest, Testing Library, Playwright, and Python `unittest`. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. No numeric coverage threshold exists; API persistence changes must cover the active Node runtime.
+JS/TS unit, HTTP contract, migration, and repository-contract tests run under Vitest; browser flows under Playwright; repository boundary, deployment, and rule checks under Python `unittest`; `node:test` is reserved for standalone checkers that need no build. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. Coverage gates are domain-level only (`apps/api/vitest.config.mts`, `apps/web/vitest.config.ts`); there is no repository-wide threshold. API persistence changes must cover the active Node runtime.
 
 ### Validation During Iteration
 

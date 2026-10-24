@@ -7,12 +7,13 @@ on:
   push:
     branches:
       - main
+      - release/v1.1
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.ref == 'refs/heads/release/v1.1' && github.run_id || 'latest' }}
   cancel-in-progress: true
 
 jobs:
@@ -45,7 +46,12 @@ jobs:
           CI_BEFORE_SHA: ${{ github.event.before }}
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: node scripts/ci/detect-affected-workspaces.mjs
+        run: |
+          if [[ "$GITHUB_REF" == "refs/heads/release/v1.1" && "$CI_EVENT_NAME" == "push" ]]; then
+            printf 'repo=true\napp=true\nweb=true\napi=true\nintegration=true\n' >> "$GITHUB_OUTPUT"
+          else
+            node scripts/ci/detect-affected-workspaces.mjs
+          fi
 
   repository:
     name: Validate repository and infrastructure
@@ -69,6 +75,13 @@ jobs:
         with:
           version: 11.10.0
           run_install: false
+
+      - name: Restore pnpm store
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -118,6 +131,13 @@ jobs:
           version: 11.10.0
           run_install: false
 
+      - name: Restore pnpm store
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -137,6 +157,14 @@ jobs:
         env:
           VITE_IMS_API_ORIGIN: http://127.0.0.1:1420
           VITE_IMS_PUBLIC_SITE_ORIGIN: http://localhost:1420
+
+      - name: Record and verify App candidate
+        env:
+          VITE_IMS_API_ORIGIN: http://127.0.0.1:1420
+          VITE_IMS_PUBLIC_SITE_ORIGIN: http://localhost:1420
+        run: |
+          node scripts/ci/build-artifact.mjs record app
+          node scripts/ci/build-artifact.mjs verify app
 
       - name: Test App in browsers
         run: pnpm --filter @imsweb/web run test:e2e:app
@@ -173,23 +201,23 @@ jobs:
           version: 11.10.0
           run_install: false
 
+      - name: Restore pnpm store
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Test Web delivery contracts
         run: node scripts/testing/run-test-owner.mjs delivery web
 
-      - name: Install Web browsers
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
-          pnpm --filter @imsweb/web exec playwright install --with-deps chromium firefox
-
       - name: Test Web owner
-        run: pnpm --filter @imsweb/web run test -- ci
+        run: node scripts/testing/run-test-owner.mjs web validation
         env:
-          # The `ci` profile runs `check`, which ends in the full unit suite, so
-          # this is the one step that may measure coverage against the Web
-          # thresholds.
+          # This profile owns the complete Web unit domain.
           IMS_TEST_COVERAGE_ENABLED: "true"
 
       - name: Upload Web reports
@@ -203,6 +231,89 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  web-build:
+    name: Build Web candidate
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.integration == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.10.0
+          run_install: false
+      - name: Restore pnpm store
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build Web target
+        run: pnpm --filter @imsweb/web run build
+      - name: Record Web candidate identity
+        run: node scripts/ci/build-artifact.mjs record web
+      - name: Upload Web candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: web-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/web/build
+            .ci-artifacts/web.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  web-browser:
+    name: Validate Web browsers
+    needs: [changes, web-build]
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.10.0
+          run_install: false
+      - name: Restore pnpm store
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Download same-run Web candidate
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: web-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Verify Web candidate before browser resources
+        run: node scripts/ci/build-artifact.mjs verify web
+      - name: Install Web browsers
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
+          pnpm --filter @imsweb/web exec playwright install --with-deps chromium
+      - name: Test compiled Web candidate
+        run: node scripts/testing/run-test-owner.mjs web browser --artifact=.ci-artifacts/web.json
       - name: Upload Web browser failure evidence
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -251,6 +362,13 @@ jobs:
           version: 11.10.0
           run_install: false
 
+      - name: Restore pnpm store
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -275,7 +393,7 @@ jobs:
 
   integration:
     name: Validate Web and API integration
-    needs: changes
+    needs: [changes, web-build]
     if: needs.changes.outputs.integration == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -296,11 +414,23 @@ jobs:
           version: 11.10.0
           run_install: false
 
+      - name: Restore pnpm store
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Download same-run Web candidate
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: web-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+
       - name: Test Web routing and packaged asset contracts
-        run: pnpm run test:web-routing
+        run: node scripts/testing/run-test-owner.mjs delivery integration --artifact=.ci-artifacts/web.json
 
   result:
     name: Validate repository
@@ -310,6 +440,8 @@ jobs:
       - repository
       - app
       - web
+      - web-build
+      - web-browser
       - api
       - integration
     runs-on: ubuntu-24.04
@@ -324,6 +456,9 @@ jobs:
           APP_RESULT: ${{ needs.app.result }}
           WEB_SELECTED: ${{ needs.changes.outputs.web }}
           WEB_RESULT: ${{ needs.web.result }}
+          WEB_BUILD_SELECTED: ${{ needs.changes.outputs.web == 'true' || needs.changes.outputs.integration == 'true' }}
+          WEB_BUILD_RESULT: ${{ needs.web-build.result }}
+          WEB_BROWSER_RESULT: ${{ needs.web-browser.result }}
           API_SELECTED: ${{ needs.changes.outputs.api }}
           API_RESULT: ${{ needs.api.result }}
           INTEGRATION_SELECTED: ${{ needs.changes.outputs.integration }}
@@ -363,5 +498,24 @@ jobs:
           verify_lane repository "$REPOSITORY_SELECTED" "$REPOSITORY_RESULT"
           verify_lane app "$APP_SELECTED" "$APP_RESULT"
           verify_lane web "$WEB_SELECTED" "$WEB_RESULT"
+          verify_lane web-build "$WEB_BUILD_SELECTED" "$WEB_BUILD_RESULT"
+          verify_lane web-browser "$WEB_SELECTED" "$WEB_BROWSER_RESULT"
           verify_lane api "$API_SELECTED" "$API_RESULT"
           verify_lane integration "$INTEGRATION_SELECTED" "$INTEGRATION_RESULT"
+
+  preview:
+    name: Publish verified preview candidate
+    needs: result
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/release/v1.1' &&
+      github.event.repository.full_name == github.repository && needs.result.result == 'success'
+    uses: ./.github/workflows/deploy-preview.yml
+    secrets:
+      PREVIEW_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.PREVIEW_DEPLOY_SSH_PRIVATE_KEY }}
+      PREVIEW_DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.PREVIEW_DEPLOY_SSH_KNOWN_HOSTS }}
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+      attestations: write
+      id-token: write

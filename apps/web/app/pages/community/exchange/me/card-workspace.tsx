@@ -12,7 +12,6 @@ import type {
   FudabaOwnerCard,
   FudabaSeries,
   PlatformProfile,
-  WikiPublicSearchEntry,
 } from "~/lib/api"
 import { CardEditor } from "./card-editor"
 import { CardInventory } from "./card-inventory"
@@ -24,7 +23,6 @@ export function CardWorkspace({
   loadingDetail,
   profile,
   series,
-  idols,
   readOnly,
   readOnlyReason,
   onSelect,
@@ -41,7 +39,6 @@ export function CardWorkspace({
   loadingDetail: boolean
   profile: PlatformProfile
   series: FudabaSeries[]
-  idols: WikiPublicSearchEntry[]
   readOnly: boolean
   readOnlyReason: string | null
   onSelect: (cardId: string) => void
@@ -77,8 +74,7 @@ export function CardWorkspace({
             creating={creating}
             profile={profile}
             series={series}
-            idols={idols}
-            readOnly={readOnly}
+              readOnly={readOnly}
             readOnlyReason={readOnlyReason}
             onCreated={onCreated}
             onSaved={onSaved}

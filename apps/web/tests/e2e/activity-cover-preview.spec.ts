@@ -117,7 +117,7 @@ test.describe("activity cover preview", () => {
         {
           id: 42,
           seriesCode: null,
-          favoriteIdols: [],
+          favoriteCharacters: [],
           claimStatus: "unclaimed",
           viewerClaimState: null,
           claimerName: null,

@@ -2,6 +2,7 @@ import type { Page, Route } from "@playwright/test"
 
 import { expect, test, type ApiDispatcher } from "./fixtures/test"
 import { settleToasts } from "./fixtures/toast"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
 const AVATAR_PATH = "/platform/accounts/platform-app/avatars/2.webp"
 const APP_ACCESS_TOKEN = "app-avatar-access-token"
@@ -132,6 +133,14 @@ async function installAccountMocks(
       (route) => fulfillJson(route, emptyItems, corsHeaders)
     )
   }
+  await api.mock(
+    {
+      method: "GET",
+      path: "/api/community/exchange/characters",
+      times: { min: 0, max: 2 },
+    },
+    (route) => route.fulfill({ json: makeCharacterCatalog() })
+  )
   for (const path of [
     "/api/community/exchange/me/claim-envelopes",
     "/api/community/exchange/me/offices",

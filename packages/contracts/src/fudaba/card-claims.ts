@@ -2,7 +2,8 @@ import { z } from "zod"
 import { backofficeProtectedHttpErrorSchema, exactJsonError, strictRequestObject, successEnvelope } from "../common.js"
 
 import {
-  fudabaIdolSelectionSchema,
+  NAMECARD_FAVORITE_CHARACTER_LIMIT,
+  fudabaCharacterSelectionSchema,
   fudabaOwnerCardSchema,
   fudabaRevisionSchema,
   ownerCardIdSchema,
@@ -44,7 +45,9 @@ export const fudabaCardClaimSchema = z
     legacyCardId: legacyCardIdSchema,
     targetCardId: z.string().min(1).nullable(),
     seriesCode: z.string().min(1),
-    favoriteIdols: z.array(fudabaIdolSelectionSchema).max(20),
+    favoriteCharacters: z
+      .array(fudabaCharacterSelectionSchema)
+      .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
     state: claimStateSchema,
     message: z.string(),
     reviewNote: z.string(),
@@ -114,7 +117,9 @@ export const fudabaLegacyCardClaimRequestSchema = z.object({
   // to, then the selected idols' agency, then the legacy card itself, and only
   // asks the claimant when none of those resolve.
   seriesCode: seriesCodeSchema.max(64).nullable().optional(),
-  favoriteIdolIds: z.array(z.number().int().positive()).max(20)
+  favoriteCharacterIds: z
+    .array(z.number().int().positive())
+    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
     .refine((ids) => new Set(ids).size === ids.length)
     .optional(),
   message: ownerCardTextSchema(1000),

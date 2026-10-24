@@ -1,4 +1,5 @@
 import type { CacheServices } from "@/ports/cache";
+import type { FudabaMapProviderConfig } from '@imsweb/contracts/fudaba/map-delivery';
 import type {
     PlatformEmailDeliveryQueue,
     PlatformEmailJobPayloadCipher,
@@ -29,9 +30,8 @@ export interface NodeRuntimeConfig {
     fudabaWriteEnabled: boolean;
     fudabaMessageCreateEnabled: boolean;
     fudabaMapEnabled: boolean;
-    fudabaMapStyleUrl: string;
-    /** Deployment seed choices used before a managed source collection exists. */
-    fudabaMapStyleUrls: string[];
+    /** Explicit provider configurations used to bootstrap the managed collection. */
+    fudabaMapSources: FudabaMapProviderConfig[];
     fudabaGeocoding: FudabaGeocodingRuntimeConfig;
 }
 

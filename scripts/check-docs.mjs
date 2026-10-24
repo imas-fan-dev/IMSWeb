@@ -26,35 +26,90 @@ const oldPaths = [
     'generate-web-contracts.mjs',
     'apps/api/src/ports/wiki-contracts.ts'
 ];
+const excludedDirectories = new Set([
+    '.git',
+    'node_modules',
+    'dist',
+    'build',
+    'build-app',
+    'gen',
+    'target',
+    'coverage',
+    'data',
+    '.pnpm-store'
+]);
+// Tool, build, and cache directories keep machine-written Markdown that is not
+// repository documentation. Skip hidden directories at any depth except the
+// two that hold project content.
+const includedHiddenDirectories = new Set(['.agents', '.github']);
+const markdownLinkPattern = /\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+const forbiddenDatePattern = /\b20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:[0-2][0-9]|3[01])\b/;
+const forbiddenDirectories = new Set(['archive', 'evidence', 'screenshots']);
 
-function markdownFiles(directory) {
-    return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+function relative(absolutePath) {
+    return path.relative(projectRoot, absolutePath).split(path.sep).join('/') || '.';
+}
+
+function findDocuments(directory, documents = []) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
         const entryPath = path.join(directory, entry.name);
-        if (entry.isDirectory()) return markdownFiles(entryPath);
-        return entry.name.endsWith('.md') ? [entryPath] : [];
-    });
+        if (entry.isDirectory()) {
+            if (excludedDirectories.has(entry.name)) continue;
+            if (entry.name.startsWith('.') && !includedHiddenDirectories.has(entry.name)) continue;
+            findDocuments(entryPath, documents);
+            continue;
+        }
+        if (!entry.isFile() && !entry.isSymbolicLink()) continue;
+        if (entry.name.endsWith('.md') || entry.name === '.rules') {
+            documents.push({ path: entryPath, symbolicLink: entry.isSymbolicLink() });
+        }
+    }
+    return documents;
+}
+
+function readDocument(document) {
+    try {
+        return fs.readFileSync(document.path, 'utf8');
+    } catch (error) {
+        if (document.symbolicLink) return null;
+        throw error;
+    }
 }
 
 function resolveMarkdownLink(documentPath, rawTarget) {
-    const target = rawTarget.split('#', 1)[0].split('?', 1)[0];
-    if (!target || target.startsWith('http://') || target.startsWith('https://') || target.startsWith('mailto:')) {
+    let target = rawTarget;
+    if (target.startsWith('<') && target.endsWith('>')) target = target.slice(1, -1);
+    target = target.split('#', 1)[0].split('?', 1)[0];
+    if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//')) {
         return null;
     }
-    return path.resolve(path.dirname(documentPath), target);
+    return target.startsWith('/')
+        ? path.join(projectRoot, target)
+        : path.resolve(path.dirname(documentPath), target);
 }
 
 const failures = [];
-const documents = markdownFiles(docsRoot);
-const forbiddenDatePattern = /\b20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:[0-2][0-9]|3[01])\b/;
-const forbiddenDirectories = new Set(['archive', 'evidence', 'screenshots']);
+const repositoryDocuments = findDocuments(projectRoot);
+const docsDocuments = repositoryDocuments.filter((document) => {
+    if (!document.path.endsWith('.md')) return false;
+    const relativeToDocs = path.relative(docsRoot, document.path);
+    return relativeToDocs !== '' && !relativeToDocs.startsWith('..') && !path.isAbsolute(relativeToDocs);
+});
+const documents = docsDocuments.map((document) => document.path);
+
 for (const entry of fs.readdirSync(docsRoot, { withFileTypes: true })) {
     if (entry.isDirectory() && forbiddenDirectories.has(entry.name)) {
         failures.push(`docs/${entry.name}/: one-off archives and evidence do not belong in long-lived docs`);
     }
 }
-for (const documentPath of documents) {
-    const relativePath = path.relative(projectRoot, documentPath);
-    const content = fs.readFileSync(documentPath, 'utf8');
+
+for (const document of docsDocuments) {
+    const relativePath = relative(document.path);
+    const content = readDocument(document);
+    if (content === null) {
+        failures.push(`${relativePath}: documentation file is unreadable (dangling symbolic link?)`);
+        continue;
+    }
     const lines = content.split('\n');
     const firstContentLine = lines.find((line) => line.trim() !== '') ?? '';
 
@@ -66,21 +121,23 @@ for (const documentPath of documents) {
             failures.push(`${relativePath}: missing required metadata (${pattern})`);
         }
     }
-
-    for (const match of content.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-        const resolved = resolveMarkdownLink(documentPath, match[1]);
-        if (!resolved) continue;
-        if (!fs.existsSync(resolved)) {
-            failures.push(`${relativePath}: broken relative link ${match[1]}`);
-        }
-    }
-
     if (forbiddenDatePattern.test(content)) {
         failures.push(`${relativePath}: date-specific snapshots and execution records do not belong in docs`);
     }
     for (const oldPath of oldPaths) {
         if (content.includes(oldPath)) {
             failures.push(`${relativePath}: stale path/reference ${oldPath}`);
+        }
+    }
+}
+
+for (const document of repositoryDocuments) {
+    const content = readDocument(document);
+    if (content === null) continue;
+    for (const match of content.matchAll(markdownLinkPattern)) {
+        const resolved = resolveMarkdownLink(document.path, match[1]);
+        if (resolved && !fs.existsSync(resolved)) {
+            failures.push(`${relative(document.path)}: broken relative link ${match[1]}`);
         }
     }
 }
@@ -103,5 +160,7 @@ if (failures.length) {
     for (const failure of failures) console.error(`- ${failure}`);
     process.exitCode = 1;
 } else {
-    console.log(`Documentation rules passed: ${documents.length} Markdown files use the taxonomy, metadata, and valid internal links`);
+    const otherMarkdownCount = repositoryDocuments.filter((document) => document.path.endsWith('.md')).length - documents.length;
+    const ruleCount = repositoryDocuments.filter((document) => path.basename(document.path) === '.rules').length;
+    console.log(`Documentation rules passed: ${documents.length} Markdown files use the taxonomy, metadata, and valid internal links; repository-wide relative links checked in ${otherMarkdownCount} other Markdown files and ${ruleCount} .rules files`);
 }

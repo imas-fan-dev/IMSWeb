@@ -713,8 +713,7 @@ export function collectWireContractAudit(repositoryRoot) {
   return { diagnostics: [...apiDiagnostics, ...webDiagnostics], jsonEmitters, clientCalls, registeredStaticAssets };
 }
 
-export function formatWireContractAudit(repositoryRoot, { details = false } = {}) {
-  const audit = collectWireContractAudit(repositoryRoot);
+export function formatWireContractAudit(repositoryRoot, { details = false, audit = collectWireContractAudit(repositoryRoot) } = {}) {
   const lines = [
     "JSON wire contract audit (compiler-backed):",
     `  violations: ${audit.diagnostics.length}`,
@@ -736,8 +735,8 @@ function main() {
   const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const details = process.argv.includes("--details");
   try {
-    assertWireContractAudit(repositoryRoot);
-    process.stdout.write(`${formatWireContractAudit(repositoryRoot, { details })}\n`);
+    const audit = assertWireContractAudit(repositoryRoot);
+    process.stdout.write(`${formatWireContractAudit(repositoryRoot, { details, audit })}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

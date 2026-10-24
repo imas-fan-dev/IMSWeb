@@ -177,7 +177,7 @@ export function RegisteredCardReviewPanel() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {item.card.favoriteIdols.map((idol) => (
+                    {item.card.favoriteCharacters.map((idol) => (
                       <Badge key={idol.id} variant="outline">
                         {idol.name}
                       </Badge>
@@ -405,7 +405,7 @@ export function CardClaimReviewPanel() {
                     </p>
                   ) : null}
                   <div className="flex flex-wrap gap-1.5">
-                    {item.favoriteIdols.map((idol) => (
+                    {item.favoriteCharacters.map((idol) => (
                       <Badge key={idol.id} variant="outline">
                         {idol.name}
                       </Badge>

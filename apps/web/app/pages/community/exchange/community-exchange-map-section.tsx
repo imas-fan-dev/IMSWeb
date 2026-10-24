@@ -4,16 +4,15 @@ import {
   MapIcon,
   MapPinOffIcon,
   RefreshCwIcon,
-  SearchIcon,
   XIcon,
 } from "lucide-react"
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type ComponentType,
 } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -30,36 +29,56 @@ import {
 import {
   getFudabaMapConfig,
   getFudabaMapOffices,
+  sendWithAbort,
   type FudabaMapBounds,
   type FudabaMapOffice,
   type FudabaSeries,
-  type FudabaPlaceSearchResult,
+  type FudabaMapConfig,
+  type FudabaOffice,
 } from "~/lib/api"
 import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import {
   groupMapOffices,
   mergeMapOfficeResponses,
+  reconcileMapOffices,
   type FudabaMapOfficeGroup,
 } from "./exchange-map-model"
 import type { ExchangeMapAttribution } from "./exchange-map-attribution"
-import type { ExchangeOfficeMapProps } from "./exchange-office-map"
+import { mapFailureDescription } from "~/lib/maps/map-errors"
+import {
+  loadExchangeMapRenderer,
+  type ExchangeMapRenderer,
+} from "./exchange-map-renderer"
 import { NavigationLink } from "~/components/navigation/navigation-link"
-import { ExchangePlaceSearch } from "./exchange-place-search"
-import { useExchangePlaceSearch } from "./hooks/use-exchange-place-search"
+import {
+  useMapWorkspaceSearch,
+  type WorkspaceSearchResult,
+} from "./hooks/use-map-workspace-search"
+import { loadExchangeMapSearch } from "./exchange-map-search"
+import {
+  MapSearchError,
+  type MapPlaceSearcher,
+  type MapSearchPlace,
+} from "~/lib/maps/map-search"
 import {
   ExchangeSearchCard,
   type ExchangeSearchCardTools,
 } from "./components/exchange-search-card"
 import type { NativeGlassFrame } from "~/lib/native-glass-panel"
+import { ExchangeWebMapWorkspace } from "./components/exchange-web-map-workspace"
+import { ExchangeMapPointPopup } from "./components/exchange-map-point-popup"
+import { ExchangeWebMapOffices } from "./components/exchange-web-map-offices"
+import type { ExchangeDiscoveryRailProps } from "./components/exchange-discovery-rail"
+import "./exchange-web-map.css"
 
-type MapComponent = ComponentType<ExchangeOfficeMapProps>
 type ConfigState =
-  | { phase: "loading"; styleUrl: null; error: null }
-  | { phase: "ready"; styleUrl: string; error: null }
-  | { phase: "error"; styleUrl: null; error: string }
+  | { phase: "loading"; error: null }
+  | { phase: "ready"; value: FudabaMapConfig; error: null }
+  | { phase: "error"; error: Error }
 
 interface MapDataState {
+  hasResult: boolean
   phase: "idle" | "loading" | "ready" | "error"
   items: FudabaMapOffice[]
   truncated: boolean
@@ -68,11 +87,13 @@ interface MapDataState {
 
 const initialConfigState: ConfigState = {
   phase: "loading",
-  styleUrl: null,
   error: null,
 }
 
+const EMPTY_SERIES_CATALOG: readonly FudabaSeries[] = []
+
 const initialDataState: MapDataState = {
+  hasResult: false,
   phase: "idle",
   items: [],
   truncated: false,
@@ -147,20 +168,12 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
   )
 }
 
-function mapUnavailableDescription(message: string) {
-  const normalized = message.trim().toLowerCase()
-  if (normalized === "not found" || normalized === "map disabled") {
-    return "区域地图尚未启用，公开事务所和名片仍可在名录中查看。"
-  }
-  return "地图服务暂时无法连接，公开事务所和名片仍可在名录中查看。"
-}
-
 function MapUnavailable({
   message,
   onRetry,
   onSwitchDirectory,
 }: {
-  message: string
+  message: Error
   onRetry: () => void
   onSwitchDirectory: () => void
 }) {
@@ -183,7 +196,7 @@ function MapUnavailable({
               地图暂时不可用
             </EmptyTitle>
             <EmptyDescription className="mt-1.5 text-left text-sm/6 text-slate-600">
-              {mapUnavailableDescription(message)}
+              {mapFailureDescription(message)}
             </EmptyDescription>
           </div>
         </div>
@@ -216,11 +229,13 @@ function MapUnavailable({
 export function CommunityExchangeMapSection({
   city,
   series,
-  seriesCatalog = [],
+  seriesCatalog = EMPTY_SERIES_CATALOG,
   open,
   onSwitchDirectory,
   onAttributionChange,
+  onSearchAttributionChange,
   searchTools,
+  webDiscovery,
 }: {
   city?: string
   series?: readonly string[]
@@ -228,24 +243,133 @@ export function CommunityExchangeMapSection({
   open?: boolean
   onSwitchDirectory: () => void
   onAttributionChange?: (value: ExchangeMapAttribution | null) => void
+  onSearchAttributionChange?: (value: string[]) => void
   searchTools?: ExchangeSearchCardTools
+  webDiscovery?: ExchangeDiscoveryRailProps
 }) {
   const [config, setConfig] = useState<ConfigState>(initialConfigState)
-  const [MapComponent, setMapComponent] = useState<MapComponent | null>(null)
-  const [moduleError, setModuleError] = useState<string | null>(null)
-  const [moduleAttempt, setModuleAttempt] = useState(0)
+  const [MapComponent, setMapComponent] = useState<ExchangeMapRenderer | null>(
+    null
+  )
+  const [moduleError, setModuleError] = useState<Error | null>(null)
   const [data, setData] = useState<MapDataState>(initialDataState)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
+  const mapSurface = useRef<HTMLElement>(null)
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string | null>(null)
+  const [groupFocus, setGroupFocus] = useState<{
+    key: string
+    sequence: number
+  } | null>(null)
+  const groupFocusSequence = useRef(0)
+  const clearOfficeSelection = useCallback(() => {
+    setSelectedGroupKey(null)
+    setSelectedOfficeId(null)
+    setGroupFocus(null)
+  }, [])
+  const selectedOffice =
+    webDiscovery?.offices.find((office) => office.id === selectedOfficeId) ??
+    data.items.find((office) => office.id === selectedOfficeId)
+  const [officeListOpen, setOfficeListOpen] = useState(false)
+  const webWorkspace = !IS_APP_TARGET && Boolean(webDiscovery && searchTools)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [selectedPlace, setSelectedPlace] =
-    useState<FudabaPlaceSearchResult | null>(null)
-  const searchTriggerRef = useRef<HTMLButtonElement>(null)
+  const [searchExpanded, setSearchExpanded] = useState(false)
+  const [selectedPlace, setSelectedPlace] = useState<MapSearchPlace | null>(
+    null
+  )
+  const initialLocation = useRef({
+    claimed: false,
+    controller: new AbortController(),
+  })
+  const claimInitialLocation = useCallback(() => {
+    const attempt = initialLocation.current
+    if (attempt.claimed || attempt.controller.signal.aborted) return null
+    attempt.claimed = true
+    return attempt.controller.signal
+  }, [])
+  useLayoutEffect(() => {
+    if (selectedPlace) initialLocation.current.controller.abort()
+  }, [selectedPlace])
   const configGeneration = useRef(0)
   const dataGeneration = useRef(0)
+  const boundsRequest = useRef<{
+    key: string
+    controller: AbortController
+  } | null>(null)
+  const viewportTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
   const lastBoundsRef = useRef<FudabaMapBounds[] | null>(null)
   const isNarrow = useNarrowMapLayout()
-  const searchModel = useExchangePlaceSearch()
+  const [searchPlaces, setSearchPlaces] = useState<MapPlaceSearcher | null>(
+    null
+  )
+  const workspaceSearch = useMapWorkspaceSearch(searchPlaces)
+  const searchModel = workspaceSearch.model
+  function selectSearchResult(result: WorkspaceSearchResult) {
+    if ("office" in result) {
+      const location = result.office.location
+      if (!location) return
+      initialLocation.current.controller.abort()
+      setSelectedPlace({
+        id: result.id,
+        label: result.label,
+        address: result.address,
+        zoom: 10,
+        target: {
+          kind: "wgs84",
+          position: [location.longitude, location.latitude],
+        },
+      })
+      setSelectedAttribution("")
+      clearOfficeSelection()
+      setMobileSheetOpen(false)
+      return
+    }
+    setSelectedPlace(result)
+    setSelectedAttribution(result.attribution ?? searchModel.attribution)
+    clearOfficeSelection()
+    setMobileSheetOpen(false)
+  }
+  const searchViewport = useRef<
+    import("~/lib/maps/map-engine").MapPosition | undefined
+  >(undefined)
+  const devicePosition = useRef<
+    | {
+        position: import("~/lib/maps/map-engine").MapPosition
+        obtainedAt: number
+      }
+    | undefined
+  >(undefined)
+  const reportSearchViewport = useCallback(
+    (position: import("~/lib/maps/map-engine").MapPosition) => {
+      searchViewport.current = [...position]
+    },
+    []
+  )
+  const reportDevicePosition = useCallback(
+    (position: import("~/lib/maps/map-engine").MapPosition) => {
+      devicePosition.current = {
+        position: [...position],
+        obtainedAt: Date.now(),
+      }
+    },
+    []
+  )
+  const [selectedAttribution, setSelectedAttribution] = useState("")
+  useEffect(() => {
+    if (!IS_APP_TARGET) return
+    onSearchAttributionChange?.(
+      [...new Set([searchModel.attribution, selectedAttribution])].filter(
+        Boolean
+      )
+    )
+  }, [searchModel.attribution, selectedAttribution, onSearchAttributionChange])
+  useEffect(
+    () => () => {
+      if (IS_APP_TARGET) onSearchAttributionChange?.([])
+    },
+    [onSearchAttributionChange]
+  )
   const [occlusion, setOcclusion] = useState<NativeGlassFrame | null>(null)
   const updateOcclusion = useCallback((frame: NativeGlassFrame | null) => {
     setOcclusion((current) =>
@@ -263,16 +387,18 @@ export function CommunityExchangeMapSection({
     setConfig(initialConfigState)
     setModuleError(null)
     setMapComponent(null)
+    setSearchPlaces(null)
+    setSelectedPlace(null)
+    setSelectedAttribution("")
     try {
       const result = await getFudabaMapConfig().send()
       if (configGeneration.current !== generation) return
-      setConfig({ phase: "ready", styleUrl: result.styleUrl, error: null })
+      setConfig({ phase: "ready", value: result, error: null })
     } catch (error) {
       if (configGeneration.current !== generation) return
       setConfig({
         phase: "error",
-        styleUrl: null,
-        error: errorMessage(error, "地图配置无法加载"),
+        error: error instanceof Error ? error : new Error("地图配置无法加载"),
       })
     }
   }, [])
@@ -288,20 +414,56 @@ export function CommunityExchangeMapSection({
     if (config.phase !== "ready") return
     let active = true
     setModuleError(null)
-    void import("./exchange-office-map")
-      .then((module) => {
-        if (active) setMapComponent(() => module.ExchangeOfficeMap)
-      })
-      .catch((error) => {
-        if (active) setModuleError(errorMessage(error, "地图模块无法加载"))
-      })
+    const pendingSearch = loadExchangeMapSearch(config.value.search).catch(
+      () => {
+        const unavailable: MapPlaceSearcher = async () => {
+          throw new MapSearchError("failed")
+        }
+        return unavailable
+      }
+    )
+    const searcher: MapPlaceSearcher = async (query, signal) => {
+      const viewportCenter = searchViewport.current
+        ? ([...searchViewport.current] as [number, number])
+        : undefined
+      const fix = devicePosition.current
+      const origin =
+        fix && Date.now() - fix.obtainedAt <= 60_000
+          ? ([...fix.position] as [number, number])
+          : undefined
+      const search = await pendingSearch
+      signal.throwIfAborted()
+      return search(query, signal, { viewportCenter, devicePosition: origin })
+    }
+    const load = loadExchangeMapRenderer(config.value).then((Renderer) => {
+      if (!active) return
+      setMapComponent(() => Renderer)
+      setSearchPlaces(() => searcher)
+    })
+    void load.catch((error) => {
+      if (active)
+        setModuleError(
+          error instanceof Error ? error : new Error("地图模块无法加载")
+        )
+    })
     return () => {
       active = false
     }
-  }, [config.phase, moduleAttempt])
+  }, [config])
 
   const loadBounds = useCallback(
-    async (bounds: FudabaMapBounds[]) => {
+    async (bounds: FudabaMapBounds[], force = false) => {
+      if (!bounds.length) return
+      const key = JSON.stringify([
+        bounds,
+        city ?? null,
+        [...(series ?? [])].sort((a, b) => a.localeCompare(b)),
+        open ?? null,
+      ])
+      if (!force && boundsRequest.current?.key === key) return
+      boundsRequest.current?.controller.abort()
+      const controller = new AbortController()
+      boundsRequest.current = { key, controller }
       const generation = ++dataGeneration.current
       lastBoundsRef.current = bounds
       setData((current) => ({
@@ -312,25 +474,31 @@ export function CommunityExchangeMapSection({
       try {
         const responses = await Promise.all(
           bounds.map((bbox) =>
-            getFudabaMapOffices({
-              bbox,
-              city,
-              series,
-              open,
-              limit: 200,
-            }).send()
+            sendWithAbort(
+              getFudabaMapOffices({
+                bbox,
+                city,
+                series,
+                open,
+                limit: 200,
+              }),
+              controller.signal
+            )
           )
         )
-        if (dataGeneration.current !== generation) return
+        if (controller.signal.aborted || dataGeneration.current !== generation)
+          return
         const merged = mergeMapOfficeResponses(responses)
-        setData({
+        setData((current) => ({
           phase: "ready",
-          items: merged.items,
+          hasResult: true,
+          items: reconcileMapOffices(current.items, merged.items),
           truncated: merged.truncated,
           error: null,
-        })
+        }))
       } catch (error) {
-        if (dataGeneration.current !== generation) return
+        if (controller.signal.aborted || dataGeneration.current !== generation)
+          return
         setData((current) => ({
           ...current,
           phase: "error",
@@ -341,20 +509,50 @@ export function CommunityExchangeMapSection({
     [city, open, series]
   )
 
+  const queueBounds = useCallback(
+    (bounds: FudabaMapBounds[]) => {
+      lastBoundsRef.current = bounds
+      clearTimeout(viewportTimer.current)
+      viewportTimer.current = setTimeout(() => {
+        void loadBounds(bounds)
+      }, 180)
+    },
+    [loadBounds]
+  )
+
   useEffect(() => {
     const bounds = lastBoundsRef.current
     if (bounds) void loadBounds(bounds)
     return () => {
+      clearTimeout(viewportTimer.current)
+      boundsRequest.current?.controller.abort()
+      boundsRequest.current = null
       dataGeneration.current += 1
     }
   }, [loadBounds])
 
+  const seriesColorKey = JSON.stringify(
+    seriesCatalog
+      .map(({ code, color }) => ({ code, color: color.toLowerCase() }))
+      .sort((a, b) => a.code.localeCompare(b.code))
+  )
+  const [groupCatalog, setGroupCatalog] = useState({
+    key: seriesColorKey,
+    value: seriesCatalog,
+  })
+  if (groupCatalog.key !== seriesColorKey)
+    setGroupCatalog({ key: seriesColorKey, value: seriesCatalog })
+  const stableCatalog =
+    groupCatalog.key === seriesColorKey ? groupCatalog.value : seriesCatalog
   const groups = useMemo(
-    () => groupMapOffices(data.items, seriesCatalog),
-    [data.items, seriesCatalog]
+    () => groupMapOffices(data.items, stableCatalog),
+    [data.items, stableCatalog]
   )
   const selectedGroup =
     groups.find((group) => group.key === selectedGroupKey) ?? null
+  const popupOffice =
+    selectedOffice ??
+    (selectedGroup?.offices.length === 1 ? selectedGroup.offices[0] : undefined)
 
   useEffect(() => {
     if (selectedGroupKey && !selectedGroup) {
@@ -373,29 +571,55 @@ export function CommunityExchangeMapSection({
 
   const selectGroup = useCallback(
     (groupKey: string) => {
+      initialLocation.current.controller.abort()
+      setSelectedOfficeId(null)
+      setGroupFocus(null)
       setSelectedGroupKey(groupKey)
+      if (webWorkspace) setOfficeListOpen(false)
       if (isNarrow) setMobileSheetOpen(true)
     },
-    [isNarrow]
+    [isNarrow, webWorkspace]
   )
 
   const mapFailure =
     config.phase === "error" ? config.error : (moduleError ?? null)
 
+  const clearSearchSelection = useCallback(() => {
+    setSelectedPlace(null)
+    setSelectedAttribution("")
+  }, [])
+
   function retryMap() {
-    if (config.phase === "error") void loadConfig()
-    else setModuleAttempt((attempt) => attempt + 1)
+    void loadConfig()
   }
 
   function handleFatalError(error: Error) {
-    setModuleError(error.message)
+    setModuleError(error)
     setMapComponent(null)
+  }
+
+  function selectDirectoryOffice(office: Pick<FudabaOffice, "id">) {
+    initialLocation.current.controller.abort()
+    setOfficeListOpen(false)
+    setSelectedOfficeId(office.id)
+    const group = groups.find((group) =>
+      group.offices.some((item) => item.id === office.id)
+    )
+    setSelectedGroupKey(group?.key ?? null)
+    setGroupFocus(
+      group ? { key: group.key, sequence: ++groupFocusSequence.current } : null
+    )
   }
 
   return (
     <section
+      ref={mapSurface}
       className="relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]"
       aria-label="区域地图"
+      data-exchange-web-map={IS_APP_TARGET ? undefined : ""}
+      data-exchange-web-workspace={webWorkspace ? "" : undefined}
+      data-office-list-open={webWorkspace && officeListOpen ? "" : undefined}
+      data-map-results-state={data.phase}
     >
       {config.phase === "loading" ||
       (config.phase === "ready" && !MapComponent && !moduleError) ? (
@@ -413,86 +637,25 @@ export function CommunityExchangeMapSection({
 
       {config.phase === "ready" && MapComponent ? (
         <MapComponent
-          styleUrl={config.styleUrl}
           groups={groups}
           selectedGroupKey={selectedGroupKey}
+          groupFocus={webWorkspace ? groupFocus : undefined}
           selectedPlace={selectedPlace}
           occlusion={occlusion}
+          attributionPlacement={webWorkspace ? "corner" : undefined}
+          claimInitialLocation={claimInitialLocation}
+          onDevicePosition={reportDevicePosition}
+          onSearchViewportCenter={reportSearchViewport}
           onSelectGroup={selectGroup}
-          onViewportChange={(bounds) => void loadBounds(bounds)}
+          onViewportChange={queueBounds}
           onFatalError={handleFatalError}
+          onRetry={retryMap}
+          onClearSearchSelection={clearSearchSelection}
           onAttributionChange={onAttributionChange}
         />
       ) : null}
 
-      {config.phase === "ready" &&
-      MapComponent &&
-      !mapFailure &&
-      !IS_APP_TARGET ? (
-        <div
-          className={cn(
-            "absolute left-3 z-10 hidden w-[min(22rem,calc(100%-1.5rem))] lg:block",
-            IS_APP_TARGET
-              ? "top-[calc(var(--app-header-inset)+3.75rem)]"
-              : "top-29 sm:top-31 lg:top-15"
-          )}
-        >
-          <Button
-            ref={searchTriggerRef}
-            data-exchange-desktop-search
-            type="button"
-            variant="outline"
-            className="bg-background/95 shadow-sm"
-            aria-expanded={searchOpen}
-            aria-controls={searchOpen ? "exchange-map-place-search" : undefined}
-            onClick={() => setSearchOpen((value) => !value)}
-          >
-            <SearchIcon aria-hidden="true" />
-            查找地点
-          </Button>
-          {searchOpen ? (
-            <div
-              id="exchange-map-place-search"
-              className="mt-2 max-h-[min(28rem,55dvh)] overflow-y-auto rounded-lg border bg-background/97 p-3 shadow-md backdrop-blur-sm"
-            >
-              <ExchangePlaceSearch
-                model={searchModel}
-                onSelect={(place) => {
-                  setSelectedPlace(place)
-                  setSelectedGroupKey(null)
-                  setMobileSheetOpen(false)
-                  setSearchOpen(false)
-                  searchTriggerRef.current?.focus()
-                }}
-              />
-            </div>
-          ) : null}
-          {selectedPlace && !searchOpen ? (
-            <div
-              role="status"
-              className="mt-2 flex items-start gap-2 rounded-lg border bg-background/95 p-2 text-sm shadow-sm"
-            >
-              <span className="min-w-0 flex-1 wrap-break-word">
-                已定位：{selectedPlace.label}
-                <span className="block text-xs text-muted-foreground">
-                  © OpenStreetMap contributors
-                </span>
-              </span>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label="清除搜索地点"
-                onClick={() => setSelectedPlace(null)}
-              >
-                <XIcon aria-hidden="true" />
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {mapFailure ? (
+      {mapFailure && !searchExpanded ? (
         <MapUnavailable
           message={mapFailure}
           onRetry={retryMap}
@@ -501,21 +664,26 @@ export function CommunityExchangeMapSection({
       ) : null}
 
       {!mapFailure &&
+      !webWorkspace &&
+      !searchExpanded &&
       data.phase !== "error" &&
-      (data.phase !== "ready" || !groups.length || data.truncated) ? (
+      ((!data.hasResult && data.phase !== "ready") ||
+        !groups.length ||
+        data.truncated) ? (
         <div
           className={cn(
             "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
             IS_APP_TARGET && "exchange-map-app-surface",
             IS_APP_TARGET
               ? "top-[calc(var(--app-header-inset)+0.75rem)]"
-              : "top-3"
+              : "top-3 lg:top-20 lg:left-4 lg:max-w-72 xl:max-w-80",
+            !IS_APP_TARGET && selectedPlace && "lg:hidden"
           )}
           data-map-point-count
           aria-live="polite"
         >
           <span className="inline-flex items-center gap-1.5">
-            {data.phase === "loading" ? (
+            {data.phase === "loading" && !data.hasResult ? (
               <LoaderCircleIcon
                 className="size-3.5 animate-spin motion-reduce:animate-none"
                 aria-hidden="true"
@@ -525,7 +693,7 @@ export function CommunityExchangeMapSection({
             )}
             {data.phase === "idle"
               ? "等待地图范围"
-              : data.phase === "loading"
+              : data.phase === "loading" && !data.hasResult
                 ? "正在更新地图结果"
                 : groups.length
                   ? `${groups.length} 个区域点`
@@ -539,10 +707,56 @@ export function CommunityExchangeMapSection({
         </div>
       ) : null}
 
-      {data.phase === "error" && !mapFailure ? (
+      {webWorkspace ? (
+        <ExchangeWebMapOffices
+          open={officeListOpen}
+          onOpenChange={setOfficeListOpen}
+          items={data.items}
+          series={seriesCatalog}
+          hasResult={data.hasResult}
+          truncated={data.truncated}
+          error={data.phase === "error" ? data.error : null}
+          onSelect={selectDirectoryOffice}
+          onOpenDirectory={onSwitchDirectory}
+          onRetry={() => {
+            if (lastBoundsRef.current)
+              void loadBounds(lastBoundsRef.current, true)
+          }}
+        />
+      ) : null}
+
+      {webWorkspace && searchTools ? (
+        <Button
+          type="button"
+          size="icon-lg"
+          variant="secondary"
+          className="exchange-web-refresh"
+          aria-label="刷新地图结果"
+          disabled={searchTools.refreshing}
+          onClick={() => {
+            if (lastBoundsRef.current)
+              void loadBounds(lastBoundsRef.current, true)
+            searchTools.onRefresh()
+          }}
+        >
+          <RefreshCwIcon
+            className={cn(
+              searchTools.refreshing &&
+                "animate-spin motion-reduce:animate-none"
+            )}
+            aria-hidden="true"
+          />
+        </Button>
+      ) : null}
+
+      {data.phase === "error" &&
+      !mapFailure &&
+      !searchExpanded &&
+      !(webWorkspace && officeListOpen) ? (
         <Alert
           className={cn(
             "absolute inset-x-3 z-10 bg-background/95 shadow-sm sm:left-auto sm:w-96",
+            webWorkspace && "exchange-web-map-warning",
             IS_APP_TARGET
               ? APP_FLOATING_CONTROL_OFFSET
               : "bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
@@ -560,7 +774,7 @@ export function CommunityExchangeMapSection({
               variant="outline"
               onClick={() => {
                 const bounds = lastBoundsRef.current
-                if (bounds) void loadBounds(bounds)
+                if (bounds) void loadBounds(bounds, true)
               }}
             >
               重试
@@ -572,13 +786,13 @@ export function CommunityExchangeMapSection({
         </Alert>
       ) : null}
 
-      {selectedGroup ? (
+      {selectedGroup && !webWorkspace ? (
         <aside
           className={cn(
             "absolute top-3 right-3 z-10 hidden w-80 overflow-y-auto rounded-lg border bg-background/97 p-4 shadow-md backdrop-blur-sm lg:block",
             IS_APP_TARGET
               ? "max-h-[calc(var(--app-content-height)-1.5rem)]"
-              : "max-h-[calc(100%-1.5rem)]"
+              : "top-4 right-4 max-h-[calc(100%-2rem)]"
           )}
         >
           <Button
@@ -597,29 +811,42 @@ export function CommunityExchangeMapSection({
         </aside>
       ) : null}
 
-      {searchTools ? (
+      {searchTools && !webWorkspace ? (
         <ExchangeSearchCard
+          tabs={workspaceSearch.tabs}
           {...searchTools}
+          onExpandedChange={setSearchExpanded}
           modalOpen={
             searchTools.modalOpen || (mobileSheetOpen && Boolean(selectedGroup))
           }
-          model={searchModel}
-          selectedPlace={selectedPlace}
-          onSelect={(place) => {
-            setSelectedPlace(place)
-            setSelectedGroupKey(null)
-            setMobileSheetOpen(false)
+          model={{
+            ...searchModel,
+            attribution: searchModel.attribution || selectedAttribution,
           }}
-          onClear={() => setSelectedPlace(null)}
+          selectedPlace={selectedPlace}
+          onSelect={selectSearchResult}
+          onClear={() => {
+            setSelectedPlace(null)
+            setSelectedAttribution("")
+          }}
           pointCount={groups.length}
+          feedbackKind={
+            mapFailure || data.phase === "error"
+              ? "error"
+              : data.truncated
+                ? "notice"
+                : data.phase === "loading" && !data.hasResult
+                  ? "loading"
+                  : "empty"
+          }
           feedbackMessage={
             mapFailure
-              ? mapUnavailableDescription(mapFailure)
+              ? mapFailureDescription(mapFailure)
               : data.phase === "error"
                 ? `地图数据更新失败：${data.error}。已保留上次成功结果。`
                 : data.truncated
                   ? "当前范围结果较多，请放大地图或收窄筛选。"
-                  : data.phase === "loading"
+                  : data.phase === "loading" && !data.hasResult
                     ? "正在更新地图结果"
                     : data.phase === "ready" && !groups.length
                       ? "当前范围内没有公开事务所"
@@ -631,7 +858,7 @@ export function CommunityExchangeMapSection({
               : data.phase === "error"
                 ? () => {
                     if (lastBoundsRef.current)
-                      void loadBounds(lastBoundsRef.current)
+                      void loadBounds(lastBoundsRef.current, true)
                   }
                 : undefined
           }
@@ -639,8 +866,78 @@ export function CommunityExchangeMapSection({
         />
       ) : null}
 
+      {webWorkspace && webDiscovery && searchTools ? (
+        <>
+          <ExchangeWebMapWorkspace
+            tabs={workspaceSearch.tabs}
+            covered={isNarrow && officeListOpen}
+            onActivate={() => {
+              if (isNarrow) setOfficeListOpen(false)
+              clearOfficeSelection()
+            }}
+            model={searchModel}
+            searchOwner={workspaceSearch.owner}
+            available={
+              workspaceSearch.available &&
+              (workspaceSearch.tabs.active === "offices" || !mapFailure)
+            }
+            automatic={
+              workspaceSearch.tabs.active === "offices" ||
+              (config.phase === "ready" &&
+                config.value.search.provider !== "nominatim")
+            }
+            tools={searchTools}
+            selectionKey={selectedGroupKey}
+            selectedPlace={selectedPlace}
+            selectedAttribution={selectedAttribution}
+            onSelect={selectSearchResult}
+            onClear={clearSearchSelection}
+            onOcclusion={updateOcclusion}
+          />
+          <ExchangeMapPointPopup
+            map={mapSurface}
+            groupKey={selectedGroup?.key ?? null}
+            focusRequest={groupFocus?.sequence}
+            covered={Boolean(searchTools.modalOpen) || officeListOpen}
+            onClose={clearOfficeSelection}
+          >
+            {popupOffice ? (
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="min-w-0 text-base/7 font-semibold wrap-break-word">
+                    {popupOffice.name}
+                  </h3>
+                  <OfficeStatus open={popupOffice.isOpen} />
+                </div>
+                <p className="text-sm/6 wrap-break-word text-muted-foreground">
+                  {popupOffice.address}
+                </p>
+                {"intro" in popupOffice && popupOffice.intro ? (
+                  <p className="text-sm/6 wrap-break-word">
+                    {popupOffice.intro}
+                  </p>
+                ) : null}
+                <NavigationLink
+                  to={`/community/exchange/offices/${encodeURIComponent(popupOffice.slug)}`}
+                  className={cn(
+                    buttonVariants({ variant: "default" }),
+                    "w-full"
+                  )}
+                >
+                  查看事务所
+                </NavigationLink>
+              </div>
+            ) : selectedGroup ? (
+              <OfficeGroupDetails group={selectedGroup} />
+            ) : null}
+          </ExchangeMapPointPopup>
+        </>
+      ) : null}
+
       <Sheet
-        open={isNarrow && mobileSheetOpen && Boolean(selectedGroup)}
+        open={
+          !webWorkspace && isNarrow && mobileSheetOpen && Boolean(selectedGroup)
+        }
         onOpenChange={setMobileSheetOpen}
       >
         <SheetContent

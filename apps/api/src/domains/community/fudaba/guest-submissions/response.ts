@@ -8,7 +8,7 @@ import type {
     FudabaGuestSubmissionRateLimit,
 } from '@imsweb/contracts/fudaba/guest-submissions';
 import type {
-    CardIdolSelectionRecord,
+    CardFavoriteSelectionRecord,
     NamecardSubmissionRecord,
 } from '@/ports/repositories';
 
@@ -20,16 +20,16 @@ export type GuestSubmissionMessageResponse = FudabaGuestSubmissionMessage;
 export type GuestSubmissionRateLimitResponse = FudabaGuestSubmissionRateLimit;
 export type GuestSubmissionErrorResponse = FudabaGuestSubmissionError;
 
-function favoriteIdols(row: NamecardSubmissionRecord): Array<{
+function favoriteCharacters(row: NamecardSubmissionRecord): Array<{
     id: number;
     name: string;
     seriesCode: string;
 }> {
-    return (row.favorite_idols ?? row.favoriteIdols ?? []).map(
-        (idol: CardIdolSelectionRecord) => ({
-            id: idol.idol_id,
-            name: idol.name_cn,
-            seriesCode: idol.agency_code,
+    return (row.favorite_characters ?? row.favoriteCharacters ?? []).map(
+        (character: CardFavoriteSelectionRecord) => ({
+            id: character.character_id,
+            name: character.name_cn,
+            seriesCode: character.agency_code,
         }),
     );
 }
@@ -45,7 +45,7 @@ export function toFudabaGuestSubmissionResponse(
     return {
         id: row.id,
         seriesCode: row.series_code ?? row.seriesCode ?? null,
-        favoriteIdols: favoriteIdols(row),
+        favoriteCharacters: favoriteCharacters(row),
         frontImageUrl: row.image1_url,
         backImageUrl: row.image2_url,
         publicationStatus: row.status === 'approved' ? 'published' : row.status,

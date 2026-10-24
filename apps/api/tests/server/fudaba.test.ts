@@ -33,11 +33,12 @@ import type { CacheStore, RateLimiter } from '@/ports/cache';
 import type { ParsedUpload, UploadedFile, UploadParser } from '@/ports/http';
 import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
-import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
+import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { FUDABA_MAP_DELIVERY_OBJECT_KEY, namecardOriginalUrlFromObjectKey } from '@/utils/storage/business-object-keys';
 import { fudabaCardDeleteResponseSchema, fudabaCardInteractionResponseSchema, fudabaCardMutationResponseSchema, fudabaCardPageSchema, fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema, fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOfficeDetailSchema, fudabaOfficeMutationResponseSchema, fudabaOfficePageSchema, fudabaOwnerCardDetailSchema, fudabaOwnerCardListSchema, fudabaOwnerLocationDetailSchema, fudabaOwnerLocationMutationResponseSchema, fudabaOwnerLocationWithdrawalResponseSchema, fudabaOwnerOfficeListSchema, fudabaPlaceSearchResponseSchema, fudabaSeriesListSchema } from '@imsweb/contracts/fudaba';
 import { fudabaCardClaimErrorSchema, ownerClaimListSchema, reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
+import { namecardCharacterCatalogSchema } from '@imsweb/contracts/fudaba/characters';
 import { fudabaLocationReviewErrorSchema, fudabaLocationReviewListSchema, fudabaLocationReviewMutationSchema } from '@imsweb/contracts/fudaba/location-review';
 import { fudabaMapDeliveryErrorSchema, fudabaMapDeliveryMutationSchema, fudabaMapDeliverySnapshotSchema } from '@imsweb/contracts/fudaba/map-delivery';
 import { Hono } from 'hono';
@@ -241,12 +242,12 @@ import { describe, onTestFinished, test } from 'vitest';
 
 // fudaba-card-claim-contract.test.ts
 {
-    function registeredFields(favoriteIdolIds: string) {
+    function registeredFields(favoriteCharacterIds: string) {
         return {
             producerName: 'Producer',
             displayName: 'My card',
             seriesCode: '765',
-            favoriteIdolIds,
+            favoriteCharacterIds,
             accent: '#dc2626',
             bio: '',
             tradeNote: '',
@@ -255,82 +256,82 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     test.describe('Fudaba card claims', () => {
-        test('registered card fields accept ordered multi-idol JSON and reject invalid sets', () => {
+        test('registered card fields accept ordered multi-character JSON and reject invalid sets', () => {
             assert.deepEqual(
-                parseFudabaCardCreateFields(registeredFields('[3,1,2]')).favoriteIdolIds,
+                parseFudabaCardCreateFields(registeredFields('[3,1,2]')).favoriteCharacterIds,
                 [3, 1, 2]
             );
-            for (const favoriteIdolIds of ['[]', '[1,1]', '[0]', 'not-json']) {
+            for (const favoriteCharacterIds of ['[]', '[1,1]', '[0]', 'not-json']) {
                 assert.throws(
-                    () => parseFudabaCardCreateFields(registeredFields(favoriteIdolIds)),
-                    /favoriteIdolIds/
+                    () => parseFudabaCardCreateFields(registeredFields(favoriteCharacterIds)),
+                    /favoriteCharacterIds/
                 );
             }
             assert.throws(
                 () => parseFudabaCardCreateFields({
                     ...registeredFields('[1]'),
-                    favoriteIdol: 'legacy scalar'
+                    favoriteCharacter: 'legacy scalar'
                 }),
                 /未知字段/
             );
         });
 
-        test('legacy card claims accept cross-series selections and enforce 0..20 unique idols', () => {
+        test('legacy card claims accept cross-series selections and enforce 0..20 unique characters', () => {
             assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
                 seriesCode: '765',
-                favoriteIdolIds: [900_001, 900_002],
+                favoriteCharacterIds: [900_001, 900_002],
                 message: 'same producer'
             }), {
                 targetCardId: null,
                 seriesCode: '765',
-                favoriteIdolIds: [900_001, 900_002],
+                favoriteCharacterIds: [900_001, 900_002],
                 message: 'same producer'
             });
-            // 企划 and 担当偶像 are optional: an absent series and an empty idol
+            // 企划 and 担当角色 are optional: an absent series and an empty character
             // list reach the repository, which then derives the series itself.
             assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             }), {
                 targetCardId: null,
                 seriesCode: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             });
             assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
                 seriesCode: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             }), {
                 targetCardId: null,
                 seriesCode: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             });
-            for (const favoriteIdolIds of [
+            for (const favoriteCharacterIds of [
                 [1, 1],
                 [0],
-                Array.from({ length: 21 }, (_, index) => index + 1)
+                Array.from({ length: 201 }, (_, index) => index + 1)
             ]) {
                 assert.throws(() => parseLegacyCardClaim({
                     targetCardId: null,
                     seriesCode: '765',
-                    favoriteIdolIds,
+                    favoriteCharacterIds,
                     message: ''
-                }), /favoriteIdolIds/);
+                }), /favoriteCharacterIds/);
             }
             assert.throws(() => parseLegacyCardClaim({
                 targetCardId: null,
                 seriesCode: 'Not A Series',
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             }), /seriesCode/);
         });
 
-        test('namecard and claim views expose structured idol and claim metadata', () => {
+        test('namecard and claim views expose structured character and claim metadata', () => {
             const publicCard = toPublicNamecardResponse({
                 id: 7,
                 image1_url: '/uploads/namecard/original/front.webp',
@@ -338,8 +339,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 status: 'approved',
                 created_at: '2026-08-16T19:30:00.000Z',
                 series_code: '765',
-                favorite_idols: [{
-                    idol_id: 900_001,
+                favorite_characters: [{
+                    character_id: 900_001,
                     agency_code: '765',
                     name_cn: '测试春香',
                     display_order: 0
@@ -349,7 +350,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimer_name: null
             });
             assert.equal(publicCard.seriesCode, '765');
-            assert.deepEqual(publicCard.favoriteIdols, [{
+            assert.deepEqual(publicCard.favoriteCharacters, [{
                 id: 900_001,
                 name: '测试春香',
                 seriesCode: '765'
@@ -366,7 +367,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 created_at: null
             });
             assert.equal(historicalCard.seriesCode, null);
-            assert.deepEqual(historicalCard.favoriteIdols, []);
+            assert.deepEqual(historicalCard.favoriteCharacters, []);
             assert.equal(historicalCard.claimStatus, 'unclaimed');
             assert.equal(historicalCard.claimerName, null);
 
@@ -395,14 +396,14 @@ import { describe, onTestFinished, test } from 'vitest';
                 revision: 0,
                 created_at: '2026-08-16T19:30:00.000Z',
                 updated_at: '2026-08-16T19:30:00.000Z',
-                favorite_idols: [{
-                    idol_id: 900_001,
+                favorite_characters: [{
+                    character_id: 900_001,
                     agency_code: '765',
                     name_cn: '测试春香',
                     display_order: 0
                 }]
             };
-            assert.deepEqual(fudabaCardClaimView(claim).favoriteIdols, [{
+            assert.deepEqual(fudabaCardClaimView(claim).favoriteCharacters, [{
                 id: 900_001,
                 name: '测试春香',
                 seriesCode: '765'
@@ -475,8 +476,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producer_name: 'Producer A',
             display_name: 'Card A',
             series_code: '765',
-            favorite_idol: 'Haruka',
-            favorite_idols: [],
+            favorite_character: 'Haruka',
+            favorite_characters: [],
             front_object_key: 'public/cards/card-a/front.webp',
             back_object_key: 'public/cards/card-a/back.webp',
             accent: '#4f64dd',
@@ -900,8 +901,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode: '765',
-            favoriteIdol: 'Haruka',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: 'Haruka',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -1906,9 +1907,9 @@ import { describe, onTestFinished, test } from 'vitest';
 {
     const CREATED_AT = '2026-08-16T19:30:00.000Z';
 
-    function idol() {
+    function character() {
         return {
-            idol_id: 1,
+            character_id: 1,
             agency_code: '765',
             name_cn: '天海春香',
             display_order: 0
@@ -1922,8 +1923,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producer_name: 'Owner',
             display_name: 'Registered card',
             series_code: '765',
-            favorite_idol: '天海春香',
-            favorite_idols: [idol()],
+            favorite_character: '天海春香',
+            favorite_characters: [character()],
             legacy_card_id: null,
             origin: 'exchange',
             front_object_key: 'community/fudaba/cards/registered-review/front.webp',
@@ -1960,7 +1961,7 @@ import { describe, onTestFinished, test } from 'vitest';
             revision: 1,
             created_at: CREATED_AT,
             updated_at: CREATED_AT,
-            favorite_idols: [idol()]
+            favorite_characters: [character()]
         };
     }
 
@@ -2455,8 +2456,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode: '765',
-            favoriteIdol: 'ignored compatibility input',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: 'ignored compatibility input',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -2483,8 +2484,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: card.producerName,
             displayName: card.displayName,
             seriesCode: card.seriesCode,
-            favoriteIdol: card.favoriteIdol,
-            favoriteIdolIds: card.favoriteIdolIds,
+            favoriteCharacter: card.favoriteCharacter,
+            favoriteCharacterIds: card.favoriteCharacterIds,
             frontObjectKey: card.frontObjectKey,
             backObjectKey: card.backObjectKey,
             accent: card.accent,
@@ -2545,7 +2546,7 @@ import { describe, onTestFinished, test } from 'vitest';
         await database.prepare(
             `INSERT INTO fudaba_cards
             (id, card_number, origin, producer_name, display_name,
-             series_code, favorite_idol, accent, bio, trade_note,
+             series_code, favorite_character, accent, bio, trade_note,
              front_object_key, back_object_key, available,
              media_rights_status, publication_status, revision,
              created_at, updated_at)
@@ -2649,7 +2650,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 id: 'wrong-recipient-claim',
                 targetCardId: matchingCardId,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT,
@@ -2663,7 +2664,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 id: claimId,
                 targetCardId: matchingCardId,
                 seriesCode: 'cg',
-                idolIds: [900_001, 900_002],
+                characterIds: [900_001, 900_002],
                 message: '这是我的旧名片',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT,
@@ -2674,7 +2675,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(confirmed.envelope.action_state, 'confirmed');
             assert.equal(confirmed.envelope.claim_id, claimId);
             assert.deepEqual(
-                confirmed.claim.favorite_idols.map((idol) => idol.idol_id),
+                confirmed.claim.favorite_characters.map((character) => character.character_id),
                 [900_001, 900_002]
             );
             assert.deepEqual(await fudaba.listLegacyNamecardClaimStatuses(
@@ -2696,7 +2697,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 id: claimId,
                 targetCardId: matchingCardId,
                 seriesCode: 'cg',
-                idolIds: [900_001, 900_002],
+                characterIds: [900_001, 900_002],
                 message: '重放',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT,
@@ -2709,7 +2710,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerB,
                 targetCardId: null,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2804,7 +2805,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     claimantAccountId: ownerA,
                     targetCardId: null,
                     seriesCode: '765',
-                    idolIds: [900_001],
+                    characterIds: [900_001],
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
@@ -2815,7 +2816,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     claimantAccountId: ownerB,
                     targetCardId: null,
                     seriesCode: 'cg',
-                    idolIds: [900_002],
+                    characterIds: [900_002],
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
@@ -2826,10 +2827,10 @@ import { describe, onTestFinished, test } from 'vitest';
                 ['conflict', 'created']
             );
 
-            for (const [suffix, idolIds] of [
+            for (const [suffix, characterIds] of [
                 ['d', [900_001, 900_001]],
                 ['m', [999_999]],
-                ['x', Array.from({ length: 21 }, (_, index) => 910_000 + index)]
+                ['x', Array.from({ length: 201 }, (_, index) => 910_000 + index)]
             ] as const) {
                 const invalidLegacyId = await insertLegacyCard(database, suffix);
                 assert.deepEqual(await fudaba.createCardClaimForOwner({
@@ -2838,15 +2839,15 @@ import { describe, onTestFinished, test } from 'vitest';
                     claimantAccountId: ownerA,
                     targetCardId: null,
                     seriesCode: '765',
-                    idolIds: [...idolIds],
+                    characterIds: [...characterIds],
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
                 }), { status: 'unavailable' });
             }
 
-            // 企划 and 担当偶像 are optional on a claim. The server derives the
-            // series from the selected idols' agency, the legacy card's own
+            // 企划 and 担当角色 are optional on a claim. The server derives the
+            // series from the selected characters' agency, the legacy card's own
             // series, or the bound target card, and only asks when none exist.
             const noSeriesLegacyId = await insertLegacyCard(database, 'e');
             assert.deepEqual(await fudaba.createCardClaimForOwner({
@@ -2855,27 +2856,27 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerA,
                 targetCardId: null,
                 seriesCode: null,
-                idolIds: [],
+                characterIds: [],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
             }), { status: 'series-required' });
 
-            const idolDerivedLegacyId = await insertLegacyCard(database, 'i');
-            const idolDerived = await fudaba.createCardClaimForOwner({
-                id: 'idol-derived-series-claim',
-                legacyCardId: idolDerivedLegacyId,
+            const characterDerivedLegacyId = await insertLegacyCard(database, 'i');
+            const characterDerived = await fudaba.createCardClaimForOwner({
+                id: 'character-derived-series-claim',
+                legacyCardId: characterDerivedLegacyId,
                 claimantAccountId: ownerA,
                 targetCardId: null,
                 seriesCode: null,
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
             });
-            assert.equal(idolDerived.status, 'created');
-            if (idolDerived.status !== 'created') return;
-            assert.equal(idolDerived.claim.series_code, '765');
+            assert.equal(characterDerived.status, 'created');
+            if (characterDerived.status !== 'created') return;
+            assert.equal(characterDerived.claim.series_code, '765');
 
             const legacyDerivedLegacyId = await insertLegacyCard(database, 'l');
             await database.prepare(
@@ -2887,7 +2888,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerA,
                 targetCardId: null,
                 seriesCode: null,
-                idolIds: [],
+                characterIds: [],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2895,7 +2896,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(legacyDerived.status, 'created');
             if (legacyDerived.status !== 'created') return;
             assert.equal(legacyDerived.claim.series_code, 'cg');
-            assert.deepEqual(legacyDerived.claim.favorite_idols, []);
+            assert.deepEqual(legacyDerived.claim.favorite_characters, []);
 
             const wrongOwnerLegacyId = await insertLegacyCard(database, 'w');
             assert.deepEqual(await fudaba.createCardClaimForOwner({
@@ -2904,7 +2905,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerB,
                 targetCardId: matchingCardId,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2917,7 +2918,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerB,
                 targetCardId: null,
                 seriesCode: 'cg',
-                idolIds: [900_001, 900_002],
+                characterIds: [900_001, 900_002],
                 message: '请创建绑定后的名片',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2970,7 +2971,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(createdCardResult.card?.series_code, 'cg');
             assert.equal(createdCardResult.card?.publication_status, 'published');
             assert.equal(createdCardResult.card?.media_rights_status, 'approved');
-            assert.equal(createdCardResult.card?.favorite_idol, '测试春香、测试卯月');
+            assert.equal(createdCardResult.card?.favorite_character, '测试春香、测试卯月');
             assert.equal(
                 createdCardResult.card?.front_object_key,
                 `community/fudaba/cards/${boundCreateCardId}/front.webp`
@@ -2996,7 +2997,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerC,
                 targetCardId: null,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -3075,8 +3076,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 producerName: 'Blocked while reviewing',
                 displayName: 'Blocked',
                 seriesCode: '765',
-                favoriteIdol: '',
-                favoriteIdolIds: [900_001],
+                favoriteCharacter: '',
+                favoriteCharacterIds: [900_001],
                 accent: '#4f64dd',
                 bio: '',
                 tradeNote: '',
@@ -3146,7 +3147,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerC,
                 targetCardId: null,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -3222,8 +3223,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode: '765',
-            favoriteIdol: '',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: '',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -4682,7 +4683,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     fudabaPublicReadEnabled: this.publicReadEnabled,
                     fudabaWriteEnabled: this.writeEnabled,
                     fudabaMapEnabled: this.mapEnabled,
-                    fudabaMapStyleUrl: "/api/community/exchange/map/style.json",
+                    fudabaMapSources: [{ provider: 'maplibre', styleUrl: '/api/community/exchange/map/style.json' }],
                     fudabaGeocoding: {
                         enabled: this.geocodingEnabled,
                         endpoint: this.geocodingEnabled
@@ -4743,7 +4744,9 @@ import { describe, onTestFinished, test } from 'vitest';
             );
             assert.equal(config.status, 200);
             assert.deepEqual(await contractJson(config, fudabaMapConfigSchema), {
+                provider: 'maplibre',
                 styleUrl: "/api/community/exchange/map/style.json",
+                search: { provider: 'nominatim' },
             });
             assert.equal(config.headers.get("cache-control"), "private, no-store");
 
@@ -4959,7 +4962,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     body: JSON.stringify({
                         targetCardId: null,
                         seriesCode: "765",
-                        favoriteIdolIds: [1],
+                        favoriteCharacterIds: [1],
                         message: "claim this card",
                         unexpected: true,
                     }),
@@ -4976,7 +4979,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     body: JSON.stringify({
                         targetCardId: null,
                         seriesCode: "765",
-                        favoriteIdolIds: [1],
+                        favoriteCharacterIds: [1],
                         message: "claim this card",
                     }),
                 },
@@ -5337,6 +5340,32 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(auditFailure.audit.length, 0);
         });
 
+        test('map bootstrap has a separate protected budget from viewport reads', async () => {
+            const viewportLimited = new LocationRouteFixture();
+            viewportLimited.rateLimiter.deniedBuckets.add('fudaba-map-ip');
+            const configPath = 'http://ims.test/api/community/exchange/map/config';
+            assert.equal((await viewportLimited.app.request(configPath)).status, 200);
+            assert.equal((await viewportLimited.app.request(
+                'http://ims.test/api/community/exchange/map/offices?bbox=-180,-60,180,60',
+            )).status, 429);
+
+            const configLimited = new LocationRouteFixture();
+            configLimited.rateLimiter.deniedBuckets.add('fudaba-map-config-ip');
+            const response = await configLimited.app.request(configPath);
+            assert.equal(response.status, 429);
+            assert.ok(response.headers.get('retry-after'));
+            assert.ok(configLimited.rateLimiter.calls.some(({ bucket, limit, windowSeconds }) =>
+                bucket === 'fudaba-map-config-ip' && limit === 300 && windowSeconds === 900,
+            ));
+            assert.equal((await configLimited.app.request(
+                'http://ims.test/api/community/exchange/map/offices?bbox=-180,-60,180,60',
+            )).status, 200);
+
+            const globalLimited = new LocationRouteFixture();
+            globalLimited.rateLimiter.deniedBuckets.add('global');
+            assert.equal((await globalLimited.app.request(configPath)).status, 429);
+        });
+
         test("map and location routes enforce dedicated IP and account limits", async () => {
             const mapLimited = new LocationRouteFixture();
             mapLimited.rateLimiter.deniedBuckets.add("fudaba-map-ip");
@@ -5499,12 +5528,7 @@ import { describe, onTestFinished, test } from 'vitest';
             config: {
                 fudabaPublicReadEnabled: true,
                 fudabaMapEnabled: true,
-                fudabaMapStyleUrl: OFFICIAL_STYLE,
-                fudabaMapStyleUrls: [
-                    OFFICIAL_STYLE,
-                    SELF_HOSTED_STYLE,
-                    OBJECT_STORAGE_STYLE,
-                ],
+                fudabaMapSources: [OFFICIAL_STYLE, SELF_HOSTED_STYLE, OBJECT_STORAGE_STYLE].map((styleUrl) => ({ provider: 'maplibre', styleUrl })),
             },
             backofficeTokens: {
                 async sign() {
@@ -5582,6 +5606,117 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     test.describe('map delivery', () => {
+        test('rejects unknown query fields and source writes without an explicit provider', async () => {
+            const { request, mutation, authHeaders } = fixture();
+            const response = await request('/api/admin/community/exchange/map-delivery?ignored=1', { headers: authHeaders() });
+            assert.equal(response.status, 400);
+            await contractJson(response, fudabaMapDeliveryErrorSchema);
+            const missingProvider = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', { name: 'Explicit provider required', styleUrl: DYNAMIC_STYLE, revision: null });
+            assert.equal(missingProvider.status, 422);
+            await contractJson(missingProvider, fudabaMapDeliveryErrorSchema);
+        });
+        test('delivers fixed-Mapbox regional-search credentials without visitor-header selection', async () => {
+                const { request, mutation } = fixture();
+                const amap = { provider: 'amap', apiKey: 'public-amap-key-1234567890', securityProxyUrl: '/_AMapService', mapStyle: 'amap://styles/normal' };
+                const mapbox = { provider: 'mapbox', accessToken: 'pk.public-mapbox-token-1234567890', styleUrl: 'mapbox://styles/mapbox/streets-v12' };
+                const publicMapbox = { ...mapbox, search: { provider: 'mapbox', accessToken: mapbox.accessToken } };
+                const regionalSearch = { provider: 'regional', mainland: amap, overseas: mapbox, defaultRegion: 'mainland', search: { provider: 'federated', mainland: { provider: 'amap', apiKey: amap.apiKey, securityProxyUrl: amap.securityProxyUrl }, overseas: { provider: 'mapbox', accessToken: mapbox.accessToken } } };
+                const create = async (name: string, config: object, revision: string | null) => {
+                    const response = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', { name, ...config, revision });
+                    assert.equal(response.status, 201);
+                    return contractJson(response, fudabaMapDeliveryMutationSchema);
+                };
+                const first = await create('高德', amap, null);
+                const second = await create('Mapbox', mapbox, first.delivery.revision);
+                const mainland = second.delivery.sources.find((source) => source.name === '高德')!;
+                const overseas = second.delivery.sources.find((source) => source.name === 'Mapbox')!;
+                const routing = { mainlandSourceId: mainland.id, overseasSourceId: overseas.id };
+                const selected = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: second.delivery.activeSourceId, routing, revision: second.delivery.revision });
+                assert.equal(selected.status, 200);
+                const snapshot = await contractJson(selected, fudabaMapDeliveryMutationSchema);
+                assert.deepEqual(snapshot.delivery.routing, routing);
+                const headerCases: Record<string, string>[] = [{}, { 'x-ims-visitor-country': 'CN' }, { 'cf-ipcountry': 'US' }];
+                for (const headers of headerCases) {
+                    const response = await request('/api/community/exchange/map/config', { headers });
+                    assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+                    assert.deepEqual(await contractJson(response, fudabaMapConfigSchema), regionalSearch);
+                }
+                const referenced = await mutation(`/api/admin/community/exchange/map-delivery/sources/${mainland.id}`, 'DELETE', { revision: snapshot.delivery.revision });
+                assert.equal(referenced.status, 409);
+                const invalid = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: snapshot.delivery.activeSourceId, routing: { ...routing, mainlandSourceId: 'missing' }, revision: snapshot.delivery.revision });
+                assert.equal(invalid.status, 409);
+                const wrongProvider = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: snapshot.delivery.activeSourceId, routing: { ...routing, mainlandSourceId: snapshot.delivery.activeSourceId }, revision: snapshot.delivery.revision });
+                assert.equal(wrongProvider.status, 422);
+                const singleSourceMode = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: overseas.id, revision: snapshot.delivery.revision, routing: null });
+                const manual = await contractJson(singleSourceMode, fudabaMapDeliveryMutationSchema);
+                assert.equal(manual.delivery.routing, undefined);
+                assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config', { headers: { 'x-ims-visitor-country': 'CN' } }), fudabaMapConfigSchema), publicMapbox);
+                const secret = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                    name: 'Secret', ...mapbox, accessToken: 'sk.secret-1234567890', revision: manual.delivery.revision,
+                });
+                assert.equal(secret.status, 422);
+        });
+
+        test('persists, activates and edits AMap without exposing security codes or provider internals to business APIs', async () => {
+            const { storage, request, authHeaders, mutation, audit } = fixture();
+            const config = {
+                provider: 'amap', apiKey: 'public-amap-key-1234567890',
+                securityProxyUrl: 'https://maps.example.test/_AMapService',
+                mapStyle: 'amap://styles/normal',
+            };
+            const created = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                ...config, name: '高德', revision: null,
+            });
+            assert.equal(created.status, 201);
+            const payload = await contractJson(created, fudabaMapDeliveryMutationSchema);
+            const source = payload.delivery.sources.find((item) => item.name === '高德')!;
+            assert.deepEqual(source, { id: source.id, name: '高德', ...config });
+            const active = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', {
+                sourceId: source.id, revision: payload.delivery.revision,
+            });
+            const activated = await contractJson(active, fudabaMapDeliveryMutationSchema);
+            assert.equal(activated.delivery.effectiveStyleUrl, null);
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), { ...config, search: { provider: 'amap', apiKey: config.apiKey, securityProxyUrl: config.securityProxyUrl } });
+            const reread = await request('/api/admin/community/exchange/map-delivery', { headers: authHeaders() });
+            assert.deepEqual(await contractJson(reread, fudabaMapDeliverySnapshotSchema), activated.delivery);
+            const object = await storage.get(FUDABA_MAP_DELIVERY_OBJECT_KEY);
+            assert.equal(JSON.parse(new TextDecoder().decode(object!.body)).version, 4);
+            const stale = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                ...config, name: '高德新样式', revision: payload.delivery.revision,
+            });
+            assert.equal(stale.status, 409);
+            for (const invalid of [
+                { ...config, securityJsCode: 'must-stay-on-server' },
+                { ...config, securityProxyUrl: 'https://user:secret@maps.test/_AMapService' },
+                { ...config, securityProxyUrl: 'https://maps.test/other' },
+                { ...config, mapStyle: 'javascript:alert(1)' },
+                { ...config, provider: 'unknown' },
+                { ...config, styleUrl: OFFICIAL_STYLE },
+            ]) {
+                const response = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                    ...invalid, name: '无效源', revision: activated.delivery.revision,
+                });
+                assert.equal(response.status, 422);
+            }
+            const edited = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                ...config, name: '高德新样式', mapStyle: 'amap://styles/whitesmoke', revision: activated.delivery.revision,
+            });
+            const updated = await contractJson(edited, fudabaMapDeliveryMutationSchema);
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), {
+                ...config, mapStyle: 'amap://styles/whitesmoke',
+                search: { provider: 'amap', apiKey: config.apiKey, securityProxyUrl: config.securityProxyUrl },
+            });
+            const switchedBack = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                provider: 'maplibre', name: '切回 OpenFreeMap', styleUrl: DYNAMIC_STYLE, revision: updated.delivery.revision,
+            });
+            const switched = await contractJson(switchedBack, fudabaMapDeliveryMutationSchema);
+            assert.deepEqual(switched.delivery.sources.find((item) => item.id === source.id), {
+                provider: 'maplibre', id: source.id, name: '切回 OpenFreeMap', styleUrl: DYNAMIC_STYLE,
+            });
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), { provider: 'maplibre', styleUrl: DYNAMIC_STYLE, search: { provider: 'nominatim' } });
+            assert.ok(audit.every((entry) => !JSON.stringify(entry).includes(config.apiKey)));
+        });
+
         test('validates raw JSON responses without projecting emitted fields', async () => {
             const { request, authHeaders, mutation } = fixture();
 
@@ -5598,7 +5733,7 @@ import { describe, onTestFinished, test } from 'vitest';
             const created = await mutation(
                 '/api/admin/community/exchange/map-delivery/sources',
                 'POST',
-                { name: 'Boundary source', styleUrl: DYNAMIC_STYLE, revision: null },
+                { provider: 'maplibre', name: 'Boundary source', styleUrl: DYNAMIC_STYLE, revision: null },
             );
             assert.equal(created.status, 201);
             await contractJson(created, fudabaMapDeliveryMutationSchema);
@@ -5629,6 +5764,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         headers: authHeaders({ 'content-type': 'application/json' }),
                         body: JSON.stringify({
                             name: 'Boundary source',
+                            provider: 'maplibre',
                             styleUrl: DYNAMIC_STYLE,
                             revision: null,
                             unexpected: true,
@@ -5643,6 +5779,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         headers: authHeaders({ 'content-type': 'application/json' }),
                         body: JSON.stringify({
                             name: 'Boundary\u0001source',
+                            provider: 'maplibre',
                             styleUrl: DYNAMIC_STYLE,
                             revision: null,
                         }),
@@ -5656,6 +5793,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         headers: authHeaders({ 'content-type': 'application/json' }),
                         body: JSON.stringify({
                             name: 'Boundary source',
+                            provider: 'maplibre',
                             styleUrl: DYNAMIC_STYLE,
                             revision: null,
                         }),
@@ -5672,12 +5810,12 @@ import { describe, onTestFinished, test } from 'vitest';
             }
         });
 
-        test('manages a dynamic source collection with CAS and legacy fallback', async () => {
+        test('manages a version 4 collection with CAS and rejects old stored formats', async () => {
             const { storage, audit, request, authHeaders, mutation } = fixture();
 
             const coldConfig = await request('/api/community/exchange/map/config');
             assert.equal(coldConfig.status, 200);
-            assert.deepEqual(await coldConfig.json(), { styleUrl: OFFICIAL_STYLE });
+            assert.deepEqual(await coldConfig.json(), { provider: 'maplibre', styleUrl: OFFICIAL_STYLE, search: { provider: 'nominatim' } });
 
             const unauthorized = await request(
                 '/api/admin/community/exchange/map-delivery',
@@ -5692,7 +5830,7 @@ import { describe, onTestFinished, test } from 'vitest';
             const coldSnapshot =
                 (await coldAdmin.json()) as DeliveryPayload['delivery'];
             assert.equal(coldSnapshot.sources.length, 3);
-            assert.equal(coldSnapshot.sources[0]?.name, 'OpenFreeMap Positron');
+            assert.equal(coldSnapshot.sources[0]?.name, 'MapLibre · tiles.openfreemap.org');
             assert.equal(coldSnapshot.activeSourceId, coldSnapshot.sources[0]?.id);
             assert.equal(coldSnapshot.effectiveStyleUrl, OFFICIAL_STYLE);
             assert.equal(coldSnapshot.revision, null);
@@ -5700,14 +5838,14 @@ import { describe, onTestFinished, test } from 'vitest';
             const malformed = await mutation(
                 '/api/admin/community/exchange/map-delivery/sources',
                 'POST',
-                { name: 'Broken', styleUrl: 'maps/style.json', revision: null },
+                { provider: 'maplibre', name: 'Broken', styleUrl: 'maps/style.json', revision: null },
             );
             assert.equal(malformed.status, 422);
 
             const created = await mutation(
                 '/api/admin/community/exchange/map-delivery/sources',
                 'POST',
-                { name: 'Dynamic edge', styleUrl: DYNAMIC_STYLE, revision: null },
+                { provider: 'maplibre', name: 'Dynamic edge', styleUrl: DYNAMIC_STYLE, revision: null },
             );
             assert.equal(created.status, 201);
             const createdPayload = (await created.json()) as DeliveryPayload;
@@ -5722,7 +5860,7 @@ import { describe, onTestFinished, test } from 'vitest';
             const stored = JSON.parse(
                 new TextDecoder().decode(storedObject.body),
             ) as Record<string, unknown>;
-            assert.equal(stored.version, 2);
+            assert.equal(stored.version, 4);
             assert.ok(Array.isArray(stored.sources));
 
             const duplicate = await mutation(
@@ -5730,6 +5868,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 'POST',
                 {
                     name: 'Dynamic edge',
+                    provider: 'maplibre',
                     styleUrl: 'https://other.example.test/style.json',
                     revision: createdPayload.delivery.revision,
                 },
@@ -5741,6 +5880,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 'PUT',
                 {
                     name: 'Dynamic edge v5',
+                    provider: 'maplibre',
                     styleUrl: EDITED_DYNAMIC_STYLE,
                     revision: createdPayload.delivery.revision,
                 },
@@ -5777,7 +5917,9 @@ import { describe, onTestFinished, test } from 'vitest';
             const selectedConfig = await request('/api/community/exchange/map/config');
             assert.equal(selectedConfig.status, 200);
             assert.deepEqual(await selectedConfig.json(), {
+                provider: 'maplibre',
                 styleUrl: EDITED_DYNAMIC_STYLE,
+                search: { provider: 'nominatim' },
             });
 
             const deleteActive = await mutation(
@@ -5840,23 +5982,24 @@ import { describe, onTestFinished, test } from 'vitest';
             );
             const legacySnapshot =
                 (await legacyAdmin.json()) as DeliveryPayload['delivery'];
-            assert.equal(legacySnapshot.effectiveStyleUrl, OBJECT_STORAGE_STYLE);
+            assert.equal(legacySnapshot.effectiveStyleUrl, OFFICIAL_STYLE);
             assert.equal(
                 legacySnapshot.sources.find(
                     (source) => source.id === legacySnapshot.activeSourceId,
                 )?.styleUrl,
-                OBJECT_STORAGE_STYLE,
+                OFFICIAL_STYLE,
             );
 
             await storage.put(
                 FUDABA_MAP_DELIVERY_OBJECT_KEY,
                 new TextEncoder().encode(
                     JSON.stringify({
-                        version: 2,
+                        version: 4,
                         sources: [
                             {
                                 id: 'poisoned',
                                 name: 'Poisoned',
+                                provider: 'maplibre',
                                 styleUrl:
                                     'https://user:secret@attacker.example/style.json',
                             },
@@ -5869,7 +6012,7 @@ import { describe, onTestFinished, test } from 'vitest';
 
             const poisonedConfig = await request('/api/community/exchange/map/config');
             assert.equal(poisonedConfig.status, 200);
-            assert.deepEqual(await poisonedConfig.json(), { styleUrl: OFFICIAL_STYLE });
+            assert.deepEqual(await poisonedConfig.json(), { provider: 'maplibre', styleUrl: OFFICIAL_STYLE, search: { provider: 'nominatim' } });
 
             const poisonedAdmin = await request(
                 '/api/admin/community/exchange/map-delivery',
@@ -7657,7 +7800,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 assert.equal(fixture.images.conversions.length, 2);
                 assert.equal(fixture.storage.puts.length, 2);
                 assert.equal(fixture.createInputs[0]?.ownerAccountId, ACCOUNT_ID);
-                assert.deepEqual(fixture.createInputs[0]?.favoriteIdolIds, [900001]);
+                assert.deepEqual(fixture.createInputs[0]?.favoriteCharacterIds, [900001]);
                 for (const put of fixture.storage.puts) {
                     assert.equal(put.options.contentType, 'image/webp');
                     assert.equal(put.options.protectedAccess, true);
@@ -7671,11 +7814,11 @@ import { describe, onTestFinished, test } from 'vitest';
                 );
             });
 
-            test('rejects empty idol selections before object writes', async () => {
+            test('rejects empty character selections before object writes', async () => {
                 const fixture = new OwnerRouteFixture();
                 fixture.uploads.next = {
                     ...cardUpload(),
-                    fields: { ...cardFields(), favoriteIdolIds: '[]' }
+                    fields: { ...cardFields(), favoriteCharacterIds: '[]' }
                 };
 
                 const response = await postCard(fixture);
@@ -8252,8 +8395,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode,
-            favoriteIdol: 'Haruka',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: 'Haruka',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -8357,16 +8500,16 @@ import { describe, onTestFinished, test } from 'vitest';
         await fixture.platform.createAccountWithProfile(account(restrictedId, 'restricted'));
 
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
-            ...ownedCard(`${fixture.dialect}-empty-idols-card`, ownerId),
-            favoriteIdolIds: []
+            ...ownedCard(`${fixture.dialect}-empty-characters-card`, ownerId),
+            favoriteCharacterIds: []
         }), { status: 'unavailable' });
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
-            ...ownedCard(`${fixture.dialect}-duplicate-idols-card`, ownerId),
-            favoriteIdolIds: [900_001, 900_001]
+            ...ownedCard(`${fixture.dialect}-duplicate-characters-card`, ownerId),
+            favoriteCharacterIds: [900_001, 900_001]
         }), { status: 'unavailable' });
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
-            ...ownedCard(`${fixture.dialect}-missing-idol-card`, ownerId),
-            favoriteIdolIds: [999_999]
+            ...ownedCard(`${fixture.dialect}-missing-character-card`, ownerId),
+            favoriteCharacterIds: [999_999]
         }), { status: 'unavailable' });
 
         assert.deepEqual(await fixture.fudaba.createCardForOwner(ownedCard(
@@ -8391,9 +8534,9 @@ import { describe, onTestFinished, test } from 'vitest';
         assert.equal(created.card.publication_status, 'pending');
         assert.equal(created.card.revision, 0);
         assert.equal(created.card.source_url, null);
-        assert.equal(created.card.favorite_idol, '测试春香');
+        assert.equal(created.card.favorite_character, '测试春香');
         assert.deepEqual(
-            created.card.favorite_idols.map((idol) => idol.idol_id),
+            created.card.favorite_characters.map((character) => character.character_id),
             [900_001]
         );
 
@@ -8411,8 +8554,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: 'Intruder',
             displayName: 'Intruder',
             seriesCode: '765',
-            favoriteIdol: '',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: '',
+            favoriteCharacterIds: [900_001],
             accent: '#ffffff',
             bio: '',
             tradeNote: '',
@@ -8435,8 +8578,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: 'Updated Producer',
             displayName: 'Updated Card',
             seriesCode: 'cg',
-            favoriteIdol: 'Uzuki',
-            favoriteIdolIds: [900_001, 900_002] as number[],
+            favoriteCharacter: 'Uzuki',
+            favoriteCharacterIds: [900_001, 900_002] as number[],
             accent: '#ef5b6c',
             bio: 'Updated bio',
             tradeNote: 'Updated note',
@@ -8454,11 +8597,11 @@ import { describe, onTestFinished, test } from 'vitest';
 
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
-            favoriteIdolIds: [900_001, 900_001]
+            favoriteCharacterIds: [900_001, 900_001]
         }), { status: 'unavailable' });
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
-            favoriteIdolIds: [999_999]
+            favoriteCharacterIds: [999_999]
         }), { status: 'unavailable' });
 
         const metadataSaved = await fixture.fudaba.updateCardMetadataForOwner(metadataInput);
@@ -8466,11 +8609,11 @@ import { describe, onTestFinished, test } from 'vitest';
         if (metadataSaved.status !== 'saved') return;
         assert.equal(metadataSaved.card.revision, 1);
         assert.equal(metadataSaved.card.series_code, 'cg');
-        assert.equal(metadataSaved.card.favorite_idol, '测试春香、测试卯月');
+        assert.equal(metadataSaved.card.favorite_character, '测试春香、测试卯月');
         assert.deepEqual(
-            metadataSaved.card.favorite_idols.map((idol) => ({
-                id: idol.idol_id,
-                agency: idol.agency_code
+            metadataSaved.card.favorite_characters.map((character) => ({
+                id: character.character_id,
+                agency: character.agency_code
             })),
             [
                 { id: 900_001, agency: '765' },
@@ -8594,8 +8737,8 @@ import { describe, onTestFinished, test } from 'vitest';
             ownerAccountId: accountId,
             producerName: 'CAS Producer',
             seriesCode: '765',
-            favoriteIdol: '',
-            favoriteIdolIds: [900_001] as number[],
+            favoriteCharacter: '',
+            favoriteCharacterIds: [900_001] as number[],
             accent: '#4f64dd',
             bio: '',
             tradeNote: '',
@@ -8706,8 +8849,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${id}`,
             displayName: `Card ${id}`,
             seriesCode: "765",
-            favoriteIdol: "Haruka",
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: "Haruka",
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: "#4f64dd",
@@ -8948,6 +9091,42 @@ import { describe, onTestFinished, test } from 'vitest';
             }),
             [],
         );
+
+        // Keyword searches are global, case-insensitive and preserve public eligibility.
+        const reviewerId = await insertBackofficeAccount(fixture.database, 'public-search-reviewer');
+        for (const [id, state] of [['office-a-closed', 'published'], ['office-b-open', 'pending']]) {
+            const published = state === 'published';
+            await insertFudabaOfficePublicLocation(fixture.database, id, OFFICE_CREATED_AT, {
+                review_state: published ? 'published' : 'pending',
+                reviewed_at: published ? OFFICE_CREATED_AT : null,
+                reviewed_by: published ? reviewerId : null,
+                review_audit_id: published ? crypto.randomUUID() : null
+            });
+        }
+        const positioned = await fixture.repository.listPublicOffices({ q: 'Office', limit: 10 });
+        assert.equal(positioned[0].public_latitude_e1, 312);
+        assert.equal(positioned[0].public_longitude_e1, 1215);
+        assert.equal(positioned[1].public_latitude_e1, null);
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'OFFICE', limit: 10 })).map((item) => item.id),
+            ['office-a-closed', 'office-b-open', 'office-c-beijing', 'office-d-restricted'],
+        );
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'beijing', limit: 10 })).map((item) => item.id),
+            ['office-c-beijing'],
+        );
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'Private address office-b', limit: 10 })).map((item) => item.id),
+            ['office-b-open'],
+        );
+        await fixture.database.prepare('UPDATE fudaba_offices SET name=? WHERE id=?')
+            .bind('100%_! Office', 'office-a-closed').run();
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: '%_!', limit: 10 })).map((item) => item.id),
+            ['office-a-closed'],
+        );
+        await fixture.database.prepare('UPDATE fudaba_offices SET name=? WHERE id=?')
+            .bind('Office office-a-closed', 'office-a-closed').run();
 
         const cardInputs = [
             card("card-z-new", { createdAt: CARD_NEW_AT, updatedAt: CARD_NEW_AT }),
@@ -9431,8 +9610,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producer_name: "Producer A",
             display_name: "Card A",
             series_code: "765",
-            favorite_idol: "Haruka",
-            favorite_idols: [],
+            favorite_character: "Haruka",
+            favorite_characters: [],
             front_object_key: "public/cards/card-a/front.webp",
             back_object_key: "public/cards/card-a/back.webp",
             accent: "#4f64dd",
@@ -9473,6 +9652,64 @@ import { describe, onTestFinished, test } from 'vitest';
         lastCardInput: ListFudabaPublicCardsInput | null = null;
         officeVisible = true;
         card = publicCard();
+
+        readonly characters = {
+            listNamecardCharacterAgencies: async () => [
+                {
+                    id: 1,
+                    code: "765",
+                    name_cn: "765PRO",
+                    color: "#f34f6d",
+                    wiki_enabled: true,
+                },
+            ],
+            listNamecardCharacterCatalog: async () => [
+                {
+                    id: 1,
+                    agency_id: 1,
+                    agency_code: "765",
+                    agency_name: "765PRO",
+                    agency_color: "#f34f6d",
+                    category: "idol",
+                    is_fallback: false,
+                    name_cn: "天海春香",
+                    name_ja: "天海春香",
+                    name_en: "Haruka Amami",
+                    aliases: "春香",
+                    display_order: 0,
+                    revision: 1,
+                    created_at: CREATED_AT,
+                    updated_at: CREATED_AT,
+                },
+            ],
+        } as unknown as NamecardCharacterRepository;
+        readonly units = {
+            listNamecardUnitCatalog: async () => [
+                {
+                    id: 1,
+                    name_cn: "765PRO ALLSTARS",
+                    name_ja: null,
+                    name_en: null,
+                    aliases: null,
+                    display_order: 0,
+                    revision: 1,
+                    created_at: CREATED_AT,
+                    updated_at: CREATED_AT,
+                    agencies: [
+                        { id: 1, code: "765", name_cn: "765PRO", color: "#f34f6d" },
+                    ],
+                    members: [
+                        {
+                            character_id: 1,
+                            name_cn: "天海春香",
+                            name_ja: "天海春香",
+                            name_en: "Haruka Amami",
+                            category: "idol",
+                        },
+                    ],
+                },
+            ],
+        } as unknown as NamecardUnitRepository;
 
         readonly repository = {
             listPublicSeries: async () => [
@@ -9550,6 +9787,8 @@ import { describe, onTestFinished, test } from 'vitest';
         const now = Date.now();
         return {
             fudaba: fudaba.repository,
+            namecardCharacters: fudaba.characters,
+            namecardUnits: fudaba.units,
             storage: new PublicMediaStorage(),
             platformTokens: {
                 async sign() {
@@ -9627,6 +9866,65 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.match(response.headers.get("content-type") ?? "", /^text\/plain/i);
             assert.equal(await response.text(), "Not Found");
             assert.equal(response.headers.get("cache-control"), "private, no-store");
+        });
+
+        test("public character catalog carries agencies, ordered categories, characters and units", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const response = await testRequest(
+                app,
+                "/api/community/exchange/characters",
+            );
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+            assert.deepEqual(
+                await contractJson(response, namecardCharacterCatalogSchema),
+                {
+                    agencies: [
+                        { id: 1, code: "765", name: "765PRO", color: "#f34f6d" },
+                    ],
+                    categories: [
+                        "idol",
+                        "staff",
+                        "rival",
+                        "mascot",
+                        "chara",
+                        "other",
+                    ],
+                    characters: [
+                        {
+                            id: 1,
+                            agencyId: 1,
+                            agencyCode: "765",
+                            agencyName: "765PRO",
+                            agencyColor: "#f34f6d",
+                            category: "idol",
+                            isFallback: false,
+                            nameCn: "天海春香",
+                            nameJa: "天海春香",
+                            nameEn: "Haruka Amami",
+                            aliases: "春香",
+                        },
+                    ],
+                    units: [
+                        {
+                            id: 1,
+                            nameCn: "765PRO ALLSTARS",
+                            nameJa: null,
+                            nameEn: null,
+                            aliases: null,
+                            agencyIds: [1],
+                            memberIds: [1],
+                        },
+                    ],
+                },
+            );
+
+            const gated = createTestApp(() => runtime(fudaba, { enabled: false }));
+            assert.equal(
+                (await testRequest(gated, "/api/community/exchange/characters")).status,
+                404,
+            );
         });
 
         test("Fudaba public series fails closed when icon storage is unavailable", async () => {
@@ -9837,6 +10135,8 @@ import { describe, onTestFinished, test } from 'vitest';
             await contractJson(multiSeries, fudabaOfficePageSchema);
             assert.deepEqual(fudaba.lastOfficeInput?.seriesCodes, ["765", "cg"]);
             for (const path of [
+                "/api/community/exchange/offices?q=Shanghai&q=Beijing",
+                `/api/community/exchange/offices?q=${'x'.repeat(121)}`,
                 "/api/community/exchange/offices?city=Shanghai&city=Beijing",
                 "/api/community/exchange/offices?limit=0",
                 "/api/community/exchange/offices?limit=51",
@@ -9869,6 +10169,39 @@ import { describe, onTestFinished, test } from 'vitest';
                     `?series=cg&limit=1&cursor=${body.pageInfo.nextCursor}`,
             );
             assert.equal(mismatch.status, 400);
+        });
+
+        test('office search delivers only the public regional position while map delivery is enabled', async () => {
+            const fixture = new PublicFudabaFixture();
+            const base = runtime(fixture);
+            const repository = base.fudaba!;
+            const appFor = (enabled: boolean) => createTestApp(() => ({
+                ...base,
+                config: { ...base.config, fudabaMapEnabled: enabled },
+                fudaba: {
+                    ...repository,
+                    listPublicOffices: async (input) => (await repository.listPublicOffices(input)).map((office) => ({
+                        ...office, public_latitude_e1: 312, public_longitude_e1: 1215
+                    }))
+                }
+            }));
+            const enabled = await contractJson(await testRequest(appFor(true), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
+            assert.deepEqual(enabled.items[0].location, { latitude: 31.2, longitude: 121.5, precision: 'regional' });
+            const disabled = await contractJson(await testRequest(appFor(false), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
+            assert.equal(disabled.items[0].location, undefined);
+        });
+
+        test('office keyword cursors stay bound to the submitted query', async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const first = await testRequest(app, '/api/community/exchange/offices?q=%20Shanghai%25_%20&limit=1');
+            assert.equal(first.status, 200);
+            const body = await contractJson(first, fudabaOfficePageSchema);
+            assert.deepEqual(fudaba.lastOfficeInput, { q: 'Shanghai%_', limit: 2 });
+            assert.ok(body.pageInfo.nextCursor);
+            const cursor = encodeURIComponent(body.pageInfo.nextCursor);
+            assert.equal((await testRequest(app, `/api/community/exchange/offices?q=Shanghai%25_&limit=1&cursor=${cursor}`)).status, 200);
+            assert.equal((await testRequest(app, `/api/community/exchange/offices?q=Beijing&limit=1&cursor=${cursor}`)).status, 400);
         });
 
         test("Fudaba public surface registers no mutation routes", async () => {

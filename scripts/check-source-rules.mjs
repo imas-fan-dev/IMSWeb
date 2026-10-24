@@ -288,8 +288,8 @@ if (failures.length) {
   throw new Error(`Source rules check failed:\n${failures.join("\n")}`);
 }
 
-assertWireContractAudit(repositoryRoot);
+const wireContractAudit = assertWireContractAudit(repositoryRoot);
 
 process.stdout.write(
-  `Source rules check passed: ${productionFiles.length} production source files respect shared path, contract export, zod, and ownership boundaries\n${entrypointAudit ? `${entrypointAudit}\n` : ""}${frontendRouteMetadataAudit ? `${frontendRouteMetadataAudit}\n` : ""}${formatWireContractAudit(repositoryRoot)}\n`,
+  `Source rules check passed: ${productionFiles.length} production source files respect shared path, contract export, zod, and ownership boundaries\n${entrypointAudit ? `${entrypointAudit}\n` : ""}${frontendRouteMetadataAudit ? `${frontendRouteMetadataAudit}\n` : ""}${formatWireContractAudit(repositoryRoot, { audit: wireContractAudit })}\n`,
 );

@@ -16,7 +16,8 @@ const devAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/dev-app.js"));
 const previewAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/preview-app.js"));
 
 test("App preview includes App-only client routes and preserves shared server ownership", async () => {
-  const { appPreviewSpaRoutes } = await import(previewAppUrl.href);
+  const { appPreviewSpaRoutes, appPreviewWebOnlyRoutes } = await import(previewAppUrl.href);
+  assert.deepEqual(appPreviewWebOnlyRoutes(), ["/admin", "/admin/*", "/wiki/classic", "/wiki/classic/", "/story/classic", "/story/classic/"]);
   const routes = appPreviewSpaRoutes();
   for (const route of ["apps", "account/me", "account/me/:section", "events/:eventId"]) {
     assert.ok(routes.includes(route), route);
@@ -276,7 +277,7 @@ test.describe('tauri build configuration', () => {
       );
       assert.equal(
         webPackage.scripts.preview,
-        "VITE_IMS_APP_TARGET=web vite preview --host 127.0.0.1",
+        "node --experimental-strip-types scripts/preview-app.js web",
       );
       assert.equal(
         webPackage.scripts.typecheck,
@@ -649,6 +650,74 @@ test.describe('tauri build configuration', () => {
       assert.equal(vector.subarray(0, 5).toString("ascii"), "%PDF-");
       assert.match(vector.toString("latin1"), /%%EOF\s*$/);
     }
+  });
+
+  test("search admission covers its packaged action and tool vectors", async () => {
+    const [plugin, search, buildScript] = await Promise.all([
+      readFile(
+        `${webRoot}/src-tauri/plugins/native-glass/ios/Sources/NativeGlassPlugin.swift`,
+        "utf8",
+      ),
+      readFile(
+        `${webRoot}/src-tauri/plugins/native-glass/ios/Sources/GlassSearchView.swift`,
+        "utf8",
+      ),
+      readFile(`${webRoot}/src-tauri/build.rs`, "utf8"),
+    ]);
+    const admission = plugin.match(
+      /guard \[([^\]]+)\]\.allSatisfy\(\{ UIImage\(named: \$0\) != nil \}\)/,
+    );
+    assert.ok(
+      admission,
+      "search must admit the whole asset set before hiding DOM",
+    );
+    const admitted = Array.from(
+      admission[1].matchAll(/"([a-z0-9-]+)"/g),
+      (match) => match[1],
+    );
+    const requested = new Set([
+      ...Array.from(
+        search.matchAll(/toolImage\("([a-z0-9-]+)"\)/g),
+        (match) => match[1],
+      ),
+      ...Array.from(
+        search.matchAll(/"(?:filter|offices|cards)": "([a-z0-9-]+)"/g),
+        (match) => match[1],
+      ),
+      "refresh-cw",
+      "loader-circle",
+    ]);
+    assert.deepEqual(admitted.toSorted(), [...requested].toSorted());
+    const inventory = buildScript.match(
+      /const LUCIDE_CONTROL_ICONS:[\s\S]*?=\s*\[([\s\S]*?)\];/,
+    );
+    assert.ok(inventory);
+    const bundled = Array.from(
+      inventory[1].matchAll(/"([a-z0-9-]+)"/g),
+      (match) => match[1],
+    );
+    for (const icon of admitted) {
+      assert.ok(
+        bundled.includes(icon),
+        `admitted search icon ${icon} is absent from the main catalog`,
+      );
+      const set = `${webRoot}/src-tauri/plugins/native-glass/ios/Sources/Resources/Lucide.xcassets/${icon}.imageset`;
+      const metadata = JSON.parse(
+        await readFile(`${set}/Contents.json`, "utf8"),
+      );
+      const file = metadata.images.find(
+        (image) => image.idiom === "universal",
+      )?.filename;
+      assert.equal(file, `${icon}.pdf`);
+      const vector = await readFile(`${set}/${file}`);
+      assert.equal(vector.subarray(0, 5).toString("ascii"), "%PDF-");
+      assert.match(vector.toString("latin1"), /%%EOF\s*$/);
+    }
+    const packageManifest = await readFile(
+      `${webRoot}/src-tauri/plugins/native-glass/ios/Package.swift`,
+      "utf8",
+    );
+    assert.match(packageManifest, /path: "Sources"/);
   });
 
   // The iOS bundler merges src-tauri/Info.ios.plist into the generated Xcode

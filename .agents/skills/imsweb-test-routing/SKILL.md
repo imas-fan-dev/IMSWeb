@@ -24,7 +24,7 @@ Use when deciding what tests to run for a change, investigating why local checks
 ## Pitfalls
 
 - `pnpm run test:web` is local Web unit coverage; ordinary Web Playwright is opt-in locally and CI-owned separately.
-- `tests/assets/` checks built Web client output and belongs to delivery integration, not the API-only CI lane.
+- `apps/api/tests/assets/` checks built Web client output and belongs to delivery integration, not the API-only CI lane.
 - Repository tests run from the configured root/Vitest owner. Do not invent direct commands or assume relative config paths share the shell cwd.
 - Do not add scripts or aliases to make a check easier; script surfaces are guarded.
 
