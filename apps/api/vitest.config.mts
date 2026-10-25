@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url));
+const postgresTestsEnabled = process.env.IMS_TEST_POSTGRES_ENABLED !== 'false';
 
 // The reporter and coverage shape is written per domain on purpose. A shared
 // preset would have to sit outside every workspace that could resolve and
@@ -21,6 +22,10 @@ export default defineConfig({
     },
     test: {
         environment: 'node',
+        // Real PostgreSQL fixtures create/drop databases and drain connection pools.
+        // Keep finite headroom for storage latency beyond Vitest's unit defaults.
+        testTimeout: postgresTestsEnabled ? 30_000 : 5_000,
+        hookTimeout: postgresTestsEnabled ? 30_000 : 10_000,
         include: ['tests/**/*.test.{ts,js}'],
         // One process per file matches `node --test`'s default isolation and
         // keeps PostgreSQL pools and module state from crossing between files.
