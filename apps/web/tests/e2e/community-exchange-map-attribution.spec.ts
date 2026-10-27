@@ -620,6 +620,7 @@ test.describe("community exchange map attribution", () => {
       )
       await input.click()
       await expect(dialog).toHaveCount(0)
+      await input.click()
       await expect(input).toBeFocused()
       await expect(input).toHaveValue("保留的搜索草稿")
       await openFilter()

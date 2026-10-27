@@ -23,7 +23,13 @@ test.beforeAll(async () => {
     ["--import", "tsx", "tests/fixtures/owner-media-browser-server.ts"],
     {
       cwd: apiRoot,
-      env: { ...process.env, TSX_TSCONFIG_PATH: "tsconfig.server.json" },
+      env: {
+        ...process.env,
+        NODE_ENV: "test",
+        TSX_TSCONFIG_PATH: "tsconfig.server.json",
+        IMS_BACKOFFICE_JWT_SECRET: "owner-media-backoffice-test-secret-32b",
+        IMS_PLATFORM_JWT_SECRET: "owner-media-platform-test-secret-32b",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     }
   )

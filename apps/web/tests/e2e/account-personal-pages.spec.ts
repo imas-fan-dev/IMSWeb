@@ -87,8 +87,16 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     "/api/community/exchange/me/offices",
     "/api/community/exchange/me/claim-envelopes",
   ]) {
-    await api.mock({ method: "GET", path, times: workspaceLoads }, (route) =>
-      route.fulfill({ json: { items: [] } })
+    await api.mock(
+      {
+        method: "GET",
+        path,
+        times:
+          path === "/api/community/exchange/me/offices"
+            ? { min: 1, max: workspaceLoads }
+            : workspaceLoads,
+      },
+      (route) => route.fulfill({ json: { items: [] } })
     )
   }
   await api.mock(

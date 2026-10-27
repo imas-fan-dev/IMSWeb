@@ -40,7 +40,8 @@ export async function settleToasts(page: Page): Promise<void> {
     await liveToasts
       .first()
       .getByRole("button", { name: "Close toast" })
-      .click()
+      .click({ timeout: 2_000 })
+      .catch(() => undefined)
   }
 
   await expect(page.locator("[data-sonner-toast]")).toHaveCount(0)
