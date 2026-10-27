@@ -21,6 +21,7 @@ import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
+import { useNamecardUnread } from "~/lib/use-namecard-unread"
 import { AccountMeWorkspace } from "~/pages/account/me/account-me-workspace"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import {
@@ -72,6 +73,7 @@ export function AccountMePage({
   const platform = usePlatformSession()
   const desktop = useDesktopAccountWorkspace()
   const avatarSource = platform.session?.profile.avatarUrl
+  const unread = useNamecardUnread()
   const [logoutAttempt, setLogoutAttempt] =
     useState<Exclude<LogoutFeedback, "success">>("idle")
   const logoutFeedback: LogoutFeedback =
@@ -325,6 +327,14 @@ export function AccountMePage({
                       {t(section.descriptionKey)}
                     </span>
                   </span>
+                  {section.id === "claims" && unread > 0 ? (
+                    <span
+                      className="grid size-5 shrink-0 place-items-center rounded-full bg-destructive text-[10px] leading-none font-medium text-destructive-foreground"
+                      aria-label={`${unread} 条未读消息`}
+                    >
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  ) : null}
                   <ChevronRightIcon
                     className="size-4 shrink-0 text-muted-foreground"
                     aria-hidden="true"

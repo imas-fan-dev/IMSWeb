@@ -2,9 +2,8 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import { parseFudabaDelete } from '@/domains/community/fudaba/cards/request';
-import { fudabaRepository, services } from '@/middleware/hono-context';
+import { fudabaRepository } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
-import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
 export async function handleDeleteFudabaCard(
     c: Context<AppEnvironment>
@@ -34,15 +33,8 @@ export async function handleDeleteFudabaCard(
                 revision: result.revision
             }, 409);
         }
-        const cleanup = await Promise.allSettled([
-            deleteObjectWithCompensation(services(c), result.card.front_object_key),
-            deleteObjectWithCompensation(services(c), result.card.back_object_key)
-        ]);
-        for (const item of cleanup) {
-            if (item.status === 'rejected') {
-                console.error('Failed to schedule deleted Fudaba card media cleanup', item.reason);
-            }
-        }
+        // The card is only hidden: its media stays in storage so the
+        // backoffice can still review it.
         return c.json({ success: true, revision: result.card.revision });
     } catch (error) {
         const status = statusFromError(error);

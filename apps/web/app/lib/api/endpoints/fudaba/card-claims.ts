@@ -13,6 +13,10 @@ import {
   withPlatformCsrf,
 } from "../../types"
 import {
+  namecardNotificationListResponseSchema,
+  namecardNotificationReadResponseSchema,
+} from "@imsweb/contracts/fudaba/card-claims"
+import {
   adminCardClaimListSchema,
   // pi-lens-ignore: ts:2724
   fudabaAdminCardClaimHttpErrorSchema,
@@ -51,6 +55,29 @@ export function getFudabaClaimEnvelopes() {
       errorSchema: fudabaCardClaimErrorSchema,
       businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function getNamecardNotifications() {
+  return platformApiClient.Get(
+    exchangePath("/me/notifications"),
+    parsed(namecardNotificationListResponseSchema, {
+      errorSchema: fudabaCardClaimErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function markNamecardNotificationsRead(ids?: string[]) {
+  return platformApiClient.Post(
+    exchangePath("/me/notifications/read"),
+    ids === undefined ? {} : { ids },
+    parsed(namecardNotificationReadResponseSchema, {
+      errorSchema: fudabaCardClaimErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
+      meta: withPlatformCsrf(),
     })
   )
 }

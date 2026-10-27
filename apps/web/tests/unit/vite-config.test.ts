@@ -2,7 +2,7 @@
 
 import { resolve, sep } from "node:path"
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { localContractsOptimizer } from "../../vite-contracts"
 import {
@@ -12,6 +12,11 @@ import {
 } from "@/vite-exchange-map-assets"
 import { GENERATED_BUILD_WATCH_OPTIONS } from "@/vite-watch"
 import viteConfig from "@/vite.config"
+
+/** Windows separators are regex escapes (`\`), so they need escaping first. */
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
 
 describe("Vite file watching", () => {
   it("ignores Web build output and non-runtime Tauri files", () => {
@@ -98,7 +103,7 @@ describe("local exchange map asset delivery", () => {
       resolveExchangeMapAssetPath("openfreemap-z0-11.pmtiles", assetRoot)
     ).toMatch(
       new RegExp(
-        `data${sep}maps${sep}current${sep}openfreemap-z0-11\\.pmtiles$`
+        `data${escapeRegExp(sep)}maps${escapeRegExp(sep)}current${escapeRegExp(sep)}openfreemap-z0-11\\.pmtiles$`
       )
     )
     expect(
@@ -107,5 +112,27 @@ describe("local exchange map asset delivery", () => {
     expect(
       resolveExchangeMapAssetPath("/absolute.pmtiles", assetRoot)
     ).toBeUndefined()
+  })
+})
+
+describe("Vite dependency cache", () => {
+  it("gives the web and app dev servers separate dependency caches", async () => {
+    const previous = process.env.VITE_IMS_APP_TARGET
+    const load = async (target: string | undefined) => {
+      vi.resetModules()
+      if (target === undefined) delete process.env.VITE_IMS_APP_TARGET
+      else process.env.VITE_IMS_APP_TARGET = target
+      return (await import("@/vite.config")).default.cacheDir
+    }
+    try {
+      const web = await load(undefined)
+      const app = await load("app")
+      expect(web).toBe("node_modules/.vite/web")
+      expect(app).toBe("node_modules/.vite/app")
+    } finally {
+      vi.resetModules()
+      if (previous === undefined) delete process.env.VITE_IMS_APP_TARGET
+      else process.env.VITE_IMS_APP_TARGET = previous
+    }
   })
 })

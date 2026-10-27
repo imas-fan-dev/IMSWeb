@@ -231,11 +231,7 @@ function CommunityOfficePageContent() {
 
   const eligibleOwnerCards = useMemo(
     () =>
-      wallEditor.cards.filter(
-        (card) =>
-          card.publicationStatus === "published" &&
-          card.mediaRightsStatus === "approved"
-      ),
+      wallEditor.cards.filter((card) => card.publicationStatus === "published"),
     [wallEditor.cards]
   )
   const placedCardIds = useMemo(() => {

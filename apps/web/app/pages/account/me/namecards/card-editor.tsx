@@ -50,7 +50,7 @@ import {
   CardPreview,
   useObjectUrl,
 } from "./card-editor-fields"
-import { PublicationBadge, RightsBadge } from "./card-inventory"
+import { PublicationBadge } from "./card-inventory"
 import {
   apiMessage,
   isFeatureClosed,
@@ -284,14 +284,13 @@ export function CardEditor({
           </h2>
           <p className="mt-1 text-sm wrap-break-word text-muted-foreground">
             {creating
-              ? "名片创建后保持草稿状态，素材授权与公开状态由审核流程更新。"
+              ? "名片创建后保持草稿状态，公开状态由审核流程更新。"
               : `版本 ${card?.revision ?? 0} · ${card?.updatedAt ? new Date(card.updatedAt).toLocaleString("zh-CN") : ""}`}
           </p>
         </div>
         {!creating && card ? (
           <div className="flex min-w-0 flex-wrap gap-1.5">
             <PublicationBadge card={card} />
-            <RightsBadge card={card} />
           </div>
         ) : (
           <Badge variant="outline">新草稿</Badge>

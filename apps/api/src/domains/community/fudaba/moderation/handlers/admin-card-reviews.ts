@@ -93,7 +93,7 @@ export async function handleReviewFudabaRegisteredCard(
     let approvingRevision: number | null = null;
     let mediaNeedsProtection = false;
     let reviewMediaKeys: string[] = [];
-    let requestedDecision: 'approve' | 'reject' | null = null;
+    let requestedDecision: 'approve' | 'reject' | 'flag' | null = null;
     let completionAttempted = false;
     try {
         const review = parseCardReview(await jsonBody(c));
@@ -124,11 +124,21 @@ export async function handleReviewFudabaRegisteredCard(
         const result = await repository.completeRegisteredCardReview({
             cardId,
             approvingRevision,
-            decision: review.decision === 'approve' ? 'publish' : 'reject',
+            decision:
+                review.decision === 'approve'
+                    ? 'publish'
+                    : review.decision === 'flag'
+                      ? 'flag'
+                      : 'reject',
+            note: review.note || null,
             reviewedAt,
             audit: audit(
                 c,
-                review.decision === 'approve' ? '通过注册名片审核' : '拒绝注册名片审核',
+                review.decision === 'approve'
+                    ? '通过注册名片审核'
+                    : review.decision === 'flag'
+                      ? '标记违规注册名片'
+                      : '拒绝注册名片审核',
                 `${cardId}@${approvingRevision}${review.note ? ` ${review.note}` : ''}`,
                 reviewedAt
             )
@@ -282,10 +292,15 @@ export async function handleReviewFudabaCardClaim(
     let approvingRevision: number | null = null;
     let created: CreatedObject[] = [];
     let createdCardId: string | null = null;
-    let requestedDecision: 'approve' | 'reject' | null = null;
+    let requestedDecision: 'approve' | 'reject' | 'flag' | null = null;
     let completionAttempted = false;
     try {
         const review = parseCardReview(await jsonBody(c));
+        // A claim is either granted or not; the rule-breaking verdict only
+        // applies to card submissions.
+        if (review.decision === 'flag') {
+            return c.json({ success: false, code: 'FUDABA_CARD_CLAIM_REVIEW_INVALID' }, 400);
+        }
         requestedDecision = review.decision;
         const context = await repository.findAdminCardClaim(claimId);
         if (!context) {

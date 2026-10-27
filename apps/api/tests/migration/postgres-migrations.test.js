@@ -49,8 +49,13 @@ test.describe('PostgreSQL migration', () => {
             const contents = fs.readFileSync(
                 path.join(__dirname, '../../migrations', relativePath)
             );
+            // Git stores these files with LF; a Windows checkout materialises
+            // CRLF, so hash the normalised content instead of the raw bytes.
             assert.equal(
-                crypto.createHash('sha256').update(contents).digest('hex'),
+                crypto
+                    .createHash('sha256')
+                    .update(contents.toString('utf8').replaceAll('\r\n', '\n'))
+                    .digest('hex'),
                 checksum,
                 `${relativePath} changed after its release`
             );
@@ -118,8 +123,13 @@ test.describe('PostgreSQL migration', () => {
                 // Kept so the ledger written by the previously deployed release stays reconcilable.
                 { version: '20261018180000_namecard_character_wiki_backfill', phase: 'post-data' },
                 { version: '20261024130000_namecard_catalog_snapshot', phase: 'post-data' },
-                { version: '20261026120000_fudaba_public_location_precision', phase: 'post-data' },
-                { version: '20261026230000_fudaba_office_review', phase: 'post-data' }
+                { version: '20261024140000_namecard_drop_media_rights', phase: 'post-data' },
+                { version: '20261024150000_namecard_notifications', phase: 'post-data' },
+                { version: '20261026120000_station_messages', phase: 'post-data' },
+                { version: '20261026130000_fudaba_public_location_precision', phase: 'post-data' },
+                { version: '20261026230000_fudaba_office_review', phase: 'post-data' },
+                { version: '20261027120000_namecard_lock_status', phase: 'post-data' },
+                { version: '20261027180000_namecard_pending_versions', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -283,7 +293,7 @@ test.describe('PostgreSQL migration', () => {
         );
         assert.match(
             fudabaDomain.sql,
-            /publication_status <> 'published' OR media_rights_status = 'approved'/
+            /publication_status <> 'published'/
         );
         assert.match(fudabaDomain.sql, /CREATE UNIQUE INDEX fudaba_exchange_requests_pending_idx/);
         assert.match(fudabaDomain.sql, /CREATE FUNCTION public\.fudaba_require_active_office\(\)/);
@@ -648,11 +658,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 57);
+        assert.equal(catalog.count, 62);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261026230000_fudaba_office_review'
+            '20261027180000_namecard_pending_versions'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -988,8 +998,13 @@ test.describe('PostgreSQL migration', () => {
                 '20261018160000_namecard_favorite_characters',
                 '20261018180000_namecard_character_wiki_backfill',
                 '20261024130000_namecard_catalog_snapshot',
-                '20261026120000_fudaba_public_location_precision',
-                '20261026230000_fudaba_office_review'
+                '20261024140000_namecard_drop_media_rights',
+                '20261024150000_namecard_notifications',
+                '20261026120000_station_messages',
+                '20261026130000_fudaba_public_location_precision',
+                '20261026230000_fudaba_office_review',
+                '20261027120000_namecard_lock_status',
+                '20261027180000_namecard_pending_versions'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

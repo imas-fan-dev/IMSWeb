@@ -11,7 +11,7 @@ import {
 } from "~/components/ui/empty"
 import type { FudabaOwnerCard } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import { mediaRightsLabels, publicationLabels } from "./card-model"
+import { publicationLabels } from "./card-model"
 import { OwnerCardImage } from "./owner-card-image"
 
 export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
@@ -25,21 +25,6 @@ export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
       )}
     >
       {publicationLabels[status]}
-    </Badge>
-  )
-}
-
-export function RightsBadge({ card }: { card: FudabaOwnerCard }) {
-  const status = card.mediaRightsStatus
-  return (
-    <Badge
-      variant={status === "denied" ? "destructive" : "outline"}
-      className={cn(
-        status === "approved" && "bg-success/20 text-success-foreground",
-        status === "unknown" && "bg-warning/20 text-warning-foreground"
-      )}
-    >
-      {mediaRightsLabels[status]}
     </Badge>
   )
 }

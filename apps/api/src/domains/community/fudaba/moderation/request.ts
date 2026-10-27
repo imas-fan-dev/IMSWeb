@@ -11,7 +11,8 @@ export interface FudabaLocationReviewSubmission {
 }
 
 export interface CardReviewInput {
-    decision: 'approve' | 'reject';
+    /** `flag` rejects the submission and records it as breaking the rules. */
+    decision: 'approve' | 'reject' | 'flag';
     expectedRevision: number;
     note: string;
 }
@@ -164,7 +165,11 @@ export function parseFudabaOfficeReview(value: unknown): Omit<
 export function parseCardReview(value: unknown): CardReviewInput {
     const body = object(value);
     allowedKeys(body, ['decision', 'expectedRevision', 'note']);
-    if (body.decision !== 'approve' && body.decision !== 'reject') {
+    if (
+        body.decision !== 'approve' &&
+        body.decision !== 'reject' &&
+        body.decision !== 'flag'
+    ) {
         throw badRequest('decision 无效');
     }
     if (

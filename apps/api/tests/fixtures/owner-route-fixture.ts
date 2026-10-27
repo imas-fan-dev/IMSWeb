@@ -84,8 +84,13 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         source_url: null,
         source_label: null,
         source_credit: null,
-        media_rights_status: 'unknown',
         publication_status: 'pending',
+        review_status: null,
+        review_reason: null,
+        review_submitted_at: null,
+        pending_payload: null,
+        pending_front_object_key: null,
+        pending_back_object_key: null,
         revision: 1,
         created_at: CREATED_AT,
         updated_at: CREATED_AT,
@@ -510,15 +515,22 @@ export class OwnerRouteFixture {
         findPublicOfficeBySlug: async () => null,
         listPublicCards: async () => [],
         listCardsForOwner: async (ownerAccountId: string) =>
-            [...this.cards.values()].filter((card) =>
-                card.owner_account_id === ownerAccountId && card.deleted_at === null
+            // Hidden cards are owner deletions: invisible here but kept for
+            // moderation, exactly like the repository's `<> 'hidden'` filter.
+            [...this.cards.values()].filter(
+                (card) =>
+                    card.owner_account_id === ownerAccountId &&
+                    card.deleted_at === null &&
+                    card.publication_status !== 'hidden'
             ),
         findCardForOwner: async (cardId: string, ownerAccountId: string) => {
             if (this.cardMutationCommitted && this.failCardConfirmationRead) {
                 throw new Error('card confirmation read failed');
             }
             const card = this.cards.get(cardId);
-            return card?.owner_account_id === ownerAccountId && card.deleted_at === null
+            return card?.owner_account_id === ownerAccountId &&
+                card.deleted_at === null &&
+                card.publication_status !== 'hidden'
                 ? { ...card }
                 : null;
         },
@@ -576,7 +588,6 @@ export class OwnerRouteFixture {
                 bio: input.bio,
                 trade_note: input.tradeNote,
                 available: input.available,
-                media_rights_status: 'unknown' as const,
                 publication_status: 'pending' as const,
                 revision: current.revision + 1,
                 updated_at: input.updatedAt
@@ -610,7 +621,6 @@ export class OwnerRouteFixture {
             const card = {
                 ...current,
                 [property]: input.objectKey,
-                media_rights_status: 'unknown' as const,
                 publication_status: 'pending' as const,
                 revision: current.revision + 1,
                 updated_at: input.updatedAt
@@ -636,10 +646,13 @@ export class OwnerRouteFixture {
             if (current.revision !== input.expectedRevision) {
                 return { status: 'conflict', revision: current.revision };
             }
+            // Owner deletion hides the card instead of purging it: reviewers
+            // still need the images and the row that was live.
             const card = {
                 ...current,
+                publication_status: 'hidden' as const,
+                lock_reason: null,
                 revision: current.revision + 1,
-                deleted_at: input.deletedAt,
                 updated_at: input.deletedAt
             };
             this.cards.set(card.id, card);

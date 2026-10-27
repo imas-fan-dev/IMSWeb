@@ -84,6 +84,7 @@ import { SqlNamecardCharacterRepository } from "@/infra/db/repositories/namecard
 import { SqlNamecardUnitRepository } from "@/infra/db/repositories/namecard-unit-repository";
 import { SqlNewsRepository } from "@/infra/db/repositories/news-repository";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
+import { SqlStationMessageRepository } from "@/infra/db/repositories/station-message-repository";
 import { SqlPlatformEmailConfigurationRepository } from "@/infra/db/repositories/platform-email-configuration-repository";
 import { SqlPlatformEmailDeliveryRepository } from "@/infra/db/repositories/platform-email-delivery-repository";
 import { SqlReactionRepository } from "@/infra/db/repositories/reaction-repository";
@@ -115,6 +116,7 @@ import { PlatformOAuthSecretCipher } from "@/infra/oauth/platform-oauth-secrets"
 import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service";
 import { HmacPlatformTokenService } from "@/infra/security/hmac/platform-token-service";
 import { NodeObjectCleanupRunner } from "@/runtime/node-object-cleanup-runner";
+import { NodeStationMessageRunner } from "@/runtime/node-station-message-runner";
 
 interface InitializableResource {
     initialize(): Promise<void>;
@@ -333,7 +335,14 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
         | (FudabaRepository & Partial<InitializableResource>)
         | undefined;
     const cleanupResults = await Promise.allSettled(
-        services.objectCleanup ? [services.objectCleanup.close()] : [],
+        [
+            services.objectCleanup ? services.objectCleanup.close() : undefined,
+            services.stationMessageRunner
+                ? services.stationMessageRunner.close()
+                : undefined,
+        ].filter(
+            (operation): operation is Promise<void> => Boolean(operation),
+        ),
     );
     const resourceResults = await Promise.allSettled(
         [
@@ -467,6 +476,12 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             filesystemRoots,
             connection,
         );
+        const stationMessages = new SqlStationMessageRepository(connection);
+        const stationMessageRunner = new NodeStationMessageRunner(
+            stationMessages,
+            platformEmail,
+        );
+        stationMessageRunner.start();
         return {
             backofficeAuth,
             adminAccounts,
@@ -482,6 +497,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             sitePackages,
             namecardCharacters,
             namecardUnits,
+            stationMessages,
             story,
             ...objectStorageInfrastructure,
             cache,
@@ -503,6 +519,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             },
             passwords: new BcryptPasswordVerifier(),
             platformEmailConfiguration: platformEmail,
+            platformEmailMessageSender: platformEmail,
+            stationMessageRunner,
             platformEmailDeliveryQueue,
             platformEmailJobPayloadCipher,
             platformEmailResendPolicyCache:

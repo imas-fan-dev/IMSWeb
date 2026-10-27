@@ -109,6 +109,8 @@ export const resources = {
         login: "登录",
         register: "注册",
         myCards: "个人档案",
+        messages: "消息通知",
+        messagesUnread: "{{count}} 条未读消息",
         logout: "退出帐号",
         avatarAlt: "{{name}}的头像",
         fallback: "制",
@@ -140,7 +142,7 @@ export const resources = {
             },
             namecards: {
               label: "交换名片",
-              description: "名片素材与交换状态",
+              description: "名片与交换状态",
             },
             favorites: {
               label: "收藏夹",
@@ -151,8 +153,8 @@ export const resources = {
               description: "事务所资料与地图公开",
             },
             claims: {
-              label: "认领消息",
-              description: "历史名片身份确认",
+              label: "消息",
+              description: "审核通知与名片认领",
             },
           },
         },
@@ -690,6 +692,8 @@ export const resources = {
         login: "Sign in",
         register: "Register",
         myCards: "Profile",
+        messages: "Messages",
+        messagesUnread: "{{count}} unread messages",
         logout: "Sign out",
         avatarAlt: "{{name}}'s avatar",
         fallback: "P",
@@ -734,8 +738,8 @@ export const resources = {
               description: "Office details and map visibility",
             },
             claims: {
-              label: "Claim messages",
-              description: "Confirm identities on historical cards",
+              label: "Messages",
+              description: "Review notices and card claims",
             },
           },
         },

@@ -324,6 +324,8 @@ const portContracts = new Map([
         ["NamecardCharacterRepository"],
     ],
     ["repositories/namecard-units.ts", ["NamecardUnitRepository"]],
+    ["repositories/station-messages.ts", ["StationMessageRepository"]],
+    ["repositories/fudaba-review-policy.ts", ["FudabaReviewPolicy"]],
     [
         "repositories/content.ts",
         ["NewsRepository", "EventRepository", "HomepageLinkRepository"],
@@ -331,6 +333,7 @@ const portContracts = new Map([
     ["repositories/site-packages.ts", ["SitePackageRepository"]],
     ["repositories/wiki.ts", ["StoryRepository"]],
     ["repositories/index.ts", ["RepositoryServices"]],
+    ["station-message-dispatch.ts", ["StationMessageDispatchRunner"]],
     ["runtime-services.ts", ["RuntimeServices", "NodeRuntimeServices"]],
     [
         "security.ts",
@@ -591,6 +594,7 @@ const domainSections = new Map([
             "platform-users",
             "namecard-characters",
             "namecard-units",
+            "station-messages",
         ],
     ],
     [

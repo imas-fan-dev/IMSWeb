@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "8e84de477118aa93ddd649f0e7331936d39a0523f9cdb43cf95dbbba1b7370d8",
+    "semanticDigest": "e087e16b82db7d1823caa84ac7717333480173033d594502daebee73ac61d3f7",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 255,
-    "carriers": 320,
-    "reject": 63,
-    "acceptAndProject": 162,
+    "mountedMethodPaths": 263,
+    "carriers": 330,
+    "reject": 67,
+    "acceptAndProject": 166,
     "passthrough": 17,
-    "nonObjectApplicable": 78
+    "nonObjectApplicable": 80
   },
   "counts": {
-    "mountedRegistrations": 353,
-    "mountedMethodPaths": 262,
+    "mountedRegistrations": 362,
+    "mountedMethodPaths": 271,
     "noInputRoutes": 91,
-    "requestCarriers": 343,
+    "requestCarriers": 354,
     "policies": {
-      "reject": 64,
-      "accept-and-project": 184,
+      "reject": 68,
+      "accept-and-project": 189,
       "passthrough": 17,
-      "non-object-applicable": 78
+      "non-object-applicable": 80
     },
     "responses": {
-      "total": 729,
-      "json": 665,
+      "total": 749,
+      "json": 685,
       "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 255,
-      "requestCarriers": 320,
+      "mountedMethodPaths": 263,
+      "requestCarriers": 330,
       "policies": {
-        "reject": 63,
-        "accept-and-project": 162,
+        "reject": 67,
+        "accept-and-project": 166,
         "passthrough": 17,
-        "non-object-applicable": 78
+        "non-object-applicable": 80
       }
     },
     "explicitQueryAdditions": [
@@ -86,14 +86,15 @@
       {
         "module": "@imsweb/contracts/fudaba",
         "symbol": "fudabaIgnoredQuerySchema",
-        "carriers": 6,
+        "carriers": 7,
         "policy": "accept-and-project",
-        "actualCarriers": 6,
+        "actualCarriers": 7,
         "routes": [
           "GET /api/community/exchange/me/card-claims",
           "GET /api/community/exchange/me/cards",
           "GET /api/community/exchange/me/cards/:cardId",
           "GET /api/community/exchange/me/claim-envelopes",
+          "GET /api/community/exchange/me/notifications",
           "GET /api/community/exchange/me/offices",
           "GET /api/community/exchange/me/offices/:officeId"
         ]
@@ -116,12 +117,12 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 148,
+      "/api/admin": 155,
       "/api/card": 1,
       "/api/cards": 1,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 50,
+      "/api/community": 52,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -264,66 +265,6 @@
           "file": "apps/api/src/domains/content/editorial/assets/handlers/delete-article-asset.ts",
           "kind": "json",
           "expression": "{ success : true } satisfies EditorialMutationResponse"
-        }
-      ]
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/admin/cards/:id",
-      "registration": {
-        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-      },
-      "handlerSymbol": "handleDeleteNamecard",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-          },
-          "schemaSymbol": "compatibleNamecardIdParamsSchema",
-          "schemaModule": "@imsweb/contracts/namecards",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        },
-        {
-          "kind": "query",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-          },
-          "schemaSymbol": "expectedNamecardRevisionQuerySchema",
-          "schemaModule": "@imsweb/contracts/namecards",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-          "kind": "json",
-          "expression": "{ error : \"expected_revision is required\" } satisfies NamecardErrorResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-          "kind": "json",
-          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-          "kind": "json",
-          "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-          "kind": "json",
-          "expression": "{ success : true } satisfies NamecardMutationResponse"
         }
       ]
     },
@@ -3084,6 +3025,104 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/platform/messages",
+      "registration": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminStationMessages",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "schemaSymbol": "adminStationMessageListQuerySchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/messages/:id/recipients",
+      "registration": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminStationMessageDeliveries",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "schemaSymbol": "adminStationMessageIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "{ success : false as const , code , message }"
+        },
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/messages/recipients",
+      "registration": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminStationMessageRecipients",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "schemaSymbol": "adminStationMessageRecipientQuerySchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/platform/users",
       "registration": {
         "file": "apps/api/src/domains/admin/platform-users/routes.ts"
@@ -4051,6 +4090,37 @@
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-favorite-cards.ts",
           "kind": "json",
           "expression": "{ items , pageInfo : { hasNextPage , nextCursor : hasNextPage && last ? encodeFudabaCardCursor ( query . filters , { createdAt : last . created_at , id : last . id } ) : null } }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/notifications",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "handlerSymbol": "handleListNamecardNotifications",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "schemaSymbol": "fudabaIgnoredQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
+          "kind": "json",
+          "expression": "{ items : items . map ( ( row ) => ( { id : row . id , kind : row . kind as NamecardNotification [ \"kind\" ] , cardNumber : row . card_number === null ? null : Number ( row . card_number ) , title : row . title , body : row . body , readAt : row . read_at === null ? null : new Date ( row . read_at ) . toISOString ( ) , createdAt : new Date ( row . created_at ) . toISOString ( ) } ) ) , unread } satisfies NamecardNotificationListResponse"
         }
       ]
     },
@@ -8627,6 +8697,126 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/flag/:id",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleFlagNamecard",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "flaggedNamecardRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u7528\\u6237\\u5DF2\\u64A4\\u56DE\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+          "kind": "json",
+          "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/lock/:id",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleLockNamecard",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "lockedNamecardRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u7528\\u6237\\u5DF2\\u64A4\\u56DE\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+          "kind": "json",
+          "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/reject/:id",
       "registration": {
         "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
@@ -8653,7 +8843,7 @@
           "location": {
             "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
           },
-          "schemaSymbol": "expectedNamecardRevisionRequestSchema",
+          "schemaSymbol": "rejectedNamecardRequestSchema",
           "schemaModule": "@imsweb/contracts/namecards",
           "schemaLocation": {
             "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
@@ -8728,6 +8918,66 @@
           "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
           "kind": "json",
           "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/unlock/:id",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleUnlockNamecard",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "expectedNamecardRevisionRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u7528\\u6237\\u5DF2\\u64A4\\u56DE\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+          "kind": "json",
+          "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
         }
       ]
     },
@@ -9779,6 +10029,78 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/messages",
+      "registration": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "handlerSymbol": "handleSendAdminStationMessage",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "schemaSymbol": "adminStationMessageSendRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "{ success : false as const , code , message }"
+        },
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/messages/:id/cancel",
+      "registration": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "handlerSymbol": "handleCancelAdminStationMessage",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "schemaSymbol": "adminStationMessageIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "{ success : false as const , code , message }"
+        },
+        {
+          "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/platform/users/:id/password-reset",
       "registration": {
         "file": "apps/api/src/domains/admin/platform-users/routes.ts"
@@ -10591,6 +10913,42 @@
           "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
           "kind": "json",
           "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CLAIM_FAILED\" : \"FUDABA_CARD_CLAIM_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u8BA4\\u9886\\u63D0\\u4EA4\\u5931\\u8D25\" : messageFromError ( error ) }"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/me/notifications/read",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "handlerSymbol": "handleMarkNamecardNotificationsRead",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "schemaSymbol": "namecardNotificationReadRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
+          "kind": "json",
+          "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
+          "kind": "json",
+          "expression": "{ success : true as const , updated } satisfies NamecardNotificationReadResponse"
         }
       ]
     },
@@ -12135,6 +12493,11 @@
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
           "kind": "json",
           "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_CLAIM_REVIEW_INVALID\" }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
@@ -13727,40 +14090,6 @@
     },
     {
       "method": "DELETE",
-      "path": "/api/admin/cards/:id",
-      "handlerSymbol": "handleDeleteNamecard",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-      },
-      "schemaSymbol": "compatibleNamecardIdParamsSchema",
-      "schemaModule": "@imsweb/contracts/namecards",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/admin/cards/:id",
-      "handlerSymbol": "handleDeleteNamecard",
-      "kind": "query",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-      },
-      "schemaSymbol": "expectedNamecardRevisionQuerySchema",
-      "schemaModule": "@imsweb/contracts/namecards",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "DELETE",
       "path": "/api/admin/cards/characters/:id",
       "handlerSymbol": "handleDeleteAdminNamecardCharacter",
       "kind": "param",
@@ -14877,6 +15206,57 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/platform/messages",
+      "handlerSymbol": "handleListAdminStationMessages",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "schemaSymbol": "adminStationMessageListQuerySchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/messages/:id/recipients",
+      "handlerSymbol": "handleListAdminStationMessageDeliveries",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "schemaSymbol": "adminStationMessageIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/messages/recipients",
+      "handlerSymbol": "handleListAdminStationMessageRecipients",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "schemaSymbol": "adminStationMessageRecipientQuerySchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/platform/users",
       "handlerSymbol": "handleListAdminPlatformUsers",
       "kind": "query",
@@ -15282,6 +15662,23 @@
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/notifications",
+      "handlerSymbol": "handleListNamecardNotifications",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "schemaSymbol": "fudabaIgnoredQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "GET",
@@ -17328,6 +17725,74 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/flag/:id",
+      "handlerSymbol": "handleFlagNamecard",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/flag/:id",
+      "handlerSymbol": "handleFlagNamecard",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "flaggedNamecardRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/lock/:id",
+      "handlerSymbol": "handleLockNamecard",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/lock/:id",
+      "handlerSymbol": "handleLockNamecard",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "lockedNamecardRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/reject/:id",
       "handlerSymbol": "handleRejectNamecard",
       "kind": "param",
@@ -17352,7 +17817,7 @@
       "location": {
         "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
       },
-      "schemaSymbol": "expectedNamecardRevisionRequestSchema",
+      "schemaSymbol": "rejectedNamecardRequestSchema",
       "schemaModule": "@imsweb/contracts/namecards",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
@@ -17376,6 +17841,40 @@
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/unlock/:id",
+      "handlerSymbol": "handleUnlockNamecard",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/unlock/:id",
+      "handlerSymbol": "handleUnlockNamecard",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "expectedNamecardRevisionRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "POST",
@@ -17904,6 +18403,40 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/messages",
+      "handlerSymbol": "handleSendAdminStationMessage",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "schemaSymbol": "adminStationMessageSendRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/messages/:id/cancel",
+      "handlerSymbol": "handleCancelAdminStationMessage",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "schemaSymbol": "adminStationMessageIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-station-messages",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/station-messages/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/platform/users/:id/password-reset",
       "handlerSymbol": "handleTriggerAdminPlatformUserPasswordReset",
       "kind": "param",
@@ -18269,6 +18802,23 @@
         "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
       },
       "schemaSymbol": "fudabaLegacyCardClaimRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/me/notifications/read",
+      "handlerSymbol": "handleMarkNamecardNotificationsRead",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "schemaSymbol": "namecardNotificationReadRequestSchema",
       "schemaModule": "@imsweb/contracts/fudaba/card-claims",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
@@ -19546,38 +20096,6 @@
     },
     {
       "method": "DELETE",
-      "path": "/api/admin/cards/:id",
-      "handlerSymbol": "handleDeleteNamecard",
-      "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-      "kind": "json",
-      "expression": "{ error : \"expected_revision is required\" } satisfies NamecardErrorResponse"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/admin/cards/:id",
-      "handlerSymbol": "handleDeleteNamecard",
-      "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-      "kind": "json",
-      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/admin/cards/:id",
-      "handlerSymbol": "handleDeleteNamecard",
-      "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-      "kind": "json",
-      "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/admin/cards/:id",
-      "handlerSymbol": "handleDeleteNamecard",
-      "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-namecard.ts",
-      "kind": "json",
-      "expression": "{ success : true } satisfies NamecardMutationResponse"
-    },
-    {
-      "method": "DELETE",
       "path": "/api/admin/cards/characters/:id",
       "handlerSymbol": "handleDeleteAdminNamecardCharacter",
       "file": "apps/api/src/domains/admin/namecard-characters/handlers/delete-character.ts",
@@ -20818,6 +21336,38 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/platform/messages",
+      "handlerSymbol": "handleListAdminStationMessages",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/messages/:id/recipients",
+      "handlerSymbol": "handleListAdminStationMessageDeliveries",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "{ success : false as const , code , message }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/messages/:id/recipients",
+      "handlerSymbol": "handleListAdminStationMessageDeliveries",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/messages/recipients",
+      "handlerSymbol": "handleListAdminStationMessageRecipients",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/platform/users",
       "handlerSymbol": "handleListAdminPlatformUsers",
       "file": "apps/api/src/domains/admin/platform-users/handlers/list-platform-users.ts",
@@ -21159,6 +21709,14 @@
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-favorite-cards.ts",
       "kind": "json",
       "expression": "{ items , pageInfo : { hasNextPage , nextCursor : hasNextPage && last ? encodeFudabaCardCursor ( query . filters , { createdAt : last . created_at , id : last . id } ) : null } }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/notifications",
+      "handlerSymbol": "handleListNamecardNotifications",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
+      "kind": "json",
+      "expression": "{ items : items . map ( ( row ) => ( { id : row . id , kind : row . kind as NamecardNotification [ \"kind\" ] , cardNumber : row . card_number === null ? null : Number ( row . card_number ) , title : row . title , body : row . body , readAt : row . read_at === null ? null : new Date ( row . read_at ) . toISOString ( ) , createdAt : new Date ( row . created_at ) . toISOString ( ) } ) ) , unread } satisfies NamecardNotificationListResponse"
     },
     {
       "method": "GET",
@@ -22474,6 +23032,70 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/flag/:id",
+      "handlerSymbol": "handleFlagNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/flag/:id",
+      "handlerSymbol": "handleFlagNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u7528\\u6237\\u5DF2\\u64A4\\u56DE\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/flag/:id",
+      "handlerSymbol": "handleFlagNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/flag/:id",
+      "handlerSymbol": "handleFlagNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
+      "kind": "json",
+      "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/lock/:id",
+      "handlerSymbol": "handleLockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/lock/:id",
+      "handlerSymbol": "handleLockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u7528\\u6237\\u5DF2\\u64A4\\u56DE\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/lock/:id",
+      "handlerSymbol": "handleLockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/lock/:id",
+      "handlerSymbol": "handleLockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/lock-namecard.ts",
+      "kind": "json",
+      "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/reject/:id",
       "handlerSymbol": "handleRejectNamecard",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/reject-namecard.ts",
@@ -22535,6 +23157,38 @@
       "file": "apps/api/src/domains/admin/namecard-units/handlers/create-unit.ts",
       "kind": "json",
       "expression": "payload"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/unlock/:id",
+      "handlerSymbol": "handleUnlockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/unlock/:id",
+      "handlerSymbol": "handleUnlockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u7528\\u6237\\u5DF2\\u64A4\\u56DE\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/unlock/:id",
+      "handlerSymbol": "handleUnlockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/unlock/:id",
+      "handlerSymbol": "handleUnlockNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
+      "kind": "json",
+      "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
     },
     {
       "method": "POST",
@@ -23026,6 +23680,38 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/messages",
+      "handlerSymbol": "handleSendAdminStationMessage",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "{ success : false as const , code , message }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/messages",
+      "handlerSymbol": "handleSendAdminStationMessage",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/messages/:id/cancel",
+      "handlerSymbol": "handleCancelAdminStationMessage",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "{ success : false as const , code , message }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/messages/:id/cancel",
+      "handlerSymbol": "handleCancelAdminStationMessage",
+      "file": "apps/api/src/domains/admin/station-messages/handlers/station-messages.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/platform/users/:id/password-reset",
       "handlerSymbol": "handleTriggerAdminPlatformUserPasswordReset",
       "file": "apps/api/src/domains/admin/platform-users/handlers/trigger-platform-user-password-reset.ts",
@@ -23415,6 +24101,22 @@
       "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
       "kind": "json",
       "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CLAIM_FAILED\" : \"FUDABA_CARD_CLAIM_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u8BA4\\u9886\\u63D0\\u4EA4\\u5931\\u8D25\" : messageFromError ( error ) }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/me/notifications/read",
+      "handlerSymbol": "handleMarkNamecardNotificationsRead",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
+      "kind": "json",
+      "expression": "<no body>"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/me/notifications/read",
+      "handlerSymbol": "handleMarkNamecardNotificationsRead",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
+      "kind": "json",
+      "expression": "{ success : true as const , updated } satisfies NamecardNotificationReadResponse"
     },
     {
       "method": "POST",
@@ -24303,6 +25005,14 @@
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
       "kind": "json",
       "expression": "<no body>"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/card-claims/:claimId",
+      "handlerSymbol": "handleReviewFudabaCardClaim",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_CLAIM_REVIEW_INVALID\" }"
     },
     {
       "method": "PUT",

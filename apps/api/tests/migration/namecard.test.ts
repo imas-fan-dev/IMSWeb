@@ -142,10 +142,10 @@ import { afterAll, onTestFinished, test } from 'vitest';
             (id, card_number, origin, producer_name, display_name,
              series_code, favorite_character, accent, bio, trade_note,
              front_object_key, back_object_key, available,
-             media_rights_status, publication_status, legacy_card_id,
+             publication_status, legacy_card_id,
              revision, created_at, updated_at, deleted_at)
          VALUES ($1, $2, $3, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                 $4, $5, FALSE, 'approved', $6, $7, 0,
+                 $4, $5, FALSE, $6, $7, 0,
                  COALESCE($8::timestamptz, CURRENT_TIMESTAMP),
                  COALESCE($8::timestamptz, CURRENT_TIMESTAMP), $8)`,
             [

@@ -241,7 +241,6 @@ export function RegisteredCardReviewPanel() {
         onConfirm={() => void approve.confirmAction()}
         confirmLabel="确认通过"
         variant="default"
-        icon={CheckIcon}
       />
       <ConfirmActionDialog
         open={reject.open}
@@ -252,7 +251,6 @@ export function RegisteredCardReviewPanel() {
         onConfirm={() => void reject.confirmAction()}
         confirmLabel="确认驳回"
         variant="default"
-        icon={XIcon}
       />
     </>
   )
@@ -468,7 +466,6 @@ export function CardClaimReviewPanel() {
         onConfirm={() => void approve.confirmAction()}
         confirmLabel="确认认领"
         variant="default"
-        icon={ShieldCheckIcon}
       />
       <ConfirmActionDialog
         open={reject.open}
@@ -479,7 +476,6 @@ export function CardClaimReviewPanel() {
         onConfirm={() => void reject.confirmAction()}
         confirmLabel="确认驳回"
         variant="default"
-        icon={XIcon}
       />
     </>
   )

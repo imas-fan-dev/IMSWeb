@@ -16,6 +16,7 @@ import {
 } from "./vite-exchange-map-assets"
 import { GENERATED_BUILD_WATCH_OPTIONS } from "./vite-watch"
 import { localContractsOptimizer } from "./vite-contracts"
+import { surviveRouterTypesRace } from "./vite-router-types-guard"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
 const publicSiteProxyOrigin =
@@ -54,7 +55,18 @@ const VENDOR_CHUNK_GROUPS = [
   },
 ]
 
+// A contracts rebuild restarts this server; the previous instance can still be
+// writing the route type cache when the new one wipes it.
+surviveRouterTypesRace()
+
 export default defineConfig({
+  // Web (5173) and App (1420) dev servers both run from `apps/web`. A shared
+  // dependency cache means whichever server re-optimizes first swaps the bundle
+  // the other one is already serving; the browser then holds two React copies in
+  // one module graph and every route component fails with
+  // "Cannot read properties of null (reading 'useContext')". One cache per
+  // target keeps each server's optimizer output private.
+  cacheDir: `node_modules/.vite/${isAppTarget ? "app" : "web"}`,
   build: {
     // The largest output is the lazily loaded maplibre vendor chunk.
     chunkSizeWarningLimit: 1050,

@@ -22,8 +22,18 @@ export interface NamecardListQuery {
     size: number;
 }
 
+export type AdminNamecardListStatus =
+    | "pending"
+    | "published"
+    | "rejected"
+    | "locked"
+    | "hidden";
+
 export interface AdminNamecardListQuery {
     page: number;
+    query: string | null;
+    status: AdminNamecardListStatus | null;
+    origins: string[];
 }
 
 export interface ExpectedRevisionRequest {
@@ -46,11 +56,15 @@ export type NamecardMutationContext = Context<
         ValidatedRequestInput<"json", ExpectedRevisionRequest>
 >;
 
-export type NamecardDeleteContext = Context<
+export interface LockedNamecardRequest extends ExpectedRevisionRequest {
+    reason: string;
+}
+
+export type NamecardLockContext = Context<
     AppEnvironment,
     string,
     ValidatedRequestInput<"param", CompatibleNamecardIdParams> &
-        ValidatedRequestInput<"query", ExpectedRevisionQuery>
+        ValidatedRequestInput<"json", LockedNamecardRequest>
 >;
 
 export type NamecardImageReplaceContext = Context<
@@ -95,7 +109,51 @@ export function validateAdminNamecardListQuery(
     value: unknown,
 ): AdminNamecardListQuery {
     const query = requestRecord(value, "名片分页参数无效");
-    return { page: legacyPaginationValue(query.page, DEFAULT_PAGE) };
+    const keyword = typeof query.query === "string" ? query.query.trim() : "";
+    const status = typeof query.status === "string" ? query.status.trim() : "";
+    const origins = typeof query.origin === "string"
+        ? query.origin.split(",").map((value) => value.trim()).filter(Boolean)
+        : [];
+    return {
+        page: legacyPaginationValue(query.page, DEFAULT_PAGE),
+        query: keyword === "" ? null : keyword,
+        status:
+            status === "pending" ||
+            status === "published" ||
+            status === "rejected" ||
+            status === "locked" ||
+            status === "hidden"
+                ? status
+                : null,
+        origins: origins.slice(0, 4),
+    };
+}
+
+export const LOCKED_NAMECARD_REASON_MAX_LENGTH = 400;
+
+export function validateLockedNamecardRequest(
+    value: unknown,
+): LockedNamecardRequest {
+    const request = validateExpectedRevisionRequest(value);
+    const body = requestRecord(value, "锁定理由无效");
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (reason === "") invalidRequest("锁定理由不能为空");
+    return {
+        ...request,
+        reason: reason.slice(0, LOCKED_NAMECARD_REASON_MAX_LENGTH),
+    };
+}
+
+export function validateRejectedNamecardRequest(
+    value: unknown,
+): ExpectedRevisionRequest & { reason?: string } {
+    const request = validateExpectedRevisionRequest(value);
+    const body = requestRecord(value, 'expected_revision is required');
+    const reason =
+        typeof body.reason === 'string' ? body.reason.trim() : '';
+    return reason === ''
+        ? request
+        : { ...request, reason: reason.slice(0, LOCKED_NAMECARD_REASON_MAX_LENGTH) };
 }
 
 export function validateExpectedRevisionRequest(

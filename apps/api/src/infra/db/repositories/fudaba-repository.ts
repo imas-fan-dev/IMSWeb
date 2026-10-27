@@ -1,4 +1,5 @@
 import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "@imsweb/contracts/fudaba/runtime";
+import { fudabaReviewPolicy } from "@/ports/repositories/fudaba-review-policy";
 import type {
     AuditLogInput,
     CardFavoriteSelectionRecord,
@@ -40,6 +41,7 @@ import type {
     FudabaPublicMapOfficeRecord,
     FudabaPublicOfficeRecord,
     FudabaPublicPlacedCardRecord,
+    FudabaPendingCardPayload,
     FudabaPublicSeriesRecord,
     FudabaRegisteredCardReviewClaim,
     FudabaRegisteredCardReviewRecord,
@@ -68,6 +70,14 @@ import {
     queryOne,
     sqlStatement,
 } from "@/infra/db/sql/query";
+import {
+    cardApprovedCopy,
+    cardLockedCopy,
+    cardRejectedCopy,
+    cardRevisionFlaggedCopy,
+    cardRevisionRejectedCopy,
+} from "@/infra/db/repositories/namecard-notification-copy";
+import { insertNamecardNotification } from "@/infra/db/repositories/namecard-notification-repository";
 
 const OFFICE_COLUMNS = `id, owner_account_id, slug, name, intro, city, address,
     latitude, longitude, accent, cover_object_key, pending_cover_object_key,
@@ -95,7 +105,9 @@ const OFFICE_REVIEW_SELECT = `SELECT ${OWNER_OFFICE_COLUMNS},
 const CARD_COLUMNS = `id, owner_account_id, producer_name, display_name,
     series_code, favorite_character, legacy_card_id, origin, front_object_key,
     back_object_key, accent, bio, trade_note, available, source_url,
-    source_label, source_credit, media_rights_status, publication_status,
+    source_label, source_credit, publication_status,
+    review_status, review_reason, review_submitted_at, pending_payload,
+    pending_front_object_key, pending_back_object_key,
     revision, created_at, updated_at, deleted_at`;
 const CLAIM_COLUMNS = `id, legacy_card_id, claimant_account_id, target_card_id,
     series_code, state, message, review_note, reviewed_by, reviewed_at,
@@ -160,7 +172,7 @@ const PUBLIC_OFFICE_ELIGIBILITY = `office.status='active'
 const OPEN_OFFICE_CARD_WALL_ELIGIBILITY = `${PUBLIC_OFFICE_ELIGIBILITY}
     AND office.is_open`;
 const PUBLIC_CARD_ELIGIBILITY = `card.publication_status='published'
-    AND card.media_rights_status='approved' AND card.deleted_at IS NULL
+    AND card.deleted_at IS NULL
     AND card_owner.status IN ('active', 'restricted')
     AND card_owner.deleted_at IS NULL`;
 
@@ -206,6 +218,7 @@ type FudabaCardRow = Omit<
     | "favorite_characters"
     | "legacy_card_id"
     | "available"
+    | "review_submitted_at"
     | "revision"
     | "created_at"
     | "updated_at"
@@ -213,6 +226,7 @@ type FudabaCardRow = Omit<
 > & {
     legacy_card_id: number | string | null;
     available: boolean | number | string;
+    review_submitted_at: TimestampValue | null;
     revision: number | string;
     created_at: TimestampValue;
     updated_at: TimestampValue;
@@ -274,6 +288,8 @@ type FudabaClaimEnvelopeRow = Omit<
 
 type FudabaRegisteredCardReviewRow = FudabaCardRow & {
     owner_display_name: string;
+    /** Selected via `card.*`; the public number used in owner-facing copy. */
+    card_number: number | string | null;
 };
 
 type FudabaExchangeRequestRow = Omit<
@@ -445,6 +461,21 @@ function officeRecord(row: FudabaOfficeRow): FudabaOfficeRecord {
     };
 }
 
+/** `pg` hands jsonb back parsed, but a text column would not be. */
+function pendingPayloadValue(
+    value: unknown,
+): FudabaPendingCardPayload | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "string") {
+        try {
+            return JSON.parse(value) as FudabaPendingCardPayload;
+        } catch {
+            return null;
+        }
+    }
+    return value as FudabaPendingCardPayload;
+}
+
 function cardRecord(row: FudabaCardRow): FudabaCardRecord {
     return {
         ...row,
@@ -452,6 +483,8 @@ function cardRecord(row: FudabaCardRow): FudabaCardRecord {
         legacy_card_id:
             row.legacy_card_id === null ? null : Number(row.legacy_card_id),
         available: booleanValue(row.available),
+        review_submitted_at: nullableTimestampValue(row.review_submitted_at),
+        pending_payload: pendingPayloadValue(row.pending_payload),
         revision: Number(row.revision),
         created_at: timestampValue(row.created_at),
         updated_at: timestampValue(row.updated_at),
@@ -507,11 +540,33 @@ function envelopeRecord(
     };
 }
 
+/**
+ * Reviewers judge the submitted revision, not the copy that is still live.
+ * The projection is what makes a pending version readable as a card.
+ */
+function projectPendingContent(card: FudabaCardRecord): FudabaCardRecord {
+    const payload = card.pending_payload;
+    if (!payload || card.review_status !== "pending") return card;
+    return {
+        ...card,
+        producer_name: payload.producer_name,
+        display_name: payload.display_name,
+        series_code: payload.series_code,
+        favorite_character: payload.favorite_character,
+        front_object_key: card.pending_front_object_key ?? card.front_object_key,
+        back_object_key: card.pending_back_object_key ?? card.back_object_key,
+        accent: payload.accent,
+        bio: payload.bio,
+        trade_note: payload.trade_note,
+        available: payload.available,
+    };
+}
+
 function registeredCardReviewRecord(
     row: FudabaRegisteredCardReviewRow,
 ): FudabaRegisteredCardReviewRecord {
     return {
-        ...cardRecord(row),
+        ...projectPendingContent(cardRecord(row)),
         owner_display_name: row.owner_display_name,
     };
 }
@@ -2405,9 +2460,9 @@ export class SqlFudabaRepository implements FudabaRepository {
                     (id, owner_account_id, producer_name, display_name,
                      series_code, favorite_character, legacy_card_id, front_object_key,
                      back_object_key, accent, bio, trade_note, available,
-                     source_url, source_label, source_credit, media_rights_status,
+                     source_url, source_label, source_credit,
                      publication_status, revision, created_at, updated_at, deleted_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         input.id,
                         input.ownerAccountId,
@@ -2425,7 +2480,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.sourceUrl,
                         input.sourceLabel,
                         input.sourceCredit,
-                        input.mediaRightsStatus,
                         input.publicationStatus,
                         input.revision,
                         input.createdAt,
@@ -2475,6 +2529,7 @@ export class SqlFudabaRepository implements FudabaRepository {
             `SELECT ${CARD_COLUMNS}
              FROM fudaba_cards
              WHERE owner_account_id=? AND deleted_at IS NULL
+               AND publication_status<>'hidden'
              ORDER BY created_at DESC, id DESC`,
             [ownerAccountId],
         );
@@ -2489,7 +2544,8 @@ export class SqlFudabaRepository implements FudabaRepository {
             this.database,
             `SELECT ${CARD_COLUMNS}
              FROM fudaba_cards
-             WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
+             WHERE id=? AND owner_account_id=? AND deleted_at IS NULL
+               AND publication_status<>'hidden'`,
             [cardId, ownerAccountId],
         );
         if (!row) return null;
@@ -2511,6 +2567,7 @@ export class SqlFudabaRepository implements FudabaRepository {
             `SELECT ${CARD_COLUMNS}
              FROM fudaba_cards
              WHERE id=? AND owner_account_id=? AND deleted_at IS NULL
+               AND publication_status<>'hidden'
                AND EXISTS (
                    SELECT 1 FROM platform_accounts account
                    WHERE account.id=fudaba_cards.owner_account_id
@@ -2577,10 +2634,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                     (id, owner_account_id, producer_name, display_name,
                      series_code, favorite_character, legacy_card_id, front_object_key,
                      back_object_key, accent, bio, trade_note, available,
-                     source_url, source_label, source_credit, media_rights_status,
+                     source_url, source_label, source_credit,
                      publication_status, revision, created_at, updated_at, deleted_at)
                  SELECT ?, account.id, ?, ?, series.code, ?, NULL, ?, ?, ?, ?, ?, ?,
-                        NULL, NULL, NULL, 'unknown', 'pending', 0, ?, ?, NULL
+                        NULL, NULL, NULL, 'pending', 0, ?, ?, NULL
                  FROM platform_accounts account
                  JOIN agencies series
                    ON series.code=? AND series.wiki_enabled=?
@@ -2632,15 +2689,103 @@ export class SqlFudabaRepository implements FudabaRepository {
                     }
                     throw error;
                 }
+                const payload: FudabaPendingCardPayload = {
+                    producer_name: input.producerName,
+                    display_name: input.displayName,
+                    series_code: input.seriesCode,
+                    favorite_character: characters
+                        .map((character) => character.name_cn)
+                        .join("、"),
+                    favorite_character_ids: characters.map((character) =>
+                        Number(character.character_id),
+                    ),
+                    accent: input.accent,
+                    bio: input.bio,
+                    trade_note: input.tradeNote,
+                    available: input.available,
+                };
+                const current = await queryOne<FudabaCardRow>(
+                    database,
+                    `SELECT ${CARD_COLUMNS} FROM fudaba_cards
+                     WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
+                    [input.cardId, input.ownerAccountId],
+                );
+                const currentFavorites = current
+                    ? await this.listCardFavoritesFrom(database, [input.cardId])
+                    : new Map<string, CardFavoriteSelectionRecord[]>();
+                const needsReview = !current || fudabaReviewPolicy.requiresCardReview(
+                    {
+                        displayName: current.display_name ?? null,
+                        producerName: current.producer_name ?? null,
+                        seriesCode: current.series_code ?? null,
+                        favoriteCharacter: current.favorite_character ?? null,
+                        favoriteCharacterIds: (currentFavorites.get(input.cardId) ?? []).map(
+                            (favorite) => Number(favorite.character_id),
+                        ),
+                        accent: current.accent ?? null,
+                        bio: current.bio ?? null,
+                        tradeNote: current.trade_note ?? null,
+                    },
+                    payload,
+                );
+                // Toggling an exempt field on a live card must not queue a review.
+                if (current?.publication_status === "published" && !needsReview) {
+                    const exempt = await database
+                        .prepare(
+                            `UPDATE fudaba_cards
+                 SET available=?,
+                     pending_payload=CASE WHEN pending_payload IS NULL THEN NULL
+                         ELSE jsonb_set(pending_payload, '{available}', to_jsonb(CAST(? AS boolean))) END,
+                     revision=revision+1, updated_at=?
+                 WHERE id=? AND owner_account_id=? AND revision=?
+                   AND deleted_at IS NULL AND publication_status='published'
+                   AND EXISTS (
+                       SELECT 1 FROM platform_accounts account
+                       WHERE account.id=fudaba_cards.owner_account_id
+                         AND account.status='active' AND account.deleted_at IS NULL
+                   )
+                 RETURNING ${CARD_COLUMNS}`,
+                        )
+                        .bind(
+                            this.bindBoolean(payload.available),
+                            this.bindBoolean(payload.available),
+                            input.updatedAt,
+                            input.cardId,
+                            input.ownerAccountId,
+                            input.expectedRevision,
+                        )
+                        .run<FudabaCardRow>();
+                    const exemptSaved = exempt.results[0];
+                    if (exemptSaved) return this.savedCardResult(exemptSaved, null, database);
+                    return this.cardWriteFailure(
+                        await this.findActiveCardForOwner(input.cardId, input.ownerAccountId),
+                        input.expectedRevision,
+                    );
+                }
+                // A published card keeps serving its approved copy while the new
+                // revision waits in `pending_payload`; anything else is edited in
+                // place and goes back to the review queue as before.
                 const result = await database
                     .prepare(
                         `UPDATE fudaba_cards
-                 SET producer_name=?, display_name=?, series_code=?, favorite_character=?,
-                     accent=?, bio=?, trade_note=?, available=?,
-                     media_rights_status='unknown', publication_status='pending',
+                 SET producer_name=CASE WHEN publication_status='published' THEN producer_name ELSE ? END,
+                     display_name=CASE WHEN publication_status='published' THEN display_name ELSE ? END,
+                     series_code=CASE WHEN publication_status='published' THEN series_code ELSE ? END,
+                     favorite_character=CASE WHEN publication_status='published' THEN favorite_character ELSE ? END,
+                     accent=CASE WHEN publication_status='published' THEN accent ELSE ? END,
+                     bio=CASE WHEN publication_status='published' THEN bio ELSE ? END,
+                     trade_note=CASE WHEN publication_status='published' THEN trade_note ELSE ? END,
+                     available=CASE WHEN publication_status='published' THEN available ELSE ? END,
+                     pending_payload=CASE WHEN publication_status='published' THEN CAST(? AS jsonb) ELSE pending_payload END,
+                     review_status=CASE WHEN publication_status='published' THEN 'pending' ELSE review_status END,
+                     review_reason=CASE WHEN publication_status='published' THEN NULL ELSE review_reason END,
+                     review_submitted_at=CASE WHEN publication_status='published' THEN ? ELSE review_submitted_at END,
+                     publication_status=CASE WHEN publication_status='published' THEN publication_status ELSE 'pending' END,
                      revision=revision+1, updated_at=?
                  WHERE id=? AND owner_account_id=? AND revision=?
                    AND deleted_at IS NULL AND publication_status<>'approving'
+                   AND publication_status<>'locked'
+                   AND publication_status<>'hidden'
                    AND EXISTS (
                        SELECT 1 FROM platform_accounts account
                        WHERE account.id=fudaba_cards.owner_account_id
@@ -2653,14 +2798,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                  RETURNING ${CARD_COLUMNS}`,
                     )
                     .bind(
-                        input.producerName,
-                        input.displayName,
-                        input.seriesCode,
-                        characters.map((character) => character.name_cn).join("、"),
-                        input.accent,
-                        input.bio,
-                        input.tradeNote,
-                        this.bindBoolean(input.available),
+                        payload.producer_name,
+                        payload.display_name,
+                        payload.series_code,
+                        payload.favorite_character,
+                        payload.accent,
+                        payload.bio,
+                        payload.trade_note,
+                        this.bindBoolean(payload.available),
+                        JSON.stringify(payload),
+                        input.updatedAt,
                         input.updatedAt,
                         input.cardId,
                         input.ownerAccountId,
@@ -2671,7 +2818,9 @@ export class SqlFudabaRepository implements FudabaRepository {
                     .run<FudabaCardRow>();
                 const saved = result.results[0];
                 if (saved) {
-                    await this.replaceCardFavorites(database, input.cardId, characters);
+                    if (saved.publication_status !== "published") {
+                        await this.replaceCardFavorites(database, input.cardId, characters);
+                    }
                     return this.savedCardResult(saved, null, database);
                 }
                 return this.cardWriteFailure(
@@ -2698,13 +2847,23 @@ export class SqlFudabaRepository implements FudabaRepository {
             }
             const objectKeyColumn =
                 input.side === "front" ? "front_object_key" : "back_object_key";
+            const pendingObjectKeyColumn =
+                input.side === "front"
+                    ? "pending_front_object_key"
+                    : "pending_back_object_key";
             const result = await this.database
                 .prepare(
                     `UPDATE fudaba_cards
-                 SET ${objectKeyColumn}=?, media_rights_status='unknown',
-                     publication_status='pending', revision=revision+1, updated_at=?
+                 SET ${objectKeyColumn}=CASE WHEN publication_status='published' THEN ${objectKeyColumn} ELSE ? END,
+                     ${pendingObjectKeyColumn}=CASE WHEN publication_status='published' THEN ? ELSE ${pendingObjectKeyColumn} END,
+                     review_status=CASE WHEN publication_status='published' THEN 'pending' ELSE review_status END,
+                     review_reason=CASE WHEN publication_status='published' THEN NULL ELSE review_reason END,
+                     review_submitted_at=CASE WHEN publication_status='published' THEN ? ELSE review_submitted_at END,
+                     publication_status=CASE WHEN publication_status='published' THEN publication_status ELSE 'pending' END,
+                     revision=revision+1, updated_at=?
                  WHERE id=? AND owner_account_id=? AND revision=?
                    AND deleted_at IS NULL AND publication_status<>'approving'
+                   AND publication_status<>'locked'
                    AND EXISTS (
                        SELECT 1 FROM platform_accounts account
                        WHERE account.id=fudaba_cards.owner_account_id
@@ -2714,6 +2873,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                 )
                 .bind(
                     input.objectKey,
+                    input.objectKey,
+                    input.updatedAt,
                     input.updatedAt,
                     input.cardId,
                     input.ownerAccountId,
@@ -2722,12 +2883,17 @@ export class SqlFudabaRepository implements FudabaRepository {
                 .run<FudabaCardRow>();
             const saved = result.results[0];
             if (saved) {
-                return this.savedCardResult(
-                    saved,
-                    input.side === "front"
-                        ? current.front_object_key
-                        : current.back_object_key,
-                );
+                // Only an in-place edit replaces a served object; a staged
+                // revision only supersedes the previous draft.
+                const replacedObjectKey =
+                    saved.publication_status === "published"
+                        ? input.side === "front"
+                            ? current.pending_front_object_key
+                            : current.pending_back_object_key
+                        : input.side === "front"
+                          ? current.front_object_key
+                          : current.back_object_key;
+                return this.savedCardResult(saved, replacedObjectKey);
             }
             return this.cardWriteFailure(
                 await this.findActiveCardForOwner(
@@ -2745,11 +2911,16 @@ export class SqlFudabaRepository implements FudabaRepository {
         return this.serializeWrite(async () => {
             const result = await this.database
                 .prepare(
+                    // Owner deletion only hides the card. The row and its media
+                    // stay so the backoffice can still review it, which is also
+                    // why `deleted_at` is left alone: every query above keys off
+                    // `publication_status<>'hidden'` instead.
                     `UPDATE fudaba_cards
-                 SET deleted_at=?, updated_at=?, media_rights_status='unknown',
-                     publication_status='pending', revision=revision+1
+                 SET publication_status='hidden', lock_reason=NULL,
+                     updated_at=?, revision=revision+1
                  WHERE id=? AND owner_account_id=? AND revision=?
-                   AND deleted_at IS NULL AND publication_status<>'approving'
+                   AND deleted_at IS NULL
+                   AND publication_status NOT IN ('approving', 'locked', 'hidden')
                    AND EXISTS (
                        SELECT 1 FROM platform_accounts account
                        WHERE account.id=fudaba_cards.owner_account_id
@@ -2758,7 +2929,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                  RETURNING ${CARD_COLUMNS}`,
                 )
                 .bind(
-                    input.deletedAt,
                     input.deletedAt,
                     input.cardId,
                     input.ownerAccountId,
@@ -3224,9 +3394,13 @@ export class SqlFudabaRepository implements FudabaRepository {
             `SELECT card.*, profile.display_name AS owner_display_name
              FROM fudaba_cards card
              JOIN platform_profiles profile ON profile.account_id=card.owner_account_id
-             WHERE card.publication_status IN ('pending', 'approving')
+             WHERE (
+                   card.publication_status IN ('pending', 'approving')
+                   OR card.review_status='pending'
+               )
                AND card.deleted_at IS NULL
-             ORDER BY card.created_at ASC, card.id ASC
+             ORDER BY COALESCE(card.review_submitted_at, card.created_at) ASC,
+                      card.id ASC
              LIMIT ?`,
             [limit],
         );
@@ -3283,13 +3457,21 @@ export class SqlFudabaRepository implements FudabaRepository {
     ): Promise<FudabaRegisteredCardReviewClaim> {
         return this.serializeWrite(() =>
             this.database.transaction(async (database) => {
+                // A staged revision is claimed the same way, but the published
+                // copy must keep its status so the wall keeps serving it.
                 const claimed = await queryOne<{ id: string }>(
                     database,
                     `UPDATE fudaba_cards
-                 SET publication_status='approving', revision=revision+1,
-                     updated_at=CURRENT_TIMESTAMP
-                 WHERE id=? AND publication_status='pending' AND revision=?
-                   AND deleted_at IS NULL
+                 SET publication_status=CASE
+                         WHEN publication_status='pending' THEN 'approving'
+                         ELSE publication_status
+                     END,
+                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 WHERE id=? AND revision=? AND deleted_at IS NULL
+                   AND (
+                       publication_status='pending'
+                       OR review_status='pending'
+                   )
                  RETURNING id`,
                     [cardId, expectedRevision],
                 );
@@ -3342,42 +3524,126 @@ export class SqlFudabaRepository implements FudabaRepository {
             const result = await executeSql(
                 this.database,
                 `UPDATE fudaba_cards
-                 SET publication_status='pending', revision=revision+1,
-                     updated_at=CURRENT_TIMESTAMP
-                 WHERE id=? AND publication_status='approving' AND revision=?
-                   AND deleted_at IS NULL`,
+                 SET publication_status=CASE
+                         WHEN publication_status='approving' THEN 'pending'
+                         ELSE publication_status
+                     END,
+                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 WHERE id=? AND revision=? AND deleted_at IS NULL
+                   AND (
+                       publication_status='approving'
+                       OR review_status='pending'
+                   )`,
                 [cardId, approvingRevision],
             );
             return result.meta.changes === 1;
         });
     }
 
+    private async notifyRegisteredCardReview(
+        database: SqlDatabase,
+        row: FudabaRegisteredCardReviewRow,
+        input: {
+            decision: "publish" | "reject" | "flag";
+            note?: string | null;
+            /** True when only a staged revision was judged, not the card. */
+            staged: boolean;
+        },
+    ): Promise<void> {
+        if (!row.owner_account_id) return;
+        const cardNumber = Number(row.card_number);
+        // Legacy rows without a public number cannot be referred to in copy.
+        if (!Number.isSafeInteger(cardNumber) || cardNumber <= 0) return;
+        const copy = input.staged
+            ? input.decision === "publish"
+                ? cardApprovedCopy(cardNumber)
+                : input.decision === "flag"
+                  ? cardRevisionFlaggedCopy(cardNumber, input.note ?? "")
+                  : cardRevisionRejectedCopy(cardNumber, input.note ?? null)
+            : input.decision === "publish"
+              ? cardApprovedCopy(cardNumber)
+              : input.decision === "flag"
+                ? cardLockedCopy(cardNumber, input.note ?? "")
+                : cardRejectedCopy(cardNumber, input.note ?? null);
+        await insertNamecardNotification(database, {
+            recipientAccountId: row.owner_account_id,
+            cardNumber,
+            ...copy,
+        });
+    }
+
     completeRegisteredCardReview(input: {
         cardId: string;
         approvingRevision: number;
-        decision: "publish" | "reject";
+        decision: "publish" | "reject" | "flag";
         reviewedAt: string;
+        /** Reviewer note; surfaces as the rejection reason in the notification. */
+        note?: string | null;
         audit: AuditLogInput;
     }): Promise<FudabaRegisteredCardReviewResult> {
         return this.serializeWrite(() =>
             this.database.transaction(async (database) => {
-                const saved = await queryOne<{ id: string }>(
+                const reviewed = await queryOne<FudabaCardRow>(
                     database,
-                    `UPDATE fudaba_cards
-                 SET publication_status=?, media_rights_status=?,
-                     revision=revision+1, updated_at=?
-                 WHERE id=? AND publication_status='approving' AND revision=?
-                   AND deleted_at IS NULL
-                 RETURNING id`,
-                    [
-                        input.decision === "publish" ? "published" : "rejected",
-                        input.decision === "publish" ? "approved" : "denied",
-                        input.reviewedAt,
-                        input.cardId,
-                        input.approvingRevision,
-                    ],
+                    `SELECT ${CARD_COLUMNS} FROM fudaba_cards
+                 WHERE id=? AND revision=? AND deleted_at IS NULL
+                   AND (
+                       publication_status='approving'
+                       OR review_status='pending'
+                   )
+                 FOR UPDATE`,
+                    [input.cardId, input.approvingRevision],
                 );
-                if (saved) {
+                if (reviewed) {
+                    const staged = reviewed.review_status === "pending";
+                    const replacedObjectKeys: string[] = [];
+                    if (staged && input.decision === "publish") {
+                        await this.publishStagedRevision(
+                            database,
+                            reviewed,
+                            input.reviewedAt,
+                            replacedObjectKeys,
+                        );
+                    } else if (staged) {
+                        // A verdict on the submission only; the published copy
+                        // keeps serving the wall.
+                        await executeSql(
+                            database,
+                            `UPDATE fudaba_cards
+                             SET review_status=?, review_reason=?,
+                                 revision=revision+1, updated_at=?
+                             WHERE id=?`,
+                            [
+                                input.decision === "flag"
+                                    ? "locked"
+                                    : "rejected",
+                                input.note ?? null,
+                                input.reviewedAt,
+                                input.cardId,
+                            ],
+                        );
+                    } else {
+                        // First submission: the card itself takes the verdict.
+                        await executeSql(
+                            database,
+                            `UPDATE fudaba_cards
+                             SET publication_status=?,
+                                 lock_reason=CASE WHEN ?='flag' THEN ? ELSE lock_reason END,
+                                 revision=revision+1, updated_at=?
+                             WHERE id=?`,
+                            [
+                                input.decision === "publish"
+                                    ? "published"
+                                    : input.decision === "flag"
+                                      ? "locked"
+                                      : "rejected",
+                                input.decision,
+                                input.note ?? null,
+                                input.reviewedAt,
+                                input.cardId,
+                            ],
+                        );
+                    }
                     await executeSql(
                         database,
                         `INSERT INTO logs
@@ -3403,12 +3669,19 @@ export class SqlFudabaRepository implements FudabaRepository {
                     );
                     if (!row)
                         throw new Error("Reviewed Fudaba card disappeared");
+                    // This pipeline used to decide silently; owners now hear
+                    // about the outcome the same way the exchange queue does.
+                    await this.notifyRegisteredCardReview(database, row, {
+                        decision: input.decision,
+                        note: input.note ?? null,
+                        staged,
+                    });
                     const card = (
                         await this.attachCardSelections(database, [
                             registeredCardReviewRecord(row),
                         ])
                     )[0]!;
-                    return { status: "saved", card };
+                    return { status: "saved", card, replacedObjectKeys };
                 }
                 const current = await queryOne<{
                     revision: number | string;
@@ -3428,6 +3701,62 @@ export class SqlFudabaRepository implements FudabaRepository {
                     : { status: "unavailable" };
             }),
         );
+    }
+
+    /** Copies a reviewed submission over the published columns. */
+    private async publishStagedRevision(
+        database: SqlDatabase,
+        reviewed: FudabaCardRow,
+        reviewedAt: string,
+        replacedObjectKeys: string[],
+    ): Promise<void> {
+        const payload = pendingPayloadValue(reviewed.pending_payload);
+        if (!payload) throw new Error("Staged revision lost its payload");
+        const frontKey = reviewed.pending_front_object_key ?? reviewed.front_object_key;
+        const backKey = reviewed.pending_back_object_key ?? reviewed.back_object_key;
+        if (frontKey !== reviewed.front_object_key)
+            replacedObjectKeys.push(reviewed.front_object_key);
+        if (backKey !== reviewed.back_object_key)
+            replacedObjectKeys.push(reviewed.back_object_key);
+        await executeSql(
+            database,
+            `UPDATE fudaba_cards
+             SET producer_name=?, display_name=?, series_code=?,
+                 favorite_character=?, front_object_key=?, back_object_key=?,
+                 accent=?, bio=?, trade_note=?, available=?,
+                 publication_status='published',
+                 review_status=NULL, review_reason=NULL, review_submitted_at=NULL,
+                 pending_payload=NULL, pending_front_object_key=NULL,
+                 pending_back_object_key=NULL,
+                 revision=revision+1, updated_at=?
+             WHERE id=?`,
+            [
+                payload.producer_name,
+                payload.display_name,
+                payload.series_code,
+                payload.favorite_character,
+                frontKey,
+                backKey,
+                payload.accent,
+                payload.bio,
+                payload.trade_note,
+                this.bindBoolean(payload.available),
+                reviewedAt,
+                reviewed.id,
+            ],
+        );
+        // Favourites live in their own table, so the published selection is only
+        // swapped once the revision actually goes live.
+        try {
+            const characters = await this.validateCardFavorites(
+                database,
+                payload.favorite_character_ids ?? [],
+            );
+            await this.replaceCardFavorites(database, reviewed.id, characters);
+        } catch (error) {
+            if (!(error instanceof InvalidCardFavoriteSelectionError))
+                throw error;
+        }
     }
 
     beginCardClaimReview(
@@ -3598,7 +3927,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                              trade_note=?,
                              available=?,
                              legacy_card_id=card_number,
-                             media_rights_status='approved',
                              publication_status='published',
                              revision=revision+1,
                              updated_at=?
@@ -3790,7 +4118,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                AND account.status='active' AND account.deleted_at IS NULL
                AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
                AND card.publication_status='published'
-               AND card.media_rights_status='approved'
                AND card.deleted_at IS NULL AND series.wiki_enabled`,
             [input.officeId, input.cardId, input.ownerAccountId],
         );
@@ -3865,7 +4192,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                        AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
                        AND card.owner_account_id=?
                        AND card.publication_status='published'
-                       AND card.media_rights_status='approved'
                        AND card.deleted_at IS NULL AND series.wiki_enabled
                        AND account.status='active' AND account.deleted_at IS NULL
                      ON CONFLICT (office_id, card_id) DO NOTHING
@@ -3906,8 +4232,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                              AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
                              AND card.owner_account_id=?
                              AND card.publication_status='published'
-                             AND card.media_rights_status='approved'
-                             AND card.deleted_at IS NULL AND series.wiki_enabled
+                                   AND card.deleted_at IS NULL AND series.wiki_enabled
                              AND account.status='active'
                              AND account.deleted_at IS NULL
                        )

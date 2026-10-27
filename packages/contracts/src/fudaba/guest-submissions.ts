@@ -17,6 +17,8 @@ export const fudabaGuestSubmissionStatusSchema = z.enum([
   "published",
   "rejected",
   "withdrawn",
+  "hidden",
+  "locked",
 ])
 
 export const fudabaGuestSubmissionSummarySchema = z

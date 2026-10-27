@@ -39,8 +39,11 @@ const card = {
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
   available: true,
-  mediaRightsStatus: "approved",
   publicationStatus: "draft",
+  reviewStatus: null,
+  reviewReason: null,
+  reviewSubmittedAt: null,
+  pendingContent: null,
   revision: 3,
   createdAt: "2026-08-02T08:00:00.000Z",
   updatedAt: "2026-08-02T09:00:00.000Z",
@@ -672,7 +675,6 @@ test.describe("account personal workspace", () => {
     await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
     await expect(page.getByText("浏览器交换名片")).toBeVisible()
     await page.getByRole("button", { name: /浏览器交换名片/ }).click()
-    await expect(page.getByText("素材已核准")).toBeVisible()
     await expect(
       page.getByLabel("编辑名片").getByText("草稿", { exact: true })
     ).toBeVisible()

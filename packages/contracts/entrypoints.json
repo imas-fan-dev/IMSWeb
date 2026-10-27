@@ -21,6 +21,8 @@
     { "subpath": "./platform/admin", "source": "src/platform/admin.ts", "namespace": "platformAdmin", "runtime": "schema" },
     { "subpath": "./platform/admin-email", "source": "src/platform/admin-email.ts", "namespace": "platformAdminEmail", "runtime": "schema" },
     { "subpath": "./platform/admin-users", "source": "src/platform/admin-users.ts", "namespace": "platformAdminUsers", "runtime": "schema" },
+    { "subpath": "./platform/admin-station-messages", "source": "src/platform/admin-station-messages.ts", "namespace": "platformAdminStationMessages", "runtime": "schema" },
+    { "subpath": "./platform/admin-station-messages/runtime", "source": "src/platform/admin-station-messages/runtime.ts", "namespace": "platformAdminStationMessagesRuntime", "runtime": "zod-free" },
     { "subpath": "./platform/account-security", "source": "src/platform/account-security.ts", "namespace": "platformAccountSecurity", "runtime": "schema" },
     { "subpath": "./live", "source": "src/live.ts", "namespace": "live", "runtime": "schema" },
     { "subpath": "./events", "source": "src/events.ts", "namespace": "events", "runtime": "schema" },

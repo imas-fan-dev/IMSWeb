@@ -2,6 +2,7 @@ import { useRequest } from "alova/client"
 import {
   ArrowLeftIcon,
   BookOpenTextIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
   ContactRoundIcon,
   HistoryIcon,
@@ -36,6 +37,11 @@ import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover"
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -52,6 +58,7 @@ import {
   NavigationLink,
   NavigationNavLink,
 } from "~/components/navigation/navigation-link"
+import { useMediaQuery } from "~/lib/use-media-query"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 
 type AdminNavChild = {
@@ -201,12 +208,17 @@ const navigation: Array<{
     superOnly: true,
   },
   {
-    to: "/admin/platform/email",
-    label: "邮件服务",
-    description: "SMTP 发件服务配置",
+    to: "/admin/platform/messages",
+    label: "邮件通知",
+    description: "站内通知、历史审计与 SMTP 配置",
     icon: MailIcon,
     accent: "bg-franchise-sc",
     superOnly: true,
+    children: [
+      { to: "/admin/platform/messages", label: "发送通知", end: true },
+      { to: "/admin/platform/messages/history", label: "历史审计" },
+      { to: "/admin/platform/email", label: "邮件配置" },
+    ],
   },
   {
     to: "/admin/platform/users",
@@ -224,6 +236,11 @@ const navigation: Array<{
     accent: "bg-franchise-gk",
   },
 ]
+
+type AdminNavItem = (typeof navigation)[number]
+
+/** Below this width the sidebar is a horizontal strip, so groups open as menus. */
+const DESKTOP_NAV_QUERY = "(min-width: 1024px)"
 
 function navClass(
   { isActive }: { isActive: boolean },
@@ -255,6 +272,77 @@ function navChildClass(
       : isActive
         ? "bg-admin-ink-muted font-medium text-admin-ink-foreground"
         : "text-admin-ink-subtle hover:bg-admin-ink-muted hover:text-admin-ink-foreground"
+  )
+}
+
+function AdminNavGroupTrigger({
+  item,
+  active,
+}: {
+  item: AdminNavItem
+  active: boolean
+}) {
+  return (
+    <>
+      <span
+        className={cn(
+          "absolute inset-y-3 left-0 w-0.5 rounded-full transition-opacity",
+          active ? "opacity-100" : "opacity-0",
+          item.accent
+        )}
+        aria-hidden="true"
+      />
+      <item.icon className="size-4 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
+        <span>{item.label}</span>
+        <span className="hidden text-[10.88px]/4 font-normal text-admin-ink-subtle lg:block">
+          {item.description}
+        </span>
+      </span>
+    </>
+  )
+}
+
+function AdminNavChildList({
+  accent,
+  items,
+  onNavigate,
+}: {
+  accent: string
+  items: AdminNavChild[]
+  onNavigate?: () => void
+}) {
+  return (
+    <ul className="flex flex-col gap-1 pt-1">
+      {items.map((child) => (
+        <li key={child.label}>
+          {child.to ? (
+            <NavigationNavLink
+              to={child.to}
+              end={child.end}
+              className={(state) => navChildClass(state, false)}
+              onClick={onNavigate}
+            >
+              <span
+                className={cn(
+                  "absolute inset-y-2 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
+                  accent
+                )}
+                aria-hidden="true"
+              />
+              {child.label}
+            </NavigationNavLink>
+          ) : (
+            <span
+              aria-disabled="true"
+              className={navChildClass({ isActive: false }, true)}
+            >
+              {child.label}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -362,6 +450,8 @@ export default function AdminLayout() {
   const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [hoveredMenu, setHoveredMenu] = useState<string | null>(null)
+  const [openNavGroup, setOpenNavGroup] = useState<string | null>(null)
+  const isDesktopNav = useMediaQuery(DESKTOP_NAV_QUERY)
   const { data, loading, error, onError, send } = useRequest(getAdminSession())
   onError(() => undefined)
 
@@ -577,6 +667,51 @@ export default function AdminLayout() {
                     )
                   }
 
+                  if (hasChildren && !isDesktopNav) {
+                    return (
+                      <Popover
+                        key={item.to}
+                        open={openNavGroup === item.to}
+                        onOpenChange={(open) =>
+                          setOpenNavGroup(open ? item.to : null)
+                        }
+                      >
+                        <PopoverTrigger
+                          render={
+                            <button
+                              type="button"
+                              aria-haspopup="menu"
+                              className={cn(
+                                navClass({ isActive: childActive }, false),
+                                "cursor-pointer text-left lg:w-full"
+                              )}
+                            />
+                          }
+                        >
+                          <AdminNavGroupTrigger
+                            item={item}
+                            active={childActive}
+                          />
+                          <ChevronDownIcon
+                            className="ml-auto size-3 opacity-50"
+                            aria-hidden="true"
+                          />
+                        </PopoverTrigger>
+                        <PopoverContent
+                          side="bottom"
+                          align="start"
+                          className="w-56 max-w-[calc(100vw-1.5rem)] rounded-lg border border-admin-ink-muted bg-admin-ink p-2 text-admin-ink-foreground shadow-2xl"
+                        >
+                          <AdminNavChildList
+                            accent={item.accent}
+                            items={children}
+                            onNavigate={() => setOpenNavGroup(null)}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    )
+                  }
+
                   if (hasChildren) {
                     return (
                       <Collapsible
@@ -593,27 +728,13 @@ export default function AdminLayout() {
                         <CollapsibleTrigger
                           className={cn(
                             navClass({ isActive: childActive }, false),
-                            "w-full cursor-pointer text-left"
+                            "cursor-pointer text-left lg:w-full"
                           )}
                         >
-                          <span
-                            className={cn(
-                              "absolute inset-y-3 left-0 w-0.5 rounded-full transition-opacity",
-                              childActive ? "opacity-100" : "opacity-0",
-                              item.accent
-                            )}
-                            aria-hidden="true"
+                          <AdminNavGroupTrigger
+                            item={item}
+                            active={childActive}
                           />
-                          <item.icon
-                            className="size-4 shrink-0"
-                            aria-hidden="true"
-                          />
-                          <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
-                            <span>{item.label}</span>
-                            <span className="hidden text-[10.88px]/4 font-normal text-admin-ink-subtle lg:block">
-                              {item.description}
-                            </span>
-                          </span>
                           <ChevronRightIcon
                             className="ml-auto hidden size-3 opacity-50 transition-transform duration-200 group-data-panel-open:rotate-90 motion-reduce:transition-none lg:block"
                             aria-hidden="true"
@@ -626,40 +747,10 @@ export default function AdminLayout() {
                             "[&[hidden]:not([hidden='until-found'])]:hidden"
                           )}
                         >
-                          <ul className="flex flex-col gap-1 pt-1">
-                            {children.map((child) => (
-                              <li key={child.label}>
-                                {child.to ? (
-                                  <NavigationNavLink
-                                    to={child.to}
-                                    end={child.end}
-                                    className={(state) =>
-                                      navChildClass(state, false)
-                                    }
-                                  >
-                                    <span
-                                      className={cn(
-                                        "absolute inset-y-2 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
-                                        item.accent
-                                      )}
-                                      aria-hidden="true"
-                                    />
-                                    {child.label}
-                                  </NavigationNavLink>
-                                ) : (
-                                  <span
-                                    aria-disabled="true"
-                                    className={navChildClass(
-                                      { isActive: false },
-                                      true
-                                    )}
-                                  >
-                                    {child.label}
-                                  </span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                          <AdminNavChildList
+                            accent={item.accent}
+                            items={children}
+                          />
                         </CollapsibleContent>
                       </Collapsible>
                     )

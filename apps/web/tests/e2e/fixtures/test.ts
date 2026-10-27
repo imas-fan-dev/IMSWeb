@@ -1,6 +1,26 @@
 import { test as base } from "@playwright/test"
+import { namecardNotificationListResponseSchema } from "@imsweb/contracts/fudaba/card-claims"
+import { exchangePath } from "@imsweb/contracts/paths"
 
 import { ApiDispatcher } from "./api-dispatcher"
+
+/**
+ * The shell asks for the recipient's unread count on every navigation, so any
+ * spec that signs in would otherwise fail on an unregistered request it never
+ * cared about. Specs that assert the inbox register their own expectation.
+ */
+function installInboxProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangePath("/me/notifications"),
+    responses: { 200: namecardNotificationListResponseSchema },
+    times: { min: 0, max: 1_000 },
+    handle: () => ({
+      status: 200,
+      json: { items: [], unread: 0 },
+    }),
+  })
+}
 
 export { expect } from "@playwright/test"
 export type { ApiDispatcher } from "./api-dispatcher"
@@ -29,6 +49,7 @@ export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
         throw new Error("Playwright API dispatcher requires baseURL")
       const dispatcher = new ApiDispatcher(baseURL, apiOrigins)
       await dispatcher.install(context)
+      installInboxProbe(dispatcher)
       if (activeApi) {
         await dispatcher.dispose()
         throw new Error(

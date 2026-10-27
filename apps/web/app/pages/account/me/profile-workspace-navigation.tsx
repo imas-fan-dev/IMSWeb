@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import type { PlatformProfile } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
+import { useNamecardUnread } from "~/lib/use-namecard-unread"
 
 export type ProfileWorkspaceSection =
   | "profile"
@@ -61,10 +62,10 @@ export const profileWorkspaceSections = [
   },
   {
     id: "claims",
-    label: "认领消息",
+    label: "消息",
     labelKey: "platformAccount.app.sections.claims.label",
-    shortLabel: "认领",
-    description: "历史名片身份确认",
+    shortLabel: "消息",
+    description: "审核通知与名片认领",
     descriptionKey: "platformAccount.app.sections.claims.description",
     icon: MailIcon,
   },
@@ -102,6 +103,7 @@ export function ProfileWorkspaceNavigation({
   const { t } = useTranslation()
   const desktopAccount = useDesktopAccountWorkspace()
   const avatarSource = profile.avatarUrl
+  const unread = useNamecardUnread()
 
   if (sectionBasePath && (!desktopAccount || embedded)) return null
 
@@ -149,7 +151,8 @@ export function ProfileWorkspaceNavigation({
                     "flex min-w-0 items-center justify-center gap-2 border-b-2 border-transparent px-2 py-3 text-sm transition-colors outline-none hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 lg:justify-start lg:gap-3 lg:border-b-0 lg:border-l-2 lg:px-5",
                     active
                       ? "border-primary bg-accent/60 text-foreground lg:border-l-primary"
-                      : "text-muted-foreground lg:border-l-transparent"
+                      : "text-muted-foreground lg:border-l-transparent",
+                    section.id === "claims" && "relative pr-9 lg:pr-12"
                   )}
                   aria-label={t(section.labelKey)}
                   aria-current={active ? "page" : undefined}
@@ -176,6 +179,15 @@ export function ProfileWorkspaceNavigation({
                       {t(section.descriptionKey)}
                     </span>
                   </span>
+
+                  {section.id === "claims" && unread > 0 ? (
+                    <span
+                      className="absolute top-1/2 right-2 grid size-4 -translate-y-1/2 place-items-center rounded-full bg-destructive text-[10px] leading-none font-medium text-destructive-foreground lg:right-3"
+                      aria-label={`${unread} 条未读消息`}
+                    >
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  ) : null}
                 </NavigationLink>
               </li>
             )

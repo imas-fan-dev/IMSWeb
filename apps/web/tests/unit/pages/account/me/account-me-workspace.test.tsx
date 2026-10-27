@@ -152,7 +152,6 @@ const card = {
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
   available: true,
-  mediaRightsStatus: "approved" as const,
   publicationStatus: "draft" as const,
   revision: 3,
   createdAt: "2026-08-02T08:00:00.000Z",
@@ -474,7 +473,6 @@ describe("AccountMeWorkspace", () => {
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
-    expect(screen.getByText("素材已核准")).toBeVisible()
     expect(screen.getAllByText("草稿")).toHaveLength(2)
     expect(
       screen.queryByRole("textbox", { name: "显示名称" })

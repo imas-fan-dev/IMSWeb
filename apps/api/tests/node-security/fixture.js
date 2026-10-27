@@ -85,10 +85,10 @@ function createNodeSecurityFixture({ test, beforeAll, afterAll }) {
                 (id, card_number, origin, producer_name, display_name,
                  series_code, favorite_character, accent, bio, trade_note,
                  front_object_key, back_object_key, available,
-                 media_rights_status, publication_status, legacy_card_id,
+                 publication_status, legacy_card_id,
                  revision, created_at, updated_at, deleted_at)
              VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                     ?, ?, FALSE, 'approved', ?, NULL, 0, CURRENT_TIMESTAMP,
+                     ?, ?, FALSE, ?, NULL, 0, CURRENT_TIMESTAMP,
                      CURRENT_TIMESTAMP, NULL)`,
             [
                 `legacy-${legacyId}`,

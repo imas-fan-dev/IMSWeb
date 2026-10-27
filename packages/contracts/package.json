@@ -177,6 +177,26 @@
         "default": "./dist/cjs/platform/admin-users.js"
       }
     },
+    "./platform/admin-station-messages": {
+      "import": {
+        "types": "./dist/esm/platform/admin-station-messages.d.ts",
+        "default": "./dist/esm/platform/admin-station-messages.js"
+      },
+      "require": {
+        "types": "./dist/cjs/platform/admin-station-messages.d.ts",
+        "default": "./dist/cjs/platform/admin-station-messages.js"
+      }
+    },
+    "./platform/admin-station-messages/runtime": {
+      "import": {
+        "types": "./dist/esm/platform/admin-station-messages/runtime.d.ts",
+        "default": "./dist/esm/platform/admin-station-messages/runtime.js"
+      },
+      "require": {
+        "types": "./dist/cjs/platform/admin-station-messages/runtime.d.ts",
+        "default": "./dist/cjs/platform/admin-station-messages/runtime.js"
+      }
+    },
     "./platform/account-security": {
       "import": {
         "types": "./dist/esm/platform/account-security.d.ts",

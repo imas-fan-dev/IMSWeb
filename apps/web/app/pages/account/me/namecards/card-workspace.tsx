@@ -9,6 +9,8 @@ import {
 } from "~/components/ui/dialog"
 import { FileImageIcon } from "lucide-react"
 
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+
 import {
   Empty,
   EmptyDescription,
@@ -20,6 +22,33 @@ import { Skeleton } from "~/components/ui/skeleton"
 import type { FudabaOwnerCard, FudabaSeries, PlatformProfile } from "~/lib/api"
 import { CardEditor } from "./card-editor"
 import { CardInventory } from "./card-inventory"
+
+/** What happened to the revision that is not published yet, and what is live. */
+function RevisionNotice({ card }: { card: FudabaOwnerCard }) {
+  const status = card.reviewStatus
+  if (!status) return null
+  const title =
+    status === "pending"
+      ? "新版本审核中"
+      : status === "locked"
+        ? "本次提交已被标记违规"
+        : "新版本未通过审核"
+  const description =
+    status === "pending"
+      ? "审核期间名片墙上仍然展示上一个已公开的版本；通过后会自动替换。"
+      : status === "locked"
+        ? `违规理由：${card.reviewReason ?? "未填写"}。名片墙上仍然展示上一个已公开的版本。`
+        : `驳回理由：${card.reviewReason ?? "未填写"}。名片墙上仍然展示上一个已公开的版本，可以修改后重新提交。`
+  return (
+    <Alert
+      className="mb-4"
+      variant={status === "pending" ? undefined : "destructive"}
+    >
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>{description}</AlertDescription>
+    </Alert>
+  )
+}
 
 export function CardWorkspace({
   cards,
@@ -63,6 +92,9 @@ export function CardWorkspace({
   const mapDialog = useExchangeMapDialog()
   const editor = (
     <div className="min-w-0">
+      {selectedCard?.reviewStatus ? (
+        <RevisionNotice card={selectedCard} />
+      ) : null}
       {loadingDetail && !selectedCard ? (
         <div aria-label="正在载入名片" className="flex flex-col gap-4">
           <Skeleton className="h-10 w-48" />

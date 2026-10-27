@@ -57,10 +57,62 @@ function renderAdminLayout(initialEntry = "/admin") {
   )
 }
 
+/** jsdom reports every media query as unmatched, so state the breakpoint. */
+function stubNavigationBreakpoint(desktop: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query === "(min-width: 1024px)" ? desktop : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+  )
+}
+
 describe("AdminLayout", () => {
   beforeEach(() => {
     mocks.onError.mockReturnValue(undefined)
     mocks.send.mockResolvedValue(undefined)
+    stubNavigationBreakpoint(true)
+  })
+
+  it("opens a navigation group as a menu instead of growing the bar", async () => {
+    stubNavigationBreakpoint(false)
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 3,
+          username: "operator",
+          producername: "Operator",
+          dept: "op",
+          adminRole: "admin",
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+    const user = userEvent.setup()
+
+    renderAdminLayout("/admin")
+
+    // Narrow screens get a popover list; the bar itself must not grow.
+    expect(screen.queryByText("名片审核")).not.toBeInTheDocument()
+    const group = screen.getByRole("button", { name: /名片管理/ })
+    expect(group).toHaveAttribute("aria-haspopup", "menu")
+
+    await user.click(group)
+
+    expect(
+      await screen.findByRole("link", { name: "名片审核" })
+    ).toHaveAttribute("href", "/admin/cards")
   })
 
   it("does not render the admin shell for a signed-in non-op user", () => {

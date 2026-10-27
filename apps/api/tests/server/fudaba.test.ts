@@ -163,8 +163,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                  series_code, favorite_idol, front_object_key,
                  back_object_key, accent, bio, trade_note, available,
                  source_url, source_label, source_credit, media_rights_status,
-                 publication_status, revision, created_at, updated_at,
-                 deleted_at)
+                 publication_status, revision, created_at,
+                 updated_at, deleted_at)
              VALUES (?, 'agency-migration-owner', 'Producer', ?, ?, '', ?, ?,
                      '#4f64dd', '', '', TRUE, NULL, NULL, NULL, 'approved',
                      'published', 0, '2026-08-03T00:00:00.000Z',
@@ -923,7 +923,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             sourceUrl: null,
             sourceLabel: null,
             sourceCredit: null,
-            mediaRightsStatus: 'approved',
             publicationStatus: 'published',
             revision: 0,
             createdAt: CREATED_AT,
@@ -996,7 +995,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         }));
         await fixture.repository.createCard(card(`${dialect}-deleted-card`, ownerId, {
             publicationStatus: 'pending',
-            mediaRightsStatus: 'unknown',
             updatedAt: UPDATED_AT,
             deletedAt: UPDATED_AT
         }));
@@ -1934,8 +1932,13 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             source_url: null,
             source_label: null,
             source_credit: null,
-            media_rights_status: 'unknown',
             publication_status: 'approving',
+            review_status: null,
+            review_reason: null,
+            review_submitted_at: null,
+            pending_payload: null,
+            pending_front_object_key: null,
+            pending_back_object_key: null,
             revision: 1,
             created_at: CREATED_AT,
             updated_at: CREATED_AT,
@@ -2261,7 +2264,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     return {
                         ...card,
                         publication_status: 'published',
-                        media_rights_status: 'approved',
                         revision: 2
                     };
                 },
@@ -2327,7 +2329,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                         id: cardId,
                         legacy_card_id: 42,
                         publication_status: 'published',
-                        media_rights_status: 'approved',
                         revision: 0
                     };
                 },
@@ -2465,7 +2466,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             sourceUrl: null,
             sourceLabel: null,
             sourceCredit: null,
-            mediaRightsStatus: publicationStatus === 'published' ? 'approved' : 'unknown',
             publicationStatus,
             revision: 0,
             createdAt: CREATED_AT,
@@ -2546,10 +2546,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             (id, card_number, origin, producer_name, display_name,
              series_code, favorite_character, accent, bio, trade_note,
              front_object_key, back_object_key, available,
-             media_rights_status, publication_status, revision,
+             publication_status, revision,
              created_at, updated_at)
          VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                 ?, ?, FALSE, 'approved', 'published', 0, ?, ?)`
+                 ?, ?, FALSE, 'published', 0, ?, ?)`
         ).bind(
             `legacy-${row.id}`,
             row.id,
@@ -2968,7 +2968,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(createdCardResult.card?.owner_account_id, ownerB);
             assert.equal(createdCardResult.card?.series_code, 'cg');
             assert.equal(createdCardResult.card?.publication_status, 'published');
-            assert.equal(createdCardResult.card?.media_rights_status, 'approved');
             assert.equal(createdCardResult.card?.favorite_character, '测试春香、测试卯月');
             assert.equal(
                 createdCardResult.card?.front_object_key,
@@ -3093,7 +3092,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(registeredComplete.status, 'saved');
             if (registeredComplete.status !== 'saved') return;
             assert.equal(registeredComplete.card.publication_status, 'published');
-            assert.equal(registeredComplete.card.media_rights_status, 'approved');
             const registeredReplay = await fudaba.completeRegisteredCardReview({
                 cardId: reviewCardId,
                 approvingRevision: 1,
@@ -3122,7 +3120,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(registeredRejected.status, 'saved');
             if (registeredRejected.status !== 'saved') return;
             assert.equal(registeredRejected.card.publication_status, 'rejected');
-            assert.equal(registeredRejected.card.media_rights_status, 'denied');
 
             const rollbackCardId = 'registered-review-rollback';
             assert.equal(
@@ -3232,7 +3229,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             sourceUrl: null,
             sourceLabel: null,
             sourceCredit: null,
-            mediaRightsStatus: 'approved',
             publicationStatus: 'published',
             revision: 0,
             createdAt: CREATED_AT,
@@ -3537,21 +3533,15 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             ).bind(exchangeId).first<string>('status'), 'accepted');
         }
 
-        postgresTest('media rights and moderation constraints cannot be bypassed', async () => {
+        postgresTest('moderation constraints cannot be bypassed', async () => {
             const fixture = await createFixture();
             await seedPlatformAccount(fixture, 'card-owner');
             const actorId = await seedBackofficeActor(fixture, 'fudaba-moderator');
 
-            await assert.rejects(fixture.repository.createCard(card(
-                'unapproved-published-card',
-                'card-owner',
-                { mediaRightsStatus: 'unknown', publicationStatus: 'published' }
-            )));
             const published = await fixture.repository.createCard(card(
                 'approved-published-card',
                 'card-owner'
             ));
-            assert.equal(published.media_rights_status, 'approved');
             assert.equal(published.publication_status, 'published');
 
             await assert.rejects(fixture.repository.createModerationCase({
@@ -4220,7 +4210,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     describe('Fudaba location repository', () => {
         postgresTest('review migrations preserve legacy location history and requeue canonical offices without upgrading grids', async () => {
             const harness = await createPostgresTestHarness({
-                migrationsPath: await createMigrationCatalogBefore(onTestFinished, '20261026120000_fudaba_public_location_precision.sql')
+                migrationsPath: await createMigrationCatalogBefore(onTestFinished, '20261026130000_fudaba_public_location_precision.sql')
             });
             onTestFinished(() => harness.close());
             const fixture: Fixture = {
@@ -4242,7 +4232,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             await insertReviewedLocation(fixture, { officeId: 'historical-location', latitudeE1: 312, longitudeE1: 1215, reviewerId });
             const { migratePostgres } = createRequire(__filename)('../../scripts/migration/postgres-migrations.js');
             const result = await migratePostgres({ connectionString: harness.databaseUrl });
-            assert.deepEqual(result.executed, ['20261026120000_fudaba_public_location_precision', '20261026230000_fudaba_office_review']);
+            assert.deepEqual(result.executed, ['20261026130000_fudaba_public_location_precision', '20261026230000_fudaba_office_review']);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
             assert.equal(currentOffice?.latitude, original.latitude);
@@ -8170,7 +8160,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
         });
 
-        test('soft deletion fences the owner write and removes protected card media', async () => {
+        test('soft deletion hides the card and keeps its media', async () => {
             const fixture = new OwnerRouteFixture();
             const current = fixture.cards.get('owner-card')!;
             const response = await fixture.app.request(
@@ -8187,9 +8177,13 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 revision: 2
             });
             assert.equal(fixture.deleteInputs[0]?.ownerAccountId, ACCOUNT_ID);
-            assert.ok(fixture.cards.get('owner-card')?.deleted_at);
-            assert.equal(fixture.storage.objects.has(current.front_object_key), false);
-            assert.equal(fixture.storage.objects.has(current.back_object_key), false);
+            // Hidden rather than purged: the row and its media stay for review,
+            // and the owner simply stops seeing it.
+            assert.equal(fixture.cards.get('owner-card')?.publication_status, 'hidden');
+            assert.equal(fixture.cards.get('owner-card')?.deleted_at, null);
+            assert.equal(fixture.storage.objects.has(current.front_object_key), true);
+            assert.equal(fixture.storage.objects.has(current.back_object_key), true);
+            assert.equal(fixture.storage.ownedDeletes.length, 0);
             assert.equal((await fixture.app.request(
                 'http://ims.test/api/community/exchange/me/cards/owner-card',
                 { headers: bearerHeaders() }
@@ -8618,7 +8612,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             sourceUrl: 'https://example.test/source',
             sourceLabel: 'Imported source',
             sourceCredit: 'Migration',
-            mediaRightsStatus: 'approved',
             publicationStatus: 'published',
             revision: 0,
             deletedAt: null
@@ -8731,7 +8724,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         assert.equal(created.status, 'saved');
         if (created.status !== 'saved') return;
         assert.equal(created.card.owner_account_id, ownerId);
-        assert.equal(created.card.media_rights_status, 'unknown');
         assert.equal(created.card.publication_status, 'pending');
         assert.equal(created.card.revision, 0);
         assert.equal(created.card.source_url, null);
@@ -8765,9 +8757,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             updatedAt: UPDATED_AT
         }), { status: 'unavailable' });
 
+        // A live card stages new revisions instead of overwriting them, so the
+        // in-place fences below are exercised on a card still in review.
         await fixture.database.prepare(
             `UPDATE fudaba_cards
-         SET media_rights_status='approved', publication_status='published'
+         SET publication_status='pending'
          WHERE id=?`
         ).bind(cardId).run();
         await fixture.database.prepare(
@@ -8821,7 +8815,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 { id: 900_002, agency: 'cg' }
             ]
         );
-        assert.equal(metadataSaved.card.media_rights_status, 'unknown');
         assert.equal(metadataSaved.card.publication_status, 'pending');
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
@@ -8829,9 +8822,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             updatedAt: MEDIA_UPDATED_AT
         }), { status: 'conflict', revision: 1 });
 
+        // A live card stages new revisions instead of overwriting them, so the
+        // in-place fences below are exercised on a card still in review.
         await fixture.database.prepare(
             `UPDATE fudaba_cards
-         SET media_rights_status='approved', publication_status='published'
+         SET publication_status='pending'
          WHERE id=?`
         ).bind(cardId).run();
         const nextFront = `community/fudaba/cards/${cardId}/front-next.webp`;
@@ -8851,7 +8846,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         );
         assert.equal(mediaSaved.card.front_object_key, nextFront);
         assert.equal(mediaSaved.card.revision, 2);
-        assert.equal(mediaSaved.card.media_rights_status, 'unknown');
         assert.equal(mediaSaved.card.publication_status, 'pending');
 
         await fixture.database.prepare(
@@ -8877,7 +8871,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         });
         assert.equal(deleted.status, 'saved');
         if (deleted.status !== 'saved') return;
-        assert.equal(deleted.card.deleted_at, DELETED_AT);
+        assert.equal(deleted.card.publication_status, 'hidden');
+        assert.equal(deleted.card.deleted_at, null);
         assert.equal(deleted.card.revision, 3);
         assert.equal(await fixture.fudaba.findCardForOwner(cardId, ownerId), null);
         assert.deepEqual(await fixture.fudaba.listCardsForOwner(ownerId), []);
@@ -9061,7 +9056,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             sourceUrl: "https://example.test/source",
             sourceLabel: "Source",
             sourceCredit: "Creator",
-            mediaRightsStatus: "approved",
             publicationStatus: "published",
             revision: 0,
             createdAt: CARD_OLD_AT,
@@ -9375,7 +9369,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 updatedAt: CARD_NEW_AT,
             }),
             card("card-unapproved", {
-                mediaRightsStatus: "unknown",
                 publicationStatus: "pending",
                 createdAt: CARD_NEW_AT,
                 updatedAt: CARD_NEW_AT,

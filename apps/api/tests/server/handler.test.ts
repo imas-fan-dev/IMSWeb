@@ -141,12 +141,14 @@ import { test } from 'vitest';
             'createHandleAddReaction',
             'createHandleDeleteReaction',
             'handleApproveNamecard',
-            'handleDeleteNamecard',
+            'handleFlagNamecard',
             'handleGetNamecard',
             'handleListAdminNamecards',
             'handleListNamecards',
             'handleListReactions',
-            'handleRejectNamecard'
+            'handleLockNamecard',
+            'handleRejectNamecard',
+            'handleUnlockNamecard'
         ],
         news: [
             'handleCreateNews',
@@ -487,7 +489,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 140);
+            assert.equal(Object.values(actual).flat().length, 142);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -704,7 +706,9 @@ import { test } from 'vitest';
         eventFind: number[];
         eventFindMedia: number[];
         namecardApprove: number[];
-        namecardDelete: number[];
+        namecardFlag: number[];
+        namecardLock: number[];
+        namecardUnlock: number[];
         namecardFindApproved: number[];
         namecardFindMedia: number[];
         namecardListAdmin: Array<[number, number]>;
@@ -728,7 +732,9 @@ import { test } from 'vitest';
             eventFind: [],
             eventFindMedia: [],
             namecardApprove: [],
-            namecardDelete: [],
+            namecardFlag: [],
+            namecardLock: [],
+            namecardUnlock: [],
             namecardFindApproved: [],
             namecardFindMedia: [],
             namecardListAdmin: [],
@@ -784,17 +790,30 @@ import { test } from 'vitest';
                 return { status: 'not-found' };
             },
             async completeCardApproval() { return { status: 'not-found' }; },
+            async attachCanonicalMedia() {
+                throw new Error('unexpected canonical media attach');
+            },
             async findCardMedia(id) {
                 calls.namecardFindMedia.push(id);
                 return null;
             },
-            async deleteCard(id) {
-                calls.namecardDelete.push(id);
+            async lockCard(id) {
+                calls.namecardLock.push(id);
+                return { status: 'not-found' };
+            },
+            async unlockCard(id) {
+                calls.namecardUnlock.push(id);
                 return { status: 'not-found' };
             },
             async findSubmissionByTokenHash() { return null; },
             async withdrawSubmission() { return { status: 'not-found' }; },
             async rejectSubmission() { return { status: 'not-found' }; },
+            async flagSubmission() {
+                calls.namecardFlag.push(1);
+                return { status: 'not-found' };
+            },
+            async listNamecardNotifications() { return { items: [], unread: 0 }; },
+            async markNamecardNotificationsRead() { return 0; },
             async purgeTerminalCards() { return []; },
             async findSubmissionWithHashesByTokenHash() { return null; },
             async replaceSubmissionImage() { return { status: 'not-found' }; },
@@ -1728,10 +1747,12 @@ import { test } from 'vitest';
             assert.deepEqual(fixture.calls.namecardListAdmin, []);
 
             const adminCases = [
-                ['page=abc&size=101', [10, 0]],
-                ['page=0&size=0', [10, 0]],
-                ['page=1foo&size=1foo', [10, 0]],
-                ['page=101&size=abc', [10, 1_000]]
+                // The admin queue ignores `size`: the handler pins pageSize to 12
+                // so three cards per row tile evenly.
+                ['page=abc&size=101', [12, 0]],
+                ['page=0&size=0', [12, 0]],
+                ['page=1foo&size=1foo', [12, 0]],
+                ['page=101&size=abc', [12, 1_200]]
             ] as const;
             for (const [query, repositoryArgs] of adminCases) {
                 const response = await fixture.request(`/api/admin/cards?${query}`, {
@@ -1742,8 +1763,8 @@ import { test } from 'vitest';
                     success: true,
                     data: [],
                     pageInfo: {
-                        page: repositoryArgs[1] / 10 + 1,
-                        pageSize: 10,
+                        page: repositoryArgs[1] / 12 + 1,
+                        pageSize: 12,
                         total: 0,
                         totalPages: 0,
                         hasNextPage: false
@@ -1879,7 +1900,8 @@ import { test } from 'vitest';
 
             fixture.calls.namecardFindMedia.length = 0;
             fixture.calls.namecardApprove.length = 0;
-            fixture.calls.namecardDelete.length = 0;
+            fixture.calls.namecardLock.length = 0;
+            fixture.calls.namecardUnlock.length = 0;
             fixture.calls.audit.length = 0;
             const unauthenticated = await fixture.request('/api/admin/cards/approve/not-a-number', {
                 method: 'POST'
@@ -1890,8 +1912,8 @@ import { test } from 'vitest';
                 { success: false, message: '未登录' }
             );
 
-            const missingCsrf = await fixture.request('/api/admin/cards/not-a-number', {
-                method: 'DELETE',
+            const missingCsrf = await fixture.request('/api/admin/cards/lock/not-a-number', {
+                method: 'POST',
                 headers: { Cookie: 'token=op-token; csrf_token=csrf' }
             });
             assert.equal(missingCsrf.status, 403);
@@ -1901,7 +1923,8 @@ import { test } from 'vitest';
             });
             assert.deepEqual(fixture.calls.namecardFindMedia, []);
             assert.deepEqual(fixture.calls.namecardApprove, []);
-            assert.deepEqual(fixture.calls.namecardDelete, []);
+            assert.deepEqual(fixture.calls.namecardLock, []);
+            assert.deepEqual(fixture.calls.namecardUnlock, []);
             assert.deepEqual(fixture.calls.audit, []);
 
             const approved = await fixture.request('/api/admin/cards/approve/not-a-number', {
@@ -1918,17 +1941,46 @@ import { test } from 'vitest';
                 error: 'Namecard not found'
             });
 
-            const deleted = await fixture.request('/api/admin/cards/not-a-number?expected_revision=0', {
-                method: 'DELETE',
-                headers: { Authorization: 'Bearer op-token' }
+            const locked = await fixture.request('/api/admin/cards/lock/not-a-number', {
+                method: 'POST',
+                headers: {
+                    Cookie: 'token=op-token; csrf_token=csrf',
+                    'X-CSRFToken': 'csrf',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ expected_revision: 0, reason: 'NSFW内容' })
             });
-            assert.equal(deleted.status, 404);
-            assert.deepEqual(await contractJson(deleted, namecardErrorResponseSchema), {
+            assert.equal(locked.status, 404);
+            assert.deepEqual(await contractJson(locked, namecardErrorResponseSchema), {
                 error: 'Namecard not found'
             });
+
+            // Locking without a reason never reaches the repository.
+            const reasonless = await fixture.request('/api/admin/cards/lock/not-a-number', {
+                method: 'POST',
+                headers: {
+                    Cookie: 'token=op-token; csrf_token=csrf',
+                    'X-CSRFToken': 'csrf',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ expected_revision: 0 })
+            });
+            assert.equal(reasonless.status, 400);
+
+            const unlocked = await fixture.request('/api/admin/cards/unlock/not-a-number', {
+                method: 'POST',
+                headers: {
+                    Cookie: 'token=op-token; csrf_token=csrf',
+                    'X-CSRFToken': 'csrf',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ expected_revision: 0 })
+            });
+            assert.equal(unlocked.status, 404);
             assert.deepEqual(fixture.calls.namecardFindMedia, []);
             assert.deepEqual(fixture.calls.namecardApprove, [0]);
-            assert.deepEqual(fixture.calls.namecardDelete, [0]);
+            assert.deepEqual(fixture.calls.namecardLock, [0]);
+            assert.deepEqual(fixture.calls.namecardUnlock, [0]);
             assert.deepEqual(fixture.calls.audit, []);
             assert.equal(fixture.calls.storageWrites, 0);
         });

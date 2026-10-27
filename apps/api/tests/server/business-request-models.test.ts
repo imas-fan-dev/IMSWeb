@@ -112,10 +112,21 @@ test.describe('business request models', () => {
             page: 101,
             size: 101
         });
-        assert.deepEqual(validateAdminNamecardListQuery({ page: 'abc' }), { page: 1 });
-        assert.deepEqual(validateAdminNamecardListQuery({ page: '0' }), { page: 1 });
-        assert.deepEqual(validateAdminNamecardListQuery({ page: '1foo' }), { page: 1 });
-        assert.deepEqual(validateAdminNamecardListQuery({ page: '101' }), { page: 101 });
+        const defaultAdminPage = {
+            page: 1,
+            status: null,
+            query: null,
+            origins: []
+        };
+        assert.deepEqual(validateAdminNamecardListQuery({ page: 'abc' }), defaultAdminPage);
+        assert.deepEqual(validateAdminNamecardListQuery({ page: '0' }), defaultAdminPage);
+        assert.deepEqual(validateAdminNamecardListQuery({ page: '1foo' }), defaultAdminPage);
+        assert.deepEqual(validateAdminNamecardListQuery({ page: '101' }), {
+            page: 101,
+            status: null,
+            query: null,
+            origins: []
+        });
     });
 
     test('Wiki shared numeric params preserve Number aliases and reject non-positive IDs', () => {

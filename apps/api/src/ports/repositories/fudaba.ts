@@ -13,7 +13,6 @@ export type FudabaCardPublicationStatus =
     | "hidden"
     | "rejected";
 
-export type FudabaMediaRightsStatus = "unknown" | "approved" | "denied";
 
 export type FudabaCardClaimState =
     | "pending"
@@ -170,6 +169,22 @@ export type FudabaOfficeCreateResult =
     | FudabaOfficeMutationResult
     | { status: "idempotency-conflict" };
 
+/** The copy a submitter asks to publish; mirrors the live columns one to one. */
+export interface FudabaPendingCardPayload {
+    producer_name: string;
+    display_name: string;
+    series_code: string;
+    favorite_character: string;
+    favorite_character_ids: number[];
+    accent: string;
+    bio: string;
+    trade_note: string;
+    available: boolean;
+}
+
+/** Verdict on the newest submission of an already published card. */
+export type FudabaCardReviewStatus = "pending" | "rejected" | "locked";
+
 export interface FudabaCardRecord {
     id: string;
     owner_account_id: string;
@@ -189,8 +204,13 @@ export interface FudabaCardRecord {
     source_url: string | null;
     source_label: string | null;
     source_credit: string | null;
-    media_rights_status: FudabaMediaRightsStatus;
     publication_status: FudabaCardPublicationStatus;
+    review_status: FudabaCardReviewStatus | null;
+    review_reason: string | null;
+    review_submitted_at: string | null;
+    pending_payload: FudabaPendingCardPayload | null;
+    pending_front_object_key: string | null;
+    pending_back_object_key: string | null;
     revision: number;
     created_at: string;
     updated_at: string;
@@ -215,7 +235,6 @@ export interface NewFudabaCardInput {
     sourceUrl: string | null;
     sourceLabel: string | null;
     sourceCredit: string | null;
-    mediaRightsStatus: FudabaMediaRightsStatus;
     publicationStatus: FudabaCardPublicationStatus;
     revision: number;
     createdAt: string;
@@ -890,8 +909,11 @@ export interface FudabaRepository {
     completeRegisteredCardReview(input: {
         cardId: string;
         approvingRevision: number;
-        decision: "publish" | "reject";
+        /** `flag` marks the submission as a violation and leaves live content up. */
+        decision: "publish" | "reject" | "flag";
         reviewedAt: string;
+        /** Reviewer note, forwarded as the rejection reason to the owner. */
+        note?: string | null;
         audit: AuditLogInput;
     }): Promise<FudabaRegisteredCardReviewResult>;
     beginCardClaimReview(

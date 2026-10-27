@@ -295,6 +295,24 @@ export const ownerOfficeSeriesCodesSchema = z
   .max(8)
   .refine((codes) => new Set(codes).size === codes.length);
 
+/** The copy a submitter is asking to replace the published card with. */
+export const fudabaPendingCardContentSchema = z
+  .object({
+    producerName: ownerCardTextSchema(80, true),
+    displayName: ownerCardTextSchema(120, true),
+    seriesCode: seriesCodeSchema.max(64),
+    favoriteCharacter: ownerCardTextSchema(200),
+    /** Character ids; the editor already holds the catalogue to name them. */
+    favoriteCharacterIds: z.array(z.number().int().positive()),
+    frontImageUrl: publicMediaUrlSchema,
+    backImageUrl: publicMediaUrlSchema,
+    accent: accentSchema,
+    bio: ownerCardTextSchema(2000),
+    tradeNote: ownerCardTextSchema(1000),
+    available: z.boolean(),
+  })
+  .strict();
+
 export const fudabaOwnerCardSchema = z
   .object({
     id: ownerCardIdSchema,
@@ -311,7 +329,6 @@ export const fudabaOwnerCardSchema = z
     bio: ownerCardTextSchema(2000),
     tradeNote: ownerCardTextSchema(1000),
     available: z.boolean(),
-    mediaRightsStatus: z.enum(["unknown", "approved", "denied"]),
     publicationStatus: z.enum([
       "draft",
       "pending",
@@ -319,8 +336,18 @@ export const fudabaOwnerCardSchema = z
       "published",
       "hidden",
       "rejected",
+      "withdrawn",
+      "locked",
     ]),
     revision: fudabaRevisionSchema,
+    /**
+     * Verdict on the newest submission of an already published card. While this
+     * is set the published version keeps serving the wall and exchange.
+     */
+    reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
+    reviewReason: z.string().nullable(),
+    reviewSubmittedAt: timestampSchema.nullable(),
+    pendingContent: fudabaPendingCardContentSchema.nullable(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -545,6 +572,8 @@ export const fudabaReactionRequestSchema = legacyStripRequestObject({
 });
 export const fudabaMediaQuerySchema = legacyStripRequestObject({
   v: z.string().optional(),
+  /** `1` serves the media of the revision still under review. */
+  draft: z.enum(["1"]).optional(),
 });
 export const fudabaPlaceSearchQuerySchema = legacyStripRequestObject({
   q: z.string().trim().min(2).max(120).refine((value) => !hasAsciiControl(value)),
@@ -594,6 +623,9 @@ export type FudabaPlaceSearchResponse = z.infer<
 export type FudabaPlaceReverseQuery = z.infer<typeof fudabaPlaceReverseQuerySchema>;
 export type FudabaPlaceReverseResult = z.infer<typeof fudabaPlaceReverseResultSchema>;
 export type FudabaPlaceReverseResponse = z.infer<typeof fudabaPlaceReverseResponseSchema>;
+export type FudabaPendingCardContent = z.infer<
+  typeof fudabaPendingCardContentSchema
+>;
 export type FudabaOwnerCard = z.infer<typeof fudabaOwnerCardSchema>;
 export type FudabaOwnerCardList = z.infer<typeof fudabaOwnerCardListSchema>;
 export type FudabaOwnerCardDetail = z.infer<typeof fudabaOwnerCardDetailSchema>;

@@ -571,8 +571,11 @@ test.describe("namecard claim workflow", () => {
     bio: "",
     tradeNote: "",
     available: true,
-    mediaRightsStatus: "unknown",
     publicationStatus: "pending",
+    reviewStatus: null,
+    reviewReason: null,
+    reviewSubmittedAt: null,
+    pendingContent: null,
     revision: 1,
     createdAt: "2026-08-16T19:30:00.000Z",
     updatedAt: "2026-08-16T19:30:00.000Z",
@@ -750,7 +753,7 @@ test.describe("namecard claim workflow", () => {
     await expect(
       page.getByText("已确认本人名片，认领申请等待管理员审核")
     ).toBeVisible()
-    await expect(page.getByText("当前没有待确认信封。")).toBeVisible()
+    await expect(page.getByText("当前没有消息。")).toBeVisible()
     expect(responseBody).toEqual({ decision: "confirm", expectedRevision: 0 })
     expect(csrf).toBe("claim-workflow-csrf")
   })

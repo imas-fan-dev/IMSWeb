@@ -352,7 +352,7 @@ test.describe("app account", () => {
         ["交换名片", "/account/me/namecards"],
         ["收藏夹", "/account/me/favorites"],
         ["事务所与位置", "/account/me/offices"],
-        ["认领消息", "/account/me/claims"],
+        ["消息", "/account/me/claims"],
       ] as const) {
         const link = page.locator(`a[href="${href}"]`)
         await expect(link).toContainText(name)
@@ -647,7 +647,7 @@ test.describe("app account", () => {
           ["namecards", "交换名片"],
           ["favorites", "收藏夹"],
           ["offices", "事务所与位置"],
-          ["claims", "认领消息"],
+          ["claims", "消息"],
         ] as const
         const panelIds = sections.map(([id]) => id)
 

@@ -485,6 +485,20 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "spa"
   ),
   route(
+    "platform/messages",
+    "pages/admin/platform-messages/index.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "platform/messages/history",
+    "pages/admin/platform-messages/history.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
     "platform/users",
     "pages/admin/platform-users/index.tsx",
     "admin",

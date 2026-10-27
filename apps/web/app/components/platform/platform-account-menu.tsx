@@ -12,6 +12,8 @@ import { useTranslation } from "react-i18next"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
+import { MailIcon } from "lucide-react"
+import { useNamecardUnread } from "~/lib/use-namecard-unread"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
@@ -42,6 +44,8 @@ export function PlatformAccountMenu() {
               { name: displayName }
             )
 
+  const unread = useNamecardUnread()
+
   return (
     <Popover>
       <PopoverTrigger
@@ -63,18 +67,28 @@ export function PlatformAccountMenu() {
         ) : platform.status === "error" ? (
           <CircleAlertIcon aria-hidden="true" />
         ) : platform.session ? (
-          <Avatar size="default">
-            {avatarSource ? (
-              <AvatarImage
-                src={avatarSource}
-                alt={t("platformAccount.avatarAlt", { name: displayName })}
-                referrerPolicy="no-referrer"
-              />
+          <span className="relative inline-flex">
+            <Avatar size="default">
+              {avatarSource ? (
+                <AvatarImage
+                  src={avatarSource}
+                  alt={t("platformAccount.avatarAlt", { name: displayName })}
+                  referrerPolicy="no-referrer"
+                />
+              ) : null}
+              <AvatarFallback>
+                {displayName.trim().slice(0, 1) || t("platformAccount.fallback")}
+              </AvatarFallback>
+            </Avatar>
+            {unread > 0 ? (
+              <span
+                className="absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-destructive text-[10px] leading-none font-medium text-destructive-foreground"
+                aria-label={`${unread} 条未读消息`}
+              >
+                {unread > 9 ? "9+" : unread}
+              </span>
             ) : null}
-            <AvatarFallback>
-              {displayName.trim().slice(0, 1) || t("platformAccount.fallback")}
-            </AvatarFallback>
-          </Avatar>
+          </span>
         ) : (
           <CircleUserRoundIcon aria-hidden="true" />
         )}
@@ -177,6 +191,27 @@ export function PlatformAccountMenu() {
                 aria-hidden="true"
               />
               {t("platformAccount.myCards")}
+            </NavigationLink>
+            <NavigationLink
+              to="/account/me/claims"
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "relative w-full",
+              })}
+            >
+              <MailIcon data-icon="inline-start" aria-hidden="true" />
+              {t("platformAccount.messages")}
+              {unread > 0 ? (
+                <span
+                  className="absolute top-1/2 right-2.5 grid size-4 -translate-y-1/2 place-items-center rounded-full bg-destructive text-[10px] leading-none font-medium text-destructive-foreground"
+                  aria-label={t("platformAccount.messagesUnread", {
+                    count: unread,
+                  })}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
             </NavigationLink>
             <NavigationLink
               to="/account/security"

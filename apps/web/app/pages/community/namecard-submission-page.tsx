@@ -61,6 +61,14 @@ const STATUS_COPY: Record<
     label: "已撤回",
     description: "投稿已退出审核队列，图片和担当信息不能再修改。",
   },
+  hidden: {
+    label: "已隐藏",
+    description: "投稿已由投稿人自行下架，不会再展示在名片墙上。",
+  },
+  locked: {
+    label: "已锁定",
+    description: "投稿已被管理员锁定，不会再展示在名片墙上。",
+  },
 }
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {

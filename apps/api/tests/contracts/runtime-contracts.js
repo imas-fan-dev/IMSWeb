@@ -1348,13 +1348,17 @@ async function assertPostCommitMediaContract(fixture) {
                 await fixture.request(`/api/events/${targets.event}`, { method: 'DELETE', headers: auth }),
                 200, { success: true }, `${fixture.runtime} event delete survives cleanup double failure`
             );
-            await assertJsonResponse(
-                await fixture.request(
-                    `/api/admin/cards/${targets.card}?expected_revision=${committedNamecardRevision}`,
-                    { method: 'DELETE', headers: auth }
-                ),
-                200, { success: true }, `${fixture.runtime} namecard delete survives cleanup double failure`
-            );
+            // Cards are locked rather than purged, so the row and its media
+            // survive a reviewer decision that cannot clean anything up.
+            const locked = await fixture.request(`/api/admin/cards/lock/${targets.card}`, {
+                method: 'POST',
+                headers: { ...auth, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    expected_revision: committedNamecardRevision,
+                    reason: 'contract cleanup probe'
+                })
+            });
+            equal(locked.status, 200, `${fixture.runtime} namecard lock survives cleanup double failure`);
         });
     } finally {
         fixture.failCompensationEnqueues(false);
@@ -1362,16 +1366,15 @@ async function assertPostCommitMediaContract(fixture) {
     }
     assertLoggedErrors(deleteFailureLogs, [
         'Failed to clean media for committed news deletion',
-        'Failed to clean media for committed event deletion',
-        'Failed to clean media for committed namecard deletion'
+        'Failed to clean media for committed event deletion'
     ], 'committed deletion cleanup failures');
     const deleted = await fixture.postCommitSnapshot();
     equal(deleted.news, before.news,
         `${fixture.runtime} news row stays deleted after cleanup double failure`);
     equal(deleted.events, before.events,
         `${fixture.runtime} event row stays deleted after cleanup double failure`);
-    equal(deleted.cards, before.cards,
-        `${fixture.runtime} namecard row stays deleted after cleanup double failure`);
+    equal(deleted.cards, committed.cards,
+        `${fixture.runtime} namecard row stays locked after cleanup double failure`);
     equal(deleted.objects, recoverable.objects,
         `${fixture.runtime} failed cleanup leaves media available for operator recovery`);
     equal(deleted.compensationPending, recoverable.compensationPending,
