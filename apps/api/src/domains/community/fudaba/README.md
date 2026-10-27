@@ -65,9 +65,7 @@ fudaba/
     office-policy.ts        # slug 派生策略
     handlers/
   locations/
-    routes.ts
-    request.ts
-    response.ts
+    routes.ts               # 仅地点搜索与逆地理编码
     place-reverse.ts        # 逆地理编码服务商解析与选点坐标保留
     handlers/
   claims/

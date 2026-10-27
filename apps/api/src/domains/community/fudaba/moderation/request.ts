@@ -4,12 +4,6 @@ import type { FudabaLocationReviewState } from '@/ports/repositories';
 const DEFAULT_REVIEW_LIMIT = 50;
 const MAX_REVIEW_LIMIT = 200;
 
-export interface FudabaLocationReviewSubmission {
-    decision: 'publish' | 'reject';
-    expectedRevision: number;
-    reviewNote: string;
-}
-
 export interface CardReviewInput {
     /** `flag` rejects the submission and records it as breaking the rules. */
     decision: 'approve' | 'reject' | 'flag';
@@ -118,31 +112,15 @@ export function parseFudabaLocationReviewQuery(url: string): {
     };
 }
 
-export function parseFudabaLocationReview(
-    value: unknown,
-): FudabaLocationReviewSubmission {
-    const body = object(value);
-    exactKeys(body, ['decision', 'expectedRevision', 'note']);
-    if (body.decision !== 'publish' && body.decision !== 'reject') {
-        throw badRequest('decision must be publish or reject');
-    }
-    const note = reviewNote(body.note);
-    if (body.decision === 'reject' && !note) {
-        throw badRequest('reject 必须填写 note');
-    }
-    return {
-        decision: body.decision,
-        expectedRevision: parseFudabaRevision(body.expectedRevision),
-        reviewNote: note,
-    };
+export interface FudabaOfficeReviewSubmission {
+    decision: 'publish' | 'reject' | 'withdraw';
+    expectedRevision: number;
+    reviewNote: string;
 }
 
-export function parseFudabaOfficeReview(value: unknown): Omit<
-    FudabaLocationReviewSubmission,
-    'decision'
-> & {
-    decision: 'publish' | 'reject' | 'withdraw';
-} {
+export function parseFudabaOfficeReview(
+    value: unknown,
+): FudabaOfficeReviewSubmission {
     const body = object(value);
     exactKeys(body, ['decision', 'expectedRevision', 'note']);
     if (
