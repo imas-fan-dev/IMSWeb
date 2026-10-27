@@ -5,6 +5,12 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
     label: "已通过",
     className: "border-success/40 bg-success/10 text-success",
   },
+  // The admin list still speaks the legacy vocabulary, where a published card
+  // is reported as `approved`; both values mean the same thing here.
+  approved: {
+    label: "已通过",
+    className: "border-success/40 bg-success/10 text-success",
+  },
   pending: {
     label: "待审核",
     className: "border-warning/40 bg-warning/10 text-warning",
