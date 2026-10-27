@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderPage } from "@/tests/unit/support/harness"
-import { CommunityExchangeMapSection } from "~/pages/community/exchange/community-exchange-map-section"
+import { CommunityExchangeMapSection } from "~/pages/community/exchange/components/community-exchange-map-section"
 
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("~/lib/api", async (original) => ({
   }),
   searchFudabaPlaces: mocks.search,
 }))
-vi.mock("~/pages/community/exchange/exchange-office-map", () => ({
+vi.mock("~/pages/community/exchange/maps/maplibre/office-map", () => ({
   ExchangeOfficeMap: () => <div aria-label="地图" />,
 }))
 

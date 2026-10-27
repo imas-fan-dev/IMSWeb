@@ -71,17 +71,13 @@ const SPA_ROUTE_CASES = {
         ],
         negative: ['/chronicle/one/two', '/chronicle/one%2Ftwo', '/chronicle/one%5Ctwo']
     },
-    'community/exchange/me': {
-        positive: ['/community/exchange/me', '/community/exchange/me/'],
-        negative: ['/community/exchange/me/extra']
-    },
     'account/me': {
         positive: ['/account/me', '/account/me/'],
         negative: []
     },
     'account/me/:section': {
-        positive: ['/account/me/profile', '/account/me/cards/', '/account/me/offices'],
-        negative: ['/account/me/cards/extra', '/account/me/one%2Ftwo']
+        positive: ['/account/me/profile', '/account/me/namecards/', '/account/me/offices'],
+        negative: ['/account/me/namecards/extra', '/account/me/one%2Ftwo']
     },
     'community/exchange/offices/:officeSlug': {
         positive: [
@@ -219,6 +215,9 @@ test.describe('frontend routing', () => {
     test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', async () => {
         for (const pathname of [
             '/unknown',
+            '/community/exchange/me',
+            '/community/exchange/me/',
+            '/community/exchange/me/extra',
             '/wiki/not-a-real-route',
             '/wiki/classic/extra-segment',
             '/story-not-a-real-route',
@@ -260,7 +259,7 @@ test.describe('frontend routing', () => {
             '/recommendations',
             '/information/info-example-001',
             '/chronicle/activity-1',
-            '/community/exchange/me',
+            '/account/me',
             '/community/exchange/offices/shanghai-weekend'
         ]) {
             assert.deepEqual(

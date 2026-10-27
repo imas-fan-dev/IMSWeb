@@ -4,6 +4,9 @@ export const FUDABA_OWNER_LATITUDE_MIN = -60;
 export const FUDABA_OWNER_LATITUDE_MAX = 60;
 
 export interface FudabaOwnerLocationSubmission {
+    precision: 'regional' | 'exact';
+    latitudeExact: number | null;
+    longitudeExact: number | null;
     latitudeE1: number;
     longitudeE1: number;
     expectedRevision: number | null;
@@ -42,8 +45,22 @@ export function parseFudabaOwnerLocation(
     value: unknown
 ): FudabaOwnerLocationSubmission {
     const body = object(value);
-    exactKeys(body, ['latitude', 'longitude', 'expectedRevision']);
+    const precision = body.precision === undefined ? 'regional' : body.precision;
+    if (precision !== 'regional' && precision !== 'exact') {
+        throw badRequest('precision 必须是 regional 或 exact');
+    }
+    exactKeys(body, [
+        'latitude', 'longitude', 'expectedRevision',
+        ...(body.precision === undefined ? [] : ['precision']),
+        ...(precision === 'exact' ? ['exactLocationConsent'] : [])
+    ]);
+    if (precision === 'exact' && body.exactLocationConsent !== true) {
+        throw badRequest('精确公开位置必须明确同意');
+    }
     return {
+        precision,
+        latitudeExact: precision === 'exact' ? body.latitude as number : null,
+        longitudeExact: precision === 'exact' ? body.longitude as number : null,
         latitudeE1: coordinate(
             body.latitude,
             'latitude',

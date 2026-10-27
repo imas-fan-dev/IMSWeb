@@ -329,7 +329,7 @@ test.describe("app account", () => {
         "0"
       )
       const profileLink = page.locator('a[href="/account/me/profile"]')
-      const cardsLink = page.locator('a[href="/account/me/cards"]')
+      const cardsLink = page.locator('a[href="/account/me/namecards"]')
       for (const width of [390, 1440]) {
         await page.setViewportSize({ width, height: 844 })
         const profileBox = await profileLink.boundingBox()
@@ -349,7 +349,7 @@ test.describe("app account", () => {
 
       for (const [name, href] of [
         ["个人资料", "/account/me/profile"],
-        ["交换名片", "/account/me/cards"],
+        ["交换名片", "/account/me/namecards"],
         ["收藏夹", "/account/me/favorites"],
         ["事务所与位置", "/account/me/offices"],
         ["认领消息", "/account/me/claims"],
@@ -644,7 +644,7 @@ test.describe("app account", () => {
 
         const sections = [
           ["profile", "个人资料"],
-          ["cards", "交换名片"],
+          ["namecards", "交换名片"],
           ["favorites", "收藏夹"],
           ["offices", "事务所与位置"],
           ["claims", "认领消息"],

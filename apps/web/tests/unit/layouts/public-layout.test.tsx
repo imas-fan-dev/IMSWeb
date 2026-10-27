@@ -191,7 +191,7 @@ describe("PublicLayout", () => {
     }
   )
 
-  it.each(["/community/exchange/me", "/account/me", "/account/me/offices"])(
+  it.each(["/account/me/profile", "/account/me", "/account/me/offices"])(
     "gives personal pages a scrolling document at %s",
     (pathname) => {
       render(

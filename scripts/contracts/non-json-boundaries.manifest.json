@@ -2,6 +2,15 @@
   "format": "imsweb-non-json-boundaries/v1",
   "boundaries": [
     {
+      "id": "FUDABA-ADMIN-OFFICE-MEDIA-01",
+      "sourceFile": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "symbol": "handleServeAdminFudabaOfficeMedia",
+      "responseKind": "binary",
+      "reason": "Backoffice office cover and pending-cover GET/HEAD use private authenticated media delivery.",
+      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/fudaba/location-review.ts", "symbol": "fudabaAdminLocationReviewHttpErrorSchema" },
+      "test": { "file": "apps/api/tests/server/fudaba-office-review.test.ts", "symbol": "admin office media GET and HEAD require Backoffice op and preserve private delivery" }
+    },
+    {
       "id": "APP-SENSITIVE-PATH-01",
       "sourceFile": "apps/api/src/app.ts",
       "symbol": "handleSensitiveRequestPath",
@@ -215,7 +224,7 @@
       "responseKind": "compatibility-text-error",
       "reason": "The map feature gate conceals disabled Fudaba map routes with the established text response.",
       "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the disabled map text/plain 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "map config and offices require both flags and expose strict regional DTOs" }
+      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "map config and offices require both flags and expose strict exact DTOs" }
     },
     {
       "id": "FUDABA-ACCESS-WRITE-01",

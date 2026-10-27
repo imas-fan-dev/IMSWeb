@@ -18,6 +18,8 @@ import { BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_CSRF_TOKEN_COOKIE } from '@/
 import { parseFudabaCardCreateFields } from '@/domains/community/fudaba/cards/request';
 import { parseLegacyCardClaim } from '@/domains/community/fudaba/claims/request';
 import { fudabaCardClaimView } from '@/domains/community/fudaba/contracts/claim';
+import { parseFudabaMapQuery } from '@/domains/community/fudaba/directory/request';
+import { fudabaPublicMapOfficeView, fudabaPublicOfficeView } from '@/domains/community/fudaba/directory/response';
 import { handleReviewFudabaCardClaim, handleReviewFudabaRegisteredCard } from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
 import { toPublicNamecardResponse } from '@/domains/community/namecards/response';
 import { PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_CSRF_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';
@@ -48,6 +50,15 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { describe, onTestFinished, test } from 'vitest';
+
+/** Explicit approved baseline for tests about public ownership/filtering, not submissions. */
+async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId?: string): Promise<void> {
+    const reviewerId = await insertBackofficeAccount(database, `office-fixture-${randomUUID()}`);
+    await database.prepare(`UPDATE fudaba_offices SET review_state='published',
+        review_submitted_at=created_at, reviewed_at=updated_at, reviewed_by=?, review_note='',
+        review_operation_id=NULL, review_audit_id=? ${officeId ? 'WHERE id=?' : ''}`)
+        .bind(reviewerId, randomUUID(), ...(officeId ? [officeId] : [])).run();
+}
 
 // fudaba-agency-catalog.test.ts
 {
@@ -974,6 +985,7 @@ import { describe, onTestFinished, test } from 'vitest';
             suspendedOfficeId,
             suspendedOfficeOwnerId
         ));
+        await seedPublishedOfficeFixture(fixture.database);
         await fixture.repository.createCard(card(cardId, ownerId));
         await fixture.repository.createCard(card(removableCardId, ownerId));
         await fixture.repository.createCard(card(closedRemovalCardId, ownerId));
@@ -3335,6 +3347,7 @@ import { describe, onTestFinished, test } from 'vitest';
             await fixture.repository.createOffice(office(officeId, ownerId, {
                 slug: `上海-${dialect}`
             }));
+            await seedPublishedOfficeFixture(fixture.database, officeId);
             await fixture.repository.createCard(card(wantedId, ownerId));
             await fixture.repository.createCard(card(blockedId, ownerId));
 
@@ -3422,6 +3435,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 await seedPlatformAccount(fixture, accountId);
             }
             await fixture.repository.createOffice(office(officeId, recipientId));
+            await seedPublishedOfficeFixture(fixture.database, officeId);
             await fixture.repository.createCard(card(wantedCardId, recipientId));
             await fixture.repository.createCard(card(offeredCardId, requesterId));
             await fixture.repository.createCard(card(otherCardId, otherId));
@@ -3825,6 +3839,10 @@ import { describe, onTestFinished, test } from 'vitest';
         if (created.status !== "saved") return;
         assert.deepEqual(created.location, {
             office_id: "location-main",
+            precision: 'regional',
+            latitude_exact: null,
+            longitude_exact: null,
+            exact_location_consent_at: null,
             latitude_e1: 312,
             longitude_e1: 1215,
             review_state: "pending",
@@ -4046,17 +4064,19 @@ import { describe, onTestFinished, test } from 'vitest';
             .bind(false)
             .run();
         const publicInputs = [
-            office("map-negative", ownerId, { city: "Beijing", isOpen: false }),
+            office("map-negative", ownerId, { city: "Beijing", isOpen: false, latitude: -3.2, longitude: -45.6 }),
             office("map-positive", ownerId),
-            office("map-restricted", restrictedId),
-            office("map-suspended", suspendedId),
-            office("map-hidden-office", ownerId, { status: "hidden" }),
-            office("map-disabled-series", ownerId, { seriesCodes: ["sidem"] }),
-            office("map-untagged", ownerId, { seriesCodes: [] }),
-            office("map-pending", ownerId),
+            office("map-restricted", restrictedId, { latitude: 31.3, longitude: 121.6 }),
+            office("map-suspended", suspendedId, { latitude: 31.4, longitude: 121.7 }),
+            office("map-hidden-office", ownerId, { status: "hidden", latitude: 31.5, longitude: 121.8 }),
+            office("map-disabled-series", ownerId, { seriesCodes: ["sidem"], latitude: 31.6, longitude: 121.9 }),
+            office("map-untagged", ownerId, { seriesCodes: [], latitude: 31.8, longitude: 122.1 }),
+            office("map-pending", ownerId, { latitude: 31.7, longitude: 122 }),
         ];
-        for (const input of publicInputs)
+        for (const input of publicInputs) {
             await fixture.repository.createOffice(input);
+            if (input.id !== 'map-pending') await seedPublishedOfficeFixture(fixture.database, input.id);
+        }
         await insertReviewedLocation(fixture, {
             officeId: "map-negative",
             latitudeE1: -32,
@@ -4114,7 +4134,7 @@ import { describe, onTestFinished, test } from 'vitest';
         );
 
         const worldwide = await fixture.repository.listPublicMapOffices({
-            bbox: { westE1: -1800, southE1: -900, eastE1: 1800, northE1: 900 },
+            bbox: { west: -180, south: -90, east: 180, north: 90, westE1: -1800, southE1: -900, eastE1: 1800, northE1: 900 },
             limit: 20,
         });
         assert.deepEqual(
@@ -4138,6 +4158,7 @@ import { describe, onTestFinished, test } from 'vitest';
             await fixture.repository
                 .listPublicMapOffices({
                     bbox: {
+                        west: 121.4737, south: 31.2304, east: 121.4737, north: 31.2304,
                         westE1: 1215,
                         southE1: 312,
                         eastE1: 1215,
@@ -4155,6 +4176,7 @@ import { describe, onTestFinished, test } from 'vitest';
             await fixture.repository
                 .listPublicMapOffices({
                     bbox: {
+                        west: -45.6, south: -3.2, east: -45.6, north: -3.2,
                         westE1: -456,
                         southE1: -32,
                         eastE1: -456,
@@ -4196,6 +4218,171 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     describe('Fudaba location repository', () => {
+        postgresTest('review migrations preserve legacy location history and requeue canonical offices without upgrading grids', async () => {
+            const harness = await createPostgresTestHarness({
+                migrationsPath: await createMigrationCatalogBefore(onTestFinished, '20261026120000_fudaba_public_location_precision.sql')
+            });
+            onTestFinished(() => harness.close());
+            const fixture: Fixture = {
+                database: harness.connection,
+                repository: new SqlFudabaRepository(harness.connection, initializedPostgresSchema),
+                dialect: 'postgresql'
+            };
+            await seedAccount(fixture, 'historical-owner');
+            const original = office('historical-location', 'historical-owner');
+            await fixture.database.prepare(`INSERT INTO fudaba_offices
+                (id, owner_account_id, slug, name, intro, city, address, latitude, longitude,
+                 accent, cover_object_key, is_open, visitor_count, status, revision, created_at, updated_at, archived_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                .bind(original.id, original.ownerAccountId, original.slug, original.name, original.intro,
+                    original.city, original.address, original.latitude, original.longitude, original.accent,
+                    original.coverObjectKey, original.isOpen, original.visitorCount, original.status,
+                    original.revision, original.createdAt, original.updatedAt, original.archivedAt).run();
+            const reviewerId = await seedReviewer(fixture);
+            await insertReviewedLocation(fixture, { officeId: 'historical-location', latitudeE1: 312, longitudeE1: 1215, reviewerId });
+            const { migratePostgres } = createRequire(__filename)('../../scripts/migration/postgres-migrations.js');
+            const result = await migratePostgres({ connectionString: harness.databaseUrl });
+            assert.deepEqual(result.executed, ['20261026120000_fudaba_public_location_precision', '20261026230000_fudaba_office_review']);
+            const currentOffice = await fixture.repository.findOfficeById(original.id);
+            assert.equal(currentOffice?.review_state, 'pending');
+            assert.equal(currentOffice?.latitude, original.latitude);
+            assert.equal(currentOffice?.longitude, original.longitude);
+            assert.deepEqual(await fixture.repository.listPublicMapOffices({
+                bbox: { west: -180, south: -90, east: 180, north: 90, westE1: -1800, southE1: -900, eastE1: 1800, northE1: 900 }, limit: 10
+            }), []);
+            const historical = await fixture.repository.findOfficePublicLocationForOwner('historical-location', 'historical-owner');
+            assert.equal(historical?.precision, 'regional');
+            assert.equal(historical?.review_state, 'published');
+            assert.equal(historical?.latitude_exact, null);
+            assert.equal(historical?.longitude_exact, null);
+            assert.equal(historical?.exact_location_consent_at, null);
+            for (const assignment of [
+                "precision='invalid'",
+                "latitude_exact=31.2304",
+                "exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact=31.2304, longitude_exact=121.4737",
+                "precision='exact', latitude_exact=60.01, longitude_exact=121, exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact=31, longitude_exact=180.01, exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact='NaN', longitude_exact=121, exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact=31, longitude_exact=121, exact_location_consent_at=submitted_at + interval '1 second'"
+            ]) {
+                await assert.rejects(fixture.database.prepare(`UPDATE fudaba_office_public_locations SET ${assignment} WHERE office_id='historical-location'`).run(), /check constraint/);
+            }
+            await fixture.database.prepare(`UPDATE fudaba_office_public_locations
+                SET precision='exact', latitude_exact=60, longitude_exact=-180,
+                    exact_location_consent_at=submitted_at
+                WHERE office_id='historical-location'`).run();
+            assert.equal((await fixture.repository.findOfficePublicLocationForOwner('historical-location', 'historical-owner'))?.latitude_exact, 60);
+            await assert.rejects(fixture.database.prepare(`UPDATE fudaba_office_public_locations
+                SET latitude_e1=601 WHERE office_id='historical-location'`).run(), /check constraint/);
+        });
+
+        postgresTest('canonical whole-office publication preserves decimals and ignores legacy location revisions', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'precision-owner';
+            await seedAccount(fixture, ownerId);
+            await seedAccount(fixture, 'precision-other');
+            const reviewerId = await seedReviewer(fixture);
+            const point = { latitude: 31.230456789, longitude: 121.473712345, precision: 'exact' as const };
+            const input = { ...office('precision-main', ownerId), latitude: point.latitude, longitude: point.longitude };
+            await fixture.repository.createOffice(input);
+            const save = {
+                officeId: input.id, ownerAccountId: ownerId,
+                precision: 'exact' as const,
+                latitudeE1: 312, longitudeE1: 1215,
+                latitudeExact: point.latitude, longitudeExact: point.longitude,
+                exactLocationConsentAt: SUBMITTED_AT,
+                submittedAt: SUBMITTED_AT, expectedRevision: null as number | null
+            };
+            const query = parseFudabaMapQuery('http://ims.test/?bbox=121.4737,31.2304,121.4738,31.2305&limit=1');
+            const listed = () => fixture.repository.listPublicMapOffices({ ...query, limit: 2 });
+            const review = (expectedRevision: number, decision: 'publish' | 'reject' = 'publish') =>
+                fixture.repository.reviewOfficePublicLocation({
+                    officeId: input.id, expectedRevision, decision,
+                    reviewedAt: REVIEWED_AT, reviewedBy: reviewerId,
+                    reviewNote: decision === 'reject' ? 'Rejected by test reviewer' : '',
+                    reviewOperationId: randomUUID(), audit: reviewAudit(input.id)
+                });
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner(save)).status, 'saved');
+            assert.deepEqual(await listed(), [], 'pending exact must stay private');
+            const pendingSearch = await fixture.repository.listPublicOffices({ q: 'precision', limit: 10 });
+            assert.equal(pendingSearch.length, 0, 'pending offices do not expose text or coordinates');
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner({ ...save, ownerAccountId: 'precision-other', expectedRevision: 0 })).status, 'unavailable');
+            await installFailingAuditTrigger(fixture);
+            await assert.rejects(review(0), /forced Fudaba location audit failure/);
+            await removeFailingAuditTrigger(fixture);
+            assert.equal((await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId))?.revision, 0);
+            assert.deepEqual(await listed(), [], 'audit rollback must not publish');
+            assert.equal((await review(0, 'reject')).status, 'saved');
+            assert.deepEqual(await listed(), [], 'rejected exact must stay private');
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner({ ...save, expectedRevision: 1 })).status, 'saved');
+            assert.equal((await review(2)).status, 'saved');
+            assert.equal((await review(2)).status, 'conflict');
+            assert.deepEqual(await listed(), [], 'legacy location approval cannot publish the office');
+            await seedPublishedOfficeFixture(fixture.database, input.id);
+            const rows = await listed();
+            assert.equal(rows.length, 1, 'exact point inside a bbox with no E1 grid point must survive');
+            assert.deepEqual(fudabaPublicMapOfficeView(rows[0]!).location, point);
+            assert.equal('exactLocationConsentAt' in fudabaPublicMapOfficeView(rows[0]!), false);
+            const search = await fixture.repository.listPublicOffices({ q: 'precision', limit: 10 });
+            const view = await fudabaPublicOfficeView(undefined, search[0]!, true);
+            assert.deepEqual(view.location, point);
+            const outside = await fixture.repository.listPublicMapOffices(parseFudabaMapQuery('http://ims.test/?bbox=121.49,31.19,121.51,31.21'));
+            assert.deepEqual(outside, [], 'E1 companion coordinates must not select an exact point');
+
+            // More eligible rows than the limit prove filtering happens before LIMIT.
+            for (const id of ['precision-a-outside', 'precision-z-inside']) {
+                await fixture.repository.createOffice({ ...office(id, ownerId),
+                    latitude: id.includes('outside') ? 31.231 : point.latitude, longitude: point.longitude });
+                await seedPublishedOfficeFixture(fixture.database, id);
+                await fixture.repository.saveOfficePublicLocationForOwner({
+                    ...save, officeId: id,
+                    latitudeExact: id.includes('outside') ? 31.231 : point.latitude
+                });
+                await fixture.repository.reviewOfficePublicLocation({
+                    officeId: id, expectedRevision: 0, decision: 'publish',
+                    reviewedAt: REVIEWED_AT, reviewedBy: reviewerId, reviewNote: '',
+                    reviewOperationId: randomUUID(), audit: reviewAudit(id)
+                });
+            }
+            assert.deepEqual((await listed()).map(row => row.id), ['precision-main', 'precision-z-inside']);
+            assert.equal((await fixture.repository.listPublicMapOffices(query)).length, 1);
+
+            const downgraded = await fixture.repository.saveOfficePublicLocationForOwner({
+                ...save, precision: 'regional', expectedRevision: 3
+            });
+            assert.equal(downgraded.status, 'saved');
+            if (downgraded.status !== 'saved') return;
+            assert.equal(downgraded.location.latitude_exact, null);
+            assert.equal(downgraded.location.longitude_exact, null);
+            assert.equal(downgraded.location.exact_location_consent_at, null);
+            assert.equal((await review(4)).status, 'saved');
+            assert.equal((await listed()).some(row => row.id === input.id), true, 'legacy grids do not replace canonical office coordinates');
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner({
+                ...save, expectedRevision: 5, submittedAt: RESUBMITTED_AT, exactLocationConsentAt: RESUBMITTED_AT
+            })).status, 'saved');
+            const fresh = await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId);
+            assert.equal(fresh?.exact_location_consent_at, RESUBMITTED_AT);
+            assert.equal(fresh?.review_state, 'pending');
+            const update = {
+                officeId: input.id, ownerAccountId: ownerId,
+                name: input.name, intro: input.intro, city: input.city,
+                address: input.address, latitude: input.latitude, longitude: input.longitude,
+                accent: input.accent, isOpen: input.isOpen, seriesCodes: input.seriesCodes,
+                expectedRevision: 0, updatedAt: RESUBMITTED_AT
+            };
+            assert.equal((await fixture.repository.updateOfficeForOwner({ ...update, longitude: 122 })).status, 'saved');
+            assert.notEqual(await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId), null);
+            assert.equal((await fixture.repository.findOfficeById(input.id))?.review_state, 'pending');
+            // Current content edits require review; historical consent is not a publication authority.
+            for (const [index, change] of [{ address: 'Moved street' }, { city: 'New city' }].entries()) {
+                await seedPublishedOfficeFixture(fixture.database, input.id);
+                assert.equal((await fixture.repository.updateOfficeForOwner({ ...update, longitude: 122, ...change, expectedRevision: index + 1 })).status, 'saved');
+                assert.notEqual(await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId), null);
+                assert.equal((await fixture.repository.findOfficeById(input.id))?.review_state, 'pending');
+            }
+        });
+
         postgresTest("real PostgreSQL enforces Fudaba location CAS and public map eligibility", async () => {
             await assertLocationRepository("postgresql");
         });
@@ -4223,6 +4410,12 @@ import { describe, onTestFinished, test } from 'vitest';
             owner_account_id: ownerAccountId,
             slug: id,
             name: `Office ${id}`,
+            review_state: 'pending',
+            review_submitted_at: SUBMITTED_AT,
+            reviewed_at: null,
+            reviewed_by: null,
+            review_note: '',
+            review_operation_id: null,
             intro: "Private intro",
             city: "Shanghai",
             address: "Private exact address",
@@ -4248,6 +4441,10 @@ import { describe, onTestFinished, test } from 'vitest';
     ): FudabaOfficePublicLocationRecord {
         return {
             office_id: officeId,
+            precision: 'regional',
+            latitude_exact: null,
+            longitude_exact: null,
+            exact_location_consent_at: null,
             latitude_e1: 312,
             longitude_e1: 1215,
             review_state: "pending",
@@ -4347,6 +4544,9 @@ import { describe, onTestFinished, test } from 'vitest';
         readonly mapRows: FudabaPublicMapOfficeRecord[] = [
             {
                 id: "map-office-a",
+                precision: 'exact',
+                latitude_exact: 31.2,
+                longitude_exact: 121.5,
                 slug: "map-office-a",
                 name: "Map Office A",
                 city: "Shanghai",
@@ -4360,6 +4560,9 @@ import { describe, onTestFinished, test } from 'vitest';
             },
             {
                 id: "map-office-b",
+                precision: 'exact',
+                latitude_exact: -3.2,
+                longitude_exact: -45.6,
                 slug: "map-office-b",
                 name: "Map Office B",
                 city: "Beijing",
@@ -4457,6 +4660,10 @@ import { describe, onTestFinished, test } from 'vitest';
                 ownerAccountId: string;
                 latitudeE1: number;
                 longitudeE1: number;
+                precision?: 'regional' | 'exact';
+                latitudeExact?: number | null;
+                longitudeExact?: number | null;
+                exactLocationConsentAt?: string | null;
                 expectedRevision: number | null;
                 submittedAt: string;
             }) => {
@@ -4482,6 +4689,10 @@ import { describe, onTestFinished, test } from 'vitest';
                         : { status: "unavailable" as const };
                 }
                 const saved = pendingLocation(input.officeId, {
+                    precision: input.precision ?? 'regional',
+                    latitude_exact: input.latitudeExact ?? null,
+                    longitude_exact: input.longitudeExact ?? null,
+                    exact_location_consent_at: input.exactLocationConsentAt ?? null,
                     latitude_e1: input.latitudeE1,
                     longitude_e1: input.longitudeE1,
                     revision: current ? current.revision + 1 : 0,
@@ -4704,7 +4915,42 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     test.describe('Fudaba location routes', () => {
-        test("map config and offices require both flags and expose strict regional DTOs", async () => {
+        test('retired location writes cannot revive precision modes and map DTOs preserve canonical decimals', async () => {
+            const fixture = new LocationRouteFixture();
+            const path = `http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`;
+            const body = { latitude: 31.230456789, longitude: 121.473712345, precision: 'exact', exactLocationConsent: true, expectedRevision: null };
+            const put = (value: unknown, target = path, headers = platformBearerHeaders()) => fixture.app.request(target, {
+                method: 'PUT', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(value)
+            });
+            const historical = structuredClone([...fixture.locations.entries()]);
+            for (const exactLocationConsent of [undefined, false, true, 'true', null, 1]) {
+                assert.equal((await put({ ...body, exactLocationConsent })).status, 404);
+            }
+            assert.equal((await put({ ...body, precision: 'regional' })).status, 404);
+            const reviews = await fixture.app.request('http://ims.test/api/admin/community/exchange/office-locations', {
+                headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` }
+            });
+            assert.equal(reviews.status, 404);
+            const published = await fixture.app.request(`http://ims.test/api/admin/community/exchange/office-locations/${OFFICE_ID}`, {
+                method: 'PUT', headers: { ...backofficeCookieHeaders(), 'content-type': 'application/json' },
+                body: JSON.stringify({ decision: 'publish', expectedRevision: 0, note: '' })
+            });
+            assert.equal(published.status, 404);
+            assert.deepEqual([...fixture.locations.entries()], historical);
+
+            fixture.mapRows[0] = {
+                ...fixture.mapRows[0]!, precision: 'exact',
+                latitude_exact: body.latitude, longitude_exact: body.longitude
+            };
+            const map = await fixture.app.request('http://ims.test/api/community/exchange/map/offices?bbox=121.4737,31.2304,121.4738,31.2305&limit=1');
+            assert.equal(map.status, 200);
+            const mapBody = await contractJson(map, fudabaMapOfficeListSchema);
+            assert.equal(mapBody.truncated, true);
+            assert.deepEqual(mapBody.items[0]!.location, { latitude: body.latitude, longitude: body.longitude, precision: 'exact' });
+            assert.equal('exactLocationConsentAt' in mapBody.items[0]!, false);
+        });
+
+        test("map config and offices require both flags and expose strict exact DTOs", async () => {
             for (const options of [
                 { publicReadEnabled: false, mapEnabled: true },
                 { publicReadEnabled: true, mapEnabled: false },
@@ -4757,14 +5003,14 @@ import { describe, onTestFinished, test } from 'vitest';
                         location: {
                             latitude: 31.2,
                             longitude: 121.5,
-                            precision: "regional",
+                            precision: "exact",
                         },
                     },
                 ],
                 truncated: true,
             });
             assert.deepEqual(fixture.mapInputs.at(-1), {
-                bbox: { westE1: 1215, southE1: 312, eastE1: 1215, northE1: 312 },
+                bbox: { west: 121.41, south: 31.11, east: 121.59, north: 31.29, westE1: 1215, southE1: 312, eastE1: 1215, northE1: 312 },
                 city: "Shanghai",
                 seriesCodes: ["765", "cg"],
                 isOpen: true,
@@ -4776,6 +5022,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     "bbox=-45.69,-3.29,-45.51,-3.11",
             );
             assert.deepEqual(fixture.mapInputs.at(-1)?.bbox, {
+                west: -45.69, south: -3.29, east: -45.51, north: -3.11,
                 westE1: -456,
                 southE1: -32,
                 eastE1: -456,
@@ -4915,7 +5162,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 assert.equal((await closed.app.request(path)).status, 404);
                 assert.equal(closed.geocodingRequests.length, 0);
             }
-            assert.equal((await fixture.app.request(`http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`)).status, 401);
+            assert.equal((await fixture.app.request(`http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}`)).status, 401);
             assert.equal((await fixture.app.request(`http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`, {
                 method: "PUT", headers: platformBearerHeaders({ "content-type": "application/json" }), body: JSON.stringify({ latitude: 31.1842, longitude: 121.4665, revision: null }),
             })).status, 404);
@@ -4995,7 +5242,7 @@ import { describe, onTestFinished, test } from 'vitest';
             );
         });
 
-        test("owner locations enforce Platform auth, active account, CSRF, quantization, and CAS", async () => {
+        test("legacy owner location endpoints remain unregistered for every credential and body", async () => {
             const fixture = new LocationRouteFixture();
             assert.equal(
                 (
@@ -5003,16 +5250,13 @@ import { describe, onTestFinished, test } from 'vitest';
                         `http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`,
                     )
                 ).status,
-                401,
+                404,
             );
             const empty = await fixture.app.request(
                 `http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`,
                 { headers: platformBearerHeaders() },
             );
-            assert.equal(empty.status, 200);
-            assert.deepEqual(await contractJson(empty, fudabaOwnerLocationDetailSchema), {
-                location: null,
-            });
+            assert.equal(empty.status, 404);
             assert.equal(
                 (
                     await fixture.app.request(
@@ -5040,7 +5284,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         body,
                     })
                 ).status,
-                403,
+                404,
             );
 
             const saved = await fixture.app.request(`http://ims.test${path}`, {
@@ -5051,27 +5295,9 @@ import { describe, onTestFinished, test } from 'vitest';
                 },
                 body,
             });
-            assert.equal(saved.status, 200);
-            const savedPayload = await contractJson(
-                saved,
-                fudabaOwnerLocationMutationResponseSchema
-            );
-            assert.equal(
-                new Date(savedPayload.officeLocation.submittedAt).toISOString(),
-                savedPayload.officeLocation.submittedAt,
-            );
-            assert.deepEqual(savedPayload.officeLocation, {
-                officeId: OFFICE_ID,
-                location: { latitude: -3.2, longitude: 121.5, precision: "regional" },
-                reviewState: "pending",
-                revision: 0,
-                submittedAt: savedPayload.officeLocation.submittedAt,
-                reviewedAt: null,
-                reviewNote: "",
-            });
+            assert.equal(saved.status, 404);
             const stored = fixture.locations.get(OFFICE_ID);
-            assert.equal(stored?.latitude_e1, -32);
-            assert.equal(stored?.longitude_e1, 1215);
+            assert.equal(stored, undefined);
 
             for (const latitude of [-60.1, 60.1]) {
                 const invalidLatitude = await fixture.app.request(
@@ -5088,7 +5314,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         }),
                     },
                 );
-                assert.equal(invalidLatitude.status, 400, `latitude=${latitude}`);
+                assert.equal(invalidLatitude.status, 404, `latitude=${latitude}`);
             }
 
             const stale = await fixture.app.request(`http://ims.test${path}`, {
@@ -5102,25 +5328,20 @@ import { describe, onTestFinished, test } from 'vitest';
                     expectedRevision: null,
                 }),
             });
-            assert.equal(stale.status, 409);
-            assert.equal(((await stale.json()) as { revision: number }).revision, 0);
+            assert.equal(stale.status, 404);
 
             const staleDelete = await fixture.app.request(`http://ims.test${path}`, {
                 method: "DELETE",
                 headers: platformBearerHeaders({ "content-type": "application/json" }),
                 body: JSON.stringify({ expectedRevision: 1 }),
             });
-            assert.equal(staleDelete.status, 409);
+            assert.equal(staleDelete.status, 404);
             const removed = await fixture.app.request(`http://ims.test${path}`, {
                 method: "DELETE",
                 headers: platformBearerHeaders({ "content-type": "application/json" }),
                 body: JSON.stringify({ expectedRevision: 0 }),
             });
-            assert.equal(removed.status, 200);
-            assert.deepEqual(
-                await contractJson(removed, fudabaOwnerLocationWithdrawalResponseSchema),
-                { success: true }
-            );
+            assert.equal(removed.status, 404);
 
             const restricted = new LocationRouteFixture({
                 accountStatus: "restricted",
@@ -5135,11 +5356,11 @@ import { describe, onTestFinished, test } from 'vitest';
                         body,
                     })
                 ).status,
-                403,
+                404,
             );
         });
 
-        test("admin review ignores rollout flags but requires Backoffice op, CSRF, CAS, and audit", async () => {
+        test("legacy location review routes stay retired without changing records or writing audits", async () => {
             const fixture = new LocationRouteFixture({
                 publicReadEnabled: false,
                 mapEnabled: false,
@@ -5150,7 +5371,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 "/api/admin/community/exchange/office-locations?state=pending&limit=20";
             assert.equal(
                 (await fixture.app.request(`http://ims.test${listPath}`)).status,
-                401,
+                404,
             );
             assert.equal(
                 (
@@ -5158,17 +5379,13 @@ import { describe, onTestFinished, test } from 'vitest';
                         headers: platformBearerHeaders(),
                     })
                 ).status,
-                401,
+                404,
             );
             const listed = await fixture.app.request(`http://ims.test${listPath}`, {
                 headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` },
             });
-            assert.equal(listed.status, 200);
+            assert.equal(listed.status, 404);
             assert.equal(listed.headers.get("cache-control"), "private, no-store");
-            assert.equal(
-                (await contractJson(listed, fudabaLocationReviewListSchema)).items.length,
-                1,
-            );
 
             const path = `/api/admin/community/exchange/office-locations/${OFFICE_ID}`;
             const publishBody = JSON.stringify({
@@ -5187,7 +5404,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         body: publishBody,
                     })
                 ).status,
-                403,
+                404,
             );
             assert.equal(
                 (
@@ -5204,7 +5421,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         }),
                     })
                 ).status,
-                400,
+                404,
             );
 
             const published = await fixture.app.request(`http://ims.test${path}`, {
@@ -5215,17 +5432,10 @@ import { describe, onTestFinished, test } from 'vitest';
                 },
                 body: publishBody,
             });
-            assert.equal(published.status, 200);
-            await contractJson(published, fudabaLocationReviewMutationSchema);
-            assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "published");
-            assert.equal(fixture.audit.length, 1);
-            assert.equal(fixture.audit[0]?.action, "发布 Fudaba 事务所公开位置");
-            assert.equal(fixture.audit[0]?.username, "current-location-reviewer");
-            assert.equal(fixture.audit[0]?.producername, "Current Reviewer");
-            assert.match(
-                fixture.reviewInputs[0]?.reviewOperationId ?? "",
-                /^[0-9a-f-]{36}$/,
-            );
+            assert.equal(published.status, 404);
+            assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "pending");
+            assert.equal(fixture.audit.length, 0);
+            assert.equal(fixture.reviewInputs.length, 0);
 
             const stale = await fixture.app.request(`http://ims.test${path}`, {
                 method: "PUT",
@@ -5235,9 +5445,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 },
                 body: publishBody,
             });
-            assert.equal(stale.status, 409);
-            await contractJson(stale, fudabaLocationReviewErrorSchema);
-            assert.equal(fixture.audit.length, 1, "failed review must not be audited");
+            assert.equal(stale.status, 404);
+            assert.equal(fixture.audit.length, 0);
 
             const rejected = await fixture.app.request(`http://ims.test${path}`, {
                 method: "PUT",
@@ -5251,10 +5460,9 @@ import { describe, onTestFinished, test } from 'vitest';
                     note: "公开精度仍不合适",
                 }),
             });
-            assert.equal(rejected.status, 200);
-            await contractJson(rejected, fudabaLocationReviewMutationSchema);
-            assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "rejected");
-            assert.equal(fixture.audit.at(-1)?.action, "拒绝 Fudaba 事务所公开位置");
+            assert.equal(rejected.status, 404);
+            assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "pending");
+            assert.equal(fixture.audit.length, 0);
 
             const nonOp = new LocationRouteFixture({ backofficeDept: "design" });
             assert.equal(
@@ -5264,7 +5472,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         { headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` } },
                     )
                 ).status,
-                403,
+                404,
             );
 
             const deletedCurrentOp = new LocationRouteFixture({
@@ -5278,7 +5486,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         { headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` } },
                     )
                 ).status,
-                403,
+                404,
             );
 
             const demotedCurrentOp = new LocationRouteFixture({
@@ -5297,7 +5505,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         body: publishBody,
                     })
                 ).status,
-                403,
+                404,
             );
             assert.equal(
                 demotedCurrentOp.locations.get(OFFICE_ID)?.review_state,
@@ -5317,7 +5525,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     body: publishBody,
                 },
             );
-            assert.equal(failedAuditResponse.status, 500);
+            assert.equal(failedAuditResponse.status, 404);
             assert.equal(
                 auditFailure.locations.get(OFFICE_ID)?.review_state,
                 "pending",
@@ -5352,7 +5560,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal((await globalLimited.app.request(configPath)).status, 429);
         });
 
-        test("map and location routes enforce dedicated IP and account limits", async () => {
+        test("map limits remain active and retired locations have no dedicated mutation budget", async () => {
             const mapLimited = new LocationRouteFixture();
             mapLimited.rateLimiter.deniedBuckets.add("fudaba-map-ip");
             const mapResponse = await mapLimited.app.request(
@@ -5383,10 +5591,10 @@ import { describe, onTestFinished, test } from 'vitest';
             };
             assert.equal(
                 (await ipLimited.app.request(`http://ims.test${path}`, init)).status,
-                429,
+                404,
             );
             assert.ok(
-                ipLimited.rateLimiter.calls.some(
+                !ipLimited.rateLimiter.calls.some(
                     ({ bucket, limit, windowSeconds }) =>
                         bucket === "fudaba-location-ip" &&
                         limit === 60 &&
@@ -5399,16 +5607,16 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(
                 (await accountLimited.app.request(`http://ims.test${path}`, init))
                     .status,
-                429,
+                404,
             );
             assert.ok(
-                accountLimited.rateLimiter.calls.some(
+                !accountLimited.rateLimiter.calls.some(
                     ({ bucket, key }) =>
                         bucket === "fudaba-location-account" && key === ACCOUNT_ID,
                 ),
             );
             assert.ok(
-                accountLimited.rateLimiter.calls.some(
+                !accountLimited.rateLimiter.calls.some(
                     ({ bucket, limit, windowSeconds }) =>
                         bucket === "fudaba-location-account" &&
                         limit === 12 &&
@@ -6351,10 +6559,11 @@ import { describe, onTestFinished, test } from 'vitest';
             { city: 'Hangzhou', seriesCodes: [], updatedAt: LATER_AT }
         ));
         assert.equal(relocated.status, 'saved');
-        assert.equal(await fixture.repository.findOfficePublicLocationForOwner(
+        assert.notEqual(await fixture.repository.findOfficePublicLocationForOwner(
             officeId,
             ownerId
-        ), null, 'city or address changes must withdraw public location review');
+        ), null, 'historical location rows are retained for audit only');
+        assert.equal((await fixture.repository.findOfficeForOwner(officeId, ownerId))?.review_state, 'pending');
 
         await fixture.database.prepare(
             "UPDATE agencies SET wiki_enabled=FALSE WHERE code='sidem'"
@@ -6738,6 +6947,12 @@ import { describe, onTestFinished, test } from 'vitest';
             owner_account_id: ACCOUNT_ID,
             slug: 'owner-office',
             name: 'Owner Office',
+            review_state: 'pending',
+            review_submitted_at: CREATED_AT,
+            reviewed_at: null,
+            reviewed_by: null,
+            review_note: '',
+            review_operation_id: null,
             intro: 'Owner intro',
             city: 'Shanghai',
             address: 'Private exact address',
@@ -8981,6 +9196,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 visitorCount: 996,
             }),
         );
+        await seedPublishedOfficeFixture(fixture.database);
 
         const series = await fixture.repository.listPublicSeries();
         assert.equal(
@@ -9090,9 +9306,11 @@ import { describe, onTestFinished, test } from 'vitest';
             });
         }
         const positioned = await fixture.repository.listPublicOffices({ q: 'Office', limit: 10 });
-        assert.equal(positioned[0].public_latitude_e1, 312);
-        assert.equal(positioned[0].public_longitude_e1, 1215);
-        assert.equal(positioned[1].public_latitude_e1, null);
+        assert.equal(positioned[0].public_precision, 'exact');
+        assert.equal(positioned[0].public_latitude_exact, 31.2304);
+        assert.equal(positioned[0].public_longitude_exact, 121.4737);
+        assert.equal(positioned[1].public_precision, 'exact', 'historical pending locations do not suppress an approved office');
+        assert.equal(positioned[1].public_latitude_exact, 31.2304);
         assert.deepEqual(
             (await fixture.repository.listPublicOffices({ q: 'OFFICE', limit: 10 })).map((item) => item.id),
             ['office-a-closed', 'office-b-open', 'office-c-beijing', 'office-d-restricted'],
@@ -10157,7 +10375,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(mismatch.status, 400);
         });
 
-        test('office search delivers only the public regional position while map delivery is enabled', async () => {
+        test('office search delivers canonical exact positions only while map delivery is enabled', async () => {
             const fixture = new PublicFudabaFixture();
             const base = runtime(fixture);
             const repository = base.fudaba!;
@@ -10167,12 +10385,13 @@ import { describe, onTestFinished, test } from 'vitest';
                 fudaba: {
                     ...repository,
                     listPublicOffices: async (input) => (await repository.listPublicOffices(input)).map((office) => ({
-                        ...office, public_latitude_e1: 312, public_longitude_e1: 1215
+                        ...office, public_precision: 'exact' as const,
+                        public_latitude_exact: 31.230412345, public_longitude_exact: 121.473712345
                     }))
                 }
             }));
             const enabled = await contractJson(await testRequest(appFor(true), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
-            assert.deepEqual(enabled.items[0].location, { latitude: 31.2, longitude: 121.5, precision: 'regional' });
+            assert.deepEqual(enabled.items[0].location, { latitude: 31.230412345, longitude: 121.473712345, precision: 'exact' });
             const disabled = await contractJson(await testRequest(appFor(false), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
             assert.equal(disabled.items[0].location, undefined);
         });

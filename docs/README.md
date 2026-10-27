@@ -16,6 +16,7 @@ Issue、release record 或私有运维记录中。
 - [API workspace](../apps/api/README.md)：Hono 运行入口、后端脚本和数据依赖。
 - [API domain 导航](../apps/api/src/domains/README.md)：业务域所有权和组合入口。
 - [Web workspace](../apps/web/README.md)：React Router、Web/App 构建和前端开发入口。
+- [前端业务索引](../apps/web/app/README.md)：按业务定位页面、共享能力、请求归属和测试。
 - [共享 contracts](../packages/contracts/README.md)：JSON wire schemas、路径 builders 和 zod 封装。
 - [部署目录](../deploy/README.md)：Compose、配置模板和宿主机入口。
 

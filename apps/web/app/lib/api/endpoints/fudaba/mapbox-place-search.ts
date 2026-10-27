@@ -3,7 +3,11 @@ import {
   mapboxGeocodingErrorSchema,
 } from "@imsweb/contracts/fudaba/map-delivery"
 import { parsed } from "../../parsed"
-import { MapSearchError, type MapPlaceSearcher } from "~/lib/maps/map-search"
+import {
+  MapSearchError,
+  type MapPlaceSearcher,
+  type MapSearchPlace,
+} from "~/lib/maps/map-search"
 
 /** Isolated vendor request: no portal cookies/auth, redirects or result cache. */
 export function createMapboxPlaceSearch(accessToken: string): MapPlaceSearcher {
@@ -45,15 +49,23 @@ export function createMapboxPlaceSearch(accessToken: string): MapPlaceSearcher {
         await response.json()
       )
       return {
-        items: result.features.map(({ properties, geometry }) => ({
-          id: properties.mapbox_id,
-          label: properties.name,
-          address:
-            properties.full_address ||
-            properties.place_formatted ||
-            properties.name,
-          target: { kind: "wgs84" as const, position: geometry.coordinates },
-        })),
+        items: result.features.map<MapSearchPlace>(
+          ({ properties, geometry }) => ({
+            id: properties.mapbox_id,
+            label: properties.name,
+            address:
+              properties.full_address ||
+              properties.place_formatted ||
+              properties.name,
+            target: { kind: "wgs84", position: [...geometry.coordinates] },
+            source: {
+              provider: "mapbox",
+              coordinateSystem: "wgs84",
+              position: [...geometry.coordinates],
+              calibration: "identity",
+            },
+          })
+        ),
         attribution: "© Mapbox",
       }
     } catch (error) {

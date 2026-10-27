@@ -9,9 +9,9 @@
 浏览器语言、站点界面语言和底图的地理覆盖范围相互独立。
 
 本文是渲染与语言的设计约束，不表示所有服务商与发布样式已完成相应实现或验收。
-实际运行行为以 [Mapbox 适配器](../../apps/web/app/pages/community/exchange/mapbox-driver.ts)、
-[语言适配器](../../apps/web/app/pages/community/exchange/mapbox-map-language.ts)、
-[配色适配器](../../apps/web/app/pages/community/exchange/mapbox-map-theme.ts) 和
+实际运行行为以 [Mapbox 适配器](../../apps/web/app/pages/community/exchange/maps/mapbox/driver.ts)、
+[语言适配器](../../apps/web/app/pages/community/exchange/maps/mapbox/language.ts)、
+[配色适配器](../../apps/web/app/pages/community/exchange/maps/mapbox/theme.ts) 和
 [地点搜索](../../apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts) 为准。
 资源交付、坐标、版权和服务商分流遵循[地图资源交付](../operations/map-delivery.md)，
 界面设计遵循 [Web 设计系统](../../apps/web/DESIGN.md)。
@@ -26,21 +26,21 @@
 大陆与海外实际画面、街道层级、连续拖动与缩放，以及单渲染器数量。
 
 现有 Mapbox、MapLibre 和高德适配器保留各自独立入口；组合模式固定使用 Mapbox 底图。
-高德只负责中国大陆范围的地点搜索，不创建高德地图，不随平移或选点切换 renderer。
+高德负责中国大陆范围的地点搜索与选点地址解析，不创建高德地图，不随平移或选点切换 renderer。
 Mapbox 样式与 Token、高德搜索 Key 和安全代理分别由各自配置源拥有。
 
 旧的“高德渲染大陆、Flexible 图层叠加海外 Mapbox 栅格瓦片”模式已废弃，不再注册
 geographic renderer。Mapbox 上自绘高德店铺按钮的实验同样停止：它不能复用高德原生标签
 密度与避让，不作为店铺图层交付。现有 `regional` 配置继续携带两份源引用，但 renderer
-仅消费其中的 Mapbox 配置，高德源只提供搜索服务。不存在地区引擎切换或原生 POI 标签混合。
+仅消费其中的 Mapbox 配置，高德源提供地点搜索与逆地理编码服务。不存在地区引擎切换或原生 POI 标签混合。
 
 提交搜索时快照当前地图中心，按高德官方 DistrictSearch 国家轮廓扣除港澳台判定搜索地区。
 WGS84 中心先经官方正向转换为原生坐标，不以访客 IP、设备所在国家或关键词猜测地区。
 大陆仅查询高德，海外（含港澳台）仅查询 Mapbox；失败不静默查询另一家。远离中国包围范围时
 可直接选海外服务，但包围范围本身不能作为大陆归属判断。搜索地区切换不改变地图实例。
 
-[组合入口](../../apps/web/app/pages/community/exchange/map-providers/regional.tsx)只创建 Mapbox renderer。
-[搜索编排](../../apps/web/app/pages/community/exchange/region-place-search.ts)拥有地区查询与距离排序。
+[组合入口](../../apps/web/app/pages/community/exchange/maps/mapbox/regional-renderer.tsx)只创建 Mapbox renderer。
+[搜索编排](../../apps/web/app/pages/community/exchange/maps/regional/place-search.ts)拥有地区查询与距离排序。
 设备定位通过现有授权定位流程取得，仅保存页面内存且超过 60 秒不再当作当前定位。结果统一为
 WGS84 后按与设备位置的球面直线距离稳定升序排序；无有效定位时回退地图中心，显示“距地图中心”
 而非“距你”。排序只覆盖本次返回的最多 5 个候选，不保证全局最近地点，也不是路线距离。
@@ -55,9 +55,14 @@ WGS84 后按与设备位置的球面直线距离稳定升序排序；无有效�
 转换为 Mapbox 可显示和距离可比较的 WGS84 估计：
 最多 5 轮修正，再次正向验证残差不超过 1 米；失败或不收敛时不展示错位结果。
 这一残差只衡量正向服务与估计值的一致性，不承诺真实地点的绝对定位精度，也不是官方逆转换 API。
-实现由[搜索坐标桥接](../../apps/web/app/pages/community/exchange/amap-search-coordinates.ts)拥有，
+实现由[搜索坐标桥接](../../apps/web/app/pages/community/exchange/maps/amap/search-coordinates.ts)拥有，
 不使用本地 GCJ 公式。取消后丢弃迟到结果，不将估计位置写入业务 API、数据库或会话视角。
 业务点与初始视角仍保持 WGS84；独立高德 renderer 继续使用官方正向转换。
+
+搜索适配器同时保留 `MapSearchPlace.source`：服务商、原始坐标系、独立的原始坐标快照和
+校准方式。Mapbox、Nominatim 的 WGS84 原值采用 `identity`；高德原生结果保留 GCJ02，
+转换后的临时显示结果标为 `amap-forward-estimate`。区域搜索只分流和排序，保留这些信息，
+不再次转换或叠加固定偏移。来源信息留在页面内存，不作为事务所 wire 字段保存。
 
 Mapbox 底图的语言、字体、配色及版权沿用独立 Mapbox 适配器。高德搜索失败不影响底图，
 地区搜索失败不影响底图；结果保留实际服务商署名，排序提示不作为错误展示。验收应检查实际地点、连续手势和单地图实例，
@@ -71,9 +76,36 @@ Mapbox 底图的语言、字体、配色及版权沿用独立 Mapbox 适配器�
 成功结果不展示排序或搜索范围说明卡，每条地点的距离与服务商署名单独保留。
 
 点击事务所结果在现有地图中定位，不导航到详情页。只有地图功能开启时，关键词搜索响应才交付
-已审核发布、符合地图资格的区域位置；不交付事务所原始精确坐标。未公开位置的结果明确标明
-不可定位。区域位置以区域尺度展示；选择、切换 Tab 和展开面板不重建地图。
+整体审核通过、符合地图资格的事务所精确位置，坐标始终来自事务所保存的 WGS84 原点。
+不再提供区域网格或精度模式切换。未公开条目不交付位置，精确点保留完整数值；相同坐标可分组，
+临近坐标不取整合并。选择、切换 Tab 和展开面板不重建地图。
 右上角范围列表的展开和收起保留宽度及高度过渡，关闭时内容不可交互，减少动态效果时取消过渡。
+
+事务所编辑器将搜索候选、浮标地址预览与表单绑定分开。用户点击或轻触地图放置浮标，也可拖动
+浮标微调；平移相机不改变选点，键盘用户可显式使用地图中心。高德临时估算候选不能直接确认为
+精确位置，须在 WGS84 底图重新选点。点击或松开浮标后解析该点的待绑定地址，显式确认后才
+更新表单的城市、详细地址和经纬度。移动浮标或取消会中止旧请求并清除旧预览；同一选点重试
+沿用首次解析的表单基线，保留等待期间的手动修改。
+
+[地址解析编排](../../apps/web/app/pages/community/exchange/maps/resolve-point-address.ts)按确认点的
+地区分流：组合模式中的大陆点先经官方 GPS 正向转换，再用高德 Geocoder 获取地址；海外点
+使用当前 Mapbox 配置的永久逆地理编码。边界分类与地点搜索共用实现，不按相机中心代替选点
+判断。独立高德配置同样只将正向坐标用于查询；其它底图沿用已配置的逆地理编码服务。查询失败
+不静默切换服务商，可重试或手动填写。地址可手动修正，经纬度始终保留用户确认的 WGS84 点，
+不替换为服务商返回对象的中心或高德原生坐标。选点随事务所资料一起保存并整体审核。
+
+事务所位置始终为 `exact`，无需独立的位置发布或精确公开同意步骤。新建或修改名称、介绍、城市、
+地址、坐标、封面、企划标签、交换状态等资料，保存即进入 `pending` 并停止公开；整体审核通过后
+才重新进入名录、详情、搜索与地图。访客计数等系统统计不触发复审。审核按事务所单调修订号 CAS，
+旧版本不能批准新资料；封面发布与审核完成之间保留版本锁和失败补偿。
+
+后台以条目与只读详情弹窗管理完整事务所，显式编辑时复用用户侧表单和
+[编辑弹窗](../../apps/web/app/components/community/office-editor-dialog.tsx)，编辑与审核操作共用固定底部操作区。
+待审核可通过发布或填写理由拒绝；已发布可撤回为待审核并停止公开；被拒绝的详情展示理由，修改保存后重新待审。
+管理员保存与通过分开操作，
+地图预览直接显示本版本的文字地址与原始坐标，不重新地理编码替换审核点。提交人和审核人优先展示
+账号、缺少账号时回退显示名；用户详情和管理定位入口沿用现有权限。
+历史位置记录仅保留作审计，迁移将已有事务所统一置为待审，不从旧网格推造精确点或继承整体审批。
 
 ### 业界实践与证据边界
 
@@ -102,17 +134,17 @@ Uber 的[司机端地图工程文章](https://www.uber.com/us/en/blog/building-a
 
 ### 现有适配入口
 
-交换地图页面只使用 [ExchangeMapInteractionProps](../../apps/web/app/pages/community/exchange/exchange-map-provider.ts)
+交换地图页面只使用 [ExchangeMapInteractionProps](../../apps/web/app/pages/community/exchange/maps/exchange-map-provider.ts)
 描述事务所、选择、视口、遮挡与错误，不按服务商名称决定组件。异步组件选择集中在
-[renderer 注册入口](../../apps/web/app/pages/community/exchange/exchange-map-renderer.ts)，
+[renderer 注册入口](../../apps/web/app/pages/community/exchange/maps/exchange-map-renderer.ts)，
 配置必须显式提供 `provider` 并恰好匹配一个注册项，缺失、未知或重复注册明确失败。
 
 | 边界 | 职责与扩展位置 |
 | --- | --- |
 | 后台配置 | [provider catalog](../../apps/web/app/lib/maps/provider-catalog.ts) 注册字段、默认草稿、摘要与地区偏好；表单不包含服务商分支 |
-| 页面渲染 | `map-providers/` 中的工厂绑定配置与渲染组件，SDK 随对应模块加载 |
+| 页面渲染 | `maps/amap/`、`maps/mapbox/`、`maps/maplibre/` 中的工厂绑定配置与渲染组件，SDK 随对应模块加载 |
 | 地图操作 | [MapDriver / MapView](../../apps/web/app/lib/maps/map-engine.ts) 定义就绪、范围、屏幕投影、标记、相机与销毁；共享交互层不解释 SDK 对象或原生坐标 |
-| 地图搜索 | [搜索注册入口](../../apps/web/app/pages/community/exchange/exchange-map-search.ts) 按服务端下发配置加载搜索实现；页面不判断服务商 |
+| 地图搜索 | [搜索注册入口](../../apps/web/app/pages/community/exchange/maps/exchange-map-search.ts) 按服务端下发配置加载搜索实现；页面不判断服务商 |
 | 服务端策略 | [provider policy](../../apps/api/src/domains/community/fudaba/map-delivery/map-provider-policy.ts) 拥有存储字段、验证、公开投影、搜索策略、配置错误说明、去重标识与审计说明 |
 | 初始化集合 | [bootstrap](../../apps/api/src/domains/community/fudaba/map-delivery/map-delivery-bootstrap.ts) 接收显式 provider 配置，仅管理数量、名称唯一性与 ID；名称和去重规则来自 policy |
 
@@ -218,7 +250,7 @@ Mapbox 资源通过其授权资源链交付；自托管资源遵循现有交付�
 Mapbox Streets v8 的 `name` 表示当地名称；`name_en`、`name_ja`、`name_zh-Hans` 等表示翻译。
 适配时必须同时核对瓦片的实际语言配置与图层的 `text-field`，不能只修改其中一层。
 
-语言适配器由 `mapbox-driver.ts` 在每次 `style.load` 后调用，与配色适配器独立。
+语言适配器由 `maps/mapbox/driver.ts` 在每次 `style.load` 后调用，与配色适配器独立。
 仅处理已识别的 Mapbox 名称字段及其标签层：国家、行政区、聚落、道路、交通站点、水系与 POI。
 保留原表达式的缩放条件、格式化、换行和非名称内容，只替换名称选择逻辑。
 不得把所有 symbol 层统一覆盖为同一个 `text-field`，否则会丢失门牌号、道路编号、盾牌及其他数据。

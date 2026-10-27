@@ -1325,7 +1325,7 @@ import { afterAll, describe, onTestFinished, test } from 'vitest';
             await assertRawJsonConforms(discovery, platformOAuthProvidersResponseSchema);
 
             const start = await fixture.app.request(
-                `${PUBLIC_OAUTH_URL}/github/start?returnPath=%2Faccount%2Fme&ignored=legacy`,
+                `${PUBLIC_OAUTH_URL}/github/start?ignored=legacy`,
                 { redirect: 'manual' }
             );
             assert.equal(start.status, 303);

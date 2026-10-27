@@ -14,7 +14,7 @@ const office = {
   isOpen: true,
   visitorCount: 12,
   seriesCodes: [],
-  location: { latitude: 31.2, longitude: 121.5, precision: "regional" },
+  location: { latitude: 31.2, longitude: 121.5, precision: "exact" },
 }
 const empty = { items: [], pageInfo: { hasNextPage: false, nextCursor: null } }
 

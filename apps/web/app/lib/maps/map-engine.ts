@@ -24,24 +24,39 @@ export interface MapMarker {
   remove(): void
 }
 
+export interface MapMarkerOptions {
+  element: HTMLElement
+  anchor: "bottom" | "center"
+  draggable?: boolean
+  onDragStart?(): void
+  onDragEnd?(target: MapSearchTarget): void
+}
+
+export interface MapPointPickerOptions {
+  target: MapSearchTarget | null
+  disabled: boolean
+  onPickStart?(): void
+  onPick(target: MapSearchTarget, origin: "click" | "drag"): void
+}
+
 /** Business positions/bounds use WGS84. Search targets explicitly own their CRS. */
 export interface MapView {
   read(): { zoom: number; bounds: MapBounds }
   /** Transient camera snapshot; native targets retain their coordinate identity. */
   readCamera?(): { target: MapSearchTarget; zoom: number }
   project(positions: MapPosition[]): Promise<MapScreenPoint[]>
-  addMarker(options: {
-    position: MapPosition
-    element: HTMLElement
-    anchor: "bottom" | "center"
-  }): Promise<MapMarker>
+  addMarker(
+    options: MapMarkerOptions & {
+      position: MapPosition
+    }
+  ): Promise<MapMarker>
   /** False means interrupted: skip any follow-up camera adjustment. */
   focus(position: MapPosition, options: MapFocusOptions): Promise<void | false>
-  addSearchMarker(options: {
-    target: MapSearchTarget
-    element: HTMLElement
-    anchor: "bottom" | "center"
-  }): Promise<MapMarker>
+  addSearchMarker(
+    options: MapMarkerOptions & {
+      target: MapSearchTarget
+    }
+  ): Promise<MapMarker>
   focusSearch(
     target: MapSearchTarget,
     options: MapFocusOptions
@@ -58,8 +73,9 @@ export interface MapOpenOptions {
   persistViewport?: boolean
   minZoom: number
   signal: AbortSignal
-  onChange(): void
+  onChange(change?: import("./map-camera-change").MapCameraChange): void
   onResourceError(): void
+  onMapClick?(target: MapSearchTarget): void
 }
 
 export interface MapDriver<View extends MapView = MapView> {

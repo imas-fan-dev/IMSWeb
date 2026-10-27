@@ -240,7 +240,7 @@ export function NamecardUploadDialog() {
               <AlertDescription className="space-y-3">
                 <p>注册名片支持后续修改、担当管理和地图名片墙摆放。</p>
                 <NavigationLink
-                  to="/community/exchange/me"
+                  to="/account/me/namecards"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   前往我的名片

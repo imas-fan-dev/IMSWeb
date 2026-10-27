@@ -77,6 +77,12 @@ export interface FudabaOfficeRecord {
     is_open: boolean;
     visitor_count: number;
     status: FudabaOfficeStatus;
+    review_state: FudabaLocationReviewState;
+    review_submitted_at: string;
+    reviewed_at: string | null;
+    reviewed_by: number | null;
+    review_note: string;
+    review_operation_id: string | null;
     revision: number;
     created_at: string;
     updated_at: string;
@@ -86,6 +92,19 @@ export interface FudabaOfficeRecord {
 export interface FudabaOwnerOfficeRecord extends FudabaOfficeRecord {
     series_codes: string[];
 }
+
+export interface FudabaOfficeReviewRecord {
+    office: FudabaOwnerOfficeRecord;
+    owner_email: string | null;
+    owner_display_name: string | null;
+    reviewer_username: string | null;
+    reviewer_display_name: string | null;
+}
+
+export type FudabaOfficeReviewResult =
+    | { status: 'saved'; office: FudabaOwnerOfficeRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'unavailable' };
 
 export interface NewFudabaOfficeInput {
     id: string;
@@ -129,6 +148,7 @@ export interface UpdateOwnedFudabaOfficeInput {
     seriesCodes: string[];
     expectedRevision: number;
     updatedAt: string;
+    adminAudit?: AuditLogInput;
 }
 
 export type FudabaOfficeMutationResult =
@@ -490,6 +510,9 @@ export interface FudabaPublicOfficeRecord {
     series_codes: string[];
     public_latitude_e1?: number | null;
     public_longitude_e1?: number | null;
+    public_precision?: 'regional' | 'exact' | null;
+    public_latitude_exact?: number | null;
+    public_longitude_exact?: number | null;
 }
 
 export interface FudabaPublicOfficeCursor {
@@ -510,6 +533,10 @@ export type FudabaLocationReviewState = "pending" | "published" | "rejected";
 
 export interface FudabaOfficePublicLocationRecord {
     office_id: string;
+    precision: 'regional' | 'exact';
+    latitude_exact: number | null;
+    longitude_exact: number | null;
+    exact_location_consent_at: string | null;
     latitude_e1: number;
     longitude_e1: number;
     review_state: FudabaLocationReviewState;
@@ -531,10 +558,17 @@ export interface FudabaPublicMapOfficeRecord {
     series_codes: string[];
     latitude_e1: number;
     longitude_e1: number;
+    precision: 'regional' | 'exact';
+    latitude_exact: number | null;
+    longitude_exact: number | null;
 }
 
 export interface ListFudabaPublicMapOfficesInput {
     bbox: {
+        west: number;
+        south: number;
+        east: number;
+        north: number;
         westE1: number;
         southE1: number;
         eastE1: number;
@@ -658,6 +692,15 @@ export interface ListFudabaPublicCardsInput {
 }
 
 export interface FudabaRepository {
+    listOfficeReviews(input: { reviewState?: FudabaLocationReviewState; limit: number }): Promise<FudabaOfficeReviewRecord[]>;
+    findOfficeReview(officeId: string): Promise<FudabaOfficeReviewRecord | null>;
+    beginOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<FudabaOfficeReviewResult>;
+    completeOfficeReview(input: {
+        officeId: string; expectedRevision: number; operationId: string;
+        decision: 'publish' | 'reject' | 'withdraw'; reviewedAt: string; reviewedBy: number;
+        reviewNote: string; pendingCoverObjectKey: string | null; audit: AuditLogInput;
+    }): Promise<FudabaOfficeReviewResult>;
+    releaseOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<boolean>;
     listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
     listPublicOffices(
         input: ListFudabaPublicOfficesInput,
@@ -736,6 +779,10 @@ export interface FudabaRepository {
         ownerAccountId: string;
         latitudeE1: number;
         longitudeE1: number;
+        precision?: 'regional' | 'exact';
+        latitudeExact?: number | null;
+        longitudeExact?: number | null;
+        exactLocationConsentAt?: string | null;
         expectedRevision: number | null;
         submittedAt: string;
     }): Promise<FudabaOfficeLocationMutationResult>;

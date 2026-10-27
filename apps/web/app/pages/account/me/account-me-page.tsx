@@ -21,12 +21,12 @@ import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
-import { CommunityExchangeMeWorkspace } from "~/pages/community/exchange/me/community-exchange-me-workspace"
+import { AccountMeWorkspace } from "~/pages/account/me/account-me-workspace"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import {
   type ProfileWorkspaceSection,
   profileWorkspaceSections,
-} from "~/pages/community/exchange/me/profile-workspace-navigation"
+} from "~/pages/account/me/profile-workspace-navigation"
 
 type LogoutFeedback = "idle" | "pending" | "success" | "error"
 
@@ -66,7 +66,8 @@ function AccountUtilities() {
 
 export function AccountMePage({
   section = "profile",
-}: { section?: ProfileWorkspaceSection } = {}) {
+  standaloneSection = false,
+}: { section?: ProfileWorkspaceSection; standaloneSection?: boolean } = {}) {
   const { t } = useTranslation()
   const platform = usePlatformSession()
   const desktop = useDesktopAccountWorkspace()
@@ -86,11 +87,14 @@ export function AccountMePage({
   }
 
   if (
-    desktop &&
-    (platform.status === "authenticated" || platform.status === "restricted")
+    logoutFeedback === "idle" &&
+    ((standaloneSection && !desktop) ||
+      (desktop &&
+        (platform.status === "authenticated" ||
+          platform.status === "restricted")))
   ) {
     return (
-      <CommunityExchangeMeWorkspace
+      <AccountMeWorkspace
         section={section}
         sectionBasePath="/account/me"
         onLogout={logout}

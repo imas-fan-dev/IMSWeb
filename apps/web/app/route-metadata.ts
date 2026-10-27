@@ -160,13 +160,6 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     }
   ),
   route(
-    "community/exchange/me",
-    "pages/community/exchange/me/community-exchange-me-page.tsx",
-    "public",
-    SHARED_TARGETS,
-    "spa"
-  ),
-  route(
     "community/exchange/offices/:officeSlug",
     "pages/community/exchange/community-office-page.tsx",
     "public",

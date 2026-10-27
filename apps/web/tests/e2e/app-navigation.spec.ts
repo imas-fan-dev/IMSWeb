@@ -496,8 +496,8 @@ test.describe("app navigation", () => {
     { tag: "@app-webkit" },
     async ({ page, api }) => {
       installEmptyWikiCatalogMock(api, { min: 0, max: 4 })
-      await page.goto("/account/me/cards")
-      await expect(page).toHaveURL(/\/account\/me\/cards$/)
+      await page.goto("/account/me/namecards")
+      await expect(page).toHaveURL(/\/account\/me\/namecards$/)
       await page.getByRole("button", { name: "返回", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
     }
@@ -513,8 +513,8 @@ test.describe("app navigation", () => {
       await page.goto("/apps")
       await nav(page).getByRole("link", { name: "我的", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
-      await page.locator('a[href="/account/me/cards"]').click()
-      await expect(page).toHaveURL(/\/account\/me\/cards$/)
+      await page.locator('a[href="/account/me/namecards"]').click()
+      await expect(page).toHaveURL(/\/account\/me\/namecards$/)
       await page.getByRole("button", { name: "返回", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
     }
@@ -533,8 +533,8 @@ test.describe("app navigation", () => {
       await expect(page).toHaveURL(/\/works\/765$/)
       await nav(page).getByRole("link", { name: "我的", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
-      await page.locator('a[href="/account/me/cards"]').click()
-      await expect(page).toHaveURL(/\/account\/me\/cards$/)
+      await page.locator('a[href="/account/me/namecards"]').click()
+      await expect(page).toHaveURL(/\/account\/me\/namecards$/)
       await page.getByRole("button", { name: "返回", exact: true }).click()
       // The page tree decides the destination, not the visit order that reached
       // the section from the resources tab.
@@ -569,14 +569,14 @@ test.describe("app navigation", () => {
       installAppResourcesMocks(api)
       installAccountMocks(api)
       await page.goto("/account/me")
-      await page.locator('a[href="/account/me/cards"]').click()
-      await expect(page).toHaveURL(/\/account\/me\/cards$/)
+      await page.locator('a[href="/account/me/namecards"]').click()
+      await expect(page).toHaveURL(/\/account\/me\/namecards$/)
       // Leave the tab, then restore it, so /account/me no longer sits below the
       // section in session history and a native pop would land on 资料.
       await nav(page).getByRole("link", { name: "资料", exact: true }).click()
       await expect(page).toHaveURL(/\/apps$/)
       await nav(page).getByRole("link", { name: "我的", exact: true }).click()
-      await expect(page).toHaveURL(/\/account\/me\/cards$/)
+      await expect(page).toHaveURL(/\/account\/me\/namecards$/)
       await page.goBack()
       await expect(page).toHaveURL(/\/account\/me$/)
       // The correction is a push, so the next native pop still reaches the tab

@@ -13,6 +13,7 @@ import {
 import { renderPage as renderWithRouter } from "@/tests/unit/support/harness"
 import type { AdminSession } from "~/lib/api"
 import AdminPlatformUsersPage from "~/pages/admin/platform-users/index"
+import { UserDetailDialog } from "~/pages/admin/platform-users/user-detail-dialog"
 
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 const outlet = vi.hoisted(() => ({ session: {} as AdminSession }))
@@ -81,6 +82,79 @@ afterEach(() => {
 })
 
 describe("AdminPlatformUsersPage", () => {
+  it("loads an exact linked user, highlights and focuses its row, and clears only highlight", async () => {
+    const fetchMock = installFetchMock(async () =>
+      Response.json(
+        listBody([user({ id: "account-2", displayName: "Linked Producer" })])
+      )
+    )
+    renderPage(
+      superSession,
+      "/admin/platform/users?field=id&query=account-2&highlight=account-2"
+    )
+    const name = await screen.findByText("Linked Producer")
+    const row = name.closest("tr")!
+    await waitFor(() => expect(row).toHaveAttribute("data-highlighted", "true"))
+    await waitFor(() => expect(row).toHaveFocus())
+    const url = new URL(
+      requestDetails(fetchMock.mock.calls[0] ?? []).url,
+      "http://ims.test"
+    )
+    expect(url.searchParams.get("query")).toBe("account-2")
+    expect(url.searchParams.get("field")).toBe("id")
+    expect(url.searchParams.has("highlight")).toBe(false)
+    await userEvent.click(screen.getByRole("button", { name: "清除定位" }))
+    expect(row).not.toHaveAttribute("data-highlighted")
+    expect(screen.getByPlaceholderText("邮箱、显示名称或用户 ID")).toHaveValue(
+      "account-2"
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("reports a missing linked user without substituting another account", async () => {
+    installFetchMock(async () => Response.json(listBody([])))
+    renderPage(
+      superSession,
+      "/admin/platform/users?field=id&query=missing&highlight=missing"
+    )
+    expect(await screen.findByText("对应用户不存在或已删除。")).toBeVisible()
+    expect(document.querySelector('[data-highlighted="true"]')).toBeNull()
+  })
+
+  it("reuses the user detail dialog in readonly mode without exposing unlink actions", async () => {
+    installFetchMock(async () =>
+      Response.json({
+        success: true,
+        user: {
+          ...user(),
+          oauthLinks: [
+            {
+              provider: "github",
+              providerName: "GitHub",
+              enabled: true,
+              accountName: "one",
+              avatarUrl: null,
+              linkedAt: 950,
+              removable: true,
+            },
+          ],
+        },
+      })
+    )
+    renderWithRouter(
+      <UserDetailDialog
+        userId="account-1"
+        label="one@ims.test"
+        reloadKey={0}
+        onOpenChange={vi.fn()}
+      />
+    )
+    await screen.findByText("GitHub")
+    expect(
+      screen.queryByRole("button", { name: "解绑" })
+    ).not.toBeInTheDocument()
+  })
+
   it("blocks regular administrators before loading any user data", () => {
     const fetchMock = installFetchMock()
     renderPage({ ...superSession, id: 2, adminRole: "admin" })

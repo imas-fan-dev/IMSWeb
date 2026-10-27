@@ -7,7 +7,7 @@ import {
     fudabaOfficeSlugParamsSchema,
     fudabaReactionRequestSchema,
 } from '@imsweb/contracts/fudaba';
-import { optionalPlatformAuth, platformAuth } from '@/middleware/hono-auth';
+import { optionalPlatformAuth, platformAuth, backofficeAuth, currentBackofficeOp } from '@/middleware/hono-auth';
 import {
     requireFudabaMap,
     requireFudabaPublicRead
@@ -106,5 +106,14 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
     );
     routes.get('/me/series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaPublicSeries);
     routes.get('/me/favorites', platformAuth, querySchemaValidator(fudabaCardQuerySchema), handleListFudabaFavoriteCards);
+    return routes;
+}
+
+export function fudabaAdminDirectoryRoutes(): ImsCapabilityRouter {
+    const routes = createCapabilityRouter();
+    routes.get('/map/config', backofficeAuth, currentBackofficeOp,
+        querySchemaValidator(fudabaEmptyQuerySchema), handleGetFudabaMapConfig);
+    routes.get('/office-series', backofficeAuth, currentBackofficeOp,
+        querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaPublicSeries);
     return routes;
 }

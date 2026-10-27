@@ -27,40 +27,43 @@ vi.mock("~/lib/api", async (original) => ({
     return { send: mocks.cards }
   },
 }))
-vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
-  CommunityExchangeMapSection: ({
-    searchTools,
-    onSearchAttributionChange,
-  }: {
-    searchTools: ExchangeSearchCardTools
-    onSearchAttributionChange: (value: string[]) => void
-  }) => {
-    const model = useExchangePlaceSearch()
-    return (
-      <div>
-        <ExchangeSearchCard
-          {...searchTools}
-          model={model}
-          selectedPlace={null}
-          onSelect={() => undefined}
-          onClear={() => undefined}
-          pointCount={0}
-          feedbackMessage="当前范围内没有公开事务所"
-          onOcclusion={() => undefined}
-        />
-        <button onClick={searchTools.onOpenFilter}>筛选</button>
-        <button onClick={searchTools.onOpenOffices}>事务所</button>
-        <button onClick={searchTools.onOpenCards}>名片</button>
-        <button
-          onClick={() => onSearchAttributionChange(["© Search contributors"])}
-        >
-          加载搜索来源
-        </button>
-        <output>{searchTools.modalOpen ? "搜索已隐藏" : "搜索可见"}</output>
-      </div>
-    )
-  },
-}))
+vi.mock(
+  "~/pages/community/exchange/components/community-exchange-map-section",
+  () => ({
+    CommunityExchangeMapSection: ({
+      searchTools,
+      onSearchAttributionChange,
+    }: {
+      searchTools: ExchangeSearchCardTools
+      onSearchAttributionChange: (value: string[]) => void
+    }) => {
+      const model = useExchangePlaceSearch()
+      return (
+        <div>
+          <ExchangeSearchCard
+            {...searchTools}
+            model={model}
+            selectedPlace={null}
+            onSelect={() => undefined}
+            onClear={() => undefined}
+            pointCount={0}
+            feedbackMessage="当前范围内没有公开事务所"
+            onOcclusion={() => undefined}
+          />
+          <button onClick={searchTools.onOpenFilter}>筛选</button>
+          <button onClick={searchTools.onOpenOffices}>事务所</button>
+          <button onClick={searchTools.onOpenCards}>名片</button>
+          <button
+            onClick={() => onSearchAttributionChange(["© Search contributors"])}
+          >
+            加载搜索来源
+          </button>
+          <output>{searchTools.modalOpen ? "搜索已隐藏" : "搜索可见"}</output>
+        </div>
+      )
+    },
+  })
+)
 vi.mock(
   "~/pages/community/exchange/components/exchange-discovery-rail",
   () => ({ ExchangeDiscoveryRail: () => null })

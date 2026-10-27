@@ -4,7 +4,7 @@ import type {
 } from "@imsweb/contracts/fudaba"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { installFetchMock } from "@/tests/unit/support/api-client"
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
 import {
   clearCsrfCookie,
   setCsrfCookie,
@@ -18,6 +18,7 @@ import {
   makeFudabaOwnerCardList,
   makeFudabaOwnerOffice,
   makeFudabaOwnerOfficeList,
+  makeFudabaOwnerLocation,
   makeFudabaSeries,
   makeFudabaSeriesList,
 } from "@/mocks/data/fudaba"
@@ -96,19 +97,19 @@ const ownerOffice: FudabaOwnerOffice = {
   },
 }
 
-const ownerLocation = {
+const ownerLocation = makeFudabaOwnerLocation({
   officeId: ownerOffice.id,
   location: {
     latitude: 31.2,
     longitude: 121.5,
-    precision: "regional" as const,
+    precision: "exact" as const,
   },
   reviewState: "published" as const,
   revision: 2,
   submittedAt: "2026-08-02T09:00:00.000Z",
   reviewedAt: "2026-08-02T10:00:00.000Z",
   reviewNote: "区域范围合适",
-}
+})
 
 const cardFields = {
   producerName: "春香P",
@@ -318,7 +319,7 @@ describe("Fudaba Web API contracts", () => {
     ).toThrow()
   })
 
-  it("accepts only regional map DTOs and same-origin style paths", () => {
+  it("rejects legacy regional positions and accepts exact positions and same-origin styles", () => {
     const mapOffice = {
       id: office.id,
       slug: office.slug,
@@ -335,36 +336,59 @@ describe("Fudaba Web API contracts", () => {
       },
     }
 
-    expect(
+    expect(() =>
       fudabaMapOfficeListSchema.parse({
         items: [mapOffice],
         truncated: false,
-      }).items[0]?.location.precision
-    ).toBe("regional")
+      })
+    ).toThrow()
+    const exactOffice = {
+      ...mapOffice,
+      location: {
+        latitude: 31.18452,
+        longitude: 121.45678,
+        precision: "exact",
+      },
+    }
+    const exactResponse = { items: [exactOffice], truncated: false }
+    expect(fudabaMapOfficeListSchema.parse(exactResponse)).toEqual(
+      exactResponse
+    )
     expect(() =>
       fudabaMapOfficeListSchema.parse({
-        items: [{ ...mapOffice, intro: "private precision leak" }],
+        items: [
+          {
+            ...exactOffice,
+            exactLocationConsentAt: "2026-08-03T01:00:00.000Z",
+          },
+        ],
         truncated: false,
       })
     ).toThrow()
     expect(() =>
       fudabaMapOfficeListSchema.parse({
+        items: [{ ...exactOffice, intro: "private precision leak" }],
+        truncated: false,
+      })
+    ).toThrow()
+    expect(
+      fudabaMapOfficeListSchema.parse({
         items: [
           {
-            ...mapOffice,
-            location: { ...mapOffice.location, latitude: 31.25 },
+            ...exactOffice,
+            location: { ...exactOffice.location, latitude: 31.25 },
           },
         ],
         truncated: false,
-      })
-    ).toThrow(/0.1 degree grid/)
-    for (const latitude of [-60.1, 60.1]) {
+      }).items[0]?.location.latitude
+    ).toBe(31.25)
+    for (const latitude of [-90.1, 90.1]) {
       expect(() =>
         fudabaMapOfficeListSchema.parse({
           items: [
             {
-              ...mapOffice,
-              location: { ...mapOffice.location, latitude },
+              ...exactOffice,
+              location: { ...exactOffice.location, latitude },
             },
           ],
           truncated: false,
@@ -477,13 +501,21 @@ describe("Fudaba Web API contracts", () => {
     }
   })
 
-  it("encodes literal office keywords and parses nullable public regional positions", async () => {
+  it("encodes literal office keywords and parses nullable public positions without rounding", async () => {
     let requested: URL | undefined
     const items = [
       makeFudabaOffice({
-        location: { longitude: 121.5, latitude: 31.2, precision: "regional" },
+        location: { longitude: 121.5, latitude: 31.2, precision: "exact" },
       }),
       makeFudabaOffice({ id: "unlocated", location: null }),
+      makeFudabaOffice({
+        id: "exact",
+        location: {
+          longitude: 121.45678,
+          latitude: 31.18452,
+          precision: "exact",
+        },
+      }),
     ]
     installFetchMock(async (input: RequestInfo | URL) => {
       requested = new URL(String(input), "http://ims.test")
@@ -580,7 +612,7 @@ describe("Fudaba Web API contracts", () => {
     ).toThrow()
   })
 
-  it("keeps exact owner office data separate from regional public locations", () => {
+  it("preserves exact office coordinates without quantization or hidden owner fields", () => {
     expect(
       fudabaOwnerOfficeListSchema.parse(
         makeFudabaOwnerOfficeList({ items: [ownerOffice] })
@@ -593,15 +625,15 @@ describe("Fudaba Web API contracts", () => {
     expect(
       fudabaOwnerLocationDetailSchema.parse({ location: ownerLocation })
         .location?.location
-    ).toEqual({ latitude: 31.2, longitude: 121.5, precision: "regional" })
-    expect(() =>
+    ).toEqual({ latitude: 31.2, longitude: 121.5, precision: "exact" })
+    expect(
       fudabaOwnerLocationDetailSchema.parse({
         location: {
           ...ownerLocation,
           location: { ...ownerLocation.location, latitude: 31.25 },
         },
-      })
-    ).toThrow(/0.1 degree grid/)
+      }).location?.location.latitude
+    ).toBe(31.25)
     expect(() =>
       fudabaOwnerOfficeListSchema.parse({
         items: [{ ...ownerOffice, ownerAccountId: "private-owner" }],
@@ -806,6 +838,62 @@ describe("Fudaba Web API contracts", () => {
     ).toThrow()
     expect(() => deleteFudabaCardPlacement("office-1", "card-1", -1)).toThrow()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("requires exact consent on every save and preserves the strict request and response", async () => {
+    setCsrfCookie("platform", "exact-location-csrf")
+    const exactLocation = makeFudabaOwnerLocation({
+      location: ownerOffice.location,
+      exactLocationConsentAt: "2026-08-03T01:00:00.000Z",
+      reviewState: "pending",
+      revision: 3,
+      reviewedAt: null,
+    })
+    const requests: Request[] = []
+    const fetchMock = installFetchMock(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push(requestFrom(input, init))
+        return Response.json({ success: true, officeLocation: exactLocation })
+      }
+    )
+    const submission = {
+      latitude: 31.18452,
+      longitude: 121.45678,
+      expectedRevision: 2,
+      precision: "exact" as const,
+      exactLocationConsent: true as const,
+    }
+    for (const invalid of [
+      { ...submission, exactLocationConsent: false },
+      { ...submission, exactLocationConsent: undefined },
+      {
+        ...submission,
+        exactLocationConsentAt: exactLocation.exactLocationConsentAt,
+      },
+      { ...submission, precision: "regional" },
+      { ...submission, latitude: 60.01 },
+      { ...submission, longitude: 180.01 },
+    ]) {
+      expect(() =>
+        saveFudabaOwnerLocation(
+          ownerOffice.id,
+          invalid as unknown as Parameters<typeof saveFudabaOwnerLocation>[1]
+        )
+      ).toThrow()
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+    await expect(
+      saveFudabaOwnerLocation(ownerOffice.id, submission).send()
+    ).resolves.toEqual({ success: true, officeLocation: exactLocation })
+    expect(requests[0]?.headers.get(CSRF_HEADER_NAME)).toBe(
+      "exact-location-csrf"
+    )
+    await expect(requests[0]?.json()).resolves.toEqual(submission)
+    expect(() =>
+      fudabaOwnerLocationDetailSchema.parse({
+        location: { ...exactLocation, exactLocationConsentAt: undefined },
+      })
+    ).toThrow()
   })
 
   it("uses owner office CAS, idempotency, and independent location endpoints", async () => {

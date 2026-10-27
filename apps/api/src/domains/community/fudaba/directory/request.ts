@@ -395,6 +395,7 @@ function bbox(value: string | null): ListFudabaPublicMapOfficesInput["bbox"] {
     }
     if (south >= north) throw badRequest("bbox south must be less than north");
     return {
+        west, south, east, north,
         westE1: scaledBoundary(parts[0]!, "lower"),
         southE1: scaledBoundary(parts[1]!, "lower"),
         eastE1: scaledBoundary(parts[2]!, "upper"),

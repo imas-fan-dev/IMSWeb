@@ -39,7 +39,7 @@ test.describe("platform oauth sign-in", () => {
       await expect(github).toBeVisible()
       await expect(github).toHaveAttribute(
         "href",
-        /\/api\/platform\/auth\/oauth\/github\/start\?returnPath=%2Fcommunity%2Fexchange%2Fme$/
+        /\/api\/platform\/auth\/oauth\/github\/start\?returnPath=%2Faccount%2Fme$/
       )
       await expect(
         page.getByRole("link", { name: "事务所统一登录" })

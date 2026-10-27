@@ -72,7 +72,7 @@ function Probe() {
       <NavigationLink to="/community/exchange/offices/tokyo?view=members#team">
         事务所详情
       </NavigationLink>
-      <NavigationLink to="/account/me/cards">我的交换名片</NavigationLink>
+      <NavigationLink to="/account/me/namecards">我的交换名片</NavigationLink>
       <NavigationLink to="/account/security">帐号安全</NavigationLink>
       <NavigationLink to="/wiki">企划目录</NavigationLink>
       <NavigationLink to="/story">剧情档案</NavigationLink>
@@ -544,7 +544,7 @@ describe("App navigation coordination", () => {
     expect(screen.getByTestId("key").textContent).toBe(key)
   })
 
-  it.each(["/account/me/cards", "/account/security"])(
+  it.each(["/account/me/namecards", "/account/security"])(
     "lands on the account root from directly entered %s",
     async (href) => {
       const user = userEvent.setup()
@@ -560,16 +560,60 @@ describe("App navigation coordination", () => {
     render(<Tree entries={["/account/me"]} />)
     await user.click(screen.getByRole("link", { name: "我的交换名片" }))
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/account/me/cards"
+      "/account/me/namecards"
     )
     await user.click(screen.getByRole("button", { name: "返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
   })
 
+  it("preserves query-only dialog back and forward history inside an account section", async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: "*",
+          element: (
+            <SessionHarness>
+              <AppNavigationProvider>
+                <Probe />
+              </AppNavigationProvider>
+            </SessionHarness>
+          ),
+        },
+      ],
+      { initialEntries: ["/account/me/namecards"] }
+    )
+    render(<RouterProvider router={router} />)
+    await act(async () => {
+      await router.navigate("/account/me/namecards?card=owner-card")
+    })
+    await act(async () => {
+      await router.navigate("/account/me/namecards")
+    })
+    await act(async () => {
+      await router.navigate(-1)
+    })
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/account/me/namecards?card=owner-card"
+    )
+    await act(async () => {
+      await router.navigate(1)
+    })
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/account/me/namecards"
+    )
+    await act(async () => {
+      await router.navigate(-1)
+    })
+    await userEvent.click(screen.getByRole("button", { name: "我的" }))
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+  })
+
   it("pushes the account root when a native pop leaves a restored section", async () => {
     const user = userEvent.setup()
-    render(<Tree entries={["/community", "/account/me/cards"]} />)
-    expect(screen.getByTestId("location").textContent).toBe("/account/me/cards")
+    render(<Tree entries={["/community", "/account/me/namecards"]} />)
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/account/me/namecards"
+    )
     await user.click(screen.getByRole("button", { name: "原生返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
     // The corrected parent is a tab root, so the next native pop climbs again
@@ -583,7 +627,7 @@ describe("App navigation coordination", () => {
     render(<Tree entries={["/community"]} />)
     await user.click(screen.getByRole("link", { name: "我的交换名片" }))
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/account/me/cards"
+      "/account/me/namecards"
     )
     await user.click(screen.getByRole("button", { name: "返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
@@ -597,7 +641,7 @@ describe("App navigation coordination", () => {
     render(<Tree entries={["/works/example"]} />)
     await user.click(screen.getByRole("link", { name: "我的交换名片" }))
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/account/me/cards"
+      "/account/me/namecards"
     )
     // The resource page below the jump is not the parent, so the subpage is
     // replaced with My instead of popping back to Resources.
@@ -622,7 +666,7 @@ describe("App navigation coordination", () => {
 
   it.each([
     ["/wiki?agency=X", "/apps"],
-    ["/community/exchange/me?section=profile", "/account/me"],
+    ["/account/me/profile?from=map", "/account/me"],
     ["/events?page=2", "/community"],
   ])("keeps %s on its pathname's parent", async (href, parent) => {
     const user = userEvent.setup()
@@ -633,7 +677,7 @@ describe("App navigation coordination", () => {
 
   it("does not bounce after the native pop correction", async () => {
     const user = userEvent.setup()
-    render(<Tree entries={["/community", "/account/me/cards"]} />)
+    render(<Tree entries={["/community", "/account/me/namecards"]} />)
     await user.click(screen.getByRole("button", { name: "原生返回" }))
     const key = screen.getByTestId("key").textContent
     // The correction is a PUSH, so React must not run it a second time for the

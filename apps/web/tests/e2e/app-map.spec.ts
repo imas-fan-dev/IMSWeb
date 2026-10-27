@@ -1154,7 +1154,7 @@ test.describe("app map", () => {
           .getByRole("button", { name: /765PRO/ })
       ).toHaveAttribute("aria-pressed", "true")
 
-      await page.goto("/community/exchange/me")
+      await page.goto("/account/me")
       await expect(
         globalNavigation.getByRole("link", { name: "我的", exact: true })
       ).toHaveAttribute("aria-current", "page")

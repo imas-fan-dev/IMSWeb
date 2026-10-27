@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "90c44823f4f01e773dcaf04f0f65b78de6e0ef7f75c075abaee194c7793590a8",
+    "semanticDigest": "8e84de477118aa93ddd649f0e7331936d39a0523f9cdb43cf95dbbba1b7370d8",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 249,
-    "carriers": 316,
-    "reject": 61,
-    "acceptAndProject": 161,
+    "mountedMethodPaths": 255,
+    "carriers": 320,
+    "reject": 63,
+    "acceptAndProject": 162,
     "passthrough": 17,
-    "nonObjectApplicable": 77
+    "nonObjectApplicable": 78
   },
   "counts": {
-    "mountedRegistrations": 347,
-    "mountedMethodPaths": 256,
+    "mountedRegistrations": 353,
+    "mountedMethodPaths": 262,
     "noInputRoutes": 91,
-    "requestCarriers": 339,
+    "requestCarriers": 343,
     "policies": {
-      "reject": 62,
-      "accept-and-project": 183,
+      "reject": 64,
+      "accept-and-project": 184,
       "passthrough": 17,
-      "non-object-applicable": 77
+      "non-object-applicable": 78
     },
     "responses": {
-      "total": 698,
-      "json": 634,
+      "total": 729,
+      "json": 665,
       "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 249,
-      "requestCarriers": 316,
+      "mountedMethodPaths": 255,
+      "requestCarriers": 320,
       "policies": {
-        "reject": 61,
-        "accept-and-project": 161,
+        "reject": 63,
+        "accept-and-project": 162,
         "passthrough": 17,
-        "non-object-applicable": 77
+        "non-object-applicable": 78
       }
     },
     "explicitQueryAdditions": [
@@ -116,12 +116,12 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 140,
+      "/api/admin": 148,
       "/api/card": 1,
       "/api/cards": 1,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 52,
+      "/api/community": 50,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -1462,76 +1462,6 @@
     },
     {
       "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "schemaSymbol": "fudabaOfficeIdParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "policy": "non-object-applicable",
-          "syntaxPolicy": "reject"
-        },
-        {
-          "kind": "json",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "schemaSymbol": "fudabaRevisionRequestSchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "policy": "reject",
-          "syntaxPolicy": "reject"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-          "kind": "json",
-          "expression": "<no body>"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_CONFLICT\" , revision : result . revision }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : true }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_LOCATION_WITHDRAW_FAILED\" : \"FUDABA_OFFICE_LOCATION_INVALID\" , message : status > = 500 ? \"\\u516C\\u5F00\\u4F4D\\u7F6E\\u64A4\\u56DE\\u5931\\u8D25\" : messageFromError ( error ) }"
-        }
-      ]
-    },
-    {
-      "method": "DELETE",
       "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
@@ -2589,11 +2519,88 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/community/exchange/office-locations",
+      "path": "/api/admin/community/exchange/map/config",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaEmptyQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+          "kind": "json",
+          "expression": "fallback ( )"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+          "kind": "json",
+          "expression": "describeRegionalSearchMap ( mainland , overseas )"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+          "kind": "json",
+          "expression": "config"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+          "kind": "json",
+          "expression": "fallback ( )"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/office-series",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleListFudabaPublicSeries",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaEmptyQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+          "kind": "json",
+          "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
       },
-      "handlerSymbol": "handleListFudabaLocationReviews",
+      "handlerSymbol": "handleListAdminFudabaOffices",
       "carriers": [
         {
           "kind": "query",
@@ -2612,9 +2619,211 @@
       ],
       "responses": [
         {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/list-location-reviews.ts",
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
           "kind": "json",
-          "expression": "{ items : rows . map ( fudabaLocationReviewView ) } satisfies FudabaLocationReviewListResponse"
+          "expression": "{ items : rows . map ( fudabaAdminOfficeReviewView ) }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleGetAdminFudabaOffice",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": "fudabaOfficeIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ item : fudabaAdminOfficeReviewView ( item ) }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+          },
+          "schemaSymbol": "fudabaPlaceReverseQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "cached"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "body"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : signal . aborted ? \"FUDABA_PLACE_REVERSE_CANCELLED\" : \"FUDABA_PLACE_REVERSE_FAILED\" }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+          },
+          "schemaSymbol": "fudabaPlaceSearchQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_INVALID\" , message : \"\\u8BF7\\u8F93\\u5165 2 \\u81F3 120 \\u4E2A\\u5B57\\u7B26\\u7684\\u5730\\u70B9\\u5173\\u952E\\u8BCD\" , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_UNAVAILABLE\" , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+          "kind": "json",
+          "expression": "cached"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_BUSY\" , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+          "kind": "json",
+          "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+          "kind": "json",
+          "expression": "body"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_FAILED\" , }"
         }
       ]
     },
@@ -3872,7 +4081,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/offices/handlers/list-owner-offices.ts",
           "kind": "json",
-          "expression": "{ items : offices . map ( fudabaOwnerOfficeView ) }"
+          "expression": "{ items : offices . map ( ( office ) => fudabaOwnerOfficeView ( office ) ) }"
         }
       ]
     },
@@ -3928,59 +4137,6 @@
           "file": "apps/api/src/domains/community/fudaba/offices/handlers/get-owner-office.ts",
           "kind": "json",
           "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
-        }
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "handlerSymbol": "handleGetFudabaOwnerLocation",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "schemaSymbol": "fudabaOfficeIdParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "policy": "non-object-applicable",
-          "syntaxPolicy": "reject"
-        },
-        {
-          "kind": "query",
-          "source": "raw-query",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts"
-          },
-          "schemaSymbol": null,
-          "schemaModule": null,
-          "schemaLocation": null,
-          "policy": "reject",
-          "syntaxPolicy": null
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts",
-          "kind": "json",
-          "expression": "{ location : location ? fudabaOwnerLocationView ( location ) : null }"
         }
       ]
     },
@@ -4218,6 +4374,67 @@
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-public-office.ts",
           "kind": "json",
           "expression": "{ office : { ... view , cards } } satisfies FudabaOfficeDetailResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+          },
+          "schemaSymbol": "fudabaPlaceReverseQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "cached"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "body"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : signal . aborted ? \"FUDABA_PLACE_REVERSE_CANCELLED\" : \"FUDABA_PLACE_REVERSE_FAILED\" }"
         }
       ]
     },
@@ -6449,6 +6666,50 @@
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
           "kind": "non-json",
           "expression": "\"Not Found\""
+        }
+      ]
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
         }
       ]
     },
@@ -12080,11 +12341,86 @@
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
+      "path": "/api/admin/community/exchange/offices/:officeId",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
       },
-      "handlerSymbol": "handleReviewFudabaLocation",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": "fudabaOfficeIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": "fudabaOfficeUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_CONFLICT\" , revision : result . revision , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : true , item : fudabaAdminOfficeReviewView ( item ) , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_SAVE_FAILED\" : \"FUDABA_OFFICE_INVALID\" , message : status > = 500 ? \"\\u4E8B\\u52A1\\u6240\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) , }"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleReviewFudabaOffice",
       "carriers": [
         {
           "kind": "param",
@@ -12106,8 +12442,8 @@
           "location": {
             "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
           },
-          "schemaSymbol": "fudabaLocationReviewRequestSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/location-review",
+          "schemaSymbol": "adminOfficeReviewRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/office-review",
           "schemaLocation": {
             "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
           },
@@ -12117,34 +12453,49 @@
       ],
       "responses": [
         {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
         },
         {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
           "kind": "json",
           "expression": "<no body>"
         },
         {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
         },
         {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_CONFLICT\" , revision : result . revision }"
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_CONFLICT\" , revision : begin . revision , }"
         },
         {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
           "kind": "json",
-          "expression": "{ success : true , officeLocation : fudabaOwnerLocationView ( result . location ) }"
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
         },
         {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
           "kind": "json",
-          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_LOCATION_REVIEW_FAILED\" : \"FUDABA_OFFICE_LOCATION_INVALID\" , message : status > = 500 ? \"\\u516C\\u5F00\\u4F4D\\u7F6E\\u5BA1\\u6838\\u5931\\u8D25\" : messageFromError ( error ) }"
+          "expression": "{ success : false , code : \"FUDABA_OFFICE_CONFLICT\" , revision : result . revision , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+          "kind": "json",
+          "expression": "{ success : true , item : fudabaAdminOfficeReviewView ( item ) , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+          "kind": "json",
+          "expression": "{ success : true , item : fudabaAdminOfficeReviewView ( current ) , }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_REVIEW_FAILED\" : \"FUDABA_OFFICE_INVALID\" , message : status > = 500 ? \"\\u4E8B\\u52A1\\u6240\\u5BA1\\u6838\\u672A\\u5B8C\\u6210\\uFF0C\\u8BF7\\u5237\\u65B0\\u6838\\u5BF9\\u5F53\\u524D\\u7248\\u672C\" : messageFromError ( error ) , }"
         }
       ]
     },
@@ -13046,76 +13397,6 @@
           "file": "apps/api/src/domains/community/fudaba/offices/handlers/upload-office-cover.ts",
           "kind": "json",
           "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_COVER_UPLOAD_FAILED\" : \"FUDABA_OFFICE_COVER_INVALID\" , message : status > = 500 ? \"\\u4EA4\\u6362\\u6240\\u5C01\\u9762\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) }"
-        }
-      ]
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "schemaSymbol": "fudabaOfficeIdParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "policy": "non-object-applicable",
-          "syntaxPolicy": "reject"
-        },
-        {
-          "kind": "json",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "schemaSymbol": "fudabaOwnerLocationSaveRequestSchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-          },
-          "policy": "reject",
-          "syntaxPolicy": "reject"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-          "kind": "json",
-          "expression": "<no body>"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_CONFLICT\" , revision : result . revision }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : true , officeLocation : fudabaOwnerLocationView ( result . location ) }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_LOCATION_SAVE_FAILED\" : \"FUDABA_OFFICE_LOCATION_INVALID\" , message : status > = 500 ? \"\\u516C\\u5F00\\u4F4D\\u7F6E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) }"
         }
       ]
     },
@@ -14090,40 +14371,6 @@
     },
     {
       "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "schemaSymbol": "fudabaOfficeIdParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "policy": "non-object-applicable",
-      "syntaxPolicy": "reject"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "kind": "json",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "schemaSymbol": "fudabaRevisionRequestSchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "policy": "reject",
-      "syntaxPolicy": "reject"
-    },
-    {
-      "method": "DELETE",
       "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
       "handlerSymbol": "handleRemoveFudabaCardPlacement",
       "kind": "param",
@@ -14479,8 +14726,42 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/community/exchange/office-locations",
-      "handlerSymbol": "handleListFudabaLocationReviews",
+      "path": "/api/admin/community/exchange/map/config",
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaEmptyQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/office-series",
+      "handlerSymbol": "handleListFudabaPublicSeries",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaEmptyQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices",
+      "handlerSymbol": "handleListAdminFudabaOffices",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -14493,6 +14774,72 @@
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleGetAdminFudabaOffice",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "schemaSymbol": "fudabaOfficeIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "schemaSymbol": "fudabaPlaceReverseQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "schemaSymbol": "fudabaPlaceSearchQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "GET",
@@ -14989,38 +15336,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleGetFudabaOwnerLocation",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "schemaSymbol": "fudabaOfficeIdParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "policy": "non-object-applicable",
-      "syntaxPolicy": "reject"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleGetFudabaOwnerLocation",
-      "kind": "query",
-      "source": "raw-query",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts"
-      },
-      "schemaSymbol": null,
-      "schemaModule": null,
-      "schemaLocation": null,
-      "policy": "reject",
-      "syntaxPolicy": null
-    },
-    {
-      "method": "GET",
       "path": "/api/community/exchange/me/offices/:officeId/media/cover",
       "handlerSymbol": "handleServeFudabaOwnerOfficeCover",
       "kind": "param",
@@ -15151,6 +15466,23 @@
       "schemaModule": "@imsweb/contracts/fudaba",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
+      },
+      "schemaSymbol": "fudabaPlaceReverseQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
@@ -15974,6 +16306,21 @@
       "source": "raw-param",
       "location": {
         "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts"
       },
       "schemaSymbol": null,
       "schemaModule": null,
@@ -18526,8 +18873,42 @@
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "schemaSymbol": "fudabaOfficeIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "schemaSymbol": "fudabaOfficeUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -18543,15 +18924,15 @@
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
       "kind": "json",
       "source": "validated",
       "location": {
         "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
       },
-      "schemaSymbol": "fudabaLocationReviewRequestSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/location-review",
+      "schemaSymbol": "adminOfficeReviewRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/office-review",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
       },
@@ -18997,40 +19378,6 @@
       "schemaLocation": null,
       "policy": "non-object-applicable",
       "syntaxPolicy": null
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "schemaSymbol": "fudabaOfficeIdParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "policy": "non-object-applicable",
-      "syntaxPolicy": "reject"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "kind": "json",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "schemaSymbol": "fudabaOwnerLocationSaveRequestSchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/locations/routes.ts"
-      },
-      "policy": "reject",
-      "syntaxPolicy": "reject"
     },
     {
       "method": "PUT",
@@ -19719,54 +20066,6 @@
     },
     {
       "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-      "kind": "json",
-      "expression": "<no body>"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_CONFLICT\" , revision : result . revision }"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : true }"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleWithdrawFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/withdraw-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_LOCATION_WITHDRAW_FAILED\" : \"FUDABA_OFFICE_LOCATION_INVALID\" , message : status > = 500 ? \"\\u516C\\u5F00\\u4F4D\\u7F6E\\u64A4\\u56DE\\u5931\\u8D25\" : messageFromError ( error ) }"
-    },
-    {
-      "method": "DELETE",
       "path": "/api/community/exchange/offices/:officeId/cards/:cardId/placement",
       "handlerSymbol": "handleRemoveFudabaCardPlacement",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/remove-card-placement.ts",
@@ -20207,11 +20506,211 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/community/exchange/office-locations",
-      "handlerSymbol": "handleListFudabaLocationReviews",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/list-location-reviews.ts",
+      "path": "/api/admin/community/exchange/map/config",
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "{ items : rows . map ( fudabaLocationReviewView ) } satisfies FudabaLocationReviewListResponse"
+      "expression": "fallback ( )"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/map/config",
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+      "kind": "json",
+      "expression": "describeRegionalSearchMap ( mainland , overseas )"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/map/config",
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+      "kind": "json",
+      "expression": "config"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/map/config",
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+      "kind": "json",
+      "expression": "fallback ( )"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/office-series",
+      "handlerSymbol": "handleListFudabaPublicSeries",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+      "kind": "json",
+      "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices",
+      "handlerSymbol": "handleListAdminFudabaOffices",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ items : rows . map ( fudabaAdminOfficeReviewView ) }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleGetAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ item : fudabaAdminOfficeReviewView ( item ) }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleGetAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "cached"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "body"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : signal . aborted ? \"FUDABA_PLACE_REVERSE_CANCELLED\" : \"FUDABA_PLACE_REVERSE_FAILED\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_INVALID\" , message : \"\\u8BF7\\u8F93\\u5165 2 \\u81F3 120 \\u4E2A\\u5B57\\u7B26\\u7684\\u5730\\u70B9\\u5173\\u952E\\u8BCD\" , }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_UNAVAILABLE\" , }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+      "kind": "json",
+      "expression": "cached"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_BUSY\" , }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+      "kind": "json",
+      "expression": "<no body>"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+      "kind": "json",
+      "expression": "body"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/places/search",
+      "handlerSymbol": "handleSearchFudabaPlaces",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_FAILED\" , }"
     },
     {
       "method": "GET",
@@ -20667,7 +21166,7 @@
       "handlerSymbol": "handleListFudabaOwnerOffices",
       "file": "apps/api/src/domains/community/fudaba/offices/handlers/list-owner-offices.ts",
       "kind": "json",
-      "expression": "{ items : offices . map ( fudabaOwnerOfficeView ) }"
+      "expression": "{ items : offices . map ( ( office ) => fudabaOwnerOfficeView ( office ) ) }"
     },
     {
       "method": "GET",
@@ -20692,30 +21191,6 @@
       "file": "apps/api/src/domains/community/fudaba/offices/handlers/get-owner-office.ts",
       "kind": "json",
       "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleGetFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleGetFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleGetFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/get-owner-location.ts",
-      "kind": "json",
-      "expression": "{ location : location ? fudabaOwnerLocationView ( location ) : null }"
     },
     {
       "method": "GET",
@@ -20820,6 +21295,62 @@
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-public-office.ts",
       "kind": "json",
       "expression": "{ office : { ... view , cards } } satisfies FudabaOfficeDetailResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_UNAVAILABLE\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "cached"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_PLACE_REVERSE_BUSY\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "body"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/places/reverse",
+      "handlerSymbol": "handleReverseFudabaPlace",
+      "file": "apps/api/src/domains/community/fudaba/locations/handlers/reverse-place.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : signal . aborted ? \"FUDABA_PLACE_REVERSE_CANCELLED\" : \"FUDABA_PLACE_REVERSE_FAILED\" }"
     },
     {
       "method": "GET",
@@ -21428,6 +21959,38 @@
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
       "kind": "non-json",
       "expression": "\"Not Found\""
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_NOT_FOUND\" }"
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
+      "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
     },
     {
       "method": "HEAD",
@@ -23895,51 +24458,131 @@
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
       "expression": "<no body>"
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_CONFLICT\" , revision : result . revision }"
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_CONFLICT\" , revision : result . revision , }"
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
-      "expression": "{ success : true , officeLocation : fudabaOwnerLocationView ( result . location ) }"
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
     },
     {
       "method": "PUT",
-      "path": "/api/admin/community/exchange/office-locations/:officeId",
-      "handlerSymbol": "handleReviewFudabaLocation",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-location.ts",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
-      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_LOCATION_REVIEW_FAILED\" : \"FUDABA_OFFICE_LOCATION_INVALID\" , message : status > = 500 ? \"\\u516C\\u5F00\\u4F4D\\u7F6E\\u5BA1\\u6838\\u5931\\u8D25\" : messageFromError ( error ) }"
+      "expression": "{ success : true , item : fudabaAdminOfficeReviewView ( item ) , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId",
+      "handlerSymbol": "handleUpdateAdminFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_SAVE_FAILED\" : \"FUDABA_OFFICE_INVALID\" , message : status > = 500 ? \"\\u4E8B\\u52A1\\u6240\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "<no body>"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_CONFLICT\" , revision : begin . revision , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_OFFICE_CONFLICT\" , revision : result . revision , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : true , item : fudabaAdminOfficeReviewView ( item ) , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : true , item : fudabaAdminOfficeReviewView ( current ) , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/offices/:officeId/review",
+      "handlerSymbol": "handleReviewFudabaOffice",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/review-office.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_REVIEW_FAILED\" : \"FUDABA_OFFICE_INVALID\" , message : status > = 500 ? \"\\u4E8B\\u52A1\\u6240\\u5BA1\\u6838\\u672A\\u5B8C\\u6210\\uFF0C\\u8BF7\\u5237\\u65B0\\u6838\\u5BF9\\u5F53\\u524D\\u7248\\u672C\" : messageFromError ( error ) , }"
     },
     {
       "method": "PUT",
@@ -24412,54 +25055,6 @@
       "file": "apps/api/src/domains/community/fudaba/offices/handlers/upload-office-cover.ts",
       "kind": "json",
       "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_COVER_UPLOAD_FAILED\" : \"FUDABA_OFFICE_COVER_INVALID\" , message : status > = 500 ? \"\\u4EA4\\u6362\\u6240\\u5C01\\u9762\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-      "kind": "json",
-      "expression": "<no body>"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_NOT_FOUND\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_OFFICE_LOCATION_CONFLICT\" , revision : result . revision }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : true , officeLocation : fudabaOwnerLocationView ( result . location ) }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/offices/:officeId/location",
-      "handlerSymbol": "handleSaveFudabaOwnerLocation",
-      "file": "apps/api/src/domains/community/fudaba/locations/handlers/save-owner-location.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_OFFICE_LOCATION_SAVE_FAILED\" : \"FUDABA_OFFICE_LOCATION_INVALID\" , message : status > = 500 ? \"\\u516C\\u5F00\\u4F4D\\u7F6E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) }"
     },
     {
       "method": "PUT",

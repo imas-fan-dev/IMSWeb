@@ -117,7 +117,9 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261018160000_namecard_favorite_characters', phase: 'post-data' },
                 // Kept so the ledger written by the previously deployed release stays reconcilable.
                 { version: '20261018180000_namecard_character_wiki_backfill', phase: 'post-data' },
-                { version: '20261024130000_namecard_catalog_snapshot', phase: 'post-data' }
+                { version: '20261024130000_namecard_catalog_snapshot', phase: 'post-data' },
+                { version: '20261026120000_fudaba_public_location_precision', phase: 'post-data' },
+                { version: '20261026230000_fudaba_office_review', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -646,11 +648,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 55);
+        assert.equal(catalog.count, 57);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261024130000_namecard_catalog_snapshot'
+            '20261026230000_fudaba_office_review'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -985,7 +987,9 @@ test.describe('PostgreSQL migration', () => {
                 '20261018150000_namecard_unit_catalog',
                 '20261018160000_namecard_favorite_characters',
                 '20261018180000_namecard_character_wiki_backfill',
-                '20261024130000_namecard_catalog_snapshot'
+                '20261024130000_namecard_catalog_snapshot',
+                '20261026120000_fudaba_public_location_precision',
+                '20261026230000_fudaba_office_review'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

@@ -21,7 +21,6 @@ import {
 import { useLocation, useOutlet, useSearchParams } from "react-router"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
-import { PlatformAccountMenu } from "~/components/platform/platform-account-menu"
 import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -55,76 +54,39 @@ import {
 import { Skeleton } from "~/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { useInfiniteScroll } from "~/lib/use-infinite-scroll"
-import {
-  getFudabaCardPage,
-  getFudabaOfficePage,
-  getFudabaSeries,
-  isApiError,
-  type FudabaCard,
-  type FudabaCardPage,
-  type FudabaOffice,
-  type FudabaOfficePage,
-  type FudabaSeries,
-} from "~/lib/api"
+import type { FudabaSeries } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { NativeGlassControlsProvider } from "~/lib/native-glass-controls"
 import { shouldUseNativeGlassControls } from "~/lib/native-glass-panel"
 import { cn } from "~/lib/utils"
-import { CommunityExchangeMapSection } from "./community-exchange-map-section"
+import { CommunityExchangeMapSection } from "~/pages/community/exchange/components/community-exchange-map-section"
 import {
   ExchangeDiscoveryRail,
   type ExchangeDiscoveryRailProps,
 } from "./components/exchange-discovery-rail"
 import { ExchangeMapAttributionDialog } from "./components/exchange-map-attribution-dialog"
 import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
-import { ExchangeCard, OfficeCard } from "./exchange-components"
+import {
+  ExchangeCard,
+  OfficeCard,
+} from "~/pages/community/exchange/components/exchange-components"
 import {
   ExchangeDataRevision,
   ExchangeMapDialogContext,
 } from "./components/exchange-page-surface"
+import {
+  useExchangeDiscovery,
+  type DiscoveryState,
+} from "./hooks/use-exchange-discovery"
 import { useExchangeRouteSession } from "./hooks/use-exchange-route-session"
-import type { ExchangeMapAttribution } from "./exchange-map-attribution"
+import type { ExchangeMapAttribution } from "~/pages/community/exchange/maps/exchange-map-attribution"
 import {
   exchangeMapFilterDefaults,
   rememberExchangeMapFilters,
-} from "./exchange-map-model"
-import "./exchange-office-map.css"
+} from "~/pages/community/exchange/maps/exchange-map-model"
+import "~/pages/community/exchange/maps/exchange-office-map.css"
 
-type DiscoveryPhase = "loading" | "ready" | "closed" | "error"
 type DirectoryView = "offices" | "cards"
-
-type DiscoveryState = {
-  phase: DiscoveryPhase
-  series: FudabaSeries[]
-  offices: FudabaOffice[]
-  officePageInfo: FudabaOfficePage["pageInfo"]
-  cards: FudabaCard[]
-  cardPageInfo: FudabaCardPage["pageInfo"]
-  error: string | null
-}
-
-const emptyPageInfo = { hasNextPage: false, nextCursor: null }
-const initialState: DiscoveryState = {
-  phase: "loading",
-  series: [],
-  offices: [],
-  officePageInfo: emptyPageInfo,
-  cards: [],
-  cardPageInfo: emptyPageInfo,
-  error: null,
-}
-
-function deduplicateById<T extends { id: string }>(
-  current: T[],
-  incoming: T[]
-) {
-  const known = new Set(current.map((item) => item.id))
-  return [...current, ...incoming.filter((item) => !known.has(item.id))]
-}
-
-function discoveryErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "社区交换数据暂时无法加载"
-}
 
 function useNarrowWorkspace() {
   const [isNarrow, setIsNarrow] = useState(false)
@@ -455,10 +417,11 @@ export default function CommunityExchangePage() {
   )
   const openOnly = searchParams.get("open") === "true"
   const [cityDraft, setCityDraft] = useState(city)
-  const [state, setState] = useState<DiscoveryState>(initialState)
-  const [refreshing, setRefreshing] = useState(true)
-  const [loadingMoreOffices, setLoadingMoreOffices] = useState(false)
-  const [loadingMoreCards, setLoadingMoreCards] = useState(false)
+  const [previousCity, setPreviousCity] = useState(city)
+  if (previousCity !== city) {
+    setPreviousCity(city)
+    setCityDraft(city)
+  }
   const [filterOpen, setFilterOpen] = useState(false)
   const filterTitleRef = useRef<HTMLHeadingElement | null>(null)
   const filterAnchorRef = useRef<HTMLElement | null>(null)
@@ -470,10 +433,7 @@ export default function CommunityExchangePage() {
   const routeOpener = useRef<HTMLElement | null>(null)
   const directoryOpener = useRef<HTMLElement | null>(null)
   const webDialogOpen = !IS_APP_TARGET && (routeDialogOpen || directoryOpen)
-  const routeTitle =
-    location.pathname.replace(/\/+$/, "") === "/community/exchange/me"
-      ? "个人档案"
-      : "事务所详情"
+  const routeTitle = "事务所详情"
   function captureRouteOpener(event: MouseEvent<HTMLElement>) {
     if (
       IS_APP_TARGET ||
@@ -510,9 +470,6 @@ export default function CommunityExchangePage() {
     })
     return () => window.cancelAnimationFrame(frame)
   }, [webDialogOpen, routeDialogOpen, location.pathname])
-  const requestGeneration = useRef(0)
-  const officeRequestInFlight = useRef<symbol | null>(null)
-  const cardRequestInFlight = useRef<symbol | null>(null)
   const isNarrow = useNarrowWorkspace()
   const [attribution, setAttribution] = useState<ExchangeMapAttribution | null>(
     null
@@ -550,71 +507,7 @@ export default function CommunityExchangePage() {
     })
   }, [])
 
-  useEffect(() => {
-    if (!hasAttribution) setAttributionOpen(false)
-  }, [hasAttribution])
-
-  const loadFirstPage = useCallback(async () => {
-    const generation = ++requestGeneration.current
-    officeRequestInFlight.current = null
-    cardRequestInFlight.current = null
-    setState((current) =>
-      current.phase === "ready"
-        ? { ...current, error: null }
-        : { ...current, phase: "loading", error: null }
-    )
-    setRefreshing(true)
-    setLoadingMoreOffices(false)
-    setLoadingMoreCards(false)
-
-    try {
-      const [seriesResult, officeResult, cardResult] = await Promise.all([
-        getFudabaSeries().send(),
-        getFudabaOfficePage({
-          city: city || undefined,
-          series: seriesCodes.length ? seriesCodes : undefined,
-          open: openOnly ? true : undefined,
-          limit: 12,
-        }).send(),
-        getFudabaCardPage({
-          series: seriesCodes.length ? seriesCodes : undefined,
-          available: true,
-          limit: 8,
-        }).send(),
-      ])
-      if (requestGeneration.current !== generation) return
-      setState({
-        phase: "ready",
-        series: seriesResult.items,
-        offices: officeResult.items,
-        officePageInfo: officeResult.pageInfo,
-        cards: cardResult.items,
-        cardPageInfo: cardResult.pageInfo,
-        error: null,
-      })
-    } catch (error) {
-      if (requestGeneration.current !== generation) return
-      const closed =
-        isApiError(error) &&
-        error.status === 404 &&
-        error.payload === "Not Found"
-      setState((current) =>
-        current.phase === "ready" && !closed
-          ? { ...current, error: discoveryErrorMessage(error) }
-          : {
-              ...current,
-              phase: closed ? "closed" : "error",
-              error: discoveryErrorMessage(error),
-            }
-      )
-    } finally {
-      if (requestGeneration.current === generation) setRefreshing(false)
-    }
-  }, [city, openOnly, seriesCodes])
-
-  useEffect(() => {
-    setCityDraft(city)
-  }, [city])
+  if (!hasAttribution && attributionOpen) setAttributionOpen(false)
 
   useEffect(() => {
     if (!IS_APP_TARGET) return
@@ -629,12 +522,15 @@ export default function CommunityExchangePage() {
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
 
-  useEffect(() => {
-    void loadFirstPage()
-    return () => {
-      requestGeneration.current += 1
-    }
-  }, [loadFirstPage, dataRevision])
+  const {
+    state,
+    refreshing,
+    loadingMoreOffices,
+    loadingMoreCards,
+    refresh,
+    loadMoreOffices,
+    loadMoreCards,
+  } = useExchangeDiscovery({ city, seriesCodes, openOnly, dataRevision })
 
   const seriesMap = useMemo(
     () => new Map(state.series.map((item) => [item.code, item])),
@@ -682,87 +578,6 @@ export default function CommunityExchangePage() {
     setDirectoryOpen(true)
   }
 
-  const loadMoreOffices = useCallback(async () => {
-    if (
-      officeRequestInFlight.current ||
-      !state.officePageInfo.hasNextPage ||
-      !state.officePageInfo.nextCursor
-    ) {
-      return
-    }
-    const generation = requestGeneration.current
-    const requestToken = Symbol("fudaba-office-page")
-    officeRequestInFlight.current = requestToken
-    setLoadingMoreOffices(true)
-    setState((current) => ({ ...current, error: null }))
-    try {
-      const result = await getFudabaOfficePage({
-        city: city || undefined,
-        series: seriesCodes.length ? seriesCodes : undefined,
-        open: openOnly ? true : undefined,
-        cursor: state.officePageInfo.nextCursor,
-        limit: 12,
-      }).send()
-      if (requestGeneration.current !== generation) return
-      setState((current) => ({
-        ...current,
-        offices: deduplicateById(current.offices, result.items),
-        officePageInfo: result.pageInfo,
-      }))
-    } catch (error) {
-      if (requestGeneration.current !== generation) return
-      setState((current) => ({
-        ...current,
-        error: `更多事务所加载失败：${discoveryErrorMessage(error)}`,
-      }))
-    } finally {
-      if (officeRequestInFlight.current === requestToken) {
-        officeRequestInFlight.current = null
-        setLoadingMoreOffices(false)
-      }
-    }
-  }, [city, openOnly, seriesCodes, state.officePageInfo])
-
-  const loadMoreCards = useCallback(async () => {
-    if (
-      cardRequestInFlight.current ||
-      !state.cardPageInfo.hasNextPage ||
-      !state.cardPageInfo.nextCursor
-    ) {
-      return
-    }
-    const generation = requestGeneration.current
-    const requestToken = Symbol("fudaba-card-page")
-    cardRequestInFlight.current = requestToken
-    setLoadingMoreCards(true)
-    setState((current) => ({ ...current, error: null }))
-    try {
-      const result = await getFudabaCardPage({
-        series: seriesCodes.length ? seriesCodes : undefined,
-        available: true,
-        cursor: state.cardPageInfo.nextCursor,
-        limit: 8,
-      }).send()
-      if (requestGeneration.current !== generation) return
-      setState((current) => ({
-        ...current,
-        cards: deduplicateById(current.cards, result.items),
-        cardPageInfo: result.pageInfo,
-      }))
-    } catch (error) {
-      if (requestGeneration.current !== generation) return
-      setState((current) => ({
-        ...current,
-        error: `更多名片加载失败：${discoveryErrorMessage(error)}`,
-      }))
-    } finally {
-      if (cardRequestInFlight.current === requestToken) {
-        cardRequestInFlight.current = null
-        setLoadingMoreCards(false)
-      }
-    }
-  }, [seriesCodes, state.cardPageInfo])
-
   const hasFilters = Boolean(city || seriesCodes.length || openOnly)
   const filterProps = {
     cityDraft,
@@ -794,7 +609,7 @@ export default function CommunityExchangePage() {
     onSeriesClear: clearSeriesFilter,
     onOpenChange: (value) => updateFilter("open", value ? "true" : null),
     onResetFilters: resetFilters,
-    onRefresh: () => void loadFirstPage(),
+    onRefresh: () => void refresh(),
     onOpenFilter: () => {
       setDirectoryOpen(false)
       setFilterOpen(true)
@@ -859,7 +674,7 @@ export default function CommunityExchangePage() {
                         setFilterOpen(false)
                         openDirectory("cards")
                       },
-                      onRefresh: () => void loadFirstPage(),
+                      onRefresh: () => void refresh(),
                       onOpenAttribution: hasAttribution
                         ? openAttribution
                         : undefined,
@@ -1038,7 +853,7 @@ export default function CommunityExchangePage() {
                     {state.error || "请稍后重新加载。"}
                   </AlertDescription>
                   <div className="col-start-2 mt-3">
-                    <Button type="button" onClick={() => void loadFirstPage()}>
+                    <Button type="button" onClick={() => void refresh()}>
                       <RefreshCwIcon aria-hidden="true" />
                       重新加载
                     </Button>
@@ -1111,9 +926,6 @@ export default function CommunityExchangePage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  {routeDialogOpen && routeTitle === "个人档案" ? (
-                    <PlatformAccountMenu />
-                  ) : null}
                   <Button
                     type="button"
                     variant="ghost"

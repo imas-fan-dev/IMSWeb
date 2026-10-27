@@ -43,7 +43,7 @@ test(`compiled ${target === 'web' ? 'Web' : 'App'} preview preserves document, a
             ['/account/me', '__spa-fallback.html'],
             ['/account/me/profile', '__spa-fallback.html'],
             ...(target === 'app'
-                ? [['/account/me/cards', '__spa-fallback.html'], ['/apps', '__spa-fallback.html']]
+                ? [['/account/me/namecards', '__spa-fallback.html'], ['/apps', '__spa-fallback.html']]
                 : [['/admin/chronicle/pending', '__spa-fallback.html']]),
         ]) {
             const response = await fetch(`${origin}${route}`);

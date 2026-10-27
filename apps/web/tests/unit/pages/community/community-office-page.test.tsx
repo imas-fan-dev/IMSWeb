@@ -237,12 +237,48 @@ describe("CommunityOfficePage", () => {
     expect(screen.queryByText("未找到这个事务所")).not.toBeInTheDocument()
   })
 
+  it("links to namecard management when owner cards cannot load", async () => {
+    mockAuthenticatedPlatformSession()
+    apiMocks.sendOwnerCards.mockRejectedValue(
+      new Error("Owner cards unavailable")
+    )
+
+    renderPage()
+
+    expect(
+      await screen.findByRole("link", { name: "管理我的名片" })
+    ).toHaveAttribute("href", "/account/me/namecards")
+  })
+
+  it("links to namecard creation when the owner has no public cards", async () => {
+    mockAuthenticatedPlatformSession()
+    apiMocks.sendOwnerCards.mockResolvedValue(
+      makeFudabaOwnerCardList({ items: [] })
+    )
+    apiMocks.sendOffice.mockResolvedValue(
+      makeFudabaOfficeDetail({
+        name: "上海周末交换事务所",
+        cards: [],
+      })
+    )
+
+    renderPage()
+
+    expect(
+      await screen.findByRole("link", { name: "创建可公开名片" })
+    ).toHaveAttribute("href", "/account/me/namecards")
+  })
+
   it("saves keyboard placement changes for the signed-in card owner", async () => {
     const user = userEvent.setup()
     mockAuthenticatedPlatformSession()
 
     renderPage()
     await user.click(await screen.findByRole("button", { name: "布置名片墙" }))
+    expect(screen.getByRole("link", { name: "管理名片" })).toHaveAttribute(
+      "href",
+      "/account/me/namecards"
+    )
     const handle = await screen.findByRole("button", {
       name: "移动交换会用名片",
     })

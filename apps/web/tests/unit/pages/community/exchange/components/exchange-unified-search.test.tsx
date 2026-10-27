@@ -75,7 +75,7 @@ beforeEach(() => {
       items: [
         makeFudabaOffice({
           name: "上海事务所",
-          location: { latitude: 31.2, longitude: 121.5, precision: "regional" },
+          location: { latitude: 31.2, longitude: 121.5, precision: "exact" },
         }),
       ],
       pageInfo: { hasNextPage: false, nextCursor: null },
@@ -153,7 +153,7 @@ it("keeps an automatic pending query on Enter and cancels it when edited", async
     items: [
       makeFudabaOffice({
         name,
-        location: { latitude: 31.2, longitude: 121.5, precision: "regional" },
+        location: { latitude: 31.2, longitude: 121.5, precision: "exact" },
       }),
     ],
     pageInfo: { hasNextPage: false, nextCursor: null },

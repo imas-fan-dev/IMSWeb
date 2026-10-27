@@ -319,6 +319,14 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     const previous = committedLocationRef.current
     // A restored commit reuses the same entry; only a real pop changes it.
     if (!previous || previous.key === currentLocation.key) return
+    // Query/hash history belongs to the same page (for example an owner-card
+    // dialog). Preserve those entries rather than replacing forward history
+    // with the page's logical parent.
+    if (
+      normalizeAppPathname(previous.pathname) ===
+      normalizeAppPathname(currentLocation.pathname)
+    )
+      return
     const leftTarget = resolveAppBackTarget(previous.pathname)
     if (leftTarget.kind !== "parent") return
     if (leftTarget.href === currentLocation.pathname) return

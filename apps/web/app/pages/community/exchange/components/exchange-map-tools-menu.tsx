@@ -172,7 +172,7 @@ export function ExchangeMapToolsMenu({
             </Menu.Item>
             <div aria-hidden="true" className="mx-3 my-2 border-t" />
             <Menu.LinkItem
-              render={<NavigationLink to="/community/exchange/me" />}
+              render={<NavigationLink to="/account/me" />}
               className={itemClass}
             >
               <UserRoundIcon aria-hidden="true" />

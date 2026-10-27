@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import type { ExchangeMapAttribution } from "~/pages/community/exchange/exchange-map-attribution"
+import type { ExchangeMapAttribution } from "~/pages/community/exchange/maps/exchange-map-attribution"
 
 interface ExchangeMapAttributionDialogProps {
   attribution: ExchangeMapAttribution | null

@@ -156,7 +156,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
               location: {
                 latitude: 31.2,
                 longitude: 121.5,
-                precision: "regional",
+                precision: "exact",
               },
             },
           ],

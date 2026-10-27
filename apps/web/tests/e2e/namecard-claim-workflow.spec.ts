@@ -735,8 +735,7 @@ test.describe("namecard claim workflow", () => {
       "PUT"
     )
 
-    await page.goto("/community/exchange/me")
-    await page.getByRole("link", { name: "认领消息", exact: true }).click()
+    await page.goto("/account/me/claims")
     await expect(page.getByText("1 封待确认")).toBeVisible()
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)

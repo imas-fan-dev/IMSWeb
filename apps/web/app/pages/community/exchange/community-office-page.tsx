@@ -1,4 +1,4 @@
-import { CardInteractionScope } from "./exchange-card-interactions"
+import { CardInteractionScope } from "~/pages/community/exchange/components/exchange-card-interactions"
 import { ExchangeDataRevision } from "./components/exchange-page-surface"
 import {
   ArrowLeftIcon,
@@ -65,8 +65,8 @@ import {
   ExchangeCard,
   PlacedCardWall,
   SeriesBadge,
-} from "./exchange-components"
-import type { WallPlacement } from "./exchange-card-wall"
+} from "~/pages/community/exchange/components/exchange-components"
+import type { WallPlacement } from "~/pages/community/exchange/components/exchange-card-wall"
 import { ExchangeManagementDialog } from "./components/exchange-management-dialog"
 import {
   ExchangePageSurface,
@@ -676,7 +676,7 @@ function CommunityOfficePageContent() {
               {platform.status === "authenticated" &&
               wallEditor.phase === "error" ? (
                 <NavigationLink
-                  to="/community/exchange/me"
+                  to="/account/me/namecards"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   管理我的名片
@@ -702,7 +702,7 @@ function CommunityOfficePageContent() {
               eligibleOwnerCards.length === 0 &&
               !hasOwnedPlacedCard ? (
                 <NavigationLink
-                  to="/community/exchange/me"
+                  to="/account/me/namecards"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   创建可公开名片
@@ -757,7 +757,7 @@ function CommunityOfficePageContent() {
               </div>
               <div className="flex gap-2">
                 <NavigationLink
-                  to="/community/exchange/me"
+                  to="/account/me/namecards"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   管理名片

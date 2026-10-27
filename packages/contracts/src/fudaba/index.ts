@@ -89,11 +89,13 @@ export const fudabaSeriesListSchema = z
   })
   .strict();
 
-const publicOfficeLocationSchema = z.object({
-  latitude: regionalCoordinateSchema(-60, 60),
-  longitude: regionalCoordinateSchema(-180, 180),
-  precision: z.literal("regional"),
+export const fudabaPublicOfficeLocationSchema = z.object({
+  latitude: exactCoordinateSchema(-90, 90),
+  longitude: exactCoordinateSchema(-180, 180),
+  precision: z.literal("exact"),
 }).strict();
+
+const publicOfficeLocationSchema = fudabaPublicOfficeLocationSchema;
 
 export const fudabaOfficeSchema = exactJsonResponse({
   id: z.string().min(1),
@@ -248,6 +250,19 @@ export const fudabaPlaceSearchResponseSchema = successEnvelope({
   attribution: z.string().min(1),
 }).strict();
 
+// Missing city/address text stays empty for the owner to complete before saving.
+export const fudabaPlaceReverseResultSchema = fudabaPlaceSearchResultSchema.extend({
+  city: z.string(),
+  address: z.string(),
+}).strict();
+export const fudabaPlaceReverseResponseSchema = exactJsonResponse({
+  place: fudabaPlaceReverseResultSchema.nullable(),
+  attribution: exactJsonResponse({
+    text: z.string().min(1),
+    url: z.string().url(),
+  }).nullable(),
+});
+
 export const ownerCardIdSchema = z
   .string()
   .min(1)
@@ -363,6 +378,12 @@ export const fudabaOwnerOfficeSchema = z
     isOpen: z.boolean(),
     visitorCount: z.number().int().nonnegative(),
     status: z.enum(["active", "hidden", "archived"]),
+    reviewState: z.enum(["pending", "published", "rejected"]),
+    submittedAt: timestampSchema,
+    reviewedAt: timestampSchema.nullable(),
+    reviewedBy: z.number().int().positive().nullable(),
+    reviewNote: z.string().max(1000),
+    reviewInProgress: z.boolean(),
     revision: fudabaRevisionSchema,
     seriesCodes: ownerOfficeSeriesCodesSchema,
     createdAt: timestampSchema,
@@ -392,13 +413,8 @@ export const fudabaOfficeConflictResponseSchema = exactJsonResponse({
 export const fudabaOwnerLocationSchema = z
   .object({
     officeId: ownerCardIdSchema,
-    location: z
-      .object({
-        latitude: regionalCoordinateSchema(-60, 60),
-        longitude: regionalCoordinateSchema(-180, 180),
-        precision: z.literal("regional"),
-      })
-      .strict(),
+    location: fudabaPublicOfficeLocationSchema,
+    exactLocationConsentAt: timestampSchema.nullable(),
     reviewState: z.enum(["pending", "published", "rejected"]),
     revision: fudabaRevisionSchema,
     submittedAt: timestampSchema,
@@ -511,11 +527,18 @@ export const fudabaOfficeFieldsRequestSchema = z.object({
 export const fudabaOfficeUpdateRequestSchema = fudabaOfficeFieldsRequestSchema.extend({
   expectedRevision: fudabaRevisionSchema,
 }).strict();
-export const fudabaOwnerLocationSaveRequestSchema = z.object({
+export const fudabaOwnerLocationSaveRequestSchema = z.union([z.object({
   latitude: exactCoordinateSchema(-60, 60),
   longitude: exactCoordinateSchema(-180, 180),
   expectedRevision: fudabaRevisionSchema.nullable(),
-}).strict();
+  precision: z.literal("regional").optional(),
+}).strict(), z.object({
+  latitude: exactCoordinateSchema(-60, 60),
+  longitude: exactCoordinateSchema(-180, 180),
+  expectedRevision: fudabaRevisionSchema.nullable(),
+  precision: z.literal("exact"),
+  exactLocationConsent: z.literal(true),
+}).strict()]);
 export const fudabaReactionRequestSchema = legacyStripRequestObject({
   // The handler owns the legacy error code for an unsupported palette entry.
   emoji: z.unknown(),
@@ -525,6 +548,13 @@ export const fudabaMediaQuerySchema = legacyStripRequestObject({
 });
 export const fudabaPlaceSearchQuerySchema = legacyStripRequestObject({
   q: z.string().trim().min(2).max(120).refine((value) => !hasAsciiControl(value)),
+});
+const reverseCoordinateQuery = (minimum: number, maximum: number) =>
+  z.union([z.number(), z.string().trim().min(1)])
+    .pipe(z.coerce.number().finite().min(minimum).max(maximum));
+export const fudabaPlaceReverseQuerySchema = strictRequestObject({
+  longitude: reverseCoordinateQuery(-180, 180),
+  latitude: reverseCoordinateQuery(-90, 90),
 });
 export const fudabaCardReactionErrorSchema = z.union([
   exactJsonError({ success: z.literal(false), code: z.string() }),
@@ -561,6 +591,9 @@ export type FudabaPlaceSearchResult = z.infer<
 export type FudabaPlaceSearchResponse = z.infer<
   typeof fudabaPlaceSearchResponseSchema
 >;
+export type FudabaPlaceReverseQuery = z.infer<typeof fudabaPlaceReverseQuerySchema>;
+export type FudabaPlaceReverseResult = z.infer<typeof fudabaPlaceReverseResultSchema>;
+export type FudabaPlaceReverseResponse = z.infer<typeof fudabaPlaceReverseResponseSchema>;
 export type FudabaOwnerCard = z.infer<typeof fudabaOwnerCardSchema>;
 export type FudabaOwnerCardList = z.infer<typeof fudabaOwnerCardListSchema>;
 export type FudabaOwnerCardDetail = z.infer<typeof fudabaOwnerCardDetailSchema>;

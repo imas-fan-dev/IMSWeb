@@ -1,14 +1,20 @@
 import { exchangePath } from '@imsweb/contracts/paths';
-import type { FudabaOfficeConflictResponse, FudabaOwnerOffice } from '@imsweb/contracts/fudaba';
+import type {
+    FudabaOfficeConflictResponse,
+    FudabaOwnerOffice,
+} from '@imsweb/contracts/fudaba';
 import type {
     FudabaOwnerOfficeRecord,
-    FudabaOfficeStatus
+    FudabaOfficeStatus,
 } from '@/ports/repositories';
 
 export function fudabaOwnerOfficeView(
-    office: FudabaOwnerOfficeRecord
+    office: FudabaOwnerOfficeRecord,
+    mediaBase?: string,
 ): FudabaOwnerOffice {
-    const base = exchangePath(`/me/offices/${encodeURIComponent(office.id)}`);
+    const base =
+        mediaBase ??
+        exchangePath(`/me/offices/${encodeURIComponent(office.id)}`);
     return {
         id: office.id,
         slug: office.slug,
@@ -19,7 +25,7 @@ export function fudabaOwnerOfficeView(
         location: {
             latitude: office.latitude,
             longitude: office.longitude,
-            precision: 'exact'
+            precision: 'exact',
         },
         accent: office.accent,
         coverUrl: office.cover_object_key
@@ -32,22 +38,28 @@ export function fudabaOwnerOfficeView(
         isOpen: office.is_open,
         visitorCount: office.visitor_count,
         status: office.status,
+        reviewState: office.review_state,
+        submittedAt: office.review_submitted_at,
+        reviewedAt: office.reviewed_at,
+        reviewedBy: office.reviewed_by,
+        reviewNote: office.review_note,
+        reviewInProgress: office.review_operation_id !== null,
         revision: office.revision,
         seriesCodes: office.series_codes,
         createdAt: office.created_at,
         updatedAt: office.updated_at,
-        archivedAt: office.archived_at
+        archivedAt: office.archived_at,
     };
 }
 
 export function fudabaOfficeConflict(
     revision: number,
-    officeStatus: FudabaOfficeStatus
+    officeStatus: FudabaOfficeStatus,
 ): FudabaOfficeConflictResponse {
     return {
         success: false,
         code: 'FUDABA_OFFICE_STATE_CONFLICT',
         revision,
-        officeStatus
+        officeStatus,
     };
 }

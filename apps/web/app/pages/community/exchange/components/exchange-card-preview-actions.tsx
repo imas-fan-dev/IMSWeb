@@ -1,6 +1,6 @@
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import type { FudabaCard } from "~/lib/api"
-import { CardInteractionBar } from "../exchange-card-interactions"
+import { CardInteractionBar } from "./exchange-card-interactions"
 import { ExchangeManagementDialog } from "./exchange-management-dialog"
 
 export function ExchangeCardPreviewActions({ card }: { card: FudabaCard }) {
@@ -10,7 +10,7 @@ export function ExchangeCardPreviewActions({ card }: { card: FudabaCard }) {
       <CardInteractionBar card={card} />
       {platform.status === "authenticated" ||
       platform.status === "restricted" ? (
-        <ExchangeManagementDialog section="cards" cardId={card.id} />
+        <ExchangeManagementDialog section="namecards" cardId={card.id} />
       ) : null}
     </div>
   )

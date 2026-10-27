@@ -162,9 +162,9 @@ test.describe("platform auth", () => {
         .fill("correct-horse-battery")
       await page.getByRole("button", { name: "登录", exact: true }).click()
 
-      await expect(page).toHaveURL(/\/community\/exchange\/me$/)
+      await expect(page).toHaveURL(/\/account\/me$/)
       await expect(
-        page.getByRole("heading", { name: "个人档案", exact: true })
+        page.getByRole("heading", { name: /^(个人资料|我的)$/, exact: true })
       ).toBeVisible()
       await expect(page.getByRole("dialog")).toHaveCount(0)
       await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
@@ -246,9 +246,9 @@ test.describe("platform auth", () => {
       await expect(page.getByText(/unique constraint/)).toHaveCount(0)
       await page.getByRole("button", { name: "注册" }).click()
 
-      await expect(page).toHaveURL(/\/community\/exchange\/me$/)
+      await expect(page).toHaveURL(/\/account\/me$/)
       await expect(
-        page.getByRole("heading", { name: "个人档案", exact: true })
+        page.getByRole("heading", { name: /^(个人资料|我的)$/, exact: true })
       ).toBeVisible()
       await expect(page.getByRole("dialog")).toHaveCount(0)
       await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)

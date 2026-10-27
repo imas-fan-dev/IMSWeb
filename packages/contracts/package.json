@@ -137,6 +137,16 @@
         "default": "./dist/cjs/fudaba/location-review.js"
       }
     },
+    "./fudaba/office-review": {
+      "import": {
+        "types": "./dist/esm/fudaba/office-review.d.ts",
+        "default": "./dist/esm/fudaba/office-review.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/office-review.d.ts",
+        "default": "./dist/cjs/fudaba/office-review.js"
+      }
+    },
     "./platform/admin": {
       "import": {
         "types": "./dist/esm/platform/admin.d.ts",

@@ -351,7 +351,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         else if (event.value === "source") {
           tools.onOpenAttribution?.(moreRef.current)
         } else if (event.value === "account")
-          void navigate("/community/exchange/me")
+          void navigate("/account/me/namecards")
       }
     },
     () => {

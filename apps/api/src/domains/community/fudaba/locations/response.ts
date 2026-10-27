@@ -1,5 +1,5 @@
 import type { FudabaOwnerLocation } from '@imsweb/contracts/fudaba';
-import { regionalLocation } from '@/domains/community/fudaba/contracts/location';
+import { publicOfficeLocation } from '@/domains/community/fudaba/contracts/location';
 import type { FudabaOfficePublicLocationRecord } from '@/ports/repositories';
 
 export function fudabaOwnerLocationView(
@@ -7,7 +7,8 @@ export function fudabaOwnerLocationView(
 ): FudabaOwnerLocation {
     return {
         officeId: location.office_id,
-        location: regionalLocation(location.latitude_e1, location.longitude_e1),
+        location: publicOfficeLocation(location),
+        exactLocationConsentAt: location.exact_location_consent_at,
         reviewState: location.review_state,
         revision: location.revision,
         submittedAt: location.submitted_at,

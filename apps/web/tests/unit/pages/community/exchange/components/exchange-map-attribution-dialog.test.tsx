@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { renderPage } from "@/tests/unit/support/harness"
 import { ExchangeMapAttributionDialog } from "~/pages/community/exchange/components/exchange-map-attribution-dialog"
-import { parseMapAttribution } from "~/pages/community/exchange/exchange-map-attribution"
+import { parseMapAttribution } from "~/pages/community/exchange/maps/exchange-map-attribution"
 
 describe("ExchangeMapAttributionDialog", () => {
   it.each([false, true])(

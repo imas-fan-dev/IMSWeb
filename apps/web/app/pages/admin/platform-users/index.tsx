@@ -7,7 +7,7 @@ import {
   ShieldCheckIcon,
   UserRoundIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useOutletContext, useSearchParams } from "react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -88,6 +88,8 @@ export default function AdminPlatformUsersPage() {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const queryParam = searchParams.get("query") ?? ""
+  const highlightId = searchParams.get("highlight") ?? ""
+  const lastHighlighted = useRef<string | null>(null)
   const fieldParam = (
     SEARCH_FIELDS.includes(
       searchParams.get("field") as AdminPlatformUserSearchField
@@ -143,25 +145,58 @@ export default function AdminPlatformUsersPage() {
   useEffect(() => {
     if (!canManage) return
     let active = true
-    getAdminPlatformUsers({
-      query: queryParam || undefined,
-      field: fieldParam,
-      page,
-    })
-      .send()
-      .then((result) => {
+    void (async () => {
+      await Promise.resolve()
+      if (!active) return
+      setLoading(true)
+      setError(false)
+      try {
+        const result = await getAdminPlatformUsers({
+          query: queryParam || undefined,
+          field: fieldParam,
+          page,
+        }).send()
         if (active) applyResult(result)
-      })
-      .catch(() => {
+      } catch {
         if (active) setError(true)
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false)
-      })
+      }
+    })()
     return () => {
       active = false
     }
   }, [applyResult, canManage, fieldParam, page, queryParam])
+
+  useEffect(() => {
+    if (!highlightId) {
+      lastHighlighted.current = null
+      return
+    }
+    if (!canManage || loading || error || detailUserId) return
+    const token = `${highlightId}:${fieldParam}:${queryParam}:${page}`
+    if (
+      lastHighlighted.current === token ||
+      !users.some((user) => user.id === highlightId)
+    )
+      return
+    const row = document.getElementById(`platform-user-row-${highlightId}`)
+    if (row) {
+      row.focus({ preventScroll: true })
+      row.scrollIntoView?.({ block: "center" })
+      lastHighlighted.current = token
+    }
+  }, [
+    canManage,
+    detailUserId,
+    error,
+    fieldParam,
+    highlightId,
+    loading,
+    page,
+    queryParam,
+    users,
+  ])
 
   const suspendConfirm = useConfirmAction<AdminPlatformUser>({
     onConfirm: async (user) => {
@@ -414,6 +449,27 @@ export default function AdminPlatformUsersPage() {
         </div>
       </form>
 
+      {highlightId ? (
+        <Alert>
+          <AlertTitle>{t("adminPlatformUsers.highlight.title")}</AlertTitle>
+          <AlertDescription>
+            {t(
+              `adminPlatformUsers.highlight.${loading ? "loading" : error ? "failed" : users.some((user) => user.id === highlightId) ? "found" : "missing"}`
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                next.delete("highlight")
+                setSearchParams(next, { replace: true })
+              }}
+            >
+              {t("adminPlatformUsers.highlight.clear")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <AdminPanel
         title={t("adminPlatformUsers.title")}
         description={t("adminPlatformUsers.pagination.total", {
@@ -473,7 +529,15 @@ export default function AdminPlatformUsersPage() {
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow
+                    key={user.id}
+                    id={`platform-user-row-${user.id}`}
+                    tabIndex={-1}
+                    data-highlighted={
+                      user.id === highlightId ? "true" : undefined
+                    }
+                    className="focus-visible:outline-2 focus-visible:outline-primary data-[highlighted=true]:bg-primary/10"
+                  >
                     <TableCell className="min-w-40 whitespace-normal">
                       <p className="font-medium">{user.displayName}</p>
                       <p className="text-xs text-muted-foreground">{user.id}</p>

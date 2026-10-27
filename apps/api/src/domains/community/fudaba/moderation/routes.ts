@@ -6,64 +6,106 @@ import {
 import {
     fudabaLocationReviewOfficeParamsSchema,
     fudabaLocationReviewQuerySchema,
-    fudabaLocationReviewRequestSchema,
 } from '@imsweb/contracts/fudaba/location-review';
+import { adminOfficeReviewRequestSchema } from '@imsweb/contracts/fudaba/office-review';
+import {
+    fudabaOfficeIdParamsSchema,
+    fudabaOfficeUpdateRequestSchema,
+} from '@imsweb/contracts/fudaba';
+import {
+    handleGetAdminFudabaOffice,
+    handleListAdminFudabaOffices,
+    handleServeAdminFudabaOfficeMedia,
+    handleUpdateAdminFudabaOffice,
+} from '@/domains/community/fudaba/moderation/handlers/admin-offices';
+import { handleReviewFudabaOffice } from '@/domains/community/fudaba/moderation/handlers/review-office';
 import {
     backofficeAuth,
     backofficeCsrf,
-    currentBackofficeOp
+    currentBackofficeOp,
 } from '@/middleware/hono-auth';
 import {
     handleListFudabaCardClaimReviews,
     handleListFudabaRegisteredCardReviews,
     handleReviewFudabaCardClaim,
     handleReviewFudabaRegisteredCard,
-    handleServeFudabaRegisteredCardReviewMedia
+    handleServeFudabaRegisteredCardReviewMedia,
 } from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
-import { handleListFudabaLocationReviews } from '@/domains/community/fudaba/moderation/handlers/list-location-reviews';
-import { handleReviewFudabaLocation } from '@/domains/community/fudaba/moderation/handlers/review-location';
-import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
+import {
+    jsonSchemaValidator,
+    paramSchemaValidator,
+    querySchemaValidator,
+} from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
-    type ImsCapabilityRouter
+    type ImsCapabilityRouter,
 } from '@/routing/capability-router';
 
 export function fudabaModerationRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
     routes.get(
-        '/office-locations',
+        '/offices',
         backofficeAuth,
         currentBackofficeOp,
         querySchemaValidator(fudabaLocationReviewQuerySchema),
-        handleListFudabaLocationReviews
+        handleListAdminFudabaOffices,
     );
     routes.put(
-        '/office-locations/:officeId',
+        '/offices/:officeId/review',
         backofficeAuth,
         currentBackofficeOp,
         backofficeCsrf,
         paramSchemaValidator(fudabaLocationReviewOfficeParamsSchema),
-        jsonSchemaValidator(fudabaLocationReviewRequestSchema),
-        handleReviewFudabaLocation
+        jsonSchemaValidator(adminOfficeReviewRequestSchema),
+        handleReviewFudabaOffice,
+    );
+    routes.get(
+        '/offices/:officeId',
+        backofficeAuth,
+        currentBackofficeOp,
+        paramSchemaValidator(fudabaOfficeIdParamsSchema),
+        handleGetAdminFudabaOffice,
+    );
+    routes.put(
+        '/offices/:officeId',
+        backofficeAuth,
+        currentBackofficeOp,
+        backofficeCsrf,
+        paramSchemaValidator(fudabaOfficeIdParamsSchema),
+        jsonSchemaValidator(fudabaOfficeUpdateRequestSchema),
+        handleUpdateAdminFudabaOffice,
+    );
+    routes.get(
+        '/offices/:officeId/media/:slot',
+        backofficeAuth,
+        currentBackofficeOp,
+        handleServeAdminFudabaOfficeMedia,
+    );
+    routes.on(
+        'HEAD',
+        '/offices/:officeId/media/:slot',
+        backofficeAuth,
+        currentBackofficeOp,
+        handleServeAdminFudabaOfficeMedia,
     );
     routes.get(
         '/card-reviews',
         backofficeAuth,
         currentBackofficeOp,
-        handleListFudabaRegisteredCardReviews
+        handleListFudabaRegisteredCardReviews,
     );
     routes.get(
         '/card-reviews/:cardId/media/:side',
         backofficeAuth,
         currentBackofficeOp,
-        handleServeFudabaRegisteredCardReviewMedia
+        handleServeFudabaRegisteredCardReviewMedia,
     );
     routes.on(
         'HEAD',
         '/card-reviews/:cardId/media/:side',
         backofficeAuth,
         currentBackofficeOp,
-        handleServeFudabaRegisteredCardReviewMedia
+        handleServeFudabaRegisteredCardReviewMedia,
     );
     routes.put(
         '/card-reviews/:cardId',
@@ -72,13 +114,13 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         backofficeCsrf,
         paramSchemaValidator(fudabaRegisteredCardReviewParamsSchema),
         jsonSchemaValidator(fudabaCardReviewRequestSchema),
-        handleReviewFudabaRegisteredCard
+        handleReviewFudabaRegisteredCard,
     );
     routes.get(
         '/card-claims',
         backofficeAuth,
         currentBackofficeOp,
-        handleListFudabaCardClaimReviews
+        handleListFudabaCardClaimReviews,
     );
     routes.put(
         '/card-claims/:claimId',
@@ -87,7 +129,7 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         backofficeCsrf,
         paramSchemaValidator(fudabaAdminCardClaimParamsSchema),
         jsonSchemaValidator(fudabaCardReviewRequestSchema),
-        handleReviewFudabaCardClaim
+        handleReviewFudabaCardClaim,
     );
     return routes;
 }

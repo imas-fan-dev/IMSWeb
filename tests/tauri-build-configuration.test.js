@@ -592,7 +592,7 @@ test.describe('tauri build configuration', () => {
   // inventory, the packaged vectors and the Web call sites in one agreement.
   test("every native glass control icon is bundled and actually requested", async () => {
     const controlSources = [
-      "app/pages/community/exchange/exchange-office-map.tsx",
+      "app/pages/community/exchange/maps/maplibre/office-map.tsx",
     ];
     const [buildScript, ...sources] = await Promise.all([
       readFile(`${webRoot}/src-tauri/build.rs`, "utf8"),

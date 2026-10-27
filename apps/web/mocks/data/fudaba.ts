@@ -8,10 +8,13 @@ import type {
   FudabaOwnerCardList,
   FudabaOwnerOffice,
   FudabaOwnerOfficeList,
+  FudabaOwnerLocation,
   FudabaPlacedCard,
   FudabaSeries,
   FudabaSeriesList,
 } from "@imsweb/contracts/fudaba"
+import type { FudabaLocationReview } from "@imsweb/contracts/fudaba/location-review"
+import type { AdminOfficeReview } from "@imsweb/contracts/fudaba/office-review"
 import type {
   FudabaAdminCardClaim,
   FudabaRegisteredCardReview,
@@ -69,6 +72,12 @@ export function makeFudabaOwnerOffice(
     coverUrl: "/api/exchange/me/offices/office-1/media/cover?v=2",
     pendingCoverUrl: null,
     pendingCoverSubmittedAt: null,
+    reviewState: "pending",
+    submittedAt: "2026-01-02T00:00:00+08:00",
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewNote: "",
+    reviewInProgress: false,
     isOpen: true,
     visitorCount: 3,
     status: "active",
@@ -77,6 +86,49 @@ export function makeFudabaOwnerOffice(
     createdAt: "2026-01-01T00:00:00+08:00",
     updatedAt: "2026-01-02T00:00:00+08:00",
     archivedAt: null,
+    ...overrides,
+  }
+}
+
+export function makeFudabaOwnerLocation(
+  overrides: Partial<FudabaOwnerLocation> = {}
+): FudabaOwnerLocation {
+  return {
+    officeId: "office-1",
+    location: { latitude: 31.2304, longitude: 121.4737, precision: "exact" },
+    exactLocationConsentAt: null,
+    reviewState: "published",
+    revision: 2,
+    submittedAt: "2026-08-02T09:00:00.000Z",
+    reviewedAt: "2026-08-02T10:00:00.000Z",
+    reviewNote: "事务所资料合适",
+    ...overrides,
+  }
+}
+
+export function makeFudabaLocationReview(
+  overrides: Partial<FudabaLocationReview> = {}
+): FudabaLocationReview {
+  return {
+    ...makeFudabaOwnerLocation(),
+    officeName: "上海周末交换事务所",
+    city: "上海",
+    ownerAccountId: "platform-owner-1",
+    reviewState: "pending",
+    revision: 3,
+    submittedAt: "2026-08-03T01:00:00.000Z",
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewNote: "",
+    ...overrides,
+  }
+}
+
+export function makeAdminOfficeReview(overrides: Partial<AdminOfficeReview> = {}): AdminOfficeReview {
+  return {
+    office: makeFudabaOwnerOffice(),
+    owner: { id: "platform-owner-1", email: "producer@example.test", displayName: "制作人" },
+    reviewer: null,
     ...overrides,
   }
 }

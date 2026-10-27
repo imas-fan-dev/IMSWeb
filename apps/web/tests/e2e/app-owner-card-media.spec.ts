@@ -54,10 +54,12 @@ test.afterAll(async () => {
   }
 })
 
-test("Owner front/back images decode through authenticated API routes @app-iphone @app-webkit", async ({
+test("Owner front/back images decode through authenticated API routes @mobile @app-iphone @app-webkit", async ({
   page,
   api,
   baseURL,
+  isMobile,
+  browserName,
 }) => {
   const cors = {
     "Access-Control-Allow-Origin": new URL(baseURL!).origin,
@@ -91,7 +93,9 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
     { accessToken: webMode ? token : "expired-platform-token", refreshToken }
   )
   if (webMode) {
-    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.setViewportSize(
+      isMobile ? { width: 390, height: 844 } : { width: 1280, height: 900 }
+    )
     await page.context().addCookies([
       { name: "ims_platform_access", value: token, url: baseURL! },
       { name: "ims_platform_csrf", value: "owner-csrf-secret", url: baseURL! },
@@ -202,10 +206,7 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
       )
     )
   )
-  await page.goto(
-    webMode ? "/community/exchange/me?section=cards" : "/account/me/cards",
-    { waitUntil: "domcontentloaded" }
-  )
+  await page.goto("/account/me/namecards", { waitUntil: "domcontentloaded" })
   await startupReady
   const inventoryNavigation = page.getByRole("navigation", {
     name: "我的名片清单",
@@ -225,6 +226,25 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
     )
     .toBe(120)
   await inventoryCard.click()
+  await expect(page).toHaveURL(/card=owner-card/)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page).not.toHaveURL(/card=/)
+  await page.goBack()
+  await expect(
+    page.getByRole("dialog", { name: "名片详情与编辑" })
+  ).toBeVisible()
+  await page.goForward()
+  await expect(page).toHaveURL(/\/account\/me\/namecards$/)
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await inventoryCard.click()
+  expect(
+    api.requests({
+      method: "GET",
+      path: "/api/community/exchange/me/cards/owner-card",
+    })
+  ).toHaveLength(2)
+
   const front = page
     .getByRole("button", { name: "查看Owner Card正面", exact: true })
     .locator("img")
@@ -235,23 +255,21 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
     )
     .toBe(120)
   await front.click()
-  await expect(page.getByRole("dialog").getByRole("img")).toHaveAttribute(
-    "src",
-    webMode ? /^\/api\// : /^blob:/
-  )
+  await expect(
+    page.getByRole("dialog").last().getByRole("img")
+  ).toHaveAttribute("src", webMode ? /^\/api\// : /^blob:/)
   await expect
     .poll(() =>
       page
         .getByRole("dialog")
+        .last()
         .getByRole("img")
         .evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBe(120)
   await page.keyboard.press("Escape")
   await page.getByRole("tab", { name: "背面预览" }).click()
-  const back = page
-    .getByRole("button", { name: "查看Owner Card背面", exact: true })
-    .locator("img")
+  const back = page.locator('button[aria-label="查看Owner Card背面"] img')
   await back.scrollIntoViewIfNeeded()
   await expect
     .poll(() =>
@@ -263,11 +281,27 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
     .poll(() =>
       page
         .getByRole("dialog")
+        .last()
         .getByRole("img")
         .evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBe(120)
   await page.keyboard.press("Escape")
+  const upload = page.getByRole("button", { name: "更换名片背面" })
+  if (!isMobile) {
+    await back.hover()
+    await expect(upload).toHaveCSS("opacity", "1")
+  } else {
+    await expect(upload).toHaveCSS("opacity", "1")
+  }
+  await page.screenshot({
+    path: test.info().outputPath("back-preview-control.png"),
+    fullPage: true,
+  })
+  await upload.focus()
+  await expect(upload).toBeFocused()
+  await upload.click()
+  await expect(page.getByRole("dialog", { name: "替换名片背面" })).toBeVisible()
   await page.locator("#exchange-card-back").setInputFiles({
     name: "local.svg",
     mimeType: "image/svg+xml",
@@ -286,6 +320,63 @@ test("Owner front/back images decode through authenticated API routes @app-iphon
       back.evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBe(120)
+  await page.getByRole("button", { name: "取消", exact: true }).click()
+  await expect(upload).toBeFocused()
+  await api.mock(
+    { method: "PUT", path: "/api/community/exchange/uploads/back", times: 1 },
+    async (route) => {
+      const request = route.request()
+      const form = await new Response(
+        request.postDataBuffer()?.toString("utf8"),
+        {
+          headers: { "Content-Type": request.headers()["content-type"] },
+        }
+      ).formData()
+      expect([...form.keys()].sort()).toEqual([
+        "cardId",
+        "expectedRevision",
+        "image",
+      ])
+      expect(form.get("cardId")).toBe(card.id)
+      expect(form.get("expectedRevision")).toBe(String(card.revision))
+      const image = form.get("image") as File
+      expect(image.name).toBe("replacement.svg")
+      expect(image.type).toBe("image/svg+xml")
+      // WebKit interception omits file bytes from multipart postData.
+      if (browserName !== "webkit") expect(image.size).toBeGreaterThan(0)
+      await route.fulfill({
+        json: {
+          success: true,
+          card: {
+            ...card,
+            revision: card.revision + 1,
+            publicationStatus: "pending",
+            mediaRightsStatus: "unknown",
+          },
+        },
+        headers: cors,
+      })
+    }
+  )
+  await upload.click()
+  await page.locator("#exchange-card-back").setInputFiles({
+    name: "replacement.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="90" height="60"><rect width="90" height="60" fill="red"/></svg>'
+    ),
+  })
+  await page.screenshot({
+    path: test.info().outputPath("back-upload-dialog.png"),
+    fullPage: true,
+  })
+  await page.getByRole("button", { name: "替换背面", exact: true }).click()
+  await expect(page.getByRole("dialog", { name: "替换名片背面" })).toHaveCount(
+    0
+  )
+  await expect(
+    page.getByText(`版本 ${card.revision + 1}`, { exact: false })
+  ).toBeVisible()
   const stats = await (await fetch(`${runtimeOrigin}/fixture-stats`)).json()
   if (webMode) {
     expect(stats.readUrls).toBeGreaterThan(0)

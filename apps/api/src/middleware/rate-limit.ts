@@ -10,9 +10,6 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const exchangeOfficeLocationPattern = new RegExp(
-  `^${escapeRegExp(exchangePath('/me/offices/'))}[^/]+/location$`,
-);
 const exchangeOfficeCoverPattern = new RegExp(
   `^${escapeRegExp(exchangePath('/me/offices/'))}[^/]+/cover$`,
 );
@@ -174,11 +171,6 @@ export const FUDABA_MAP_CONFIG_READ_LIMIT = {
     windowSeconds: 15 * 60,
 } as const;
 
-export const FUDABA_LOCATION_WRITE_LIMIT = {
-  bucket: "fudaba-location-ip",
-  limit: 60,
-  windowSeconds: 60 * 60,
-} as const;
 
 export function chronicleUploadIdempotencyKey(request: Request): string | null {
   if (!request.headers.has("Idempotency-Key")) return null;
@@ -254,12 +246,6 @@ function requestSpecificLimit(
     if (method === 'GET' && pathname === exchangePath('/map/offices')) {
         return FUDABA_MAP_READ_LIMIT;
     }
-  if (
-    ["PUT", "DELETE"].includes(method) &&
-    exchangeOfficeLocationPattern.test(pathname)
-  ) {
-    return FUDABA_LOCATION_WRITE_LIMIT;
-  }
   if (method === "PUT" && pathname === platformApiPath('/me/avatar')) {
     return PLATFORM_AVATAR_UPLOAD_LIMIT;
   }

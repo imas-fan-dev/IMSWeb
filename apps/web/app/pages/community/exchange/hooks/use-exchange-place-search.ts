@@ -9,8 +9,8 @@ const searchCanonicalPlaces = (query: string, signal: AbortSignal) =>
   sendWithAbort(searchFudabaPlaces(query), signal)
 
 /** Office editing only: these results remain canonical WGS84. */
-export function useExchangePlaceSearch() {
-  return usePlaceSearch(searchCanonicalPlaces)
+export function useExchangePlaceSearch(searcher = searchCanonicalPlaces) {
+  return usePlaceSearch(searcher)
 }
 
 export type ExchangePlaceSearchModel<Place = FudabaPlaceSearchResult> =

@@ -12,7 +12,7 @@ vi.mock("~/lib/api", async (original) => ({
 const office = makeFudabaOffice({
   id: "office-1",
   name: "上海事务所",
-  location: { latitude: 31.2, longitude: 121.5, precision: "regional" },
+  location: { latitude: 31.2, longitude: 121.5, precision: "exact" },
 })
 beforeEach(() => {
   vi.clearAllMocks()

@@ -138,7 +138,7 @@ export const resources = {
               label: "个人资料",
               description: "头像、名称与简介",
             },
-            cards: {
+            namecards: {
               label: "交换名片",
               description: "名片素材与交换状态",
             },
@@ -467,6 +467,14 @@ export const resources = {
         description: "检索 C 端帐号，查看绑定状态并执行安全处置。",
         restrictedTitle: "仅最高管理员可访问",
         restrictedDescription: "平台用户检索与处置仅限最高管理员。",
+        highlight: {
+          title: "定位用户",
+          loading: "正在定位用户…",
+          found: "已高亮对应用户。",
+          missing: "对应用户不存在或已删除。",
+          failed: "用户信息暂时无法载入。",
+          clear: "清除定位",
+        },
         search: {
           label: "检索平台用户",
           placeholder: "邮箱、显示名称或用户 ID",
@@ -713,7 +721,7 @@ export const resources = {
               label: "Profile",
               description: "Avatar, display name, and bio",
             },
-            cards: {
+            namecards: {
               label: "Exchange cards",
               description: "Card media and exchange status",
             },
@@ -1067,6 +1075,14 @@ export const resources = {
         restrictedTitle: "Super administrators only",
         restrictedDescription:
           "Searching and acting on platform users is limited to super administrators.",
+        highlight: {
+          title: "Locate user",
+          loading: "Locating user…",
+          found: "The matching user is highlighted.",
+          missing: "The user was not found or has been deleted.",
+          failed: "Could not load the user.",
+          clear: "Clear highlight",
+        },
         search: {
           label: "Search platform users",
           placeholder: "Email, display name, or user ID",

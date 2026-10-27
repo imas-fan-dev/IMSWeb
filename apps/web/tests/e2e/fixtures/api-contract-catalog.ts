@@ -43,13 +43,13 @@ import {
   reviewMutationSchema,
 } from "@imsweb/contracts/fudaba/card-claims"
 import {
-  fudabaAdminLocationReviewHttpErrorSchema,
-  fudabaLocationReviewErrorSchema,
-  fudabaLocationReviewListSchema,
-  fudabaLocationReviewMutationSchema,
-  fudabaLocationReviewQuerySchema,
-  fudabaLocationReviewRequestSchema,
-} from "@imsweb/contracts/fudaba/location-review"
+  adminOfficeReviewListSchema,
+  adminOfficeReviewDetailSchema,
+  adminOfficeMutationSchema,
+  adminOfficeReviewQuerySchema,
+  adminOfficeReviewRequestSchema,
+  adminOfficeHttpErrorSchema,
+} from "@imsweb/contracts/fudaba/office-review"
 import {
   fudabaGuestSubmissionErrorSchema,
   fudabaGuestSubmissionReceiptSchema,
@@ -75,6 +75,7 @@ import {
   fudabaOfficePageSchema,
   fudabaOfficeQuerySchema,
   fudabaOfficeUpdateRequestSchema,
+  fudabaOfficeFieldsRequestSchema,
   fudabaOwnerCardDetailSchema,
   fudabaOwnerCardListSchema,
   fudabaOwnerLocationDetailSchema,
@@ -83,6 +84,8 @@ import {
   fudabaOwnerLocationWithdrawalResponseSchema,
   fudabaOwnerOfficeDetailSchema,
   fudabaOwnerOfficeListSchema,
+  fudabaPlaceReverseQuerySchema,
+  fudabaPlaceReverseResponseSchema,
   fudabaPlaceSearchQuerySchema,
   fudabaPlaceSearchResponseSchema,
   fudabaRevisionRequestSchema,
@@ -164,6 +167,12 @@ import {
   eventPageSchema,
 } from "@imsweb/contracts/events"
 import { z } from "@imsweb/contracts/z"
+import {
+  adminPlatformUserDetailResponseSchema,
+  adminPlatformUserListSchema,
+  adminPlatformUserListQuerySchema,
+  adminPlatformUserHttpErrorSchema,
+} from "@imsweb/contracts/platform/admin-users"
 
 const guestSubmissionMultipartSchema = z
   .string()
@@ -250,6 +259,19 @@ export function resolveApiContract(
   method: string,
   path: string
 ): CatalogContract {
+  if (method === "GET" && path === "/api/admin/platform/users")
+    return {
+      query: adminPlatformUserListQuerySchema,
+      responses: { ...protectedErrors, 200: adminPlatformUserListSchema },
+    }
+  if (method === "GET" && /^\/api\/admin\/platform\/users\/[^/]+$/.test(path))
+    return {
+      responses: {
+        ...protectedErrors,
+        200: adminPlatformUserDetailResponseSchema,
+        404: adminPlatformUserHttpErrorSchema,
+      },
+    }
   if (method === "GET" && path === "/api/events")
     return {
       query: eventListQuerySchema,
@@ -405,6 +427,11 @@ export function resolveApiContract(
       query: fudabaMapQuerySchema,
       responses: { 200: fudabaMapOfficeListSchema, ...fudabaErrors },
     }
+  if (method === "GET" && path === `${exchange}/places/reverse`)
+    return {
+      query: fudabaPlaceReverseQuerySchema,
+      responses: { 200: fudabaPlaceReverseResponseSchema, ...fudabaErrors },
+    }
   if (method === "GET" && path === `${exchange}/places/search`)
     return {
       query: fudabaPlaceSearchQuerySchema,
@@ -414,6 +441,32 @@ export function resolveApiContract(
     return {
       query: fudabaIgnoredQuerySchema,
       responses: { 200: fudabaSeriesListSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    (path === `${exchange}/uploads/front` ||
+      path === `${exchange}/uploads/back`)
+  )
+    return {
+      rawBody: {
+        name: "Owner card media multipart request",
+        reason:
+          "One image, owner card ID and expected revision form a non-JSON boundary.",
+        schema: z
+          .string()
+          .min(1)
+          .refine((body) => {
+            const fields = Array.from(
+              body.matchAll(
+                /content-disposition:\s*form-data;\s*name="([^"]+)"/gi
+              ),
+              (match) => match[1]
+            ).sort()
+            return fields.join(",") === "cardId,expectedRevision,image"
+          }, "expected exactly image, cardId and expectedRevision fields"),
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
   if (method === "GET" && path === `${exchange}/me/cards`)
     return {
@@ -437,6 +490,11 @@ export function resolveApiContract(
     return {
       query: fudabaCardQuerySchema,
       responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
+    }
+  if (method === "POST" && path === `${exchange}/offices`)
+    return {
+      body: fudabaOfficeFieldsRequestSchema,
+      responses: { 200: fudabaOfficeMutationResponseSchema, ...fudabaErrors },
     }
   if (method === "GET" && path === `${exchange}/me/offices`)
     return {
@@ -674,33 +732,101 @@ export function resolveApiContract(
       body: homepageLinkOrderRequestSchema,
       responses: { 200: successFlagSchema, ...protectedErrors },
     }
-  if (
-    method === "GET" &&
-    path === "/api/admin/community/exchange/office-locations"
-  )
+  if (method === "GET" && path === "/api/admin/community/exchange/offices")
     return {
-      query: fudabaLocationReviewQuerySchema,
+      query: adminOfficeReviewQuerySchema,
       responses: {
-        200: [fudabaLocationReviewListSchema, fudabaLocationReviewErrorSchema],
-        400: fudabaLocationReviewErrorSchema,
-        401: fudabaAdminLocationReviewHttpErrorSchema,
-        403: fudabaAdminLocationReviewHttpErrorSchema,
+        200: [adminOfficeReviewListSchema, adminOfficeHttpErrorSchema],
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
       },
     }
   if (
     method === "PUT" &&
-    /^\/api\/admin\/community\/exchange\/office-locations\/[^/]+$/.test(path)
+    /^\/api\/admin\/community\/exchange\/offices\/[^/]+\/review$/.test(path)
   )
     return {
-      body: fudabaLocationReviewRequestSchema,
+      body: adminOfficeReviewRequestSchema,
       responses: {
-        200: [
-          fudabaLocationReviewMutationSchema,
-          fudabaLocationReviewErrorSchema,
-        ],
-        400: fudabaLocationReviewErrorSchema,
-        401: fudabaAdminLocationReviewHttpErrorSchema,
-        403: fudabaAdminLocationReviewHttpErrorSchema,
+        200: [adminOfficeMutationSchema, adminOfficeHttpErrorSchema],
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        404: adminOfficeHttpErrorSchema,
+        409: adminOfficeHttpErrorSchema,
+        500: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    /^\/api\/admin\/community\/exchange\/offices\/[^/]+$/.test(path) &&
+    (method === "GET" || method === "PUT")
+  )
+    return {
+      ...(method === "PUT" ? { body: fudabaOfficeUpdateRequestSchema } : {}),
+      responses: {
+        200:
+          method === "GET"
+            ? adminOfficeReviewDetailSchema
+            : adminOfficeMutationSchema,
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        404: adminOfficeHttpErrorSchema,
+        409: adminOfficeHttpErrorSchema,
+        500: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/office-series"
+  )
+    return {
+      responses: {
+        200: fudabaSeriesListSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        500: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/community/exchange/map/config")
+    return {
+      responses: {
+        200: fudabaMapConfigSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        503: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/places/search"
+  )
+    return {
+      query: fudabaPlaceSearchQuerySchema,
+      responses: {
+        200: fudabaPlaceSearchResponseSchema,
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        429: adminOfficeHttpErrorSchema,
+        503: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/places/reverse"
+  )
+    return {
+      query: fudabaPlaceReverseQuerySchema,
+      responses: {
+        200: fudabaPlaceReverseResponseSchema,
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        429: adminOfficeHttpErrorSchema,
+        502: adminOfficeHttpErrorSchema,
+        503: adminOfficeHttpErrorSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/community/exchange/card-reviews")

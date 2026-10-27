@@ -16,8 +16,8 @@ import {
 } from "./exchange-page-surface"
 
 const Workspace = lazy(async () => {
-  const module = await import("../me/community-exchange-me-workspace")
-  return { default: module.CommunityExchangeMeWorkspace }
+  const module = await import("~/pages/account/me/account-me-workspace")
+  return { default: module.AccountMeWorkspace }
 })
 
 /** Contextual management uses the same owner-only workspace as account pages. */
@@ -26,13 +26,13 @@ export function ExchangeManagementDialog({
   cardId,
   officeId,
 }: {
-  section: "cards" | "offices"
+  section: "namecards" | "offices"
   cardId?: string
   officeId?: string
 }) {
   const outer = useExchangeMapDialog()
   const [open, setOpen] = useState(false)
-  const label = section === "cards" ? "管理我的名片" : "管理我的事务所"
+  const label = section === "namecards" ? "管理我的名片" : "管理我的事务所"
   const query = new URLSearchParams()
   if (cardId) query.set("card", cardId)
   if (officeId) query.set("office", officeId)

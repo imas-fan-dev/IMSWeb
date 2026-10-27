@@ -126,6 +126,13 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   await expect(links).toHaveCount(5)
   if (!isMobile) {
     await expect(
+      page
+        .getByRole("navigation", { name: "个人档案菜单" })
+        .getByRole("listitem")
+    ).toHaveCount(5)
+  }
+  if (!isMobile) {
+    await expect(
       page.locator("#profile-workspace-section-profile")
     ).toBeVisible()
     await expect(
@@ -164,6 +171,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       ).toEqual([])
       await page.screenshot({
         path: testInfo.outputPath(`personal-workspace-${width}-${theme}.png`),
+        animations: "disabled",
         fullPage: true,
       })
     }
@@ -191,7 +199,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
 
   for (const [section, label] of [
     ["profile", "个人资料"],
-    ["cards", "交换名片"],
+    ["namecards", "交换名片"],
     ["favorites", "收藏夹"],
     ["offices", "事务所与位置"],
     ["claims", "认领消息"],
@@ -205,6 +213,20 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page).toHaveTitle(`${label} | IMSWeb`)
     await expect(page.getByRole("main")).toHaveCount(1)
+    if (section === "namecards") {
+      await expect(page.getByRole("textbox", { name: "名片标题" })).toHaveCount(
+        0
+      )
+      await page
+        .getByRole("button", { name: "新建名片", exact: true })
+        .first()
+        .click()
+      await expect(
+        page.getByRole("dialog", { name: "新建名片", exact: true })
+      ).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("dialog")).toHaveCount(0)
+    }
     if (section === "offices") {
       await page.reload()
       await expect(
@@ -255,6 +277,63 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   // A direct URL must work independently of navigation state, including after reload.
   await page.goto("/account/me/claims")
   await expect(page.locator("#profile-workspace-section-claims")).toBeVisible()
+  if (!isMobile) {
+    for (const [width, height, theme] of [
+      [1440, 900, "light"],
+      [1920, 1200, "dark"],
+    ] as const) {
+      await page.setViewportSize({ width, height })
+      const root = page.locator("html")
+      if (
+        (await root.evaluate((node) => node.classList.contains("dark"))) !==
+        (theme === "dark")
+      ) {
+        await page
+          .getByRole("button", { name: "切换亮色或暗色模式", exact: true })
+          .first()
+          .click()
+      }
+      await expect(root).toHaveCSS("color-scheme", theme)
+      for (const [section, label] of [
+        ["namecards", /^交换名片/],
+        ["claims", /^认领消息/],
+      ] as const) {
+        await page
+          .getByRole("navigation", { name: "个人档案菜单" })
+          .getByRole("link", { name: label })
+          .click()
+        await expect(
+          page.locator(`#profile-workspace-section-${section}`)
+        ).toBeVisible()
+        const aside = page.locator("main aside")
+        const footer = aside.locator("footer")
+        await expect(footer).toBeVisible()
+        const bounds = await aside.boundingBox()
+        const utility = await footer.boundingBox()
+        const menu = await aside.getByRole("navigation").boundingBox()
+        const main = await page.getByRole("main").boundingBox()
+        const siteFooter = await page.getByRole("contentinfo").boundingBox()
+        expect(
+          Math.abs(bounds!.y + bounds!.height - utility!.y - utility!.height)
+        ).toBeLessThan(2)
+        expect(
+          Math.abs(main!.y + main!.height - bounds!.y - bounds!.height)
+        ).toBeLessThan(2)
+        expect(Math.abs(main!.y + main!.height - siteFooter!.y)).toBeLessThan(2)
+        expect(utility!.y).toBeGreaterThanOrEqual(menu!.y + menu!.height)
+        expect(bounds!.height).toBeGreaterThan(height / 2)
+        expect(utility!.y + utility!.height).toBeLessThanOrEqual(height)
+        await expect(page.getByRole("contentinfo")).toHaveCount(1)
+        await page.screenshot({
+          path: testInfo.outputPath(
+            `${section}-footer-${width}-${height}-${theme}.png`
+          ),
+          animations: "disabled",
+          fullPage: true,
+        })
+      }
+    }
+  }
   if (isMobile) {
     await page.getByRole("link", { name: "返回我的", exact: true }).click()
     await expectAccountRootReady()
@@ -297,10 +376,6 @@ test("desktop root and section preserve pending, failed, retry and successful lo
     },
   }
   await installEmptyWikiCatalogMock(api, 1)
-  await api.mock(
-    { method: "GET", path: "/api/community/exchange/characters", times: 2 },
-    (route) => route.fulfill({ json: makeCharacterCatalog() })
-  )
   await api.mock(
     { method: "GET", path: "/api/platform/auth/session", times: 2 },
     (route) => route.fulfill({ json: session })
@@ -375,3 +450,103 @@ test("desktop root and section preserve pending, failed, retry and successful lo
     await expect(page).toHaveURL(new RegExp(`${path}$`))
   }
 })
+
+for (const section of ["offices", "namecards"] as const) {
+  test(`preserves ${section} dialog and draft across the desktop breakpoint`, async ({
+    page,
+    api,
+  }, testInfo) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("imsweb.language", "zh-CN")
+      document.cookie = "ims_platform_csrf=responsive-pages; path=/"
+    })
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.context().addCookies([
+      {
+        name: "ims_platform_access",
+        value: "responsive-session",
+        domain: "127.0.0.1",
+        path: "/",
+      },
+    ])
+    const session = {
+      success: true,
+      account: { id: "responsive-owner", status: "active" },
+      profile: {
+        displayName: "响应式制作人",
+        avatarUrl: null,
+        homeCity: "上海",
+        bio: "",
+      },
+    }
+    await installEmptyWikiCatalogMock(api, { min: 1, max: 8 })
+    await api.mock(
+      { method: "GET", path: "/api/platform/auth/session", times: 1 },
+      (route) => route.fulfill({ json: session })
+    )
+    await api.mock(
+      { method: "GET", path: "/api/platform/me", times: 1 },
+      (route) =>
+        route.fulfill({
+          json: {
+            ...session,
+            capabilities: { fudabaWrite: true },
+            profile: { ...session.profile, updatedAt: 1 },
+          },
+        })
+    )
+    const ownerPaths = [
+      "/api/community/exchange/me/series",
+      "/api/community/exchange/me/cards",
+      "/api/community/exchange/me/offices",
+      "/api/community/exchange/me/claim-envelopes",
+      "/api/community/exchange/me/favorites",
+    ]
+    for (const path of ownerPaths)
+      await api.mock({ method: "GET", path, times: 1 }, (route) =>
+        route.fulfill({
+          json: path.endsWith("favorites")
+            ? { items: [], pageInfo: { hasNextPage: false, nextCursor: null } }
+            : { items: [] },
+        })
+      )
+    if (section === "namecards")
+      await api.mock(
+        { method: "GET", path: "/api/community/exchange/characters", times: 1 },
+        (route) => route.fulfill({ json: makeCharacterCatalog() })
+      )
+    await page.goto(`/account/me/${section}`)
+    const title = section === "offices" ? "新建事务所" : "新建名片"
+    const field = section === "offices" ? "事务所名称" : "名片标题"
+    await page.getByRole("button", { name: title, exact: true }).first().click()
+    const dialog = page.getByRole("dialog", { name: title, exact: true })
+    await expect(dialog).toBeVisible()
+    await dialog
+      .getByRole("textbox", { name: field, exact: true })
+      .fill("尚未保存的响应式草稿")
+    const readyCounts = ownerPaths.map(
+      (path) => api.requests({ method: "GET", path }).length
+    )
+    expect(readyCounts).toEqual([1, 1, 1, 1, 1])
+    for (const width of [900, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          )
+      )
+      await expect(dialog).toBeVisible()
+      await expect(
+        dialog.getByRole("textbox", { name: field, exact: true })
+      ).toHaveValue("尚未保存的响应式草稿")
+      expect(
+        ownerPaths.map((path) => api.requests({ method: "GET", path }).length)
+      ).toEqual(readyCounts)
+    }
+    await page.screenshot({
+      path: testInfo.outputPath(`${section}-resized-draft.png`),
+    })
+  })
+}

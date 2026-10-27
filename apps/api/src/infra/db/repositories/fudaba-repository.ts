@@ -32,6 +32,8 @@ import type {
     FudabaOfficeMutationResult,
     FudabaOfficePublicLocationRecord,
     FudabaOfficeRecord,
+    FudabaOfficeReviewRecord,
+    FudabaOfficeReviewResult,
     FudabaOwnerOfficeRecord,
     FudabaPublicCardRecord,
     FudabaPublicOfficeDetailRecord,
@@ -70,13 +72,26 @@ import {
 const OFFICE_COLUMNS = `id, owner_account_id, slug, name, intro, city, address,
     latitude, longitude, accent, cover_object_key, pending_cover_object_key,
     pending_cover_submitted_at, is_open, visitor_count, status, revision,
-    created_at, updated_at, archived_at`;
+    created_at, updated_at, archived_at, review_state, review_submitted_at,
+    reviewed_at, reviewed_by, review_note, review_operation_id`;
 const OWNER_OFFICE_COLUMNS = `office.id, office.owner_account_id, office.slug,
     office.name, office.intro, office.city, office.address, office.latitude,
     office.longitude, office.accent, office.cover_object_key,
     office.pending_cover_object_key, office.pending_cover_submitted_at,
     office.is_open, office.visitor_count, office.status, office.revision,
-    office.created_at, office.updated_at, office.archived_at`;
+    office.created_at, office.updated_at, office.archived_at,
+    office.review_state, office.review_submitted_at, office.reviewed_at,
+    office.reviewed_by, office.review_note, office.review_operation_id`;
+const OFFICE_REVIEW_SELECT = `SELECT ${OWNER_OFFICE_COLUMNS},
+    ARRAY(SELECT tag.series_code FROM fudaba_office_series_tags tag
+          WHERE tag.office_id=office.id ORDER BY tag.display_order, tag.series_code) AS series_codes,
+    owner_email.normalized_email AS owner_email,
+    owner_profile.display_name AS owner_display_name,
+    reviewer.username AS reviewer_username, reviewer.producername AS reviewer_display_name
+    FROM fudaba_offices office
+    LEFT JOIN platform_profiles owner_profile ON owner_profile.account_id=office.owner_account_id
+    LEFT JOIN platform_email_credentials owner_email ON owner_email.account_id=office.owner_account_id
+    LEFT JOIN backoffice_accounts reviewer ON reviewer.id=office.reviewed_by`;
 const CARD_COLUMNS = `id, owner_account_id, producer_name, display_name,
     series_code, favorite_character, legacy_card_id, origin, front_object_key,
     back_object_key, accent, bio, trade_note, available, source_url,
@@ -105,14 +120,18 @@ const PUBLIC_OFFICE_COLUMNS = `office.id, office.slug, office.name, office.intro
     office.city, office.address, office.accent, office.cover_object_key,
     office.is_open, office.visitor_count`;
 const OFFICE_PUBLIC_LOCATION_COLUMNS = `office_id, latitude_e1, longitude_e1,
+    precision, latitude_exact, longitude_exact, exact_location_consent_at,
     review_state, revision, submitted_at, reviewed_at, reviewed_by, review_note`;
 const QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS = `location.office_id,
+    location.precision, location.latitude_exact, location.longitude_exact,
+    location.exact_location_consent_at,
     location.latitude_e1, location.longitude_e1, location.review_state,
     location.revision, location.submitted_at, location.reviewed_at,
     location.reviewed_by, location.review_note`;
 const PUBLIC_MAP_OFFICE_COLUMNS = `office.id, office.slug, office.name,
     office.city, office.address, office.accent, office.is_open,
-    location.latitude_e1, location.longitude_e1`;
+    ROUND(office.latitude*10) AS latitude_e1, ROUND(office.longitude*10) AS longitude_e1,
+    'exact' AS precision, office.latitude AS latitude_exact, office.longitude AS longitude_exact`;
 const OFFICE_LOCATION_REVIEW_COLUMNS = `${QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS},
     office.name AS office_name, office.city AS office_city,
     office.owner_account_id`;
@@ -135,6 +154,7 @@ const PUBLIC_CARD_COLUMNS = `card.id, card.producer_name, card.display_name,
 const CARD_PLACEMENT_COLUMNS = `office_id, card_id, pinned_at, position_x,
     position_y, rotation, z_index, revision, updated_at`;
 const PUBLIC_OFFICE_ELIGIBILITY = `office.status='active'
+    AND office.review_state='published' AND office.review_operation_id IS NULL
     AND office_owner.status IN ('active', 'restricted')
     AND office_owner.deleted_at IS NULL`;
 const OPEN_OFFICE_CARD_WALL_ELIGIBILITY = `${PUBLIC_OFFICE_ELIGIBILITY}
@@ -157,6 +177,9 @@ type FudabaOfficeRow = Omit<
     | "updated_at"
     | "archived_at"
     | "pending_cover_submitted_at"
+    | 'review_submitted_at'
+    | 'reviewed_at'
+    | 'reviewed_by'
 > & {
     is_open: boolean | number | string;
     visitor_count: number | string;
@@ -165,6 +188,17 @@ type FudabaOfficeRow = Omit<
     updated_at: TimestampValue;
     archived_at: TimestampValue | null;
     pending_cover_submitted_at: TimestampValue | null;
+    review_submitted_at: TimestampValue;
+    reviewed_at: TimestampValue | null;
+    reviewed_by: number | string | null;
+};
+
+type OfficeReviewRow = FudabaOfficeRow & {
+    series_codes: string[];
+    owner_email: string | null;
+    owner_display_name: string | null;
+    reviewer_username: string | null;
+    reviewer_display_name: string | null;
 };
 
 type FudabaCardRow = Omit<
@@ -306,6 +340,7 @@ type FudabaOfficePublicLocationRow = Omit<
     | "submitted_at"
     | "reviewed_at"
     | "reviewed_by"
+    | 'exact_location_consent_at'
 > & {
     latitude_e1: number | string;
     longitude_e1: number | string;
@@ -313,6 +348,7 @@ type FudabaOfficePublicLocationRow = Omit<
     submitted_at: TimestampValue;
     reviewed_at: TimestampValue | null;
     reviewed_by: number | string | null;
+    exact_location_consent_at: TimestampValue | null;
 };
 
 type FudabaPublicMapOfficeRow = Omit<
@@ -403,6 +439,9 @@ function officeRecord(row: FudabaOfficeRow): FudabaOfficeRecord {
         pending_cover_submitted_at: nullableTimestampValue(
             row.pending_cover_submitted_at,
         ),
+        review_submitted_at: timestampValue(row.review_submitted_at),
+        reviewed_at: nullableTimestampValue(row.reviewed_at),
+        reviewed_by: row.reviewed_by === null ? null : Number(row.reviewed_by),
     };
 }
 
@@ -417,6 +456,16 @@ function cardRecord(row: FudabaCardRow): FudabaCardRecord {
         created_at: timestampValue(row.created_at),
         updated_at: timestampValue(row.updated_at),
         deleted_at: nullableTimestampValue(row.deleted_at),
+    };
+}
+
+function officeReviewRecord(row: OfficeReviewRow): FudabaOfficeReviewRecord {
+    return {
+        office: { ...officeRecord(row), series_codes: row.series_codes },
+        owner_email: row.owner_email,
+        owner_display_name: row.owner_display_name,
+        reviewer_username: row.reviewer_username,
+        reviewer_display_name: row.reviewer_display_name,
     };
 }
 
@@ -531,9 +580,12 @@ function publicOfficeRecord(
         is_open: booleanValue(row.is_open),
         visitor_count: Number(row.visitor_count),
         series_codes: seriesCodes,
-        ...(row.public_latitude_e1 !== undefined ? {
+        ...(row.public_precision !== undefined ? {
             public_latitude_e1: row.public_latitude_e1 == null ? null : Number(row.public_latitude_e1),
-            public_longitude_e1: row.public_longitude_e1 == null ? null : Number(row.public_longitude_e1)
+            public_longitude_e1: row.public_longitude_e1 == null ? null : Number(row.public_longitude_e1),
+            public_precision: row.public_precision,
+            public_latitude_exact: row.public_latitude_exact == null ? null : Number(row.public_latitude_exact),
+            public_longitude_exact: row.public_longitude_exact == null ? null : Number(row.public_longitude_exact)
         } : {}),
     };
 }
@@ -548,6 +600,7 @@ function officePublicLocationRecord(
         revision: Number(row.revision),
         submitted_at: timestampValue(row.submitted_at),
         reviewed_at: nullableTimestampValue(row.reviewed_at),
+        exact_location_consent_at: nullableTimestampValue(row.exact_location_consent_at),
         reviewed_by: row.reviewed_by === null ? null : Number(row.reviewed_by),
     };
 }
@@ -567,6 +620,9 @@ function publicMapOfficeRecord(
         series_codes: seriesCodes,
         latitude_e1: Number(row.latitude_e1),
         longitude_e1: Number(row.longitude_e1),
+        precision: row.precision,
+        latitude_exact: row.latitude_exact == null ? null : Number(row.latitude_exact),
+        longitude_exact: row.longitude_exact == null ? null : Number(row.longitude_exact),
     };
 }
 
@@ -945,7 +1001,7 @@ export class SqlFudabaRepository implements FudabaRepository {
     ): Promise<FudabaOfficeMutationResult> {
         const current = await this.findOfficeForOwner(officeId, ownerAccountId);
         if (!current) return { status: "unavailable" };
-        if (current.revision !== expectedRevision) {
+        if (current.revision !== expectedRevision || current.review_operation_id !== null) {
             return { status: "conflict", revision: current.revision };
         }
         if (stateAllowed && !stateAllowed(current)) {
@@ -987,6 +1043,101 @@ export class SqlFudabaRepository implements FudabaRepository {
         );
     }
 
+    async listOfficeReviews(input: {
+        reviewState?: FudabaOfficeRecord['review_state']; limit: number;
+    }): Promise<FudabaOfficeReviewRecord[]> {
+        const rows = await queryAll<OfficeReviewRow>(this.database,
+            `${OFFICE_REVIEW_SELECT}
+             ${input.reviewState ? 'WHERE office.review_state=?' : ''}
+             ORDER BY office.review_submitted_at, office.id LIMIT ?`,
+            input.reviewState ? [input.reviewState, input.limit] : [input.limit]);
+        return rows.map(officeReviewRecord);
+    }
+
+    async findOfficeReview(officeId: string): Promise<FudabaOfficeReviewRecord | null> {
+        const row = await queryOne<OfficeReviewRow>(this.database,
+            `${OFFICE_REVIEW_SELECT} WHERE office.id=?`, [officeId]);
+        return row ? officeReviewRecord(row) : null;
+    }
+
+    private async officeReviewFailure(officeId: string): Promise<FudabaOfficeReviewResult> {
+        const office = await this.findOfficeById(officeId);
+        return office ? { status: 'conflict', revision: office.revision } : { status: 'unavailable' };
+    }
+
+    beginOfficeReview(input: {
+        officeId: string; expectedRevision: number; operationId: string;
+        expectedReviewState?: 'pending' | 'published';
+    }): Promise<FudabaOfficeReviewResult> {
+        return this.serializeWrite(async () => {
+            const result = await executeSql(this.database,
+                `UPDATE fudaba_offices office SET review_operation_id=?,
+                    revision=revision+1, review_audit_id=NULL
+                 WHERE office.id=? AND office.revision=? AND office.review_state=?
+                   AND office.status='active' AND office.review_operation_id IS NULL
+                   AND EXISTS (SELECT 1 FROM platform_accounts account
+                       WHERE account.id=office.owner_account_id AND account.deleted_at IS NULL
+                         AND account.status IN ('active', 'restricted'))`,
+                [input.operationId, input.officeId, input.expectedRevision, input.expectedReviewState ?? 'pending']);
+            if (result.meta.changes !== 1) return this.officeReviewFailure(input.officeId);
+            const record = await this.findOfficeReview(input.officeId);
+            if (!record) return { status: 'unavailable' };
+            return { status: 'saved', office: record.office };
+        });
+    }
+
+    completeOfficeReview(input: {
+        officeId: string; expectedRevision: number; operationId: string;
+        decision: 'publish' | 'reject' | 'withdraw'; reviewedAt: string; reviewedBy: number;
+        reviewNote: string; pendingCoverObjectKey: string | null; audit: AuditLogInput;
+    }): Promise<FudabaOfficeReviewResult> {
+        return this.serializeWrite(async () => {
+            const withdrawing = input.decision === 'withdraw';
+            const state = input.decision === 'publish' ? 'published' : withdrawing ? 'pending' : 'rejected';
+            const result = await executeSql(this.database,
+                    `WITH changed AS (UPDATE fudaba_offices office SET review_state=?,
+                         reviewed_at=?, reviewed_by=?, review_note=?,
+                         review_submitted_at=CASE WHEN ?='withdraw' THEN ? ELSE review_submitted_at END,
+                         review_operation_id=NULL, review_audit_id=?, revision=revision+1,
+                         cover_object_key=CASE WHEN ?='publish' AND pending_cover_object_key IS NOT NULL
+                             THEN pending_cover_object_key ELSE cover_object_key END,
+                         pending_cover_object_key=CASE WHEN ?='publish' THEN NULL ELSE pending_cover_object_key END,
+                         pending_cover_submitted_at=CASE WHEN ?='publish' THEN NULL ELSE pending_cover_submitted_at END
+                     WHERE office.id=? AND office.revision=? AND office.review_operation_id=?
+                       AND office.review_state=? AND office.status='active'
+                       AND office.pending_cover_object_key IS NOT DISTINCT FROM ?
+                       AND EXISTS (SELECT 1 FROM platform_accounts account
+                           WHERE account.id=office.owner_account_id AND account.deleted_at IS NULL
+                             AND account.status IN ('active', 'restricted'))
+                     RETURNING office.id)
+                     INSERT INTO logs (username, producername, action, target, ip, time)
+                     SELECT ?, ?, ?, ?, ?, ? FROM changed`,
+                    [state, withdrawing ? null : input.reviewedAt, withdrawing ? null : input.reviewedBy,
+                        withdrawing ? '' : input.reviewNote, input.decision, input.reviewedAt, input.operationId,
+                        input.decision, input.decision, input.decision, input.officeId,
+                        input.expectedRevision, input.operationId, withdrawing ? 'published' : 'pending', input.pendingCoverObjectKey,
+                        input.audit.username, input.audit.producername, input.audit.action,
+                        input.audit.target, input.audit.ip, input.audit.time]);
+            if (result?.meta.changes !== 1) return this.officeReviewFailure(input.officeId);
+            const record = await this.findOfficeReview(input.officeId);
+            if (!record) return { status: 'unavailable' };
+            return { status: 'saved', office: record.office };
+        });
+    }
+
+    releaseOfficeReview(input: {
+        officeId: string; expectedRevision: number; operationId: string;
+        expectedReviewState?: 'pending' | 'published';
+    }): Promise<boolean> {
+        return this.serializeWrite(async () => {
+            const result = await executeSql(this.database,
+                `UPDATE fudaba_offices SET review_operation_id=NULL, revision=revision+1
+                 WHERE id=? AND revision=? AND review_operation_id=? AND review_state=?`,
+                [input.officeId, input.expectedRevision, input.operationId, input.expectedReviewState ?? 'pending']);
+            return result.meta.changes === 1;
+        });
+    }
+
     async listPublicSeries(): Promise<FudabaPublicSeriesRecord[]> {
         const rows = await queryAll<FudabaPublicSeriesRow>(
             this.database,
@@ -998,8 +1149,9 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM agencies series
              LEFT JOIN fudaba_office_series_tags office_series
                ON office_series.series_code=series.code
-             LEFT JOIN fudaba_offices office
-               ON office.id=office_series.office_id AND office.status='active'
+              LEFT JOIN fudaba_offices office
+                ON office.id=office_series.office_id AND office.status='active'
+               AND office.review_state='published' AND office.review_operation_id IS NULL
              LEFT JOIN platform_accounts office_owner
                ON office_owner.id=office.owner_account_id
               AND office_owner.status IN ('active', 'restricted')
@@ -1060,20 +1212,12 @@ export class SqlFudabaRepository implements FudabaRepository {
         const rows = await queryAll<FudabaPublicOfficeRow>(
             this.database,
             `SELECT ${PUBLIC_OFFICE_COLUMNS}${input.q ? `,
-                location.latitude_e1 AS public_latitude_e1,
-                location.longitude_e1 AS public_longitude_e1` : ''}
+                'exact' AS public_precision,
+                office.latitude AS public_latitude_exact,
+                office.longitude AS public_longitude_exact` : ''}
              FROM fudaba_offices office
              JOIN platform_accounts office_owner
                ON office_owner.id=office.owner_account_id
-             ${input.q ? `LEFT JOIN fudaba_office_public_locations location
-                ON location.office_id=office.id AND location.review_state='published'
-                AND (NOT EXISTS (
-                    SELECT 1 FROM fudaba_office_series_tags any_tag WHERE any_tag.office_id=office.id
-                ) OR EXISTS (
-                    SELECT 1 FROM fudaba_office_series_tags tag JOIN agencies series
-                      ON series.code=tag.series_code AND series.wiki_enabled
-                    WHERE tag.office_id=office.id
-                ))` : ''}
              WHERE ${conditions.join(" AND ")}
              ORDER BY office.visitor_count DESC, office.id ASC
              LIMIT ?`,
@@ -1086,7 +1230,6 @@ export class SqlFudabaRepository implements FudabaRepository {
         input: ListFudabaPublicMapOfficesInput,
     ): Promise<FudabaPublicMapOfficeRecord[]> {
         const conditions = [
-            `location.review_state='published'`,
             PUBLIC_OFFICE_ELIGIBILITY,
             `(NOT EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags any_office_series
@@ -1101,16 +1244,14 @@ export class SqlFudabaRepository implements FudabaRepository {
         ];
         const parameters: unknown[] = [];
         conditions.push(
-            "location.longitude_e1>=?",
-            "location.longitude_e1<=?",
-            "location.latitude_e1>=?",
-            "location.latitude_e1<=?",
+            `office.longitude>=? AND office.longitude<=?
+                AND office.latitude>=? AND office.latitude<=?`,
         );
         parameters.push(
-            input.bbox.westE1,
-            input.bbox.eastE1,
-            input.bbox.southE1,
-            input.bbox.northE1,
+            input.bbox.west,
+            input.bbox.east,
+            input.bbox.south,
+            input.bbox.north,
         );
         if (input.city !== undefined) {
             conditions.push("office.city=?");
@@ -1136,13 +1277,11 @@ export class SqlFudabaRepository implements FudabaRepository {
         const rows = await queryAll<FudabaPublicMapOfficeRow>(
             this.database,
             `SELECT ${PUBLIC_MAP_OFFICE_COLUMNS}
-             FROM fudaba_office_public_locations location
-             JOIN fudaba_offices office ON office.id=location.office_id
+             FROM fudaba_offices office
              JOIN platform_accounts office_owner
                ON office_owner.id=office.owner_account_id
              WHERE ${conditions.join(" AND ")}
-             ORDER BY location.latitude_e1 ASC,
-                      location.longitude_e1 ASC, office.id ASC
+             ORDER BY office.latitude ASC, office.longitude ASC, office.id ASC
              LIMIT ?`,
             parameters,
         );
@@ -1215,6 +1354,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                   ON office_filter_owner.id=office.owner_account_id
                 WHERE office_card.card_id=card.id AND office.slug=?
                   AND office.status='active'
+                  AND office.review_state='published' AND office.review_operation_id IS NULL
                   AND office_filter_owner.status IN ('active', 'restricted')
                   AND office_filter_owner.deleted_at IS NULL
             )`);
@@ -1547,13 +1687,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                          WHERE series.code=? AND series.wiki_enabled=?
                      ), ?
                      FROM fudaba_offices office
-                     WHERE office.id=? AND office.owner_account_id=?`,
+                     WHERE office.id=? AND office.owner_account_id=?
+                       AND office.revision=? AND office.review_state='pending'
+                       AND office.review_operation_id IS NULL`,
                         [
                             seriesCode,
                             this.bindBoolean(true),
                             displayOrder,
                             input.id,
                             input.ownerAccountId,
+                            input.revision,
                         ],
                     ),
                 ),
@@ -1600,13 +1743,26 @@ export class SqlFudabaRepository implements FudabaRepository {
         input: UpdateOwnedFudabaOfficeInput,
     ): Promise<FudabaOfficeMutationResult> {
         return this.serializeWrite(async () => {
+            const current = await this.findOfficeForOwner(input.officeId, input.ownerAccountId);
+            if (current && current.revision === input.expectedRevision && current.status === 'active'
+                && current.review_operation_id === null && current.review_state !== 'rejected'
+                && current.name === input.name && current.intro === input.intro
+                && current.city === input.city && current.address === input.address
+                && current.latitude === input.latitude && current.longitude === input.longitude
+                && current.accent === input.accent && current.is_open === input.isOpen
+                && JSON.stringify(current.series_codes) === JSON.stringify(input.seriesCodes)) {
+                return { status: 'saved', office: current, previousPendingObjectKey: null };
+            }
+            const operationId = crypto.randomUUID();
             const ownerRevisionGuard = `office.id=?
                 AND office.owner_account_id=? AND office.revision=?
                 AND office.status='active'
+                AND office.review_operation_id IS NULL
                 AND EXISTS (
                     SELECT 1 FROM platform_accounts account
                     WHERE account.id=office.owner_account_id
-                      AND account.status='active' AND account.deleted_at IS NULL
+                      AND ${input.adminAudit ? "account.status IN ('active', 'restricted')" : "account.status='active'"}
+                      AND account.deleted_at IS NULL
                 )`;
             const statements = [
                 sqlStatement(
@@ -1617,28 +1773,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.officeId,
                         input.ownerAccountId,
                         input.expectedRevision,
-                    ],
-                ),
-                sqlStatement(
-                    this.database,
-                    `DELETE FROM fudaba_office_public_locations
-                     WHERE office_id=? AND EXISTS (
-                         SELECT 1 FROM fudaba_offices office
-                         WHERE ${ownerRevisionGuard}
-                           AND (
-                               office.latitude<>? OR office.longitude<>?
-                               OR office.city<>? OR office.address<>?
-                           )
-                     )`,
-                    [
-                        input.officeId,
-                        input.officeId,
-                        input.ownerAccountId,
-                        input.expectedRevision,
-                        input.latitude,
-                        input.longitude,
-                        input.city,
-                        input.address,
                     ],
                 ),
                 sqlStatement(
@@ -1681,7 +1815,9 @@ export class SqlFudabaRepository implements FudabaRepository {
                     `UPDATE fudaba_offices AS office
                      SET name=?, intro=?, city=?, address=?, latitude=?,
                          longitude=?, accent=?, is_open=?, updated_at=?,
-                         revision=revision+1
+                         revision=revision+1, review_state='pending',
+                         review_submitted_at=?, reviewed_at=NULL, reviewed_by=NULL,
+                         review_note='', review_audit_id=?
                      WHERE ${ownerRevisionGuard}`,
                     [
                         input.name,
@@ -1693,12 +1829,20 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.accent,
                         this.bindBoolean(input.isOpen),
                         input.updatedAt,
+                        input.updatedAt,
+                        operationId,
                         input.officeId,
                         input.ownerAccountId,
                         input.expectedRevision,
                     ],
                 ),
             ];
+            if (input.adminAudit) statements.push(sqlStatement(this.database,
+                `INSERT INTO logs (username, producername, action, target, ip, time)
+                 SELECT ?, ?, ?, ?, ?, ? FROM fudaba_offices
+                 WHERE id=? AND review_audit_id=?`,
+                [input.adminAudit.username, input.adminAudit.producername, input.adminAudit.action,
+                    input.adminAudit.target, input.adminAudit.ip, input.adminAudit.time, input.officeId, operationId]));
             let results;
             try {
                 results = await this.database.batch(statements);
@@ -1713,7 +1857,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                 throw error;
             }
             const first = results[0]?.meta.changes ?? 0;
-            const final = results.at(-1)?.meta.changes ?? 0;
+            const final = results[input.seriesCodes.length + 2]?.meta.changes ?? 0;
             if (first !== 1 || final !== 1) {
                 return this.officeMutationFailure(
                     input.officeId,
@@ -1743,8 +1887,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                 this.database,
                 `UPDATE fudaba_offices AS office
                  SET status='archived', archived_at=?, updated_at=?,
-                     revision=revision+1
+                     revision=revision+1, review_state='pending', review_submitted_at=?,
+                     reviewed_at=NULL, reviewed_by=NULL, review_note='', review_audit_id=NULL
                  WHERE office.id=? AND office.owner_account_id=?
+                   AND office.review_operation_id IS NULL
                    AND office.revision=? AND office.status='active'
                    AND EXISTS (
                        SELECT 1 FROM platform_accounts account
@@ -1752,6 +1898,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                          AND account.status='active' AND account.deleted_at IS NULL
                    )`,
                 [
+                    input.archivedAt,
                     input.archivedAt,
                     input.archivedAt,
                     input.officeId,
@@ -1788,8 +1935,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                 this.database,
                 `UPDATE fudaba_offices AS office
                  SET status='active', archived_at=NULL, updated_at=?,
-                     revision=revision+1
+                     revision=revision+1, review_state='pending', review_submitted_at=?,
+                     reviewed_at=NULL, reviewed_by=NULL, review_note='', review_audit_id=NULL
                  WHERE office.id=? AND office.owner_account_id=?
+                   AND office.review_operation_id IS NULL
                    AND office.revision=? AND office.status='archived'
                    AND EXISTS (
                        SELECT 1 FROM platform_accounts account
@@ -1797,6 +1946,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                          AND account.status='active' AND account.deleted_at IS NULL
                    )`,
                 [
+                    input.restoredAt,
                     input.restoredAt,
                     input.officeId,
                     input.ownerAccountId,
@@ -1833,8 +1983,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                 this.database,
                 `UPDATE fudaba_offices AS office
                  SET pending_cover_object_key=?, pending_cover_submitted_at=?,
-                     updated_at=?, revision=revision+1
+                     updated_at=?, revision=revision+1, review_state='pending',
+                     review_submitted_at=?, reviewed_at=NULL, reviewed_by=NULL,
+                     review_note='', review_audit_id=NULL
                  WHERE office.id=? AND office.owner_account_id=?
+                   AND office.review_operation_id IS NULL
                    AND office.revision=? AND office.status='active'
                    AND office.pending_cover_object_key IS NULL
                    AND EXISTS (
@@ -1844,6 +1997,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                    )`,
                 [
                     input.objectKey,
+                    input.submittedAt,
                     input.submittedAt,
                     input.submittedAt,
                     input.officeId,
@@ -1883,10 +2037,13 @@ export class SqlFudabaRepository implements FudabaRepository {
                 `UPDATE fudaba_offices AS office
                  SET pending_cover_object_key=NULL,
                      pending_cover_submitted_at=NULL, updated_at=?,
-                     revision=revision+1
+                     revision=revision+1, review_state='pending', review_submitted_at=?,
+                     reviewed_at=NULL, reviewed_by=NULL, review_note='', review_audit_id=NULL
                  WHERE office.id=? AND office.owner_account_id=?
+                   AND office.review_operation_id IS NULL
                    AND office.revision=? AND office.pending_cover_object_key=?`,
                 [
+                    input.updatedAt,
                     input.updatedAt,
                     input.officeId,
                     input.ownerAccountId,
@@ -1928,11 +2085,14 @@ export class SqlFudabaRepository implements FudabaRepository {
             const result = await executeSql(
                 this.database,
                 `UPDATE fudaba_offices
-                 SET status=?, archived_at=?, updated_at=?, revision=revision+1
-                 WHERE id=? AND owner_account_id=? AND revision=?`,
+                 SET status=?, archived_at=?, updated_at=?, revision=revision+1,
+                     review_state='pending', review_submitted_at=?, reviewed_at=NULL,
+                     reviewed_by=NULL, review_note='', review_audit_id=NULL
+                 WHERE id=? AND owner_account_id=? AND revision=? AND review_operation_id IS NULL`,
                 [
                     input.status,
                     input.archivedAt,
+                    input.updatedAt,
                     input.updatedAt,
                     input.officeId,
                     input.ownerAccountId,
@@ -2000,6 +2160,10 @@ export class SqlFudabaRepository implements FudabaRepository {
         ownerAccountId: string;
         latitudeE1: number;
         longitudeE1: number;
+        precision?: 'regional' | 'exact';
+        latitudeExact?: number | null;
+        longitudeExact?: number | null;
+        exactLocationConsentAt?: string | null;
         expectedRevision: number | null;
         submittedAt: string;
     }): Promise<FudabaOfficeLocationMutationResult> {
@@ -2008,9 +2172,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                 .prepare(
                     `INSERT INTO fudaba_office_public_locations
                     (office_id, latitude_e1, longitude_e1, review_state,
+                     precision, latitude_exact, longitude_exact, exact_location_consent_at,
                      revision, submitted_at, reviewed_at, reviewed_by, review_note,
                      review_audit_id)
-                 SELECT office.id, ?, ?, 'pending', 0, ?, NULL, NULL, '', NULL
+                 SELECT office.id, ?, ?, 'pending', ?, ?, ?, ?, 0, ?, NULL, NULL, '', NULL
                  FROM fudaba_offices office
                  JOIN platform_accounts account ON account.id=office.owner_account_id
                  WHERE office.id=? AND office.owner_account_id=?
@@ -2023,6 +2188,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                  ON CONFLICT (office_id) DO UPDATE SET
                     latitude_e1=excluded.latitude_e1,
                     longitude_e1=excluded.longitude_e1,
+                    precision=excluded.precision,
+                    latitude_exact=excluded.latitude_exact,
+                    longitude_exact=excluded.longitude_exact,
+                    exact_location_consent_at=excluded.exact_location_consent_at,
                     review_state='pending',
                     revision=fudaba_office_public_locations.revision+1,
                     submitted_at=excluded.submitted_at,
@@ -2048,6 +2217,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                 .bind(
                     input.latitudeE1,
                     input.longitudeE1,
+                    input.precision ?? 'regional',
+                    input.precision === 'exact' ? input.latitudeExact : null,
+                    input.precision === 'exact' ? input.longitudeExact : null,
+                    input.precision === 'exact' ? input.exactLocationConsentAt : null,
                     input.submittedAt,
                     input.officeId,
                     input.ownerAccountId,
@@ -2162,6 +2335,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                      SET review_state=?, revision=revision+1, reviewed_at=?,
                          reviewed_by=?, review_note=?, review_audit_id=?
                      WHERE office_id=? AND revision=?
+                       AND (precision='regional' OR (
+                           precision='exact' AND latitude_exact IS NOT NULL
+                           AND longitude_exact IS NOT NULL
+                           AND exact_location_consent_at IS NOT NULL
+                           AND exact_location_consent_at=submitted_at))
                      RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`,
                         )
                         .bind(
@@ -3573,6 +3751,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                  FROM fudaba_offices office
                  JOIN fudaba_cards card ON card.id=?
                  WHERE office.id=? AND office.status='active'
+                   AND office.review_state='published' AND office.review_operation_id IS NULL
                    AND card.owner_account_id=? AND card.deleted_at IS NULL
                  ON CONFLICT(office_id, card_id) DO NOTHING`,
                 [

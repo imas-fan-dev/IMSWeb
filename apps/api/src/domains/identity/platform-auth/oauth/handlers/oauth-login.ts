@@ -27,7 +27,7 @@ import { platformAccountRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 const OAUTH_STATE_TTL_MS = 10 * 60_000;
-const DEFAULT_RETURN_PATH = '/community/exchange/me';
+const DEFAULT_RETURN_PATH = '/account/me';
 const PROVIDER_CODE = /^[a-z][a-z0-9-]{0,31}$/;
 // The app generates the verifier; only its challenge rides the query string.
 const APP_CODE_CHALLENGE = /^[A-Za-z0-9_-]{43}$/;

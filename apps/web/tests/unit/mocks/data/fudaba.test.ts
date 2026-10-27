@@ -8,10 +8,12 @@ import {
   fudabaOwnerCardSchema,
   fudabaOwnerOfficeListSchema,
   fudabaOwnerOfficeSchema,
+  fudabaOwnerLocationSchema,
   fudabaPlacedCardSchema,
   fudabaSeriesListSchema,
   fudabaSeriesSchema,
 } from "@imsweb/contracts/fudaba"
+import { fudabaLocationReviewSchema } from "@imsweb/contracts/fudaba/location-review"
 import {
   fudabaAdminCardClaimSchema,
   fudabaRegisteredCardReviewSchema,
@@ -30,6 +32,8 @@ import {
   makeFudabaOwnerCardList,
   makeFudabaOwnerOffice,
   makeFudabaOwnerOfficeList,
+  makeFudabaOwnerLocation,
+  makeFudabaLocationReview,
   makeFudabaPlacedCard,
   makeFudabaRegisteredCardReview,
   makeFudabaSeries,
@@ -98,6 +102,13 @@ describe("fudaba fixture factories", () => {
   })
 
   describe("builds an owner", () => {
+    it("public location that preserves all server consent fields", () => {
+      const value = makeFudabaOwnerLocation()
+      assertFactoryCoversSchema(fudabaOwnerLocationSchema, value)
+      expect(fudabaOwnerLocationSchema.parse(value)).toEqual(value)
+      expect(value.exactLocationConsentAt).toBeNull()
+    })
+
     it("card list that matches its contract", () => {
       const value = makeFudabaOwnerCardList()
 
@@ -125,6 +136,13 @@ describe("fudaba fixture factories", () => {
       assertFactoryCoversSchema(fudabaOwnerOfficeSchema, value)
       expect(fudabaOwnerOfficeSchema.parse(value)).toEqual(value)
     })
+  })
+
+  it("builds a location review that preserves server consent metadata", () => {
+    const value = makeFudabaLocationReview()
+    assertFactoryCoversSchema(fudabaLocationReviewSchema, value)
+    expect(fudabaLocationReviewSchema.parse(value)).toEqual(value)
+    expect(value.exactLocationConsentAt).toBeNull()
   })
 
   it("builds a placed card that matches its contract", () => {

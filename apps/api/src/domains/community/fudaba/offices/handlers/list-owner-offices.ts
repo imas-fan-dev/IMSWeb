@@ -9,5 +9,5 @@ export async function handleListFudabaOwnerOffices(
     const offices = await fudabaRepository(c).listOfficesForOwner(
         c.get('platformUser')!.id
     );
-    return c.json({ items: offices.map(fudabaOwnerOfficeView) });
+    return c.json({ items: offices.map((office) => fudabaOwnerOfficeView(office)) });
 }

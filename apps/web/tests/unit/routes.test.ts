@@ -65,7 +65,7 @@ describe("Web route metadata", () => {
     )
 
     expect(manifest).toEqual(descriptors)
-    expect(manifest).toHaveLength(62)
+    expect(manifest).toHaveLength(61)
   })
 
   it("registers every Web prerender and preserves the 30-document set", () => {
@@ -104,7 +104,6 @@ describe("Web route metadata", () => {
       "offices/:officeSlug",
     ])
     for (const path of [
-      "community/exchange/me",
       "account/me",
       "account/me/:section",
       "account/security",
@@ -116,6 +115,7 @@ describe("Web route metadata", () => {
         ).toBe(true)
       }
     }
+    expect(routeFile("community/exchange/me")).toBeUndefined()
     expect(
       publicRoutes.some(
         (entry) => entry.path === "community/exchange/offices/:officeSlug"

@@ -123,8 +123,8 @@ const navigation: Array<{
   },
   {
     to: "/admin/community/exchange",
-    label: "事务所位置",
-    description: "公开区域位置审核",
+    label: "事务所审核",
+    description: "事务所资料与精确位置审核",
     icon: MapPinCheckIcon,
     accent: "bg-franchise-ml",
   },

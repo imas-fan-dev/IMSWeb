@@ -1,5 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
-import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
+import type {
+  FudabaCardPage,
+  FudabaOwnerOffice,
+} from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
@@ -43,7 +46,7 @@ const card = {
   updatedAt: "2026-08-02T09:00:00.000Z",
 }
 
-const office = {
+const office: FudabaOwnerOffice = {
   id: "office-1",
   slug: "browser-office-1",
   name: "浏览器交换事务所",
@@ -58,6 +61,12 @@ const office = {
   isOpen: true,
   visitorCount: 12,
   status: "active",
+  reviewState: "published",
+  submittedAt: "2026-08-02T09:00:00.000Z",
+  reviewedAt: "2026-08-02T10:00:00.000Z",
+  reviewedBy: 17,
+  reviewNote: "",
+  reviewInProgress: false,
   revision: 3,
   seriesCodes: ["765"],
   createdAt: "2026-08-02T08:00:00.000Z",
@@ -65,40 +74,22 @@ const office = {
   archivedAt: null,
 }
 
-type LocationFixture = {
-  officeId: string
-  location: { latitude: number; longitude: number; precision: "regional" }
-  reviewState: "pending" | "published" | "rejected"
-  revision: number
-  submittedAt: string
-  reviewedAt: string | null
-  reviewNote: string
-}
-
-const publishedLocation: LocationFixture = {
-  officeId: office.id,
-  location: { latitude: 31.2, longitude: 121.5, precision: "regional" },
-  reviewState: "published",
-  revision: 2,
-  submittedAt: "2026-08-02T09:00:00.000Z",
-  reviewedAt: "2026-08-02T10:00:00.000Z",
-  reviewNote: "区域范围合适",
-}
-
-test.beforeEach(async ({ context, page }) => {
+test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
+  // Mobile visits three standalone sections; desktop keeps one workspace mounted.
+  const workspaceReads = isMobile ? 3 : 1
   let currentProfile: PlatformProfile = { ...profile }
+  let currentOffice = { ...office }
+  let resolvedOfficePoint: { latitude: number; longitude: number } | null = null
   await context.addCookies([
     {
       name: "ims_platform_access",
       value: "exchange-me-session",
-      domain: "127.0.0.1",
-      path: "/",
+      url: baseURL!,
     },
     {
       name: "ims_platform_csrf",
       value: "exchange-me-csrf",
-      domain: "127.0.0.1",
-      path: "/",
+      url: baseURL!,
     },
   ])
   await page.addInitScript(() => {
@@ -134,7 +125,8 @@ test.beforeEach(async ({ context, page }) => {
         },
       })
     },
-    "GET"
+    "GET",
+    workspaceReads
   )
   await api.mockRoute(
     "**/api/platform/me",
@@ -232,7 +224,8 @@ test.beforeEach(async ({ context, page }) => {
         },
       })
     },
-    "GET"
+    "GET",
+    workspaceReads
   )
   await api.mockRoute(
     "**/api/wiki/catalog",
@@ -316,7 +309,8 @@ test.beforeEach(async ({ context, page }) => {
     async (route) => {
       await route.fulfill({ json: { items: [] } })
     },
-    "GET"
+    "GET",
+    { min: 1, max: workspaceReads }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/favorites?**",
@@ -327,14 +321,16 @@ test.beforeEach(async ({ context, page }) => {
       } satisfies FudabaCardPage
       await route.fulfill({ status: 200, json: response })
     },
-    "GET"
+    "GET",
+    { min: 1, max: workspaceReads }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards",
     async (route) => {
       await route.fulfill({ json: { items: [card] } })
     },
-    "GET"
+    "GET",
+    workspaceReads
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards/card-1",
@@ -342,7 +338,7 @@ test.beforeEach(async ({ context, page }) => {
       await route.fulfill({ json: { card } })
     },
     "GET",
-    0
+    1
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards/card-1",
@@ -368,6 +364,19 @@ test.beforeEach(async ({ context, page }) => {
       })
     },
     "PUT"
+  )
+  await api.mockRoute(
+    "/api/community/exchange/map/config",
+    (route) =>
+      route.fulfill({
+        json: {
+          provider: "maplibre",
+          search: { provider: "nominatim" },
+          styleUrl: "/maps/exchange-test-style.json",
+        },
+      }),
+    "GET",
+    1
   )
   await api.mockRoute(
     "**/api/community/exchange/places/search**",
@@ -397,96 +406,102 @@ test.beforeEach(async ({ context, page }) => {
   await api.mockRoute(
     "**/api/community/exchange/me/offices",
     async (route) => {
-      await route.fulfill({ json: { items: [office] } })
+      await route.fulfill({ json: { items: [currentOffice] } })
     },
-    "GET"
+    "GET",
+    { min: 1, max: workspaceReads }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/offices/office-1",
     async (route) => {
-      await route.fulfill({ json: { office } })
+      await route.fulfill({ json: { office: currentOffice } })
     },
-    "GET"
+    "GET",
+    1
   )
   await api.mockRoute(
     "**/api/community/exchange/me/offices/office-1",
     async (route) => {
       const submission = route.request().postDataJSON()
+      expect(resolvedOfficePoint).not.toBeNull()
+      expect({
+        latitude: submission.latitude,
+        longitude: submission.longitude,
+      }).toEqual(resolvedOfficePoint)
+      currentOffice = {
+        ...office,
+        name: submission.name,
+        city: submission.city,
+        address: submission.address,
+        location: {
+          latitude: submission.latitude,
+          longitude: submission.longitude,
+          precision: "exact",
+        },
+        revision: 4,
+        reviewState: "pending",
+        submittedAt: "2026-08-02T11:00:00.000Z",
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: "",
+        updatedAt: "2026-08-02T11:00:00.000Z",
+      }
       await route.fulfill({
         json: {
           success: true,
-          office: {
-            ...office,
-            name: submission.name,
-            city: submission.city,
-            address: submission.address,
-            location: {
-              latitude: submission.latitude,
-              longitude: submission.longitude,
-              precision: "exact",
-            },
-            revision: 4,
-            updatedAt: "2026-08-02T11:00:00.000Z",
+          office: currentOffice,
+        },
+      })
+    },
+    "PUT"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/places/reverse?*",
+    (route) => {
+      const query = new URL(route.request().url()).searchParams
+      resolvedOfficePoint = {
+        latitude: Number(query.get("latitude")),
+        longitude: Number(query.get("longitude")),
+      }
+      expect(resolvedOfficePoint.latitude).toBeCloseTo(39.9042, 3)
+      expect(resolvedOfficePoint.longitude).toBeGreaterThan(116.4074)
+      expect(resolvedOfficePoint.longitude).toBeLessThan(116.5)
+      return route.fulfill({
+        json: {
+          place: {
+            id: "confirmed-office-position",
+            label: "首钢园",
+            city: "北京市",
+            address: "首钢园，石景山区，北京市，中国",
+            location: { ...resolvedOfficePoint, precision: "exact" },
+          },
+          attribution: {
+            text: "© OpenStreetMap contributors",
+            url: "https://www.openstreetmap.org/copyright",
           },
         },
       })
     },
-    "PUT"
-  )
-  let ownerLocation: LocationFixture | null = publishedLocation
-  await api.mockRoute(
-    "**/api/community/exchange/me/offices/office-1/location",
-    async (route) => {
-      await route.fulfill({ json: { location: ownerLocation } })
-    },
-    "GET"
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/me/offices/office-1/location",
-    async (route) => {
-      const submission = route.request().postDataJSON()
-      ownerLocation = {
-        ...publishedLocation,
-        location: {
-          latitude: submission.latitude,
-          longitude: submission.longitude,
-          precision: "regional",
-        },
-        reviewState: "pending",
-        revision: 3,
-        reviewedAt: null,
-        reviewNote: "",
-      }
-      await route.fulfill({
-        json: { success: true, officeLocation: ownerLocation },
-      })
-    },
-    "PUT"
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/me/offices/office-1/location",
-    async (route) => {
-      ownerLocation = null
-      await route.fulfill({ json: { success: true } })
-    },
-    "DELETE"
+    "GET",
+    1
   )
 })
 
-test.describe("community exchange me", () => {
+test.describe("account personal workspace", () => {
   test("edits the authenticated profile and card without viewport overflow @mobile", async ({
     page,
     isMobile,
     api: dispatcher,
   }, testInfo) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
     const consoleErrors: string[] = []
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text())
     })
-    await page.goto("/community/exchange/me")
+    await page.goto("/account/me/profile")
 
     await expect(
-      page.getByRole("heading", { name: "个人档案", exact: true })
+      page.getByRole("heading", { name: "个人资料", exact: true })
     ).toBeVisible()
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
@@ -601,9 +616,15 @@ test.describe("community exchange me", () => {
     await expect(
       accountPopover.locator('[data-slot="avatar-image"]')
     ).toHaveAttribute("src", directAvatarUrl)
-    await expect(
-      page.locator('aside [data-slot="avatar-image"]')
-    ).toHaveAttribute("src", directAvatarUrl)
+    if (isMobile) {
+      await expect(
+        page.getByRole("navigation", { name: "个人档案菜单" })
+      ).toHaveCount(0)
+    } else {
+      await expect(
+        page.locator('aside [data-slot="avatar-image"]')
+      ).toHaveAttribute("src", directAvatarUrl)
+    }
     await page.keyboard.press("Escape")
     await page.screenshot({
       path: `/tmp/imsweb-profile-workspace-avatar-saved-${testInfo.project.name}.png`,
@@ -645,16 +666,19 @@ test.describe("community exchange me", () => {
     await settleToasts(page)
     await expect(profileSavedToast).toHaveCount(0)
 
-    await page.getByRole("link", { name: "交换名片", exact: true }).click()
-    await expect(page).toHaveURL(/section=cards/)
+    if (isMobile)
+      await page.getByRole("link", { name: "返回我的", exact: true }).click()
+    await page.getByRole("link", { name: /^交换名片/ }).click()
+    await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
     await expect(page.getByText("浏览器交换名片")).toBeVisible()
+    await page.getByRole("button", { name: /浏览器交换名片/ }).click()
     await expect(page.getByText("素材已核准")).toBeVisible()
     await expect(
       page.getByLabel("编辑名片").getByText("草稿", { exact: true })
     ).toBeVisible()
     await expect(page.getByRole("textbox", { name: "显示名称" })).toBeHidden()
     await page.screenshot({
-      path: `/tmp/imsweb-profile-workspace-cards-${testInfo.project.name}.png`,
+      path: testInfo.outputPath("cards-dialog.png"),
       fullPage: true,
     })
 
@@ -678,16 +702,18 @@ test.describe("community exchange me", () => {
       page.getByRole("button", { name: "查看更新后的浏览器名片背面" })
     ).toBeVisible()
 
-    await page.getByRole("link", { name: "事务所与位置", exact: true }).click()
-    await expect(page).toHaveURL(/section=offices/)
+    await page.keyboard.press("Escape")
+    if (isMobile)
+      await page.getByRole("link", { name: "返回我的", exact: true }).click()
+    await page.getByRole("link", { name: /^事务所与位置/ }).click()
+    await expect(page).toHaveURL(/\/account\/me\/offices(?:[?#]|$)/)
     await expect(
       page.getByRole("heading", { name: "事务所与地图位置" })
     ).toBeVisible()
+    await page.getByRole("button", { name: "详情与编辑" }).click()
     await expect(page.getByRole("textbox", { name: "事务所名称" })).toHaveValue(
       "浏览器交换事务所"
     )
-    await expect(page.getByText("已公开", { exact: true })).toBeVisible()
-    await expect(page.getByText("区域范围合适")).toBeVisible()
     await expect(page.getByText("西岸艺术中心入口").first()).toBeVisible()
     await expect(page.getByRole("spinbutton")).toHaveCount(0)
 
@@ -695,10 +721,25 @@ test.describe("community exchange me", () => {
     const officeIntro = page.getByRole("textbox", { name: "事务所介绍" })
     await officeName.fill("尚未保存的浏览器事务所")
     await officeIntro.fill("尚未保存的线下说明")
+    await page.getByRole("button", { name: "搜索地点与地图选点" }).click()
     const placeQuery = page.getByRole("textbox", { name: "搜索地点" })
     await placeQuery.fill("首钢园")
     await placeQuery.press("Enter")
     await page.getByRole("button", { name: /首钢园.*石景山区/ }).click()
+    await expect(
+      page.getByRole("button", { name: "确认位置并填写地址" })
+    ).toBeEnabled()
+    await expect(page.locator("[data-map-state=ready]")).toBeVisible()
+    await page.locator("canvas.maplibregl-canvas").press("ArrowRight")
+    await page.getByRole("button", { name: "使用地图中心" }).click()
+    await expect(
+      page.getByRole("button", { name: "确认位置并填写地址" })
+    ).toBeEnabled()
+    await page.screenshot({
+      path: testInfo.outputPath("office-configured-map-picker.png"),
+      fullPage: true,
+    })
+    await page.getByRole("button", { name: "确认位置并填写地址" }).click()
     await expect(officeName).toHaveValue("尚未保存的浏览器事务所")
     await expect(officeIntro).toHaveValue("尚未保存的线下说明")
     await expect(page.getByRole("textbox", { name: "城市" })).toHaveValue(
@@ -720,25 +761,53 @@ test.describe("community exchange me", () => {
       path: testInfo.outputPath("office-place-search-preserved-draft.png"),
       fullPage: true,
     })
+    await expect(page.getByRole("textbox", { name: "详细地址" })).toHaveValue(
+      "首钢园，石景山区，北京市，中国"
+    )
     await officeName.fill("更新后的浏览器事务所")
+    const savedOfficeRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" &&
+        request.url().endsWith("/api/community/exchange/me/offices/office-1")
+    )
     await page.getByRole("button", { name: "保存事务所" }).click()
-    await expect(page.getByText("事务所资料已保存。")).toBeVisible()
+    const savedOfficeInput = (await savedOfficeRequest).postDataJSON()
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByText("事务所资料已保存并提交整体审核，审核通过前不公开。")
+    ).toBeVisible()
+    await settleToasts(page)
 
     await expect(
       page.getByText("首钢园，石景山区，北京市，中国").first()
     ).toBeVisible()
-    await page.getByRole("button", { name: "重新提交审核" }).click()
     await expect(
-      page.getByText("区域位置已提交审核，审核通过前不会出现在公开地图。")
+      page.getByText("待审核", { exact: true }).first()
     ).toBeVisible()
-    await expect(page.getByText("审核中", { exact: true })).toBeVisible()
-
-    await page.getByRole("button", { name: "撤回公开位置" }).click()
-    await page.getByRole("button", { name: "确认撤回" }).click()
     await expect(
-      page.getByText("公开位置已撤回，事务所已从区域地图下线。")
-    ).toBeVisible()
-    await expect(page.getByText("当前地址不在地图上")).toBeVisible()
+      page.getByRole("button", { name: "公开位置配置" })
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole("radio", { name: "区域位置", exact: true })
+    ).toHaveCount(0)
+    expect(savedOfficeInput.expectedRevision).toBe(3)
+    expect(
+      dispatcher.requests({
+        method: "PUT",
+        path: "/api/community/exchange/me/offices/office-1",
+      })
+    ).toHaveLength(1)
+    expect(
+      dispatcher.requests({
+        method: "PUT",
+        path: "/api/community/exchange/me/offices/office-1/location",
+      })
+    ).toHaveLength(0)
+    await page.getByRole("dialog").screenshot({
+      path: testInfo.outputPath("office-whole-review-pending.png"),
+    })
+    await page.keyboard.press("Escape")
 
     expect(
       await page.evaluate(

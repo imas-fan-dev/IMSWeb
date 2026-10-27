@@ -49,24 +49,24 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 
 常用命令：
 
-| 命令                | 用途                                     |
-| ------------------- | ---------------------------------------- |
-| `pnpm dev`          | 启动网站目标 React Router 开发服务器     |
-| `pnpm dev:app`      | 在 1420 启动 App 目标及本地 API 代理     |
-| `pnpm build`        | 生成生产前端产物与预渲染页面             |
-| `pnpm build:app`    | 生成带已验证远程 origin 的 App 静态产物  |
-| `pnpm design:lint`  | 校验根目录 `DESIGN.md` 设计规范          |
+| 命令                | 用途                                            |
+| ------------------- | ----------------------------------------------- |
+| `pnpm dev`          | 启动网站目标 React Router 开发服务器            |
+| `pnpm dev:app`      | 在 1420 启动 App 目标及本地 API 代理            |
+| `pnpm build`        | 生成生产前端产物与预渲染页面                    |
+| `pnpm build:app`    | 生成带已验证远程 origin 的 App 静态产物         |
+| `pnpm design:lint`  | 校验根目录 `DESIGN.md` 设计规范                 |
 | `pnpm preview`      | 通过 Hono 在 `127.0.0.1:4173` 预览 Web 编译产物 |
-| `pnpm lint`         | 执行 ESLint 与 Tailwind canonical 类检查 |
-| `pnpm typecheck`    | 生成路由类型并执行 TypeScript 检查       |
-| `pnpm test:unit`    | 运行 Vitest 单元与组件测试               |
-| `pnpm test:e2e`     | 运行网站目标的 Playwright 测试           |
-| `pnpm test:e2e:app` | 运行 App 安全区与底栏 Playwright 矩阵    |
-| `pnpm test`         | 运行单元测试                             |
-| `pnpm check`        | 运行 lint、类型检查、单元测试和生产构建  |
-| `pnpm format`       | 使用 Prettier 格式化 TypeScript/TSX 文件 |
-| `pnpm app:doctor`   | 检查 iOS/Android 打包与安装前置依赖      |
-| `pnpm app`          | 设备安装入口，参数选目标、配置与设备     |
+| `pnpm lint`         | 执行 ESLint 与 Tailwind canonical 类检查        |
+| `pnpm typecheck`    | 生成路由类型并执行 TypeScript 检查              |
+| `pnpm test:unit`    | 运行 Vitest 单元与组件测试                      |
+| `pnpm test:e2e`     | 运行网站目标的 Playwright 测试                  |
+| `pnpm test:e2e:app` | 运行 App 安全区与底栏 Playwright 矩阵           |
+| `pnpm test`         | 运行单元测试                                    |
+| `pnpm check`        | 运行 lint、类型检查、单元测试和生产构建         |
+| `pnpm format`       | 使用 Prettier 格式化 TypeScript/TSX 文件        |
+| `pnpm app:doctor`   | 检查 iOS/Android 打包与安装前置依赖             |
+| `pnpm app`          | 设备安装入口，参数选目标、配置与设备            |
 
 Web test owner 本地默认只运行 unit。需要本地运行浏览器套件时，显式执行 `pnpm test:e2e`；
 App 浏览器矩阵使用 `pnpm test:e2e:app`。本地 `ci` owner 顺序运行 `check` 和 core Playwright；
@@ -118,13 +118,17 @@ App 底栏依次为首页、社区、交换地图、资料、我的。社区聚�
 
 ## 目录边界
 
+按业务定位页面、请求归属和测试时，先看 [前端业务索引](app/README.md)。总索引覆盖公开内容、
+社区与帐号、Wiki、后台运营和 App 基础设施；复杂业务的局部 README 进一步说明能力与协作边界。
+新增、移动模块或调整职责时，同步维护总索引及受影响的局部索引。
+
 ```text
 app/
   components/ui/    shadcn 生成或维护的基础 UI 原语
   layouts/           顶层、公开站点与管理端 layout
   lib/               跨页面非 UI 基础设施与通用工具
     api/             统一 API 出口、客户端和请求策略
-      endpoints/     按接口领域组织的请求函数、schema 与类型
+      endpoints/     按接口领域组织的请求函数与前端输入/UI 类型
   pages/             按 URL 与业务层级组织的 route-ready 页面模块
     admin/           后台页面及其下级页面
     <page>/components/ 复杂页面的页面专用展示与表单单元
@@ -151,10 +155,10 @@ tests/e2e/            浏览器流程与可访问性冒烟测试
 - 复杂页面的入口文件只保留页面流程编排；页面专用 UI 放入本页 `components/`，页面专用请求状态与浏览器缓存放入本页 `hooks/`，纯草稿类型、格式化与校验放入聚焦的 `*-model.ts`。内部文件直接导入，不建立页面级 barrel。
 - 单元测试统一放入 `tests/unit/` 并镜像 `app/` 的职责层级，使用 `~/...` 导入实现；不要把测试散落在页面入口、组件、Hook 或共享模块旁边。
 - `components/ui/` 只承载可复用的基础原语；跨页面业务组件应在 `app/components/` 下按领域组织。
-- 所有请求函数、schema 和 API 类型统一定义在 `app/lib/api/endpoints/`，经 `~/lib/api` 出口调用。页面不得直接使用 `fetch`、`apiClient`、API 内部子路径或页面本地 `api.ts`。
+- 领域请求函数与前端输入/UI 类型放在 `app/lib/api/endpoints/`，wire schemas 与类型从 `@imsweb/contracts` 导入，经 `~/lib/api` 出口调用。页面不得直接使用 `fetch`、`apiClient`、API 内部子路径或页面本地 `api.ts`。
 - 不再使用 `app/features/`；新增页面必须进入 `app/pages/` 对应层级。
 - `public/` 不接收私有 Legacy 资产。新增文件必须有明确用途、来源和许可状态，并登记在 [资产来源记录](../../docs/governance/assets.md) 中。
-- Hono 路由与服务端领域逻辑不进入本仓库；接口契约的源头仍是上游 `apps/api`。
+- Hono 路由与服务端领域逻辑由 `apps/api` 负责；接口契约的源头是 [共享 contracts](../../packages/contracts/README.md)。
 
 ## 同源 Cookie 与 CSRF
 

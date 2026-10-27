@@ -35,6 +35,7 @@ src/
     map-delivery.ts      # 地图源读写与响应契约
     card-claims.ts       # 认领信封/认领/审核
     location-review.ts   # 位置审核
+    office-review.ts     # 事务所整体审核、后台编辑和账号投影
 ```
 
 多源汇聚域（如 `information`、`news`、`chronicle` 同时承接公开与管理员
@@ -117,6 +118,7 @@ the committed map).
 | `@imsweb/contracts/fudaba/admin-units` | `fudabaAdminUnits` | schema |
 | `@imsweb/contracts/fudaba/characters` | `fudabaCharacters` | schema |
 | `@imsweb/contracts/fudaba/location-review` | `fudabaLocationReview` | schema |
+| `@imsweb/contracts/fudaba/office-review` | `fudabaOfficeReview` | schema |
 | `@imsweb/contracts/platform/admin` | `platformAdmin` | schema |
 | `@imsweb/contracts/platform/admin-email` | `platformAdminEmail` | schema |
 | `@imsweb/contracts/platform/admin-users` | `platformAdminUsers` | schema |

@@ -21,11 +21,13 @@ export async function handleSaveFudabaOwnerLocation(
             throw Object.assign(new Error('请求体必须是有效 JSON'), { status: 400 });
         });
         const submission = parseFudabaOwnerLocation(body);
+        const submittedAt = new Date().toISOString();
         const result = await fudabaRepository(c).saveOfficePublicLocationForOwner({
             officeId,
             ownerAccountId: c.get('platformUser')!.id,
             ...submission,
-            submittedAt: new Date().toISOString()
+            submittedAt,
+            exactLocationConsentAt: submission.precision === 'exact' ? submittedAt : null
         });
         if (result.status === 'unavailable') {
             return c.json({
