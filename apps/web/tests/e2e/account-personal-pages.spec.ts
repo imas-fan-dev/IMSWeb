@@ -296,7 +296,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       await expect(root).toHaveCSS("color-scheme", theme)
       for (const [section, label] of [
         ["namecards", /^交换名片/],
-        ["claims", /^认领消息/],
+        ["claims", /^消息/],
       ] as const) {
         await page
           .getByRole("navigation", { name: "个人档案菜单" })

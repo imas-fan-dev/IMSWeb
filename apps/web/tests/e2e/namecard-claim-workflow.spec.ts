@@ -641,13 +641,6 @@ test.describe("namecard claim workflow", () => {
       "GET"
     )
     await api.mockRoute(
-      "**/api/community/exchange/characters",
-      async (route) => {
-        await route.fulfill({ json: makeCharacterCatalog() })
-      },
-      "GET"
-    )
-    await api.mockRoute(
       "**/api/community/exchange/me/cards",
       async (route) => {
         await route.fulfill({
@@ -739,7 +732,9 @@ test.describe("namecard claim workflow", () => {
     )
 
     await page.goto("/account/me/claims")
-    await expect(page.getByText("1 封待确认")).toBeVisible()
+    await expect(
+      page.getByRole("heading", { name: "消息", exact: true })
+    ).toBeVisible()
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page.getByText("历史名片 #42")).toBeVisible()

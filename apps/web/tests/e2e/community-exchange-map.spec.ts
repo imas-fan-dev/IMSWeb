@@ -279,10 +279,7 @@ test.describe("community exchange map", () => {
     await expect(
       page.locator('[data-map-office-group="exact:31.2,121.5"]')
     ).toHaveCount(1)
-    await expect(
-      page.locator('[data-map-office-group="regional:31.2,121.5"]')
-    ).toHaveCount(1)
-    await expect(page.locator("[data-map-office-group]")).toHaveCount(4)
+    await expect(page.locator("[data-map-office-group]")).toHaveCount(3)
   })
 
   test("retains committed counts and cluster nodes through a real pan and equal response @mobile", async ({

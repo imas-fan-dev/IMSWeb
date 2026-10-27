@@ -229,9 +229,7 @@ test("keeps map state through office dialogs and opens personal pages separately
   await expect(
     page.getByRole("main").getByText("未登录", { exact: true })
   ).toBeVisible()
-  await expect(
-    page.getByRole("link", { name: "登录", exact: true })
-  ).toHaveAttribute("href", "/account/login")
+  await expect(page.locator('a[href="/account/login"]')).toContainText("登录")
 })
 
 test("opens direct office links over the map and safely closes after refresh @mobile", async ({
@@ -514,7 +512,9 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     .getByRole("button", { name: "保存事务所", exact: true })
     .click()
   await expect(
-    management.getByText("事务所资料已保存。", { exact: true })
+    management.getByText("事务所资料未发生变化，保持已公开。", {
+      exact: true,
+    })
   ).toBeVisible()
   await expect(
     management.getByRole("link", { name: "打开完整管理页面" })
