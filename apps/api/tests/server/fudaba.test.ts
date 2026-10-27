@@ -4232,7 +4232,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             await insertReviewedLocation(fixture, { officeId: 'historical-location', latitudeE1: 312, longitudeE1: 1215, reviewerId });
             const { migratePostgres } = createRequire(__filename)('../../scripts/migration/postgres-migrations.js');
             const result = await migratePostgres({ connectionString: harness.databaseUrl });
-            assert.deepEqual(result.executed, ['20261026130000_fudaba_public_location_precision', '20261026230000_fudaba_office_review']);
+            assert.deepEqual(result.executed, [
+                '20261026130000_fudaba_public_location_precision',
+                '20261026230000_fudaba_office_review',
+                '20261027120000_namecard_lock_status',
+                '20261027180000_namecard_pending_versions',
+            ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
             assert.equal(currentOffice?.latitude, original.latitude);
