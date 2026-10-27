@@ -12,7 +12,9 @@ let server: ChildProcess
 let runtimeOrigin: string
 let token: string
 let refreshToken: string
-const webMode = process.env.E2E_OWNER_MEDIA_WEB === "1"
+const webMode =
+  process.env.E2E_OWNER_MEDIA_WEB === "1" ||
+  process.env.VITE_IMS_APP_TARGET === "web"
 
 test.beforeAll(async () => {
   const apiRoot = path.resolve(process.cwd(), "../api")
