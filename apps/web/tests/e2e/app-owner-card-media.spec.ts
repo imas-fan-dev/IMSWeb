@@ -351,7 +351,6 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
             ...card,
             revision: card.revision + 1,
             publicationStatus: "pending",
-            mediaRightsStatus: "unknown",
           },
         },
         headers: cors,
