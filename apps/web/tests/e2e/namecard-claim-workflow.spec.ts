@@ -753,6 +753,20 @@ test.describe("namecard claim workflow", () => {
     expect(csrf).toBe("claim-workflow-csrf")
   })
 
+  const registeredAdminRow = {
+    id: 41,
+    image1_url: FRONT_IMAGE,
+    image2_url: BACK_IMAGE,
+    status: "pending",
+    revision: 1,
+    displayName: "待审核注册名片",
+    producerName: "注册制作人",
+    origin: "exchange",
+    lockReason: null,
+    reviewStatus: null,
+    reviewReason: null,
+  }
+
   const pendingClaim = {
     id: "claim-admin-e2e",
     legacyCardId: 42,
@@ -786,38 +800,12 @@ test.describe("namecard claim workflow", () => {
         producername: "认领审核员",
       },
     })
-    await api.mockRoute(
-      "**/api/admin/cards**",
-      async (route) => {
-        await route.fulfill({
-          json: {
-            success: true,
-            data: [],
-            pageInfo: {
-              page: 1,
-              pageSize: 10,
-              total: 0,
-              totalPages: 0,
-              hasNextPage: false,
-            },
-          },
-        })
-      },
-      "GET"
-    )
-
-    let registeredPending = true
-    let claimPending = true
-    const reviews: Array<{
-      kind: "registered" | "claim"
-      body: Record<string, unknown>
-      csrf: string | undefined
-    }> = []
-    const handleRegisteredReviews = async (
+    // The merged review queue lists every submission, registered owners included.
+    const handleAdminCards = async (
       route: import("@playwright/test").Route
     ) => {
       const request = route.request()
-      if (request.method() === "PUT") {
+      if (request.method() === "POST") {
         reviews.push({
           kind: "registered",
           body: request.postDataJSON() as Record<string, unknown>,
@@ -829,30 +817,36 @@ test.describe("namecard claim workflow", () => {
       }
       await route.fulfill({
         json: {
-          items: registeredPending
-            ? [
-                {
-                  card: registeredCard,
-                  owner: {
-                    id: "registered-owner-e2e",
-                    displayName: "注册制作人",
-                  },
-                },
-              ]
-            : [],
+          success: true,
+          data: registeredPending ? [registeredAdminRow] : [],
+          pageInfo: {
+            page: 1,
+            pageSize: 12,
+            total: registeredPending ? 1 : 0,
+            totalPages: registeredPending ? 1 : 0,
+            hasNextPage: false,
+          },
         },
       })
     }
+    // The queue refetches once the verdict lands, so the list may load twice.
+    await api.mockRoute("/api/admin/cards", handleAdminCards, "GET", {
+      min: 1,
+      max: 10,
+    })
     await api.mockRoute(
-      "/api/admin/community/exchange/card-reviews",
-      handleRegisteredReviews,
-      "GET"
+      `/api/admin/cards/approve/${registeredAdminRow.id}`,
+      handleAdminCards,
+      "POST"
     )
-    await api.mockRoute(
-      "/api/admin/community/exchange/card-reviews/registered-card-e2e",
-      handleRegisteredReviews,
-      "PUT"
-    )
+
+    let registeredPending = true
+    let claimPending = true
+    const reviews: Array<{
+      kind: "registered" | "claim"
+      body: Record<string, unknown>
+      csrf: string | undefined
+    }> = []
     const handleClaimReviews = async (
       route: import("@playwright/test").Route
     ) => {
@@ -883,11 +877,11 @@ test.describe("namecard claim workflow", () => {
     )
 
     await page.goto("/admin/cards")
-    await page.getByRole("tab", { name: "注册用户投稿" }).click()
-    await expect(page.getByText("待审核注册名片")).toBeVisible()
-    await page.getByRole("button", { name: "通过" }).click()
+    // The queue is one list: registered submissions show up beside guest ones.
+    await expect(page.getByText("注册制作人")).toBeVisible()
+    await page.getByRole("button", { name: "通过", exact: true }).click()
     await page.getByRole("button", { name: "确认通过" }).click()
-    await expect(page.getByText("没有待审核注册名片")).toBeVisible()
+    await expect(page.getByText("注册制作人")).toHaveCount(0)
 
     await page.getByRole("tab", { name: "旧名片认领" }).click()
     await expect(page.getByText("历史名片 #42")).toBeVisible()
@@ -898,7 +892,7 @@ test.describe("namecard claim workflow", () => {
     expect(reviews).toEqual([
       {
         kind: "registered",
-        body: { decision: "approve", expectedRevision: 1, note: "" },
+        body: { expected_revision: 1 },
         csrf: "claim-admin-csrf",
       },
       {

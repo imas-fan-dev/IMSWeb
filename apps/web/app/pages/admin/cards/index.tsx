@@ -32,10 +32,7 @@ import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Badge } from "~/components/ui/badge"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
-import {
-  CardClaimReviewPanel,
-  RegisteredCardReviewPanel,
-} from "~/pages/admin/cards/fudaba-card-moderation-panels"
+import { CardClaimReviewPanel } from "~/pages/admin/cards/fudaba-card-moderation-panels"
 import { useDebouncedValue } from "~/lib/use-debounced-value"
 import {
   approveAdminNamecard,
@@ -431,7 +428,6 @@ export default function AdminCardsPage() {
       <Tabs defaultValue="guest">
         <TabsList aria-label="名片审核类型">
           <TabsTrigger value="guest">投稿审核</TabsTrigger>
-          <TabsTrigger value="registered">注册用户投稿</TabsTrigger>
           <TabsTrigger value="claims">旧名片认领</TabsTrigger>
         </TabsList>
 
@@ -656,10 +652,6 @@ export default function AdminCardsPage() {
             disabled={loading}
             onChange={changePage}
           />
-        </TabsContent>
-
-        <TabsContent value="registered" className="pt-5">
-          <RegisteredCardReviewPanel />
         </TabsContent>
 
         <TabsContent value="claims" className="pt-5">

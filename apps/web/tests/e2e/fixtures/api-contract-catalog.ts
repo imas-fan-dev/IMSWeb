@@ -107,8 +107,14 @@ import {
   adminNamecardListQuerySchema,
   adminNamecardListResponseSchema,
   namecardErrorResponseSchema,
+  adminNamecardMutationSchema,
+  expectedNamecardRevisionRequestSchema,
+  flaggedNamecardRequestSchema,
+  lockedNamecardRequestSchema,
   namecardListErrorResponseSchema,
   namecardListQuerySchema,
+  namecardMutationResponseSchema,
+  rejectedNamecardRequestSchema,
   namecardPageSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
@@ -879,6 +885,71 @@ export function resolveApiContract(
       responses: {
         200: adminNamecardListResponseSchema,
         401: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/approve\/[^/]+$/.test(path))
+    return {
+      body: expectedNamecardRevisionRequestSchema,
+      responses: {
+        200: adminNamecardMutationSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/reject\/[^/]+$/.test(path))
+    return {
+      body: rejectedNamecardRequestSchema,
+      responses: {
+        200: successFlagSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/lock\/[^/]+$/.test(path))
+    return {
+      body: lockedNamecardRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/flag\/[^/]+$/.test(path))
+    return {
+      body: flaggedNamecardRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/unlock\/[^/]+$/.test(path))
+    return {
+      body: expectedNamecardRevisionRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/accounts")
