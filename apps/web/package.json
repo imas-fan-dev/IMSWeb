@@ -20,7 +20,7 @@
     "preview:app": "node --experimental-strip-types scripts/preview-app.js",
     "tauri": "tauri",
     "test": "node ../../scripts/testing/run-test-owner.mjs web",
-    "test:e2e": "VITE_IMS_APP_TARGET=web E2E_OWNER_MEDIA_WEB=1 playwright test",
+    "test:e2e": "VITE_IMS_APP_TARGET=web playwright test",
     "test:e2e:app": "playwright test --config playwright.app.config.ts",
     "test:unit": "VITE_IMS_APP_TARGET=web vitest run",
     "test:watch": "VITE_IMS_APP_TARGET=web vitest",
