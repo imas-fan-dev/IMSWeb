@@ -805,10 +805,15 @@ export function uploadFudabaCardMedia(
 }
 
 /**
- * Replaces the ordered middle pages of one card. `order` is a list of markers:
- * `#i` keeps the page already at position i, `@n` is the n-th uploaded file.
+ * Replaces the whole ordered artwork set of one card in a single request. Slot 0
+ * is the front, slot 1 the back and the rest are the middle pages, so a submit
+ * can replace an image, reorder the set and move a page across roles at once —
+ * the editor keeps every local change until the owner presses save.
+ *
+ * `order` never carries object keys: `#i` keeps the image the card already has
+ * at slot i (in the order the API returned them), `@n` is the n-th uploaded file.
  */
-export function replaceFudabaCardMiddlePages(
+export function replaceFudabaCardMedia(
   cardId: string,
   input: { images: readonly File[]; order: readonly string[] },
   expectedRevision: number
@@ -819,9 +824,7 @@ export function replaceFudabaCardMiddlePages(
   form.append("order", JSON.stringify(input.order))
   form.append("expectedRevision", String(revision))
   return platformApiClient.Put(
-    exchangePath(
-      `/me/cards/${encodeURIComponent(cardId)}/middle-pages`
-    ),
+    exchangePath(`/me/cards/${encodeURIComponent(cardId)}/media`),
     form,
     parsed(fudabaCardMutationResponseSchema, {
       errorSchema: fudabaErrorResponseSchema,

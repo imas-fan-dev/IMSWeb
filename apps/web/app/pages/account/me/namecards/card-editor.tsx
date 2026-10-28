@@ -35,7 +35,7 @@ import {
   createFudabaCard,
   deleteFudabaCard,
   updateFudabaCard,
-  replaceFudabaCardMiddlePages,
+  replaceFudabaCardMedia,
   uploadFudabaCardMedia,
   type FudabaCardFields,
   type FudabaCardMediaSide,
@@ -47,6 +47,7 @@ import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import { CardDeleteDialog } from "./card-delete-dialog"
 import { creditsIncomplete } from "./card-credits-editor"
 import { CardMiddlePages } from "./card-middle-pages"
+import { middlePageSlotOrder } from "./card-media-slots"
 import {
   CardFields,
   CardImageFields,
@@ -229,9 +230,15 @@ export function CardEditor({
     setSavingMiddle(true)
     setFeedback(null)
     try {
-      const result = await replaceFudabaCardMiddlePages(
+      const order = middlePageSlotOrder(
+        input.order,
+        card.pendingContent?.middleImageUrls?.length ??
+          card.middleImageUrls.length,
+        Boolean(card.backImageUrl ?? card.pendingContent?.backImageUrl)
+      )
+      const result = await replaceFudabaCardMedia(
         card.id,
-        input,
+        { images: input.images, order },
         card.revision
       ).send()
       setDraft(cardFields(result.card))
@@ -481,7 +488,9 @@ export function CardEditor({
         />
       </div>
 
-      {card && !creating ? (
+      {card &&
+      !creating &&
+      (card.backImageUrl ?? card.pendingContent?.backImageUrl) ? (
         <CardMiddlePages
           initialUrls={
             card.pendingContent?.middleImageUrls ?? card.middleImageUrls
