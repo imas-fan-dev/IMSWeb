@@ -995,7 +995,7 @@ describe("AccountMeWorkspace", () => {
     expect(
       screen.getByRole("button", { name: "第 2 张（中间页 1）" })
     ).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "创建名片草稿" }))
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
 
     await waitFor(() => {
       expect(apiMocks.createFudabaCard).toHaveBeenCalledWith(
@@ -1055,7 +1055,7 @@ describe("AccountMeWorkspace", () => {
       new File(["front"], "front.png", { type: "image/png" }),
       new File(["back"], "back.png", { type: "image/png" }),
     ])
-    await user.click(screen.getByRole("button", { name: "创建名片草稿" }))
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
 
     await user.keyboard("{Escape}")
     await user.click(screen.getByRole("button", { name: /周末交换名片/ }))

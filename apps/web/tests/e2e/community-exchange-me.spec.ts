@@ -691,8 +691,11 @@ test.describe("account personal workspace", () => {
     await page
       .getByRole("button", { name: /^浏览器制作人/ })
       .click()
+    // 标题区在 dialog-header 里，副标题不在编辑器 section 内。
     await expect(
-      page.getByLabel("编辑名片").getByText(/名片 #\d+ · 版本 \d+/)
+      page
+        .getByRole("dialog", { name: "名片详情与编辑" })
+        .getByText(/名片 #\d+ · 版本 \d+/)
     ).toBeVisible()
     await expect(page.getByRole("textbox", { name: "显示名称" })).toBeHidden()
     await page.screenshot({

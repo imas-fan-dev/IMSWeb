@@ -81,19 +81,51 @@ describe("CharacterMultiSelect", () => {
     const group = screen.getByRole("group", { name: "组合" })
     // One truncated line; the full roster sits in the tooltip.
     expect(screen.getByTitle("天海春香、如月千早")).toBeInTheDocument()
-    await user.click(within(group).getByRole("checkbox", { name: /765PRO/ }))
+    // The chip speaks the Japanese unit name; the Chinese name is a fallback.
+    await user.click(
+      within(group).getByRole("checkbox", { name: /765プロオールスターズ/ })
+    )
 
     const selected = screen.getByLabelText("已选担当角色")
-    expect(within(selected).getByText("765PRO ALLSTARS")).toBeVisible()
+    expect(within(selected).getByText("765プロオールスターズ")).toBeVisible()
     expect(within(selected).queryByText("天海春香")).not.toBeInTheDocument()
 
     await user.click(
-      screen.getByRole("button", { name: "移除组合 765PRO ALLSTARS" })
+      screen.getByRole("button", { name: "移除组合 765プロオールスターズ" })
     )
     expect(
-      screen.queryByRole("button", { name: "移除组合 765PRO ALLSTARS" })
+      screen.queryByRole("button", { name: "移除组合 765プロオールスターズ" })
     ).not.toBeInTheDocument()
     expect(screen.getByText("尚未选择担当角色。")).toBeVisible()
+  })
+
+  it("withdraws the unit when one of its members is unchecked", async () => {
+    const user = userEvent.setup()
+    render(<PickerHarness catalog={makeNamecardCharacterCatalog()} />)
+
+    await user.type(screen.getByRole("searchbox", { name: "" }), "allstars")
+    await user.click(
+      within(screen.getByRole("group", { name: "组合" })).getByRole(
+        "checkbox",
+        { name: /765プロオールスターズ/ }
+      )
+    )
+
+    // Unchecking 天海春香 cancels the combination, and the chip expands into
+    // the member that stays chosen. The search narrows to the character row:
+    // the combination row's accessible name also contains her name.
+    const search = screen.getByRole("searchbox", { name: "" })
+    await user.clear(search)
+    await user.type(search, "天海")
+    const candidateGroup = screen.getByRole("group", { name: "担当角色候选" })
+    await user.click(
+      within(candidateGroup).getByRole("checkbox", { name: /天海春香/ })
+    )
+
+    const selected = screen.getByLabelText("已选担当角色")
+    expect(within(selected).queryByText("765プロオールスターズ")).toBeNull()
+    expect(within(selected).getByText("如月千早")).toBeVisible()
+    expect(within(selected).queryByText("天海春香")).toBeNull()
   })
 
   it("keeps the fallback entries reachable when nothing matches", async () => {
