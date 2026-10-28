@@ -33,6 +33,7 @@ const cardMediaUrl = (card: FudabaCardRecord, side: string, query = '') =>
 export function fudabaOwnerCardView(card: FudabaCardRecord): FudabaOwnerCard {
     return {
         id: card.id,
+        cardNumber: card.card_number,
         producerName: card.producer_name,
         seriesCodes: card.series_codes,
         favoriteCharacters: card.favorite_characters.map(characterView),

@@ -208,6 +208,8 @@ export type FudabaCardReviewStatus = "pending" | "rejected" | "locked";
 
 export interface FudabaCardRecord {
     id: string;
+    /** Public number the owner sees as 名片 #编号. */
+    card_number: number;
     owner_account_id: string;
     producer_name: string;
     /** Ordered series; the first entry is the label shown by default. */

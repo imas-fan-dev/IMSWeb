@@ -1922,6 +1922,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     function registeredCard(): FudabaRegisteredCardReviewRecord {
         return {
             id: 'registered-review',
+            card_number: 1,
             owner_account_id: 'owner-1',
             producer_name: 'Owner',
             producer_reading: null,

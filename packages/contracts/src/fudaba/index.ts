@@ -384,6 +384,8 @@ export const fudabaPendingCardContentSchema = z
 export const fudabaOwnerCardSchema = z
   .object({
     id: ownerCardIdSchema,
+    /** Public number shown as 名片 #编号. */
+    cardNumber: z.number().int().positive(),
     producerName: ownerCardTextSchema(80, true),
     seriesCodes: namecardSeriesCodesSchema,
     favoriteCharacters: z

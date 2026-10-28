@@ -115,7 +115,7 @@ const OFFICE_REVIEW_SELECT = `SELECT ${OWNER_OFFICE_COLUMNS},
 const cardSeriesEligibility = (alias: string): string =>
     `(${alias}.wiki_enabled OR ${alias}.code='namecard-other')`;
 
-const CARD_COLUMNS = `id, owner_account_id, producer_name,
+const CARD_COLUMNS = `id, card_number, owner_account_id, producer_name,
     legacy_card_id, origin, front_object_key, back_object_key,
     accent, accent_source, bio, trade_note, exchange_mode, made_on, group_name, producer_reading,
     is_original,
@@ -503,6 +503,7 @@ function pendingPayloadValue(
 function cardRecord(row: FudabaCardRow): FudabaCardRecord {
     return {
         ...row,
+        card_number: Number(row.card_number),
         favorite_characters: [],
         series_codes: [],
         middle_object_keys: [],

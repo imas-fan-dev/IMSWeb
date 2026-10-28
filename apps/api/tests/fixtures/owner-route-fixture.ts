@@ -69,6 +69,7 @@ export function uploadedFile(
 export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCardRecord {
     return {
         id: 'owner-card',
+        card_number: 1,
         owner_account_id: ACCOUNT_ID,
         producer_name: 'Owner Producer',
         producer_reading: null,
