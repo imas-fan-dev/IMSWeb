@@ -347,7 +347,7 @@ export function CardMediaGallery({
               type="button"
               size="sm"
               variant="destructive"
-              className="shadow-sm ring-1 ring-destructive/60"
+              className="bg-destructive text-destructive-foreground shadow-sm ring-1 ring-destructive/70 hover:bg-destructive/90"
               disabled={disabled || slots.length <= 1}
               onClick={() => removeAt(position)}
             >
