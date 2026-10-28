@@ -10,6 +10,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
 import { CharacterMultiSelect } from "~/components/community/character-multi-select"
+import { SeriesMultiSelect } from "~/components/community/series-multi-select"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Button } from "~/components/ui/button"
@@ -36,7 +37,13 @@ import type {
   FudabaCardMediaSide,
   FudabaSeries,
 } from "~/lib/api"
+import {
+  NAMECARD_PRODUCTION_YEAR_MAX,
+  NAMECARD_PRODUCTION_YEAR_MIN,
+} from "@imsweb/contracts/fudaba/runtime"
+
 import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
+import { CreditsEditor } from "./card-credits-editor"
 import { useOwnerCardMedia } from "./use-owner-card-media"
 
 export function useObjectUrl(file: File | null) {
@@ -63,12 +70,12 @@ export function useObjectUrl(file: File | null) {
 export function CardPreview({
   frontUrl,
   backUrl,
-  displayName,
+  title,
   renderUpload,
 }: {
   frontUrl: string | null
   backUrl: string | null
-  displayName: string
+  title: string
   renderUpload?: (side: FudabaCardMediaSide) => ReactNode
 }) {
   const front = useOwnerCardMedia(frontUrl)
@@ -90,7 +97,7 @@ export function CardPreview({
             <CoverImagePreview
               key={media.src}
               src={media.src}
-              alt={`${displayName || "新名片"}${label}`}
+              alt={`${title || "新名片"}${label}`}
               previewLabel="名片"
               className="aspect-3/2 w-full border bg-muted"
               imageClassName="object-contain"
@@ -124,6 +131,38 @@ export function CardPreview({
   )
 }
 
+const PRODUCTION_YEAR_MIN = NAMECARD_PRODUCTION_YEAR_MIN
+const PRODUCTION_YEAR_MAX = NAMECARD_PRODUCTION_YEAR_MAX
+const PRODUCTION_YEARS = Array.from(
+  { length: PRODUCTION_YEAR_MAX - PRODUCTION_YEAR_MIN + 1 },
+  (_, index) => String(PRODUCTION_YEAR_MAX - index)
+)
+const PRODUCTION_MONTHS = Array.from({ length: 12 }, (_, index) =>
+  String(index + 1).padStart(2, "0")
+)
+const PRODUCTION_DAYS = Array.from({ length: 31 }, (_, index) =>
+  String(index + 1).padStart(2, "0")
+)
+
+/** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; every part is optional but the year. */
+function splitMadeOn(value: string | null) {
+  const [year = "", month = "", day = ""] = (value ?? "").split("-")
+  return { year, month: year ? month : "", day: year && month ? day : "" }
+}
+
+function joinMadeOn(year: string, month: string, day: string): string | null {
+  if (!year) return null
+  if (!month) return year
+  if (!day) return `${year}-${month}`
+  return `${year}-${month}-${day}`
+}
+
+const EXCHANGE_MODE_OPTIONS = [
+  { value: "auto", label: "自动交换", hint: "对方确认后立即交换" },
+  { value: "manual", label: "手动确认", hint: "需要你逐张确认交换请求" },
+  { value: "none", label: "不参与交换", hint: "只在名片墙展示" },
+] as const
+
 export function CardFields({
   draft,
   series,
@@ -136,12 +175,17 @@ export function CardFields({
   onChange: (draft: FudabaCardFields) => void
 }) {
   const { catalog, loading, failed } = useNamecardCharacterCatalog()
+  const madeOn = splitMadeOn(draft.madeOn)
 
   useEffect(() => {
     if (failed) {
       toast.error("担当角色目录载入失败，请稍后重试")
     }
   }, [failed])
+
+  function patch(next: Partial<FudabaCardFields>) {
+    onChange({ ...draft, ...next })
+  }
 
   return (
     <FieldGroup>
@@ -156,52 +200,128 @@ export function CardFields({
             maxLength={80}
             required
             disabled={disabled}
-            onChange={(event) =>
-              onChange({ ...draft, producerName: event.currentTarget.value })
-            }
+            onChange={(event) => patch({ producerName: event.currentTarget.value })}
           />
         </Field>
         <Field data-disabled={disabled || undefined}>
-          <FieldLabel htmlFor="exchange-card-display-name">名片标题</FieldLabel>
+          <FieldLabel htmlFor="exchange-card-producer-reading">
+            制作人名读音
+          </FieldLabel>
           <Input
-            id="exchange-card-display-name"
-            value={draft.displayName}
-            maxLength={120}
-            required
+            id="exchange-card-producer-reading"
+            value={draft.producerReading ?? ""}
+            maxLength={80}
             disabled={disabled}
-            onChange={(event) =>
-              onChange({ ...draft, displayName: event.currentTarget.value })
-            }
+            placeholder="例：シェイシェイ"
+            onChange={(event) => {
+              const value = event.currentTarget.value
+              patch({ producerReading: value ? value : null })
+            }}
           />
+          <FieldDescription>
+            仅可使用日文假名与英文字母，用于按读音排序。
+          </FieldDescription>
+        </Field>
+        <Field data-disabled={disabled || undefined}>
+          <FieldLabel htmlFor="exchange-card-group-name">团体名称</FieldLabel>
+          <Input
+            id="exchange-card-group-name"
+            value={draft.groupName ?? ""}
+            maxLength={80}
+            disabled={disabled}
+            placeholder="以团体名义投稿时填写"
+            onChange={(event) => {
+              const value = event.currentTarget.value
+              patch({ groupName: value ? value : null })
+            }}
+          />
+        </Field>
+        <Field data-disabled={disabled || undefined}>
+          <FieldLabel htmlFor="exchange-card-made-on-year">制作时间</FieldLabel>
+          <div className="flex min-w-0 items-center gap-2">
+            <Select
+              value={madeOn.year || undefined}
+              disabled={disabled}
+              onValueChange={(value) => {
+                const year = String(value ?? "")
+                patch({
+                  madeOn: year
+                    ? joinMadeOn(year, madeOn.month, madeOn.day)
+                    : null,
+                })
+              }}
+            >
+              <SelectTrigger id="exchange-card-made-on-year" className="w-full">
+                <SelectValue placeholder="年份" />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectGroup>
+                  {PRODUCTION_YEARS.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year} 年
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
+              value={madeOn.month || undefined}
+              disabled={disabled || !madeOn.year}
+              onValueChange={(value) => {
+                const month = String(value ?? "")
+                patch({
+                  madeOn: joinMadeOn(madeOn.year, month, month ? madeOn.day : ""),
+                })
+              }}
+            >
+              <SelectTrigger id="exchange-card-made-on-month" className="w-full">
+                <SelectValue placeholder="月份" />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectGroup>
+                  {PRODUCTION_MONTHS.map((month) => (
+                    <SelectItem key={month} value={month}>
+                      {Number(month)} 月
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
+              value={madeOn.day || undefined}
+              disabled={disabled || !madeOn.month}
+              onValueChange={(value) => {
+                const day = String(value ?? "")
+                patch({
+                  madeOn: joinMadeOn(madeOn.year, madeOn.month, day),
+                })
+              }}
+            >
+              <SelectTrigger id="exchange-card-made-on-day" className="w-full">
+                <SelectValue placeholder="日" />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectGroup>
+                  {PRODUCTION_DAYS.map((day) => (
+                    <SelectItem key={day} value={day}>
+                      {Number(day)} 日
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <FieldDescription>可以只填到年份或月份。</FieldDescription>
         </Field>
       </FieldGroup>
 
-      <Field data-disabled={disabled || undefined}>
-        <FieldLabel htmlFor="exchange-card-series">所属企划</FieldLabel>
-        <Select
-          value={draft.seriesCode || undefined}
-          disabled={disabled || series.length === 0}
-          onValueChange={(value) =>
-            onChange({ ...draft, seriesCode: String(value ?? "") })
-          }
-        >
-          <SelectTrigger
-            id="exchange-card-series"
-            className="w-full sm:max-w-sm"
-          >
-            <SelectValue placeholder="选择企划" />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectGroup>
-              {series.map((item) => (
-                <SelectItem key={item.code} value={item.code}>
-                  {item.displayName}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </Field>
+      <SeriesMultiSelect
+        id="exchange-card-series"
+        series={series}
+        selectedCodes={draft.seriesCodes}
+        disabled={disabled}
+        onChange={(seriesCodes) => patch({ seriesCodes })}
+      />
 
       <CharacterMultiSelect
         id="exchange-card-characters"
@@ -209,29 +329,81 @@ export function CardFields({
         loading={loading}
         selectedIds={draft.favoriteCharacterIds}
         disabled={disabled || loading}
-        onChange={(favoriteCharacterIds) =>
-          onChange({ ...draft, favoriteCharacterIds })
-        }
+        onChange={(favoriteCharacterIds) => patch({ favoriteCharacterIds })}
       />
 
       <Field data-disabled={disabled || undefined}>
-        <FieldLabel htmlFor="exchange-card-accent">名片强调色</FieldLabel>
-        <div className="flex min-w-0 items-center gap-3">
-          <Input
-            id="exchange-card-accent"
-            type="color"
-            value={draft.accent}
-            disabled={disabled}
-            className="size-10 shrink-0 cursor-pointer p-1"
-            onChange={(event) =>
-              onChange({ ...draft, accent: event.currentTarget.value })
-            }
-          />
-          <output className="min-w-0 font-mono text-sm text-muted-foreground">
-            {draft.accent.toUpperCase()}
-          </output>
-        </div>
+        <FieldLabel htmlFor="exchange-card-exchange-mode">交换方式</FieldLabel>
+        <Select
+          value={draft.exchangeMode}
+          disabled={disabled}
+          onValueChange={(value) =>
+            patch({ exchangeMode: String(value) as FudabaCardFields["exchangeMode"] })
+          }
+        >
+          <SelectTrigger id="exchange-card-exchange-mode" className="w-full sm:max-w-sm">
+            <SelectValue>
+              {EXCHANGE_MODE_OPTIONS.find(
+                (option) => option.value === draft.exchangeMode
+              )?.label ?? draft.exchangeMode}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectGroup>
+              {EXCHANGE_MODE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <FieldDescription>
+          {EXCHANGE_MODE_OPTIONS.find((option) => option.value === draft.exchangeMode)
+            ?.hint ?? ""}
+        </FieldDescription>
       </Field>
+
+      <FieldGroup className="grid gap-4 sm:grid-cols-3">
+        <Field orientation="horizontal" data-disabled={disabled || undefined}>
+          <Checkbox
+            id="exchange-card-is-original"
+            checked={draft.isOriginal}
+            disabled={disabled}
+            onCheckedChange={(checked) => patch({ isOriginal: checked === true })}
+          />
+          <div className="min-w-0">
+            <FieldLabel htmlFor="exchange-card-is-original">原创作品</FieldLabel>
+            <FieldDescription>画面由自己绘制。</FieldDescription>
+          </div>
+        </Field>
+        <Field orientation="horizontal" data-disabled={disabled || undefined}>
+          <Checkbox
+            id="exchange-card-made-with-ai"
+            checked={draft.madeWithAi}
+            disabled={disabled}
+            onCheckedChange={(checked) => patch({ madeWithAi: checked === true })}
+          />
+          <div className="min-w-0">
+            <FieldLabel htmlFor="exchange-card-made-with-ai">
+              使用 AI 生成
+            </FieldLabel>
+            <FieldDescription>会在名片上标注。</FieldDescription>
+          </div>
+        </Field>
+        <Field orientation="horizontal" data-disabled={disabled || undefined}>
+          <Checkbox
+            id="exchange-card-visible"
+            checked={draft.visible}
+            disabled={disabled}
+            onCheckedChange={(checked) => patch({ visible: checked === true })}
+          />
+          <div className="min-w-0">
+            <FieldLabel htmlFor="exchange-card-visible">公开名片</FieldLabel>
+            <FieldDescription>审核通过后出现在名片墙。</FieldDescription>
+          </div>
+        </Field>
+      </FieldGroup>
 
       <Field data-disabled={disabled || undefined}>
         <FieldLabel htmlFor="exchange-card-bio">名片简介</FieldLabel>
@@ -241,9 +413,7 @@ export function CardFields({
           maxLength={2000}
           disabled={disabled}
           className="min-h-24 resize-y"
-          onChange={(event) =>
-            onChange({ ...draft, bio: event.currentTarget.value })
-          }
+          onChange={(event) => patch({ bio: event.currentTarget.value })}
         />
       </Field>
 
@@ -255,28 +425,15 @@ export function CardFields({
           maxLength={1000}
           disabled={disabled}
           className="min-h-20 resize-y"
-          onChange={(event) =>
-            onChange({ ...draft, tradeNote: event.currentTarget.value })
-          }
+          onChange={(event) => patch({ tradeNote: event.currentTarget.value })}
         />
       </Field>
 
-      <Field orientation="horizontal" data-disabled={disabled || undefined}>
-        <Checkbox
-          id="exchange-card-available"
-          checked={draft.available}
-          disabled={disabled}
-          onCheckedChange={(checked) =>
-            onChange({ ...draft, available: checked === true })
-          }
-        />
-        <div className="min-w-0">
-          <FieldLabel htmlFor="exchange-card-available">接受交换</FieldLabel>
-          <FieldDescription>
-            关闭后名片仍可保存和审核，但不会标记为可交换。
-          </FieldDescription>
-        </div>
-      </Field>
+      <CreditsEditor
+        credits={draft.credits}
+        disabled={disabled}
+        onChange={(credits) => patch({ credits })}
+      />
     </FieldGroup>
   )
 }

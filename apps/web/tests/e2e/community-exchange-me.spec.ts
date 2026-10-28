@@ -29,16 +29,22 @@ const directAvatarUrl =
 const card = {
   id: "card-1",
   producerName: "浏览器制作人",
-  displayName: "浏览器交换名片",
-  seriesCode: "765",
-  favoriteCharacter: "天海春香",
+  seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
+  middleImageUrls: [],
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
-  available: true,
+  exchangeMode: "manual",
+  madeOn: null,
+  groupName: null,
+  producerReading: null,
+  isOriginal: false,
+  madeWithAi: false,
+  visible: true,
+  credits: [],
   publicationStatus: "draft",
   reviewStatus: null,
   reviewReason: null,
@@ -509,7 +515,7 @@ test.describe("account personal workspace", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page.getByRole("textbox", { name: "显示名称" })).toBeVisible()
-    await expect(page.getByText("浏览器交换名片")).toBeHidden()
+    await expect(page.getByText("浏览器制作人", { exact: true })).toBeHidden()
     await page.screenshot({
       path: `/tmp/imsweb-profile-workspace-profile-${testInfo.project.name}.png`,
       fullPage: true,
@@ -673,8 +679,10 @@ test.describe("account personal workspace", () => {
       await page.getByRole("link", { name: "返回我的", exact: true }).click()
     await page.getByRole("link", { name: /^交换名片/ }).click()
     await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
-    await expect(page.getByText("浏览器交换名片")).toBeVisible()
-    await page.getByRole("button", { name: /浏览器交换名片/ }).click()
+    await expect(page.getByText("浏览器制作人", { exact: true })).toBeVisible()
+    await page
+      .getByRole("button", { name: /^浏览器制作人/ })
+      .click()
     await expect(
       page.getByLabel("编辑名片").getByText("草稿", { exact: true })
     ).toBeVisible()

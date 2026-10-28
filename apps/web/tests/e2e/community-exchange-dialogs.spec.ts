@@ -1,5 +1,6 @@
 import { expect, test, type ApiDispatcher } from "./fixtures/test"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import type {
   FudabaOwnerCard,
   FudabaPlacedCard,
@@ -294,16 +295,22 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   const ownedCard: FudabaOwnerCard = {
     id: "managed-card",
     producerName: "地图制作人",
-    displayName: "地图管理名片",
-    seriesCode: "765",
-    favoriteCharacter: "天海春香",
+    seriesCodes: ["765"],
     favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
     frontImageUrl: "/brand/series/wall/765pro.webp",
+    middleImageUrls: [],
     backImageUrl: "/brand/series/wall/cinderella-girls.webp",
     accent: "#f34e6c",
     bio: "",
     tradeNote: "周末交换",
-    available: true,
+    exchangeMode: "manual",
+    madeOn: null,
+    groupName: null,
+    producerReading: null,
+    isOriginal: false,
+    madeWithAi: false,
+    visible: true,
+    credits: [],
     publicationStatus: "published",
     reviewStatus: null,
     reviewReason: null,
@@ -316,18 +323,23 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   const placedCard: FudabaPlacedCard = {
     id: ownedCard.id,
     producerName: ownedCard.producerName,
-    displayName: ownedCard.displayName,
-    seriesCode: ownedCard.seriesCode,
-    favoriteCharacter: ownedCard.favoriteCharacter,
+    seriesCodes: ownedCard.seriesCodes,
     favoriteCharacters: ownedCard.favoriteCharacters,
     frontImageUrl: ownedCard.frontImageUrl,
+    middleImageUrls: ownedCard.middleImageUrls,
     backImageUrl: ownedCard.backImageUrl,
     accent: ownedCard.accent,
     bio: ownedCard.bio,
     tradeNote: ownedCard.tradeNote,
-    available: ownedCard.available,
+    exchangeMode: ownedCard.exchangeMode,
+    madeOn: ownedCard.madeOn,
+    groupName: ownedCard.groupName,
+    producerReading: ownedCard.producerReading,
+    isOriginal: ownedCard.isOriginal,
+    madeWithAi: ownedCard.madeWithAi,
+    visible: ownedCard.visible,
+    credits: ownedCard.credits,
     createdAt: ownedCard.createdAt,
-    source: null,
     viewerOwned: true,
     interactions: {
       likes: 0,
@@ -531,12 +543,12 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   ).toBeVisible()
   await detail
     .getByRole("button", {
-      name: `查看${ownedCard.displayName}正面`,
+      name: `查看${cardLabel(ownedCard)}正面`,
       exact: true,
     })
     .click()
   const preview = page.getByRole("dialog", {
-    name: `${ownedCard.displayName}正面`,
+    name: `${cardLabel(ownedCard)}正面`,
     exact: true,
   })
   await preview.getByRole("button", { name: "收藏（0）", exact: true }).click()
@@ -551,7 +563,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     .click()
   await detail
     .getByRole("button", {
-      name: `查看${ownedCard.displayName}正面`,
+      name: `查看${cardLabel(ownedCard)}正面`,
       exact: true,
     })
     .click()
@@ -564,9 +576,9 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     exact: true,
   })
   await expect(
-    cardManagement.getByRole("textbox", { name: "名片标题" })
-  ).toHaveValue(ownedCard.displayName)
-  const title = cardManagement.getByRole("textbox", { name: "名片标题" })
+    cardManagement.getByRole("textbox", { name: "制作人名称" })
+  ).toHaveValue(ownedCard.producerName)
+  const title = cardManagement.getByRole("textbox", { name: "制作人名称" })
   await title.fill("")
   await title.pressSequentially("P-01+=")
   await expect(title).toHaveValue("P-01+=")

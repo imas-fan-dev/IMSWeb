@@ -136,13 +136,15 @@ function NamecardItem({
       className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:h-full md:gap-0 md:self-stretch md:rounded-xl md:bg-muted/50"
     >
       <div className="grid gap-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
-        {(["front", "back"] as const).map((side) => {
-          const thumbnail =
-            side === "front"
-              ? card.image1_thumbnail_url
-              : card.image2_thumbnail_url
+        {(["front", "back"] as const).flatMap((side) => {
           const original = side === "front" ? card.image1_url : card.image2_url
-          return (
+          // 单面名片没有背面：不渲染空格子，让正面占满整行。
+          if (!original) return []
+          const thumbnail =
+            (side === "front"
+              ? card.image1_thumbnail_url
+              : card.image2_thumbnail_url) ?? original
+          return [
             <button
               key={side}
               type="button"
@@ -156,8 +158,8 @@ function NamecardItem({
                 thumbnail={thumbnail}
                 original={original}
               />
-            </button>
-          )
+            </button>,
+          ]
         })}
       </div>
       <CardHeader className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 md:min-h-8 md:px-4">

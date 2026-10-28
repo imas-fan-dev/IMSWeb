@@ -35,6 +35,7 @@ import {
   createFudabaCard,
   deleteFudabaCard,
   updateFudabaCard,
+  replaceFudabaCardMiddlePages,
   uploadFudabaCardMedia,
   type FudabaCardFields,
   type FudabaCardMediaSide,
@@ -44,6 +45,8 @@ import {
 } from "~/lib/api"
 import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import { CardDeleteDialog } from "./card-delete-dialog"
+import { creditsIncomplete } from "./card-credits-editor"
+import { CardMiddlePages } from "./card-middle-pages"
 import {
   CardFields,
   CardImageFields,
@@ -97,6 +100,7 @@ export function CardEditor({
   const [deleting, setDeleting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null)
+  const [savingMiddle, setSavingMiddle] = useState(false)
   const frontImage = useAppPreparedImage({
     mediaKind: "fudaba-card-front",
     validate: (file) => validateImage(file, MAX_CARD_IMAGE_BYTES),
@@ -214,6 +218,33 @@ export function CardEditor({
       mutationFailure(error, "名片图片上传失败，请重试。")
     } finally {
       setUploadingSide(null)
+    }
+  }
+
+  async function saveMiddlePages(input: {
+    images: File[]
+    order: string[]
+  }) {
+    if (!card || readOnly) return
+    setSavingMiddle(true)
+    setFeedback(null)
+    try {
+      const result = await replaceFudabaCardMiddlePages(
+        card.id,
+        input,
+        card.revision
+      ).send()
+      setDraft(cardFields(result.card))
+      onSaved(result.card)
+      setFeedback({
+        kind: "success",
+        message: "名片中间页已更新，公开状态随审核流程更新。",
+      })
+      toast.success("名片中间页已更新")
+    } catch (error) {
+      mutationFailure(error, "名片中间页保存失败，请重试。")
+    } finally {
+      setSavingMiddle(false)
     }
   }
 
@@ -340,7 +371,7 @@ export function CardEditor({
         <CardPreview
           frontUrl={previewFront}
           backUrl={previewBack}
-          displayName={draft.displayName}
+          title={draft.producerName}
           renderUpload={(side) => {
             const label = side === "front" ? "正面" : "背面"
             const file = side === "front" ? frontFile : backFile
@@ -450,6 +481,17 @@ export function CardEditor({
         />
       </div>
 
+      {card && !creating ? (
+        <CardMiddlePages
+          initialUrls={
+            card.pendingContent?.middleImageUrls ?? card.middleImageUrls
+          }
+          disabled={editDisabled}
+          saving={savingMiddle}
+          onSave={(input) => void saveMiddlePages(input)}
+        />
+      ) : null}
+
       <form
         className="mt-6"
         onSubmit={(event) =>
@@ -469,9 +511,10 @@ export function CardEditor({
             disabled={
               editDisabled ||
               !draft.producerName.trim() ||
-              !draft.displayName.trim() ||
-              !draft.seriesCode ||
-              (creating && (!frontFile || !backFile))
+              draft.seriesCodes.length === 0 ||
+              draft.favoriteCharacterIds.length === 0 ||
+              creditsIncomplete(draft.credits) ||
+              (creating && !frontFile)
             }
           >
             {saving ? (
@@ -504,7 +547,7 @@ export function CardEditor({
       <CardDeleteDialog
         open={deleteOpen}
         deleting={deleting}
-        displayName={card?.displayName ?? "当前名片"}
+        displayName={card?.producerName ?? "当前名片"}
         onOpenChange={setDeleteOpen}
         onConfirm={() => void removeCard()}
       />

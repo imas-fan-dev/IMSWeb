@@ -38,6 +38,7 @@ import {
 import type { FudabaCardPlacement, FudabaPlacedCard } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { ExchangeCardPreviewActions } from "./exchange-card-preview-actions"
+import { cardLabel } from "./card-label"
 
 export type WallPlacement = Pick<
   FudabaCardPlacement,
@@ -268,8 +269,8 @@ function WallCard({
       }}
     >
       <CoverImagePreview
-        src={flipped ? card.backImageUrl : card.frontImageUrl}
-        alt={`${card.displayName}${side}`}
+        src={(flipped ? card.backImageUrl : card.frontImageUrl) ?? card.frontImageUrl}
+        alt={`${cardLabel(card)}${side}`}
         previewLabel="名片"
         previewActions={<ExchangeCardPreviewActions card={card} />}
         className="aspect-3/2 w-full border bg-card shadow-sm"
@@ -281,7 +282,7 @@ function WallCard({
           variant="secondary"
           size="icon-xs"
           className="absolute right-1.5 bottom-1.5 shadow-sm"
-          aria-label={`${card.displayName}${flipped ? "翻到正面" : "翻到背面"}`}
+          aria-label={`${cardLabel(card)}${flipped ? "翻到正面" : "翻到背面"}`}
           onClick={onFlip}
         >
           <Repeat2Icon aria-hidden="true" />
@@ -297,7 +298,7 @@ function WallCard({
               "absolute -top-3 -left-3 touch-none shadow-sm",
               canMove && "cursor-grab active:cursor-grabbing"
             )}
-            aria-label={`移动${card.displayName}`}
+            aria-label={`移动${cardLabel(card)}`}
             aria-pressed={selected}
             disabled={pending}
             onFocus={onSelect}
@@ -411,7 +412,7 @@ export function PlacedCardWall({
             )}
           >
             <span className="max-w-28 truncate px-1 text-xs font-medium sm:max-w-48">
-              {selectedCard?.displayName ?? "选择名片"}
+              {selectedCard ? cardLabel(selectedCard) : "选择名片"}
             </span>
             <IconTooltip label="向左旋转">
               <Button
@@ -534,7 +535,7 @@ export function PlacedCardWall({
             <AlertDialogTitle>从名片墙移除？</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedCard
-                ? `“${selectedCard.displayName}”会从当前事务所移除，名片本身仍会保留。`
+                ? `“${cardLabel(selectedCard)}”会从当前事务所移除，名片本身仍会保留。`
                 : "名片会从当前事务所移除，名片本身仍会保留。"}
             </AlertDialogDescription>
           </AlertDialogHeader>

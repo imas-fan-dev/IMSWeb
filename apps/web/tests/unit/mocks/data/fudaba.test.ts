@@ -168,7 +168,7 @@ describe("fudaba fixture factories", () => {
 
   it("layers overrides over the defaults without dropping nested keys", () => {
     const value = makeFudabaCardPage({
-      items: [makeFudabaCard({ id: "card-9", displayName: "改名" })],
+      items: [makeFudabaCard({ id: "card-9", producerName: "改名" })],
       pageInfo: { hasNextPage: true, nextCursor: "cursor-2" },
     })
 

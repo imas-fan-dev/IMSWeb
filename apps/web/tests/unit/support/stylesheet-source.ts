@@ -27,7 +27,12 @@ export function appStyleSheetFiles(): string[] {
 
 /** One stylesheet’s source, resolved against `app/`. */
 export function readStyleSheetFile(relativePath: string): string {
-  return readFileSync(resolve(APP_ROOT, relativePath), "utf8")
+  // Assertions slice rules by their own indentation, so a CRLF checkout must
+  // read the same as an LF one.
+  return readFileSync(resolve(APP_ROOT, relativePath), "utf8").replace(
+    /\r\n/g,
+    "\n"
+  )
 }
 
 /**

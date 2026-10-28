@@ -727,16 +727,21 @@ export function withdrawFudabaOwnerLocation(
 
 function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("producerName", fields.producerName)
-  form.append("displayName", fields.displayName)
-  form.append("seriesCode", fields.seriesCode)
+  form.append("producerReading", fields.producerReading ?? "")
+  form.append("seriesCodes", JSON.stringify(fields.seriesCodes))
   form.append(
     "favoriteCharacterIds",
     JSON.stringify(fields.favoriteCharacterIds)
   )
-  form.append("accent", fields.accent)
   form.append("bio", fields.bio)
   form.append("tradeNote", fields.tradeNote)
-  form.append("available", String(fields.available))
+  form.append("exchangeMode", fields.exchangeMode)
+  form.append("madeOn", fields.madeOn ?? "")
+  form.append("groupName", fields.groupName ?? "")
+  form.append("isOriginal", String(fields.isOriginal))
+  form.append("madeWithAi", String(fields.madeWithAi))
+  form.append("visible", String(fields.visible))
+  form.append("credits", JSON.stringify(fields.credits))
 }
 
 export function createFudabaCard(input: CreateFudabaCardInput) {
@@ -744,7 +749,7 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
   const form = new FormData()
   appendCardFields(form, fields)
   form.append("front", front)
-  form.append("back", back)
+  if (back) form.append("back", back)
   return platformApiClient.Post(
     exchangePath("/cards"),
     form,
@@ -789,6 +794,34 @@ export function uploadFudabaCardMedia(
   form.append("expectedRevision", String(upload.expectedRevision))
   return platformApiClient.Put(
     exchangePath(`/uploads/${upload.side}`),
+    form,
+    parsed(fudabaCardMutationResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+      select: normalizeFudabaCardMutation,
+    })
+  )
+}
+
+/**
+ * Replaces the ordered middle pages of one card. `order` is a list of markers:
+ * `#i` keeps the page already at position i, `@n` is the n-th uploaded file.
+ */
+export function replaceFudabaCardMiddlePages(
+  cardId: string,
+  input: { images: readonly File[]; order: readonly string[] },
+  expectedRevision: number
+) {
+  const revision = fudabaRevisionSchema.parse(expectedRevision)
+  const form = new FormData()
+  for (const image of input.images) form.append("images", image)
+  form.append("order", JSON.stringify(input.order))
+  form.append("expectedRevision", String(revision))
+  return platformApiClient.Put(
+    exchangePath(
+      `/me/cards/${encodeURIComponent(cardId)}/middle-pages`
+    ),
     form,
     parsed(fudabaCardMutationResponseSchema, {
       errorSchema: fudabaErrorResponseSchema,

@@ -28,15 +28,20 @@ export const publicationLabels: Record<
 export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
   return {
     producerName: card.producerName,
-    displayName: card.displayName,
-    seriesCode: card.seriesCode,
+    producerReading: card.producerReading,
+    seriesCodes: card.seriesCodes,
     favoriteCharacterIds: card.favoriteCharacters.map(
       (character) => character.id
     ),
-    accent: card.accent,
     bio: card.bio,
     tradeNote: card.tradeNote,
-    available: card.available,
+    exchangeMode: card.exchangeMode,
+    madeOn: card.madeOn,
+    groupName: card.groupName,
+    isOriginal: card.isOriginal,
+    madeWithAi: card.madeWithAi,
+    visible: card.visible,
+    credits: card.credits,
   }
 }
 
@@ -46,13 +51,20 @@ export function emptyCardFields(
 ): FudabaCardFields {
   return {
     producerName: profile.displayName,
-    displayName: "",
-    seriesCode: series[0]?.code ?? "",
+    producerReading: null,
+    // A new card starts on the first published series; the editor lets the
+    // author move it or add more.
+    seriesCodes: series[0] ? [series[0].code] : [],
     favoriteCharacterIds: [],
-    accent: "#f34e6c",
     bio: profile.bio,
     tradeNote: "",
-    available: true,
+    exchangeMode: "manual",
+    madeOn: null,
+    groupName: null,
+    isOriginal: false,
+    madeWithAi: false,
+    visible: true,
+    credits: [],
   }
 }
 

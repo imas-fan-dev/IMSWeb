@@ -80,12 +80,16 @@ export function CardInventory({
               </span>
               <span className="min-w-0 self-center">
                 <span className="block truncate text-sm font-medium">
-                  {card.displayName}
+                  {card.producerName}
                 </span>
                 <span className="mt-1 flex min-w-0 flex-wrap gap-1">
                   <PublicationBadge card={card} />
-                  <Badge variant={card.available ? "default" : "outline"}>
-                    {card.available ? "可交换" : "仅展示"}
+                  <Badge
+                    variant={
+                      card.exchangeMode === "none" ? "outline" : "default"
+                    }
+                  >
+                    {card.exchangeMode === "none" ? "仅展示" : "可交换"}
                   </Badge>
                 </span>
               </span>

@@ -141,17 +141,23 @@ const series = {
 
 const card = {
   id: "card-1",
-  producerName: "春香P",
-  displayName: "周末交换名片",
-  seriesCode: "765",
-  favoriteCharacter: "天海春香",
+  producerName: "周末交换名片",
+  seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
+  middleImageUrls: [],
   backImageUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
   accent: "#f34e6c",
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
-  available: true,
+  exchangeMode: "manual",
+  madeOn: null,
+  groupName: null,
+  producerReading: null,
+  isOriginal: false,
+  madeWithAi: false,
+  visible: true,
+  credits: [],
   publicationStatus: "draft" as const,
   revision: 3,
   createdAt: "2026-08-02T08:00:00.000Z",
@@ -355,7 +361,7 @@ describe("AccountMeWorkspace", () => {
     })
     apiMocks.sendUpdate.mockResolvedValue({
       success: true,
-      card: { ...card, displayName: "更新后的名片", revision: 4 },
+      card: { ...card, producerName: "更新后的名片", revision: 4 },
     })
     apiMocks.sendMediaUpload.mockResolvedValue({
       success: true,
@@ -384,15 +390,15 @@ describe("AccountMeWorkspace", () => {
     view.unmount()
     renderAccountSection("namecards?card=card-1&keep=yes")
     await screen.findByRole("dialog")
-    expect(screen.getByRole("textbox", { name: "名片标题" })).toHaveValue(
-      card.displayName
+    expect(screen.getByRole("textbox", { name: "制作人名称" })).toHaveValue(
+      card.producerName
     )
   })
 
   it("synchronizes close, explicit navigation, rows and history with owned cards", async () => {
     const user = userEvent.setup()
     apiMocks.sendCards.mockResolvedValue({
-      items: [card, { ...card, id: "card-2", displayName: "Second Card" }],
+      items: [card, { ...card, id: "card-2", producerName: "Second Card" }],
     })
     render(
       <MemoryRouter
@@ -411,7 +417,7 @@ describe("AccountMeWorkspace", () => {
     expect(screen.getByLabelText("current-url")).toHaveTextContent("?keep=yes")
     await user.click(screen.getByRole("link", { name: "open B" }))
     await screen.findByRole("dialog", { name: "名片详情与编辑" })
-    expect(screen.getByRole("textbox", { name: "名片标题" })).toHaveValue(
+    expect(screen.getByRole("textbox", { name: "制作人名称" })).toHaveValue(
       "Second Card"
     )
     await user.keyboard("{Escape}")
@@ -451,7 +457,7 @@ describe("AccountMeWorkspace", () => {
       await screen.findByRole("heading", { name: "个人档案" })
     ).toBeVisible()
     expect(
-      screen.queryByRole("textbox", { name: "名片标题" })
+      screen.queryByRole("textbox", { name: "制作人名称" })
     ).not.toBeInTheDocument()
 
     const profileName = screen.getByRole("textbox", { name: "显示名称" })
@@ -478,7 +484,7 @@ describe("AccountMeWorkspace", () => {
       screen.queryByRole("textbox", { name: "显示名称" })
     ).not.toBeInTheDocument()
 
-    const cardName = screen.getByRole("textbox", { name: "名片标题" })
+    const cardName = screen.getByRole("textbox", { name: "制作人名称" })
     await user.clear(cardName)
     await user.type(cardName, "更新后的名片")
     await user.click(screen.getByRole("button", { name: "保存名片资料" }))
@@ -487,7 +493,7 @@ describe("AccountMeWorkspace", () => {
       expect(apiMocks.updateFudabaCard).toHaveBeenCalledWith(
         "card-1",
         expect.objectContaining({
-          displayName: "更新后的名片",
+          producerName: "更新后的名片",
           expectedRevision: 3,
         })
       )
@@ -854,7 +860,7 @@ describe("AccountMeWorkspace", () => {
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
-    const cardName = await screen.findByRole("textbox", { name: "名片标题" })
+    const cardName = await screen.findByRole("textbox", { name: "制作人名称" })
     await user.clear(cardName)
     await user.type(cardName, "仍需保留的输入")
     await user.click(screen.getByRole("button", { name: "保存名片资料" }))
@@ -932,7 +938,8 @@ describe("AccountMeWorkspace", () => {
     await user.click(await screen.findByRole("link", { name: "交换名片" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await user.click(screen.getAllByRole("button", { name: "新建名片" })[0])
-    const cardName = await screen.findByRole("textbox", { name: "名片标题" })
+    const cardName = await screen.findByRole("textbox", { name: "制作人名称" })
+    await user.clear(cardName)
     await user.type(cardName, "新交换名片")
     await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
     await user.click(screen.getByRole("button", { name: "上传名片正面" }))
@@ -962,8 +969,8 @@ describe("AccountMeWorkspace", () => {
     await waitFor(() => {
       expect(apiMocks.createFudabaCard).toHaveBeenCalledWith(
         expect.objectContaining({
-          displayName: "新交换名片",
-          seriesCode: "765",
+          producerName: "新交换名片",
+          seriesCodes: ["765"],
           favoriteCharacterIds: [1],
           front: expect.objectContaining({ name: "front.png" }),
           back: expect.objectContaining({ name: "back.png" }),
@@ -989,7 +996,7 @@ describe("AccountMeWorkspace", () => {
     const createdCard = {
       ...card,
       id: "card-new",
-      displayName: "Late B",
+      producerName: "Late B",
       revision: 0,
     }
     let resolveCreate!: (value: {
@@ -1007,7 +1014,8 @@ describe("AccountMeWorkspace", () => {
     await user.click(await screen.findByRole("link", { name: "交换名片" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await user.click(screen.getAllByRole("button", { name: "新建名片" })[0])
-    const cardName = await screen.findByRole("textbox", { name: "名片标题" })
+    const cardName = await screen.findByRole("textbox", { name: "制作人名称" })
+    await user.clear(cardName)
     await user.type(cardName, "新交换名片")
     await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
     await user.click(screen.getByRole("button", { name: "上传名片正面" }))
@@ -1036,10 +1044,10 @@ describe("AccountMeWorkspace", () => {
 
     await user.keyboard("{Escape}")
     await user.click(screen.getByRole("button", { name: /周末交换名片/ }))
-    await screen.findByRole("textbox", { name: "名片标题" })
+    await screen.findByRole("textbox", { name: "制作人名称" })
     await act(async () => resolveCreate({ success: true, card: createdCard }))
-    expect(screen.getByRole("textbox", { name: "名片标题" })).toHaveValue(
-      card.displayName
+    expect(screen.getByRole("textbox", { name: "制作人名称" })).toHaveValue(
+      card.producerName
     )
   })
 
@@ -1062,7 +1070,7 @@ describe("AccountMeWorkspace", () => {
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
-    expect(screen.getByRole("textbox", { name: "名片标题" })).toBeDisabled()
+    expect(screen.getByRole("textbox", { name: "制作人名称" })).toBeDisabled()
     expect(
       screen.getByRole("button", { name: "新建名片", hidden: true })
     ).toBeDisabled()
@@ -1163,7 +1171,7 @@ describe("AccountMeWorkspace", () => {
     )
     expect(apiMocks.getFudabaOwnerCards).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "管理我的名片" }))
-    const title = await screen.findByRole("textbox", { name: "名片标题" })
+    const title = await screen.findByRole("textbox", { name: "制作人名称" })
     await user.clear(title)
     await user.type(title, "地图中修改的名片")
     await user.click(screen.getByRole("button", { name: "保存名片资料" }))
@@ -1171,7 +1179,7 @@ describe("AccountMeWorkspace", () => {
       expect(apiMocks.updateFudabaCard).toHaveBeenCalledWith(
         card.id,
         expect.objectContaining({
-          displayName: "地图中修改的名片",
+          producerName: "地图中修改的名片",
           expectedRevision: card.revision,
         })
       )
@@ -1203,7 +1211,7 @@ describe("AccountMeWorkspace", () => {
     )
     await user.click(screen.getByRole("button", { name: "管理我的名片" }))
     expect(
-      await screen.findByRole("textbox", { name: "名片标题" })
+      await screen.findByRole("textbox", { name: "制作人名称" })
     ).toBeDisabled()
     expect(screen.getByRole("button", { name: "保存名片资料" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "更换名片正面" })).toBeDisabled()

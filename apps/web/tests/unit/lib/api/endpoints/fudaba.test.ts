@@ -113,13 +113,18 @@ const ownerLocation = makeFudabaOwnerLocation({
 
 const cardFields = {
   producerName: "春香P",
-  displayName: "交换会用名片",
-  seriesCode: "765",
+  seriesCodes: ["765"],
   favoriteCharacterIds: [1],
-  accent: "#f34e6c",
   bio: "周末参加线下活动",
   tradeNote: "希望交换同系列名片",
-  available: true,
+  exchangeMode: "manual" as const,
+  madeOn: null,
+  groupName: null,
+  producerReading: null,
+  isOriginal: false,
+  madeWithAi: false,
+  visible: true,
+  credits: [],
 }
 
 afterEach(() => {
@@ -705,7 +710,7 @@ describe("Fudaba Web API contracts", () => {
     await createFudabaCard({ ...cardFields, front, back }).send()
     await updateFudabaCard("owner card?#", {
       ...cardFields,
-      displayName: "  Updated card  ",
+      producerName: "  Updated card  ",
       expectedRevision: 1,
     }).send()
     await uploadFudabaCardMedia("owner card?#", "front", replacement, 1).send()
@@ -727,13 +732,13 @@ describe("Fudaba Web API contracts", () => {
     const create = requests[0]?.init?.body as FormData
     expect(create.get("front")).toBe(front)
     expect(create.get("back")).toBe(back)
-    expect(create.get("available")).toBe("true")
-    expect(create.get("displayName")).toBe(cardFields.displayName)
+    expect(create.get("exchangeMode")).toBe("manual")
+    expect(create.get("producerName")).toBe(cardFields.producerName)
     expect(create.get("favoriteCharacterIds")).toBe("[1]")
 
     expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
       ...cardFields,
-      displayName: "Updated card",
+      producerName: "Updated card",
       expectedRevision: 1,
     })
 

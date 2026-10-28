@@ -92,7 +92,7 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
   }
   const card = makeFudabaOwnerCard({
     id: "owner-card",
-    displayName: "Owner Card",
+    producerName: "Owner Card",
     frontImageUrl:
       "/api/community/exchange/me/cards/owner-card/media/front?v=1",
     backImageUrl: "/api/community/exchange/me/cards/owner-card/media/back?v=1",
@@ -225,7 +225,7 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
     name: "我的名片清单",
   })
   const inventoryCard = inventoryNavigation.getByRole("button", {
-    name: /Owner Card/,
+    name: /^Owner Card/,
   })
   await expect(inventoryCard).toBeVisible()
   const inventory = inventoryCard.locator("img")

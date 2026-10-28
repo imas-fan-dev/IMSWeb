@@ -17,6 +17,7 @@ import type {
   FudabaSeries,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { cardLabel } from "./card-label"
 import {
   CardInteractionBar,
   CardInteractionScope,
@@ -29,29 +30,39 @@ export { PlacedCardWall } from "./exchange-card-wall"
 export { CardInteractionBar } from "./exchange-card-interactions"
 export { CardReactionBar } from "./exchange-card-reactions"
 
+/** A card belongs to one or more series; every code gets its own chip. */
 export function SeriesBadge({
-  code,
+  codes,
   series,
 }: {
-  code: string
+  codes: readonly string[]
   series: ReadonlyMap<string, FudabaSeries>
 }) {
-  const catalogSeries = series.get(code)
   return (
-    <Badge
-      variant="outline"
-      className={cn("max-w-full", !catalogSeries && "bg-muted")}
-      style={
-        catalogSeries
-          ? {
-              borderColor: catalogSeries.color,
-              backgroundColor: `color-mix(in srgb, ${catalogSeries.color} 12%, transparent)`,
+    <>
+      {codes.map((code) => {
+        const catalogSeries = series.get(code)
+        return (
+          <Badge
+            key={code}
+            variant="outline"
+            className={cn("max-w-full", !catalogSeries && "bg-muted")}
+            style={
+              catalogSeries
+                ? {
+                    borderColor: catalogSeries.color,
+                    backgroundColor: `color-mix(in srgb, ${catalogSeries.color} 12%, transparent)`,
+                  }
+                : undefined
             }
-          : undefined
-      }
-    >
-      <span className="truncate">{catalogSeries?.displayName ?? code}</span>
-    </Badge>
+          >
+            <span className="truncate">
+              {catalogSeries?.displayName ?? code}
+            </span>
+          </Badge>
+        )
+      })}
+    </>
   )
 }
 
@@ -126,9 +137,7 @@ export function OfficeCard({
         </p>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-1.5">
-        {office.seriesCodes.map((code) => (
-          <SeriesBadge key={code} code={code} series={series} />
-        ))}
+        <SeriesBadge codes={office.seriesCodes} series={series} />
       </CardFooter>
     </Card>
   )
@@ -136,23 +145,31 @@ export function OfficeCard({
 
 function CardMediaPair({ card }: { card: FudabaCard }) {
   return (
-    <div className="grid grid-cols-2 gap-px border-b bg-border">
+    <div
+      className={
+        card.backImageUrl
+          ? "grid grid-cols-2 gap-px border-b bg-border"
+          : "grid grid-cols-1 gap-px border-b bg-border"
+      }
+    >
       <CoverImagePreview
         src={card.frontImageUrl}
-        alt={`${card.displayName}正面`}
+        alt={`${cardLabel(card)}正面`}
         previewLabel="名片"
         previewActions={<ExchangeCardPreviewActions card={card} />}
         className="aspect-3/2 rounded-none bg-muted"
         imageClassName="object-contain"
       />
-      <CoverImagePreview
-        src={card.backImageUrl}
-        alt={`${card.displayName}背面`}
-        previewLabel="名片"
-        previewActions={<ExchangeCardPreviewActions card={card} />}
-        className="aspect-3/2 rounded-none bg-muted"
-        imageClassName="object-contain"
-      />
+      {card.backImageUrl ? (
+        <CoverImagePreview
+          src={card.backImageUrl}
+          alt={`${cardLabel(card)}背面`}
+          previewLabel="名片"
+          previewActions={<ExchangeCardPreviewActions card={card} />}
+          className="aspect-3/2 rounded-none bg-muted"
+          imageClassName="object-contain"
+        />
+      ) : null}
     </div>
   )
 }
@@ -175,15 +192,22 @@ function ExchangeCardContent({
       <CardHeader className="gap-2">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <CardTitle className="min-w-0 truncate text-sm">
-            {card.displayName}
+            {card.producerName}
           </CardTitle>
-          <Badge variant={card.available ? "default" : "secondary"}>
-            {card.available ? "可交换" : "仅展示"}
+          <Badge
+            variant={card.exchangeMode === "none" ? "secondary" : "default"}
+          >
+            {card.exchangeMode === "none"
+              ? "仅展示"
+              : card.exchangeMode === "auto"
+                ? "自动交换"
+                : "可交换"}
           </Badge>
         </div>
         <p className="truncate text-sm text-muted-foreground">
-          {card.producerName}
-          {card.favoriteCharacter ? ` · ${card.favoriteCharacter}` : ""}
+          {card.seriesCodes
+            .map((code) => series.get(code)?.displayName ?? code)
+            .join(" · ")}
         </p>
       </CardHeader>
       <CardContent className="flex-1">
@@ -193,7 +217,7 @@ function ExchangeCardContent({
       </CardContent>
       <CardFooter className="flex flex-col items-stretch gap-2">
         <div className="flex items-center justify-between gap-3">
-          <SeriesBadge code={card.seriesCode} series={series} />
+          <SeriesBadge codes={card.seriesCodes} series={series} />
           <CardInteractionBar card={card} onChange={onInteractionsChange} />
         </div>
         <CardReactionArea cardId={card.id} />

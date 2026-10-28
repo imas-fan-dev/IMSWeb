@@ -90,17 +90,22 @@ const mapOffices = [
 const card = {
   id: "card-1",
   producerName: "春香P",
-  displayName: "周末交换会名片",
-  seriesCode: "765",
-  favoriteCharacter: "天海春香",
+  seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
+  middleImageUrls: [],
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
   bio: "上海地区制作人",
   tradeNote: "现场交换同系列名片",
-  available: true,
-  source: null,
+  exchangeMode: "manual",
+  madeOn: null,
+  groupName: null,
+  producerReading: null,
+  isOriginal: false,
+  madeWithAi: false,
+  visible: true,
+  credits: [],
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 12,
@@ -981,7 +986,7 @@ test.describe("community exchange map", () => {
         directory.getByRole("link", { name: "上海周末交换事务所" })
       ).toBeVisible()
       await page.getByRole("tab", { name: "名片" }).click()
-      await expect(page.getByText("周末交换会名片")).toBeVisible()
+      await expect(page.getByText("春香P", { exact: true })).toBeVisible()
 
       const accessibility = await new AxeBuilder({ page }).analyze()
       expect(accessibility.violations).toEqual([])
@@ -1098,9 +1103,11 @@ test.describe("community exchange map", () => {
         }
       }
       await fallbackDirectory.getByRole("tab", { name: "名片" }).click()
-      await expect(fallbackDirectory.getByText("周末交换会名片")).toBeVisible()
+      await expect(
+        fallbackDirectory.getByText("春香P", { exact: true })
+      ).toBeVisible()
       await fallbackDirectory
-        .getByRole("button", { name: "查看周末交换会名片正面" })
+        .getByRole("button", { name: "查看春香P的名片正面" })
         .click()
       await expect(page.getByRole("dialog")).toBeVisible()
       await page.keyboard.press("Escape")

@@ -11,7 +11,7 @@ const mapStylesheet = readFileSync(
     "app/pages/community/exchange/maps/exchange-office-map.css"
   ),
   "utf8"
-)
+).replace(/\r\n/g, "\n")
 const appStylesheet = readAppStylesheet()
 
 /**
@@ -115,7 +115,7 @@ describe("exchange map stylesheet", () => {
   it("gives the App map chrome the tab bar's material and one control grid", () => {
     const glass = blockBody(
       mapStylesheet,
-      ".exchange-map-app-glass,\n  .exchange-search-card[data-app-search]"
+      '.exchange-map-app-glass,\n  .exchange-search-card[data-app-search][data-detent="collapsed"]'
     )
 
     // The search pill and the tools trigger reuse the shared bar alpha, blur and

@@ -86,7 +86,7 @@ export function NamecardPreview({
   useEffect(() => {
     if (!card) return
     const image = new Image()
-    image.src = side === "front" ? card.image2_url : card.image1_url
+    image.src = (side === "front" ? card.image2_url : card.image1_url) ?? ""
   }, [card, side])
 
   function updateScale(getNextScale: (currentScale: number) => number) {
