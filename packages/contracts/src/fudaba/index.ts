@@ -220,13 +220,19 @@ export const namecardCreditSchema = z
 
 export type NamecardCredit = z.infer<typeof namecardCreditSchema>;
 
-/** Sort key for 制作人名: kana and Latin letters only, as the name is read. */
+/**
+ * Sort key for 制作人名: kana and Latin letters only, as the name is read.
+ * Apostrophes and hyphens may split the syllables; sorting strips them.
+ */
 export const namecardProducerReadingSchema = z
   .string()
   .trim()
   .min(1)
   .max(80)
-  .regex(/^[ぁ-ゖァ-ヺーA-Za-z ]+$/, "制作人名读法只能使用日文假名与英文字母");
+  .regex(
+    /^[ぁ-ゖァ-ヺーA-Za-z '-]+$/,
+    "制作人名读法只能使用日文假名、英文字母、撇号与连字符"
+  );
 
 export const fudabaCardSchema = exactJsonResponse({
   id: z.string().min(1),

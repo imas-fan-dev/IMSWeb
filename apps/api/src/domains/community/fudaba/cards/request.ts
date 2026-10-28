@@ -105,14 +105,17 @@ function nullableText(value: unknown, name: string, maximum: number): string | n
     return normalized.length > 0 ? normalized : null;
 }
 
-/** Producer name reading: the sort key, so kana and Latin letters only. */
-const PRODUCER_READING = /^[ぁ-ゖァ-ヺーA-Za-z ]+$/;
+/**
+ * Producer name reading: the sort key, so kana and Latin letters only.
+ * Apostrophes and hyphens may split the syllables; sorting strips them.
+ */
+const PRODUCER_READING = /^[ぁ-ゖァ-ヺーA-Za-z '\-]+$/;
 
 function producerReading(value: unknown): string | null {
     const reading = nullableText(value, 'producerReading', 80);
     if (reading === null) return null;
     if (!PRODUCER_READING.test(reading)) {
-        throw badRequest('制作人名读法只能使用日文假名与英文字母');
+        throw badRequest('制作人名读法只能使用日文假名、英文字母、撇号与连字符');
     }
     return reading;
 }

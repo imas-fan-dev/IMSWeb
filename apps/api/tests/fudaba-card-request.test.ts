@@ -40,3 +40,19 @@ describe('fudaba card request flags', () => {
         assert.equal(parsed.madeWithAi, true)
     })
 })
+
+describe('fudaba card request producer reading', () => {
+    test('keeps the syllable marks used for sorting', () => {
+        const parsed = parseFudabaCardCreateFields(
+            fields({ producerReading: "かとう-せんぱい's" })
+        )
+        assert.equal(parsed.producerReading, "かとう-せんぱい's")
+    })
+
+    test('rejects characters outside the reading alphabet', () => {
+        assert.throws(
+            () => parseFudabaCardCreateFields(fields({ producerReading: 'かとう。' })),
+            /制作人名读法/
+        )
+    })
+})

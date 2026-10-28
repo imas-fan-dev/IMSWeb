@@ -133,7 +133,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261028120000_namecard_editor_fields', phase: 'post-data' },
                 { version: '20261029120000_namecard_series_set', phase: 'post-data' },
                 { version: '20261030120000_namecard_accent_source', phase: 'post-data' },
-                { version: '20261030130000_namecard_series_require_one_skip_missing', phase: 'post-data' }
+                { version: '20261030130000_namecard_series_require_one_skip_missing', phase: 'post-data' },
+                { version: '20261030140000_namecard_reading_marks', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -662,11 +663,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 66);
+        assert.equal(catalog.count, 67);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261030130000_namecard_series_require_one_skip_missing'
+            '20261030140000_namecard_reading_marks'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1012,7 +1013,8 @@ test.describe('PostgreSQL migration', () => {
                 '20261028120000_namecard_editor_fields',
                 '20261029120000_namecard_series_set',
                 '20261030120000_namecard_accent_source',
-                '20261030130000_namecard_series_require_one_skip_missing'
+                '20261030130000_namecard_series_require_one_skip_missing',
+                '20261030140000_namecard_reading_marks'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);
