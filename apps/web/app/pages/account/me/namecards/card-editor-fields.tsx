@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { CharacterMultiSelect } from "~/components/community/character-multi-select"
+import { normalizeProducerReading } from "./card-reading"
 import { SeriesMultiSelect } from "~/components/community/series-multi-select"
 import { Checkbox } from "~/components/ui/checkbox"
 import {
@@ -119,6 +120,8 @@ export function CardFields({
   const { catalog, loading, failed } = useNamecardCharacterCatalog()
   const [modeDirection, setModeDirection] = useState<"next" | "previous">("next")
   const madeOn = splitMadeOn(draft.madeOn)
+  // 输入法在组合期间会先落全角英文字母，此时原样保留，提交或失去焦点时再清理。
+  const [readingComposing, setReadingComposing] = useState(false)
   // 担当角色所属的企划必须勾选且不可取消，否则角色与企划会互相矛盾。
   const lockedSeriesCodes = Array.from(
     new Set(
@@ -168,17 +171,41 @@ export function CardFields({
               value={draft.producerReading ?? ""}
               maxLength={80}
               disabled={disabled}
+              autoComplete="off"
               onChange={(event) => {
-                // 只接受假名与英文字母，与服务端 CHECK 保持一致。
-                const value = event.currentTarget.value.replace(
-                  /[^ぁ-ゖァ-ヺーA-Za-z ]/g,
-                  ""
-                )
-                patch({ producerReading: value ? value : null })
+                const composing =
+                  readingComposing ||
+                  (event.nativeEvent as { isComposing?: boolean }).isComposing ===
+                    true
+                if (composing) {
+                  patch({ producerReading: event.currentTarget.value || null })
+                  return
+                }
+                patch({
+                  producerReading: normalizeProducerReading(
+                    event.currentTarget.value
+                  ),
+                })
               }}
+              onCompositionStart={() => setReadingComposing(true)}
+              onCompositionEnd={(event) => {
+                setReadingComposing(false)
+                patch({
+                  producerReading: normalizeProducerReading(
+                    event.currentTarget.value
+                  ),
+                })
+              }}
+              onBlur={(event) =>
+                patch({
+                  producerReading: normalizeProducerReading(
+                    event.currentTarget.value
+                  ),
+                })
+              }
             />
             <FieldDescription>
-              仅可使用日文假名与英文字母，用于按读音排序。
+              仅可使用日文假名与英文字母，可用撇号或连字符分隔音节，排序时会忽略它们。
             </FieldDescription>
           </Field>
 

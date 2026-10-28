@@ -615,7 +615,7 @@ export function CardEditorHeading({
         </div>
       </div>
       {creating ? null : (
-        <dl className="mt-auto flex min-w-0 shrink-0 flex-col items-start gap-0.5 font-mono text-xs text-muted-foreground sm:items-end sm:self-end sm:text-right">
+        <dl className="card-time mt-auto flex min-w-0 shrink-0 flex-col items-start gap-0.5 text-xs text-muted-foreground sm:items-end sm:self-end sm:text-right">
           <div className="block whitespace-nowrap">
             <dt className="inline">创建于 </dt>
             <dd className="inline">{formatCardTime(card?.createdAt)}</dd>
