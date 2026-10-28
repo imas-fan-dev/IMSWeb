@@ -6,23 +6,12 @@ import {
   RefreshCwIcon,
   SaveIcon,
   Trash2Icon,
-  UploadIcon,
 } from "lucide-react"
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "~/components/ui/dialog"
-import { Badge } from "~/components/ui/badge"
+import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Button } from "~/components/ui/button"
 import {
   Empty,
@@ -36,35 +25,32 @@ import {
   deleteFudabaCard,
   updateFudabaCard,
   replaceFudabaCardMedia,
-  uploadFudabaCardMedia,
   type FudabaCardFields,
-  type FudabaCardMediaSide,
   type FudabaOwnerCard,
   type FudabaSeries,
   type PlatformProfile,
 } from "~/lib/api"
-import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import { CardDeleteDialog } from "./card-delete-dialog"
-import { creditsIncomplete } from "./card-credits-editor"
-import { CardMiddlePages } from "./card-middle-pages"
-import { middlePageSlotOrder } from "./card-media-slots"
 import {
-  CardFields,
-  CardImageFields,
-  CardPreview,
-  useObjectUrl,
-} from "./card-editor-fields"
-import { PublicationBadge } from "./card-inventory"
+  artworkSidesMismatch,
+  buildMediaSubmit,
+  CardMediaGallery,
+  mediaSlotsFromCard,
+  releaseMediaSlot,
+  type MediaSlot,
+} from "./card-media-gallery"
+import { CardFields } from "./card-editor-fields"
+import {
+  CardModule,
+  type CardModuleModes,
+} from "./card-module"
 import {
   apiMessage,
   isFeatureClosed,
-  validateImage,
   type EditorFeedback,
 } from "../account-me-model"
 
 import { cardFields, emptyCardFields, isCardConflict } from "./card-model"
-
-const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
 
 export function CardEditor({
   card,
@@ -73,6 +59,7 @@ export function CardEditor({
   series,
   readOnly,
   readOnlyReason,
+  modes,
   onCreated,
   onSaved,
   onDeleted,
@@ -85,6 +72,8 @@ export function CardEditor({
   series: FudabaSeries[]
   readOnly: boolean
   readOnlyReason: string | null
+  /** 每个模块可单独设为仅显示 / 编辑 / 不可见。 */
+  modes?: CardModuleModes
   onCreated: (card: FudabaOwnerCard) => void
   onSaved: (card: FudabaOwnerCard) => void
   onDeleted: (cardId: string) => void
@@ -94,36 +83,37 @@ export function CardEditor({
   const [draft, setDraft] = useState<FudabaCardFields>(() =>
     card ? cardFields(card) : emptyCardFields(profile, series)
   )
-  const [mediaSide, setMediaSide] = useState<FudabaCardMediaSide | null>(null)
   const [saving, setSaving] = useState(false)
-  const [uploadingSide, setUploadingSide] =
-    useState<FudabaCardMediaSide | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null)
-  const [savingMiddle, setSavingMiddle] = useState(false)
-  const frontImage = useAppPreparedImage({
-    mediaKind: "fudaba-card-front",
-    validate: (file) => validateImage(file, MAX_CARD_IMAGE_BYTES),
-    onError: (message) => setFeedback({ kind: "error", message }),
-    onSelected: () => setFeedback(null),
-  })
-  const backImage = useAppPreparedImage({
-    mediaKind: "fudaba-card-back",
-    validate: (file) => validateImage(file, MAX_CARD_IMAGE_BYTES),
-    onError: (message) => setFeedback({ kind: "error", message }),
-    onSelected: () => setFeedback(null),
-  })
-  const [confirmedFront, setConfirmedFront] = useState<File | null>(null)
-  const [confirmedBack, setConfirmedBack] = useState<File | null>(null)
-  const frontFile = frontImage.file
-  const backFile = backImage.file
-  const frontObjectUrl = useObjectUrl(frontFile)
-  const backObjectUrl = useObjectUrl(backFile)
+  const [invalidFields, setInvalidFields] = useState<readonly string[]>([])
+  const [aspectWarning, setAspectWarning] = useState(false)
+  const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null)
+  const [slots, setSlots] = useState<MediaSlot[]>(() =>
+    card
+      ? mediaSlotsFromCard({
+          frontImageUrl: card.pendingContent?.frontImageUrl ?? card.frontImageUrl,
+          middleImageUrls:
+            card.pendingContent?.middleImageUrls ?? card.middleImageUrls,
+          backImageUrl: card.pendingContent?.backImageUrl ?? card.backImageUrl,
+        })
+      : []
+  )
+  const [mediaDirty, setMediaDirty] = useState(false)
 
-  function selectImage(file: File | null, side: FudabaCardMediaSide) {
-    if (side === "front") frontImage.selectFile(file)
-    else backImage.selectFile(file)
+  useEffect(
+    () => () => {
+      for (const slot of slots) releaseMediaSlot(slot)
+    },
+    // Object URLs only have to be released when the editor unmounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+
+  function updateSlots(next: MediaSlot[]) {
+    setSlots(next)
+    setMediaDirty(true)
   }
 
   function mutationFailure(error: unknown, fallback: string) {
@@ -143,116 +133,134 @@ export function CardEditor({
     setFeedback({ kind: "error", message: apiMessage(error, fallback) })
   }
 
-  async function createCard(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!frontFile || !backFile) {
-      setFeedback({
-        kind: "error",
-        message: "请分别选择名片正面和背面图片。",
+  function seedSlots(next: FudabaOwnerCard) {
+    for (const slot of slots) releaseMediaSlot(slot)
+    setSlots(
+      mediaSlotsFromCard({
+        frontImageUrl: next.pendingContent?.frontImageUrl ?? next.frontImageUrl,
+        middleImageUrls:
+          next.pendingContent?.middleImageUrls ?? next.middleImageUrls,
+        backImageUrl: next.pendingContent?.backImageUrl ?? next.backImageUrl,
       })
-      return
-    }
-    setSaving(true)
-    setFeedback(null)
-    try {
-      const result = await createFudabaCard({
-        ...draft,
-        front: frontFile,
-        back: backFile,
-      }).send()
-      setDraft(cardFields(result.card))
-      onCreated(result.card)
-      frontImage.clear()
-      backImage.clear()
-      setFeedback({ kind: "success", message: "名片草稿已创建。" })
-      toast.success("名片草稿已创建")
-    } catch (error) {
-      mutationFailure(error, "名片创建失败，请检查内容和图片后重试。")
-    } finally {
-      setSaving(false)
+    )
+    setMediaDirty(false)
+  }
+
+  function missingFields(): readonly string[] {
+    const missing: string[] = []
+    if (!draft.producerName.trim()) missing.push("producerName")
+    if (draft.seriesCodes.length === 0) missing.push("seriesCodes")
+    if (draft.favoriteCharacterIds.length === 0)
+      missing.push("favoriteCharacterIds")
+    if (slots.length === 0) missing.push("media")
+    return missing
+  }
+
+  const FIELD_MESSAGES: Record<string, string> = {
+    producerName: "请填写制作人名称。",
+    seriesCodes: "请至少选择一个所属企划。",
+    favoriteCharacterIds: "请至少选择一个担当角色。",
+    media: "请至少添加一张名片图片。",
+  }
+
+  function reportMissing(fields: readonly string[]) {
+    setInvalidFields(fields)
+    setFeedback({
+      kind: "error",
+      message: fields.map((field) => FIELD_MESSAGES[field]).join(" "),
+    })
+    const target = document.querySelector(
+      `[data-card-field="${fields[0]}"]`
+    )
+    target?.scrollIntoView({ behavior: "smooth", block: "center" })
+    const focusable = target?.querySelector<HTMLElement>(
+      "input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])"
+    )
+    focusable?.focus({ preventScroll: true })
+  }
+
+  /** 空着的署名行是编辑器给的默认行，提交前要丢掉。 */
+  function submitFields(): FudabaCardFields {
+    return {
+      ...draft,
+      credits: draft.credits.filter((credit) => credit.displayName.trim()),
     }
   }
 
-  async function saveMetadata(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!card) return
+  async function submitCard() {
     setSaving(true)
     setFeedback(null)
+    setInvalidFields([])
     try {
+      if (creating) {
+        const files = slots.flatMap((slot) =>
+          slot.kind === "new" ? [slot.file] : []
+        )
+        const front: File | undefined = files.at(0)
+        if (!front) {
+          reportMissing(["media"])
+          return
+        }
+        const back = files.length > 1 ? files[files.length - 1] : undefined
+        const images = files.length > 2 ? files.slice(1, files.length - 1) : []
+        const result = await createFudabaCard({
+          ...submitFields(),
+          front,
+          ...(back ? { back } : {}),
+          images,
+        }).send()
+        setDraft(cardFields(result.card))
+        onCreated(result.card)
+        seedSlots(result.card)
+        setFeedback({ kind: "success", message: "名片草稿已创建。" })
+        toast.success("名片草稿已创建")
+        return
+      }
+      if (!card) return
+      let latest = card
+      if (mediaDirty) {
+        const media = await replaceFudabaCardMedia(
+          card.id,
+          buildMediaSubmit(slots),
+          card.revision
+        ).send()
+        latest = media.card
+        setDraft(cardFields(media.card))
+        seedSlots(media.card)
+        onSaved(media.card)
+      }
       const result = await updateFudabaCard(card.id, {
-        ...draft,
-        expectedRevision: card.revision,
+        ...submitFields(),
+        expectedRevision: latest.revision,
       }).send()
       setDraft(cardFields(result.card))
       onSaved(result.card)
       setFeedback({ kind: "success", message: "名片资料已保存。" })
       toast.success("名片资料已保存")
     } catch (error) {
-      mutationFailure(error, "名片资料保存失败，请重试。")
+      mutationFailure(error, "名片保存失败，请重试。")
     } finally {
       setSaving(false)
     }
   }
 
-  async function uploadSide(side: FudabaCardMediaSide) {
-    if (!card || readOnly) return
-    const file = side === "front" ? frontFile : backFile
-    if (!file) return
-    setUploadingSide(side)
-    setFeedback(null)
-    try {
-      const result = await uploadFudabaCardMedia(
-        card.id,
-        side,
-        file,
-        card.revision
-      ).send()
-      setDraft(cardFields(result.card))
-      onSaved(result.card)
-      if (side === "front") frontImage.clear()
-      else backImage.clear()
-      const label = side === "front" ? "正面" : "背面"
-      setFeedback({ kind: "success", message: `名片${label}已更新。` })
-      toast.success(`名片${label}已更新`)
-      setMediaSide(null)
-    } catch (error) {
-      mutationFailure(error, "名片图片上传失败，请重试。")
-    } finally {
-      setUploadingSide(null)
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (readOnly) return
+    const missing = missingFields()
+    if (missing.length > 0) {
+      reportMissing(missing)
+      return
     }
-  }
-
-  async function saveMiddlePages(input: {
-    images: File[]
-    order: string[]
-  }) {
-    if (!card || readOnly) return
-    setSavingMiddle(true)
-    setFeedback(null)
-    try {
-      const order = middlePageSlotOrder(
-        input.order,
-        card.pendingContent?.middleImageUrls?.length ??
-          card.middleImageUrls.length,
-        Boolean(card.backImageUrl ?? card.pendingContent?.backImageUrl)
-      )
-      const result = await replaceFudabaCardMedia(
-        card.id,
-        { images: input.images, order },
-        card.revision
-      ).send()
-      setDraft(cardFields(result.card))
-      onSaved(result.card)
-      setFeedback({
-        kind: "success",
-        message: "名片中间页已更新，公开状态随审核流程更新。",
+    if (mediaDirty && (await artworkSidesMismatch(slots))) {
+      setPendingSubmit(() => () => {
+        setAspectWarning(false)
+        void submitCard()
       })
-      toast.success("名片中间页已更新")
-    } catch (error) {
-      mutationFailure(error, "名片中间页保存失败，请重试。")
-    } finally {
-      setSavingMiddle(false)
+      setAspectWarning(true)
+      return
     }
+    await submitCard()
   }
 
   async function removeCard() {
@@ -286,16 +294,8 @@ export function CardEditor({
     }
   }
 
-  const preparingSide: FudabaCardMediaSide | null = frontImage.preparing
-    ? "front"
-    : backImage.preparing
-      ? "back"
-      : null
-  const busy =
-    saving || preparingSide !== null || uploadingSide !== null || deleting
+  const busy = saving || deleting
   const editDisabled = readOnly || busy
-  const previewFront = frontObjectUrl ?? card?.frontImageUrl ?? null
-  const previewBack = backObjectUrl ?? card?.backImageUrl ?? null
 
   if (creating && readOnly && !card) {
     return (
@@ -315,6 +315,7 @@ export function CardEditor({
 
   return (
     <section className="min-w-0" aria-labelledby="owned-card-editor-title">
+      <CardModule mode={modes?.header}>
       <div className="flex min-w-0 flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 id="owned-card-editor-title" className="text-base font-medium">
@@ -322,18 +323,32 @@ export function CardEditor({
           </h2>
           <p className="mt-1 text-sm wrap-break-word text-muted-foreground">
             {creating
-              ? "名片创建后保持草稿状态，公开状态由审核流程更新。"
-              : `版本 ${card?.revision ?? 0} · ${card?.updatedAt ? new Date(card.updatedAt).toLocaleString("zh-CN") : ""}`}
+              ? "填写以下信息后提交审核，审核通过前只有你自己能看到这张名片。"
+              : card
+                ? `名片 #${card.cardNumber} · 版本 ${card.revision}`
+                : "名片 #— · 版本 0"}
           </p>
         </div>
-        {!creating && card ? (
-          <div className="flex min-w-0 flex-wrap gap-1.5">
-            <PublicationBadge card={card} />
-          </div>
-        ) : (
-          <Badge variant="outline">新草稿</Badge>
-        )}
+        <dl className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground sm:justify-end sm:text-right">
+          {creating ? null : (
+            <>
+              <div>
+                <dt className="inline">创建于 </dt>
+                <dd className="inline">{formatCardTime(card?.createdAt)}</dd>
+              </div>
+              <div>
+                <dt className="inline">更新于 </dt>
+                <dd className="inline">{formatCardTime(card?.updatedAt)}</dd>
+              </div>
+            </>
+          )}
+        </dl>
       </div>
+      </CardModule>
+
+      <CardModule mode={modes?.notices}>
+        <CardEditorNotices card={card} creating={creating} />
+      </CardModule>
 
       {readOnlyReason ? (
         <Alert className="mt-4">
@@ -374,158 +389,36 @@ export function CardEditor({
         </Alert>
       ) : null}
 
-      <div className="mt-5">
-        <CardPreview
-          frontUrl={previewFront}
-          backUrl={previewBack}
-          title={draft.producerName}
-          renderUpload={(side) => {
-            const label = side === "front" ? "正面" : "背面"
-            const file = side === "front" ? frontFile : backFile
-            const hasImage = side === "front" ? previewFront : previewBack
-            return (
-              <Dialog
-                open={mediaSide === side}
-                onOpenChange={(open) => {
-                  if (busy) return
-                  setMediaSide(open ? side : null)
-                  if (!open)
-                    selectImage(
-                      creating
-                        ? side === "front"
-                          ? confirmedFront
-                          : confirmedBack
-                        : null,
-                      side
-                    )
-                }}
-              >
-                <DialogTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={editDisabled}
-                      className={`absolute right-3 bottom-3 z-10 gap-2 shadow-sm ${hasImage ? "[@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-focus-within:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100" : ""}`}
-                    />
-                  }
-                >
-                  <UploadIcon aria-hidden="true" className="size-4" />
-                  {hasImage ? `更换名片${label}` : `上传名片${label}`}
-                </DialogTrigger>
-                <DialogContent showCloseButton={!busy}>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {creating ? "选择" : "替换"}名片{label}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {creating
-                        ? "选择图片后返回预览，正反两面齐备后创建名片。"
-                        : "本次仅替换这一面，保存后生成新的名片版本并等待审核。"}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CardImageFields
-                    mode={creating ? "create" : "replace"}
-                    side={side}
-                    frontFile={frontFile}
-                    backFile={backFile}
-                    disabled={editDisabled}
-                    saving={saving}
-                    preparingSide={preparingSide}
-                    uploadingSide={uploadingSide}
-                    onBrowse={{
-                      front: frontImage.browse,
-                      back: backImage.browse,
-                    }}
-                    onSelect={selectImage}
-                    onUpload={(selected) => void uploadSide(selected)}
-                  />
-                  {feedback && feedback.kind !== "success" ? (
-                    <p role="alert" className="text-destructive">
-                      {feedback.message}
-                    </p>
-                  ) : null}
-                  {feedback?.kind === "conflict" ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void reloadLatest()}
-                    >
-                      载入最新名片
-                    </Button>
-                  ) : null}
-                  <DialogFooter>
-                    <DialogClose
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={busy}
-                        />
-                      }
-                    >
-                      取消
-                    </DialogClose>
-                    {creating ? (
-                      <Button
-                        type="button"
-                        disabled={editDisabled || !file}
-                        onClick={() => {
-                          if (side === "front") setConfirmedFront(file)
-                          else setConfirmedBack(file)
-                          setMediaSide(null)
-                        }}
-                      >
-                        使用这张图片
-                      </Button>
-                    ) : null}
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )
-          }}
-        />
-      </div>
+      <CardModule mode={modes?.media}>
+        <div className="mt-5" data-card-field="media">
+          <CardMediaGallery
+            slots={slots}
+            disabled={editDisabled || modes?.media === "view"}
+            onChange={updateSlots}
+            onError={(message) => setFeedback({ kind: "error", message })}
+          />
+        </div>
+      </CardModule>
 
-      {card &&
-      !creating &&
-      (card.backImageUrl ?? card.pendingContent?.backImageUrl) ? (
-        <CardMiddlePages
-          initialUrls={
-            card.pendingContent?.middleImageUrls ?? card.middleImageUrls
-          }
-          disabled={editDisabled}
-          saving={savingMiddle}
-          onSave={(input) => void saveMiddlePages(input)}
-        />
-      ) : null}
-
+      {/* The editor renders its own required-field feedback, so the native
+          bubbles must not pre-empt it. The server validates every field. */}
       <form
         className="mt-6"
-        onSubmit={(event) =>
-          void (creating ? createCard(event) : saveMetadata(event))
-        }
+        noValidate
+        onSubmit={(event) => void handleSubmit(event)}
       >
         <CardFields
           draft={draft}
           series={series}
           disabled={editDisabled}
+          invalidFields={invalidFields}
+          modes={modes}
           onChange={setDraft}
         />
 
+        <CardModule mode={modes?.actions}>
         <div className="mt-6 flex min-w-0 flex-wrap items-center gap-2">
-          <Button
-            type="submit"
-            disabled={
-              editDisabled ||
-              !draft.producerName.trim() ||
-              draft.seriesCodes.length === 0 ||
-              draft.favoriteCharacterIds.length === 0 ||
-              creditsIncomplete(draft.credits) ||
-              (creating && !frontFile)
-            }
-          >
+          <Button type="submit" disabled={editDisabled}>
             {saving ? (
               <LoaderCircleIcon
                 data-icon="inline-start"
@@ -537,7 +430,7 @@ export function CardEditor({
             ) : (
               <SaveIcon data-icon="inline-start" aria-hidden="true" />
             )}
-            {saving ? "正在保存" : creating ? "创建名片草稿" : "保存名片资料"}
+            {saving ? "正在保存" : creating ? "创建名片草稿" : "保存并提交"}
           </Button>
           {!creating && card ? (
             <Button
@@ -551,7 +444,24 @@ export function CardEditor({
             </Button>
           ) : null}
         </div>
+        </CardModule>
       </form>
+
+      <ConfirmActionDialog
+        open={aspectWarning}
+        submitting={false}
+        variant="default"
+        title="正反面尺寸不一致"
+        description="正面与背面的宽高比例不同，打印或裁切时可能无法对齐。确认继续提交吗？"
+        confirmLabel="仍然提交"
+        onOpenChange={(open) => {
+          if (!open) {
+            setAspectWarning(false)
+            setPendingSubmit(null)
+          }
+        }}
+        onConfirm={() => pendingSubmit?.()}
+      />
 
       <CardDeleteDialog
         open={deleteOpen}
@@ -561,5 +471,66 @@ export function CardEditor({
         onConfirm={() => void removeCard()}
       />
     </section>
+  )
+}
+
+function formatCardTime(value: string | null | undefined): string {
+  return value ? new Date(value).toLocaleString("zh-CN") : "—"
+}
+
+/**
+ * 消息提示区：告诉拥有者这张名片为什么处于审核、复核或锁定状态。
+ * 每种情况单独一条，互不覆盖。
+ */
+function CardEditorNotices({
+  card,
+  creating,
+}: {
+  card: FudabaOwnerCard | null
+  creating: boolean
+}) {
+  if (creating || !card) return null
+  const notices: { title: string; body: string; destructive?: boolean }[] = []
+  if (card.publicationStatus === "locked") {
+    notices.push({
+      title: "名片已锁定",
+      body: `${card.reviewReason ? `${card.reviewReason}。` : ""}锁定期间无法修改或提交，请联系管理员解锁。`,
+      destructive: true,
+    })
+  } else if (card.publicationStatus === "rejected") {
+    notices.push({
+      title: "名片未通过审核",
+      body: `${card.reviewReason ? `驳回理由：${card.reviewReason}。` : ""}按提示修改后可以重新提交。`,
+      destructive: true,
+    })
+  } else if (card.publicationStatus === "pending") {
+    notices.push({
+      title: "名片正在审核中",
+      body: "审核通过前不会展示在名片墙上，期间仍可继续修改并重新提交。",
+    })
+  }
+  if (card.reviewStatus === "pending") {
+    notices.push({
+      title: "新版本正在复核",
+      body: "复核期间名片墙继续展示此前的版本，通过后才会替换。",
+    })
+  } else if (card.reviewStatus === "rejected") {
+    notices.push({
+      title: "新版本未通过复核",
+      body: `${card.reviewReason ? `理由：${card.reviewReason}。` : ""}此前已发布的版本仍然有效。`,
+      destructive: true,
+    })
+  }
+  if (notices.length === 0) return null
+  return (
+    <div className="mt-4 space-y-2">
+      {notices.map((notice) => (
+        <Alert key={notice.title} variant={notice.destructive ? "destructive" : "default"}>
+          <CircleAlertIcon aria-hidden="true" />
+          <AlertTitle>{notice.title}</AlertTitle>
+          <AlertDescription>{notice.body}</AlertDescription>
+        </Alert>
+      ))}
+    </div>
   )
 }

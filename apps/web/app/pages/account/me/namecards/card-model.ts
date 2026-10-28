@@ -1,3 +1,4 @@
+import { emptyCredit } from "./card-credits-editor"
 import {
   isApiError,
   type FudabaCardFields,
@@ -41,7 +42,7 @@ export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
     isOriginal: card.isOriginal,
     madeWithAi: card.madeWithAi,
     visible: card.visible,
-    credits: card.credits,
+    credits: card.credits.length ? card.credits : [emptyCredit()],
   }
 }
 
@@ -64,7 +65,7 @@ export function emptyCardFields(
     isOriginal: false,
     madeWithAi: false,
     visible: true,
-    credits: [],
+    credits: [emptyCredit()],
   }
 }
 

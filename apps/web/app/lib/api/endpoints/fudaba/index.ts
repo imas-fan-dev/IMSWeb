@@ -177,7 +177,10 @@ export {
 export const fudabaCardCreateSchema = fudabaCardFieldsRequestSchema
   .extend({
     front: fileSchema,
-    back: fileSchema,
+    /** Single-sided cards have no back page. */
+    back: fileSchema.optional(),
+    /** Ordered middle pages, submitted after the first and last image. */
+    images: z.array(fileSchema).optional(),
   })
   .strict()
 
@@ -199,7 +202,14 @@ const fudabaCardPlacementPathSchema = z
 
 export type FudabaCardFields = z.input<typeof fudabaCardFieldsRequestSchema>
 
-export type CreateFudabaCardInput = z.input<typeof fudabaCardCreateSchema>
+export type CreateFudabaCardInput = z.input<typeof fudabaCardCreateSchema> & {
+  /** First page of the ordered artwork list. */
+  front: File
+  /** Last page; single-sided cards have none. */
+  back?: File | undefined
+  /** Everything between the front and the back, in display order. */
+  images?: readonly File[] | undefined
+}
 
 export type UpdateFudabaCardInput = z.input<
   typeof fudabaCardUpdateRequestSchema
@@ -745,11 +755,17 @@ function appendCardFields(form: FormData, fields: FudabaCardFields) {
 }
 
 export function createFudabaCard(input: CreateFudabaCardInput) {
-  const { front, back, ...fields } = fudabaCardCreateSchema.parse(input)
+  const {
+    front,
+    back,
+    images = [],
+    ...fields
+  } = fudabaCardCreateSchema.parse(input)
   const form = new FormData()
   appendCardFields(form, fields)
   form.append("front", front)
   if (back) form.append("back", back)
+  for (const image of images) form.append("images", image)
   return platformApiClient.Post(
     exchangePath("/cards"),
     form,

@@ -37,6 +37,7 @@ export function makeFudabaOwnerCard(
 ): FudabaOwnerCard {
   return {
     id: "card-1",
+    cardNumber: 1,
     producerName: "P",
     seriesCodes: ["765"],
     favoriteCharacters: [],

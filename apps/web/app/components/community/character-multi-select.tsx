@@ -12,6 +12,17 @@ import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
+import { Separator } from "~/components/ui/separator"
+
+/** A kana query should land in reading order, so sort by the Japanese name. */
+function sortByReading<T extends { nameJa: string | null; nameCn: string }>(
+  entries: readonly T[]
+): T[] {
+  const reading = (entry: T) => entry.nameJa || entry.nameCn
+  return [...entries].sort((left, right) =>
+    reading(left).localeCompare(reading(right), "ja")
+  )
+}
 import { Input } from "~/components/ui/input"
 import {
   Select,
@@ -123,7 +134,7 @@ export function CharacterMultiSelect({
       (agencyCode === ALL_VALUE || entry.agencyCode === agencyCode) &&
       (category === ALL_VALUE || entry.category === category)
   )
-  const matchedCharacters = filtered.filter(
+  const matchedCharacters = sortByReading(filtered.filter(
     (entry) =>
       !entry.isFallback &&
       (!normalizedQuery ||
@@ -131,7 +142,7 @@ export function CharacterMultiSelect({
           [entry.nameCn, entry.nameJa, entry.nameEn, entry.aliases],
           normalizedQuery
         ))
-  )
+  ))
   const selectedAgencyId =
     agencyCode === ALL_VALUE
       ? null
@@ -378,6 +389,10 @@ export function CharacterMultiSelect({
                     )
                   })}
                 </div>
+              ) : null}
+
+              {matchedUnits.length ? (
+                <Separator className="my-1" />
               ) : null}
 
               {matchedCharacters.map(characterRow)}

@@ -16,16 +16,20 @@ export function SeriesMultiSelect({
   id,
   series,
   selectedCodes,
+  lockedCodes = [],
   disabled,
   onChange,
 }: {
   id: string
   series: readonly FudabaSeries[]
   selectedCodes: readonly string[]
+  /** Series of the selected characters; those cannot be unchecked. */
+  lockedCodes?: readonly string[]
   disabled: boolean
   onChange: (codes: string[]) => void
 }) {
   const selected = new Set(selectedCodes)
+  const locked = new Set(lockedCodes)
   const atLimit = selectedCodes.length >= NAMECARD_SERIES_LIMIT
 
   function toggle(code: string, checked: boolean) {
@@ -40,7 +44,7 @@ export function SeriesMultiSelect({
       <FieldLabel htmlFor={id}>所属企划</FieldLabel>
       <FieldDescription>
         至少选择一个企划；第一个会作为名片墙上的默认标签（最多{" "}
-        {NAMECARD_SERIES_LIMIT} 个）。
+        {NAMECARD_SERIES_LIMIT} 个）。担当角色所属的企划会被强制勾选。
       </FieldDescription>
       {selectedCodes.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
@@ -72,7 +76,8 @@ export function SeriesMultiSelect({
         className="grid max-h-64 gap-1 overflow-y-auto rounded-lg border p-2 sm:grid-cols-2"
       >
         {series.map((item) => {
-          const checked = selected.has(item.code)
+          const isLocked = locked.has(item.code)
+          const checked = isLocked || selected.has(item.code)
           return (
             <label
               key={item.code}
@@ -80,7 +85,12 @@ export function SeriesMultiSelect({
             >
               <Checkbox
                 checked={checked}
-                disabled={disabled || (!checked && atLimit)}
+                disabled={disabled || isLocked || (!checked && atLimit)}
+                aria-label={
+                  isLocked
+                    ? `${item.displayName}（由担当角色决定，不可取消）`
+                    : item.displayName
+                }
                 onCheckedChange={(next) => toggle(item.code, next === true)}
               />
               <span className="min-w-0 flex-1 truncate">
