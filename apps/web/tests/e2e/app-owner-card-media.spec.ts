@@ -93,6 +93,7 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
   const card = makeFudabaOwnerCard({
     id: "owner-card",
     producerName: "Owner Card",
+    favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
     frontImageUrl:
       "/api/community/exchange/me/cards/owner-card/media/front?v=1",
     backImageUrl: "/api/community/exchange/me/cards/owner-card/media/back?v=1",
@@ -258,86 +259,36 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
     })
   ).toHaveLength(2)
 
-  const front = page
-    .getByRole("button", { name: "查看Owner Card正面", exact: true })
-    .locator("img")
-  await front.scrollIntoViewIfNeeded()
+  const gallery = page.getByLabel("名片图片")
+  const front = gallery.getByAltText("名片正面", { exact: true })
   await expect
     .poll(() =>
       front.evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBe(120)
-  await front.click()
-  await expect(
-    page.getByRole("dialog").last().getByRole("img")
-  ).toHaveAttribute("src", webMode ? /^\/api\// : /^blob:/)
-  await expect
-    .poll(() =>
-      page
-        .getByRole("dialog")
-        .last()
-        .getByRole("img")
-        .evaluate((image) => (image as HTMLImageElement).naturalWidth)
-    )
-    .toBe(120)
-  await page.keyboard.press("Escape")
-  await page.getByRole("tab", { name: "背面预览" }).click()
-  const back = page.locator('button[aria-label="查看Owner Card背面"] img')
-  await back.scrollIntoViewIfNeeded()
+
+  await page
+    .getByLabel("名片图片顺序")
+    .getByRole("button", { name: "第 2 张（背面）" })
+    .click()
+  const back = gallery.getByAltText("名片背面", { exact: true })
   await expect
     .poll(() =>
       back.evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBe(120)
-  await back.click()
-  await expect
-    .poll(() =>
-      page
-        .getByRole("dialog")
-        .last()
-        .getByRole("img")
-        .evaluate((image) => (image as HTMLImageElement).naturalWidth)
-    )
-    .toBe(120)
-  await page.keyboard.press("Escape")
-  const upload = page.getByRole("button", { name: "更换名片背面" })
-  if (!isMobile) {
-    await back.hover()
-    await expect(upload).toHaveCSS("opacity", "1")
-  } else {
-    await expect(upload).toHaveCSS("opacity", "1")
-  }
-  await page.screenshot({
-    path: test.info().outputPath("back-preview-control.png"),
-    fullPage: true,
-  })
-  await upload.focus()
-  await expect(upload).toBeFocused()
-  await upload.click()
-  await expect(page.getByRole("dialog", { name: "替换名片背面" })).toBeVisible()
-  await page.locator("#exchange-card-back").setInputFiles({
-    name: "local.svg",
-    mimeType: "image/svg+xml",
-    buffer: Buffer.from(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="90" height="60"><rect width="90" height="60" fill="red"/></svg>'
-    ),
-  })
-  await expect
-    .poll(() =>
-      back.evaluate((image) => (image as HTMLImageElement).naturalWidth)
-    )
-    .toBe(90)
-  await page.locator("#exchange-card-back").setInputFiles([])
-  await expect
-    .poll(() =>
-      back.evaluate((image) => (image as HTMLImageElement).naturalWidth)
-    )
-    .toBe(120)
-  await page.getByRole("button", { name: "取消", exact: true }).click()
-  await expect(upload).toBeFocused()
+  await expect(back).toHaveAttribute("src", webMode ? /^\/api\// : /^blob:/)
+
+  // A replacement only lives in the browser until the owner saves the set.
+  let mediaRequests = 0
   await api.mock(
-    { method: "PUT", path: "/api/community/exchange/uploads/back", times: 1 },
+    {
+      method: "PUT",
+      path: "/api/community/exchange/me/cards/owner-card/media",
+      times: 1,
+    },
     async (route) => {
+      mediaRequests += 1
       const request = route.request()
       const form = await new Response(
         request.postDataBuffer()?.toString("utf8"),
@@ -345,14 +296,14 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
           headers: { "Content-Type": request.headers()["content-type"] },
         }
       ).formData()
-      expect([...form.keys()].sort()).toEqual([
-        "cardId",
+      expect([...new Set(form.keys())].sort()).toEqual([
         "expectedRevision",
-        "image",
+        "images",
+        "order",
       ])
-      expect(form.get("cardId")).toBe(card.id)
       expect(form.get("expectedRevision")).toBe(String(card.revision))
-      const image = form.get("image") as File
+      expect(JSON.parse(String(form.get("order")))).toEqual(["#0", "@0"])
+      const image = form.get("images") as File
       expect(image.name).toBe("replacement.svg")
       expect(image.type).toBe("image/svg+xml")
       // WebKit interception omits file bytes from multipart postData.
@@ -370,25 +321,58 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
       })
     }
   )
-  await upload.click()
-  await page.locator("#exchange-card-back").setInputFiles({
+  await api.mock(
+    {
+      method: "PUT",
+      path: "/api/community/exchange/me/cards/owner-card",
+      times: 1,
+    },
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          card: {
+            ...card,
+            revision: card.revision + 2,
+            publicationStatus: "pending",
+          },
+        },
+        headers: cors,
+      })
+    }
+  )
+
+  await gallery.getByRole("button", { name: "更换", exact: true }).click()
+  await page.locator("input[aria-label='选择名片图片']").setInputFiles({
     name: "replacement.svg",
     mimeType: "image/svg+xml",
     buffer: Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="90" height="60"><rect width="90" height="60" fill="red"/></svg>'
     ),
   })
+  const replacedBack = gallery.getByAltText("名片背面", { exact: true })
+  await expect
+    .poll(() =>
+      replacedBack.evaluate((image) => (image as HTMLImageElement).naturalWidth)
+    )
+    .toBe(90)
+  await expect(replacedBack).toHaveAttribute("src", /^blob:/)
+  expect(mediaRequests).toBe(0)
   await page.screenshot({
-    path: test.info().outputPath("back-upload-dialog.png"),
+    path: test.info().outputPath("card-media-gallery.png"),
     fullPage: true,
   })
-  await page.getByRole("button", { name: "替换背面", exact: true }).click()
-  await expect(page.getByRole("dialog", { name: "替换名片背面" })).toHaveCount(
-    0
-  )
+
+  await page.getByRole("button", { name: "保存并提交" }).click()
+  const shapeWarning = page.getByRole("alertdialog")
+  if (await shapeWarning.isVisible()) {
+    await shapeWarning.getByRole("button", { name: "仍然提交" }).click()
+  }
+  await expect.poll(() => mediaRequests).toBe(1)
   await expect(
-    page.getByText(`版本 ${card.revision + 1}`, { exact: false })
+    page.getByText(`版本 ${card.revision + 2}`, { exact: false })
   ).toBeVisible()
+
   const stats = await (await fetch(`${runtimeOrigin}/fixture-stats`)).json()
   if (webMode) {
     expect(stats.readUrls).toBeGreaterThan(0)

@@ -190,8 +190,13 @@ describe("CharacterMultiSelect", () => {
     const candidateBoxes = within(candidateGroup).getAllByRole("checkbox")
 
     expect(candidateBoxes).toHaveLength(201)
-    expect(candidateBoxes[0]).not.toHaveAttribute("aria-disabled", "true")
-    expect(candidateBoxes[200]).toHaveAttribute("aria-disabled", "true")
+    // Candidates are ordered by reading, so the only selectable entry is the
+    // one character that is not part of the initial selection yet.
+    const blocked = candidateBoxes.filter(
+      (box) => box.getAttribute("aria-disabled") === "true"
+    )
+    expect(blocked).toHaveLength(1)
+    expect(blocked[0]).toHaveAccessibleName(/角色 201/)
   })
 
   it("keeps selections across filters and shows them as removable chips", async () => {

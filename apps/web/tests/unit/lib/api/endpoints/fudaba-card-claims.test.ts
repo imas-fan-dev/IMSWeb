@@ -47,6 +47,7 @@ const envelope = {
 }
 const ownerCard = {
   id: "registered-1",
+  cardNumber: 1,
   producerName: "春香P",
   seriesCodes: ["765"],
   favoriteCharacters: [idol],

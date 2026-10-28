@@ -43,7 +43,7 @@ const apiMocks = vi.hoisted(() => ({
   removePlatformAvatar: vi.fn(),
   createFudabaCard: vi.fn(),
   updateFudabaCard: vi.fn(),
-  uploadFudabaCardMedia: vi.fn(),
+  replaceFudabaCardMedia: vi.fn(),
   deleteFudabaCard: vi.fn(),
   sendProfile: vi.fn(),
   sendSeries: vi.fn(),
@@ -57,7 +57,7 @@ const apiMocks = vi.hoisted(() => ({
   sendAvatarRemoval: vi.fn(),
   sendCreate: vi.fn(),
   sendUpdate: vi.fn(),
-  sendMediaUpload: vi.fn(),
+  sendMediaReplace: vi.fn(),
   sendDelete: vi.fn(),
 }))
 
@@ -109,7 +109,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     removePlatformAvatar: apiMocks.removePlatformAvatar,
     createFudabaCard: apiMocks.createFudabaCard,
     updateFudabaCard: apiMocks.updateFudabaCard,
-    uploadFudabaCardMedia: apiMocks.uploadFudabaCardMedia,
+    replaceFudabaCardMedia: apiMocks.replaceFudabaCardMedia,
     deleteFudabaCard: apiMocks.deleteFudabaCard,
   }
 })
@@ -141,6 +141,7 @@ const series = {
 
 const card = {
   id: "card-1",
+  cardNumber: 1,
   producerName: "周末交换名片",
   seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
@@ -176,6 +177,24 @@ function deferred<T>() {
     resolve: (value: T) => resolvePromise(value),
     reject: (error: unknown) => rejectPromise(error),
   }
+}
+
+/**
+ * jsdom never loads image sources, so the editor's front/back aspect probe
+ * would await forever. The stand-in answers every source with the same size,
+ * which is what matching two-sided artwork looks like.
+ */
+function stubArtworkSizes(width = 640, height = 960) {
+  class ImmediateImage {
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    naturalWidth = width
+    naturalHeight = height
+    set src(_value: string) {
+      this.onload?.()
+    }
+  }
+  vi.stubGlobal("Image", ImmediateImage)
 }
 
 function authenticatedSession(
@@ -289,8 +308,8 @@ describe("AccountMeWorkspace", () => {
     })
     apiMocks.createFudabaCard.mockReturnValue({ send: apiMocks.sendCreate })
     apiMocks.updateFudabaCard.mockReturnValue({ send: apiMocks.sendUpdate })
-    apiMocks.uploadFudabaCardMedia.mockReturnValue({
-      send: apiMocks.sendMediaUpload,
+    apiMocks.replaceFudabaCardMedia.mockReturnValue({
+      send: apiMocks.sendMediaReplace,
     })
     apiMocks.deleteFudabaCard.mockReturnValue({ send: apiMocks.sendDelete })
 
@@ -363,7 +382,7 @@ describe("AccountMeWorkspace", () => {
       success: true,
       card: { ...card, producerName: "更新后的名片", revision: 4 },
     })
-    apiMocks.sendMediaUpload.mockResolvedValue({
+    apiMocks.sendMediaReplace.mockResolvedValue({
       success: true,
       card: { ...card, revision: 4 },
     })
@@ -479,7 +498,7 @@ describe("AccountMeWorkspace", () => {
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
-    expect(screen.getAllByText("草稿")).toHaveLength(2)
+    expect(screen.getAllByText("草稿")).toHaveLength(1)
     expect(
       screen.queryByRole("textbox", { name: "显示名称" })
     ).not.toBeInTheDocument()
@@ -487,7 +506,7 @@ describe("AccountMeWorkspace", () => {
     const cardName = screen.getByRole("textbox", { name: "制作人名称" })
     await user.clear(cardName)
     await user.type(cardName, "更新后的名片")
-    await user.click(screen.getByRole("button", { name: "保存名片资料" }))
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
 
     await waitFor(() => {
       expect(apiMocks.updateFudabaCard).toHaveBeenCalledWith(
@@ -863,34 +882,37 @@ describe("AccountMeWorkspace", () => {
     const cardName = await screen.findByRole("textbox", { name: "制作人名称" })
     await user.clear(cardName)
     await user.type(cardName, "仍需保留的输入")
-    await user.click(screen.getByRole("button", { name: "保存名片资料" }))
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
 
     expect(await screen.findByText("名片版本冲突")).toBeVisible()
     expect(cardName).toHaveValue("仍需保留的输入")
     expect(screen.getByRole("button", { name: "载入最新名片" })).toBeVisible()
   })
 
-  it("opens the selected preview upload dialog, cancels without writes and uploads one side", async () => {
+  it("replaces the ordered artwork set and keeps local changes until save", async () => {
+    stubArtworkSizes()
     const user = userEvent.setup()
     renderPage()
     await user.click(await screen.findByRole("link", { name: "交换名片" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
-    const trigger = await screen.findByRole("button", { name: "更换名片正面" })
-    await user.click(trigger)
-    expect(screen.getByRole("dialog", { name: "替换名片正面" })).toBeVisible()
-    await user.click(screen.getByRole("button", { name: /^取消$/ }))
-    await waitFor(() => expect(trigger).toHaveFocus())
-    expect(apiMocks.uploadFudabaCardMedia).not.toHaveBeenCalled()
-    await user.click(screen.getByRole("tab", { name: "背面预览" }))
-    await user.click(screen.getByRole("button", { name: "更换名片背面" }))
-    expect(screen.queryByLabelText("名片正面")).not.toBeInTheDocument()
+
+    expect(
+      await screen.findByRole("button", { name: "第 1 张（正面）" })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "第 2 张（背面）" })).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "第 2 张（背面）" }))
+    await user.click(screen.getByRole("button", { name: "更换" }))
     await user.upload(
-      screen.getByLabelText("名片背面"),
-      new File(["back"], "back.png", { type: "image/png" })
+      screen.getByLabelText("选择名片图片"),
+      new File(["back"], "back-next.png", { type: "image/png" })
     )
-    apiMocks.sendMediaUpload.mockRejectedValueOnce(
+    // Choosing a page only touches the local slot list; nothing is written yet.
+    expect(apiMocks.replaceFudabaCardMedia).not.toHaveBeenCalled()
+
+    apiMocks.sendMediaReplace.mockRejectedValueOnce(
       new ApiError("名片版本冲突", {
         kind: "http",
         status: 409,
@@ -898,37 +920,58 @@ describe("AccountMeWorkspace", () => {
         payload: { revision: 4 },
       })
     )
-    await user.click(screen.getByRole("button", { name: /^替换背面$/ }))
-    await waitFor(() =>
-      expect(
-        screen.getByRole("dialog", { name: "替换名片背面" })
-      ).toHaveTextContent("名片已在其他窗口更新")
-    )
-    apiMocks.sendCard.mockResolvedValueOnce({ card: { ...card, revision: 4 } })
-    await user.click(screen.getByRole("button", { name: "载入最新名片" }))
-    await screen.findByRole("button", { name: /^替换背面$/ })
-    expect(screen.getByRole("button", { name: /^替换背面$/ })).toBeEnabled()
-    await user.click(screen.getByRole("button", { name: /^替换背面$/ }))
-    await waitFor(() =>
-      expect(apiMocks.uploadFudabaCardMedia).toHaveBeenLastCalledWith(
-        card.id,
-        "back",
-        expect.any(File),
-        card.revision + 1
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
+
+    expect(
+      await screen.findByText(
+        "名片已在其他窗口更新。当前输入仍保留，请载入最新版本后再继续。"
       )
-    )
-    expect(apiMocks.uploadFudabaCardMedia.mock.calls[0][2]).toBe(
-      apiMocks.uploadFudabaCardMedia.mock.calls[1][2]
+    ).toBeVisible()
+    expect(apiMocks.replaceFudabaCardMedia).toHaveBeenCalledWith(
+      card.id,
+      {
+        images: [expect.objectContaining({ name: "back-next.png" })],
+        order: ["#0", "@0"],
+      },
+      card.revision
     )
     expect(apiMocks.updateFudabaCard).not.toHaveBeenCalled()
+
+    apiMocks.sendCard.mockResolvedValueOnce({ card: { ...card, revision: 4 } })
+    apiMocks.sendMediaReplace.mockResolvedValueOnce({
+      success: true,
+      card: { ...card, revision: 5 },
+    })
+    await user.click(screen.getByRole("button", { name: "载入最新名片" }))
+    expect(await screen.findByText("已载入最新名片版本。")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
+
     await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "替换名片背面" })
-      ).not.toBeInTheDocument()
+      expect(apiMocks.replaceFudabaCardMedia).toHaveBeenLastCalledWith(
+        card.id,
+        {
+          images: [expect.objectContaining({ name: "back-next.png" })],
+          order: ["#0", "@0"],
+        },
+        4
+      )
     )
+    // The retry resends the same local file instead of re-reading the input.
+    expect(apiMocks.replaceFudabaCardMedia.mock.calls[1][1].images[0]).toBe(
+      apiMocks.replaceFudabaCardMedia.mock.calls[0][1].images[0]
+    )
+    await waitFor(() =>
+      expect(apiMocks.updateFudabaCard).toHaveBeenCalledWith(
+        card.id,
+        expect.objectContaining({ expectedRevision: 5 })
+      )
+    )
+    expect(await screen.findByText("名片资料已保存。")).toBeVisible()
   })
 
   it("creates a card from the empty state and deletes it through confirmation", async () => {
+    stubArtworkSizes()
     apiMocks.sendCards.mockResolvedValue({ items: [] })
     const createdCard = { ...card, id: "card-new", revision: 0 }
     apiMocks.sendCreate.mockResolvedValue({ success: true, card: createdCard })
@@ -942,28 +985,16 @@ describe("AccountMeWorkspace", () => {
     await user.clear(cardName)
     await user.type(cardName, "新交换名片")
     await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
-    await user.click(screen.getByRole("button", { name: "上传名片正面" }))
-    await user.upload(
-      screen.getByLabelText("名片正面"),
-      new File(["front"], "front.png", { type: "image/png" })
-    )
-    await user.click(screen.getByRole("button", { name: "使用这张图片" }))
-    await user.click(screen.getByRole("tab", { name: "背面预览" }))
-    await user.click(screen.getByRole("button", { name: "上传名片背面" }))
-    await user.upload(
-      screen.getByLabelText("名片背面"),
-      new File(["back"], "back.png", { type: "image/png" })
-    )
-    await user.click(screen.getByRole("button", { name: "使用这张图片" }))
-    await user.click(screen.getByRole("tab", { name: "正面预览" }))
-    await user.click(screen.getByRole("button", { name: "更换名片正面" }))
-    await user.click(screen.getByRole("button", { name: /^取消$/ }))
-    await user.click(screen.getByRole("button", { name: "更换名片正面" }))
-    await user.upload(
-      screen.getByLabelText("名片正面"),
-      new File(["new"], "cancelled.png", { type: "image/png" })
-    )
-    await user.keyboard("{Escape}")
+
+    // The first page is the front, the last is the back, the rest are middles.
+    await user.upload(screen.getByLabelText("选择名片图片"), [
+      new File(["front"], "front.png", { type: "image/png" }),
+      new File(["middle"], "middle.png", { type: "image/png" }),
+      new File(["back"], "back.png", { type: "image/png" }),
+    ])
+    expect(
+      screen.getByRole("button", { name: "第 2 张（中间页 1）" })
+    ).toBeVisible()
     await user.click(screen.getByRole("button", { name: "创建名片草稿" }))
 
     await waitFor(() => {
@@ -974,6 +1005,7 @@ describe("AccountMeWorkspace", () => {
           favoriteCharacterIds: [1],
           front: expect.objectContaining({ name: "front.png" }),
           back: expect.objectContaining({ name: "back.png" }),
+          images: [expect.objectContaining({ name: "middle.png" })],
         })
       )
     })
@@ -992,6 +1024,7 @@ describe("AccountMeWorkspace", () => {
   })
 
   it("does not let a late creation hijack a later existing-card selection", async () => {
+    stubArtworkSizes()
     apiMocks.sendCards.mockResolvedValue({ items: [card] })
     const createdCard = {
       ...card,
@@ -1018,28 +1051,10 @@ describe("AccountMeWorkspace", () => {
     await user.clear(cardName)
     await user.type(cardName, "新交换名片")
     await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
-    await user.click(screen.getByRole("button", { name: "上传名片正面" }))
-    await user.upload(
-      screen.getByLabelText("名片正面"),
-      new File(["front"], "front.png", { type: "image/png" })
-    )
-    await user.click(screen.getByRole("button", { name: "使用这张图片" }))
-    await user.click(screen.getByRole("tab", { name: "背面预览" }))
-    await user.click(screen.getByRole("button", { name: "上传名片背面" }))
-    await user.upload(
-      screen.getByLabelText("名片背面"),
-      new File(["back"], "back.png", { type: "image/png" })
-    )
-    await user.click(screen.getByRole("button", { name: "使用这张图片" }))
-    await user.click(screen.getByRole("tab", { name: "正面预览" }))
-    await user.click(screen.getByRole("button", { name: "更换名片正面" }))
-    await user.click(screen.getByRole("button", { name: /^取消$/ }))
-    await user.click(screen.getByRole("button", { name: "更换名片正面" }))
-    await user.upload(
-      screen.getByLabelText("名片正面"),
-      new File(["new"], "cancelled.png", { type: "image/png" })
-    )
-    await user.keyboard("{Escape}")
+    await user.upload(screen.getByLabelText("选择名片图片"), [
+      new File(["front"], "front.png", { type: "image/png" }),
+      new File(["back"], "back.png", { type: "image/png" }),
+    ])
     await user.click(screen.getByRole("button", { name: "创建名片草稿" }))
 
     await user.keyboard("{Escape}")
@@ -1174,7 +1189,7 @@ describe("AccountMeWorkspace", () => {
     const title = await screen.findByRole("textbox", { name: "制作人名称" })
     await user.clear(title)
     await user.type(title, "地图中修改的名片")
-    await user.click(screen.getByRole("button", { name: "保存名片资料" }))
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
     await waitFor(() =>
       expect(apiMocks.updateFudabaCard).toHaveBeenCalledWith(
         card.id,
@@ -1191,9 +1206,7 @@ describe("AccountMeWorkspace", () => {
     expect(screen.queryByRole("main")).not.toBeInTheDocument()
     await user.keyboard("{Escape}")
     await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "替换名片背面" })
-      ).not.toBeInTheDocument()
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     )
     expect(screen.getByText("保留的地图上下文")).toBeVisible()
   })
@@ -1213,9 +1226,9 @@ describe("AccountMeWorkspace", () => {
     expect(
       await screen.findByRole("textbox", { name: "制作人名称" })
     ).toBeDisabled()
-    expect(screen.getByRole("button", { name: "保存名片资料" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "更换名片正面" })).toBeDisabled()
-    expect(apiMocks.uploadFudabaCardMedia).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "保存并提交" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "更换" })).toBeDisabled()
+    expect(apiMocks.replaceFudabaCardMedia).not.toHaveBeenCalled()
     expect(apiMocks.updateFudabaCard).not.toHaveBeenCalled()
   })
 })

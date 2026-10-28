@@ -294,6 +294,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   })
   const ownedCard: FudabaOwnerCard = {
     id: "managed-card",
+    cardNumber: 2,
     producerName: "地图制作人",
     seriesCodes: ["765"],
     favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
@@ -583,7 +584,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   await title.pressSequentially("P-01+=")
   await expect(title).toHaveValue("P-01+=")
   await expect(
-    cardManagement.getByRole("button", { name: "保存名片资料" })
+    cardManagement.getByRole("button", { name: "保存并提交" })
   ).toBeEnabled()
   await page.screenshot({
     path: testInfo.outputPath("map-card-management.png"),

@@ -431,6 +431,7 @@ test.describe("community exchange", () => {
     const ownerCards = [
       {
         id: "card-1",
+        cardNumber: 11,
         producerName: "春香P",
         seriesCodes: ["765"],
         favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
@@ -459,6 +460,7 @@ test.describe("community exchange", () => {
       },
       {
         id: "card-2",
+        cardNumber: 12,
         producerName: "千早P",
         seriesCodes: ["765"],
         favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],

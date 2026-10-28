@@ -492,6 +492,36 @@ export function resolveApiContract(
       body: fudabaCardUpdateRequestSchema,
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/me\/cards\/[^/]+\/media$/.test(path)
+  )
+    return {
+      rawBody: {
+        name: "Ordered card artwork multipart request",
+        reason:
+          "Artwork slots travel as repeated images plus a JSON order, which JSON cannot express.",
+        schema: z
+          .string()
+          .min(1)
+          .refine((body) => {
+            const names = Array.from(
+              body.matchAll(
+                /content-disposition:\s*form-data;\s*name="([^"]+)"/gi
+              ),
+              (match) => match[1]
+            )
+            const images = names.filter((name) => name === "images")
+            const others = names.filter((name) => name !== "images").sort()
+            return (
+              images.length > 0 &&
+              others.join(",") === "expectedRevision,order"
+            )
+          }, "expected images plus expectedRevision and order fields"),
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
+    }
   if (method === "GET" && path === `${exchange}/me/favorites`)
     return {
       query: fudabaCardQuerySchema,

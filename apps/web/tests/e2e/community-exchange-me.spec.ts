@@ -28,6 +28,7 @@ const directAvatarUrl =
 
 const card = {
   id: "card-1",
+  cardNumber: 7,
   producerName: "浏览器制作人",
   seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
@@ -691,7 +692,7 @@ test.describe("account personal workspace", () => {
       .getByRole("button", { name: /^浏览器制作人/ })
       .click()
     await expect(
-      page.getByLabel("编辑名片").getByText("草稿", { exact: true })
+      page.getByLabel("编辑名片").getByText(/名片 #\d+ · 版本 \d+/)
     ).toBeVisible()
     await expect(page.getByRole("textbox", { name: "显示名称" })).toBeHidden()
     await page.screenshot({
@@ -701,8 +702,6 @@ test.describe("account personal workspace", () => {
 
     const cardName = page.getByRole("textbox", { name: "制作人名称" })
     await cardName.fill("更新后的浏览器名片")
-    await page.getByRole("combobox", { name: "企划", exact: true }).click()
-    await page.getByRole("option", { name: "CINDERELLA GIRLS" }).click()
     await page.getByRole("searchbox", { name: "" }).fill("凛")
     await page.getByRole("checkbox", { name: /涩谷凛/ }).click()
     await expect(
@@ -711,12 +710,14 @@ test.describe("account personal workspace", () => {
     await expect(
       page.getByLabel("已选担当角色").getByText("涩谷凛")
     ).toBeVisible()
-    await page.getByRole("button", { name: "保存名片资料" }).click()
+    await page.getByRole("button", { name: "保存并提交" }).click()
     await expect(page.getByText("名片资料已保存。")).toBeVisible()
 
-    await page.getByRole("tab", { name: "背面预览" }).click()
+    await page.getByLabel("名片图片顺序").getByRole("button", {
+      name: "第 2 张（背面）",
+    }).click()
     await expect(
-      page.getByRole("button", { name: "查看更新后的浏览器名片背面" })
+      page.getByLabel("名片图片").getByAltText("名片背面")
     ).toBeVisible()
 
     await page.keyboard.press("Escape")

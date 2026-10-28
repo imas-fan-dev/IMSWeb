@@ -27,7 +27,6 @@ vi.mock("~/lib/api/platform-client", () => ({
 
 import { ownerCardMediaPath } from "~/lib/api/endpoints/fudaba/owner-card-media"
 import { useOwnerCardMedia } from "~/pages/account/me/namecards/use-owner-card-media"
-import { useObjectUrl } from "~/pages/account/me/namecards/card-editor-fields"
 
 const front =
   "https://api.ims.test/api/community/exchange/me/cards/card-1/media/front?v=3"
@@ -98,25 +97,6 @@ describe("private image lifetime", () => {
     expect(aborts[1]).not.toHaveBeenCalled()
     unmount()
     expect(mocks.revoke).toHaveBeenCalledOnce()
-  })
-  it("releases every local upload URL under StrictMode, replacement and removal", async () => {
-    let id = 0
-    mocks.create.mockImplementation(() => `blob:upload-${++id}`)
-    const first = new File(["front"], "front.png")
-    const second = new File(["back"], "back.png")
-    const { result, rerender, unmount } = renderHook(
-      ({ file }: { file: File | null }) => useObjectUrl(file),
-      { initialProps: { file: first as File | null }, wrapper: StrictMode }
-    )
-    await waitFor(() => expect(result.current).toBe("blob:upload-2"))
-    expect(mocks.revoke).toHaveBeenCalledWith("blob:upload-1")
-    rerender({ file: second })
-    await waitFor(() => expect(result.current).toBe("blob:upload-3"))
-    expect(mocks.revoke).toHaveBeenCalledWith("blob:upload-2")
-    rerender({ file: null })
-    expect(result.current).toBeNull()
-    unmount()
-    expect(mocks.revoke).toHaveBeenCalledTimes(3)
   })
   it("revokes resolved images on source replacement and logout", async () => {
     const abort = vi.fn()

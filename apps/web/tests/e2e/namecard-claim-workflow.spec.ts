@@ -560,6 +560,7 @@ test.describe("namecard claim workflow", () => {
 
   const registeredCard = {
     id: "registered-card-e2e",
+    cardNumber: 42,
     producerName: "注册制作人",
     seriesCodes: ["765"],
     favoriteCharacters: [favoriteCharacter],
