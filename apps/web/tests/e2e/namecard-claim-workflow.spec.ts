@@ -765,8 +765,8 @@ test.describe("namecard claim workflow", () => {
     image2_url: BACK_IMAGE,
     status: "pending",
     revision: 1,
-    displayName: "待审核注册名片",
     producerName: "注册制作人",
+    producerReading: null,
     origin: "exchange",
     lockReason: null,
     reviewStatus: null,
@@ -790,7 +790,6 @@ test.describe("namecard claim workflow", () => {
     legacyCard: {
       id: 42,
       frontImageUrl: FRONT_IMAGE,
-      middleImageUrls: [],
       backImageUrl: BACK_IMAGE,
     },
   }

@@ -358,8 +358,7 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
           success: true,
           card: {
             ...card,
-            displayName: submission.displayName,
-            favoriteCharacter: "天海春香、涩谷凛",
+            producerName: submission.producerName,
             favoriteCharacters: submission.favoriteCharacterIds.map(
               (idolId: number) =>
                 idolId === 1
@@ -515,7 +514,11 @@ test.describe("account personal workspace", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page.getByRole("textbox", { name: "显示名称" })).toBeVisible()
-    await expect(page.getByText("浏览器制作人", { exact: true })).toBeHidden()
+    await expect(
+      page
+        .getByLabel("我的名片清单")
+        .getByText("浏览器制作人", { exact: true })
+    ).toBeHidden()
     await page.screenshot({
       path: `/tmp/imsweb-profile-workspace-profile-${testInfo.project.name}.png`,
       fullPage: true,
@@ -679,7 +682,11 @@ test.describe("account personal workspace", () => {
       await page.getByRole("link", { name: "返回我的", exact: true }).click()
     await page.getByRole("link", { name: /^交换名片/ }).click()
     await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
-    await expect(page.getByText("浏览器制作人", { exact: true })).toBeVisible()
+    await expect(
+      page
+        .getByLabel("我的名片清单")
+        .getByText("浏览器制作人", { exact: true })
+    ).toBeVisible()
     await page
       .getByRole("button", { name: /^浏览器制作人/ })
       .click()
@@ -692,7 +699,7 @@ test.describe("account personal workspace", () => {
       fullPage: true,
     })
 
-    const cardName = page.getByRole("textbox", { name: "名片标题" })
+    const cardName = page.getByRole("textbox", { name: "制作人名称" })
     await cardName.fill("更新后的浏览器名片")
     await page.getByRole("combobox", { name: "企划", exact: true }).click()
     await page.getByRole("option", { name: "CINDERELLA GIRLS" }).click()

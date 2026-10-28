@@ -219,7 +219,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     await expect(page).toHaveTitle(`${label} | IMSWeb`)
     await expect(page.getByRole("main")).toHaveCount(1)
     if (section === "namecards") {
-      await expect(page.getByRole("textbox", { name: "名片标题" })).toHaveCount(
+      await expect(page.getByRole("textbox", { name: "制作人名称" })).toHaveCount(
         0
       )
       await page
@@ -523,7 +523,7 @@ for (const section of ["offices", "namecards"] as const) {
       )
     await page.goto(`/account/me/${section}`)
     const title = section === "offices" ? "新建事务所" : "新建名片"
-    const field = section === "offices" ? "事务所名称" : "名片标题"
+    const field = section === "offices" ? "事务所名称" : "制作人名称"
     await page.getByRole("button", { name: title, exact: true }).first().click()
     const dialog = page.getByRole("dialog", { name: title, exact: true })
     await expect(dialog).toBeVisible()
