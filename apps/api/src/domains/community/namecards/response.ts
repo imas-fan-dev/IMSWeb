@@ -32,7 +32,7 @@ interface NamecardRow {
     revision?: unknown;
     series_code?: unknown;
     favorite_characters?: unknown;
-    display_name?: unknown;
+    producer_reading?: unknown;
     producer_name?: unknown;
     origin?: unknown;
     lockReason?: unknown;
@@ -97,7 +97,7 @@ function responseClaimerName(value: unknown): string | null {
 
 export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardResponse {
     const image1Url = responseString(row.image1_url, 'image1_url');
-    const image2Url = responseString(row.image2_url, 'image2_url');
+    const image2Url = responseOptionalString(row.image2_url);
     const response = {
         id: responseId(row.id),
         seriesCode: responseSeriesCode(row.series_code),
@@ -107,7 +107,8 @@ export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardRespon
         image1_url: image1Url,
         image2_url: image2Url,
         image1_thumbnail_url: namecardThumbnailPublicUrl(image1Url),
-        image2_thumbnail_url: namecardThumbnailPublicUrl(image2Url),
+        image2_thumbnail_url:
+            image2Url === null ? null : namecardThumbnailPublicUrl(image2Url),
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };
@@ -120,10 +121,10 @@ export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse
     return {
         id: responseId(row.id),
         image1_url: responseString(row.image1_url, 'image1_url'),
-        image2_url: responseString(row.image2_url, 'image2_url'),
+        image2_url: responseOptionalString(row.image2_url),
         status: responseString(row.status, 'status'),
         revision: responseRevision(row.revision),
-        displayName: responseOptionalString(row.display_name),
+        producerReading: responseOptionalString(row.producer_reading),
         producerName: responseOptionalString(row.producer_name),
         origin: responseOptionalString(row.origin) ?? 'legacy',
         lockReason: responseOptionalString(row.lockReason),

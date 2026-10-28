@@ -9,7 +9,12 @@ export async function handleServeFudabaOwnerCardMedia(
 ): Promise<Response> {
     const cardId = c.req.param('cardId') || '';
     const side = c.req.param('side') || '';
-    if (!validFudabaCardId(cardId) || !['front', 'back'].includes(side)) {
+    // `middle-<1-based index>` addresses an ordered middle page.
+    const middle = /^middle-(\d{1,2})$/.exec(side);
+    if (
+        !validFudabaCardId(cardId) ||
+        (side !== 'front' && side !== 'back' && !middle)
+    ) {
         return c.text('Not Found', 404);
     }
     const card = await fudabaRepository(c).findCardForOwner(
@@ -22,10 +27,14 @@ export async function handleServeFudabaOwnerCardMedia(
     // `draft=1` asks for the revision still under review. It falls back to the
     // live object because a submitted revision may reuse the existing images.
     const draft = c.req.query('draft') === '1';
+    const keys = draft ? card.pending_middle_object_keys : card.middle_object_keys;
     const key =
         side === 'front'
             ? (draft && card.pending_front_object_key) || card.front_object_key
-            : (draft && card.pending_back_object_key) || card.back_object_key;
+            : side === 'back'
+              ? (draft && card.pending_back_object_key) || card.back_object_key
+              : (keys[Number(middle![1]) - 1] ?? null);
+    if (!key) return c.text('Not Found', 404);
     const response = await objectReadResponse(c.req.raw, storage, key, {
         'Cache-Control': 'private, no-store',
         'Vary': 'Authorization, Cookie'

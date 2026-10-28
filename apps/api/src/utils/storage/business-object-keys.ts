@@ -222,6 +222,15 @@ export function fudabaCardBackObjectKey(
         `back.${fudabaImageExtension(extension)}`;
 }
 
+export function fudabaCardMiddleVersionObjectKey(
+    cardId: string,
+    index: number,
+    version: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `versions/${fudabaEntitySegment(version)}/middle-${index}.webp`;
+}
+
 export function fudabaCardSideVersionObjectKey(
     cardId: string,
     side: 'front' | 'back',

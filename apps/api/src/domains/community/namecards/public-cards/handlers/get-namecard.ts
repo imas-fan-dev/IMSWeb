@@ -21,7 +21,10 @@ export async function handleGetNamecard(
         return c.json((storage
             ? {
                 image1_url: await resolvePublicMediaUrl(storage, media.image1_url),
-                image2_url: await resolvePublicMediaUrl(storage, media.image2_url)
+                image2_url:
+                    media.image2_url === null
+                        ? null
+                        : await resolvePublicMediaUrl(storage, media.image2_url)
             }
             : media) satisfies NamecardDetailResponse);
     } catch {

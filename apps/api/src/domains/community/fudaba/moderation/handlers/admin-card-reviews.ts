@@ -107,10 +107,11 @@ export async function handleReviewFudabaRegisteredCard(
         }
         if (claimed.status === 'conflict') return reviewConflict(c, claimed.revision);
         approvingRevision = claimed.card.revision;
+        // A single-sided card has no back media to protect or publish.
         reviewMediaKeys = [
             claimed.card.front_object_key,
             claimed.card.back_object_key
-        ];
+        ].filter((key): key is string => typeof key === 'string' && key.length > 0);
         if (review.decision === 'approve') {
             const storage = services(c).storage;
             if (!storage?.publish || !storage.protect) {
@@ -222,6 +223,7 @@ export async function handleServeFudabaRegisteredCardReviewMedia(
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
     const key = side === 'front' ? card.front_object_key : card.back_object_key;
+    if (!key) return c.text('Not Found', 404);
     const response = await objectReadResponse(c.req.raw, storage, key, {
         'Cache-Control': 'private, no-store',
         'Vary': 'Authorization, Cookie'
@@ -367,13 +369,19 @@ export async function handleReviewFudabaCardClaim(
                     card: {
                         id: boundCardId,
                         producerName: context.claimant_display_name,
-                        displayName: context.claimant_display_name,
+                        producerReading: null,
+                        seriesCode: context.series_code,
                         frontObjectKey: created[0]!.key,
-                        backObjectKey: created[1]!.key,
+                        backObjectKey: created[1]?.key ?? null,
                         accent: '#dc2626',
                         bio: '',
                         tradeNote: '',
-                        available: false
+                        exchangeMode: 'none',
+                        madeOn: null,
+                        groupName: null,
+                        isOriginal: false,
+                        madeWithAi: false,
+                        visible: true
                     }
                 }
             });

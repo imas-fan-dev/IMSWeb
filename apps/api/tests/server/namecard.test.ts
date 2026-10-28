@@ -351,21 +351,20 @@ import { describe, onTestFinished, test } from 'vitest';
                 accent: string | null;
                 owner_account_id: string | null;
                 trade_note: string | null;
-                available: boolean;
+                exchange_mode: string;
             }>(database,
-                `SELECT producer_name, display_name, bio, accent, owner_account_id,
-                trade_note, available
+                `SELECT producer_name, bio, accent, owner_account_id,
+                trade_note, exchange_mode
          FROM fudaba_cards WHERE card_number=?`,
                 [id]
             );
             assert.deepEqual(row, {
                 producer_name: 'Producer Name',
-                display_name: 'Display Name',
                 bio: 'A short bio',
                 accent: '#ABCDEF',
                 owner_account_id: null,
                 trade_note: null,
-                available: false
+                exchange_mode: 'none'
             });
         });
     });
@@ -641,33 +640,38 @@ import { describe, onTestFinished, test } from 'vitest';
             await migratePostgres({ connectionString: harness.databaseUrl });
 
             const migratedApproved = await harness.connection.prepare(
-                `SELECT card_number, origin, series_code, publication_status,
-                front_object_key, back_object_key, available, revision,
+                `SELECT card_number, origin, publication_status,
+                front_object_key, back_object_key, revision,
                 owner_account_id, producer_name
          FROM fudaba_cards WHERE id=?`
             ).bind(`legacy-${approved.id}`).first<Record<string, unknown>>();
             assert.deepEqual(migratedApproved, {
                 card_number: approved.id,
                 origin: 'legacy',
-                series_code: null,
                 publication_status: 'published',
                 front_object_key: 'community/namecards/assets/card-7-front/image.png',
                 back_object_key: 'community/namecards/assets/card-7-back/image.jpg',
-                available: false,
                 revision: 3,
                 owner_account_id: null,
                 producer_name: null,
             });
 
             const migratedGuest = await harness.connection.prepare(
-                `SELECT origin, series_code, publication_status
+                `SELECT origin, publication_status
          FROM fudaba_cards WHERE id=?`
             ).bind(`legacy-${guest.id}`).first<Record<string, unknown>>();
             assert.deepEqual(migratedGuest, {
                 origin: 'guest',
-                series_code: '765',
                 publication_status: 'pending'
             });
+
+            const guestSeries = await harness.connection.prepare(
+                `SELECT series_code FROM fudaba_card_series WHERE card_id=?`
+            ).bind(`legacy-${guest.id}`).all<{ series_code: string }>();
+            assert.deepEqual(
+                guestSeries.results.map((entry) => entry.series_code),
+                ['765']
+            );
 
             const guestAttributes = await harness.connection.prepare(
                 `SELECT hash1, hash2, submitted_ip, withdrawal_token_hash

@@ -1,4 +1,7 @@
-import type { FudabaPendingCardPayload } from '@/ports/repositories/fudaba';
+import type {
+    FudabaCardCredit,
+    FudabaPendingCardPayload
+} from '@/ports/repositories/fudaba';
 
 /**
  * Card fields an owner may change without sending the card back to review.
@@ -11,46 +14,50 @@ import type { FudabaPendingCardPayload } from '@/ports/repositories/fudaba';
  * exchange preferences, contact channels. Anything a visitor reads as the card's
  * content belongs in the reviewed set.
  */
-export const CARD_REVIEW_EXEMPT_FIELDS = ['available'] as const;
+export const CARD_REVIEW_EXEMPT_FIELDS = [
+    'exchange_mode',
+    'group_name',
+    'is_original',
+    'made_on',
+    'made_with_ai',
+    'visible'
+] as const;
 
 export type CardReviewExemptField = (typeof CARD_REVIEW_EXEMPT_FIELDS)[number];
 
-/**
- * Payload fields that decide whether the submission needs a reviewer. Keep this
- * in sync with the comparisons in `requiresCardReview`: the coverage assertion
- * below fails to compile while a payload field is neither compared nor listed in
- * `CARD_REVIEW_EXEMPT_FIELDS`.
- */
-const CARD_REVIEWED_FIELDS = [
-    'display_name',
-    'producer_name',
-    'series_code',
-    'favorite_character',
-    'favorite_character_ids',
-    'accent',
-    'bio',
-    'trade_note'
-] as const satisfies readonly Exclude<keyof FudabaPendingCardPayload, CardReviewExemptField>[];
+/** Payload fields that still need a reviewer: the card's visible content. */
+type CardReviewField = Exclude<keyof FudabaPendingCardPayload, CardReviewExemptField>;
 
-type MissingReviewedField = Exclude<
-    Exclude<keyof FudabaPendingCardPayload, CardReviewExemptField>,
-    (typeof CARD_REVIEWED_FIELDS)[number]
->;
+/** Fields `requiresCardReview` actually compares. */
+type ComparedReviewField =
+    | 'bio'
+    | 'credits'
+    | 'favorite_character_ids'
+    | 'producer_name'
+    | 'producer_reading'
+    | 'series_codes'
+    | 'trade_note';
 
 // Compile-time guard: a new payload field must be compared or declared exempt.
-const CARD_REVIEW_FIELDS_COVERED: MissingReviewedField extends never ? true : MissingReviewedField = true;
+type MissingComparison = Exclude<CardReviewField, ComparedReviewField>;
+const CARD_REVIEW_FIELDS_COVERED: MissingComparison extends never ? true : MissingComparison = true;
 void CARD_REVIEW_FIELDS_COVERED;
 
 /** The live (already approved) values a submitted edit is compared against. */
 export interface CardReviewSnapshot {
-    displayName: string | null;
     producerName: string | null;
-    seriesCode: string | null;
-    favoriteCharacter: string | null;
+    /** Ordered series of the live revision. */
+    seriesCodes: readonly string[];
     favoriteCharacterIds: readonly number[];
-    accent: string | null;
     bio: string | null;
     tradeNote: string | null;
+    madeOn: string | null;
+    groupName: string | null;
+    producerReading: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    credits: readonly FudabaCardCredit[];
 }
 
 function text(value: string | null | undefined): string {
@@ -76,17 +83,41 @@ export interface FudabaReviewPolicy {
     ): boolean;
 }
 
+/** Credits are content: a changed name, link or role needs a reviewer. */
+function sameCredits(
+    left: readonly FudabaCardCredit[],
+    right: readonly FudabaCardCredit[]
+): boolean {
+    if (left.length !== right.length) return false;
+    return left.every((credit, index) => {
+        const other = right[index];
+        return (
+            (credit.accountId ?? null) === (other.accountId ?? null) &&
+            text(credit.displayName) === text(other.displayName) &&
+            text(credit.url) === text(other.url) &&
+            credit.roles.length === other.roles.length &&
+            credit.roles.every((role, position) => role === other.roles[position])
+        );
+    });
+}
+
+function sameSet(left: readonly string[], right: readonly string[]): boolean {
+    if (left.length !== right.length) return false;
+    const sorted = [...right].sort();
+    return [...left].sort().every((value, position) => value === sorted[position]);
+}
+
 function requiresCardReview(
     current: CardReviewSnapshot,
     next: FudabaPendingCardPayload
 ): boolean {
-    if (text(current.displayName) !== text(next.display_name)) return true;
     if (text(current.producerName) !== text(next.producer_name)) return true;
-    if (text(current.seriesCode) !== text(next.series_code)) return true;
-    if (text(current.favoriteCharacter) !== text(next.favorite_character)) return true;
-    if (text(current.accent) !== text(next.accent)) return true;
+    // Reordering the series is a presentation change, not a content change.
+    if (!sameSet(current.seriesCodes, next.series_codes)) return true;
     if (text(current.bio) !== text(next.bio)) return true;
     if (text(current.tradeNote) !== text(next.trade_note)) return true;
+    if (text(current.producerReading) !== text(next.producer_reading)) return true;
+    if (!sameCredits(current.credits ?? [], next.credits ?? [])) return true;
     return !sameIds(current.favoriteCharacterIds, next.favorite_character_ids ?? []);
 }
 

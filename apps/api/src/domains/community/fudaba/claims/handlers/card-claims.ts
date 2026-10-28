@@ -110,7 +110,7 @@ export async function handleRespondFudabaClaimEnvelope(
             envelopeId: id,
             recipientAccountId: accountId,
             targetCardId,
-            seriesCode: target.series_code,
+            seriesCode: target.series_codes[0] ?? '',
             characterIds: target.favorite_characters.map((character) => character.character_id),
             message: '同 ID 旧名片身份确认',
             expectedRevision: action.expectedRevision,

@@ -129,7 +129,9 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261026130000_fudaba_public_location_precision', phase: 'post-data' },
                 { version: '20261026230000_fudaba_office_review', phase: 'post-data' },
                 { version: '20261027120000_namecard_lock_status', phase: 'post-data' },
-                { version: '20261027180000_namecard_pending_versions', phase: 'post-data' }
+                { version: '20261027180000_namecard_pending_versions', phase: 'post-data' },
+                { version: '20261028120000_namecard_editor_fields', phase: 'post-data' },
+                { version: '20261029120000_namecard_series_set', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -658,11 +660,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 62);
+        assert.equal(catalog.count, 64);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261027180000_namecard_pending_versions'
+            '20261029120000_namecard_series_set'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1004,7 +1006,9 @@ test.describe('PostgreSQL migration', () => {
                 '20261026130000_fudaba_public_location_precision',
                 '20261026230000_fudaba_office_review',
                 '20261027120000_namecard_lock_status',
-                '20261027180000_namecard_pending_versions'
+                '20261027180000_namecard_pending_versions',
+                '20261028120000_namecard_editor_fields',
+                '20261029120000_namecard_series_set'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

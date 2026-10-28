@@ -23,7 +23,7 @@ export interface PendingCardInput {
 export interface CardMediaRecord {
     id?: number;
     image1_url: string;
-    image2_url: string;
+    image2_url: string | null;
     status?: string;
     revision?: number;
     series_code?: string | null;
@@ -174,7 +174,7 @@ export interface NamecardRepository {
     ): Promise<number>;
     purgeTerminalCards(
         cutoff: Date,
-    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string | null }>>;
     findSubmissionByTokenHash(
         id: number,
         tokenHash: string,

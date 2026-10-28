@@ -23,7 +23,7 @@ import { handleListFudabaFavoriteCards } from '@/domains/community/fudaba/direct
 import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory/handlers/list-map-offices';
 import { handleListFudabaPublicCards } from '@/domains/community/fudaba/directory/handlers/list-public-cards';
 import { handleListFudabaPublicOffices } from '@/domains/community/fudaba/directory/handlers/list-public-offices';
-import { handleListFudabaPublicSeries } from '@/domains/community/fudaba/directory/handlers/list-public-series';
+import { handleListFudabaOwnerSeries, handleListFudabaPublicSeries } from '@/domains/community/fudaba/directory/handlers/list-public-series';
 import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
@@ -104,7 +104,7 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         querySchemaValidator(fudabaMapQuerySchema),
         handleListFudabaMapOffices
     );
-    routes.get('/me/series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaPublicSeries);
+    routes.get('/me/series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOwnerSeries);
     routes.get('/me/favorites', platformAuth, querySchemaValidator(fudabaCardQuerySchema), handleListFudabaFavoriteCards);
     return routes;
 }

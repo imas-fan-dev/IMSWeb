@@ -106,6 +106,12 @@ export async function handleUploadFudabaOwnedMedia(
             runtime.images,
             MAX_CARD_IMAGE_BYTES
         );
+        // The wall paints each card with its own accent; the front artwork is
+        // the only side that describes it. A missing extractor (lightweight
+        // image stand-ins) keeps whatever colour the card already had.
+        const accent = side === 'front'
+            ? (await runtime.images.dominantColor?.(converted.body)) ?? null
+            : null;
         // A compatibility row passes through the namecard readers, which reverse
         // the key, so its replacement has to land in the namecards layout. An
         // exchange row only ever reaches the owner route, which serves the key
@@ -137,6 +143,7 @@ export async function handleUploadFudabaOwnedMedia(
                 ownerAccountId: accountId,
                 side,
                 objectKey: key,
+                accent,
                 expectedRevision: expectedRevision!,
                 updatedAt: new Date().toISOString()
             });

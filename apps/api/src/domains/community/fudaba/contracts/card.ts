@@ -25,20 +25,33 @@ export function parseFudabaRevision(value: unknown): number {
     return Number(revision);
 }
 
+const cardMediaUrl = (card: FudabaCardRecord, side: string, query = '') =>
+    exchangePath(
+        `/me/cards/${encodeURIComponent(card.id)}/media/${side}?v=${card.revision}${query}`
+    );
+
 export function fudabaOwnerCardView(card: FudabaCardRecord): FudabaOwnerCard {
     return {
         id: card.id,
         producerName: card.producer_name,
-        displayName: card.display_name,
-        seriesCode: card.series_code,
-        favoriteCharacter: card.favorite_character,
+        seriesCodes: card.series_codes,
         favoriteCharacters: card.favorite_characters.map(characterView),
-        frontImageUrl: exchangePath(`/me/cards/${encodeURIComponent(card.id)}/media/front?v=${card.revision}`),
-        backImageUrl: exchangePath(`/me/cards/${encodeURIComponent(card.id)}/media/back?v=${card.revision}`),
+        frontImageUrl: cardMediaUrl(card, 'front'),
+        middleImageUrls: card.middle_object_keys.map((_key, index) =>
+            cardMediaUrl(card, `middle-${index + 1}`)
+        ),
+        backImageUrl: card.back_object_key === null ? null : cardMediaUrl(card, 'back'),
         accent: card.accent,
         bio: card.bio,
         tradeNote: card.trade_note,
-        available: card.available,
+        exchangeMode: card.exchange_mode,
+        madeOn: card.made_on,
+        groupName: card.group_name,
+        producerReading: card.producer_reading,
+        isOriginal: card.is_original,
+        madeWithAi: card.made_with_ai,
+        visible: card.visible,
+        credits: card.credits,
         publicationStatus: card.publication_status,
         reviewStatus: card.review_status,
         reviewReason: card.review_reason,
@@ -59,22 +72,29 @@ function pendingContentView(
 ): FudabaPendingCardContent | null {
     const payload = card.pending_payload;
     if (!payload || card.review_status === null) return null;
-    const mediaUrl = (side: 'front' | 'back') =>
-        exchangePath(
-            `/me/cards/${encodeURIComponent(card.id)}/media/${side}?v=${card.revision}&draft=1`
-        );
+    const mediaUrl = (side: string) => cardMediaUrl(card, side, '&draft=1');
     return {
         producerName: payload.producer_name,
-        displayName: payload.display_name,
-        seriesCode: payload.series_code,
-        favoriteCharacter: payload.favorite_character,
+        seriesCodes: payload.series_codes,
         favoriteCharacterIds: payload.favorite_character_ids,
         frontImageUrl: mediaUrl('front'),
-        backImageUrl: mediaUrl('back'),
-        accent: payload.accent,
+        middleImageUrls: card.pending_middle_object_keys.map((_key, index) =>
+            mediaUrl(`middle-${index + 1}`)
+        ),
+        backImageUrl:
+            (card.pending_back_object_key ?? card.back_object_key) === null
+                ? null
+                : mediaUrl('back'),
         bio: payload.bio,
         tradeNote: payload.trade_note,
-        available: payload.available
+        exchangeMode: payload.exchange_mode,
+        madeOn: payload.made_on,
+        groupName: payload.group_name,
+        producerReading: payload.producer_reading,
+        isOriginal: payload.is_original,
+        madeWithAi: payload.made_with_ai,
+        visible: payload.visible,
+        credits: payload.credits
     };
 }
 

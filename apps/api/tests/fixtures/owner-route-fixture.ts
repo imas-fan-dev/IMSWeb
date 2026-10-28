@@ -70,20 +70,24 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         id: 'owner-card',
         owner_account_id: ACCOUNT_ID,
         producer_name: 'Owner Producer',
-        display_name: 'Owner Card',
-        series_code: '765',
-        favorite_character: 'Haruka',
+        producer_reading: null,
+        series_codes: ['765'],
         favorite_characters: [],
+        middle_object_keys: [],
+        pending_middle_object_keys: [],
+        credits: [],
+        exchange_mode: 'manual',
+        made_on: null,
+        group_name: null,
+        is_original: false,
+        made_with_ai: false,
+        visible: true,
         legacy_card_id: null,
         front_object_key: 'protected/fudaba/cards/owner-card/front.webp',
         back_object_key: 'protected/fudaba/cards/owner-card/back.webp',
         accent: '#4f64dd',
         bio: 'Owner bio',
         trade_note: 'Owner trade note',
-        available: true,
-        source_url: null,
-        source_label: null,
-        source_credit: null,
         publication_status: 'pending',
         review_status: null,
         review_reason: null,
@@ -103,13 +107,14 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
 export function cardFields(): Record<string, string> {
     return {
         producerName: 'New Producer',
-        displayName: 'New Card',
-        seriesCode: '765',
+        seriesCodes: '["765"]',
         favoriteCharacterIds: '[900001]',
-        accent: '#336699',
         bio: 'New bio',
         tradeNote: 'New trade note',
-        available: 'true'
+        exchangeMode: 'manual',
+        isOriginal: 'false',
+        madeWithAi: 'false',
+        visible: 'true'
     };
 }
 
@@ -414,9 +419,9 @@ export class OwnerRouteFixture {
         this.cards.set(card.id, card);
         this.cards.set(other.id, other);
         this.storage.seed(card.front_object_key);
-        this.storage.seed(card.back_object_key);
+        if (card.back_object_key) this.storage.seed(card.back_object_key);
         this.storage.seed(other.front_object_key);
-        this.storage.seed(other.back_object_key);
+        if (other.back_object_key) this.storage.seed(other.back_object_key);
         this.app = createHonoApp(() => this.runtime());
     }
 
@@ -495,6 +500,7 @@ export class OwnerRouteFixture {
     } as unknown as PlatformAccountRepository;
 
     readonly fudaba = {
+        listOwnerSeries: () => this.fudaba.listPublicSeries(),
         listPublicSeries: async () => [{
             id: 1,
             code: '765',
@@ -544,15 +550,19 @@ export class OwnerRouteFixture {
                 id: input.id,
                 owner_account_id: input.ownerAccountId,
                 producer_name: input.producerName,
-                display_name: input.displayName,
-                series_code: input.seriesCode,
-                favorite_character: input.favoriteCharacter,
+                producer_reading: input.producerReading,
+                series_codes: [...input.seriesCodes],
                 front_object_key: input.frontObjectKey,
                 back_object_key: input.backObjectKey,
-                accent: input.accent,
                 bio: input.bio,
                 trade_note: input.tradeNote,
-                available: input.available,
+                exchange_mode: input.exchangeMode,
+                made_on: input.madeOn,
+                group_name: input.groupName,
+                is_original: input.isOriginal,
+                made_with_ai: input.madeWithAi,
+                visible: input.visible,
+                credits: input.credits,
                 revision: 0,
                 created_at: input.createdAt,
                 updated_at: input.updatedAt
@@ -581,13 +591,17 @@ export class OwnerRouteFixture {
             const card = {
                 ...current,
                 producer_name: input.producerName,
-                display_name: input.displayName,
-                series_code: input.seriesCode,
-                favorite_character: input.favoriteCharacter,
-                accent: input.accent,
+                producer_reading: input.producerReading,
+                series_codes: [...input.seriesCodes],
                 bio: input.bio,
                 trade_note: input.tradeNote,
-                available: input.available,
+                exchange_mode: input.exchangeMode,
+                made_on: input.madeOn,
+                group_name: input.groupName,
+                is_original: input.isOriginal,
+                made_with_ai: input.madeWithAi,
+                visible: input.visible,
+                credits: input.credits as FudabaCardRecord['credits'],
                 publication_status: 'pending' as const,
                 revision: current.revision + 1,
                 updated_at: input.updatedAt
@@ -738,13 +752,18 @@ export function profileBody(expectedUpdatedAt: number): Record<string, unknown> 
 export function metadataBody(expectedRevision: number): Record<string, unknown> {
     return {
         producerName: 'Updated Producer',
-        displayName: 'Updated Card',
-        seriesCode: '765',
+        seriesCodes: ['765'],
         favoriteCharacterIds: [900001],
-        accent: '#112233',
         bio: 'Updated card bio',
         tradeNote: 'Updated card trade note',
-        available: false,
+        exchangeMode: 'manual',
+        madeOn: null,
+        groupName: null,
+        producerReading: null,
+        isOriginal: false,
+        madeWithAi: false,
+        visible: true,
+        credits: [],
         expectedRevision
     };
 }

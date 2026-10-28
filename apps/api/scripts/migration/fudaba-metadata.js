@@ -2377,9 +2377,6 @@ function operationForRow(table, row, descriptor, context) {
                     id: row.id,
                     owner_account_id: context.accountId(row.owner_id),
                     producer_name: row.producer_name,
-                    display_name: row.display_name,
-                    series_code: mapping.code,
-                    favorite_character: row.favorite_idol,
                     front_object_key: resolveMedia(
                         context.mediaIndex,
                         context.rightsIndex,
@@ -2389,28 +2386,45 @@ function operationForRow(table, row, descriptor, context) {
                         row.front_image,
                         context.consumedMedia,
                     ),
-                    back_object_key: resolveMedia(
-                        context.mediaIndex,
-                        context.rightsIndex,
-                        "card",
-                        row.id,
-                        "back",
-                        row.back_image,
-                        context.consumedMedia,
-                    ),
-                    accent: row.accent,
+                    back_object_key: row.back_image === null
+                        ? null
+                        : resolveMedia(
+                              context.mediaIndex,
+                              context.rightsIndex,
+                              "card",
+                              row.id,
+                              "back",
+                              row.back_image,
+                              context.consumedMedia,
+                          ),
                     bio: row.bio,
                     trade_note: row.trade_note,
-                    available: integerBoolean(row.available, "cards available"),
-                    source_url: row.source_url,
-                    source_label: row.source_label,
-                    source_credit: row.source_credit,
+                    // The imported cards predate 交换模式; keep the legacy toggle.
+                    exchange_mode: integerBoolean(row.available, "cards available")
+                        ? "manual"
+                        : "none",
+                    made_on: null,
+                    group_name: null,
+                    is_original: false,
+                    made_with_ai: false,
+                    visible: true,
                     publication_status: "draft",
                     revision: 0,
                     created_at: created.iso,
                     updated_at: created.iso,
                     deleted_at: null,
                 }),
+                targetOperation(
+                    table,
+                    `${sourceKey}:series`,
+                    "fudaba_card_series",
+                    ["card_id", "series_code"],
+                    {
+                        card_id: row.id,
+                        series_code: mapping.code,
+                        display_order: 1,
+                    },
+                ),
             ];
         }
         case "office_series_tags":

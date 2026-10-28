@@ -169,17 +169,38 @@ export type FudabaOfficeCreateResult =
     | FudabaOfficeMutationResult
     | { status: "idempotency-conflict" };
 
+/** Roles a single credit may carry; one person can design and illustrate. */
+export type FudabaCardCreditRole = "design" | "illustration" | "other";
+
+/** A designer or illustrator credited for the artwork. */
+export interface FudabaCardCredit {
+    /** Site member the credit points at, when it points at one. */
+    accountId: string | null;
+    displayName: string;
+    /** Public profile elsewhere; optional. */
+    url: string | null;
+    roles: FudabaCardCreditRole[];
+}
+
+/** 交换模式: auto allows immediately, manual asks, none refuses. */
+export type FudabaExchangeMode = "auto" | "manual" | "none";
+
 /** The copy a submitter asks to publish; mirrors the live columns one to one. */
 export interface FudabaPendingCardPayload {
     producer_name: string;
-    display_name: string;
-    series_code: string;
-    favorite_character: string;
+    /** Ordered series; the first entry is the one the legacy column mirrors. */
+    series_codes: string[];
     favorite_character_ids: number[];
-    accent: string;
     bio: string;
     trade_note: string;
-    available: boolean;
+    exchange_mode: FudabaExchangeMode;
+    made_on: string | null;
+    group_name: string | null;
+    producer_reading: string | null;
+    is_original: boolean;
+    made_with_ai: boolean;
+    visible: boolean;
+    credits: FudabaCardCredit[];
 }
 
 /** Verdict on the newest submission of an already published card. */
@@ -189,27 +210,35 @@ export interface FudabaCardRecord {
     id: string;
     owner_account_id: string;
     producer_name: string;
-    display_name: string;
-    series_code: string;
-    favorite_character: string;
+    /** Ordered series; the first entry is the label shown by default. */
+    series_codes: string[];
     favorite_characters: CardFavoriteSelectionRecord[];
     legacy_card_id: number | null;
     origin: FudabaCardOrigin;
     front_object_key: string;
-    back_object_key: string;
+    /** Ordered middle pages; empty for a two-sided card. */
+    middle_object_keys: string[];
+    /** Null for a single-sided card. */
+    back_object_key: string | null;
+    /** Derived from the artwork; never submitted by the owner. */
     accent: string;
     bio: string;
     trade_note: string;
-    available: boolean;
-    source_url: string | null;
-    source_label: string | null;
-    source_credit: string | null;
+    exchange_mode: FudabaExchangeMode;
+    made_on: string | null;
+    group_name: string | null;
+    producer_reading: string | null;
+    is_original: boolean;
+    made_with_ai: boolean;
+    visible: boolean;
+    credits: FudabaCardCredit[];
     publication_status: FudabaCardPublicationStatus;
     review_status: FudabaCardReviewStatus | null;
     review_reason: string | null;
     review_submitted_at: string | null;
     pending_payload: FudabaPendingCardPayload | null;
     pending_front_object_key: string | null;
+    pending_middle_object_keys: string[];
     pending_back_object_key: string | null;
     revision: number;
     created_at: string;
@@ -221,20 +250,22 @@ export interface NewFudabaCardInput {
     id: string;
     ownerAccountId: string;
     producerName: string;
-    displayName: string;
-    seriesCode: string;
-    favoriteCharacter: string;
+    seriesCodes: string[];
     favoriteCharacterIds?: number[];
     legacyCardId?: number | null;
     frontObjectKey: string;
-    backObjectKey: string;
-    accent: string;
+    /** Absent for a single-sided card. */
+    backObjectKey?: string | null;
     bio: string;
     tradeNote: string;
-    available: boolean;
-    sourceUrl: string | null;
-    sourceLabel: string | null;
-    sourceCredit: string | null;
+    exchangeMode: FudabaExchangeMode;
+    madeOn: string | null;
+    groupName: string | null;
+    producerReading: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    credits?: FudabaCardCredit[];
     publicationStatus: FudabaCardPublicationStatus;
     revision: number;
     createdAt: string;
@@ -246,16 +277,22 @@ export interface CreateOwnedFudabaCardInput {
     id: string;
     ownerAccountId: string;
     producerName: string;
-    displayName: string;
-    seriesCode: string;
-    favoriteCharacter: string;
+    seriesCodes: string[];
     favoriteCharacterIds?: number[];
     frontObjectKey: string;
-    backObjectKey: string;
-    accent: string;
+    middleObjectKeys?: string[];
+    /** Absent for a single-sided card. */
+    backObjectKey?: string | null;
     bio: string;
     tradeNote: string;
-    available: boolean;
+    exchangeMode: FudabaExchangeMode;
+    madeOn: string | null;
+    groupName: string | null;
+    producerReading: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    credits?: FudabaCardCredit[];
     createdAt: string;
     updatedAt: string;
 }
@@ -264,14 +301,18 @@ export interface UpdateOwnedFudabaCardMetadataInput {
     cardId: string;
     ownerAccountId: string;
     producerName: string;
-    displayName: string;
-    seriesCode: string;
-    favoriteCharacter: string;
+    seriesCodes: string[];
     favoriteCharacterIds?: number[];
-    accent: string;
     bio: string;
     tradeNote: string;
-    available: boolean;
+    exchangeMode: FudabaExchangeMode;
+    madeOn: string | null;
+    groupName: string | null;
+    producerReading: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    credits?: FudabaCardCredit[];
     expectedRevision: number;
     updatedAt: string;
 }
@@ -280,7 +321,19 @@ export interface UpdateOwnedFudabaCardMediaInput {
     cardId: string;
     ownerAccountId: string;
     side: "front" | "back";
-    objectKey: string;
+    /** Null clears the back image, turning the card single-sided. */
+    objectKey: string | null;
+    /** Dominant colour of the new front image; ignored for the back side. */
+    accent?: string | null;
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+export interface UpdateOwnedFudabaCardMiddleMediaInput {
+    cardId: string;
+    ownerAccountId: string;
+    /** Complete, ordered replacement for the middle pages. */
+    objectKeys: string[];
     expectedRevision: number;
     updatedAt: string;
 }
@@ -297,6 +350,8 @@ export type FudabaCardMutationResult =
           status: "saved";
           card: FudabaCardRecord;
           previousObjectKey: string | null;
+          /** Ordered middle pages the write displaced, for object cleanup. */
+          previousObjectKeys?: string[];
       }
     | { status: "conflict"; revision: number }
     | { status: "unavailable" };
@@ -419,13 +474,19 @@ export type FudabaClaimReviewClaim =
 export interface CreateClaimedFudabaCardInput {
     id: string;
     producerName: string;
-    displayName: string;
+    producerReading: string | null;
+    seriesCode: string;
     frontObjectKey: string;
-    backObjectKey: string;
+    backObjectKey: string | null;
     accent: string;
     bio: string;
     tradeNote: string;
-    available: boolean;
+    exchangeMode: "auto" | "manual" | "none";
+    madeOn: string | null;
+    groupName: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
 }
 
 interface CompleteFudabaClaimReviewBaseInput {
@@ -614,19 +675,23 @@ export type FudabaOfficeLocationMutationResult =
 export interface FudabaPublicCardRecord {
     id: string;
     producer_name: string;
-    display_name: string;
-    series_code: string;
-    favorite_character: string;
+    /** Ordered series; the first entry is the label shown by default. */
+    series_codes: string[];
     favorite_characters: CardFavoriteSelectionRecord[];
     front_object_key: string;
-    back_object_key: string;
+    middle_object_keys: string[];
+    back_object_key: string | null;
     accent: string;
     bio: string;
     trade_note: string;
-    available: boolean;
-    source_url: string | null;
-    source_label: string | null;
-    source_credit: string | null;
+    exchange_mode: FudabaExchangeMode;
+    made_on: string | null;
+    group_name: string | null;
+    producer_reading: string | null;
+    is_original: boolean;
+    made_with_ai: boolean;
+    visible: boolean;
+    credits: FudabaCardCredit[];
     created_at: string;
     like_count: number;
     favorite_count: number;
@@ -702,7 +767,8 @@ export interface FudabaPublicCardCursor {
 
 export interface ListFudabaPublicCardsInput {
     seriesCodes?: string[];
-    available?: boolean;
+    /** True keeps cards offered for exchange, false keeps the closed ones. */
+    exchangeable?: boolean;
     officeSlug?: string;
     favoritedByAccountId?: string;
     viewerAccountId: string | null;
@@ -721,6 +787,12 @@ export interface FudabaRepository {
     }): Promise<FudabaOfficeReviewResult>;
     releaseOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<boolean>;
     listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
+    /**
+     * Every taggable series, including ones without a wiki section: an owner
+     * must be able to file a card that belongs to no published branch under
+     * 「其他」 instead of picking a wrong one.
+     */
+    listOwnerSeries(): Promise<FudabaPublicSeriesRecord[]>;
     listPublicOffices(
         input: ListFudabaPublicOfficesInput,
     ): Promise<FudabaPublicOfficeRecord[]>;
@@ -846,6 +918,10 @@ export interface FudabaRepository {
     ): Promise<FudabaCardMutationResult>;
     updateCardMediaForOwner(
         input: UpdateOwnedFudabaCardMediaInput,
+    ): Promise<FudabaCardMutationResult>;
+    /** Replaces the whole ordered middle-page set of one card. */
+    replaceCardMiddleMediaForOwner(
+        input: UpdateOwnedFudabaCardMiddleMediaInput,
     ): Promise<FudabaCardMutationResult>;
     softDeleteCardForOwner(
         input: SoftDeleteOwnedFudabaCardInput,

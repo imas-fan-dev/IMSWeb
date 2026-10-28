@@ -63,34 +63,40 @@ export async function fudabaPublicCardView(
             status: 503,
         });
     }
-    const [frontImageUrl, backImageUrl] = await Promise.all([
+    const [frontImageUrl, middleImageUrls, backImageUrl] = await Promise.all([
         requirePublicObjectUrl(storage, card.front_object_key),
-        requirePublicObjectUrl(storage, card.back_object_key),
+        Promise.all(
+            card.middle_object_keys.map((key) =>
+                requirePublicObjectUrl(storage, key),
+            ),
+        ),
+        card.back_object_key === null
+            ? Promise.resolve(null)
+            : requirePublicObjectUrl(storage, card.back_object_key),
     ]);
     return {
         id: card.id,
         producerName: card.producer_name,
-        displayName: card.display_name,
-        seriesCode: card.series_code,
-        favoriteCharacter: card.favorite_character,
+        seriesCodes: card.series_codes,
         favoriteCharacters: card.favorite_characters.map((character) => ({
             id: character.character_id,
             name: character.name_cn,
             seriesCode: character.agency_code,
         })),
         frontImageUrl,
+        middleImageUrls,
         backImageUrl,
         accent: card.accent,
         bio: card.bio,
         tradeNote: card.trade_note,
-        available: card.available,
-        source: card.source_url
-            ? {
-                  url: card.source_url,
-                  label: card.source_label,
-                  credit: card.source_credit,
-              }
-            : null,
+        exchangeMode: card.exchange_mode,
+        madeOn: card.made_on,
+        groupName: card.group_name,
+        producerReading: card.producer_reading,
+        isOriginal: card.is_original,
+        madeWithAi: card.made_with_ai,
+        visible: card.visible,
+        credits: card.credits,
         createdAt: card.created_at,
         interactions: {
             likes: card.like_count,

@@ -44,14 +44,27 @@ export async function handleListNamecards(
         return c.json({
             list: storage
                 ? await Promise.all(cards.map(async (card) => {
-                    const [image1Url, image2Url] = await Promise.all([
-                        resolvePublicMediaUrl(storage, card.image1_url),
-                        resolvePublicMediaUrl(storage, card.image2_url)
-                    ]);
-                    const [image1ThumbnailUrl, image2ThumbnailUrl] = await Promise.all([
-                        resolveNamecardThumbnailUrl(storage, card.image1_url, image1Url),
-                        resolveNamecardThumbnailUrl(storage, card.image2_url, image2Url)
-                    ]);
+                    const image1Url = await resolvePublicMediaUrl(
+                        storage,
+                        card.image1_url
+                    );
+                    const image2Url =
+                        card.image2_url === null
+                            ? null
+                            : await resolvePublicMediaUrl(storage, card.image2_url);
+                    const image1ThumbnailUrl = await resolveNamecardThumbnailUrl(
+                        storage,
+                        card.image1_url,
+                        image1Url
+                    );
+                    const image2ThumbnailUrl =
+                        image2Url === null
+                            ? null
+                            : await resolveNamecardThumbnailUrl(
+                                  storage,
+                                  card.image2_url as string,
+                                  image2Url
+                              );
                     return {
                         ...card,
                         image1_url: image1Url,

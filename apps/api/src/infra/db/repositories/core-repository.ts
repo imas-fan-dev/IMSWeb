@@ -59,10 +59,10 @@ const NAMECARD_PUBLIC_ORIGIN =
     "(origin IN ('guest', 'legacy') OR front_object_key LIKE 'community/namecards/assets/%')";
 
 const NAMECARD_COLUMNS = `id AS internal_id, card_number, front_object_key,
-    back_object_key, publication_status, revision, series_code, origin,
-    display_name, producer_name, lock_reason, created_at, review_status,
-    review_reason, pending_payload, pending_front_object_key,
-    pending_back_object_key`;
+    back_object_key, publication_status, revision, origin,
+    producer_name, producer_reading, group_name, made_on, lock_reason, created_at,
+    review_status, review_reason, pending_payload, pending_front_object_key,
+    pending_middle_object_keys, pending_back_object_key`;
 
 function namecardAdminWhere(
     filter?: NamecardAdminFilter
@@ -98,7 +98,7 @@ function namecardAdminWhere(
     if (filter !== undefined && filter.query !== null && filter.query !== '') {
         const pattern = `%${filter.query.replace(/[\\%_]/g, '\\$&')}%`;
         clauses.push(
-            "(COALESCE(display_name, '') ILIKE ? ESCAPE '\\' OR COALESCE(producer_name, '') ILIKE ? ESCAPE '\\')"
+            "(COALESCE(producer_name, '') ILIKE ? ESCAPE '\\' OR COALESCE(producer_reading, '') ILIKE ? ESCAPE '\\')"
         );
         values.push(pattern, pattern);
     }
@@ -109,18 +109,21 @@ type NamecardCardRow = {
     internal_id: string;
     card_number: number | string;
     front_object_key: string;
-    back_object_key: string;
+    back_object_key: string | null;
     publication_status: string;
     revision: number | string;
     series_code: string | null;
     origin: string;
-    display_name?: string | null;
     producer_name?: string | null;
+    producer_reading?: string | null;
+    group_name?: string | null;
+    made_on?: string | null;
     lock_reason?: string | null;
     review_status?: string | null;
     review_reason?: string | null;
     pending_payload?: unknown;
     pending_front_object_key?: string | null;
+    pending_middle_object_keys?: string[] | null;
     pending_back_object_key?: string | null;
     created_at: string | Date | null;
 };
@@ -128,9 +131,15 @@ type NamecardCardRow = {
 // A revision waiting for review keeps the live columns untouched; reviewers and
 // the owner both read the submitted copy through this projection instead.
 type NamecardPendingPayload = {
-    display_name?: string | null;
     producer_name?: string | null;
-    series_code?: string | null;
+    producer_reading?: string | null;
+    series_codes?: string[];
+    group_name?: string | null;
+    made_on?: string | null;
+    is_original?: boolean;
+    made_with_ai?: boolean;
+    visible?: boolean;
+    exchange_mode?: string;
     favorite_character_ids?: number[];
 };
 
@@ -298,7 +307,13 @@ export class SqlCoreRepository implements NamecardRepository {
         // through the authenticated moderation media route. Once the canonical
         // key is written, the regular reversal applies and the row behaves like
         // any other namecard.
-        const media = (key: string, side: 'front' | 'back'): string =>
+        const media = (key: string | null, side: 'front' | 'back'): string | null =>
+            key === null
+                ? null
+                : row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
+                ? exchangeReviewMediaUrl(key, side)
+                : namecardOriginalUrlFromObjectKey(key);
+        const unusedMedia = (key: string, side: 'front' | 'back'): string =>
             row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
                 ? exchangeReviewMediaUrl(key, side)
                 : namecardOriginalUrlFromObjectKey(key);
@@ -306,10 +321,12 @@ export class SqlCoreRepository implements NamecardRepository {
         const payload = staged ? pendingNamecardPayload(row.pending_payload) : null;
         return {
             id: Number(row.card_number),
+            // The front image is NOT NULL in the schema, so this never degrades
+            // to null the way the optional back image can.
             image1_url: media(
                 (staged ? row.pending_front_object_key : null) ?? row.front_object_key,
                 'front'
-            ),
+            ) as string,
             image2_url: media(
                 (staged ? row.pending_back_object_key : null) ?? row.back_object_key,
                 'back'
@@ -319,7 +336,7 @@ export class SqlCoreRepository implements NamecardRepository {
             // affected by how the queue labels the card.
             status: staged ? 'pending' : toLegacyNamecardStatus(row.publication_status),
             revision: Number(row.revision),
-            series_code: payload?.series_code ?? row.series_code,
+            series_code: payload?.series_codes?.[0] ?? null,
             submission_kind: row.origin === 'guest' ? 'guest' : 'legacy',
             lockReason: row.lock_reason ?? null,
             reviewStatus: staged ? 'pending' : toNamecardReviewStatus(row.review_status),
@@ -328,11 +345,32 @@ export class SqlCoreRepository implements NamecardRepository {
         };
     }
 
+    /** Series live in their own table now; the queue only needs the first one. */
+    private async listNamecardSeries(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, string[]>> {
+        const grouped = new Map<string, string[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await (database.prepare(
+            `SELECT card_id, series_code FROM public.fudaba_card_series
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{ card_id: string; series_code: string }>());
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push(row.series_code);
+        }
+        return grouped;
+    }
+
     private async attachNamecardFavorites(
         database: SqlDatabase,
         rows: readonly NamecardCardRow[]
     ): Promise<Array<NamecardSubmissionRow & { favorite_characters: CardFavoriteSelectionRecord[] }>> {
         const characters = await this.listNamecardFavorites(database, rows.map((row) => row.internal_id));
+        const series = await this.listNamecardSeries(database, rows.map((row) => row.internal_id));
         return rows.map((row) => {
             const favoriteCharacters = characters.get(row.internal_id) ?? [];
             const record = this.namecardRecordFromRow(row);
@@ -343,10 +381,9 @@ export class SqlCoreRepository implements NamecardRepository {
             return {
                 ...record,
                 origin: row.origin,
-                display_name: payload?.display_name ?? row.display_name ?? null,
                 producer_name: payload?.producer_name ?? row.producer_name ?? null,
                 favorite_characters: favoriteCharacters,
-                seriesCode: record.series_code ?? null,
+                seriesCode: series.get(row.internal_id)?.[0] ?? record.series_code ?? null,
                 submissionKind: record.submission_kind ?? 'legacy',
                 favoriteCharacters
             };
@@ -366,7 +403,10 @@ export class SqlCoreRepository implements NamecardRepository {
         const characterIds = input.characterIds ?? [];
         const idPrefix = submissionKind === 'legacy' ? 'legacy' : 'guest';
         const frontKey = publicMediaObjectKey(input.image1Url);
-        const backKey = publicMediaObjectKey(input.image2Url);
+        const backKey =
+            input.image2Url === null || input.image2Url === ''
+                ? null
+                : publicMediaObjectKey(input.image2Url);
         return this.database.transaction(async (database) => {
             const characters = await this.validateNamecardSelection(
                 database,
@@ -380,21 +420,19 @@ export class SqlCoreRepository implements NamecardRepository {
                      SELECT nextval('public.namecard_number_seq') AS card_number
                  )
                  INSERT INTO fudaba_cards
-                    (id, card_number, origin, series_code, producer_name,
-                     display_name, front_object_key, back_object_key, accent,
-                     bio, trade_note, available,
-                     publication_status, revision, created_at, updated_at)
+                    (id, card_number, origin, producer_name,
+                     front_object_key, back_object_key, accent, bio, trade_note,
+                     exchange_mode, publication_status, revision,
+                     created_at, updated_at)
                  SELECT ? || '-' || allocated.card_number::text, allocated.card_number,
-                        ?, ?, ?, ?, ?, ?, ?, ?, NULL, FALSE, 'pending',
-                        0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        ?, ?, ?, ?, COALESCE(?, '#4f64dd'), ?, NULL,
+                        'none', 'pending', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                  FROM allocated
                  RETURNING id, card_number`,
                 [
                     idPrefix,
                     idPrefix,
-                    input.seriesCode ?? null,
                     input.producerName ?? null,
-                    input.displayName ?? null,
                     frontKey,
                     backKey,
                     input.accent ?? null,
@@ -402,6 +440,16 @@ export class SqlCoreRepository implements NamecardRepository {
                 ]
             );
             if (!created) throw new Error('Card insert did not return an ID');
+            // Guest cards keep their single series in the shared set table.
+            if (input.seriesCode) {
+                await executeSql(database,
+                    `INSERT INTO public.fudaba_card_series
+                        (card_id, series_code, display_order)
+                     VALUES (?, ?, 1)
+                     ON CONFLICT (card_id, series_code) DO NOTHING`,
+                    [created.id, input.seriesCode]
+                );
+            }
             if (characters.length) {
                 await database.batch(characters.map((character) => database.prepare(
                     `INSERT INTO fudaba_card_favorite_characters (card_id, character_id, display_order)
@@ -602,7 +650,12 @@ export class SqlCoreRepository implements NamecardRepository {
     ): Promise<void> {
         await executeSql(database,
             `UPDATE fudaba_cards
-             SET display_name=?, producer_name=?, series_code=?,
+             SET producer_name=?,
+                 made_on=COALESCE(?, made_on), group_name=COALESCE(?, group_name),
+                 is_original=COALESCE(?, is_original),
+                 made_with_ai=COALESCE(?, made_with_ai),
+                 visible=COALESCE(?, visible),
+                 exchange_mode=COALESCE(?, exchange_mode),
                  front_object_key=COALESCE(pending_front_object_key, front_object_key),
                  back_object_key=COALESCE(pending_back_object_key, back_object_key),
                  publication_status='published', rejection_reason=NULL,
@@ -612,12 +665,41 @@ export class SqlCoreRepository implements NamecardRepository {
                  revision=revision+1, updated_at=CURRENT_TIMESTAMP
              WHERE id=?`,
             [
-                payload?.display_name ?? row.display_name ?? null,
                 payload?.producer_name ?? row.producer_name ?? null,
-                payload?.series_code ?? row.series_code ?? null,
+                payload?.made_on ?? null,
+                payload?.group_name ?? null,
+                payload?.is_original ?? null,
+                payload?.made_with_ai ?? null,
+                payload?.visible ?? null,
+                payload?.exchange_mode ?? null,
                 row.internal_id
             ]
         );
+        const seriesCodes = (payload?.series_codes ?? []).filter(
+            (code) => typeof code === 'string' && code.length > 0
+        );
+        if (seriesCodes.length) {
+            await executeSql(database,
+                'DELETE FROM fudaba_card_series WHERE card_id=?',
+                [row.internal_id]
+            );
+            for (const [index, seriesCode] of seriesCodes.entries()) {
+                await executeSql(database,
+                    `INSERT INTO fudaba_card_series (card_id, series_code, display_order)
+                     VALUES (?, ?, ?)
+                     ON CONFLICT (card_id, series_code) DO NOTHING`,
+                    [row.internal_id, seriesCode, index + 1]
+                );
+            }
+            // A card that never had artwork keeps the column default; the
+            // series colour is the honest backdrop until one is extracted.
+            await executeSql(database,
+                `UPDATE fudaba_cards SET accent=COALESCE(
+                     (SELECT color FROM agencies WHERE code=?), accent)
+                 WHERE id=? AND accent='#ef5b6c'`,
+                [seriesCodes[0], row.internal_id]
+            );
+        }
         const characterIds = (payload?.favorite_character_ids ?? []).filter(
             (characterId) => Number.isSafeInteger(characterId) && characterId > 0
         );
@@ -843,11 +925,11 @@ export class SqlCoreRepository implements NamecardRepository {
 
     async purgeTerminalCards(
         cutoff: Date
-    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>> {
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string | null }>> {
         const rows = await queryAll<{
             card_number: number | string;
             front_object_key: string;
-            back_object_key: string;
+            back_object_key: string | null;
         }>(this.database,
             `DELETE FROM fudaba_cards
              WHERE id IN (
@@ -862,7 +944,10 @@ export class SqlCoreRepository implements NamecardRepository {
         return rows.map((row) => ({
             id: Number(row.card_number),
             image1_url: namecardOriginalUrlFromObjectKey(row.front_object_key),
-            image2_url: namecardOriginalUrlFromObjectKey(row.back_object_key)
+            image2_url:
+                row.back_object_key === null
+                    ? null
+                    : namecardOriginalUrlFromObjectKey(row.back_object_key)
         }));
     }
 

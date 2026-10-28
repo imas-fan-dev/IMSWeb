@@ -9,8 +9,10 @@ export async function handleListFudabaFavoriteCards(
 ): Promise<Response> {
     const viewerAccountId = c.get('platformUser')!.id;
     const query = parseFudabaCardQuery(c.req.url);
+    const { available, ...filters } = query.filters;
     const rows = await fudabaRepository(c).listPublicCards({
-        ...query.filters,
+        ...filters,
+        ...(available === undefined ? {} : { exchangeable: available }),
         favoritedByAccountId: viewerAccountId,
         viewerAccountId,
         limit: query.limit + 1,
