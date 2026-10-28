@@ -1,5 +1,6 @@
 import { ImagePlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
 import { useCallback, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
 import { Button } from "~/components/ui/button"
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from "@imsweb/contracts/fudaba/runtime"
@@ -434,20 +435,27 @@ export function CardMediaGallery({
         ) : null}
       </div>
 
-      {drag ? (
-        <img
-          src={drag.url}
-          alt=""
-          aria-hidden="true"
-          className="pointer-events-none fixed z-50 rounded-md border-2 border-primary object-cover shadow-xl"
-          style={{
-            width: THUMB_SIZE,
-            height: THUMB_SIZE,
-            left: drag.x - THUMB_SIZE / 2,
-            top: drag.y - THUMB_SIZE / 2,
-          }}
-        />
-      ) : null}
+      {/*
+        对话框的祖先节点带 transform，会把 `position: fixed` 的包含块改成它自己，
+        ghost 因此被推到指针右侧很远。挂到 body 上才按视口定位。
+      */}
+      {drag
+        ? createPortal(
+            <img
+              src={drag.url}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none fixed z-50 rounded-md border-2 border-primary object-cover shadow-xl"
+              style={{
+                width: THUMB_SIZE,
+                height: THUMB_SIZE,
+                left: drag.x - THUMB_SIZE / 2,
+                top: drag.y - THUMB_SIZE / 2,
+              }}
+            />,
+            document.body
+          )
+        : null}
 
       <p className="mt-2 text-xs text-muted-foreground">
         第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。

@@ -8,7 +8,7 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react"
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -40,8 +40,8 @@ import {
   releaseMediaSlot,
   type MediaSlot,
 } from "./card-media-gallery"
+import { PublicationBadge } from "./card-inventory"
 import { CardFields } from "./card-editor-fields"
-import { NamecardOwnerStatusBadge } from "~/components/community/namecard-status-badge"
 import {
   CardModule,
   type CardModuleModes,
@@ -105,6 +105,17 @@ export function CardEditor({
       : []
   )
   const [mediaDirty, setMediaDirty] = useState(false)
+
+  const notices: EditorNotice[] = [
+    ...cardNotices(card, creating).map((notice) => ({
+      ...notice,
+      key: notice.title,
+    })),
+    ...(readOnlyReason
+      ? [{ key: "read-only", title: "名片暂时只读", body: readOnlyReason }]
+      : []),
+    ...(feedback ? [feedbackNotice(feedback, reloadLatest, () => setFeedback(null))] : []),
+  ]
 
   useEffect(
     () => () => {
@@ -336,49 +347,9 @@ export function CardEditor({
         <CardEditorNotices
           // 换卡或版本变化时重建，关掉的提示自然重新出现。
           key={`${card?.id ?? "new"}-${card?.revision ?? 0}`}
-          card={card}
-          creating={creating}
+          notices={notices}
         />
       </CardModule>
-
-      {readOnlyReason ? (
-        <Alert className="mt-4">
-          <CircleAlertIcon aria-hidden="true" />
-          <AlertTitle>名片暂时只读</AlertTitle>
-          <AlertDescription>{readOnlyReason}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {feedback ? (
-        <Alert
-          className="mt-4"
-          variant={feedback.kind === "error" ? "destructive" : "default"}
-        >
-          <CircleAlertIcon aria-hidden="true" />
-          <AlertTitle>
-            {feedback.kind === "success"
-              ? "操作成功"
-              : feedback.kind === "conflict"
-                ? "名片版本冲突"
-                : "操作未完成"}
-          </AlertTitle>
-          <AlertDescription>
-            <p>{feedback.message}</p>
-            {feedback.kind === "conflict" ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => void reloadLatest()}
-              >
-                <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-                载入最新名片
-              </Button>
-            ) : null}
-          </AlertDescription>
-        </Alert>
-      ) : null}
 
       <CardModule mode={modes?.media}>
         <div className="mt-5" data-card-field="media">
@@ -480,6 +451,47 @@ function formatCardTime(value: string | null | undefined): string {
  */
 type CardNotice = { title: string; body: string; destructive?: boolean }
 
+function feedbackNotice(
+  feedback: EditorFeedback,
+  reloadLatest: () => Promise<void>,
+  onDismiss: () => void
+): EditorNotice {
+  return {
+    key: `feedback-${feedback.kind}`,
+    title:
+      feedback.kind === "success"
+        ? "操作成功"
+        : feedback.kind === "conflict"
+          ? "名片版本冲突"
+          : "操作未完成",
+    body: feedback.message,
+    destructive: feedback.kind === "error",
+    action:
+      feedback.kind === "conflict" ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={() => void reloadLatest()}
+        >
+          <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+          载入最新名片
+        </Button>
+      ) : undefined,
+    onDismiss,
+  }
+}
+
+type EditorNotice = {
+  key: string
+  title: string
+  body: ReactNode
+  destructive?: boolean
+  action?: ReactNode
+  onDismiss?: () => void
+}
+
 function cardNotices(
   card: FudabaOwnerCard | null,
   creating: boolean
@@ -523,50 +535,47 @@ function cardNotices(
  * 状态提示悬挂在 dialog-body 顶部：滚动时不跟着走，可逐条关闭，
  * 出现与消失都是渐变，避免贴边的告警忽然跳出来。
  */
-function CardEditorNotices({
-  card,
-  creating,
-}: {
-  card: FudabaOwnerCard | null
-  creating: boolean
-}) {
-  const notices = cardNotices(card, creating)
+function CardEditorNotices({ notices }: { notices: readonly EditorNotice[] }) {
   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
   const [closing, setClosing] = useState<string | null>(null)
 
-  const visible = notices.filter((notice) => !hidden.has(notice.title))
+  const visible = notices.filter((notice) => !hidden.has(notice.key))
   if (visible.length === 0) return null
 
-  function dismiss(title: string) {
-    setClosing(title)
+  function dismiss(notice: EditorNotice) {
+    setClosing(notice.key)
     window.setTimeout(() => {
-      setHidden((previous) => new Set(previous).add(title))
-      setClosing((current) => (current === title ? null : current))
+      setHidden((previous) => new Set(previous).add(notice.key))
+      setClosing((current) => (current === notice.key ? null : current))
+      notice.onDismiss?.()
     }, 160)
   }
 
   return (
-    <div className="sticky top-0 z-20 space-y-2 bg-background/90 px-0.5 pt-1 pb-3 backdrop-blur-sm">
+    <div className="sticky top-0 z-20 space-y-2 px-0.5 pt-1 pb-3">
       {visible.map((notice) => (
         <Alert
-          key={notice.title}
+          key={notice.key}
           variant={notice.destructive ? "destructive" : "default"}
           className={`relative overflow-hidden pr-10 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 ${
-            closing === notice.title
+            closing === notice.key
               ? "motion-safe:animate-out motion-safe:fade-out-0"
               : ""
           }`}
         >
           <CircleAlertIcon aria-hidden="true" />
           <AlertTitle>{notice.title}</AlertTitle>
-          <AlertDescription>{notice.body}</AlertDescription>
+          <AlertDescription>
+            {notice.body}
+            {notice.action}
+          </AlertDescription>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             className="absolute top-1.5 right-1.5"
             aria-label={`关闭提示：${notice.title}`}
-            onClick={() => dismiss(notice.title)}
+            onClick={() => dismiss(notice)}
           >
             <XIcon aria-hidden="true" />
           </Button>
@@ -589,7 +598,7 @@ export function CardEditorHeading({
 }) {
   return (
     // 右上角有关闭按钮，标题区整体留出它的宽度与上边距。
-    <div className="flex min-w-0 flex-col gap-3 border-b pt-1 pr-10 pb-4 sm:flex-row sm:items-start sm:justify-between sm:pr-14">
+    <div className="flex min-w-0 flex-col gap-3 border-b pt-1 pr-5 pb-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <h2 id="owned-card-editor-title" className="text-base font-medium">
           {creating ? "新建名片" : "编辑名片"}
@@ -602,16 +611,11 @@ export function CardEditorHeading({
                 ? `名片 #${card.cardNumber} · 版本 ${card.revision}`
                 : "名片 #— · 版本 0"}
           </p>
-          {!creating && card ? (
-            <NamecardOwnerStatusBadge
-              status={card.publicationStatus}
-              reviewing={card.reviewStatus === "pending"}
-            />
-          ) : null}
+          {!creating && card ? <PublicationBadge card={card} /> : null}
         </div>
       </div>
       {creating ? null : (
-        <dl className="flex min-w-0 shrink-0 flex-col items-start gap-0.5 text-xs text-muted-foreground sm:items-end sm:pt-0.5 sm:text-right">
+        <dl className="mt-auto flex min-w-0 shrink-0 flex-col items-start gap-0.5 font-mono text-xs text-muted-foreground sm:items-end sm:self-end sm:text-right">
           <div className="block whitespace-nowrap">
             <dt className="inline">创建于 </dt>
             <dd className="inline">{formatCardTime(card?.createdAt)}</dd>

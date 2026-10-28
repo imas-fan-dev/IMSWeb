@@ -121,7 +121,7 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-body"
       className={cn(
-        "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+        "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
         className
       )}
       {...props}

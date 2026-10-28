@@ -498,7 +498,8 @@ describe("AccountMeWorkspace", () => {
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
-    expect(screen.getAllByText("草稿")).toHaveLength(1)
+    // 编辑器标题区也带状态徽标：清单与标题区各出现一次。
+    expect(screen.getAllByText("草稿")).toHaveLength(2)
     expect(
       screen.queryByRole("textbox", { name: "显示名称" })
     ).not.toBeInTheDocument()

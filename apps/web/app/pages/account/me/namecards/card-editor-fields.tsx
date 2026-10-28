@@ -75,12 +75,14 @@ const FLAG_OPTIONS = [
   {
     id: "exchange-card-is-original",
     field: "isOriginal",
+    title: "原创声明",
     description:
       "此名片主体部分为自行绘制、约稿或授权使用，而非在官图基础上进行的二次修改或描摹。",
   },
   {
     id: "exchange-card-made-with-ai",
     field: "madeWithAi",
+    title: "AI 声明",
     description: "此名片主体部分使用生成式 AI 直接参与制作。",
   },
 ] as const
@@ -372,25 +374,30 @@ export function CardFields({
       <CardModule mode={modes?.flags}>
         <FieldGroup className="gap-3">
           {FLAG_OPTIONS.map((option) => (
-            <Field
-              key={option.id}
-              orientation="horizontal"
-              data-disabled={disabled || undefined}
-            >
-              <Checkbox
-                id={option.id}
-                checked={draft[option.field]}
-                disabled={disabled}
-                onCheckedChange={(checked) =>
-                  patch({ [option.field]: checked === true })
-                }
-              />
-              <label
-                htmlFor={option.id}
-                className="min-w-0 text-sm text-muted-foreground"
-              >
-                {option.description}
-              </label>
+            <Field key={option.id} data-disabled={disabled || undefined}>
+              <FieldLabel htmlFor={option.id}>{option.title}</FieldLabel>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id={option.id}
+                  checked={draft[option.field]}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => {
+                    // 两条声明互斥，勾上一条即取消另一条。
+                    const checkedNow = checked === true
+                    patch(
+                      option.field === "isOriginal"
+                        ? { isOriginal: checkedNow, madeWithAi: false }
+                        : { isOriginal: false, madeWithAi: checkedNow }
+                    )
+                  }}
+                />
+                <label
+                  htmlFor={option.id}
+                  className="min-w-0 text-sm text-muted-foreground"
+                >
+                  {option.description}
+                </label>
+              </Field>
             </Field>
           ))}
         </FieldGroup>
@@ -468,7 +475,7 @@ export function CardFields({
           />
           <label
             htmlFor="exchange-card-visible"
-            className="min-w-0 text-sm text-muted-foreground"
+            className="min-w-0 text-sm font-medium"
           >
             他人可在名片墙和用户主页看到这张名片。
           </label>

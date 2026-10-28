@@ -77,7 +77,7 @@ export function SeriesMultiSelect({
         id={id}
         role="group"
         aria-label="企划"
-        className="grid max-h-64 grid-cols-2 gap-1 overflow-y-auto rounded-lg border p-2 lg:grid-cols-3"
+        className="series-choice grid max-h-64 grid-cols-2 gap-1 overflow-y-auto rounded-lg border p-2 lg:grid-cols-3"
       >
         {series.map((item) => {
           const isLocked = locked.has(item.code)
@@ -91,8 +91,8 @@ export function SeriesMultiSelect({
               }
               className={`flex items-center gap-2 rounded-md px-1.5 py-1 text-sm ${
                 isLocked
-                  ? "bg-muted text-muted-foreground"
-                  : "cursor-pointer hover:bg-accent/60"
+                  ? "bg-muted/60 text-muted-foreground"
+                  : "cursor-pointer hover:bg-muted/60"
               }`}
             >
               <Checkbox

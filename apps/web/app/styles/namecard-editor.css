@@ -55,6 +55,19 @@
   }
 
   /* 图片预览的删除按钮：不透明底色，hover 只把颜色压深，不叠描边与透明层。 */
+  /*
+   * Checkbox 基础样式带 group-has-disabled/field:opacity-50，只要同一组里有一
+   * 个禁用项，整组复选框都会被压暗，锁定与未锁定就看不出区别。这里收回到单个
+   * 复选框自身，让「锁定 = 半透明、可改 = 实心」重新可辨。
+   */
+  .series-choice [data-slot="checkbox"] {
+    opacity: 1 !important;
+  }
+
+  .series-choice [data-slot="checkbox"][data-disabled] {
+    opacity: 0.5 !important;
+  }
+
   .card-artwork-delete {
     background-color: var(--destructive) !important;
     color: var(--destructive-foreground) !important;
