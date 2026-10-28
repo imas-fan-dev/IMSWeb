@@ -59,7 +59,7 @@ export function emptyCardFields(
     favoriteCharacterIds: [],
     bio: profile.bio,
     tradeNote: "",
-    exchangeMode: "manual",
+    exchangeMode: "auto",
     madeOn: null,
     groupName: null,
     isOriginal: false,

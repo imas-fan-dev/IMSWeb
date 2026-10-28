@@ -46,7 +46,7 @@ import {
   type AdminNamecardList,
 } from "~/lib/api"
 import { NamecardMediaPreview } from "./namecard-media-preview"
-import { NamecardStatusBadge } from "./namecard-status-badge"
+import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]

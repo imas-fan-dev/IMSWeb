@@ -14,14 +14,9 @@ import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
 import { Separator } from "~/components/ui/separator"
 
-/** A kana query should land in reading order, so sort by the Japanese name. */
-function sortByReading<T extends { nameJa: string | null; nameCn: string }>(
-  entries: readonly T[]
-): T[] {
-  const reading = (entry: T) => entry.nameJa || entry.nameCn
-  return [...entries].sort((left, right) =>
-    reading(left).localeCompare(reading(right), "ja")
-  )
+/** A unit is shown by its Japanese name; the Chinese name is the fallback. */
+function unitLabel(unit: { nameJa: string | null; nameCn: string }): string {
+  return unit.nameJa || unit.nameCn
 }
 import { Input } from "~/components/ui/input"
 import {
@@ -40,7 +35,7 @@ const ALL_VALUE = "all"
 
 type SelectedUnit = {
   id: number
-  nameCn: string
+  name: string
   memberIds: number[]
 }
 
@@ -65,7 +60,9 @@ function matchesQuery(fields: (string | null)[], normalizedQuery: string) {
  * agency filter, so the 「其他…」 buckets stay reachable as the escape hatch.
  * Units are search shortcuts: checking one adds every member it lists, and the
  * unit is remembered for the session as a single removable chip that withdraws
- * the members it contributed. A unit matches the agency filter when any of its
+ * the members it contributed. Unchecking any single member withdraws the unit
+ * instead, so the chip expands into the members that stay chosen. Candidates
+ * keep the catalog order (the same order as the admin character list). A unit matches the agency filter when any of its
  * agencies is selected, and the category filter when any member has that
  * category, so neither filter can surface a row outside its own scope.
  */
@@ -134,7 +131,7 @@ export function CharacterMultiSelect({
       (agencyCode === ALL_VALUE || entry.agencyCode === agencyCode) &&
       (category === ALL_VALUE || entry.category === category)
   )
-  const matchedCharacters = sortByReading(filtered.filter(
+  const matchedCharacters = filtered.filter(
     (entry) =>
       !entry.isFallback &&
       (!normalizedQuery ||
@@ -142,7 +139,7 @@ export function CharacterMultiSelect({
           [entry.nameCn, entry.nameJa, entry.nameEn, entry.aliases],
           normalizedQuery
         ))
-  ))
+  )
   const selectedAgencyId =
     agencyCode === ALL_VALUE
       ? null
@@ -189,6 +186,17 @@ export function CharacterMultiSelect({
       onChange([...selectedIds, characterId])
       return
     }
+    // Unchecking a member withdraws the combination it came from: the chip
+    // expands into the remaining members, which stay chosen on their own.
+    const owning = selectedUnits.filter((unit) =>
+      unit.memberIds.includes(characterId)
+    )
+    if (owning.length > 0) {
+      const owningIds = new Set(owning.map((unit) => unit.id))
+      setSelectedUnits((previous) =>
+        previous.filter((unit) => !owningIds.has(unit.id))
+      )
+    }
     onChange(selectedIds.filter((current) => current !== characterId))
   }
 
@@ -203,7 +211,11 @@ export function CharacterMultiSelect({
         ? previous
         : [
             ...previous,
-            { id: unit.id, nameCn: unit.nameCn, memberIds: unit.memberIds },
+            {
+              id: unit.id,
+              name: unitLabel(unit),
+              memberIds: unit.memberIds,
+            },
           ]
     )
     onChange([...next])
@@ -251,7 +263,12 @@ export function CharacterMultiSelect({
 
   return (
     <Field id={id} data-disabled={controlDisabled || undefined}>
-      <FieldLabel id={`${id}-label`}>担当角色</FieldLabel>
+      <FieldLabel id={`${id}-label`}>
+        担当角色{" "}
+        <span aria-hidden="true" className="text-destructive">
+          *
+        </span>
+      </FieldLabel>
       <FieldDescription>
         可跨企划选择，最多 {NAMECARD_FAVORITE_CHARACTER_LIMIT}{" "}
         人；搜索支持角色名、别名与组合名。
@@ -373,7 +390,7 @@ export function CharacterMultiSelect({
                           }
                         />
                         <span className="min-w-0 flex-1 truncate text-sm">
-                          {unit.nameCn}
+                          {unitLabel(unit)}
                         </span>
                         <UnitMemberSummary
                           className="max-w-[45%] text-xs text-muted-foreground"
@@ -420,14 +437,14 @@ export function CharacterMultiSelect({
                 variant="secondary"
                 className="gap-1 pr-1"
               >
-                {unit.nameCn}
+                {unit.name}
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="size-6 sm:size-5"
                   disabled={disabled}
-                  aria-label={`移除组合 ${unit.nameCn}`}
+                  aria-label={`移除组合 ${unit.name}`}
                   title="移除"
                   onClick={() => removeUnit(unit.id)}
                 >

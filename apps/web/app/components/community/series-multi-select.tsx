@@ -1,4 +1,6 @@
-import { CheckIcon } from "lucide-react"
+import { useMemo } from "react"
+
+import { Lock } from "lucide-react"
 
 import { NAMECARD_SERIES_LIMIT } from "@imsweb/contracts/fudaba/runtime"
 
@@ -28,8 +30,8 @@ export function SeriesMultiSelect({
   disabled: boolean
   onChange: (codes: string[]) => void
 }) {
-  const selected = new Set(selectedCodes)
-  const locked = new Set(lockedCodes)
+  const selected = useMemo(() => new Set(selectedCodes), [selectedCodes])
+  const locked = useMemo(() => new Set(lockedCodes), [lockedCodes])
   const atLimit = selectedCodes.length >= NAMECARD_SERIES_LIMIT
 
   function toggle(code: string, checked: boolean) {
@@ -41,10 +43,12 @@ export function SeriesMultiSelect({
 
   return (
     <Field data-disabled={disabled || undefined}>
-      <FieldLabel htmlFor={id}>所属企划</FieldLabel>
+      <FieldLabel htmlFor={id}>
+        企划{" "}
+        <span aria-hidden="true" className="text-destructive">*</span>
+      </FieldLabel>
       <FieldDescription>
-        至少选择一个企划；第一个会作为名片墙上的默认标签（最多{" "}
-        {NAMECARD_SERIES_LIMIT} 个）。担当角色所属的企划会被强制勾选。
+        担当角色所属的企划会被自动勾选，且不可取消。
       </FieldDescription>
       {selectedCodes.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
@@ -72,8 +76,8 @@ export function SeriesMultiSelect({
       <div
         id={id}
         role="group"
-        aria-label="所属企划"
-        className="grid max-h-64 gap-1 overflow-y-auto rounded-lg border p-2 sm:grid-cols-2"
+        aria-label="企划"
+        className="grid max-h-64 grid-cols-2 gap-1 overflow-y-auto rounded-lg border p-2 lg:grid-cols-3"
       >
         {series.map((item) => {
           const isLocked = locked.has(item.code)
@@ -81,7 +85,12 @@ export function SeriesMultiSelect({
           return (
             <label
               key={item.code}
-              className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-muted/60"
+              data-locked={isLocked || undefined}
+              className={`flex items-center gap-2 rounded-md px-1.5 py-1 text-sm ${
+                isLocked
+                  ? "bg-muted/60 text-muted-foreground"
+                  : "cursor-pointer hover:bg-muted/60"
+              }`}
             >
               <Checkbox
                 checked={checked}
@@ -96,17 +105,17 @@ export function SeriesMultiSelect({
               <span className="min-w-0 flex-1 truncate">
                 {item.displayName}
               </span>
+              {isLocked ? (
+                <Lock
+                  aria-hidden="true"
+                  className="size-3 shrink-0 text-muted-foreground"
+                />
+              ) : null}
               <span
                 aria-hidden="true"
                 className="size-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: item.color }}
               />
-              {checked ? (
-                <CheckIcon
-                  aria-hidden="true"
-                  className="size-3.5 text-muted-foreground"
-                />
-              ) : null}
             </label>
           )
         })}

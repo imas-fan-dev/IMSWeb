@@ -20,7 +20,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { FudabaOwnerCard, FudabaSeries, PlatformProfile } from "~/lib/api"
-import { CardEditor } from "./card-editor"
+import { CardEditor, CardEditorHeading } from "./card-editor"
 import { CardInventory } from "./card-inventory"
 
 /** What happened to the revision that is not published yet, and what is live. */
@@ -106,6 +106,7 @@ export function CardWorkspace({
           key={creating ? "new" : selectedCard?.id}
           card={selectedCard}
           creating={creating}
+          headerless={!mapDialog}
           profile={profile}
           series={series}
           readOnly={readOnly}
@@ -158,10 +159,16 @@ export function CardWorkspace({
         >
           <DialogContent layout="pinned" className="sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>
+              {/* 真正的标题在编辑器里，这里只保留无障碍名称。 */}
+              <DialogTitle className="sr-only">
                 {creating ? "新建名片" : "名片详情与编辑"}
               </DialogTitle>
-              <DialogDescription>查看双面素材与名片资料。</DialogDescription>
+              <DialogDescription className="sr-only">
+                查看双面素材与名片资料。
+              </DialogDescription>
+              {selectedCard || creating ? (
+                <CardEditorHeading card={selectedCard} creating={creating} />
+              ) : null}
             </DialogHeader>
             <DialogBody>{editor}</DialogBody>
           </DialogContent>

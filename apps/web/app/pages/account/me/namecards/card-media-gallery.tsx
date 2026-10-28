@@ -8,6 +8,11 @@ import { NAMECARD_MIDDLE_IMAGE_LIMIT } from "@imsweb/contracts/fudaba/runtime"
 export const NAMECARD_MEDIA_LIMIT = 2 + NAMECARD_MIDDLE_IMAGE_LIMIT
 
 const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
+/** 缩略图边长与间距；插入占位的位移按这两项算。 */
+const THUMB_SIZE = 80
+const THUMB_GAP = 8
+const THUMB_STEP = THUMB_SIZE + THUMB_GAP
+const STRIP_PADDING = 8
 
 export type MediaSlot =
   | {
@@ -115,10 +120,16 @@ export function validateArtworkFile(file: File): string | null {
   return null
 }
 
+type DragState = { index: number; url: string; x: number; y: number }
+
 /**
  * The artwork area of the card window: one large preview plus a scrollable
  * strip of thumbnails that can be reordered by dragging. Roles follow the
  * order - the first page is the front and the last page is the back.
+ *
+ * Dragging works with pointer events, so a finger reorders the strip the same
+ * way a mouse does. While dragging, the thumbnail leaves the strip, a ghost
+ * follows the pointer and a translucent copy marks where it would land.
  */
 export function CardMediaGallery({
   slots,
@@ -132,9 +143,12 @@ export function CardMediaGallery({
   onError: (message: string) => void
 }) {
   const [active, setActive] = useState(0)
-  const [dragging, setDragging] = useState<number | null>(null)
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const [dropAt, setDropAt] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const replaceRef = useRef<number | null>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
+  const pressRef = useRef<{ index: number; x: number; y: number } | null>(null)
   const position = Math.min(active, Math.max(slots.length - 1, 0))
   const current = slots[position] ?? null
   const role = mediaSlotRole(position, slots.length)
@@ -195,10 +209,69 @@ export function CardMediaGallery({
     setActive(to)
   }
 
+  /** 插入位置按「被拖走之后的列表」算，与最终的数组下标一致。 */
+  function resolveDrop(x: number, from: number) {
+    const strip = stripRef.current
+    if (!strip) return from
+    let insertion = 0
+    for (const element of strip.querySelectorAll<HTMLElement>(
+      "[data-thumb-pos]"
+    )) {
+      if (Number(element.dataset.thumbPos) === from) continue
+      const rect = element.getBoundingClientRect()
+      if (x > rect.left + rect.width / 2) insertion += 1
+    }
+    return insertion
+  }
+
+  function startDrag(index: number, event: React.PointerEvent<HTMLElement>) {
+    if (disabled || slots.length < 2) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    pressRef.current = { index, x: event.clientX, y: event.clientY }
+  }
+
+  function continueDrag(index: number, event: React.PointerEvent<HTMLElement>) {
+    const press = pressRef.current
+    if (!press || press.index !== index) return
+    if (!drag) {
+      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) < 6)
+        return
+      setDrag({
+        index,
+        url: slots[index]?.url ?? "",
+        x: event.clientX,
+        y: event.clientY,
+      })
+      setDropAt(index)
+      return
+    }
+    setDrag({ ...drag, x: event.clientX, y: event.clientY })
+    setDropAt(resolveDrop(event.clientX, index))
+  }
+
+  function endDrag(index: number, event: React.PointerEvent<HTMLElement>) {
+    const press = pressRef.current
+    pressRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    if (!drag) {
+      if (press?.index === index) setActive(index)
+      return
+    }
+    const target = dropAt ?? index
+    setDrag(null)
+    setDropAt(null)
+    move(index, target)
+  }
+
   const roleLabel = useMemo(
     () => slots.map((_, index) => mediaSlotRole(index, slots.length)),
     [slots]
   )
+  const visibleSlots = slots
+    .map((slot, index) => ({ slot, index }))
+    .filter((entry) => entry.index !== drag?.index)
 
   return (
     <section aria-label="名片图片" className="min-w-0">
@@ -218,7 +291,11 @@ export function CardMediaGallery({
       />
 
       <div
-        className="relative aspect-video w-full overflow-hidden rounded-lg border bg-muted/40"
+        className={`relative aspect-video w-full overflow-hidden rounded-lg border ${
+          current
+            ? "bg-muted/40"
+            : "border-dashed bg-muted/20"
+        }`}
         data-card-artwork-preview
       >
         {current ? (
@@ -230,16 +307,26 @@ export function CardMediaGallery({
         ) : (
           <button
             type="button"
-            className="grid size-full place-items-center gap-2 text-sm text-muted-foreground"
+            className="group grid size-full place-items-center px-6 text-center"
             disabled={disabled}
             onClick={() => pick(null)}
           >
-            <ImagePlusIcon aria-hidden="true" className="size-6" />
-            添加名片图片
+            <span className="flex flex-col items-center gap-2">
+              <span className="grid size-14 place-items-center rounded-full border border-dashed bg-background shadow-sm motion-safe:transition-colors group-hover:border-primary/60 group-focus-visible:border-primary/60">
+                <ImagePlusIcon
+                  aria-hidden="true"
+                  className="size-6 text-muted-foreground group-hover:text-foreground"
+                />
+              </span>
+              <span className="text-sm font-medium">添加名片图片</span>
+              <span className="text-xs text-muted-foreground">
+                点击添加，可一次选择多张图片。
+              </span>
+            </span>
           </button>
         )}
         {role ? (
-          <span className="absolute top-2 left-2 rounded-md bg-background/85 px-2 py-0.5 text-xs font-medium">
+          <span className="absolute top-2 left-2 rounded-md bg-background px-2 py-0.5 text-xs font-medium shadow-sm ring-1 ring-border">
             {role}
           </span>
         ) : null}
@@ -249,6 +336,7 @@ export function CardMediaGallery({
               type="button"
               size="sm"
               variant="secondary"
+              className="border bg-background shadow-sm ring-1 ring-border hover:bg-muted"
               disabled={disabled}
               onClick={() => pick(position)}
             >
@@ -259,6 +347,7 @@ export function CardMediaGallery({
               type="button"
               size="sm"
               variant="destructive"
+              className="shadow-sm ring-1 ring-destructive/60"
               disabled={disabled || slots.length <= 1}
               onClick={() => removeAt(position)}
             >
@@ -270,74 +359,122 @@ export function CardMediaGallery({
       </div>
 
       <div
-        className="mt-3 flex gap-2 overflow-x-auto pb-1"
+        ref={stripRef}
+        className="card-thumb-strip mt-3 flex overflow-x-auto overscroll-x-contain"
+        style={{
+          gap: THUMB_GAP,
+          padding: STRIP_PADDING,
+          paddingRight: drag ? STRIP_PADDING + THUMB_STEP : STRIP_PADDING,
+        }}
         role="list"
         aria-label="名片图片顺序"
       >
-        {slots.map((slot, index) => (
-          <div
-            key={`${slot.kind === "existing" ? `existing-${slot.index}` : slot.url}-${index}`}
-            role="listitem"
-            draggable={!disabled}
-            onDragStart={() => setDragging(index)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => {
-              if (dragging !== null) move(dragging, index)
-              setDragging(null)
-            }}
-            onDragEnd={() => setDragging(null)}
-            className="group relative shrink-0"
-          >
-            <button
-              type="button"
-              draggable={false}
-              onClick={() => setActive(index)}
-              aria-label={
-                roleLabel[index]
-                  ? `第 ${index + 1} 张（${roleLabel[index]}）`
-                  : `第 ${index + 1} 张`
-              }
-              aria-current={index === position}
-              className={`block size-20 overflow-hidden rounded-md border ${
-                index === position ? "ring-2 ring-primary" : ""
-              }`}
+        {visibleSlots.map(({ slot, index }, visibleIndex) => {
+          const shifting = drag !== null && dropAt !== null && visibleIndex >= dropAt
+          return (
+            <div
+              key={`${slot.kind === "existing" ? `existing-${slot.index}` : slot.url}-${index}`}
+              role="listitem"
+              data-thumb-pos={index}
+              className="group relative shrink-0 touch-none"
+              style={{
+                width: THUMB_SIZE,
+                height: THUMB_SIZE,
+                transform: shifting ? `translateX(${THUMB_STEP}px)` : undefined,
+                transition: "transform 150ms ease",
+              }}
+              onPointerDown={(event) => startDrag(index, event)}
+              onPointerMove={(event) => continueDrag(index, event)}
+              onPointerUp={(event) => endDrag(index, event)}
+              onPointerCancel={(event) => endDrag(index, event)}
             >
-              <img
-                src={slot.url}
-                alt=""
-                className="size-full object-cover"
-                draggable={false}
-              />
-            </button>
-            {!disabled && slots.length > 1 ? (
               <button
                 type="button"
-                aria-label={`删除第 ${index + 1} 张图片`}
-                className="absolute -top-1.5 -right-1.5 hidden size-5 place-items-center rounded-full bg-destructive text-destructive-foreground group-focus-within:grid group-hover:grid"
-                onClick={() => removeAt(index)}
+                onClick={() => setActive(index)}
+                aria-label={
+                  roleLabel[index]
+                    ? `第 ${index + 1} 张（${roleLabel[index]}）`
+                    : `第 ${index + 1} 张`
+                }
+                aria-current={index === position}
+                className={`block size-full overflow-hidden rounded-md border ${
+                  index === position ? "ring-2 ring-primary" : ""
+                } ${drag?.index === index ? "opacity-40" : ""}`}
               >
-                <XIcon aria-hidden="true" className="size-3" />
+                <img
+                  src={slot.url}
+                  alt=""
+                  className="size-full object-cover"
+                  draggable={false}
+                />
               </button>
-            ) : null}
-            {roleLabel[index] ? (
-              <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-background/85 px-1 text-center text-[10px]/4">
-                {roleLabel[index]}
-              </span>
-            ) : null}
+              {!disabled && slots.length > 1 ? (
+                <button
+                  type="button"
+                  aria-label={`删除第 ${index + 1} 张图片`}
+                  className="absolute top-1 right-1 hidden size-5 place-items-center rounded-full bg-destructive text-destructive-foreground shadow-sm group-focus-within:grid group-hover:grid"
+                  onClick={() => removeAt(index)}
+                >
+                  <XIcon aria-hidden="true" className="size-3" />
+                </button>
+              ) : null}
+              {roleLabel[index] ? (
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate rounded-b-md bg-background px-1 text-center text-[10px]/4 ring-1 ring-border/60">
+                  {roleLabel[index]}
+                </span>
+              ) : null}
+            </div>
+          )
+        })}
+
+        {drag && dropAt !== null ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute"
+            style={{
+              width: THUMB_SIZE,
+              height: THUMB_SIZE,
+              left: STRIP_PADDING + dropAt * THUMB_STEP,
+              top: STRIP_PADDING,
+            }}
+          >
+            <img
+              src={drag.url}
+              alt=""
+              className="size-full rounded-md object-cover opacity-35 ring-2 ring-primary motion-safe:animate-in motion-safe:fade-in"
+            />
           </div>
-        ))}
-        {slots.length < NAMECARD_MEDIA_LIMIT ? (
+        ) : null}
+
+        {slots.length < NAMECARD_MEDIA_LIMIT && !drag ? (
           <button
             type="button"
             disabled={disabled}
             onClick={() => pick(null)}
             aria-label="添加名片图片"
-            className="grid size-20 shrink-0 place-items-center rounded-md border border-dashed text-muted-foreground"
+            className="grid shrink-0 place-items-center rounded-md border border-dashed text-muted-foreground hover:border-primary/60 hover:text-foreground"
+            style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
           >
             <ImagePlusIcon aria-hidden="true" className="size-5" />
           </button>
         ) : null}
       </div>
+
+      {drag ? (
+        <img
+          src={drag.url}
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none fixed z-50 rounded-md border-2 border-primary object-cover shadow-xl"
+          style={{
+            width: THUMB_SIZE,
+            height: THUMB_SIZE,
+            left: drag.x - THUMB_SIZE / 2,
+            top: drag.y - THUMB_SIZE / 2,
+          }}
+        />
+      ) : null}
+
       <p className="mt-2 text-xs text-muted-foreground">
         第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。
         最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。

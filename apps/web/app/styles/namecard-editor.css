@@ -1,0 +1,51 @@
+@layer components {
+  /*
+   * 必填项缺失时不去改边框，而是让目标区域闪两下黄光：
+   * 边框会与压缩后的布局互相影响，闪烁只动背景色。
+   */
+  .card-field-flash {
+    border-radius: var(--radius-lg);
+    animation: card-field-flash 560ms ease-in-out 2;
+  }
+
+  @keyframes card-field-flash {
+    0%,
+    100% {
+      background-color: transparent;
+    }
+
+    50% {
+      background-color: color-mix(in oklab, var(--warning) 30%, transparent);
+    }
+  }
+
+  /* 缩略图选择区：默认滚动条太显眼，换成细轨道。 */
+  .card-thumb-strip {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .card-thumb-strip::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .card-thumb-strip::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .card-thumb-strip::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: var(--border);
+  }
+
+  .card-thumb-strip::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card-field-flash {
+      animation: none;
+      background-color: color-mix(in oklab, var(--warning) 24%, transparent);
+    }
+  }
+}

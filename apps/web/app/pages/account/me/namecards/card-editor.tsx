@@ -40,6 +40,7 @@ import {
   type MediaSlot,
 } from "./card-media-gallery"
 import { CardFields } from "./card-editor-fields"
+import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 import {
   CardModule,
   type CardModuleModes,
@@ -60,6 +61,7 @@ export function CardEditor({
   readOnly,
   readOnlyReason,
   modes,
+  headerless = false,
   onCreated,
   onSaved,
   onDeleted,
@@ -74,6 +76,8 @@ export function CardEditor({
   readOnlyReason: string | null
   /** 每个模块可单独设为仅显示 / 编辑 / 不可见。 */
   modes?: CardModuleModes
+  /** 对话框把标题区提出去渲染到 dialog-header 时，这里不再重复。 */
+  headerless?: boolean
   onCreated: (card: FudabaOwnerCard) => void
   onSaved: (card: FudabaOwnerCard) => void
   onDeleted: (cardId: string) => void
@@ -87,7 +91,6 @@ export function CardEditor({
   const [deleting, setDeleting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null)
-  const [invalidFields, setInvalidFields] = useState<readonly string[]>([])
   const [aspectWarning, setAspectWarning] = useState(false)
   const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null)
   const [slots, setSlots] = useState<MediaSlot[]>(() =>
@@ -163,20 +166,31 @@ export function CardEditor({
     media: "请至少添加一张名片图片。",
   }
 
+  /** 跳到第一个缺失的字段，闪两下黄光，并把焦点放进去。 */
   function reportMissing(fields: readonly string[]) {
-    setInvalidFields(fields)
     setFeedback({
       kind: "error",
       message: fields.map((field) => FIELD_MESSAGES[field]).join(" "),
     })
-    const target = document.querySelector(
+    const target = document.querySelector<HTMLElement>(
       `[data-card-field="${fields[0]}"]`
     )
-    target?.scrollIntoView({ behavior: "smooth", block: "center" })
-    const focusable = target?.querySelector<HTMLElement>(
-      "input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])"
+    if (!target) return
+    target.scrollIntoView({ behavior: "smooth", block: "center" })
+    target.classList.remove("card-field-flash")
+    // Force a reflow so the animation restarts on repeated submits.
+    void target.offsetWidth
+    target.classList.add("card-field-flash")
+    target.addEventListener(
+      "animationend",
+      () => target.classList.remove("card-field-flash"),
+      { once: true }
     )
-    focusable?.focus({ preventScroll: true })
+    target
+      .querySelector<HTMLElement>(
+        "input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])"
+      )
+      ?.focus({ preventScroll: true })
   }
 
   /** 空着的署名行是编辑器给的默认行，提交前要丢掉。 */
@@ -190,7 +204,6 @@ export function CardEditor({
   async function submitCard() {
     setSaving(true)
     setFeedback(null)
-    setInvalidFields([])
     try {
       if (creating) {
         const files = slots.flatMap((slot) =>
@@ -315,36 +328,11 @@ export function CardEditor({
 
   return (
     <section className="min-w-0" aria-labelledby="owned-card-editor-title">
-      <CardModule mode={modes?.header}>
-      <div className="flex min-w-0 flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h2 id="owned-card-editor-title" className="text-base font-medium">
-            {creating ? "新建名片" : "编辑名片"}
-          </h2>
-          <p className="mt-1 text-sm wrap-break-word text-muted-foreground">
-            {creating
-              ? "填写以下信息后提交审核，审核通过前只有你自己能看到这张名片。"
-              : card
-                ? `名片 #${card.cardNumber} · 版本 ${card.revision}`
-                : "名片 #— · 版本 0"}
-          </p>
-        </div>
-        <dl className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground sm:justify-end sm:text-right">
-          {creating ? null : (
-            <>
-              <div>
-                <dt className="inline">创建于 </dt>
-                <dd className="inline">{formatCardTime(card?.createdAt)}</dd>
-              </div>
-              <div>
-                <dt className="inline">更新于 </dt>
-                <dd className="inline">{formatCardTime(card?.updatedAt)}</dd>
-              </div>
-            </>
-          )}
-        </dl>
-      </div>
-      </CardModule>
+      {headerless ? null : (
+        <CardModule mode={modes?.header}>
+          <CardEditorHeading card={card} creating={creating} />
+        </CardModule>
+      )}
 
       <CardModule mode={modes?.notices}>
         <CardEditorNotices card={card} creating={creating} />
@@ -391,6 +379,12 @@ export function CardEditor({
 
       <CardModule mode={modes?.media}>
         <div className="mt-5" data-card-field="media">
+          <p className="mb-2 text-sm font-medium">
+            名片图片{" "}
+            <span aria-hidden="true" className="ml-1 text-destructive">
+              *
+            </span>
+          </p>
           <CardMediaGallery
             slots={slots}
             disabled={editDisabled || modes?.media === "view"}
@@ -411,13 +405,12 @@ export function CardEditor({
           draft={draft}
           series={series}
           disabled={editDisabled}
-          invalidFields={invalidFields}
           modes={modes}
           onChange={setDraft}
         />
 
         <CardModule mode={modes?.actions}>
-        <div className="mt-6 flex min-w-0 flex-wrap items-center gap-2">
+        <div className="mt-6 flex min-w-0 flex-wrap items-center justify-end gap-2">
           <Button type="submit" disabled={editDisabled}>
             {saving ? (
               <LoaderCircleIcon
@@ -430,7 +423,7 @@ export function CardEditor({
             ) : (
               <SaveIcon data-icon="inline-start" aria-hidden="true" />
             )}
-            {saving ? "正在保存" : creating ? "创建名片草稿" : "保存并提交"}
+            {saving ? "正在保存" : "保存并提交"}
           </Button>
           {!creating && card ? (
             <Button
@@ -531,6 +524,52 @@ function CardEditorNotices({
           <AlertDescription>{notice.body}</AlertDescription>
         </Alert>
       ))}
+    </div>
+  )
+}
+
+/**
+ * 标题区：主标题随场景变化，副标题是名片编号与版本，状态徽标只在名片管理页
+ * 与后台出现；右侧的时间数据在窄屏时换行到下一行。
+ */
+export function CardEditorHeading({
+  card,
+  creating,
+}: {
+  card: FudabaOwnerCard | null
+  creating: boolean
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <h2 id="owned-card-editor-title" className="text-base font-medium">
+          {creating ? "新建名片" : "编辑名片"}
+        </h2>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+          <p className="text-sm wrap-break-word text-muted-foreground">
+            {creating
+              ? "填写以下信息后提交审核，审核通过前只有你自己能看到这张名片。"
+              : card
+                ? `名片 #${card.cardNumber} · 版本 ${card.revision}`
+                : "名片 #— · 版本 0"}
+          </p>
+          {!creating && card ? (
+            <NamecardStatusBadge status={card.publicationStatus} />
+          ) : null}
+        </div>
+      </div>
+      {creating ? null : (
+        <dl className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground sm:justify-end sm:text-right">
+          <div className="whitespace-nowrap">
+            <dt className="inline">创建于 </dt>
+            <dd className="inline">{formatCardTime(card?.createdAt)}</dd>
+          </div>
+          <div className="whitespace-nowrap">
+            <dt className="inline">更新于 </dt>
+            <dd className="inline">{formatCardTime(card?.updatedAt)}</dd>
+          </div>
+        </dl>
+      )}
     </div>
   )
 }
