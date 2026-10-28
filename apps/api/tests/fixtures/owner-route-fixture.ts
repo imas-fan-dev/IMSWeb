@@ -41,6 +41,7 @@ import type {
     PlatformAccountStatus,
     PlatformProfileRecord,
     SoftDeleteOwnedFudabaCardInput,
+    ReplaceOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMetadataInput,
     UpdatePlatformProfileAvatarInput,
@@ -400,6 +401,7 @@ export class OwnerRouteFixture {
     readonly createInputs: CreateOwnedFudabaCardInput[] = [];
     readonly metadataInputs: UpdateOwnedFudabaCardMetadataInput[] = [];
     readonly mediaInputs: UpdateOwnedFudabaCardMediaInput[] = [];
+    readonly mediaSetInputs: ReplaceOwnedFudabaCardMediaInput[] = [];
     readonly deleteInputs: SoftDeleteOwnedFudabaCardInput[] = [];
     readonly profileTextInputs: UpdatePlatformProfileTextInput[] = [];
     readonly profileAvatarInputs: UpdatePlatformProfileAvatarInput[] = [];
@@ -645,6 +647,73 @@ export class OwnerRouteFixture {
                 throw new Error('media connection lost after commit');
             }
             return { status: 'saved', card: { ...card }, previousObjectKey };
+        },
+        replaceCardMediaForOwner: async (
+            input: ReplaceOwnedFudabaCardMediaInput
+        ): Promise<FudabaCardMutationResult> => {
+            this.mediaSetInputs.push(input);
+            if (this.updateMediaMode === 'throw') throw new Error('media repository failed');
+            const current = this.cards.get(input.cardId);
+            if (
+                this.updateMediaMode === 'unavailable' || !current ||
+                current.owner_account_id !== input.ownerAccountId ||
+                current.deleted_at !== null || this.accountStatus !== 'active'
+            ) {
+                return { status: 'unavailable' };
+            }
+            if (
+                this.updateMediaMode === 'conflict' ||
+                current.revision !== input.expectedRevision
+            ) {
+                return { status: 'conflict', revision: current.revision };
+            }
+            const published = current.publication_status === 'published';
+            // Slots 2.. are the middle pages, so the same ordered submit covers
+            // every role and a page can move between them.
+            const card: FudabaCardRecord = published
+                ? {
+                      ...current,
+                      pending_front_object_key: input.frontObjectKey,
+                      pending_back_object_key: input.backObjectKey,
+                      pending_middle_object_keys: [...input.middleObjectKeys],
+                      review_status: 'pending' as const,
+                      review_reason: null,
+                      revision: current.revision + 1,
+                      updated_at: input.updatedAt
+                  }
+                : {
+                      ...current,
+                      front_object_key: input.frontObjectKey,
+                      back_object_key: input.backObjectKey,
+                      middle_object_keys: [...input.middleObjectKeys],
+                      accent: input.accent ?? current.accent,
+                      revision: current.revision + 1,
+                      updated_at: input.updatedAt
+                  };
+            this.cards.set(card.id, card);
+            if (this.updateMediaMode === 'mutate-then-throw') {
+                this.cardMutationCommitted = true;
+                throw new Error('media connection lost after commit');
+            }
+            const previousObjectKeys = published
+                ? [
+                      current.pending_front_object_key ?? current.front_object_key,
+                      current.pending_back_object_key ?? current.back_object_key,
+                      ...(current.pending_middle_object_keys.length > 0
+                          ? current.pending_middle_object_keys
+                          : current.middle_object_keys)
+                  ].filter((key): key is string => key !== null)
+                : [
+                      current.front_object_key,
+                      current.back_object_key,
+                      ...current.middle_object_keys
+                  ].filter((key): key is string => key !== null);
+            return {
+                status: 'saved',
+                card: { ...card },
+                previousObjectKey: null,
+                previousObjectKeys
+            };
         },
         softDeleteCardForOwner: async (
             input: SoftDeleteOwnedFudabaCardInput

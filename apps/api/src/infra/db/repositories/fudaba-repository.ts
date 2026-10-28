@@ -62,7 +62,7 @@ import type {
     SoftDeleteOwnedFudabaCardInput,
     UpdateOwnedFudabaOfficeInput,
     UpdateOwnedFudabaCardMediaInput,
-    UpdateOwnedFudabaCardMiddleMediaInput,
+    ReplaceOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMetadataInput,
 } from "@/ports/repositories";
 import type {
@@ -3019,6 +3019,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                 const currentSeries = current
                     ? await this.listCardSeriesFrom(database, [input.cardId])
                     : new Map<string, string[]>();
+                const currentMiddleKeys = current
+                    ? (await this.listCardMiddleMediaFrom(database, [input.cardId])).get(
+                          input.cardId,
+                      ) ?? []
+                    : [];
                 const needsReview = !current || fudabaReviewPolicy.requiresCardReview(
                     {
                         producerName: current.producer_name ?? null,
@@ -3106,6 +3111,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                      is_original=CASE WHEN publication_status='published' THEN is_original ELSE ? END,
                      made_with_ai=CASE WHEN publication_status='published' THEN made_with_ai ELSE ? END,
                      visible=CASE WHEN publication_status='published' THEN visible ELSE ? END,
+                     pending_middle_object_keys=CASE WHEN publication_status='published'
+                         AND pending_payload IS NULL THEN ? ELSE pending_middle_object_keys END,
                      pending_payload=CASE WHEN publication_status='published' THEN CAST(? AS jsonb) ELSE pending_payload END,
                      review_status=CASE WHEN publication_status='published' THEN 'pending' ELSE review_status END,
                      review_reason=CASE WHEN publication_status='published' THEN NULL ELSE review_reason END,
@@ -3138,6 +3145,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                         this.bindBoolean(payload.is_original),
                         this.bindBoolean(payload.made_with_ai),
                         this.bindBoolean(payload.visible),
+                        currentMiddleKeys,
                         JSON.stringify(payload),
                         input.updatedAt,
                         input.updatedAt,
@@ -3295,8 +3303,8 @@ export class SqlFudabaRepository implements FudabaRepository {
         };
     }
 
-    replaceCardMiddleMediaForOwner(
-        input: UpdateOwnedFudabaCardMiddleMediaInput,
+    replaceCardMediaForOwner(
+        input: ReplaceOwnedFudabaCardMediaInput,
     ): Promise<FudabaCardMutationResult> {
         return this.serializeWrite(() =>
             this.database.transaction(async (database) => {
@@ -3311,45 +3319,90 @@ export class SqlFudabaRepository implements FudabaRepository {
                     );
                 }
                 const published = current.publication_status === "published";
+                // The submitted set replaces whichever surface the owner edits:
+                // the staged set of a published card, otherwise the live one.
                 const previousObjectKeys = published
-                    ? current.pending_middle_object_keys
-                    : current.middle_object_keys;
+                    ? [
+                          current.pending_front_object_key ??
+                              current.front_object_key,
+                          current.pending_back_object_key ??
+                              current.back_object_key,
+                          ...(current.pending_middle_object_keys.length > 0
+                              ? current.pending_middle_object_keys
+                              : current.middle_object_keys),
+                      ].filter((key): key is string => key !== null)
+                    : [
+                          current.front_object_key,
+                          current.back_object_key,
+                          ...current.middle_object_keys,
+                      ].filter((key): key is string => key !== null);
                 const pendingPayload =
                     published && current.pending_payload === null
                         ? await this.pendingPayloadFromLive(database, current)
                         : null;
-                const result = await database
-                    .prepare(
-                        `UPDATE fudaba_cards
-                 SET pending_middle_object_keys=CASE WHEN publication_status='published' THEN ? ELSE pending_middle_object_keys END,
-                     review_status=CASE WHEN publication_status='published' THEN 'pending' ELSE review_status END,
-                     review_reason=CASE WHEN publication_status='published' THEN NULL ELSE review_reason END,
-                     review_submitted_at=CASE WHEN publication_status='published' THEN ? ELSE review_submitted_at END,
-                     pending_payload=CASE WHEN publication_status='published' THEN COALESCE(pending_payload, CAST(? AS jsonb)) ELSE pending_payload END,
-                     publication_status=CASE WHEN publication_status='published' THEN publication_status ELSE 'pending' END,
-                     revision=revision+1, updated_at=?
-                 WHERE id=? AND owner_account_id=? AND revision=?
+                const accent = input.accent ?? null;
+                const guards = `id=? AND owner_account_id=? AND revision=?
                    AND deleted_at IS NULL
                    AND publication_status NOT IN ('approving', 'locked')
                    AND EXISTS (
                        SELECT 1 FROM platform_accounts account
                        WHERE account.id=fudaba_cards.owner_account_id
                          AND account.status='active' AND account.deleted_at IS NULL
-                   )
+                   )`;
+                // Two statements instead of one CASE pile: the staged and live
+                // columns differ, and every previous edit bug here came from a
+                // bind list drifting out of step with the placeholders.
+                const statement = published
+                    ? database
+                          .prepare(
+                              `UPDATE fudaba_cards
+                 SET pending_front_object_key=?, pending_back_object_key=?,
+                     pending_middle_object_keys=?,
+                     review_status='pending', review_reason=NULL,
+                     review_submitted_at=?,
+                     pending_payload=COALESCE(pending_payload, CAST(? AS jsonb)),
+                     accent=COALESCE(CAST(? AS text), accent),
+                     accent_source=CASE WHEN CAST(? AS text) IS NULL THEN accent_source ELSE 'image' END,
+                     revision=revision+1, updated_at=?
+                 WHERE ${guards}
                  RETURNING ${CARD_COLUMNS}`,
-                    )
-                    .bind(
-                        input.objectKeys,
-                        input.updatedAt,
-                        pendingPayload === null
-                            ? null
-                            : JSON.stringify(pendingPayload),
-                        input.updatedAt,
-                        input.cardId,
-                        input.ownerAccountId,
-                        input.expectedRevision,
-                    )
-                    .run<FudabaCardRow>();
+                          )
+                          .bind(
+                              input.frontObjectKey,
+                              input.backObjectKey,
+                              input.middleObjectKeys,
+                              input.updatedAt,
+                              pendingPayload === null
+                                  ? null
+                                  : JSON.stringify(pendingPayload),
+                              accent,
+                              accent,
+                              input.updatedAt,
+                              input.cardId,
+                              input.ownerAccountId,
+                              input.expectedRevision,
+                          )
+                    : database
+                          .prepare(
+                              `UPDATE fudaba_cards
+                 SET front_object_key=?, back_object_key=?,
+                     accent=COALESCE(CAST(? AS text), accent),
+                     accent_source=CASE WHEN CAST(? AS text) IS NULL THEN accent_source ELSE 'image' END,
+                     revision=revision+1, updated_at=?
+                 WHERE ${guards}
+                 RETURNING ${CARD_COLUMNS}`,
+                          )
+                          .bind(
+                              input.frontObjectKey,
+                              input.backObjectKey,
+                              accent,
+                              accent,
+                              input.updatedAt,
+                              input.cardId,
+                              input.ownerAccountId,
+                              input.expectedRevision,
+                          );
+                const result = await statement.run<FudabaCardRow>();
                 const saved = result.results[0];
                 if (!saved) {
                     return this.cardWriteFailure(
@@ -3366,7 +3419,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     await this.replaceCardMiddleMedia(
                         database,
                         input.cardId,
-                        input.objectKeys,
+                        input.middleObjectKeys,
                     );
                 }
                 const savedResult = await this.savedCardResult(
@@ -4200,6 +4253,14 @@ export class SqlFudabaRepository implements FudabaRepository {
             replacedObjectKeys.push(reviewed.front_object_key);
         if (backKey !== null && backKey !== reviewed.back_object_key)
             replacedObjectKeys.push(reviewed.back_object_key ?? '');
+        const middleKeys = reviewed.pending_middle_object_keys ?? [];
+        const liveMiddleKeys =
+            (await this.listCardMiddleMediaFrom(database, [reviewed.id])).get(
+                reviewed.id,
+            ) ?? [];
+        for (const key of liveMiddleKeys) {
+            if (!middleKeys.includes(key)) replacedObjectKeys.push(key);
+        }
         await executeSql(
             database,
             `UPDATE fudaba_cards
@@ -4230,11 +4291,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                 reviewed.id,
             ],
         );
-        await this.replaceCardMiddleMedia(
-            database,
-            reviewed.id,
-            reviewed.pending_middle_object_keys ?? [],
-        );
+        await this.replaceCardMiddleMedia(database, reviewed.id, middleKeys);
         await this.replaceCardCredits(database, reviewed.id, payload.credits ?? []);
         // Favourites live in their own table, so the published selection is only
         // swapped once the revision actually goes live.

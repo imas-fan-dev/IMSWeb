@@ -222,6 +222,20 @@ export function fudabaCardBackObjectKey(
         `back.${fudabaImageExtension(extension)}`;
 }
 
+/**
+ * Role-agnostic key for an owner-uploaded card image. The slot an image ends up
+ * in (front, back, middle) is decided by the ordered media submission, so the
+ * key must not encode the role: reordering a card would otherwise collide with
+ * the object it is being swapped with.
+ */
+export function fudabaCardMediaVersionObjectKey(
+    cardId: string,
+    version: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `versions/${fudabaEntitySegment(version)}/media.webp`;
+}
+
 export function fudabaCardMiddleVersionObjectKey(
     cardId: string,
     index: number,

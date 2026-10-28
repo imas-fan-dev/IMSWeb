@@ -331,11 +331,20 @@ export interface UpdateOwnedFudabaCardMediaInput {
     updatedAt: string;
 }
 
-export interface UpdateOwnedFudabaCardMiddleMediaInput {
+export interface ReplaceOwnedFudabaCardMediaInput {
     cardId: string;
     ownerAccountId: string;
-    /** Complete, ordered replacement for the middle pages. */
-    objectKeys: string[];
+    /**
+     * Complete replacement of the card artwork: slot 0 is the front, slot 1 the
+     * back (null for a single-sided card) and the rest are the ordered middle
+     * pages. Positions are decided by the submitter, so one request can replace
+     * an image, reorder the set and move pages across roles at once.
+     */
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    middleObjectKeys: string[];
+    /** Accent sampled from a newly uploaded front image, if any. */
+    accent?: string | null;
     expectedRevision: number;
     updatedAt: string;
 }
@@ -922,8 +931,8 @@ export interface FudabaRepository {
         input: UpdateOwnedFudabaCardMediaInput,
     ): Promise<FudabaCardMutationResult>;
     /** Replaces the whole ordered middle-page set of one card. */
-    replaceCardMiddleMediaForOwner(
-        input: UpdateOwnedFudabaCardMiddleMediaInput,
+    replaceCardMediaForOwner(
+        input: ReplaceOwnedFudabaCardMediaInput,
     ): Promise<FudabaCardMutationResult>;
     softDeleteCardForOwner(
         input: SoftDeleteOwnedFudabaCardInput,

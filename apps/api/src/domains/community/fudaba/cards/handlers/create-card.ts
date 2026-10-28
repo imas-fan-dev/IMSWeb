@@ -61,11 +61,19 @@ export async function handleCreateFudabaCard(
         const backImage = back
             ? await convertUserImageToWebp(back, runtime.images, MAX_CARD_IMAGE_BYTES)
             : null;
+        // The picker marks the second slot of a multi-image submission as the
+        // back, so middle pages cannot exist without one: a card with two or
+        // more images always has a back, and anything else is a client bug.
         const middleFiles = Array.isArray(upload.files.images)
             ? upload.files.images
             : upload.files.images
               ? [upload.files.images]
               : [];
+        if (middleFiles.length > 0 && !back) {
+            throw Object.assign(new Error('中间页需要先提供名片背面'), {
+                status: 400
+            });
+        }
         if (middleFiles.length > NAMECARD_MIDDLE_IMAGE_LIMIT) {
             throw Object.assign(
                 new Error(`最多上传 ${NAMECARD_MIDDLE_IMAGE_LIMIT} 张中间页`),

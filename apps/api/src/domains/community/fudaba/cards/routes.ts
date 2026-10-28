@@ -22,7 +22,7 @@ import { handleServeFudabaOwnerCardMedia } from '@/domains/community/fudaba/card
 import { createHandleFudabaCardInteraction } from '@/domains/community/fudaba/cards/handlers/set-card-interaction';
 import { handleUpdateFudabaCard } from '@/domains/community/fudaba/cards/handlers/update-card';
 import { handleUploadFudabaOwnedMedia } from '@/domains/community/fudaba/cards/handlers/upload-owned-media';
-import { handleReplaceFudabaOwnedMiddleMedia } from '@/domains/community/fudaba/cards/handlers/replace-owned-middle-media';
+import { handleReplaceFudabaOwnedMedia } from '@/domains/community/fudaba/cards/handlers/replace-owned-media';
 import { platformUploadRateLimit, platformWriteRateLimit } from '@/middleware/platform-mutation-limit';
 import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 import { createCapabilityRouter, type ImsCapabilityRouter } from '@/routing/capability-router';
@@ -51,7 +51,7 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
         if (active) routes.put(path, ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handler);
         else routes.delete(path, ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handler);
     }
-    routes.put('/me/cards/:cardId/middle-pages', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handleReplaceFudabaOwnedMiddleMedia);
+    routes.put('/me/cards/:cardId/media', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handleReplaceFudabaOwnedMedia);
     routes.put('/me/cards/:cardId', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(fudabaCardUpdateRequestSchema), handleUpdateFudabaCard);
     routes.delete('/me/cards/:cardId', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(fudabaRevisionRequestSchema), handleDeleteFudabaCard);
     routes.put('/offices/:officeId/cards/:cardId/placement', ...write, paramSchemaValidator(fudabaCardOfficePlacementParamsSchema), jsonSchemaValidator(fudabaCardPlacementSaveRequestSchema), handleSaveFudabaCardPlacement);

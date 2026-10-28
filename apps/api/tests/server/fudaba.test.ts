@@ -5,7 +5,7 @@
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex, fixtureSha256Hex as hash } from '../fixtures/auth-request';
 import { CANONICAL_FUDABA_AGENCIES, projectCanonicalFudabaAgencies } from '../fixtures/fudaba-agency-catalog';
-import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, uploadedFile } from '../fixtures/owner-route-fixture';
+import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, PNG_BYTES, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, uploadedFile } from '../fixtures/owner-route-fixture';
 import { insertBackofficeAccount, insertFudabaOfficePublicLocation, insertPlatformAccount } from '../fixtures/rows';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createMigrationCatalogBefore } from '../integration/migration-catalog';
@@ -8107,6 +8107,124 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
         // Avatar upload is Platform identity, not Fudaba content; its CAS and
         // object-sweep assertions live in `platform-profile.contract.test.ts`.
+        test('one ordered submit replaces an image and moves another across roles', async () => {
+            const fixture = new OwnerRouteFixture();
+            const base = 'protected/fudaba/cards/owner-card/versions';
+            const live = ownerCard({
+                publication_status: 'published',
+                review_status: null,
+                middle_object_keys: [`${base}/a/middle-1.webp`, `${base}/b/middle-2.webp`]
+            });
+            fixture.cards.set('owner-card', live);
+            fixture.storage.seed(live.middle_object_keys[0]!);
+            fixture.storage.seed(live.middle_object_keys[1]!);
+            fixture.uploads.next = {
+                // The slots are front, middle pages, then the back: keeping the
+                // front, uploading one image, keeping both middle pages and
+                // promoting the second middle page to the back therefore all
+                // happen in this single revision.
+                fields: {
+                    order: JSON.stringify(['#0', '@0', '#1', '#2']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {
+                    images: [uploadedFile('new.png', 'image/png', PNG_BYTES)]
+                }
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            const body = await response.json();
+            assert.equal(response.status, 200, JSON.stringify(body));
+            const uploadedKey = fixture.storage.puts.at(-1)!.key;
+            assert.match(uploadedKey, /\/versions\/[^/]+\/media\.webp$/);
+            const input = fixture.mediaSetInputs.at(-1)!;
+            assert.equal(input.frontObjectKey, live.front_object_key);
+            assert.equal(input.backObjectKey, live.middle_object_keys[1]);
+            assert.deepEqual(input.middleObjectKeys, [
+                uploadedKey,
+                live.middle_object_keys[0]
+            ]);
+            assert.equal(input.accent, null);
+            // The live artwork of a published card is still on display, so
+            // nothing is deleted until a review approves the new set.
+            assert.deepEqual(fixture.storage.deletes, []);
+            assert.equal(fixture.cards.get('owner-card')?.revision,
+                live.revision + 1);
+            assert.equal(JSON.stringify(body).includes('object_key'), false);
+        });
+
+        test('the ordered submit drops artwork the card no longer points at', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = fixture.cards.get('owner-card')!;
+            const unrelated = 'protected/fudaba/cards/owner-card/versions/draft/middle-2.webp';
+            fixture.cards.set('owner-card', {
+                ...live,
+                publication_status: 'pending',
+                review_status: null,
+                middle_object_keys: [
+                    'protected/fudaba/cards/owner-card/versions/draft/middle-1.webp',
+                    unrelated
+                ]
+            });
+            fixture.storage.seed(unrelated);
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '@0', '#1', '#2']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {
+                    images: [uploadedFile('new.png', 'image/png', PNG_BYTES)]
+                }
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 200);
+            // Only the old back drops out: the two middle pages stay referenced
+            // and the second one now closes the list as the back.
+            assert.deepEqual(fixture.storage.deletes, [live.back_object_key]);
+        });
+
+        test('the ordered submit refuses slots the card does not have', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = fixture.cards.get('owner-card')!;
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '#7']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 400);
+            assert.equal(fixture.mediaSetInputs.length, 0);
+            assert.equal(fixture.storage.puts.length, 0);
+        });
+
+        test('the ordered submit keeps the revision fence', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = fixture.cards.get('owner-card')!;
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '#1']),
+                    expectedRevision: String(live.revision + 5)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 409);
+            assert.equal(fixture.mediaSetInputs.length, 0);
+        });
+
         test('owner card upload rejects an unknown side with compatibility text', async () => {
             const fixture = new OwnerRouteFixture();
             const response = await fixture.app.request(
@@ -9012,6 +9130,159 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             await assertProfileWrites(fixture);
             await assertCardWrites(fixture);
             await assertCrossInstanceCas(fixture);
+        });
+
+        postgresTest('real PostgreSQL commits one ordered media set per submit', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-media-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-media-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+
+            const media = (name: string): string => `community/fudaba/cards/${cardId}/${name}.webp`;
+            const postgres = fixture.database as PostgresConnection;
+
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('a'),
+                backObjectKey: null,
+                middleObjectKeys: [],
+                accent: '#112233',
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            assert.equal(first.card.front_object_key, media('a'));
+            assert.equal(first.card.back_object_key, null);
+            assert.equal(first.card.accent, '#112233');
+            assert.deepEqual(first.previousObjectKeys, [
+                created.card.front_object_key,
+                created.card.back_object_key
+            ]);
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT accent_source FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { accent_source: 'image' }
+            );
+
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            const staged = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('b'),
+                backObjectKey: media('c'),
+                middleObjectKeys: [media('d')],
+                accent: null,
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            // A published card only stages the new set: the public surface keeps
+            // the live images until a review approves the submission.
+            assert.equal(staged.card.front_object_key, media('a'));
+            assert.equal(staged.card.back_object_key, null);
+            assert.equal(staged.card.pending_front_object_key, media('b'));
+            assert.equal(staged.card.pending_back_object_key, media('c'));
+            assert.deepEqual(staged.card.pending_middle_object_keys, [media('d')]);
+            assert.equal(staged.card.review_status, 'pending');
+            assert.equal(staged.card.accent, '#112233');
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT pending_payload IS NOT NULL AS seeded FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { seeded: true }
+            );
+
+            const stale = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('e'),
+                backObjectKey: null,
+                middleObjectKeys: [],
+                accent: null,
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(stale.status, 'conflict');
+        });
+
+        postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-staged-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-staged-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const middleKeys = [
+                `community/fudaba/cards/${cardId}/middle-1.webp`,
+                `community/fudaba/cards/${cardId}/middle-2.webp`
+            ];
+            const media = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: created.card.front_object_key,
+                backObjectKey: created.card.back_object_key,
+                middleObjectKeys: middleKeys,
+                accent: null,
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(media.status, 'saved');
+            if (media.status !== 'saved') return;
+
+            const postgres = fixture.database as PostgresConnection;
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            const draft = ownedCard(cardId, ownerId);
+            const staged = await fixture.fudaba.updateCardMetadataForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                producerName: 'Renamed producer',
+                seriesCodes: draft.seriesCodes,
+                favoriteCharacterIds: draft.favoriteCharacterIds,
+                bio: draft.bio,
+                tradeNote: draft.tradeNote,
+                exchangeMode: draft.exchangeMode,
+                madeOn: draft.madeOn,
+                groupName: draft.groupName,
+                producerReading: draft.producerReading,
+                isOriginal: draft.isOriginal,
+                madeWithAi: draft.madeWithAi,
+                visible: draft.visible,
+                credits: draft.credits,
+                expectedRevision: media.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            assert.equal(staged.card.review_status, 'pending');
+            // A metadata-only revision still carries the reviewed middle pages,
+            // so approving it cannot silently drop them.
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT pending_middle_object_keys AS keys FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { keys: middleKeys }
+            );
         });
     });
 }
