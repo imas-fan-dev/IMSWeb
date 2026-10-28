@@ -1730,30 +1730,45 @@ function validateTargetOperation(operation) {
             assertText(row.id, "card id", 1, 128);
             assertText(row.owner_account_id, "card owner id", 1, 128);
             assertText(row.producer_name, "card producer_name", 1, 80, true);
-            assertText(row.display_name, "card display_name", 1, 120, true);
-            assertText(row.favorite_character, "card favorite_character", 0, 200);
+            if (row.producer_reading !== null)
+                assertText(row.producer_reading, "card producer_reading", 1, 80);
             assertText(row.bio, "card bio", 0, 2000);
             assertText(row.trade_note, "card trade_note", 0, 1000);
             assertText(row.front_object_key, "card front object key", 1, 1024);
-            assertText(row.back_object_key, "card back object key", 1, 1024);
-            if (!/^#[0-9A-Fa-f]{6}$/.test(row.accent))
-                throw new Error("card accent is invalid");
-            if (row.front_object_key === row.back_object_key) {
-                throw new Error("card front and back object keys must differ");
+            if (row.back_object_key !== null) {
+                assertText(
+                    row.back_object_key,
+                    "card back object key",
+                    1,
+                    1024,
+                );
+                if (row.front_object_key === row.back_object_key) {
+                    throw new Error(
+                        "card front and back object keys must differ",
+                    );
+                }
             }
-            if (
-                row.source_url !== null &&
-                (typeof row.source_url !== "string" ||
-                    !/^https?:\/\//.test(row.source_url) ||
-                    row.source_url.length > 2048)
-            ) {
-                throw new Error("card source_url is invalid");
+            if (!["auto", "manual", "none"].includes(row.exchange_mode)) {
+                throw new Error("card exchange_mode is invalid");
             }
-            if (row.source_label !== null)
-                assertText(row.source_label, "source label", 0, 200);
-            if (row.source_credit !== null)
-                assertText(row.source_credit, "source credit", 0, 200);
+            if (row.group_name !== null)
+                assertText(row.group_name, "card group_name", 0, 80);
+            for (const flag of ["is_original", "made_with_ai", "visible"]) {
+                if (typeof row[flag] !== "boolean")
+                    throw new Error(`card ${flag} must be a boolean`);
+            }
             assertChronology(row.created_at, row.updated_at, "card");
+            break;
+        case "fudaba_card_series":
+            assertText(row.card_id, "card series card id", 1, 128);
+            assertText(row.series_code, "card series code", 1, 40);
+            if (
+                !Number.isInteger(row.display_order) ||
+                row.display_order < 1 ||
+                row.display_order > 64
+            ) {
+                throw new Error("card series display_order is outside 1..64");
+            }
             break;
         case "fudaba_office_series_tags":
             assertText(row.office_id, "office series office id", 1, 128);
@@ -2377,6 +2392,8 @@ function operationForRow(table, row, descriptor, context) {
                     id: row.id,
                     owner_account_id: context.accountId(row.owner_id),
                     producer_name: row.producer_name,
+                    // The source predates readings; the owner can add one later.
+                    producer_reading: null,
                     front_object_key: resolveMedia(
                         context.mediaIndex,
                         context.rightsIndex,

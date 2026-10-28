@@ -1349,7 +1349,15 @@ END;
             for (const table of Object.values(plan.sourceTables)) {
                 assert.equal(table.source, table.included + table.excluded + table.failed);
             }
-            assert.equal(plan.operations.length, 21);
+            assert.equal(plan.operations.length, 23);
+            const seriesOperations = plan.operations.filter(
+                ({ table }) => table === 'fudaba_card_series'
+            );
+            assert.equal(seriesOperations.length, 2);
+            for (const operation of seriesOperations) {
+                assert.equal(operation.row.display_order, 1);
+                assert.ok(operation.row.series_code);
+            }
             assert.equal(plan.operations.some(({ table }) =>
                 ['platform_oauth_states', 'platform_refresh_sessions'].includes(table)), false);
             const office = plan.rows.find(({ sourceTable }) => sourceTable === 'offices');
