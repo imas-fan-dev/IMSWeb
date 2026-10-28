@@ -3,6 +3,7 @@ import { hasAsciiControl } from "../runtime-primitives.js";
 export { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
 
 export {
+  NAMECARD_ACCENT_FALLBACK,
   NAMECARD_CHARACTER_CATEGORIES,
   NAMECARD_CHARACTER_DEFAULT_PAGE_SIZE,
   NAMECARD_CHARACTER_MAX_PAGE_SIZE,

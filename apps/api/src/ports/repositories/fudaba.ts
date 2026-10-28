@@ -280,6 +280,8 @@ export interface CreateOwnedFudabaCardInput {
     seriesCodes: string[];
     favoriteCharacterIds?: number[];
     frontObjectKey: string;
+    /** Dominant colour sampled from the front artwork, when one was found. */
+    accent?: string | null;
     middleObjectKeys?: string[];
     /** Absent for a single-sided card. */
     backObjectKey?: string | null;

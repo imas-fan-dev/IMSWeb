@@ -1,5 +1,8 @@
 import { adminExchangePath } from '@imsweb/contracts/paths';
-import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba/runtime';
+import {
+    NAMECARD_ACCENT_FALLBACK,
+    NAMECARD_FAVORITE_CHARACTER_LIMIT,
+} from '@imsweb/contracts/fudaba/runtime';
 import {
     insertNamecardNotification,
     SqlNamecardNotificationRepository
@@ -691,13 +694,25 @@ export class SqlCoreRepository implements NamecardRepository {
                     [row.internal_id, seriesCode, index + 1]
                 );
             }
-            // A card that never had artwork keeps the column default; the
-            // series colour is the honest backdrop until one is extracted.
+            // A sampled colour always wins; otherwise one series lends its
+            // agency colour and a set stays neutral.
+            const singleSeries = seriesCodes.length === 1;
             await executeSql(database,
-                `UPDATE fudaba_cards SET accent=COALESCE(
-                     (SELECT color FROM agencies WHERE code=?), accent)
-                 WHERE id=? AND accent='#ef5b6c'`,
-                [seriesCodes[0], row.internal_id]
+                `UPDATE fudaba_cards SET
+                     accent=CASE WHEN ? THEN COALESCE(
+                         (SELECT color FROM agencies WHERE code=?),
+                         CAST(? AS text), accent)
+                     ELSE CAST(? AS text) END,
+                     accent_source=CASE WHEN ? THEN 'series' ELSE 'fallback' END
+                 WHERE id=? AND (accent_source IS NULL OR accent_source<>'image')`,
+                [
+                    singleSeries,
+                    seriesCodes[0],
+                    NAMECARD_ACCENT_FALLBACK,
+                    NAMECARD_ACCENT_FALLBACK,
+                    singleSeries,
+                    row.internal_id,
+                ]
             );
         }
         const characterIds = (payload?.favorite_character_ids ?? []).filter(

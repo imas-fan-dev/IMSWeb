@@ -8,9 +8,11 @@ import type { FudabaCardMutationResult, FudabaCardRecord } from '@/ports/reposit
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { convertUserImageToWebp } from '@/utils/media/user-image';
+import { NAMECARD_MIDDLE_IMAGE_LIMIT } from '@imsweb/contracts/fudaba/runtime';
 import {
     fudabaCardBackObjectKey,
-    fudabaCardFrontObjectKey
+    fudabaCardFrontObjectKey,
+    fudabaCardMiddleVersionObjectKey
 } from '@/utils/storage/business-object-keys';
 import { deleteOwnedObjectWithCompensation } from '@/utils/storage/delete-object';
 
@@ -33,28 +35,72 @@ export async function handleCreateFudabaCard(
     try {
         const upload = await runtime.uploads.parse(c.req.raw, {
             maxBytes: MAX_CARD_REQUEST_BYTES,
-            fileFields: ['front', 'back'],
-            maxFiles: 2,
-            maxFields: 8,
-            maxParts: 10
+            // The picker hands the server an ordered set: `front`, `back`,
+            // then `images` in reading order (the middle pages). A single
+            // image means a single-sided card.
+            fileFields: ['front', 'back', 'images'],
+            maxFiles: 2 + NAMECARD_MIDDLE_IMAGE_LIMIT,
+            // 13 text fields today (producer, reading, series, characters,
+            // bio, trade note, exchange mode, made on, group, three flags,
+            // credits).
+            maxFields: 16,
+            maxParts: 20 + NAMECARD_MIDDLE_IMAGE_LIMIT
         });
         const front = oneFile(upload.files.front);
         const back = oneFile(upload.files.back);
-        if (!front || !back) {
-            throw Object.assign(new Error('必须分别上传名片正面和背面'), { status: 400 });
+        if (!front) {
+            throw Object.assign(new Error('必须上传名片正面'), { status: 400 });
         }
         const fields = parseFudabaCardCreateFields(upload.fields);
-        const [frontImage, backImage] = await Promise.all([
-            convertUserImageToWebp(front, runtime.images, MAX_CARD_IMAGE_BYTES),
-            convertUserImageToWebp(back, runtime.images, MAX_CARD_IMAGE_BYTES)
-        ]);
+        const frontImage = await convertUserImageToWebp(
+            front,
+            runtime.images,
+            MAX_CARD_IMAGE_BYTES
+        );
+        // A single-sided card is legal: no back artwork, nothing uploaded.
+        const backImage = back
+            ? await convertUserImageToWebp(back, runtime.images, MAX_CARD_IMAGE_BYTES)
+            : null;
+        const middleFiles = Array.isArray(upload.files.images)
+            ? upload.files.images
+            : upload.files.images
+              ? [upload.files.images]
+              : [];
+        if (middleFiles.length > NAMECARD_MIDDLE_IMAGE_LIMIT) {
+            throw Object.assign(
+                new Error(`最多上传 ${NAMECARD_MIDDLE_IMAGE_LIMIT} 张中间页`),
+                { status: 400 },
+            );
+        }
+        const images = runtime.images;
+        const middleImages = await Promise.all(
+            middleFiles.map((file) =>
+                convertUserImageToWebp(file, images, MAX_CARD_IMAGE_BYTES),
+            ),
+        );
+        const accent = (await runtime.images.dominantColor?.(frontImage.body)) ?? null;
         const cardId = crypto.randomUUID();
         const frontKey = fudabaCardFrontObjectKey(cardId, 'webp');
-        const backKey = fudabaCardBackObjectKey(cardId, 'webp');
-        for (const image of [
-            { key: frontKey, body: frontImage.body, side: 'front' },
-            { key: backKey, body: backImage.body, side: 'back' }
-        ]) {
+        const backKey = backImage ? fudabaCardBackObjectKey(cardId, 'webp') : null;
+        const pendingUploads: Array<{
+            key: string;
+            body: Uint8Array;
+            side: string;
+        }> = [{ key: frontKey, body: frontImage.body, side: 'front' }];
+        if (backKey && backImage) {
+            pendingUploads.push({ key: backKey, body: backImage.body, side: 'back' });
+        }
+        const middleKeys: string[] = [];
+        middleImages.forEach((image, index) => {
+            const key = fudabaCardMiddleVersionObjectKey(cardId, index + 1, '0');
+            middleKeys.push(key);
+            pendingUploads.push({
+                key,
+                body: image.body,
+                side: `middle-${index + 1}`,
+            });
+        });
+        for (const image of pendingUploads) {
             const ownerToken = randomHex(32);
             await runtime.storage.put(image.key, image.body, {
                 contentType: 'image/webp',
@@ -80,6 +126,8 @@ export async function handleCreateFudabaCard(
                 ...fields,
                 frontObjectKey: frontKey,
                 backObjectKey: backKey,
+                middleObjectKeys: middleKeys,
+                accent,
                 createdAt: now,
                 updatedAt: now
             });

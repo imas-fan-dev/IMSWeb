@@ -1,4 +1,7 @@
-import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "@imsweb/contracts/fudaba/runtime";
+import {
+    NAMECARD_ACCENT_FALLBACK,
+    NAMECARD_FAVORITE_CHARACTER_LIMIT,
+} from "@imsweb/contracts/fudaba/runtime";
 import { fudabaReviewPolicy } from "@/ports/repositories/fudaba-review-policy";
 import type {
     AuditLogInput,
@@ -114,7 +117,7 @@ const cardSeriesEligibility = (alias: string): string =>
 
 const CARD_COLUMNS = `id, owner_account_id, producer_name,
     legacy_card_id, origin, front_object_key, back_object_key,
-    accent, bio, trade_note, exchange_mode, made_on, group_name, producer_reading,
+    accent, accent_source, bio, trade_note, exchange_mode, made_on, group_name, producer_reading,
     is_original,
     made_with_ai, visible, publication_status,
     review_status, review_reason, review_submitted_at, pending_payload,
@@ -1100,6 +1103,11 @@ export class SqlFudabaRepository implements FudabaRepository {
      * series colour is the honest backdrop for it, and the artwork accent wins
      * as soon as one was extracted.
      */
+    /**
+     * A sampled colour always wins: only a card whose accent was never taken
+     * from artwork is repainted. A single series falls back to the agency
+     * colour, a set stays neutral so no member is favoured.
+     */
     private async applySeriesAccent(
         database: SqlDatabase,
         cardId: string,
@@ -1107,12 +1115,24 @@ export class SqlFudabaRepository implements FudabaRepository {
     ): Promise<void> {
         const primary = seriesCodes[0];
         if (!primary) return;
+        const single = seriesCodes.length === 1;
         await executeSql(
             database,
-            `UPDATE fudaba_cards SET accent=COALESCE(
-                 (SELECT color FROM agencies WHERE code=?), accent)
-             WHERE id=? AND accent='#ef5b6c'`,
-            [primary, cardId],
+            `UPDATE fudaba_cards SET
+                 accent=CASE WHEN ? THEN COALESCE(
+                     (SELECT color FROM agencies WHERE code=?),
+                     CAST(? AS text), accent)
+                 ELSE CAST(? AS text) END,
+                 accent_source=CASE WHEN ? THEN 'series' ELSE 'fallback' END
+             WHERE id=? AND (accent_source IS NULL OR accent_source<>'image')`,
+            [
+                single,
+                primary,
+                NAMECARD_ACCENT_FALLBACK,
+                NAMECARD_ACCENT_FALLBACK,
+                single,
+                cardId,
+            ],
         );
     }
 
@@ -2837,6 +2857,17 @@ export class SqlFudabaRepository implements FudabaRepository {
         return { status: "unavailable" };
     }
 
+    private async reloadCardRow(
+        database: SqlDatabase,
+        cardId: string,
+    ): Promise<FudabaCardRow | null> {
+        return queryOne<FudabaCardRow>(
+            database,
+            `SELECT ${CARD_COLUMNS} FROM fudaba_cards WHERE id=?`,
+            [cardId],
+        );
+    }
+
     private async savedCardResult(
         row: FudabaCardRow,
         previousObjectKey: string | null,
@@ -2910,7 +2941,29 @@ export class SqlFudabaRepository implements FudabaRepository {
                 if (!saved) return { status: "unavailable" };
                 await this.replaceCardFavorites(database, input.id, characters);
                 await this.replaceCardSeries(database, input.id, input.seriesCodes);
-                return this.savedCardResult(saved, null, database);
+                await this.replaceCardCredits(database, input.id, input.credits ?? []);
+                if (input.middleObjectKeys?.length) {
+                    await this.replaceCardMiddleMedia(
+                        database,
+                        input.id,
+                        input.middleObjectKeys,
+                    );
+                }
+                if (input.accent) {
+                    await executeSql(
+                        database,
+                        `UPDATE fudaba_cards SET accent=?, accent_source='image' WHERE id=?`,
+                        [input.accent, input.id],
+                    );
+                }
+                await this.applySeriesAccent(database, input.id, input.seriesCodes);
+                // The insert returned the row before the accent, credits and
+                // series writes landed, so the response reads it back.
+                return this.savedCardResult(
+                    (await this.reloadCardRow(database, input.id)) ?? saved,
+                    null,
+                    database,
+                );
             }),
         );
     }
@@ -3103,6 +3156,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                             input.cardId,
                             payload.series_codes,
                         );
+                        await this.replaceCardCredits(
+                            database,
+                            input.cardId,
+                            payload.credits ?? [],
+                        );
+                        await this.applySeriesAccent(
+                            database,
+                            input.cardId,
+                            payload.series_codes,
+                        );
                     }
                     return this.savedCardResult(saved, null, database);
                 }
@@ -3145,6 +3208,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                      publication_status=CASE WHEN publication_status='published' THEN publication_status ELSE 'pending' END,
                      accent=CASE WHEN publication_status='published' THEN accent
                            ELSE COALESCE(CAST(? AS text), accent) END,
+                     accent_source=CASE WHEN CAST(? AS text) IS NULL
+                           THEN accent_source ELSE 'image' END,
                      revision=revision+1, updated_at=?
                  WHERE id=? AND owner_account_id=? AND revision=?
                    AND deleted_at IS NULL AND publication_status<>'approving'
@@ -3160,6 +3225,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.objectKey,
                     input.objectKey,
                     input.updatedAt,
+                    input.accent ?? null,
                     input.accent ?? null,
                     input.updatedAt,
                     input.cardId,

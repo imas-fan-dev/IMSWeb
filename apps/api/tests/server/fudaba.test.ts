@@ -4266,6 +4266,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261027180000_namecard_pending_versions',
                 '20261028120000_namecard_editor_fields',
                 '20261029120000_namecard_series_set',
+                '20261030120000_namecard_accent_source',
+                '20261030130000_namecard_series_require_one_skip_missing',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
@@ -8021,7 +8023,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 assert.equal(serialized.includes('object_key'), false);
                 assert.equal(serialized.includes('protected/fudaba'), false);
                 assert.equal(fixture.uploads.calls.length, 1);
-                assert.deepEqual(fixture.uploads.calls[0]?.fileFields, ['front', 'back']);
+                assert.deepEqual(fixture.uploads.calls[0]?.fileFields, [
+                    'front',
+                    'back',
+                    'images',
+                ]);
                 assert.equal(fixture.images.conversions.length, 2);
                 assert.equal(fixture.storage.puts.length, 2);
                 assert.equal(fixture.createInputs[0]?.ownerAccountId, ACCOUNT_ID);

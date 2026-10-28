@@ -342,5 +342,41 @@ import { afterAll, onTestFinished, test } from 'vitest';
             // independent anomaly the unification work did not create.
             assert.equal(summary.orphanedLegacyReactionRows, 1);
         });
+
+        // The deferred "every card keeps a series" trigger also saw the cascade
+        // of a card delete and refused it, which made any real purge of a card
+        // impossible. Deleting the card must take its series rows with it.
+        test('deletes a card together with its series', {
+            skip: !postgresIntegrationEnabled()
+        }, async () => {
+            const harness = await createPostgresTestHarness();
+            const client = poolClient(harness);
+            await client.connect();
+            onTestFinished(async () => {
+                await client.end();
+                await harness.close();
+            });
+
+            await insertUnifiedCompatCard(client, 'legacy-delete', 41);
+            await client.query(
+                `INSERT INTO public.fudaba_card_series (card_id, series_code, display_order)
+         VALUES ('legacy-delete', '765', 1)`
+            );
+
+            await client.query(`DELETE FROM public.fudaba_cards WHERE id = 'legacy-delete'`);
+
+            const remaining = await client.query(
+                `SELECT
+             (SELECT count(*) FROM public.fudaba_cards WHERE id = 'legacy-delete') AS cards,
+             (SELECT count(*) FROM public.fudaba_card_series WHERE card_id = 'legacy-delete') AS series`
+            );
+            assert.deepEqual(
+                {
+                    cards: Number(remaining.rows[0].cards),
+                    series: Number(remaining.rows[0].series)
+                },
+                { cards: 0, series: 0 }
+            );
+        });
     });
 }
