@@ -33,6 +33,30 @@ export const NAMECARD_CHARACTER_MAX_PAGE_SIZE = 100
 /** Longest accepted character search term. */
 export const NAMECARD_CHARACTER_MAX_QUERY_LENGTH = 160
 
+/** Middle pages one card may carry between the front and the back image. */
+export const NAMECARD_MIDDLE_IMAGE_LIMIT = 18
+
+/** A card may list several series; the first one is the default label. */
+export const NAMECARD_SERIES_LIMIT = 64
+
+/** Dominant-colour fallback when the artwork cannot be sampled or spans series. */
+export const NAMECARD_ACCENT_FALLBACK = "#ff74b8"
+
+/** Designers / illustrators one card may credit. */
+export const NAMECARD_CREDIT_LIMIT = 8
+
+/** Roles a single credit may hold; one person can both design and draw. */
+export const NAMECARD_CREDIT_ROLE_LIMIT = 3
+
+/** The roles a credit can carry, in the order the editor offers them. */
+export const NAMECARD_CREDIT_ROLES = ["design", "illustration", "other"] as const
+
+/** Earliest acceptable 制作日期 year; nothing predates the franchise. */
+export const NAMECARD_PRODUCTION_YEAR_MIN = 2002
+
+/** Latest acceptable 制作日期 year. */
+export const NAMECARD_PRODUCTION_YEAR_MAX = 2099
+
 /**
  * How many characters one namecard may list as its 担当.
  *

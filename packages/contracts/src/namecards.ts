@@ -38,9 +38,10 @@ export const namecardSchema = exactJsonResponse({
   id: cardIdSchema,
   ...namecardMetadataSchema,
   image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
+  /** A single-sided card has no back image. */
+  image2_url: z.string().min(1).nullable(),
   image1_thumbnail_url: z.string().min(1),
-  image2_thumbnail_url: z.string().min(1),
+  image2_thumbnail_url: z.string().min(1).nullable(),
   status: z.string().optional(),
   created_at: z.string().nullable().optional(),
 })
@@ -60,11 +61,13 @@ export type NamecardReactions = z.infer<typeof reactionSchema>
 export const adminNamecardSchema = exactJsonResponse({
   id: z.number().int().positive(),
   image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
+  /** A single-sided card has no back image. */
+  image2_url: z.string().min(1).nullable(),
   status: z.string(),
   revision: z.number().int().nonnegative(),
-  displayName: z.string().min(1).nullable(),
   producerName: z.string().min(1).nullable(),
+  /** 制作人名读法：排序辅助，只有填写过的名片才带值。 */
+  producerReading: z.string().min(1).nullable(),
   origin: z.string().min(1),
   /** 锁定理由；只有 `locked` 状态的名片会带值。 */
   lockReason: z.string().min(1).nullable(),
@@ -110,7 +113,7 @@ export const adminNamecardMutationSchema = successEnvelope({
 })
 export const namecardDetailResponseSchema = exactJsonResponse({
   image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
+  image2_url: z.string().min(1).nullable(),
 }).strict()
 export const namecardEmptyResponseSchema = exactJsonResponse({})
 export const namecardListErrorResponseSchema = exactJsonError({ msg: z.string() })

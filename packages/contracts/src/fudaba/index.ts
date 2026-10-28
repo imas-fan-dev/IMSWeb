@@ -11,6 +11,15 @@ import {
 } from "../common.js";
 
 import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
+import {
+  NAMECARD_CREDIT_LIMIT,
+  NAMECARD_CREDIT_ROLES,
+  NAMECARD_CREDIT_ROLE_LIMIT,
+  NAMECARD_MIDDLE_IMAGE_LIMIT,
+  NAMECARD_PRODUCTION_YEAR_MAX,
+  NAMECARD_PRODUCTION_YEAR_MIN,
+  NAMECARD_SERIES_LIMIT,
+} from "./namecard-runtime.js";
 import { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
 
 import { wikiImageTransformSchema } from "../wiki.js";
@@ -50,6 +59,13 @@ export type {
 export { hasAsciiControl };
 
 export const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+
+/** Ordered series of a card: the first entry is what the legacy column keeps. */
+export const namecardSeriesCodesSchema = z
+  .array(seriesCodeSchema.max(64))
+  .min(1)
+  .max(NAMECARD_SERIES_LIMIT)
+  .refine((codes) => new Set(codes).size === codes.length, "企划不能重复");
 export const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i);
 export const publicMediaUrlSchema = z.string().min(1);
 export const timestampSchema = z.string().datetime({ offset: true });
@@ -140,26 +156,103 @@ export const fudabaCardReactionSchema = z
   })
   .strict();
 
+export const ownerCardIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine(
+    (value) =>
+      !hasAsciiControl(value) && !value.includes("/") && !value.includes("\\"),
+  );
+
+export const ownerCardTextSchema = (maximum: number, required = false) =>
+  z
+    .string()
+    .min(required ? 1 : 0)
+    .max(maximum)
+    .refine((value) => !hasAsciiControl(value));
+
+export const ownerOfficeTextSchema = (maximum: number, required = false) =>
+  z
+    .string()
+    .min(required ? 1 : 0)
+    .max(maximum)
+    .refine((value) => !hasAsciiControl(value));
+
+const ownerCardRequestTextSchema = (maximum: number, required = false) =>
+  z.string().transform((value) => value.trim()).pipe(ownerCardTextSchema(maximum, required));
+const ownerOfficeRequestTextSchema = (maximum: number, required = false) =>
+  z.string().transform((value) => value.trim()).pipe(ownerOfficeTextSchema(maximum, required));
+export const ownerOfficeSeriesCodesSchema = z
+  .array(seriesCodeSchema.max(40))
+  .max(8)
+  .refine((codes) => new Set(codes).size === codes.length);
+
+/** 交换模式：自动允许、手动允许、不可交换。 */
+export const namecardExchangeModeSchema = z.enum(["auto", "manual", "none"]);
+
+export const namecardCreditRoleSchema = z.enum(NAMECARD_CREDIT_ROLES);
+
+/** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; precision is whatever the owner filled in. */
+export const namecardProductionDateSchema = z
+  .string()
+  .regex(/^\d{4}(-\d{2}(-\d{2})?)?$/)
+  .refine((value) => {
+    const year = Number(value.slice(0, 4));
+    return year >= NAMECARD_PRODUCTION_YEAR_MIN && year <= NAMECARD_PRODUCTION_YEAR_MAX;
+  }, { message: "制作日期超出可接受范围" });
+
+/** A designer or illustrator credited for the artwork. */
+export const namecardCreditSchema = z
+  .object({
+    /** Site member the credit points at, when it points at one. */
+    accountId: z.string().min(1).nullable(),
+    displayName: ownerCardTextSchema(80, true),
+    /** Public profile elsewhere; optional for members, optional in general. */
+    url: z.string().url().max(300).nullable(),
+    roles: z
+      .array(namecardCreditRoleSchema)
+      .min(1)
+      .max(NAMECARD_CREDIT_ROLE_LIMIT)
+      .refine((roles) => new Set(roles).size === roles.length),
+  })
+  .strict();
+
+export type NamecardCredit = z.infer<typeof namecardCreditSchema>;
+
+/** Sort key for 制作人名: kana and Latin letters only, as the name is read. */
+export const namecardProducerReadingSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[ぁ-ゖァ-ヺーA-Za-z ]+$/, "制作人名读法只能使用日文假名与英文字母");
+
 export const fudabaCardSchema = exactJsonResponse({
   id: z.string().min(1),
   producerName: z.string().min(1),
-  displayName: z.string().min(1),
-  seriesCode: seriesCodeSchema,
-  favoriteCharacter: z.string(),
+  seriesCodes: namecardSeriesCodesSchema,
   favoriteCharacters: z
     .array(fudabaCharacterSelectionSchema)
     .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
   frontImageUrl: publicMediaUrlSchema,
-  backImageUrl: publicMediaUrlSchema,
+  middleImageUrls: z
+    .array(publicMediaUrlSchema)
+    .max(NAMECARD_MIDDLE_IMAGE_LIMIT),
+  /** Single-sided cards are allowed, so this can be absent. */
+  backImageUrl: publicMediaUrlSchema.nullable(),
+  /** Derived from the artwork, never submitted. */
   accent: accentSchema,
   bio: z.string(),
   tradeNote: z.string(),
-  available: z.boolean(),
-  source: exactJsonResponse({
-    url: z.string().url(),
-    label: z.string().nullable(),
-    credit: z.string().nullable(),
-  }).nullable(),
+  exchangeMode: namecardExchangeModeSchema,
+  madeOn: namecardProductionDateSchema.nullable(),
+  groupName: z.string().max(80).nullable(),
+  producerReading: z.string().max(80).nullable(),
+  isOriginal: z.boolean(),
+  madeWithAi: z.boolean(),
+  visible: z.boolean(),
+  credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
   createdAt: timestampSchema,
   interactions: fudabaCardInteractionsSchema,
 });
@@ -263,53 +356,28 @@ export const fudabaPlaceReverseResponseSchema = exactJsonResponse({
   }).nullable(),
 });
 
-export const ownerCardIdSchema = z
-  .string()
-  .min(1)
-  .max(128)
-  .refine(
-    (value) =>
-      !hasAsciiControl(value) && !value.includes("/") && !value.includes("\\"),
-  );
-
-export const ownerCardTextSchema = (maximum: number, required = false) =>
-  z
-    .string()
-    .min(required ? 1 : 0)
-    .max(maximum)
-    .refine((value) => !hasAsciiControl(value));
-
-export const ownerOfficeTextSchema = (maximum: number, required = false) =>
-  z
-    .string()
-    .min(required ? 1 : 0)
-    .max(maximum)
-    .refine((value) => !hasAsciiControl(value));
-
-const ownerCardRequestTextSchema = (maximum: number, required = false) =>
-  z.string().transform((value) => value.trim()).pipe(ownerCardTextSchema(maximum, required));
-const ownerOfficeRequestTextSchema = (maximum: number, required = false) =>
-  z.string().transform((value) => value.trim()).pipe(ownerOfficeTextSchema(maximum, required));
-export const ownerOfficeSeriesCodesSchema = z
-  .array(seriesCodeSchema.max(40))
-  .max(8)
-  .refine((codes) => new Set(codes).size === codes.length);
-
 /** The copy a submitter is asking to replace the published card with. */
 export const fudabaPendingCardContentSchema = z
   .object({
     producerName: ownerCardTextSchema(80, true),
-    displayName: ownerCardTextSchema(120, true),
-    seriesCode: seriesCodeSchema.max(64),
-    favoriteCharacter: ownerCardTextSchema(200),
+    seriesCodes: namecardSeriesCodesSchema,
     /** Character ids; the editor already holds the catalogue to name them. */
     favoriteCharacterIds: z.array(z.number().int().positive()),
     frontImageUrl: publicMediaUrlSchema,
-    backImageUrl: publicMediaUrlSchema,
-    accent: accentSchema,
+    middleImageUrls: z
+      .array(publicMediaUrlSchema)
+      .max(NAMECARD_MIDDLE_IMAGE_LIMIT),
+    backImageUrl: publicMediaUrlSchema.nullable(),
     bio: ownerCardTextSchema(2000),
     tradeNote: ownerCardTextSchema(1000),
-    available: z.boolean(),
+    exchangeMode: namecardExchangeModeSchema,
+    madeOn: namecardProductionDateSchema.nullable(),
+    groupName: z.string().max(80).nullable(),
+    producerReading: z.string().max(80).nullable(),
+    isOriginal: z.boolean(),
+    madeWithAi: z.boolean(),
+    visible: z.boolean(),
+    credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
   })
   .strict();
 
@@ -317,18 +385,28 @@ export const fudabaOwnerCardSchema = z
   .object({
     id: ownerCardIdSchema,
     producerName: ownerCardTextSchema(80, true),
-    displayName: ownerCardTextSchema(120, true),
-    seriesCode: seriesCodeSchema.max(64),
-    favoriteCharacter: ownerCardTextSchema(200),
+    seriesCodes: namecardSeriesCodesSchema,
     favoriteCharacters: z
       .array(fudabaCharacterSelectionSchema)
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
     frontImageUrl: publicMediaUrlSchema,
-    backImageUrl: publicMediaUrlSchema,
+    middleImageUrls: z
+      .array(publicMediaUrlSchema)
+      .max(NAMECARD_MIDDLE_IMAGE_LIMIT),
+    /** Single-sided cards leave this null. */
+    backImageUrl: publicMediaUrlSchema.nullable(),
+    /** Derived from the artwork; the editor only displays it. */
     accent: accentSchema,
     bio: ownerCardTextSchema(2000),
     tradeNote: ownerCardTextSchema(1000),
-    available: z.boolean(),
+    exchangeMode: namecardExchangeModeSchema,
+    madeOn: namecardProductionDateSchema.nullable(),
+    groupName: z.string().max(80).nullable(),
+    producerReading: z.string().max(80).nullable(),
+    isOriginal: z.boolean(),
+    madeWithAi: z.boolean(),
+    visible: z.boolean(),
+    credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
     publicationStatus: z.enum([
       "draft",
       "pending",
@@ -511,17 +589,22 @@ export const fudabaCardMediaParamsSchema = strictRequestObject({
 // JSON mutations reject unknown keys.
 export const fudabaCardFieldsRequestSchema = z.object({
   producerName: ownerCardRequestTextSchema(80, true),
-  displayName: ownerCardRequestTextSchema(120, true),
-  seriesCode: seriesCodeSchema.max(64),
+  seriesCodes: namecardSeriesCodesSchema,
   favoriteCharacterIds: z
     .array(z.number().int().positive())
     .min(1)
     .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
     .refine((ids) => new Set(ids).size === ids.length),
-  accent: accentSchema,
   bio: ownerCardRequestTextSchema(2000),
   tradeNote: ownerCardRequestTextSchema(1000),
-  available: z.boolean(),
+  exchangeMode: namecardExchangeModeSchema,
+  madeOn: namecardProductionDateSchema.nullable(),
+  groupName: z.string().max(80).nullable(),
+  producerReading: namecardProducerReadingSchema.nullable(),
+  isOriginal: z.boolean(),
+  madeWithAi: z.boolean(),
+  visible: z.boolean(),
+  credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
 }).strict();
 export const fudabaCardUpdateRequestSchema = fudabaCardFieldsRequestSchema.extend({
   expectedRevision: fudabaRevisionSchema,

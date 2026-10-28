@@ -36,7 +36,8 @@ export const fudabaGuestSubmissionSchema = fudabaGuestSubmissionSummarySchema
       .array(fudabaCharacterSelectionSchema)
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
     frontImageUrl: publicMediaUrlSchema,
-    backImageUrl: publicMediaUrlSchema,
+    /** A single-sided guest submission has no back image. */
+    backImageUrl: publicMediaUrlSchema.nullable(),
     createdAt: timestampSchema.nullable(),
   })
   .strict()
