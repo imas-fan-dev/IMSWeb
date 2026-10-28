@@ -263,12 +263,7 @@ export function CharacterMultiSelect({
 
   return (
     <Field id={id} data-disabled={controlDisabled || undefined}>
-      <FieldLabel id={`${id}-label`}>
-        担当角色{" "}
-        <span aria-hidden="true" className="text-destructive">
-          *
-        </span>
-      </FieldLabel>
+      <FieldLabel id={`${id}-label`}>担当角色</FieldLabel>
       <FieldDescription>
         可跨企划选择，最多 {NAMECARD_FAVORITE_CHARACTER_LIMIT}{" "}
         人；搜索支持角色名、别名与组合名。

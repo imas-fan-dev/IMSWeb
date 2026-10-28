@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { toast } from "sonner"
 
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { Textarea } from "~/components/ui/textarea"
 import type { FudabaCardFields, FudabaSeries } from "~/lib/api"
 import {
@@ -71,13 +71,26 @@ function joinMadeOn(year: string, month: string, day: string): string | null {
   return `${year}-${month}-${day}`
 }
 
+const FLAG_OPTIONS = [
+  {
+    id: "exchange-card-is-original",
+    field: "isOriginal",
+    description:
+      "此名片主体部分为自行绘制、约稿或授权使用，而非在官图基础上进行的二次修改或描摹。",
+  },
+  {
+    id: "exchange-card-made-with-ai",
+    field: "madeWithAi",
+    description: "此名片主体部分使用生成式 AI 直接参与制作。",
+  },
+] as const
+
 const EXCHANGE_MODE_OPTIONS = [
   { value: "auto", label: "自动允许", hint: "自动通过任何人的交换申请" },
   { value: "manual", label: "手动允许", hint: "需逐张确认每一次交换申请" },
   { value: "none", label: "不可交换", hint: "不接受他人主动发起交换" },
 ] as const
 
-/** 必填项的红色星号；纯装饰，读屏由 `required` 属性表达。 */
 /** 必填星号；前后留一点空隙，读屏不读它（`aria-hidden`）。 */
 function RequiredMark() {
   return (
@@ -102,6 +115,7 @@ export function CardFields({
   onChange: (draft: FudabaCardFields) => void
 }) {
   const { catalog, loading, failed } = useNamecardCharacterCatalog()
+  const [modeDirection, setModeDirection] = useState<"next" | "previous">("next")
   const madeOn = splitMadeOn(draft.madeOn)
   // 担当角色所属的企划必须勾选且不可取消，否则角色与企划会互相矛盾。
   const lockedSeriesCodes = Array.from(
@@ -356,49 +370,29 @@ export function CardFields({
       </CardModule>
 
       <CardModule mode={modes?.flags}>
-        <FieldGroup className="gap-4">
-          <Field orientation="horizontal" data-disabled={disabled || undefined}>
-            <Checkbox
-              id="exchange-card-is-original"
-              checked={draft.isOriginal}
-              disabled={disabled}
-              onCheckedChange={(checked) =>
-                patch({ isOriginal: checked === true })
-              }
-            />
-            <div className="min-w-0">
+        <FieldGroup className="gap-3">
+          {FLAG_OPTIONS.map((option) => (
+            <Field
+              key={option.id}
+              orientation="horizontal"
+              data-disabled={disabled || undefined}
+            >
+              <Checkbox
+                id={option.id}
+                checked={draft[option.field]}
+                disabled={disabled}
+                onCheckedChange={(checked) =>
+                  patch({ [option.field]: checked === true })
+                }
+              />
               <label
-                htmlFor="exchange-card-is-original"
-                className="text-sm font-medium"
+                htmlFor={option.id}
+                className="min-w-0 text-sm text-muted-foreground"
               >
-                原创标记
+                {option.description}
               </label>
-              <FieldDescription>
-                此名片主体部分为自行绘制、约稿或授权使用，而非在官图基础上进行的二次修改或描摹。
-              </FieldDescription>
-            </div>
-          </Field>
-          <Field orientation="horizontal" data-disabled={disabled || undefined}>
-            <Checkbox
-              id="exchange-card-made-with-ai"
-              checked={draft.madeWithAi}
-              disabled={disabled}
-              onCheckedChange={(checked) =>
-                patch({ madeWithAi: checked === true })
-              }
-            />
-            <div className="min-w-0">
-              <label
-                htmlFor="exchange-card-made-with-ai"
-                className="text-sm font-medium"
-              >
-                AI 标记
-              </label>
-              <FieldDescription>
-                此名片主体部分使用生成式 AI 直接参与制作。
-              </FieldDescription>
-            </div>
-          </Field>
+            </Field>
+          ))}
         </FieldGroup>
       </CardModule>
 
@@ -417,12 +411,22 @@ export function CardFields({
       </CardModule>
 
       <CardModule mode={modes?.exchangeMode}>
-        <div>
+        <Field data-disabled={disabled || undefined}>
+          <FieldLabel>交换模式</FieldLabel>
           <Tabs
             value={draft.exchangeMode}
-            onValueChange={(value) =>
-              patch({ exchangeMode: value as FudabaCardFields["exchangeMode"] })
-            }
+            onValueChange={(value) => {
+              const from = EXCHANGE_MODE_OPTIONS.findIndex(
+                (option) => option.value === draft.exchangeMode
+              )
+              const to = EXCHANGE_MODE_OPTIONS.findIndex(
+                (option) => option.value === value
+              )
+              setModeDirection(to >= from ? "next" : "previous")
+              patch({
+                exchangeMode: value as FudabaCardFields["exchangeMode"],
+              })
+            }}
           >
             <TabsList aria-label="交换模式" className="w-full sm:w-auto">
               {EXCHANGE_MODE_OPTIONS.map((option) => (
@@ -435,13 +439,23 @@ export function CardFields({
                 </TabsTrigger>
               ))}
             </TabsList>
-            {EXCHANGE_MODE_OPTIONS.map((option) => (
-              <TabsContent key={option.value} value={option.value}>
-                <p className="text-sm text-muted-foreground">{option.hint}</p>
-              </TabsContent>
-            ))}
           </Tabs>
-        </div>
+          {/* 换模式时说明横向滑入，方向跟随点击顺序。 */}
+          <p
+            key={draft.exchangeMode}
+            className={`mt-2 text-sm text-muted-foreground motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200 ${
+              modeDirection === "next"
+                ? "motion-safe:slide-in-from-right-2"
+                : "motion-safe:slide-in-from-left-2"
+            }`}
+          >
+            {
+              EXCHANGE_MODE_OPTIONS.find(
+                (option) => option.value === draft.exchangeMode
+              )?.hint
+            }
+          </p>
+        </Field>
       </CardModule>
 
       <CardModule mode={modes?.visibility}>
@@ -452,17 +466,12 @@ export function CardFields({
             disabled={disabled}
             onCheckedChange={(checked) => patch({ visible: checked === true })}
           />
-          <div className="min-w-0">
-            <label
-              htmlFor="exchange-card-visible"
-              className="text-sm font-medium"
-            >
-              公开显示
-            </label>
-            <FieldDescription>
-              他人可在名片墙和用户主页看到这张名片。
-            </FieldDescription>
-          </div>
+          <label
+            htmlFor="exchange-card-visible"
+            className="min-w-0 text-sm text-muted-foreground"
+          >
+            他人可在名片墙和用户主页看到这张名片。
+          </label>
         </Field>
       </CardModule>
     </FieldGroup>

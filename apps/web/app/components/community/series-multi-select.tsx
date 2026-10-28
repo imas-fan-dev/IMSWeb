@@ -86,10 +86,13 @@ export function SeriesMultiSelect({
             <label
               key={item.code}
               data-locked={isLocked || undefined}
+              title={
+                isLocked ? "由担当角色决定，不可取消" : undefined
+              }
               className={`flex items-center gap-2 rounded-md px-1.5 py-1 text-sm ${
                 isLocked
-                  ? "bg-muted/60 text-muted-foreground"
-                  : "cursor-pointer hover:bg-muted/60"
+                  ? "bg-muted text-muted-foreground"
+                  : "cursor-pointer hover:bg-accent/60"
               }`}
             >
               <Checkbox

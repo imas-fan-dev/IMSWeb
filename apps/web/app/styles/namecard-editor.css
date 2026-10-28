@@ -1,26 +1,38 @@
 @layer components {
   /*
-   * 必填项缺失时不去改边框，而是让目标区域闪两下黄光：
-   * 边框会与压缩后的布局互相影响，闪烁只动背景色。
+   * 必填项缺失时不去改边框，而是让目标区域闪两下黄光。用 ::after 叠一层
+   * 半透明遮罩：直接改父级背景色在子元素自带不透明背景时是看不见的。
    */
   .card-field-flash {
+    position: relative;
     border-radius: var(--radius-lg);
+  }
+
+  .card-field-flash::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: var(--radius-lg);
+    background-color: var(--warning);
+    opacity: 0;
+    pointer-events: none;
     animation: card-field-flash 560ms ease-in-out 2;
   }
 
   @keyframes card-field-flash {
     0%,
     100% {
-      background-color: transparent;
+      opacity: 0;
     }
 
     50% {
-      background-color: color-mix(in oklab, var(--warning) 30%, transparent);
+      opacity: 0.3;
     }
   }
 
-  /* 缩略图选择区：默认滚动条太显眼，换成细轨道。 */
+  /* 缩略图选择区：默认滚动条太显眼，换成细轨道；四周留一点空间放角标。 */
   .card-thumb-strip {
+    padding: 6px 3px;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }
@@ -42,10 +54,65 @@
     background-color: var(--muted-foreground);
   }
 
+  /* 图片预览的删除按钮：不透明底色，hover 只把颜色压深，不叠描边与透明层。 */
+  .card-artwork-delete {
+    background-color: var(--destructive) !important;
+    color: var(--destructive-foreground) !important;
+  }
+
+  /* destructive 变体自带半透明 hover，这里压回不透明并把颜色压深。 */
+  .card-artwork-delete:hover {
+    background-color: color-mix(in oklab, var(--destructive) 86%, black) !important;
+  }
+
+  /* 交换模式：说明按切换方向滑入，往右切从右侧来，往左切从左侧来。 */
+  .card-mode-swap {
+    animation-duration: 200ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    animation-fill-mode: both;
+  }
+
+  .card-mode-swap-next {
+    animation-name: card-mode-next;
+  }
+
+  .card-mode-swap-previous {
+    animation-name: card-mode-previous;
+  }
+
+  @keyframes card-mode-next {
+    from {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes card-mode-previous {
+    from {
+      opacity: 0;
+      transform: translateX(-14px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .card-field-flash {
+    /* 仍然跑一次动画，好让 animationend 把高亮类摘掉。 */
+    .card-field-flash::after {
+      animation-duration: 900ms;
+      animation-iteration-count: 1;
+    }
+
+    .card-mode-swap {
       animation: none;
-      background-color: color-mix(in oklab, var(--warning) 24%, transparent);
     }
   }
 }

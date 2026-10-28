@@ -11,8 +11,8 @@ const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
 /** 缩略图边长与间距；插入占位的位移按这两项算。 */
 const THUMB_SIZE = 80
 const THUMB_GAP = 8
-const THUMB_STEP = THUMB_SIZE + THUMB_GAP
-const STRIP_PADDING = 8
+/** 指针移动超过这个距离才算拖拽，否则当作点击。 */
+const DRAG_THRESHOLD = 6
 
 export type MediaSlot =
   | {
@@ -127,9 +127,10 @@ type DragState = { index: number; url: string; x: number; y: number }
  * strip of thumbnails that can be reordered by dragging. Roles follow the
  * order - the first page is the front and the last page is the back.
  *
- * Dragging works with pointer events, so a finger reorders the strip the same
- * way a mouse does. While dragging, the thumbnail leaves the strip, a ghost
- * follows the pointer and a translucent copy marks where it would land.
+ * Dragging listens on the window instead of the thumbnail: the dragged
+ * thumbnail leaves the strip as soon as the drag starts, so a handler bound to
+ * it would stop receiving moves. The copy that marks the landing spot is
+ * rendered in the strip flow, which keeps it in the scroll area.
  */
 export function CardMediaGallery({
   slots,
@@ -148,7 +149,7 @@ export function CardMediaGallery({
   const inputRef = useRef<HTMLInputElement>(null)
   const replaceRef = useRef<number | null>(null)
   const stripRef = useRef<HTMLDivElement>(null)
-  const pressRef = useRef<{ index: number; x: number; y: number } | null>(null)
+  const dropRef = useRef<number | null>(null)
   const position = Math.min(active, Math.max(slots.length - 1, 0))
   const current = slots[position] ?? null
   const role = mediaSlotRole(position, slots.length)
@@ -225,44 +226,53 @@ export function CardMediaGallery({
   }
 
   function startDrag(index: number, event: React.PointerEvent<HTMLElement>) {
-    if (disabled || slots.length < 2) return
-    event.currentTarget.setPointerCapture(event.pointerId)
-    pressRef.current = { index, x: event.clientX, y: event.clientY }
-  }
+    if (disabled || slots.length < 2 || event.button !== 0) return
+    const startX = event.clientX
+    const startY = event.clientY
+    const pointerId = event.pointerId
+    const url = slots[index]?.url ?? ""
+    let dragging = false
 
-  function continueDrag(index: number, event: React.PointerEvent<HTMLElement>) {
-    const press = pressRef.current
-    if (!press || press.index !== index) return
-    if (!drag) {
-      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) < 6)
+    const handleMove = (move: PointerEvent) => {
+      if (move.pointerId !== pointerId) return
+      if (!dragging) {
+        if (Math.hypot(move.clientX - startX, move.clientY - startY) < DRAG_THRESHOLD)
+          return
+        dragging = true
+        dropRef.current = index
+        setDropAt(index)
+      } else {
+        dropRef.current = resolveDrop(move.clientX, index)
+        setDropAt(dropRef.current)
+      }
+      setDrag({ index, url, x: move.clientX, y: move.clientY })
+    }
+
+    const finish = (commit: boolean) => {
+      window.removeEventListener("pointermove", handleMove)
+      window.removeEventListener("pointerup", handleUp)
+      window.removeEventListener("pointercancel", handleCancel)
+      const target = dropRef.current ?? index
+      dropRef.current = null
+      setDrag(null)
+      setDropAt(null)
+      if (!dragging) {
+        setActive(index)
         return
-      setDrag({
-        index,
-        url: slots[index]?.url ?? "",
-        x: event.clientX,
-        y: event.clientY,
-      })
-      setDropAt(index)
-      return
+      }
+      if (commit) move(index, target)
     }
-    setDrag({ ...drag, x: event.clientX, y: event.clientY })
-    setDropAt(resolveDrop(event.clientX, index))
-  }
 
-  function endDrag(index: number, event: React.PointerEvent<HTMLElement>) {
-    const press = pressRef.current
-    pressRef.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
+    const handleUp = (up: PointerEvent) => {
+      if (up.pointerId === pointerId) finish(true)
     }
-    if (!drag) {
-      if (press?.index === index) setActive(index)
-      return
+    const handleCancel = (cancel: PointerEvent) => {
+      if (cancel.pointerId === pointerId) finish(false)
     }
-    const target = dropAt ?? index
-    setDrag(null)
-    setDropAt(null)
-    move(index, target)
+
+    window.addEventListener("pointermove", handleMove)
+    window.addEventListener("pointerup", handleUp)
+    window.addEventListener("pointercancel", handleCancel)
   }
 
   const roleLabel = useMemo(
@@ -272,6 +282,7 @@ export function CardMediaGallery({
   const visibleSlots = slots
     .map((slot, index) => ({ slot, index }))
     .filter((entry) => entry.index !== drag?.index)
+  const dropIndex = drag && dropAt !== null ? dropAt : null
 
   return (
     <section aria-label="名片图片" className="min-w-0">
@@ -292,9 +303,7 @@ export function CardMediaGallery({
 
       <div
         className={`relative aspect-video w-full overflow-hidden rounded-lg border ${
-          current
-            ? "bg-muted/40"
-            : "border-dashed bg-muted/20"
+          current ? "bg-muted/40" : "border-dashed bg-muted/20"
         }`}
         data-card-artwork-preview
       >
@@ -347,7 +356,7 @@ export function CardMediaGallery({
               type="button"
               size="sm"
               variant="destructive"
-              className="bg-destructive text-destructive-foreground shadow-sm ring-1 ring-destructive/70 hover:bg-destructive/90"
+              className="card-artwork-delete shadow-sm"
               disabled={disabled || slots.length <= 1}
               onClick={() => removeAt(position)}
             >
@@ -361,90 +370,55 @@ export function CardMediaGallery({
       <div
         ref={stripRef}
         className="card-thumb-strip mt-3 flex overflow-x-auto overscroll-x-contain"
-        style={{
-          gap: THUMB_GAP,
-          padding: STRIP_PADDING,
-          paddingRight: drag ? STRIP_PADDING + THUMB_STEP : STRIP_PADDING,
-        }}
+        style={{ gap: THUMB_GAP }}
         role="list"
         aria-label="名片图片顺序"
       >
-        {visibleSlots.map(({ slot, index }, visibleIndex) => {
-          const shifting = drag !== null && dropAt !== null && visibleIndex >= dropAt
-          return (
-            <div
-              key={`${slot.kind === "existing" ? `existing-${slot.index}` : slot.url}-${index}`}
-              role="listitem"
-              data-thumb-pos={index}
-              className="group relative shrink-0 touch-none"
-              style={{
-                width: THUMB_SIZE,
-                height: THUMB_SIZE,
-                transform: shifting ? `translateX(${THUMB_STEP}px)` : undefined,
-                transition: "transform 150ms ease",
-              }}
-              onPointerDown={(event) => startDrag(index, event)}
-              onPointerMove={(event) => continueDrag(index, event)}
-              onPointerUp={(event) => endDrag(index, event)}
-              onPointerCancel={(event) => endDrag(index, event)}
-            >
-              <button
-                type="button"
-                onClick={() => setActive(index)}
-                aria-label={
-                  roleLabel[index]
-                    ? `第 ${index + 1} 张（${roleLabel[index]}）`
-                    : `第 ${index + 1} 张`
-                }
-                aria-current={index === position}
-                className={`block size-full overflow-hidden rounded-md border ${
-                  index === position ? "ring-2 ring-primary" : ""
-                } ${drag?.index === index ? "opacity-40" : ""}`}
-              >
-                <img
-                  src={slot.url}
-                  alt=""
-                  className="size-full object-cover"
-                  draggable={false}
-                />
-              </button>
-              {!disabled && slots.length > 1 ? (
-                <button
-                  type="button"
-                  aria-label={`删除第 ${index + 1} 张图片`}
-                  className="absolute top-1 right-1 hidden size-5 place-items-center rounded-full bg-destructive text-destructive-foreground shadow-sm group-focus-within:grid group-hover:grid"
-                  onClick={() => removeAt(index)}
-                >
-                  <XIcon aria-hidden="true" className="size-3" />
-                </button>
-              ) : null}
-              {roleLabel[index] ? (
-                <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate rounded-b-md bg-background px-1 text-center text-[10px]/4 ring-1 ring-border/60">
-                  {roleLabel[index]}
-                </span>
-              ) : null}
-            </div>
-          )
-        })}
+        {visibleSlots.slice(0, dropIndex ?? 0).map((entry) => (
+          <Thumbnail
+            key={slotKey(entry.slot)}
+            entry={entry}
+            active={entry.index === position}
+            dragging={false}
+            roleLabel={roleLabel[entry.index]}
+            disabled={disabled}
+            removable={slots.length > 1}
+            onSelect={setActive}
+            onRemove={removeAt}
+            onPointerDown={startDrag}
+          />
+        ))}
 
-        {drag && dropAt !== null ? (
+        {dropIndex !== null && drag ? (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute"
-            style={{
-              width: THUMB_SIZE,
-              height: THUMB_SIZE,
-              left: STRIP_PADDING + dropAt * THUMB_STEP,
-              top: STRIP_PADDING,
-            }}
+            role="listitem"
+            className="relative shrink-0 rounded-md border-2 border-dashed border-primary/70 bg-muted/40"
+            style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
           >
             <img
               src={drag.url}
               alt=""
-              className="size-full rounded-md object-cover opacity-35 ring-2 ring-primary motion-safe:animate-in motion-safe:fade-in"
+              draggable={false}
+              className="size-full rounded-[4px] object-cover opacity-40"
             />
           </div>
         ) : null}
+
+        {visibleSlots.slice(dropIndex ?? 0).map((entry) => (
+          <Thumbnail
+            key={slotKey(entry.slot)}
+            entry={entry}
+            active={entry.index === position}
+            dragging={false}
+            roleLabel={roleLabel[entry.index]}
+            disabled={disabled}
+            removable={slots.length > 1}
+            onSelect={setActive}
+            onRemove={removeAt}
+            onPointerDown={startDrag}
+          />
+        ))}
 
         {slots.length < NAMECARD_MEDIA_LIMIT && !drag ? (
           <button
@@ -480,5 +454,76 @@ export function CardMediaGallery({
         最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。
       </p>
     </section>
+  )
+}
+
+function slotKey(slot: MediaSlot): string {
+  return slot.kind === "existing" ? `existing-${slot.index}` : slot.url
+}
+
+function Thumbnail({
+  entry,
+  active,
+  dragging,
+  roleLabel,
+  disabled,
+  removable,
+  onSelect,
+  onRemove,
+  onPointerDown,
+}: {
+  entry: { slot: MediaSlot; index: number }
+  active: boolean
+  dragging: boolean
+  roleLabel: string | null
+  disabled: boolean
+  removable: boolean
+  onSelect: (index: number) => void
+  onRemove: (index: number) => void
+  onPointerDown: (index: number, event: React.PointerEvent<HTMLElement>) => void
+}) {
+  const { slot, index } = entry
+  return (
+    <div
+      role="listitem"
+      data-thumb-pos={index}
+      className="group relative shrink-0 touch-none select-none"
+      style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+      onPointerDown={(event) => onPointerDown(index, event)}
+    >
+      <button
+        type="button"
+        onClick={() => onSelect(index)}
+        aria-label={
+          roleLabel ? `第 ${index + 1} 张（${roleLabel}）` : `第 ${index + 1} 张`
+        }
+        aria-current={active}
+        className={`block size-full overflow-hidden rounded-md border ${
+          active ? "ring-2 ring-primary" : ""
+        } ${dragging ? "opacity-40" : ""}`}
+      >
+        <img
+          src={slot.url}
+          alt=""
+          className="size-full object-cover"
+          draggable={false}
+        />
+      </button>
+      {!disabled && removable ? (
+        <button
+          type="button"
+          aria-label={`删除第 ${index + 1} 张图片`}
+          className="absolute -top-1.5 -right-1.5 hidden size-5 place-items-center rounded-full bg-destructive text-destructive-foreground shadow-sm group-focus-within:grid group-hover:grid"
+          onClick={() => onRemove(index)}
+        >
+          <XIcon aria-hidden="true" className="size-3" />
+        </button>
+      ) : null}
+      {roleLabel ? (
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate rounded-b-md bg-background px-1 text-center text-[10px]/4 ring-1 ring-border/60">
+          {roleLabel}
+        </span>
+      ) : null}
+    </div>
   )
 }

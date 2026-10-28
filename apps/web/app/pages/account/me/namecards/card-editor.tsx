@@ -6,6 +6,7 @@ import {
   RefreshCwIcon,
   SaveIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react"
 import { useEffect, useState, type FormEvent } from "react"
 import { toast } from "sonner"
@@ -40,7 +41,7 @@ import {
   type MediaSlot,
 } from "./card-media-gallery"
 import { CardFields } from "./card-editor-fields"
-import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
+import { NamecardOwnerStatusBadge } from "~/components/community/namecard-status-badge"
 import {
   CardModule,
   type CardModuleModes,
@@ -153,8 +154,6 @@ export function CardEditor({
     const missing: string[] = []
     if (!draft.producerName.trim()) missing.push("producerName")
     if (draft.seriesCodes.length === 0) missing.push("seriesCodes")
-    if (draft.favoriteCharacterIds.length === 0)
-      missing.push("favoriteCharacterIds")
     if (slots.length === 0) missing.push("media")
     return missing
   }
@@ -162,7 +161,6 @@ export function CardEditor({
   const FIELD_MESSAGES: Record<string, string> = {
     producerName: "请填写制作人名称。",
     seriesCodes: "请至少选择一个所属企划。",
-    favoriteCharacterIds: "请至少选择一个担当角色。",
     media: "请至少添加一张名片图片。",
   }
 
@@ -335,7 +333,12 @@ export function CardEditor({
       )}
 
       <CardModule mode={modes?.notices}>
-        <CardEditorNotices card={card} creating={creating} />
+        <CardEditorNotices
+          // 换卡或版本变化时重建，关掉的提示自然重新出现。
+          key={`${card?.id ?? "new"}-${card?.revision ?? 0}`}
+          card={card}
+          creating={creating}
+        />
       </CardModule>
 
       {readOnlyReason ? (
@@ -475,15 +478,14 @@ function formatCardTime(value: string | null | undefined): string {
  * 消息提示区：告诉拥有者这张名片为什么处于审核、复核或锁定状态。
  * 每种情况单独一条，互不覆盖。
  */
-function CardEditorNotices({
-  card,
-  creating,
-}: {
-  card: FudabaOwnerCard | null
+type CardNotice = { title: string; body: string; destructive?: boolean }
+
+function cardNotices(
+  card: FudabaOwnerCard | null,
   creating: boolean
-}) {
-  if (creating || !card) return null
-  const notices: { title: string; body: string; destructive?: boolean }[] = []
+): CardNotice[] {
+  if (creating || !card) return []
+  const notices: CardNotice[] = []
   if (card.publicationStatus === "locked") {
     notices.push({
       title: "名片已锁定",
@@ -514,14 +516,60 @@ function CardEditorNotices({
       destructive: true,
     })
   }
-  if (notices.length === 0) return null
+  return notices
+}
+
+/**
+ * 状态提示悬挂在 dialog-body 顶部：滚动时不跟着走，可逐条关闭，
+ * 出现与消失都是渐变，避免贴边的告警忽然跳出来。
+ */
+function CardEditorNotices({
+  card,
+  creating,
+}: {
+  card: FudabaOwnerCard | null
+  creating: boolean
+}) {
+  const notices = cardNotices(card, creating)
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
+  const [closing, setClosing] = useState<string | null>(null)
+
+  const visible = notices.filter((notice) => !hidden.has(notice.title))
+  if (visible.length === 0) return null
+
+  function dismiss(title: string) {
+    setClosing(title)
+    window.setTimeout(() => {
+      setHidden((previous) => new Set(previous).add(title))
+      setClosing((current) => (current === title ? null : current))
+    }, 160)
+  }
+
   return (
-    <div className="mt-4 space-y-2">
-      {notices.map((notice) => (
-        <Alert key={notice.title} variant={notice.destructive ? "destructive" : "default"}>
+    <div className="sticky top-0 z-20 space-y-2 bg-background/90 px-0.5 pt-1 pb-3 backdrop-blur-sm">
+      {visible.map((notice) => (
+        <Alert
+          key={notice.title}
+          variant={notice.destructive ? "destructive" : "default"}
+          className={`relative overflow-hidden pr-10 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 ${
+            closing === notice.title
+              ? "motion-safe:animate-out motion-safe:fade-out-0"
+              : ""
+          }`}
+        >
           <CircleAlertIcon aria-hidden="true" />
           <AlertTitle>{notice.title}</AlertTitle>
           <AlertDescription>{notice.body}</AlertDescription>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-1.5 right-1.5"
+            aria-label={`关闭提示：${notice.title}`}
+            onClick={() => dismiss(notice.title)}
+          >
+            <XIcon aria-hidden="true" />
+          </Button>
         </Alert>
       ))}
     </div>
@@ -540,7 +588,8 @@ export function CardEditorHeading({
   creating: boolean
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
+    // 右上角有关闭按钮，标题区整体留出它的宽度与上边距。
+    <div className="flex min-w-0 flex-col gap-3 border-b pt-1 pr-10 pb-4 sm:flex-row sm:items-start sm:justify-between sm:pr-14">
       <div className="min-w-0">
         <h2 id="owned-card-editor-title" className="text-base font-medium">
           {creating ? "新建名片" : "编辑名片"}
@@ -554,17 +603,20 @@ export function CardEditorHeading({
                 : "名片 #— · 版本 0"}
           </p>
           {!creating && card ? (
-            <NamecardStatusBadge status={card.publicationStatus} />
+            <NamecardOwnerStatusBadge
+              status={card.publicationStatus}
+              reviewing={card.reviewStatus === "pending"}
+            />
           ) : null}
         </div>
       </div>
       {creating ? null : (
-        <dl className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground sm:justify-end sm:text-right">
-          <div className="whitespace-nowrap">
+        <dl className="flex min-w-0 shrink-0 flex-col items-start gap-0.5 text-xs text-muted-foreground sm:items-end sm:pt-0.5 sm:text-right">
+          <div className="block whitespace-nowrap">
             <dt className="inline">创建于 </dt>
             <dd className="inline">{formatCardTime(card?.createdAt)}</dd>
           </div>
-          <div className="whitespace-nowrap">
+          <div className="block whitespace-nowrap">
             <dt className="inline">更新于 </dt>
             <dd className="inline">{formatCardTime(card?.updatedAt)}</dd>
           </div>
