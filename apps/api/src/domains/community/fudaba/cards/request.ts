@@ -237,6 +237,9 @@ function seriesCodeList(value: unknown): string[] {
 }
 
 function cardFields(value: Record<string, unknown>): FudabaCardFields {
+    const madeWithAi = booleanValue(value.madeWithAi ?? false, 'madeWithAi');
+    // 原创声明与 AI 声明互斥；两个都被勾选说明前端被绕过，移除原创声明。
+    const isOriginal = booleanValue(value.isOriginal ?? false, 'isOriginal') && !madeWithAi;
     const seriesCodes = seriesCodeList(value.seriesCodes);
     return {
         producerName: text(value.producerName, 'producerName', 80, true),
@@ -248,8 +251,8 @@ function cardFields(value: Record<string, unknown>): FudabaCardFields {
         madeOn: productionDate(value.madeOn),
         groupName: nullableText(value.groupName, 'groupName', 80),
         producerReading: producerReading(value.producerReading),
-        isOriginal: booleanValue(value.isOriginal ?? false, 'isOriginal'),
-        madeWithAi: booleanValue(value.madeWithAi ?? false, 'madeWithAi'),
+        isOriginal,
+        madeWithAi,
         visible: booleanValue(value.visible ?? true, 'visible'),
         credits: credits(value.credits)
     };

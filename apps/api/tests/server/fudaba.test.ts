@@ -276,7 +276,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 parseFudabaCardCreateFields(registeredFields('[3,1,2]')).favoriteCharacterIds,
                 [3, 1, 2]
             );
-            for (const favoriteCharacterIds of ['[]', '[1,1]', '[0]', 'not-json']) {
+            // 担当角色是可选项，空集合与缺省一样合法。
+            assert.deepEqual(
+                parseFudabaCardCreateFields(registeredFields('[]')).favoriteCharacterIds,
+                []
+            );
+            for (const favoriteCharacterIds of ['[1,1]', '[0]', 'not-json']) {
                 assert.throws(
                     () => parseFudabaCardCreateFields(registeredFields(favoriteCharacterIds)),
                     /favoriteCharacterIds/
@@ -8046,7 +8051,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 );
             });
 
-            test('rejects empty character selections before object writes', async () => {
+            test('accepts a card without selected characters', async () => {
                 const fixture = new OwnerRouteFixture();
                 fixture.uploads.next = {
                     ...cardUpload(),
@@ -8054,13 +8059,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 };
 
                 const response = await postCard(fixture);
-                assert.equal(response.status, 400);
-                assert.equal(
-                    (await contractJson(response, fudabaErrorResponseSchema) as { code: string }).code,
-                    'FUDABA_CARD_INVALID'
+                assert.equal(response.status, 201, await response.text());
+                assert.deepEqual(
+                    fixture.createInputs.at(-1)?.favoriteCharacterIds,
+                    []
                 );
-                assert.equal(fixture.storage.puts.length, 0);
-                assert.equal(fixture.createInputs.length, 0);
             });
 
             test('rejects decoded image type mismatches before object writes', async () => {
