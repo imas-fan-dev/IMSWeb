@@ -8852,10 +8852,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         await fixture.platform.createAccountWithProfile(account(otherId));
         await fixture.platform.createAccountWithProfile(account(restrictedId, 'restricted'));
 
-        assert.deepEqual(await fixture.fudaba.createCardForOwner({
+        // 担当角色可以留空：建出来的名片不挂任何角色，随后删掉以免影响
+        // 后面的列表断言。
+        const withoutCharacters = await fixture.fudaba.createCardForOwner({
             ...ownedCard(`${fixture.dialect}-empty-characters-card`, ownerId),
             favoriteCharacterIds: []
-        }), { status: 'unavailable' });
+        });
+        assert.equal(withoutCharacters.status, 'saved');
+        if (withoutCharacters.status === 'saved') {
+            assert.deepEqual(withoutCharacters.card.favorite_characters, []);
+        }
+        await fixture.database
+            .prepare('DELETE FROM fudaba_cards WHERE id=?')
+            .bind(`${fixture.dialect}-empty-characters-card`)
+            .run();
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
             ...ownedCard(`${fixture.dialect}-duplicate-characters-card`, ownerId),
             favoriteCharacterIds: [900_001, 900_001]

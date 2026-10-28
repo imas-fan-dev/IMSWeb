@@ -827,14 +827,13 @@ export class SqlFudabaRepository implements FudabaRepository {
         database: SqlDatabase,
         characterIds: readonly number[],
     ): Promise<CardFavoriteSelectionRecord[]> {
-        if (
-            characterIds.length < 1 ||
-            characterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT
-        ) {
+        if (characterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT) {
             throw new InvalidCardFavoriteSelectionError(
-                `Fudaba cards require between 1 and ${NAMECARD_FAVORITE_CHARACTER_LIMIT} selected characters`,
+                `Fudaba cards accept at most ${NAMECARD_FAVORITE_CHARACTER_LIMIT} selected characters`,
             );
         }
+        // 担当角色是可选项：留空时这张名片只是不挂任何角色。
+        if (characterIds.length === 0) return [];
         if (new Set(characterIds).size !== characterIds.length) {
             throw new InvalidCardFavoriteSelectionError(
                 "Fudaba card character selections must not contain duplicates",

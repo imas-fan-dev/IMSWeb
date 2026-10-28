@@ -594,7 +594,6 @@ export const fudabaCardFieldsRequestSchema = z.object({
   seriesCodes: namecardSeriesCodesSchema,
   favoriteCharacterIds: z
     .array(z.number().int().positive())
-    .min(1)
     .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
     .refine((ids) => new Set(ids).size === ids.length),
   bio: ownerCardRequestTextSchema(2000),

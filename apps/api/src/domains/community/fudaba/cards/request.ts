@@ -1,3 +1,4 @@
+import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba';
 import { parseFudabaRevision } from '@/domains/community/fudaba/contracts/card';
 
 export type FudabaCardCreditRole = 'design' | 'illustration' | 'other';
@@ -203,7 +204,8 @@ function favoriteCharacterIds(value: unknown): number[] {
         }
     }
     if (
-        !Array.isArray(parsed) || parsed.length < 1 || parsed.length > 20 ||
+        !Array.isArray(parsed) ||
+        parsed.length > NAMECARD_FAVORITE_CHARACTER_LIMIT ||
         parsed.some((id) => !Number.isSafeInteger(id) || Number(id) <= 0) ||
         new Set(parsed).size !== parsed.length
     ) {
