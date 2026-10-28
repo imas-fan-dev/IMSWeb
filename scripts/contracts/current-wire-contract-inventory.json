@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "e087e16b82db7d1823caa84ac7717333480173033d594502daebee73ac61d3f7",
+    "semanticDigest": "0ca4c8ea69394e972a4a1132f42f3d339afacfc83e7990cf37c7cd0df4f6213e",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 263,
-    "carriers": 330,
+    "mountedMethodPaths": 264,
+    "carriers": 331,
     "reject": 67,
     "acceptAndProject": 166,
     "passthrough": 17,
-    "nonObjectApplicable": 80
+    "nonObjectApplicable": 81
   },
   "counts": {
-    "mountedRegistrations": 362,
-    "mountedMethodPaths": 271,
+    "mountedRegistrations": 363,
+    "mountedMethodPaths": 272,
     "noInputRoutes": 91,
-    "requestCarriers": 354,
+    "requestCarriers": 355,
     "policies": {
       "reject": 68,
       "accept-and-project": 189,
       "passthrough": 17,
-      "non-object-applicable": 80
+      "non-object-applicable": 81
     },
     "responses": {
-      "total": 749,
-      "json": 685,
-      "nonJson": 64
+      "total": 762,
+      "json": 692,
+      "nonJson": 70
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 263,
-      "requestCarriers": 330,
+      "mountedMethodPaths": 264,
+      "requestCarriers": 331,
       "policies": {
         "reject": 67,
         "accept-and-project": 166,
         "passthrough": 17,
-        "non-object-applicable": 80
+        "non-object-applicable": 81
       }
     },
     "explicitQueryAdditions": [
@@ -122,7 +122,7 @@
       "/api/cards": 1,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 52,
+      "/api/community": 53,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -2424,6 +2424,11 @@
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
           "kind": "non-json",
           "expression": "\"Not Found\""
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
         }
       ]
     },
@@ -3370,7 +3375,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
           "kind": "json",
-          "expression": "storage ? { image1_url : await resolvePublicMediaUrl ( storage , media . image1_url ) , image2_url : await resolvePublicMediaUrl ( storage , media . image2_url ) } : media satisfies NamecardDetailResponse"
+          "expression": "storage ? { image1_url : await resolvePublicMediaUrl ( storage , media . image1_url ) , image2_url : media . image2_url === null ? null : await resolvePublicMediaUrl ( storage , media . image2_url ) } : media satisfies NamecardDetailResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
@@ -3406,7 +3411,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
           "kind": "json",
-          "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const [ image1Url , image2Url ] = await Promise . all ( [ resolvePublicMediaUrl ( storage , card . image1_url ) , resolvePublicMediaUrl ( storage , card . image2_url ) ] ) ; const [ image1ThumbnailUrl , image2ThumbnailUrl ] = await Promise . all ( [ resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) , resolveNamecardThumbnailUrl ( storage , card . image2_url , image2Url ) ] ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
+          "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = await resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) ; const image2ThumbnailUrl = image2Url === null ? null : await resolveNamecardThumbnailUrl ( storage , card . image2_url as string , image2Url ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
@@ -3769,6 +3774,11 @@
           "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
           "kind": "non-json",
           "expression": "\"Not Found\""
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
         }
       ]
     },
@@ -4009,6 +4019,11 @@
         }
       ],
       "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
+        },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
           "kind": "non-json",
@@ -4336,7 +4351,7 @@
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
       },
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOwnerSeries",
       "carriers": [
         {
           "kind": "query",
@@ -6736,6 +6751,11 @@
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
           "kind": "non-json",
           "expression": "\"Not Found\""
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
         }
       ]
     },
@@ -6816,6 +6836,11 @@
           "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
           "kind": "non-json",
           "expression": "\"Not Found\""
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
         }
       ]
     },
@@ -6857,6 +6882,11 @@
         }
       ],
       "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
+        },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
           "kind": "non-json",
@@ -13511,6 +13541,67 @@
     },
     {
       "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "schemaSymbol": "fudabaCardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : current . revision }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : result . revision }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+          "kind": "json",
+          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_UPLOAD_INVALID\" , message : status > = 500 ? \"\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) }"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
       "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
@@ -15802,7 +15893,7 @@
     {
       "method": "GET",
       "path": "/api/community/exchange/me/series",
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOwnerSeries",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -19848,6 +19939,23 @@
     },
     {
       "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "schemaSymbol": "fudabaCardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
       "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
       "handlerSymbol": "handleRespondFudabaClaimEnvelope",
       "kind": "param",
@@ -21016,6 +21124,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
+      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/community/exchange/map-delivery",
       "handlerSymbol": "handleGetFudabaMapDelivery",
       "file": "apps/api/src/domains/community/fudaba/map-delivery/handlers/get-map-delivery.ts",
@@ -21420,7 +21536,7 @@
       "handlerSymbol": "handleGetNamecard",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
       "kind": "json",
-      "expression": "storage ? { image1_url : await resolvePublicMediaUrl ( storage , media . image1_url ) , image2_url : await resolvePublicMediaUrl ( storage , media . image2_url ) } : media satisfies NamecardDetailResponse"
+      "expression": "storage ? { image1_url : await resolvePublicMediaUrl ( storage , media . image1_url ) , image2_url : media . image2_url === null ? null : await resolvePublicMediaUrl ( storage , media . image2_url ) } : media satisfies NamecardDetailResponse"
     },
     {
       "method": "GET",
@@ -21436,7 +21552,7 @@
       "handlerSymbol": "handleListNamecards",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
       "kind": "json",
-      "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const [ image1Url , image2Url ] = await Promise . all ( [ resolvePublicMediaUrl ( storage , card . image1_url ) , resolvePublicMediaUrl ( storage , card . image2_url ) ] ) ; const [ image1ThumbnailUrl , image2ThumbnailUrl ] = await Promise . all ( [ resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) , resolveNamecardThumbnailUrl ( storage , card . image2_url , image2Url ) ] ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
+      "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = await resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) ; const image2ThumbnailUrl = image2Url === null ? null : await resolveNamecardThumbnailUrl ( storage , card . image2_url as string , image2Url ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
     },
     {
       "method": "GET",
@@ -21576,6 +21692,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
+      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
+      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/map/config",
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
@@ -21661,6 +21785,14 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/get-owner-card.ts",
       "kind": "json",
       "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
+      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
     },
     {
       "method": "GET",
@@ -21817,7 +21949,7 @@
     {
       "method": "GET",
       "path": "/api/community/exchange/me/series",
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOwnerSeries",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
       "kind": "json",
       "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
@@ -22520,6 +22652,14 @@
     },
     {
       "method": "HEAD",
+      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
+      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
+    },
+    {
+      "method": "HEAD",
       "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
       "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
@@ -22563,6 +22703,22 @@
       "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
       "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
       "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
+      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
+      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
+      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
       "kind": "non-json",
       "expression": "\"Not Found\""
     },
@@ -25525,6 +25681,62 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
       "kind": "json",
       "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_SAVE_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : current . revision }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_CONFLICT\" , revision : result . revision }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+      "kind": "json",
+      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/me/cards/:cardId/middle-pages",
+      "handlerSymbol": "handleReplaceFudabaOwnedMiddleMedia",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-middle-media.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_UPLOAD_INVALID\" , message : status > = 500 ? \"\\u56FE\\u7247\\u4E0A\\u4F20\\u5931\\u8D25\" : messageFromError ( error ) }"
     },
     {
       "method": "PUT",
