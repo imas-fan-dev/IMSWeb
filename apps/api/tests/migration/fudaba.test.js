@@ -1673,7 +1673,7 @@ END;
                     targetBucket: TARGET_BUCKET
                 });
                 assert.equal(dryRun.committed, false);
-                assert.equal(dryRun.summary.missing, 15);
+                assert.equal(dryRun.summary.missing, 17);
                 assert.equal(dryRun.summary.unchanged, 6);
                 assert.deepEqual(dryRun.artifactSha256, {
                     source: sha256File(path.join(snapshot.directory, 'source.json')),
@@ -1702,7 +1702,7 @@ END;
                     ...confirmations
                 });
                 assert.equal(applied.committed, true);
-                assert.equal(applied.summary.inserted, 15);
+                assert.equal(applied.summary.inserted, 17);
                 const repeated = await importSnapshot({
                     snapshotDirectory: snapshot.directory,
                     connectionString: harness.databaseUrl,
@@ -1711,7 +1711,7 @@ END;
                     ...confirmations
                 });
                 assert.equal(repeated.summary.inserted, 0);
-                assert.equal(repeated.summary.unchanged, 21);
+                assert.equal(repeated.summary.unchanged, 23);
                 const reconciled = await reconcileSnapshot({
                     snapshotDirectory: snapshot.directory,
                     connectionString: harness.databaseUrl,
@@ -1950,7 +1950,7 @@ END;
                     apply: true,
                     ...snapshotConfirmations(snapshot.directory)
                 });
-                assert.equal(repeated.summary.unchanged, 21);
+                assert.equal(repeated.summary.unchanged, 23);
                 assert.equal(repeated.summary.inserted, 0);
                 const reconciliation = await reconcileSnapshot({
                     snapshotDirectory: snapshot.directory,
@@ -2016,7 +2016,7 @@ END;
                 ]);
                 assert.deepEqual(
                     reports.map(({ summary }) => summary.inserted).sort((a, b) => a - b),
-                    [0, 15]
+                    [0, 17]
                 );
                 assert.equal(reports.every(({ committed }) => committed), true);
 

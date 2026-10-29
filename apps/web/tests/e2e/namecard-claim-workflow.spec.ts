@@ -159,6 +159,7 @@ test.describe("namecard claim workflow", () => {
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
+                hasOwner: false,
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
@@ -252,6 +253,7 @@ test.describe("namecard claim workflow", () => {
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
+                hasOwner: false,
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
@@ -460,6 +462,7 @@ test.describe("namecard claim workflow", () => {
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
+                hasOwner: false,
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
@@ -823,6 +826,7 @@ test.describe("namecard claim workflow", () => {
     lockReason: null,
     reviewStatus: null,
     reviewReason: null,
+    pageCount: 2,
   }
 
   const pendingClaim = {

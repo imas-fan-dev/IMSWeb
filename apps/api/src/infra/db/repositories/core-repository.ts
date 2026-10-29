@@ -1,4 +1,8 @@
-import { adminExchangePath } from '@imsweb/contracts/paths';
+import {
+    adminExchangePath,
+    adminNamecardMediaPath,
+    namecardMediaPath
+} from '@imsweb/contracts/paths';
 import {
     NAMECARD_ACCENT_FALLBACK,
     NAMECARD_FAVORITE_CHARACTER_LIMIT,
@@ -334,8 +338,8 @@ export class SqlCoreRepository implements NamecardRepository {
             const variant = row.review_status === 'pending' ? 'draft' : 'live';
             const cardNumber = Number(row.card_number);
             return content === 'submission'
-                ? `/api/admin/cards/${cardNumber}/media/${variant}/${side}`
-                : `/api/cards/${cardNumber}/media/${side}`;
+                ? adminNamecardMediaPath(cardNumber, variant, side)
+                : namecardMediaPath(cardNumber, side);
         }
     }
 
@@ -490,8 +494,8 @@ export class SqlCoreRepository implements NamecardRepository {
         const cardNumber = Number(row.card_number);
         return effective.map((_key, index) =>
             content === 'submission'
-                ? `/api/admin/cards/${cardNumber}/media/${variant}/middle-${index + 1}`
-                : `/api/cards/${cardNumber}/media/middle-${index + 1}`
+                ? adminNamecardMediaPath(cardNumber, variant, `middle-${index + 1}`)
+                : namecardMediaPath(cardNumber, `middle-${index + 1}`)
         );
     }
 
@@ -756,7 +760,7 @@ export class SqlCoreRepository implements NamecardRepository {
      * a submitted revision have no public URL to reverse.
      */
     private adminMediaUrl(cardNumber: number, side: string, draft = false): string {
-        return `/api/admin/cards/${cardNumber}/media/${draft ? 'draft' : 'live'}/${side}`;
+        return adminNamecardMediaPath(cardNumber, draft ? 'draft' : 'live', side);
     }
 
     /** Live middle-page keys in display order. */

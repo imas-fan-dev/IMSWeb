@@ -82,13 +82,12 @@ function createNodeSecurityFixture({ test, beforeAll, afterAll }) {
         await run(
             db,
             `INSERT INTO fudaba_cards
-                (id, card_number, origin, producer_name, display_name,
-                 series_code, favorite_character, accent, bio, trade_note,
-                 front_object_key, back_object_key, available,
+                (id, card_number, origin, producer_name, exchange_mode,
+                 trade_note, front_object_key, back_object_key,
                  publication_status, legacy_card_id,
                  revision, created_at, updated_at, deleted_at)
-             VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                     ?, ?, FALSE, ?, NULL, 0, CURRENT_TIMESTAMP,
+             VALUES (?, ?, 'legacy', NULL, 'none', NULL,
+                     ?, ?, ?, NULL, 0, CURRENT_TIMESTAMP,
                      CURRENT_TIMESTAMP, NULL)`,
             [
                 `legacy-${legacyId}`,

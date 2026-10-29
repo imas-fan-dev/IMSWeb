@@ -127,6 +127,7 @@ export async function mockNamecardBrowsing(
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
+                hasOwner: false,
                 seriesCode: null,
                 favoriteCharacters: [],
                 claimStatus: "unclaimed",

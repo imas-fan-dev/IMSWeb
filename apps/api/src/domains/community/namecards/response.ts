@@ -1,6 +1,7 @@
 import type { FudabaCardClaimState } from '@/ports/repositories';
 import type { NamecardDiffRecord, NamecardDiffSide } from '@/ports/repositories/namecards';
 import type { CardFavoriteSelectionRecord } from '@/ports/repositories';
+import type { NamecardCredit } from '@imsweb/contracts/fudaba';
 import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
 import type {
     AdminNamecard,
@@ -116,8 +117,8 @@ function responseStringList(value: unknown): string[] {
 
 function responseCredits(value: unknown): PublicNamecardResponse['credits'] {
     if (!Array.isArray(value)) return [];
-    return (value as Array<Record<string, unknown>>)
-        .filter((entry) => typeof entry.displayName === 'string')
+    return (value as NamecardCredit[])
+        .filter((entry) => typeof entry?.displayName === 'string')
         .map((entry) => ({
             accountId: typeof entry.accountId === 'string' ? entry.accountId : null,
             displayName: String(entry.displayName),

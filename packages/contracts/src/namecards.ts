@@ -11,6 +11,7 @@ import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
   namecardCreditSchema,
   namecardReactionEmojiSchema,
+  type NamecardCredit,
 } from "./fudaba/index.js"
 import { NAMECARD_CREDIT_LIMIT } from "./fudaba/namecard-runtime.js"
 
