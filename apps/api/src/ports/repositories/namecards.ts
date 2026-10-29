@@ -61,6 +61,7 @@ export interface NamecardDiffSide {
     tradeNote: string | null;
     isOriginal: boolean;
     madeWithAi: boolean;
+    visible: boolean;
     exchangeMode: 'auto' | 'manual' | 'none';
     seriesCodes: string[];
     credits: FudabaCardCredit[];

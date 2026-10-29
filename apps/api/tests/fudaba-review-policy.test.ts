@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import type { FudabaPendingCardPayload } from '@/ports/repositories/fudaba';
+import type {
+    FudabaCardCredit,
+    FudabaPendingCardPayload
+} from '@/ports/repositories/fudaba';
 import {
     CARD_REVIEW_EXEMPT_FIELDS,
     type CardReviewSnapshot,
@@ -12,17 +15,9 @@ const { requiresCardReview } = fudabaReviewPolicy;
 
 const live: CardReviewSnapshot = {
     producerName: 'P',
-    producerReading: 'ぴー',
-    seriesCodes: ['series'],
-    favoriteCharacterIds: [3, 1],
     bio: 'bio',
     tradeNote: 'note',
-    madeOn: null,
-    groupName: null,
-    isOriginal: false,
-    madeWithAi: false,
-    visible: true,
-    credits: []
+    isOriginal: false
 };
 
 function submission(
@@ -32,7 +27,7 @@ function submission(
         producer_name: 'P',
         producer_reading: 'ぴー',
         series_codes: ['series'],
-        favorite_character_ids: [...live.favoriteCharacterIds],
+        favorite_character_ids: [1, 3],
         bio: 'bio',
         trade_note: 'note',
         exchange_mode: 'manual',
@@ -50,19 +45,35 @@ test('identical content needs no review', () => {
     assert.equal(requiresCardReview(live, submission()), false);
 });
 
-test('the owner bookkeeping fields never need a review', () => {
+test('only artwork, name, bio, originality and the exchange note are reviewed', () => {
     assert.deepEqual([...CARD_REVIEW_EXEMPT_FIELDS].sort(), [
+        'credits',
         'exchange_mode',
+        'favorite_character_ids',
         'group_name',
-        'is_original',
         'made_on',
         'made_with_ai',
+        'producer_reading',
+        'series_codes',
         'visible'
     ]);
+});
+
+test('the exempt fields publish without a review', () => {
+    const credit: FudabaCardCredit = {
+        accountId: null,
+        displayName: 'illustrator',
+        url: 'https://example.com',
+        roles: ['illustration']
+    };
     const changes: Partial<FudabaPendingCardPayload>[] = [
+        { producer_reading: 'ぴー2' },
+        { series_codes: ['series2'] },
+        { favorite_character_ids: [1] },
+        { favorite_character_ids: [1, 3, 4] },
+        { credits: [credit] },
         { exchange_mode: 'none' },
         { group_name: 'group' },
-        { is_original: true },
         { made_on: '2016-03' },
         { made_with_ai: true },
         { visible: false }
@@ -76,38 +87,12 @@ test('the owner bookkeeping fields never need a review', () => {
     }
 });
 
-test('trailing whitespace is not a content change', () => {
-    assert.equal(
-        requiresCardReview(live, submission({ producer_name: '  P  ' })),
-        false
-    );
-});
-
-test('reordered favourite characters are the same selection', () => {
-    assert.equal(
-        requiresCardReview(live, submission({ favorite_character_ids: [1, 3] })),
-        false
-    );
-});
-
-test('adding or dropping a favourite character needs review', () => {
-    assert.equal(
-        requiresCardReview(live, submission({ favorite_character_ids: [1] })),
-        true
-    );
-    assert.equal(
-        requiresCardReview(live, submission({ favorite_character_ids: [1, 3, 4] })),
-        true
-    );
-});
-
-test('content fields need review', () => {
+test('the reviewed fields always need a review', () => {
     const changes: Partial<FudabaPendingCardPayload>[] = [
         { producer_name: 'P2' },
-        { producer_reading: 'ぴー2' },
-        { series_codes: ['series2'] },
         { bio: 'bio2' },
-        { trade_note: 'note2' }
+        { trade_note: 'note2' },
+        { is_original: true }
     ];
     for (const change of changes) {
         assert.equal(
@@ -116,24 +101,21 @@ test('content fields need review', () => {
             JSON.stringify(change)
         );
     }
-});
-
-test('credits are content, so any attribution change needs review', () => {
-    const credit = {
-        accountId: null,
-        displayName: 'illustrator',
-        url: 'https://example.com',
-        roles: ['illustration'] as const
-    };
     assert.equal(
-        requiresCardReview(live, submission({ credits: [{ ...credit, roles: ['illustration'] }] })),
+        requiresCardReview({ ...live, isOriginal: true }, submission({ is_original: false })),
         true
     );
+});
+
+test('trailing whitespace is not a content change', () => {
     assert.equal(
-        requiresCardReview(
-            { ...live, credits: [{ ...credit, roles: ['illustration'] }] },
-            submission({ credits: [{ ...credit, roles: ['illustration'] }] })
-        ),
+        requiresCardReview(live, submission({ producer_name: '  P  ' })),
         false
     );
+    assert.equal(
+        requiresCardReview(live, submission({ bio: ' bio ', trade_note: '\tnote' })),
+        false
+    );
+    // Blanking a reviewed field is still a content change.
+    assert.equal(requiresCardReview(live, submission({ bio: '   ' })), true);
 });

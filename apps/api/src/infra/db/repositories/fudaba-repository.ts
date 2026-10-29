@@ -3008,17 +3008,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                      WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
                     [input.cardId, input.ownerAccountId],
                 );
-                const currentFavorites = current
-                    ? await this.listCardFavoritesFrom(database, [input.cardId])
-                    : new Map<string, CardFavoriteSelectionRecord[]>();
-                const currentCredits = current
-                    ? (await this.listCardCreditsFrom(database, [input.cardId])).get(
-                          input.cardId,
-                      ) ?? []
-                    : [];
-                const currentSeries = current
-                    ? await this.listCardSeriesFrom(database, [input.cardId])
-                    : new Map<string, string[]>();
                 const currentMiddleKeys = current
                     ? (await this.listCardMiddleMediaFrom(database, [input.cardId])).get(
                           input.cardId,
@@ -3027,38 +3016,34 @@ export class SqlFudabaRepository implements FudabaRepository {
                 const needsReview = !current || fudabaReviewPolicy.requiresCardReview(
                     {
                         producerName: current.producer_name ?? null,
-                        seriesCodes: currentSeries.get(input.cardId) ?? [],
-                        favoriteCharacterIds: (currentFavorites.get(input.cardId) ?? []).map(
-                            (favorite) => Number(favorite.character_id),
-                        ),
                         bio: current.bio ?? null,
                         tradeNote: current.trade_note ?? null,
-                        madeOn: current.made_on ?? null,
-                        groupName: current.group_name ?? null,
-                        producerReading: current.producer_reading ?? null,
                         isOriginal: current.is_original,
-                        madeWithAi: current.made_with_ai,
-                        visible: current.visible,
-                        credits: currentCredits,
                     },
                     payload,
                 );
-                // Editing only the owner's own bookkeeping must not queue a review.
+                // Editing only the exempt fields must not queue a review: they are
+                // written to the live row right away, and a staged payload (if one
+                // exists) carries the same values so publishing cannot revert them.
                 if (current?.publication_status === "published" && !needsReview) {
                     const exempt = await database
                         .prepare(
                             `UPDATE fudaba_cards
-                 SET made_on=?, group_name=?, is_original=?, made_with_ai=?,
+                 SET producer_reading=?, made_on=?, group_name=?, is_original=?, made_with_ai=?,
                      visible=?, exchange_mode=?,
                      pending_payload=CASE WHEN pending_payload IS NULL THEN NULL
-                         ELSE jsonb_set(jsonb_set(jsonb_set(jsonb_set(jsonb_set(jsonb_set(
-                                 pending_payload,
-                                 '{made_on}', to_jsonb(CAST(? AS text))),
-                                 '{group_name}', to_jsonb(CAST(? AS text))),
-                                 '{is_original}', to_jsonb(CAST(? AS boolean))),
-                                 '{made_with_ai}', to_jsonb(CAST(? AS boolean))),
-                                 '{visible}', to_jsonb(CAST(? AS boolean))),
-                                 '{exchange_mode}', to_jsonb(CAST(? AS text))) END,
+                         ELSE pending_payload || jsonb_build_object(
+                             'producer_reading', CAST(? AS text),
+                             'made_on', CAST(? AS text),
+                             'group_name', CAST(? AS text),
+                             'is_original', CAST(? AS boolean),
+                             'made_with_ai', CAST(? AS boolean),
+                             'visible', CAST(? AS boolean),
+                             'exchange_mode', CAST(? AS text))
+                             || jsonb_build_object(
+                             'series_codes', CAST(? AS jsonb),
+                             'favorite_character_ids', CAST(? AS jsonb),
+                             'credits', CAST(? AS jsonb)) END,
                      revision=revision+1, updated_at=?
                  WHERE id=? AND owner_account_id=? AND revision=?
                    AND deleted_at IS NULL AND publication_status='published'
@@ -3070,18 +3055,23 @@ export class SqlFudabaRepository implements FudabaRepository {
                  RETURNING ${CARD_COLUMNS}`,
                         )
                         .bind(
+                            payload.producer_reading,
                             payload.made_on,
                             payload.group_name,
                             this.bindBoolean(payload.is_original),
                             this.bindBoolean(payload.made_with_ai),
                             this.bindBoolean(payload.visible),
                             payload.exchange_mode,
+                            payload.producer_reading,
                             payload.made_on,
                             payload.group_name,
                             this.bindBoolean(payload.is_original),
                             this.bindBoolean(payload.made_with_ai),
                             this.bindBoolean(payload.visible),
                             payload.exchange_mode,
+                            JSON.stringify(payload.series_codes),
+                            JSON.stringify(payload.favorite_character_ids ?? []),
+                            JSON.stringify(payload.credits ?? []),
                             input.updatedAt,
                             input.cardId,
                             input.ownerAccountId,
@@ -3089,11 +3079,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                         )
                         .run<FudabaCardRow>();
                     const exemptSaved = exempt.results[0];
-                    if (exemptSaved) return this.savedCardResult(exemptSaved, null, database);
-                    return this.cardWriteFailure(
-                        await this.findActiveCardForOwner(input.cardId, input.ownerAccountId),
-                        input.expectedRevision,
-                    );
+                    if (!exemptSaved) {
+                        return this.cardWriteFailure(
+                            await this.findActiveCardForOwner(input.cardId, input.ownerAccountId),
+                            input.expectedRevision,
+                        );
+                    }
+                    await this.replaceCardSeries(database, input.cardId, payload.series_codes);
+                    await this.replaceCardFavorites(database, input.cardId, characters);
+                    await this.replaceCardCredits(database, input.cardId, payload.credits ?? []);
+                    return this.savedCardResult(exemptSaved, null, database);
                 }
                 // A published card keeps serving its approved copy while the new
                 // revision waits in `pending_payload`; anything else is edited in

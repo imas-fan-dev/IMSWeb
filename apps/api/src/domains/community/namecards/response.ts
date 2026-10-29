@@ -227,6 +227,7 @@ function diffSide(side: NamecardDiffSide): NamecardDiffSideResponse {
         tradeNote: side.tradeNote?.trim() ? side.tradeNote : null,
         isOriginal: side.isOriginal,
         madeWithAi: side.madeWithAi,
+        visible: side.visible,
         exchangeMode: side.exchangeMode,
         seriesCodes: side.seriesCodes,
         credits: responseCredits(side.credits),

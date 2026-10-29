@@ -130,6 +130,7 @@ type NamecardCardRow = {
     trade_note?: string | null;
     is_original?: boolean | null;
     made_with_ai?: boolean | null;
+    visible?: boolean | null;
     exchange_mode?: string | null;
     accent?: string | null;
     owner_account_id?: string | null;
@@ -721,6 +722,7 @@ export class SqlCoreRepository implements NamecardRepository {
             tradeNote: row.trade_note ?? null,
             isOriginal: row.is_original === true,
             madeWithAi: row.made_with_ai === true,
+            visible: row.visible === true,
             exchangeMode: this.exchangeMode(row.exchange_mode),
             seriesCodes: series.get(cardId) ?? [],
             credits: credits.get(cardId) ?? [],
@@ -853,6 +855,7 @@ export class SqlCoreRepository implements NamecardRepository {
             tradeNote: this.payloadText(payload, 'trade_note', row.trade_note),
             isOriginal: payload.is_original ?? row.is_original === true,
             madeWithAi: payload.made_with_ai ?? row.made_with_ai === true,
+            visible: payload.visible ?? row.visible === true,
             exchangeMode: this.exchangeMode(payload.exchange_mode ?? row.exchange_mode),
             seriesCodes: payload.series_codes ?? [],
             credits: payload.credits ?? [],

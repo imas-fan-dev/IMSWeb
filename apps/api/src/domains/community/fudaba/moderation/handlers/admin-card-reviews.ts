@@ -222,7 +222,12 @@ export async function handleServeFudabaRegisteredCardReviewMedia(
     if (!card) return c.text('Not Found', 404);
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
-    const key = side === 'front' ? card.front_object_key : card.back_object_key;
+    // Reviewers have to see the submitted artwork, so a staged revision wins
+    // over the published copy; an untouched side keeps serving the live file.
+    const key =
+        side === 'front'
+            ? (card.pending_front_object_key ?? card.front_object_key)
+            : (card.pending_back_object_key ?? card.back_object_key);
     if (!key) return c.text('Not Found', 404);
     const response = await objectReadResponse(c.req.raw, storage, key, {
         'Cache-Control': 'private, no-store',

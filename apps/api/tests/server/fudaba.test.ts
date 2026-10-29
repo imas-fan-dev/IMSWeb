@@ -9234,6 +9234,85 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(stale.status, 'conflict');
         });
 
+        postgresTest(
+            'real PostgreSQL publishes the exempt edits without a review',
+            async () => {
+                const fixture = await createFixture('postgresql');
+                const ownerId = 'postgresql-exempt-owner';
+                await fixture.platform.createAccountWithProfile(account(ownerId));
+                const cardId = 'postgresql-exempt-card';
+                const created = await fixture.fudaba.createCardForOwner(
+                    ownedCard(cardId, ownerId)
+                );
+                assert.equal(created.status, 'saved');
+                if (created.status !== 'saved') return;
+                const postgres = fixture.database as PostgresConnection;
+                await postgres.pool.query(
+                    "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                    [cardId]
+                );
+                const draft = ownedCard(cardId, ownerId);
+                // Reading, series, credits, dates and flags publish immediately.
+                const exempt = await fixture.fudaba.updateCardMetadataForOwner({
+                    cardId,
+                    ownerAccountId: ownerId,
+                    producerName: draft.producerName,
+                    seriesCodes: ['765', 'cg'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    bio: draft.bio,
+                    tradeNote: draft.tradeNote,
+                    exchangeMode: 'auto',
+                    madeOn: '2024-05',
+                    groupName: 'Group',
+                    producerReading: 'ぷろでゅーさー',
+                    isOriginal: false,
+                    madeWithAi: true,
+                    visible: true,
+                    credits: [
+                        {
+                            accountId: null,
+                            displayName: 'Illustrator',
+                            url: null,
+                            roles: ['illustration']
+                        }
+                    ],
+                    expectedRevision: created.card.revision,
+                    updatedAt: MEDIA_UPDATED_AT
+                });
+                assert.equal(exempt.status, 'saved');
+                if (exempt.status !== 'saved') return;
+                assert.equal(exempt.card.publication_status, 'published');
+                assert.equal(exempt.card.review_status ?? null, null);
+                assert.equal(exempt.card.producer_reading, 'ぷろでゅーさー');
+                assert.equal(exempt.card.made_on, '2024-05');
+                assert.deepEqual(exempt.card.series_codes, ['765', 'cg']);
+                assert.deepEqual(
+                    exempt.card.credits.map((credit) => credit.displayName),
+                    ['Illustrator']
+                );
+                // A bio edit is content, so it parks in the review queue instead.
+                const staged = await fixture.fudaba.updateCardMetadataForOwner({
+                    ...draft,
+                    cardId,
+                    ownerAccountId: ownerId,
+                    seriesCodes: ['765', 'cg'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    exchangeMode: 'auto',
+                    madeOn: '2024-05',
+                    groupName: 'Group',
+                    producerReading: 'ぷろでゅーさー',
+                    madeWithAi: true,
+                    bio: 'Rewritten profile',
+                    expectedRevision: exempt.card.revision,
+                    updatedAt: MEDIA_UPDATED_AT
+                });
+                assert.equal(staged.status, 'saved');
+                if (staged.status !== 'saved') return;
+                assert.equal(staged.card.review_status, 'pending');
+                assert.equal(staged.card.bio, draft.bio);
+            }
+        );
+
         postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {
             const fixture = await createFixture('postgresql');
             const ownerId = 'postgresql-staged-owner';

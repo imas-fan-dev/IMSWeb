@@ -82,6 +82,7 @@ export const namecardDiffSideSchema = z
     tradeNote: z.string().min(1).nullable(),
     isOriginal: z.boolean(),
     madeWithAi: z.boolean(),
+    visible: z.boolean(),
     exchangeMode: z.enum(["auto", "manual", "none"]),
     seriesCodes: z.array(z.string().min(1)),
     credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
