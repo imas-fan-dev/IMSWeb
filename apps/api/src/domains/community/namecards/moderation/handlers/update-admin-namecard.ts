@@ -55,7 +55,11 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
             field: 'reason'
         } satisfies NamecardErrorResponse, 400);
     }
-    if (result.status === 'invalid-media' || result.status === 'invalid-owner') {
+    if (
+        result.status === 'invalid-media' ||
+        result.status === 'invalid-owner' ||
+        result.status === 'blocked'
+    ) {
         return c.json({ error: result.message } satisfies NamecardErrorResponse, 400);
     }
     const labels = result.changedFields.map((change) => change.label).join('|');

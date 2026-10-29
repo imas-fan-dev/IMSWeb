@@ -146,6 +146,8 @@ export type NamecardAdminUpdateResult =
     | { status: 'conflict'; revision: number }
     | { status: 'not-found' }
     | { status: 'reason-required' }
+    /** The queued revision has to be resolved in the review queue first. */
+    | { status: 'blocked'; message: string }
     | { status: 'invalid-media'; message: string }
     | { status: 'invalid-owner'; message: string };
 

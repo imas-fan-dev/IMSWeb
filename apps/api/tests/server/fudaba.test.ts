@@ -9584,6 +9584,117 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
         });
 
+        postgresTest('real PostgreSQL keeps the management statuses and the review queue in step', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-queue-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard('postgresql-queue-card', ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const core = new SqlCoreRepository(
+                fixture.database,
+                new PostgresqlSchemaStrategy()
+            );
+            await core.initialize();
+            const postgres = fixture.database as PostgresConnection;
+            const cardNumber = created.card.card_number;
+            const content = {
+                producerName: '队列制作人',
+                producerReading: 'きれつ',
+                groupName: null,
+                madeOn: null,
+                bio: '线上简介',
+                tradeNote: '可交换',
+                isOriginal: false,
+                madeWithAi: false,
+                visible: true,
+                exchangeMode: 'auto' as const,
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [900_001],
+                credits: []
+            };
+            const base = {
+                ownerAccountId: undefined,
+                content,
+                mediaOrder: ['#0', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            };
+            const published = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: created.card.revision,
+                reason: '首次发布',
+                status: 'published',
+                reviewStatus: null
+            });
+            assert.equal(published.status, 'updated');
+            if (published.status !== 'updated') return;
+
+            const queued = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: published.revision,
+                reason: '新的版本',
+                status: 'published',
+                reviewStatus: 'pending',
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(queued.status, 'updated');
+            if (queued.status !== 'updated') return;
+
+            // Publishing from here would leave the queue pointing at content the
+            // owner already replaced, so the window has to send it to the queue.
+            const stranded = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: queued.revision,
+                reason: '直接发布',
+                status: 'published',
+                reviewStatus: 'pending',
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(stranded.status, 'blocked');
+
+            const retired = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: queued.revision,
+                reason: '内容不合规',
+                status: 'rejected',
+                reviewStatus: null,
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(retired.status, 'updated');
+            if (retired.status !== 'updated') return;
+            assert.deepEqual(
+                retired.changedFields.map((change) => change.label),
+                ['名片状态', '版本状态']
+            );
+            const row = (await postgres.pool.query(
+                'SELECT publication_status, review_status, review_reason, pending_payload, pending_front_object_key FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows[0] as Record<string, unknown>;
+            assert.equal(row.publication_status, 'rejected');
+            assert.equal(row.review_status, null);
+            // The reason has to survive on the row: the editor shows it back to
+            // the owner without opening the review history.
+            assert.equal(row.review_reason, '内容不合规');
+            assert.equal(row.pending_payload, null);
+            assert.equal(row.pending_front_object_key, null);
+
+            const removed = await core.deleteCardAsAdmin(cardNumber, retired.revision);
+            assert.equal(removed.status, 'updated');
+            const notices = (await postgres.pool.query(
+                "SELECT title FROM public.namecard_notifications WHERE kind = 'card-admin-edited' ORDER BY created_at"
+            )).rows as Array<Record<string, unknown>>;
+            assert.ok(
+                notices.some((notice) => String(notice.title).includes('已被删除')),
+                'the owner is told when the card is removed'
+            );
+        });
+
         postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {
             const fixture = await createFixture('postgresql');
             const ownerId = 'postgresql-staged-owner';

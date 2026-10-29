@@ -1270,6 +1270,24 @@ export class SqlCoreRepository implements NamecardRepository {
                 nextOwnerName = account.display_name ?? nextOwner;
             }
             const ownerChanged = nextOwner !== previousOwner;
+            const currentReviewStatus = toNamecardReviewStatus(current.review_status);
+            // Publishing from here would strand the queued revision, because the
+            // review slot belongs to the queue until someone resolves it.
+            if (input.status === 'published' && currentReviewStatus === 'pending') {
+                return {
+                    status: 'blocked',
+                    message: '这张名片有待审版本，请先在名片审核里通过'
+                };
+            }
+            // Retiring a card drops whatever waited for review with it, so the
+            // queue never holds a revision for a card nobody can see.
+            const retiresCard =
+                input.status === 'rejected' ||
+                input.status === 'hidden' ||
+                input.status === 'locked' ||
+                input.status === 'withdrawn' ||
+                input.status === 'draft';
+            const reviewStatus = retiresCard ? null : input.reviewStatus;
 
             // An unowned card keeps the trade terms empty; the owner layer check
             // in the table enforces it, so the payload is normalised here.
@@ -1352,11 +1370,10 @@ export class SqlCoreRepository implements NamecardRepository {
                 NAMECARD_ADMIN_STATUS_LABELS[current.publication_status] ?? current.publication_status,
                 NAMECARD_ADMIN_STATUS_LABELS[input.status] ?? input.status
             );
-            const currentReviewStatus = toNamecardReviewStatus(current.review_status);
             record(
                 '版本状态',
                 NAMECARD_ADMIN_REVIEW_LABELS[currentReviewStatus ?? 'none'],
-                NAMECARD_ADMIN_REVIEW_LABELS[input.reviewStatus ?? 'none']
+                NAMECARD_ADMIN_REVIEW_LABELS[reviewStatus ?? 'none']
             );
             if (ownerChanged) {
                 record(
@@ -1377,7 +1394,6 @@ export class SqlCoreRepository implements NamecardRepository {
             // `review_status` may only be set while a payload describes the
             // submitted revision, so a verdict on a card without one takes the
             // submitted content as that revision.
-            const reviewStatus = input.reviewStatus;
             const pendingPayload =
                 reviewStatus === null
                     ? null
@@ -1429,7 +1445,14 @@ export class SqlCoreRepository implements NamecardRepository {
                     input.status,
                     input.status === 'locked' ? reason : null,
                     reviewStatus,
-                    reviewStatus === null || reviewStatus === 'pending' ? null : reason,
+                    reviewStatus === null
+                        ? // A rejected card still owes the owner the reason it lost its slot.
+                          input.status === 'rejected'
+                            ? reason
+                            : null
+                        : reviewStatus === 'pending'
+                          ? null
+                          : reason,
                     reviewStatus === null ? null : current.review_submitted_at ?? input.updatedAt,
                     pendingPayload === null ? null : JSON.stringify(pendingPayload),
                     reviewStatus === null ? null : current.pending_front_object_key ?? frontKey,
@@ -1521,6 +1544,15 @@ export class SqlCoreRepository implements NamecardRepository {
                 [cardNumber, expectedRevision]
             );
             if (!updatedRow) return { status: 'conflict', revision };
+            if (current.owner_account_id) {
+                await insertNamecardNotification(database, {
+                    recipientAccountId: current.owner_account_id,
+                    kind: 'card-admin-edited',
+                    cardNumber,
+                    title: `名片 #${cardNumber} 已被删除`,
+                    body: `你的名片 #${cardNumber} 已被管理员删除。`
+                });
+            }
             return { status: 'updated', revision: Number(updatedRow.revision) };
         });
     }
