@@ -419,7 +419,7 @@ export function CardEditor({
         submitting={false}
         variant="default"
         title="正反面尺寸不一致"
-        description="正面与背面的宽高比例不同，打印或裁切时可能无法对齐。确认继续提交吗？"
+        description="正面与背面的宽高比例不同。确认继续提交吗？"
         confirmLabel="仍然提交"
         onOpenChange={(open) => {
           if (!open) {

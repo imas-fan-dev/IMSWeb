@@ -557,7 +557,10 @@ export default function AdminCardsPage() {
                             <p className="font-medium">
                               {card.producerName ?? `名片 #${card.id}`}
                             </p>
-                            <NamecardStatusBadge status={card.status} />
+                            <NamecardStatusBadge
+                              status={card.status}
+                              reviewStatus={card.reviewStatus}
+                            />
                           </div>
                           {card.status === "pending" ? (
                             <Button

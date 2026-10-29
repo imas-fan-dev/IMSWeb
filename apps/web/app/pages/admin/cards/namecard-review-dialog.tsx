@@ -230,7 +230,12 @@ export function NamecardReviewDialog({
             <span>
               {card ? `${card.producerName ?? `名片 #${card.id}`} · 版本 ${card.revision}` : ""}
             </span>
-            {card ? <NamecardStatusBadge status={card.status} /> : null}
+            {card ? (
+              <NamecardStatusBadge
+                status={card.status}
+                reviewStatus={card.reviewStatus}
+              />
+            ) : null}
           </div>
         </DialogHeader>
         <DialogBody>

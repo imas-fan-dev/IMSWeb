@@ -16,19 +16,28 @@ import { OwnerCardImage } from "./owner-card-image"
 
 export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
   const status = card.publicationStatus
-  // A published card waiting on a new revision keeps serving the old copy, so
-  // the badge has to say "in review" instead of "published".
-  const revising = status === "published" && card.reviewStatus === "pending"
+  // A published card keeps serving the old copy while a revision is decided, so
+  // the badge reports the revision instead of the card-level status.
+  const review = status === "published" ? card.reviewStatus : null
   return (
     <Badge
-      variant={status === "rejected" ? "destructive" : "secondary"}
+      variant={
+        status === "rejected" || review === "rejected" || review === "locked"
+          ? "destructive"
+          : "secondary"
+      }
       className={cn(
-        status === "published" && "bg-success/20 text-success-foreground",
-        revising && "bg-pending/20 text-pending-foreground",
-        status === "pending" && "bg-pending/20 text-pending-foreground"
+        status === "published" && !review && "bg-success/20 text-success-foreground",
+        review === "pending" && "bg-pending/20 text-pending-foreground"
       )}
     >
-      {revising ? "复审中" : publicationLabels[status]}
+      {review === "pending"
+        ? "复审中"
+        : review === "rejected"
+          ? "复审驳回"
+          : review === "locked"
+            ? "复审违规"
+            : publicationLabels[status]}
     </Badge>
   )
 }
