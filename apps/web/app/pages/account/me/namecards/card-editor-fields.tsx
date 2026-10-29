@@ -103,6 +103,15 @@ function RequiredMark() {
   )
 }
 
+/** 字数进度，例如「(12/2000)」；标题右侧的小字提示。 */
+export function FieldCounter({ value, limit }: { value: number; limit: number }) {
+  return (
+    <span className="ml-1 text-xs font-normal text-muted-foreground">
+      ({value}/{limit})
+    </span>
+  )
+}
+
 export function CardFields({
   draft,
   series,
@@ -373,7 +382,10 @@ export function CardFields({
 
       <CardModule mode={modes?.bio}>
         <Field data-disabled={disabled || undefined}>
-          <FieldLabel htmlFor="exchange-card-bio">简介</FieldLabel>
+          <FieldLabel htmlFor="exchange-card-bio">
+            简介
+            <FieldCounter value={draft.bio.length} limit={2000} />
+          </FieldLabel>
           <Textarea
             id="exchange-card-bio"
             value={draft.bio}
@@ -432,7 +444,10 @@ export function CardFields({
 
       <CardModule mode={modes?.exchangeNote}>
         <Field data-disabled={disabled || undefined}>
-          <FieldLabel htmlFor="exchange-card-trade-note">交换说明</FieldLabel>
+          <FieldLabel htmlFor="exchange-card-trade-note">
+            交换说明
+            <FieldCounter value={draft.tradeNote.length} limit={1000} />
+          </FieldLabel>
           <Textarea
             id="exchange-card-trade-note"
             value={draft.tradeNote}

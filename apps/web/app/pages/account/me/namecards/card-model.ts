@@ -26,23 +26,30 @@ export const publicationLabels: Record<
   locked: "已锁定",
 }
 
+/**
+ * A published card keeps serving its approved copy while the submitted revision
+ * waits in `pendingContent`, so the editor has to seed from that revision —
+ * otherwise a just-saved edit snaps back to the live values.
+ */
 export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
+  const pending = card.pendingContent
+  const content = pending ?? card
   return {
-    producerName: card.producerName,
-    producerReading: card.producerReading,
-    seriesCodes: card.seriesCodes,
-    favoriteCharacterIds: card.favoriteCharacters.map(
-      (character) => character.id
-    ),
-    bio: card.bio,
-    tradeNote: card.tradeNote,
-    exchangeMode: card.exchangeMode,
-    madeOn: card.madeOn,
-    groupName: card.groupName,
-    isOriginal: card.isOriginal,
-    madeWithAi: card.madeWithAi,
-    visible: card.visible,
-    credits: card.credits.length ? card.credits : [emptyCredit()],
+    producerName: content.producerName,
+    producerReading: content.producerReading,
+    seriesCodes: content.seriesCodes,
+    favoriteCharacterIds: pending
+      ? pending.favoriteCharacterIds
+      : card.favoriteCharacters.map((character) => character.id),
+    bio: content.bio,
+    tradeNote: content.tradeNote,
+    exchangeMode: content.exchangeMode,
+    madeOn: content.madeOn,
+    groupName: content.groupName,
+    isOriginal: content.isOriginal,
+    madeWithAi: content.madeWithAi,
+    visible: content.visible,
+    credits: content.credits.length ? content.credits : [emptyCredit()],
   }
 }
 
