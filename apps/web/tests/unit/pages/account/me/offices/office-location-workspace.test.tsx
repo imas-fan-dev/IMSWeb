@@ -278,6 +278,24 @@ it("creates once with an idempotency key and closes the shared dialog after subm
   )
 })
 
+it("creates an office with a secure idempotency key when randomUUID is unavailable on HTTP LAN", async () => {
+  const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(9))
+  vi.stubGlobal("crypto", { getRandomValues })
+  mocks.list.mockResolvedValue({ items: [] })
+  mount()
+  await userEvent.click(
+    await screen.findByRole("button", { name: "新建事务所" })
+  )
+  fireEvent.change(screen.getByLabelText("事务所名称"), {
+    target: { value: "局域网事务所" },
+  })
+  await userEvent.click(screen.getByRole("button", { name: "选用有效地点" }))
+  await userEvent.click(screen.getByRole("button", { name: "创建事务所" }))
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce())
+  expect(mocks.create.mock.calls[0]?.[1]).toMatch(/^fudaba-office-[\da-f]{32}$/)
+  expect(getRandomValues).toHaveBeenCalledOnce()
+})
+
 it("retains a failed create draft and reuses the same idempotency key on explicit retry", async () => {
   mocks.list.mockResolvedValue({ items: [] })
   mocks.create.mockRejectedValueOnce(new Error("offline"))

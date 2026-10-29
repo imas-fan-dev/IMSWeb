@@ -201,7 +201,7 @@ export function ExchangeMapToolsMenu({
               </>
             ) : null}
             <Menu.LinkItem
-              render={<NavigationLink to="/account/me/offices" />}
+              render={<NavigationLink to="/account/me" />}
               className={itemClass}
               data-map-guide="account"
             >

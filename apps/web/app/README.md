@@ -43,6 +43,7 @@
 相邻页面共享展示与会话，不代表共享全部操作权限。
 
 地图首次使用引导、右键／长按选址和附近地点预览由 [exchange](pages/community/exchange/README.md) 承担；跨页创建意图见 [office-create-intent](lib/maps/office-create-intent.ts)，最终资料编辑与位置确认归 [account](pages/account/README.md)。
+创建意图和事务所幂等键共用 [安全随机标识](lib/random-id.ts)，兼容 HTTP 局域网中不提供 `randomUUID` 的浏览器环境。
 
 ## Wiki 阅读与后台运营
 

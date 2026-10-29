@@ -28,6 +28,7 @@ import {
 } from "~/lib/api"
 import { useExchangeMapDialog } from "~/pages/community/exchange/components/exchange-page-surface"
 import { clearOfficeCreateIntent } from "~/lib/maps/office-create-intent"
+import { createRandomId } from "~/lib/random-id"
 import type { MapSearchTarget } from "~/lib/maps/map-search"
 import { apiMessage, isFeatureClosed } from "../account-me-model"
 import { OfficeEditor } from "./office-editor"
@@ -233,7 +234,7 @@ export function OfficeLocationWorkspace({
       if (creating) {
         const fingerprint = JSON.stringify(parsed.data)
         if (!createKey.current || createFingerprint.current !== fingerprint) {
-          createKey.current = `fudaba-office-${globalThis.crypto.randomUUID()}`
+          createKey.current = `fudaba-office-${createRandomId()}`
           createFingerprint.current = fingerprint
         }
         const result = await createFudabaOffice(

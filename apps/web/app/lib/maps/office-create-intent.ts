@@ -1,4 +1,5 @@
 import type { MapSearchTarget } from "./map-search"
+import { createRandomId } from "~/lib/random-id"
 
 const storageKey = "ims:office-create-intent"
 const maxAge = 30 * 60 * 1000
@@ -7,7 +8,7 @@ let pending: { id: string; createdAt: number; target: MapSearchTarget } | null =
 
 /** A short-lived session token survives login without exposing coordinates in URLs. */
 export function startOfficeCreateIntent(target: MapSearchTarget): string {
-  const id = globalThis.crypto.randomUUID()
+  const id = createRandomId()
   pending = {
     id,
     createdAt: Date.now(),

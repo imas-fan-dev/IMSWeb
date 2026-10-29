@@ -27,6 +27,21 @@ it("retains the independent chosen coordinate through an authentication return",
   clearOfficeCreateIntent()
   expect(readOfficeCreateIntent(id)).toBeNull()
 })
+it("can begin a location handoff when HTTP LAN exposes getRandomValues without randomUUID", () => {
+  const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(7))
+  vi.stubGlobal("crypto", { getRandomValues })
+  const href = startOfficeCreateIntent({
+    kind: "wgs84",
+    position: [121.5, 31.2],
+  })
+  const id = new URL(href, "https://example.test").searchParams.get("create")
+  expect(id).toBeTruthy()
+  expect(getRandomValues).toHaveBeenCalledOnce()
+  expect(readOfficeCreateIntent(id)).toEqual({
+    kind: "wgs84",
+    position: [121.5, 31.2],
+  })
+})
 it("expires abandoned location intents", () => {
   const href = startOfficeCreateIntent({ kind: "wgs84", position: [0, 0] })
   const id = new URL(href, "https://example.test").searchParams.get("create")
