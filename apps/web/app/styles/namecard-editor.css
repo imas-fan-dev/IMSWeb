@@ -129,3 +129,25 @@
     }
   }
 }
+
+/* 长字段在自身框内滚动，边缘用遮罩淡出，不画滚动条。 */
+.card-field-scroll {
+  max-height: 6rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 75%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 75%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.card-field-scroll::-webkit-scrollbar {
+  display: none;
+}

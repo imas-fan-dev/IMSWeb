@@ -1,5 +1,11 @@
-import { PlusIcon, ShieldCheckIcon } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  ArrowLeftRightIcon,
+  FlagIcon,
+  PlusIcon,
+  ShieldCheckIcon,
+  SquarePenIcon,
+} from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
 
 import type { NamecardSide } from "~/components/shared/namecard-preview"
@@ -8,8 +14,8 @@ import { Button } from "~/components/ui/button"
 import {
   Dialog,
   DialogBody,
+  DialogFooter,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
@@ -317,7 +323,9 @@ function FieldRow({
       <dt className="w-20 shrink-0 pt-px text-xs/5  text-muted-foreground">
         {label}
       </dt>
-      <dd className="min-w-0 flex-1 text-sm/5  wrap-break-word">{children}</dd>
+      <dd className="card-field-scroll min-w-0 flex-1 text-sm/5 wrap-break-word">
+        {children}
+      </dd>
     </div>
   )
 }
@@ -357,8 +365,6 @@ export function NamecardDetailDialog({
   )
   const [activeSlide, setActiveSlide] = useState(0)
   const [slideCardId, setSlideCardId] = useState(`${card?.id ?? ""}:${initialSide ?? ""}`)
-  const [scrollEdges, setScrollEdges] = useState({ top: false, bottom: false })
-  const fieldListRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!card) return
@@ -411,28 +417,6 @@ export function NamecardDetailDialog({
     setActiveSlide(initialSide === "back" && card?.image2_url ? 1 : 0)
   }
 
-  const syncScrollEdges = useCallback(() => {
-    const node = fieldListRef.current
-    if (!node) return
-    const top = node.scrollTop > 2
-    const bottom = node.scrollTop + node.clientHeight < node.scrollHeight - 2
-    setScrollEdges((current) =>
-      current.top === top && current.bottom === bottom
-        ? current
-        : { top, bottom }
-    )
-  }, [])
-
-  useEffect(() => {
-    if (!card) return
-    const node = fieldListRef.current
-    if (!node) return
-    syncScrollEdges()
-    const observer = new ResizeObserver(syncScrollEdges)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [card, syncScrollEdges])
-
   const submitted = card?.created_at ? new Date(card.created_at) : null
   const submittedLabel =
     submitted && !Number.isNaN(submitted.valueOf())
@@ -454,14 +438,17 @@ export function NamecardDetailDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">
-            制作人名片 {card?.id ?? ""}
+            制作人名片
+            {/* 视觉上不显示编号，但对话框的可访问名必须唯一，屏幕阅读器会读出来。 */}
+            <span className="sr-only">{" "}{card?.id ?? ""}</span>
           </DialogTitle>
           <div
             className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
             aria-label="名片编号信息"
           >
             <span className="whitespace-nowrap">
-              · 版本 {card?.revision ?? 0}
+              名片 #{card?.cardNumber ?? card?.id ?? ""} · 版本{" "}
+              {card?.revision ?? 0}
             </span>
             {card?.claimStatus === "claimed" ? (
               <Badge variant="secondary">
@@ -480,9 +467,6 @@ export function NamecardDetailDialog({
               </span>
             ) : null}
           </div>
-          <DialogDescription>
-            查看双面图片、公开参数、认领状态和全部反应
-          </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-5">
           <div className="grid min-h-0 gap-6 md:grid-cols-2">
@@ -565,13 +549,8 @@ export function NamecardDetailDialog({
               </section>
             </div>
 
-            <div className="relative min-w-0">
-              <div
-                ref={fieldListRef}
-                onScroll={syncScrollEdges}
-                className="[-ms-overflow-style:none] scrollbar-none md:max-h-104 md:overflow-y-auto [&::-webkit-scrollbar]:hidden"
-              >
-                <dl aria-label="名片公开参数">
+            <div className="min-w-0">
+              <dl aria-label="名片公开参数">
                   <FieldRow label="制作人名称">
                     {card?.producerName ? (
                       <>
@@ -634,7 +613,7 @@ export function NamecardDetailDialog({
                   </FieldRow>
                   <FieldRow label="企划">
                     {card?.seriesCodes.length ? (
-                      <span className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-3">
+                      <span className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-4">
                         {card.seriesCodes.map((code) => (
                           <span
                             key={code}
@@ -669,30 +648,16 @@ export function NamecardDetailDialog({
                   <FieldRow label="交换说明">
                     {card?.tradeNote ?? <EmptyDash />}
                   </FieldRow>
-                </dl>
-              </div>
-              <div
-                aria-hidden="true"
-                className={cn(
-                  "pointer-events-none absolute inset-x-0 top-0 h-8 bg-linear-to-b from-background to-transparent transition-opacity duration-200",
-                  scrollEdges.top ? "opacity-100" : "opacity-0"
-                )}
-              />
-              <div
-                aria-hidden="true"
-                className={cn(
-                  "pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-background to-transparent transition-opacity duration-200",
-                  scrollEdges.bottom ? "opacity-100" : "opacity-0"
-                )}
-              />
+              </dl>
             </div>
           </div>
 
-          <div className="relative z-10 flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-background pt-4">
+        </DialogBody>
+        <DialogFooter className="mt-1 flex-nowrap justify-end gap-2 overflow-x-auto border-t bg-transparent p-0">
             {card?.canEdit ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 className="min-h-11"
                 onClick={() => {
                   onOpenChange(false)
@@ -701,24 +666,25 @@ export function NamecardDetailDialog({
                   )
                 }}
               >
+                <SquarePenIcon aria-hidden="true" />
                 编辑
               </Button>
             ) : null}
             {unclaimed ? (
               <Button
                 type="button"
-                variant="secondary"
-                className="min-h-11 bg-(--accent) text-(--accent-foreground)"
+                className="min-h-11"
                 disabled
                 title="暂未开放"
               >
+                <PlusIcon aria-hidden="true" />
                 补充
               </Button>
             ) : null}
             {unclaimed ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 className="min-h-11"
                 disabled={!canClaim}
                 onClick={() => {
@@ -731,23 +697,24 @@ export function NamecardDetailDialog({
             ) : null}
             <Button
               type="button"
-              className="min-h-11 bg-foreground text-background"
+              className="min-h-11"
               disabled
               title="暂未开放"
             >
+              <ArrowLeftRightIcon aria-hidden="true" />
               交换
             </Button>
             <Button
               type="button"
               variant="destructive"
-              className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="min-h-11"
               disabled
               title="暂未开放"
             >
+              <FlagIcon aria-hidden="true" />
               反馈
             </Button>
-          </div>
-        </DialogBody>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
