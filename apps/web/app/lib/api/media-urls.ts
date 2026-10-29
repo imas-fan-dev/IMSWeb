@@ -436,6 +436,7 @@ function namecard(card: Namecard): Namecard {
     image2_thumbnail_url: card.image2_thumbnail_url
       ? apiMediaUrl(card.image2_thumbnail_url)
       : null,
+    middleImageUrls: card.middleImageUrls.map(apiMediaUrl),
   }
 }
 

@@ -126,7 +126,11 @@ function NamecardItem({
   card: Namecard
   reactions: NamecardReactionState
   busy: boolean
-  onOpenDetail: (card: Namecard, trigger: HTMLButtonElement) => void
+  onOpenDetail: (
+    card: Namecard,
+    trigger: HTMLButtonElement,
+    side?: NamecardSide
+  ) => void
   onReact: (cardId: number, emoji: string) => Promise<boolean>
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
@@ -151,7 +155,9 @@ function NamecardItem({
               className="relative aspect-3/2 min-h-11 w-full overflow-hidden rounded-none bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               aria-label={`查看制作人名片 ${card.id} ${side === "front" ? "正面" : "背面"}`}
               title="查看名片详情"
-              onClick={(event) => onOpenDetail(card, event.currentTarget)}
+              onClick={(event) =>
+                onOpenDetail(card, event.currentTarget, side)
+              }
             >
               <NamecardThumbnail
                 key={`${thumbnail}:${original}`}
@@ -221,6 +227,7 @@ export default function CommunityCardsPage() {
   const [error, setError] = useState(false)
   const [claimCard, setClaimCard] = useState<Namecard | null>(null)
   const [previewSide, setPreviewSide] = useState<NamecardSide | null>(null)
+  const [detailSide, setDetailSide] = useState<NamecardSide | null>(null)
   const [previewReturnTarget, setPreviewReturnTarget] =
     useState<HTMLButtonElement | null>(null)
   const [reactionsByCard, setReactionsByCard] = useState<
@@ -345,9 +352,14 @@ export default function CommunityCardsPage() {
     setSearchParams(next)
   }
 
-  function openDetail(card: Namecard, trigger: HTMLButtonElement) {
+  function openDetail(
+    card: Namecard,
+    trigger: HTMLButtonElement,
+    side?: NamecardSide
+  ) {
     if (!result) return
     remember(trigger)
+    setDetailSide(side ?? null)
     detail.open(card)
   }
 
@@ -441,6 +453,7 @@ export default function CommunityCardsPage() {
       <NamecardDetailDialog
         card={detail.card}
         canClaim={canClaim}
+        initialSide={detailSide}
         busy={detail.card ? busyReactionCards.has(detail.card.id) : false}
         reactions={
           detail.card

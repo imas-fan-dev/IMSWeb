@@ -1,5 +1,5 @@
-import { CalendarDaysIcon, PlusIcon, ShieldCheckIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { PlusIcon, ShieldCheckIcon } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
 
 import type { NamecardSide } from "~/components/shared/namecard-preview"
@@ -19,12 +19,17 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "~/components/ui/popover"
-import { NAMECARD_REACTIONS } from "~/lib/api"
-import type { Namecard, NamecardReactions } from "~/lib/api"
+import { getFudabaSeries, NAMECARD_REACTIONS } from "~/lib/api"
+import type {
+  FudabaSeries,
+  Namecard,
+  NamecardReactions,
+} from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
 import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
-import { NamecardThumbnail } from "~/pages/community/components/namecard-thumbnail"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
@@ -274,9 +279,57 @@ export function NamecardReactionSummary({
   )
 }
 
+const CREATOR_ROLE_LABELS = {
+  design: "设计",
+  illustration: "插画",
+  other: "其他",
+} as const
+
+const NAMECARD_DATE_ONLY_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  timeZone: "Asia/Shanghai",
+})
+
+/** `YYYY`, `YYYY-MM` or `YYYY-MM-DD` as the editor stores it. */
+function madeOnLabel(value: string | null): string {
+  if (!value) return "-"
+  const [year, month, day] = value.split("-")
+  if (!year) return "-"
+  if (!month) return `${year} 年`
+  if (!day) return `${year} 年 ${Number(month)} 月`
+  const parsed = new Date(`${value}T00:00:00+08:00`)
+  return Number.isNaN(parsed.valueOf())
+    ? `${year} 年 ${Number(month)} 月 ${Number(day)} 日`
+    : NAMECARD_DATE_ONLY_FORMATTER.format(parsed)
+}
+
+function FieldRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex min-h-12 items-start gap-3 border-b border-border/50 py-2.5 last:border-b-0">
+      <dt className="w-20 shrink-0 pt-px text-xs/5  text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="min-w-0 flex-1 text-sm/5  wrap-break-word">{children}</dd>
+    </div>
+  )
+}
+
+function EmptyDash() {
+  return <span className="text-muted-foreground">-</span>
+}
+
 export function NamecardDetailDialog({
   card,
   canClaim,
+  initialSide,
   reactions,
   busy,
   onOpenChange,
@@ -287,6 +340,8 @@ export function NamecardDetailDialog({
 }: {
   card: Namecard | null
   canClaim: boolean
+  /** The gallery opens on the side the visitor clicked in the wall. */
+  initialSide?: NamecardSide | null
   reactions: NamecardReactionState
   busy: boolean
   onOpenChange: (open: boolean) => void
@@ -295,133 +350,403 @@ export function NamecardDetailDialog({
   onReact: (emoji: string) => Promise<boolean>
   onReturnFocus: () => void
 }) {
+  const navigate = useNavigation()
   const entries = activeNamecardReactions(reactions.reactions)
+  const [series, setSeries] = useState<ReadonlyMap<string, FudabaSeries>>(
+    new Map()
+  )
+  const [activeSlide, setActiveSlide] = useState(0)
+  const [slideCardId, setSlideCardId] = useState(`${card?.id ?? ""}:${initialSide ?? ""}`)
+  const [scrollEdges, setScrollEdges] = useState({ top: false, bottom: false })
+  const fieldListRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!card) return
+    let active = true
+    getFudabaSeries()
+      .send()
+      .then((result) => {
+        if (active) {
+          setSeries(new Map(result.items.map((item) => [item.code, item])))
+        }
+      })
+      .catch(() => {
+        if (active) setSeries(new Map())
+      })
+    return () => {
+      active = false
+    }
+  }, [card])
+
+  const slides = card
+    ? [
+        {
+          key: "front",
+          url: card.image1_url,
+          thumb: card.image1_thumbnail_url ?? card.image1_url,
+          side: "front" as const,
+        },
+        ...(card.image2_url
+          ? [
+              {
+                key: "back",
+                url: card.image2_url,
+                thumb: card.image2_thumbnail_url ?? card.image2_url,
+                side: "back" as const,
+              },
+            ]
+          : []),
+        ...card.middleImageUrls.map((url, index) => ({
+          key: `middle-${index}`,
+          url,
+          thumb: url,
+          side: null,
+        })),
+      ]
+    : []
+
+  const slideKey = `${card?.id ?? ""}:${initialSide ?? ""}`
+  if (slideCardId !== slideKey) {
+    setSlideCardId(slideKey)
+    setActiveSlide(initialSide === "back" && card?.image2_url ? 1 : 0)
+  }
+
+  const syncScrollEdges = useCallback(() => {
+    const node = fieldListRef.current
+    if (!node) return
+    const top = node.scrollTop > 2
+    const bottom = node.scrollTop + node.clientHeight < node.scrollHeight - 2
+    setScrollEdges((current) =>
+      current.top === top && current.bottom === bottom
+        ? current
+        : { top, bottom }
+    )
+  }, [])
+
+  useEffect(() => {
+    if (!card) return
+    const node = fieldListRef.current
+    if (!node) return
+    syncScrollEdges()
+    const observer = new ResizeObserver(syncScrollEdges)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [card, syncScrollEdges])
 
   const submitted = card?.created_at ? new Date(card.created_at) : null
   const submittedLabel =
     submitted && !Number.isNaN(submitted.valueOf())
       ? NAMECARD_DATE_FORMATTER.format(submitted)
-      : "日期待补"
+      : "-"
+
+  const unclaimed = card?.claimStatus === "unclaimed"
+  const active = slides[Math.min(activeSlide, Math.max(slides.length - 1, 0))]
 
   return (
     <Dialog open={card !== null} onOpenChange={onOpenChange}>
       <DialogContent
         layout="pinned"
-        className="sm:max-w-4xl"
+        className="sm:max-w-5xl"
         finalFocus={() => {
           onReturnFocus()
           return false
         }}
       >
         <DialogHeader>
-          <DialogTitle>
-            制作人名片 <span className="sr-only">{card?.id}</span>
+          <DialogTitle className="text-base font-semibold">
+            制作人名片 {card?.id ?? ""}
           </DialogTitle>
+          <div
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+            aria-label="名片编号信息"
+          >
+            <span className="whitespace-nowrap">
+              · 版本 {card?.revision ?? 0}
+            </span>
+            {card?.claimStatus === "claimed" ? (
+              <Badge variant="secondary">
+                {card.claimerName ?? "已由注册用户认领"}
+              </Badge>
+            ) : card?.claimStatus === "pending" ? (
+              <Badge variant="outline">认领审核中</Badge>
+            ) : null}
+            {card?.isOriginal ? <Badge variant="secondary">原创</Badge> : null}
+            {card?.madeWithAi ? (
+              <Badge variant="secondary">AI 生成</Badge>
+            ) : null}
+            {submitted ? (
+              <span className="ml-auto whitespace-nowrap">
+                提交于 {submittedLabel}
+              </span>
+            ) : null}
+          </div>
           <DialogDescription>
             查看双面图片、公开参数、认领状态和全部反应
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-5">
-          <div className="grid gap-3 md:grid-cols-2">
-            {(["front", "back"] as const).map((side) => {
-              const thumbnail =
-                side === "front"
-                  ? card?.image1_thumbnail_url
-                  : card?.image2_thumbnail_url
-              const original =
-                side === "front" ? card?.image1_url : card?.image2_url
-              return card && thumbnail && original ? (
+        <DialogBody className="flex flex-col gap-5">
+          <div className="grid min-h-0 gap-6 md:grid-cols-2">
+            <div className="min-w-0 space-y-4">
+              {active ? (
                 <button
-                  key={side}
                   type="button"
-                  className="relative aspect-3/2 min-h-11 overflow-hidden rounded-lg bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                  aria-label={`放大制作人名片 ${card.id} ${side === "front" ? "正面" : "背面"}`}
-                  onClick={(event) => onOpenPreview(side, event.currentTarget)}
+                  className="relative flex aspect-3/2 w-full items-center justify-center overflow-hidden rounded-lg bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+                  aria-label={`放大制作人名片 ${card?.id ?? ""} ${active.key === "front" ? "正面" : active.key === "back" ? "背面" : "中间页"}`}
+                  onClick={(event) => {
+                    if (active.side) {
+                      onOpenPreview(active.side, event.currentTarget)
+                    }
+                  }}
                 >
-                  <NamecardThumbnail
-                    key={`${thumbnail}:${original}`}
-                    thumbnail={thumbnail}
-                    original={original}
+                  <img
+                    src={active.thumb}
+                    alt={`制作人名片 ${card?.id ?? ""} ${active.key === "front" ? "正面" : active.key === "back" ? "背面" : "中间页"}`}
+                    className="max-h-full max-w-full object-contain"
                   />
                 </button>
-              ) : null
-            })}
-          </div>
-
-          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs text-muted-foreground">提交时间</dt>
-              <dd className="mt-1 flex items-center gap-1.5">
-                <CalendarDaysIcon className="size-4" aria-hidden="true" />
-                {submittedLabel}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">企划</dt>
-              <dd className="mt-1">{card?.seriesCode ?? "未设置"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">担当角色</dt>
-              <dd className="mt-1">
-                {card?.favoriteCharacters.length
-                  ? card.favoriteCharacters.map((idol) => idol.name).join("、")
-                  : "未设置"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">认领状态</dt>
-              <dd className="mt-1">
-                {card?.claimStatus === "claimed" ? (
-                  <Badge variant="outline">
-                    <ShieldCheckIcon aria-hidden="true" />
-                    {card.claimerName ?? "已由注册用户认领"}
-                  </Badge>
-                ) : card?.claimStatus === "pending" ? (
-                  <Badge variant="outline">认领审核中</Badge>
-                ) : canClaim && card ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() => onClaim(card)}
-                  >
-                    <ShieldCheckIcon aria-hidden="true" />
-                    认领这张名片
-                  </Button>
-                ) : (
-                  "尚未认领"
-                )}
-              </dd>
-            </div>
-          </dl>
-
-          <section aria-labelledby="namecard-detail-reactions">
-            <h2 id="namecard-detail-reactions" className="mb-2 font-medium">
-              全部反应
-            </h2>
-            <div
-              className="flex min-h-11 flex-wrap items-center gap-1.5"
-              aria-label="名片全部反应"
-              aria-busy={reactions.loading || busy}
-            >
-              {entries.map((entry) => (
-                <ReactionChip
-                  key={entry[0]}
-                  entry={entry}
-                  disabled={busy}
-                  onClick={() => void onReact(entry[0])}
-                />
-              ))}
-              {!reactions.loading && entries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">还没有反应</p>
+              ) : (
+                <div className="aspect-3/2 w-full rounded-lg border border-dashed" />
+              )}
+              {slides.length > 1 ? (
+                <div
+                  className="card-thumb-strip flex gap-2 overflow-x-auto pb-1"
+                  aria-label="名片图片列表"
+                >
+                  {slides.map((slide, index) => (
+                    <button
+                      key={slide.key}
+                      type="button"
+                      className={cn(
+                        "size-16 shrink-0 overflow-hidden rounded-md border-2 bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        index === activeSlide
+                          ? "border-primary"
+                          : "border-transparent"
+                      )}
+                      aria-label={`查看第 ${index + 1} 张（${slide.key === "front" ? "正面" : slide.key === "back" ? "背面" : "中间页"}）`}
+                      aria-pressed={index === activeSlide}
+                      onClick={() => setActiveSlide(index)}
+                    >
+                      <img
+                        src={slide.url}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
               ) : null}
-              <NamecardReactionPicker
-                reactions={reactions.reactions}
-                busy={busy}
-                onReact={onReact}
+
+              <section aria-labelledby="namecard-detail-reactions">
+                <h2 id="namecard-detail-reactions" className="mb-2 font-medium">
+                  全部反应
+                </h2>
+                <div
+                  className="flex min-h-11 flex-wrap items-center gap-1.5"
+                  aria-label="名片全部反应"
+                  aria-busy={reactions.loading || busy}
+                >
+                  {entries.map((entry) => (
+                    <ReactionChip
+                      key={entry[0]}
+                      entry={entry}
+                      disabled={busy}
+                      onClick={() => void onReact(entry[0])}
+                    />
+                  ))}
+                  {!reactions.loading && entries.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">还没有反应</p>
+                  ) : null}
+                  <NamecardReactionPicker
+                    reactions={reactions.reactions}
+                    busy={busy}
+                    onReact={onReact}
+                  />
+                </div>
+              </section>
+            </div>
+
+            <div className="relative min-w-0">
+              <div
+                ref={fieldListRef}
+                onScroll={syncScrollEdges}
+                className="[-ms-overflow-style:none] scrollbar-none md:max-h-104 md:overflow-y-auto [&::-webkit-scrollbar]:hidden"
+              >
+                <dl aria-label="名片公开参数">
+                  <FieldRow label="制作人名称">
+                    {card?.producerName ? (
+                      <>
+                        {card.producerName}
+                        {card.producerReading ? (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            （{card.producerReading}）
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <EmptyDash />
+                    )}
+                  </FieldRow>
+                  <FieldRow label="制作日期">
+                    {card ? madeOnLabel(card.madeOn) : <EmptyDash />}
+                  </FieldRow>
+                  <FieldRow label="所属团体">
+                    {card?.groupName ?? <EmptyDash />}
+                  </FieldRow>
+                  <FieldRow label="制作人员">
+                    {card?.credits.length ? (
+                      <span className="flex flex-wrap items-center gap-1 ">
+                        {card.credits.map((credit, index) => (
+                          <span
+                            key={`${credit.displayName}-${index}`}
+                            className="inline-flex items-center gap-1"
+                          >
+                            {index > 0 ? (
+                              <span
+                                aria-hidden="true"
+                                className="text-muted-foreground"
+                              >
+                                &bull;
+                              </span>
+                            ) : null}
+                            {credit.url ? (
+                              <NavigationLink
+                                href={credit.url}
+                                className="underline underline-offset-2"
+                              >
+                                {credit.displayName}
+                              </NavigationLink>
+                            ) : (
+                              credit.displayName
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              （
+                              {credit.roles
+                                .map((role) => CREATOR_ROLE_LABELS[role])
+                                .join("/")}
+                              ）
+                            </span>
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      <EmptyDash />
+                    )}
+                  </FieldRow>
+                  <FieldRow label="企划">
+                    {card?.seriesCodes.length ? (
+                      <span className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-3">
+                        {card.seriesCodes.map((code) => (
+                          <span
+                            key={code}
+                            className="inline-flex min-w-0 items-center gap-1.5"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="size-2 shrink-0 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  series.get(code)?.color ?? "var(--border)",
+                              }}
+                            />
+                            <span className="truncate">
+                              {series.get(code)?.displayName ?? code}
+                            </span>
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      <EmptyDash />
+                    )}
+                  </FieldRow>
+                  <FieldRow label="担当角色">
+                    {card?.favoriteCharacters.length ? (
+                      card.favoriteCharacters.map((idol) => idol.name).join("、")
+                    ) : (
+                      <EmptyDash />
+                    )}
+                  </FieldRow>
+                  <FieldRow label="简介">{card?.bio ?? <EmptyDash />}</FieldRow>
+                  <FieldRow label="交换说明">
+                    {card?.tradeNote ?? <EmptyDash />}
+                  </FieldRow>
+                </dl>
+              </div>
+              <div
+                aria-hidden="true"
+                className={cn(
+                  "pointer-events-none absolute inset-x-0 top-0 h-8 bg-linear-to-b from-background to-transparent transition-opacity duration-200",
+                  scrollEdges.top ? "opacity-100" : "opacity-0"
+                )}
+              />
+              <div
+                aria-hidden="true"
+                className={cn(
+                  "pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-background to-transparent transition-opacity duration-200",
+                  scrollEdges.bottom ? "opacity-100" : "opacity-0"
+                )}
               />
             </div>
-          </section>
+          </div>
+
+          <div className="relative z-10 flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-background pt-4">
+            {card?.canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => {
+                  onOpenChange(false)
+                  void navigate(
+                    `/account/me/namecards?card=${encodeURIComponent(card.cardId)}`
+                  )
+                }}
+              >
+                编辑
+              </Button>
+            ) : null}
+            {unclaimed ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-11 bg-(--accent) text-(--accent-foreground)"
+                disabled
+                title="暂未开放"
+              >
+                补充
+              </Button>
+            ) : null}
+            {unclaimed ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                disabled={!canClaim}
+                onClick={() => {
+                  if (card) onClaim(card)
+                }}
+              >
+                <ShieldCheckIcon aria-hidden="true" />
+                认领
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              className="min-h-11 bg-foreground text-background"
+              disabled
+              title="暂未开放"
+            >
+              交换
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled
+              title="暂未开放"
+            >
+              反馈
+            </Button>
+          </div>
         </DialogBody>
       </DialogContent>
     </Dialog>

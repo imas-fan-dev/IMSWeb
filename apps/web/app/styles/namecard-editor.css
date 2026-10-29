@@ -129,8 +129,3 @@
     }
   }
 }
-
-/* 时间数据优先用 Consolas，缺失时退回等宽字体栈。 */
-.card-time {
-  font-family: Consolas, ui-monospace, SFMono-Regular, Menlo, monospace;
-}

@@ -205,7 +205,7 @@ export function CardFields({
               }
             />
             <FieldDescription>
-              仅可使用日文假名与英文字母，可用撇号或连字符分隔音节，排序时会忽略它们。
+              仅可使用日文假名与英文字母，用于按读音排序。
             </FieldDescription>
           </Field>
 
