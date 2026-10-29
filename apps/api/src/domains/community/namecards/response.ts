@@ -153,6 +153,19 @@ function responseClaimerName(value: unknown): string | null {
     return name ? name : null;
 }
 
+/**
+ * Thumbnails only exist for the canonical asset layout. Editor uploads are
+ * served by the card media route, which has no thumbnail variant, so the
+ * original page stands in rather than failing the whole response.
+ */
+function namecardThumbnailUrl(imageUrl: string): string {
+    try {
+        return namecardThumbnailPublicUrl(imageUrl);
+    } catch {
+        return imageUrl;
+    }
+}
+
 export function toPublicNamecardResponse(
     row: NamecardRow,
     viewerAccountId: string | null = null
@@ -190,9 +203,8 @@ export function toPublicNamecardResponse(
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
         image1_url: image1Url,
         image2_url: image2Url,
-        image1_thumbnail_url: namecardThumbnailPublicUrl(image1Url),
-        image2_thumbnail_url:
-            image2Url === null ? null : namecardThumbnailPublicUrl(image2Url),
+        image1_thumbnail_url: namecardThumbnailUrl(image1Url),
+        image2_thumbnail_url: image2Url === null ? null : namecardThumbnailUrl(image2Url),
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };

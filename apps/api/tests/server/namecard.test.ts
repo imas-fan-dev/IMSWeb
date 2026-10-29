@@ -222,6 +222,36 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     describe('PostgreSQL guest namecards', () => {
+        postgresTest('serves editor artwork through the card media route', async () => {
+            const database = await createPostgresTestDatabase('namecard-editor-media');
+            await seedCanonicalFudabaAgencies(database);
+            const repository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await repository.initialize();
+
+            const id = await repository.insertPendingCard(guestInput('editor'));
+            // Editor uploads sit outside the reversible namecard layout, so the
+            // row has to fall back to the card media route instead of throwing
+            // and taking the whole queue listing down with it.
+            await executeSql(
+                database,
+                `UPDATE public.fudaba_cards
+                 SET front_object_key='community/fudaba/cards/card-id/versions/v1/media.webp',
+                     back_object_key=NULL
+                 WHERE card_number=?`,
+                [id]
+            );
+
+            const [row] = await repository.listAdminCards(20, 0);
+            assert.equal(row?.id, id);
+            // A first submission has no published copy, so the queue shows the
+            // live slot; the draft variant only exists for staged revisions.
+            assert.equal(row?.image1_url, `/api/admin/cards/${id}/media/live/front`);
+            assert.equal(row?.image2_url, null);
+        });
+
         postgresTest('persist ordered cross-series character metadata atomically', async () => {
             const database = await createPostgresTestDatabase('namecard-metadata');
             await seedCanonicalFudabaAgencies(database);

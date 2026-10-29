@@ -313,6 +313,31 @@ export class SqlCoreRepository implements NamecardRepository {
         return grouped;
     }
 
+    /**
+     * Artwork URLs are derived from the object key when the layout is
+     * reversible. Editor uploads and older imports are not, so those pages are
+     * served through the card media routes instead of failing the whole list.
+     */
+    private namecardMediaUrl(
+        row: NamecardCardRow,
+        key: string | null,
+        side: 'front' | 'back',
+        content: 'live' | 'submission'
+    ): string | null {
+        if (key === null) return null;
+        try {
+            return row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
+                ? exchangeReviewMediaUrl(key, side)
+                : namecardOriginalUrlFromObjectKey(key);
+        } catch {
+            const variant = row.review_status === 'pending' ? 'draft' : 'live';
+            const cardNumber = Number(row.card_number);
+            return content === 'submission'
+                ? `/api/admin/cards/${cardNumber}/media/${variant}/${side}`
+                : `/api/cards/${cardNumber}/media/${side}`;
+        }
+    }
+
     private namecardRecordFromRow(
         row: NamecardCardRow,
         /** `live` serves the published copy; `submission` serves the queue. */
@@ -324,15 +349,7 @@ export class SqlCoreRepository implements NamecardRepository {
         // key is written, the regular reversal applies and the row behaves like
         // any other namecard.
         const media = (key: string | null, side: 'front' | 'back'): string | null =>
-            key === null
-                ? null
-                : row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
-                ? exchangeReviewMediaUrl(key, side)
-                : namecardOriginalUrlFromObjectKey(key);
-        const unusedMedia = (key: string, side: 'front' | 'back'): string =>
-            row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
-                ? exchangeReviewMediaUrl(key, side)
-                : namecardOriginalUrlFromObjectKey(key);
+            this.namecardMediaUrl(row, key, side, content);
         const staged = content === 'submission' && row.review_status === 'pending';
         const payload = staged ? pendingNamecardPayload(row.pending_payload) : null;
         return {
@@ -422,14 +439,18 @@ export class SqlCoreRepository implements NamecardRepository {
                 seriesCode: seriesCodes[0] ?? record.series_code ?? null,
                 series_codes: seriesCodes,
                 credits: credits.get(row.internal_id) ?? [],
-                middle_image_urls: middle.get(row.internal_id) ?? [],
+                middle_image_urls: this.namecardMiddleUrls(
+                    row,
+                    middle.get(row.internal_id) ?? [],
+                    content
+                ),
                 submissionKind: record.submission_kind ?? 'legacy',
                 favoriteCharacters
             };
         });
     }
 
-    /** Ordered middle pages of the published copy, as media URLs. */
+    /** Ordered middle page object keys of the published copy. */
     private async listNamecardMiddleMedia(
         database: SqlDatabase,
         cardIds: readonly string[]
@@ -439,21 +460,38 @@ export class SqlCoreRepository implements NamecardRepository {
         if (!cardIds.length) return grouped;
         const placeholders = cardIds.map(() => '?').join(', ');
         const result = await database.prepare(
-            `SELECT media.card_id, card.card_number FROM public.fudaba_card_media media
-             JOIN public.fudaba_cards card ON card.id = media.card_id
-             WHERE media.card_id IN (${placeholders})
-             ORDER BY media.card_id, media.display_order`
-        ).bind(...cardIds).all<{ card_id: string; card_number: number | string }>();
+            `SELECT card_id, object_key FROM public.fudaba_card_media
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{ card_id: string; object_key: string }>();
         for (const row of result.results) {
-            const group = grouped.get(row.card_id);
-            if (!group) continue;
-            // Middle pages live under the editor's object layout, which has no
-            // reversible public path, so they are served by card media route.
-            group.push(
-                `/api/cards/${Number(row.card_number)}/media/middle-${group.length + 1}`
-            );
+            grouped.get(row.card_id)?.push(row.object_key);
         }
         return grouped;
+    }
+
+    /**
+     * Middle pages always travel through the card media route: the editor
+     * layout has no reversible public path, and the queue must see the pages of
+     * the revision under review.
+     */
+    private namecardMiddleUrls(
+        row: NamecardCardRow,
+        keys: readonly string[],
+        content: 'live' | 'submission'
+    ): string[] {
+        const staged =
+            content === 'submission' &&
+            row.review_status === 'pending' &&
+            (row.pending_middle_object_keys?.length ?? 0) > 0;
+        const effective = staged ? row.pending_middle_object_keys! : keys;
+        const variant = staged ? 'draft' : 'live';
+        const cardNumber = Number(row.card_number);
+        return effective.map((_key, index) =>
+            content === 'submission'
+                ? `/api/admin/cards/${cardNumber}/media/${variant}/middle-${index + 1}`
+                : `/api/cards/${cardNumber}/media/middle-${index + 1}`
+        );
     }
 
     private async listNamecardCredits(
