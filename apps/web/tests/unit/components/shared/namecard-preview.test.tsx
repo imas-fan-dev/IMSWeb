@@ -7,9 +7,27 @@ import {
   NamecardPreview,
   type NamecardSide,
 } from "~/components/shared/namecard-preview"
+import type { Namecard } from "~/lib/api"
 
-const card = {
+const card: Namecard = {
   id: 42,
+  revision: 1,
+  cardId: "card-1",
+  cardNumber: 1,
+  producerName: "天海春香",
+  producerReading: null,
+  groupName: null,
+  madeOn: null,
+  isOriginal: false,
+  madeWithAi: false,
+  bio: null,
+  tradeNote: null,
+  exchangeMode: "manual",
+  accent: null,
+  seriesCodes: ["765"],
+  credits: [],
+  middleImageUrls: [],
+  canEdit: false,
   seriesCode: "765",
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   claimStatus: "unclaimed" as const,

@@ -48,6 +48,14 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getNamecardReactions: apiMocks.getNamecardReactions,
     getNamecardPage: apiMocks.getNamecardPage,
     getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
+    getFudabaSeries: () => ({
+      send: () =>
+        Promise.resolve({
+          items: [
+            { code: "765", displayName: "本家", color: "#f34f6d" },
+          ],
+        }),
+    }),
   }
 })
 
@@ -63,6 +71,23 @@ function pageResult(ids = [42]): NamecardPage {
   return {
     list: ids.map((id) => ({
       id,
+      revision: 1,
+      cardId: `card-${id}`,
+      cardNumber: id,
+      producerName: "天海春香",
+      producerReading: null,
+      groupName: null,
+      madeOn: null,
+      isOriginal: false,
+      madeWithAi: false,
+      bio: null,
+      tradeNote: null,
+      exchangeMode: "manual",
+      accent: null,
+      seriesCodes: ["765"],
+      credits: [],
+      middleImageUrls: [],
+      canEdit: false,
       seriesCode: null,
       favoriteCharacters: [],
       claimStatus: "unclaimed",
@@ -188,6 +213,23 @@ describe("CommunityCardsPage", () => {
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
           image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+          revision: 1,
+          cardId: "card-42",
+          cardNumber: 42,
+          producerName: "天海春香",
+          producerReading: null,
+          groupName: null,
+          madeOn: null,
+          isOriginal: false,
+          madeWithAi: false,
+          bio: null,
+          tradeNote: null,
+          exchangeMode: "manual" as const,
+          accent: null,
+          seriesCodes: ["765"],
+          credits: [],
+          middleImageUrls: [],
+          canEdit: false,
           status: "approved",
           created_at: "2026-08-06T06:30:00.000Z",
         },
@@ -292,6 +334,23 @@ describe("CommunityCardsPage", () => {
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
           image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+          revision: 1,
+          cardId: "card-42",
+          cardNumber: 42,
+          producerName: "天海春香",
+          producerReading: null,
+          groupName: null,
+          madeOn: null,
+          isOriginal: false,
+          madeWithAi: false,
+          bio: null,
+          tradeNote: null,
+          exchangeMode: "manual" as const,
+          accent: null,
+          seriesCodes: ["765"],
+          credits: [],
+          middleImageUrls: [],
+          canEdit: false,
           status: "approved",
           created_at: null,
         },
@@ -310,7 +369,7 @@ describe("CommunityCardsPage", () => {
 
     await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     expect(
-      screen.queryByRole("button", { name: "认领这张名片" })
+      screen.queryByRole("button", { name: "认领" })
     ).not.toBeInTheDocument()
 
     sessionMocks.useOptionalPlatformSession.mockReturnValue({
@@ -340,12 +399,12 @@ describe("CommunityCardsPage", () => {
       name: "查看制作人名片 42 正面",
     })
     expect(
-      screen.queryByRole("button", { name: "认领这张名片" })
+      screen.queryByRole("button", { name: "认领" })
     ).not.toBeInTheDocument()
     await userEvent.setup().click(frontTrigger)
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     const claimButton = within(detail).getByRole("button", {
-      name: "认领这张名片",
+      name: "认领",
     })
     expect(claimButton).toBeVisible()
     expect(claimButton).toHaveClass("min-h-11")
@@ -366,6 +425,23 @@ describe("CommunityCardsPage", () => {
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
           image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+          revision: 1,
+          cardId: "card-42",
+          cardNumber: 42,
+          producerName: "天海春香",
+          producerReading: null,
+          groupName: null,
+          madeOn: null,
+          isOriginal: false,
+          madeWithAi: false,
+          bio: null,
+          tradeNote: null,
+          exchangeMode: "manual" as const,
+          accent: null,
+          seriesCodes: ["765"],
+          credits: [],
+          middleImageUrls: [],
+          canEdit: false,
           status: "approved",
           created_at: null,
         },
@@ -413,7 +489,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getAllByRole("button", { name: "❤️，4 次反应" })[0]!
     )
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     const reactionGroup = within(detail).getByLabelText("名片全部反应")
     const addButton = within(detail).getByRole("button", {
       name: "添加反应",
@@ -510,7 +586,7 @@ describe("CommunityCardsPage", () => {
     })
     expect(apiMocks.addNamecardReaction).toHaveBeenCalledWith(42, "❤️")
     expect(
-      screen.queryByRole("dialog", { name: "制作人名片 42" })
+      screen.queryByRole("dialog", { name: /^名片 #42/ })
     ).not.toBeInTheDocument()
 
     const add = within(summary).getByRole("button", { name: "添加反应" })
@@ -523,7 +599,7 @@ describe("CommunityCardsPage", () => {
       46
     )
     expect(
-      screen.queryByRole("dialog", { name: "制作人名片 42" })
+      screen.queryByRole("dialog", { name: /^名片 #42/ })
     ).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "🧒，添加反应" }))
 
@@ -539,13 +615,13 @@ describe("CommunityCardsPage", () => {
     ])
     expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(2)
     expect(
-      screen.queryByRole("dialog", { name: "制作人名片 42" })
+      screen.queryByRole("dialog", { name: /^名片 #42/ })
     ).not.toBeInTheDocument()
 
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     expect(
       within(detail).getByRole("button", { name: "❤️，5 次反应" })
     ).toBeVisible()
@@ -571,13 +647,13 @@ describe("CommunityCardsPage", () => {
     const add = within(summary).getByRole("button", { name: "添加反应" })
     expect(add).toHaveClass("max-md:hidden")
     await user.click(viewDetail)
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     expect(within(detail).getByText("还没有反应")).toBeVisible()
     expect(apiMocks.sendAddReaction).not.toHaveBeenCalled()
     await user.click(within(detail).getByRole("button", { name: "Close" }))
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "制作人名片 42" })
+        screen.queryByRole("dialog", { name: /^名片 #42/ })
       ).not.toBeInTheDocument()
     )
     await waitFor(() => {
@@ -594,7 +670,7 @@ describe("CommunityCardsPage", () => {
       within(summary).queryByRole("button", { name: "查看详情" })
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole("dialog", { name: "制作人名片 42" })
+      screen.queryByRole("dialog", { name: /^名片 #42/ })
     ).not.toBeInTheDocument()
     expect(apiMocks.addNamecardReaction).toHaveBeenCalledWith(42, "❤️")
     expect(apiMocks.sendAddReaction).toHaveBeenCalledOnce()
@@ -619,7 +695,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     for (let count = 10; count < 14; count += 1) {
       await user.click(
         within(detail).getByRole("button", { name: `❤️，${count} 次反应` })
@@ -638,7 +714,7 @@ describe("CommunityCardsPage", () => {
     await user.click(within(detail).getByRole("button", { name: "Close" }))
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "制作人名片 42" })
+        screen.queryByRole("dialog", { name: /^名片 #42/ })
       ).not.toBeInTheDocument()
     )
     await waitFor(() => {
@@ -702,7 +778,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     const detailHeart = within(detail).getByRole("button", {
       name: "❤️，4 次反应",
     })
@@ -728,7 +804,7 @@ describe("CommunityCardsPage", () => {
     await user.click(within(detail).getByRole("button", { name: "Close" }))
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "制作人名片 42" })
+        screen.queryByRole("dialog", { name: /^名片 #42/ })
       ).not.toBeInTheDocument()
     )
     await waitFor(() => {
@@ -778,7 +854,7 @@ describe("CommunityCardsPage", () => {
     expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(11)
     expect(desktopReaction(summary, "❤️", 14)).toHaveTextContent("14")
     expect(
-      screen.queryByRole("dialog", { name: "制作人名片 42" })
+      screen.queryByRole("dialog", { name: /^名片 #42/ })
     ).not.toBeInTheDocument()
   })
 
@@ -802,7 +878,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     await user.click(within(detail).getByRole("button", { name: "添加反应" }))
     await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
     expect(
@@ -839,7 +915,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     await user.click(within(detail).getByRole("button", { name: "添加反应" }))
     await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
     expect(
@@ -948,6 +1024,23 @@ describe("CommunityCardsPage", () => {
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
           image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+          revision: 1,
+          cardId: "card-42",
+          cardNumber: 42,
+          producerName: "天海春香",
+          producerReading: null,
+          groupName: null,
+          madeOn: null,
+          isOriginal: false,
+          madeWithAi: false,
+          bio: null,
+          tradeNote: null,
+          exchangeMode: "manual" as const,
+          accent: null,
+          seriesCodes: ["765"],
+          credits: [],
+          middleImageUrls: [],
+          canEdit: false,
           status: "approved",
           created_at: null,
         },
@@ -974,7 +1067,7 @@ describe("CommunityCardsPage", () => {
 
     await user.click(frontTrigger)
 
-    const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
     expect(detail).toBeVisible()
     expect(within(detail).getByText("企划")).toBeVisible()
     expect(
@@ -1194,7 +1287,7 @@ describe("CommunityCardsPage", () => {
         })
       )
 
-      const detail = screen.getByRole("dialog", { name: "制作人名片 42" })
+      const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
       expect(within(detail).getByText("全部反应")).toBeVisible()
       await user.click(
         within(detail).getByRole("button", {
@@ -1428,6 +1521,23 @@ describe("CommunityCardsPage", () => {
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
           image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+          revision: 1,
+          cardId: "card-42",
+          cardNumber: 42,
+          producerName: "天海春香",
+          producerReading: null,
+          groupName: null,
+          madeOn: null,
+          isOriginal: false,
+          madeWithAi: false,
+          bio: null,
+          tradeNote: null,
+          exchangeMode: "manual" as const,
+          accent: null,
+          seriesCodes: ["765"],
+          credits: [],
+          middleImageUrls: [],
+          canEdit: false,
           status: "approved",
           created_at: null,
         },

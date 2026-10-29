@@ -79,6 +79,11 @@ export type ApiExpectation<
   }
   responses: Record<number, ResponseSchema>
   times?: ApiTimes
+  /**
+   * Defaults registered by the shared fixture. A spec that registers the same
+   * method and path replaces the fallback instead of colliding with it.
+   */
+  fallback?: boolean
   handle: (
     context: ApiHandlerContext<TQuery, TBody>
   ) => ApiResponse | Promise<ApiResponse>
@@ -121,6 +126,9 @@ type ParseResult = { ok: true; value: unknown } | { ok: false; error: string }
 const isPassThrough = (
   registration: Registration
 ): registration is RegisteredPassThrough => "reason" in registration
+
+const isFallback = (registration: Registration) =>
+  !isPassThrough(registration) && registration.fallback === true
 
 function asSchemaInput(input: Schema | SchemaInput<Schema>) {
   return "schema" in input ? input : { schema: input }
@@ -200,7 +208,7 @@ function registrationLabel(registration: Registration) {
 
 export class ApiDispatcher {
   readonly #origins: ReadonlySet<string>
-  readonly #registrations: Registration[] = []
+  #registrations: Registration[] = []
   readonly #records: ApiRequestRecord[] = []
   readonly #violations: string[] = []
   #context: BrowserContext | undefined
@@ -281,7 +289,12 @@ export class ApiDispatcher {
       (item) =>
         item.method === expectation.method && item.path === expectation.path
     )
-    if (existing) {
+    if (existing && isFallback(existing) && !expectation.fallback) {
+      this.#registrations = this.#registrations.filter(
+        (item) => item !== existing
+      )
+    }
+    if (existing && !isFallback(existing)) {
       const kind = isPassThrough(existing) ? "ambiguous" : "duplicate"
       throw new Error(
         `${kind} API registration for ${expectation.method} ${expectation.path}; already registered as ${registrationLabel(existing)}`

@@ -16,6 +16,23 @@ const defaultBackImage =
 export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
   return {
     id: 1,
+    revision: 1,
+    cardId: "card-1",
+    cardNumber: 1,
+    producerName: "天海春香",
+    producerReading: null,
+    groupName: null,
+    madeOn: null,
+    isOriginal: false,
+    madeWithAi: false,
+    bio: null,
+    tradeNote: null,
+    exchangeMode: "manual",
+    accent: null,
+    seriesCodes: ["765"],
+    credits: [],
+    middleImageUrls: [],
+    canEdit: false,
     seriesCode: null,
     favoriteCharacters: [],
     claimStatus: "unclaimed",
@@ -30,6 +47,11 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     ...overrides,
   }
 }
+
+/**
+ * The wall detail dialog resolves series display names and colours on open, so
+ * every spec that opens it must answer the public series endpoint.
+ */
 
 export function makeNamecardPage(
   list: Namecard[],

@@ -1,4 +1,5 @@
 import { test as base } from "@playwright/test"
+import { fudabaSeriesListSchema } from "@imsweb/contracts/fudaba"
 import { namecardNotificationListResponseSchema } from "@imsweb/contracts/fudaba/card-claims"
 import { exchangePath } from "@imsweb/contracts/paths"
 
@@ -19,6 +20,21 @@ function installInboxProbe(dispatcher: ApiDispatcher) {
       status: 200,
       json: { items: [], unread: 0 },
     }),
+  })
+}
+
+/**
+ * The wall detail dialog resolves series names and colours for the cards it
+ * shows, so any spec that opens it would otherwise fail on this request.
+ */
+function installSeriesProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangePath("/series"),
+    responses: { 200: fudabaSeriesListSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({ status: 200, json: { items: [] } }),
   })
 }
 
@@ -50,6 +66,7 @@ export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
       const dispatcher = new ApiDispatcher(baseURL, apiOrigins)
       await dispatcher.install(context)
       installInboxProbe(dispatcher)
+      installSeriesProbe(dispatcher)
       if (activeApi) {
         await dispatcher.dispose()
         throw new Error(
