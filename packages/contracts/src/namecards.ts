@@ -64,7 +64,44 @@ export const namecardPublicDetailSchema = {
   middleImageUrls: z.array(z.string().min(1)),
   /** True when the signed-in viewer owns the row; drives the edit action. */
   canEdit: z.boolean(),
+  /** False keeps the claim/complete actions visible on the detail dialog. */
+  hasOwner: z.boolean(),
 }
+
+/**
+ * One side of the review diff: the published copy next to the submitted one.
+ * Images are ordered front, back, then the middle pages.
+ */
+export const namecardDiffSideSchema = z
+  .object({
+    producerName: z.string().min(1).nullable(),
+    producerReading: z.string().min(1).nullable(),
+    groupName: z.string().min(1).nullable(),
+    madeOn: z.string().min(1).nullable(),
+    bio: z.string().min(1).nullable(),
+    tradeNote: z.string().min(1).nullable(),
+    isOriginal: z.boolean(),
+    madeWithAi: z.boolean(),
+    exchangeMode: z.enum(["auto", "manual", "none"]),
+    seriesCodes: z.array(z.string().min(1)),
+    credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
+    favoriteCharacters: z
+      .array(namecardFavoriteCharacterSchema)
+      .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
+    frontImageUrl: z.string().min(1),
+    backImageUrl: z.string().min(1).nullable(),
+    middleImageUrls: z.array(z.string().min(1)),
+  })
+  .strict()
+
+export const adminNamecardDiffSchema = exactJsonResponse({
+  id: cardIdSchema,
+  status: z.string(),
+  reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
+  live: namecardDiffSideSchema,
+  /** The revision waiting for review; null when nothing is queued. */
+  pending: namecardDiffSideSchema.nullable(),
+})
 
 export const namecardSchema = exactJsonResponse({
   id: cardIdSchema,
@@ -110,7 +147,12 @@ export const adminNamecardSchema = exactJsonResponse({
    */
   reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
   reviewReason: z.string().min(1).nullable(),
+  /** Front, back and every middle page; drives the multi-page badge. */
+  pageCount: z.number().int().positive(),
 })
+
+export type AdminNamecardDiff = z.infer<typeof adminNamecardDiffSchema>
+export type NamecardDiffSide = z.infer<typeof namecardDiffSideSchema>
 
 export const adminNamecardListSchema = successEnvelope({
   data: z.array(adminNamecardSchema),

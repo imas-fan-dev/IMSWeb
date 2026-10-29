@@ -712,6 +712,7 @@ import { test } from 'vitest';
         namecardFindApproved: number[];
         namecardFindMedia: number[];
         namecardListAdmin: Array<[number, number]>;
+        namecardDiff: number[];
         namecardListApproved: Array<[number, number]>;
         newsDelete: number[];
         newsFindMedia: number[];
@@ -738,6 +739,7 @@ import { test } from 'vitest';
             namecardFindApproved: [],
             namecardFindMedia: [],
             namecardListAdmin: [],
+            namecardDiff: [],
             namecardListApproved: [],
             newsDelete: [],
             newsFindMedia: [],
@@ -784,6 +786,10 @@ import { test } from 'vitest';
             async listAdminCards(limit, offset) {
                 calls.namecardListAdmin.push([limit, offset]);
                 return [];
+            },
+            async findCardDiff(id) {
+                calls.namecardDiff.push(id);
+                return null;
             },
             async beginCardApproval(id) {
                 calls.namecardApprove.push(id);

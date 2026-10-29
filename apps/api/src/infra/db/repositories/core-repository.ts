@@ -24,6 +24,8 @@ import type {
     NamecardEditResult,
     NamecardMutationResult,
     NamecardAdminFilter,
+    NamecardDiffRecord,
+    NamecardDiffSide,
     NamecardPublicRecord,
     NamecardSubmissionKind,
     NamecardSubmissionRecord,
@@ -646,6 +648,133 @@ export class SqlCoreRepository implements NamecardRepository {
             [...where.values, limit, offset]
         );
         return this.attachNamecardFavorites(this.database, rows);
+    }
+
+    /**
+     * Both sides of the review queue: the published copy the wall serves and
+     * the revision waiting for a verdict. The public read path never needs
+     * this, so it stays a separate query instead of widening every list row.
+     */
+    async findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null> {
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND deleted_at IS NULL`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const cardId = row.internal_id;
+        const [favorites, series, credits, middle] = await Promise.all([
+            this.listNamecardFavorites(this.database, [cardId]),
+            this.listNamecardSeries(this.database, [cardId]),
+            this.listNamecardCredits(this.database, [cardId]),
+            this.listNamecardMiddleMedia(this.database, [cardId])
+        ]);
+        const live: NamecardDiffSide = {
+            producerName: row.producer_name ?? null,
+            producerReading: row.producer_reading ?? null,
+            groupName: row.group_name ?? null,
+            madeOn: row.made_on ?? null,
+            bio: row.bio ?? null,
+            tradeNote: row.trade_note ?? null,
+            isOriginal: row.is_original === true,
+            madeWithAi: row.made_with_ai === true,
+            exchangeMode: this.exchangeMode(row.exchange_mode),
+            seriesCodes: series.get(cardId) ?? [],
+            credits: credits.get(cardId) ?? [],
+            favoriteCharacters: favorites.get(cardId) ?? [],
+            frontImageUrl: namecardOriginalUrlFromObjectKey(row.front_object_key),
+            backImageUrl: row.back_object_key
+                ? namecardOriginalUrlFromObjectKey(row.back_object_key)
+                : null,
+            middleImageUrls: middle.get(cardId) ?? []
+        };
+        const payload = row.review_status === 'pending'
+            ? pendingNamecardPayload(row.pending_payload)
+            : null;
+        return {
+            id: Number(row.card_number),
+            status: toLegacyNamecardStatus(row.publication_status),
+            reviewStatus: row.review_status === 'pending' || row.review_status === 'rejected' || row.review_status === 'locked'
+                ? row.review_status
+                : null,
+            live,
+            pending: payload
+                ? await this.pendingDiffSide(row, payload, live.middleImageUrls)
+                : null
+        };
+    }
+
+    private exchangeMode(value: unknown): 'auto' | 'manual' | 'none' {
+        return value === 'auto' || value === 'manual' ? value : 'none';
+    }
+
+    private async pendingDiffSide(
+        row: NamecardCardRow,
+        payload: NamecardPendingPayload,
+        liveMiddle: string[]
+    ): Promise<NamecardDiffSide> {
+        const ids = payload.favorite_character_ids ?? [];
+        const backObjectKey = row.pending_back_object_key ?? row.back_object_key;
+        return {
+            producerName: payload.producer_name ?? row.producer_name ?? null,
+            producerReading: this.payloadText(payload, 'producer_reading', row.producer_reading),
+            groupName: this.payloadText(payload, 'group_name', row.group_name),
+            madeOn: this.payloadText(payload, 'made_on', row.made_on),
+            bio: this.payloadText(payload, 'bio', row.bio),
+            tradeNote: this.payloadText(payload, 'trade_note', row.trade_note),
+            isOriginal: payload.is_original ?? row.is_original === true,
+            madeWithAi: payload.made_with_ai ?? row.made_with_ai === true,
+            exchangeMode: this.exchangeMode(payload.exchange_mode ?? row.exchange_mode),
+            seriesCodes: payload.series_codes ?? [],
+            credits: payload.credits ?? [],
+            favoriteCharacters: await this.listCharacterSelections(this.database, ids),
+            frontImageUrl: namecardOriginalUrlFromObjectKey(
+                row.pending_front_object_key ?? row.front_object_key
+            ),
+            backImageUrl: backObjectKey ? namecardOriginalUrlFromObjectKey(backObjectKey) : null,
+            middleImageUrls: row.pending_middle_object_keys?.length
+                ? row.pending_middle_object_keys.map((key) => namecardOriginalUrlFromObjectKey(key))
+                : liveMiddle
+        };
+    }
+
+    /** A submitted revision is authoritative, including when it clears a field. */
+    private payloadText(
+        payload: NamecardPendingPayload,
+        key: 'producer_reading' | 'group_name' | 'made_on' | 'bio' | 'trade_note',
+        fallback: string | null | undefined
+    ): string | null {
+        if (key in payload) return payload[key] ?? null;
+        return fallback ?? null;
+    }
+
+    /** Character names for a submitted selection, kept in submission order. */
+    private async listCharacterSelections(
+        database: SqlDatabase,
+        ids: readonly number[]
+    ): Promise<CardFavoriteSelectionRecord[]> {
+        if (!ids.length) return [];
+        const placeholders = ids.map(() => '?').join(', ');
+        const rows = await queryAll<NamecardFavoriteRow>(database,
+            `SELECT character.id AS character_id, agency.code AS agency_code,
+                    character.name_cn
+             FROM namecard_characters character
+             JOIN agencies agency ON agency.id=character.agency_id
+             WHERE character.id IN (${placeholders})`,
+            [...ids]
+        );
+        const byId = new Map(rows.map((row) => [Number(row.character_id), row]));
+        return ids.flatMap((id, index) => {
+            const row = byId.get(id);
+            return row
+                ? [{
+                    character_id: id,
+                    agency_code: row.agency_code,
+                    name_cn: row.name_cn,
+                    display_order: index
+                }]
+                : [];
+        });
     }
 
     async beginCardApproval(

@@ -1,5 +1,6 @@
 import { handleApproveNamecard } from "@/domains/community/namecards/moderation/handlers/approve-namecard";
 import { handleFlagNamecard } from "@/domains/community/namecards/moderation/handlers/flag-namecard";
+import { handleGetAdminNamecardDiff } from "@/domains/community/namecards/moderation/handlers/get-admin-namecard-diff";
 import { handleListAdminNamecards } from "@/domains/community/namecards/moderation/handlers/list-admin-namecards";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
@@ -47,6 +48,15 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         querySchemaValidator(adminNamecardListQuerySchema, { invalidMessage: "名片分页参数无效" }, validateAdminNamecardListQuery),
         handleListAdminNamecards,
+    );
+    // The review queue compares the published copy with the submitted one, so
+    // the diff endpoint stays separate from the list payload.
+    routes.get(
+        "/:id/diff",
+        backofficeAuth,
+        opOnly,
+        namecardIdValidator,
+        handleGetAdminNamecardDiff,
     );
     routes.post(
         "/approve/:id",

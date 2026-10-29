@@ -1,8 +1,10 @@
 import type { FudabaCardClaimState } from '@/ports/repositories';
+import type { NamecardDiffRecord, NamecardDiffSide } from '@/ports/repositories/namecards';
 import type { CardFavoriteSelectionRecord } from '@/ports/repositories';
 import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
 import type {
     AdminNamecard,
+    AdminNamecardDiff,
     AdminNamecardListResponse as AdminNamecardListContractResponse,
     Namecard,
     NamecardEmptyResponse,
@@ -19,6 +21,7 @@ export type NamecardResponseId = number;
 export type NamecardFavoriteCharacterResponse = NamecardFavoriteCharacterInput;
 export type PublicNamecardResponse = Namecard;
 export type AdminNamecardResponse = AdminNamecard;
+export type AdminNamecardDiffResponse = AdminNamecardDiff;
 export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
 export type NamecardPageResponse = NamecardPage;
 export type AdminNamecardListResponse = AdminNamecardListContractResponse;
@@ -177,6 +180,7 @@ export function toPublicNamecardResponse(
         canEdit:
             typeof row.owner_account_id === 'string' &&
             row.owner_account_id === viewerAccountId,
+        hasOwner: typeof row.owner_account_id === 'string',
         seriesCode: responseSeriesCode(row.series_code),
         favoriteCharacters: responseFavoriteCharacters(row.favorite_characters),
         claimStatus: responseClaimStatus(row.claim_status),
@@ -194,6 +198,48 @@ export function toPublicNamecardResponse(
     });
 }
 
+
+type NamecardDiffSideResponse = AdminNamecardDiffResponse['live'];
+
+function diffSide(side: NamecardDiffSide): NamecardDiffSideResponse {
+    return {
+        producerName: side.producerName,
+        producerReading: side.producerReading,
+        groupName: side.groupName,
+        madeOn: side.madeOn,
+        bio: side.bio,
+        tradeNote: side.tradeNote,
+        isOriginal: side.isOriginal,
+        madeWithAi: side.madeWithAi,
+        exchangeMode: side.exchangeMode,
+        seriesCodes: side.seriesCodes,
+        credits: responseCredits(side.credits),
+        favoriteCharacters: responseFavoriteCharacters(
+            side.favoriteCharacters.map((character) => ({
+                character_id: character.character_id,
+                agency_code: character.agency_code,
+                name_cn: character.name_cn,
+                display_order: character.display_order
+            }))
+        ),
+        frontImageUrl: side.frontImageUrl,
+        backImageUrl: side.backImageUrl,
+        middleImageUrls: side.middleImageUrls
+    };
+}
+
+export function toAdminNamecardDiffResponse(
+    record: NamecardDiffRecord
+): AdminNamecardDiffResponse {
+    return {
+        id: record.id,
+        status: record.status,
+        reviewStatus: record.reviewStatus,
+        live: diffSide(record.live),
+        pending: record.pending ? diffSide(record.pending) : null
+    };
+}
+
 export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse {
     return {
         id: responseId(row.id),
@@ -206,7 +252,11 @@ export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse
         origin: responseOptionalString(row.origin) ?? 'legacy',
         lockReason: responseOptionalString(row.lockReason),
         reviewStatus: responseReviewStatus(row.reviewStatus),
-        reviewReason: responseOptionalString(row.reviewReason)
+        reviewReason: responseOptionalString(row.reviewReason),
+        pageCount:
+            1 +
+            (row.image2_url ? 1 : 0) +
+            responseStringList(row.middle_image_urls).length
     };
 }
 

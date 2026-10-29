@@ -52,6 +52,32 @@ export interface CardMediaRecord {
     credits?: FudabaCardCredit[];
 }
 
+export interface NamecardDiffSide {
+    producerName: string | null;
+    producerReading: string | null;
+    groupName: string | null;
+    madeOn: string | null;
+    bio: string | null;
+    tradeNote: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    exchangeMode: 'auto' | 'manual' | 'none';
+    seriesCodes: string[];
+    credits: FudabaCardCredit[];
+    favoriteCharacters: CardFavoriteSelectionRecord[];
+    frontImageUrl: string;
+    backImageUrl: string | null;
+    middleImageUrls: string[];
+}
+
+export interface NamecardDiffRecord {
+    id: number;
+    status: NamecardSubmissionStatus;
+    reviewStatus: 'pending' | 'rejected' | 'locked' | null;
+    live: NamecardDiffSide;
+    pending: NamecardDiffSide | null;
+}
+
 export type NamecardSubmissionStatus =
     | "pending"
     | "approving"
@@ -125,6 +151,7 @@ export interface NamecardRepository {
         offset: number,
     ): Promise<NamecardPublicRecord[]>;
     findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
+    findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null>;
     listAdminCards(
         limit: number,
         offset: number,
