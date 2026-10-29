@@ -4274,6 +4274,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261029120000_namecard_series_set',
                 '20261030120000_namecard_accent_source',
                 '20261030130000_namecard_series_require_one_skip_missing',
+                '20261030140000_namecard_reading_marks',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');

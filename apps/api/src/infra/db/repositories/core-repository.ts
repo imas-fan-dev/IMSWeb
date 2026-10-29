@@ -140,6 +140,9 @@ type NamecardCardRow = {
 type NamecardPendingPayload = {
     producer_name?: string | null;
     producer_reading?: string | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    credits?: FudabaCardCredit[];
     series_codes?: string[];
     group_name?: string | null;
     made_on?: string | null;
@@ -740,9 +743,15 @@ export class SqlCoreRepository implements NamecardRepository {
         row: NamecardCardRow,
         payload: NamecardPendingPayload | null
     ): Promise<void> {
+        // Text columns that the author may clear need a flag instead of
+        // COALESCE: a submitted revision is authoritative even when it is empty.
+        const hasPayload = payload !== null
         await executeSql(database,
             `UPDATE fudaba_cards
              SET producer_name=?,
+                 producer_reading=CASE WHEN ? THEN ? ELSE producer_reading END,
+                 bio=CASE WHEN ? THEN ? ELSE bio END,
+                 trade_note=CASE WHEN ? THEN ? ELSE trade_note END,
                  made_on=COALESCE(?, made_on), group_name=COALESCE(?, group_name),
                  is_original=COALESCE(?, is_original),
                  made_with_ai=COALESCE(?, made_with_ai),
@@ -758,6 +767,12 @@ export class SqlCoreRepository implements NamecardRepository {
              WHERE id=?`,
             [
                 payload?.producer_name ?? row.producer_name ?? null,
+                hasPayload,
+                payload?.producer_reading ?? null,
+                hasPayload,
+                payload?.bio ?? null,
+                hasPayload,
+                payload?.trade_note ?? null,
                 payload?.made_on ?? null,
                 payload?.group_name ?? null,
                 payload?.is_original ?? null,
@@ -767,6 +782,13 @@ export class SqlCoreRepository implements NamecardRepository {
                 row.internal_id
             ]
         );
+        if (payload) {
+            await this.replaceNamecardCredits(
+                database,
+                row.internal_id,
+                payload.credits ?? []
+            )
+        }
         const seriesCodes = (payload?.series_codes ?? []).filter(
             (code) => typeof code === 'string' && code.length > 0
         );
@@ -825,6 +847,33 @@ export class SqlCoreRepository implements NamecardRepository {
                  WHERE character.id=? AND character.deleted_at IS NULL`,
                 [row.internal_id, index, characterIds[index]]
             ).catch(() => undefined);
+        }
+    }
+
+    private async replaceNamecardCredits(
+        database: SqlDatabase,
+        cardId: string,
+        credits: readonly FudabaCardCredit[]
+    ): Promise<void> {
+        await executeSql(database,
+            'DELETE FROM fudaba_card_credits WHERE card_id=?',
+            [cardId]
+        );
+        for (const [index, credit] of credits.entries()) {
+            if (!credit.displayName.trim()) continue;
+            await executeSql(database,
+                `INSERT INTO fudaba_card_credits
+                 (card_id, display_order, account_id, display_name, url, roles)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    cardId,
+                    index + 1,
+                    credit.accountId ?? null,
+                    credit.displayName,
+                    credit.url ?? null,
+                    credit.roles
+                ]
+            );
         }
     }
 

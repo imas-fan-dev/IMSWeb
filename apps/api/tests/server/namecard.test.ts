@@ -328,6 +328,96 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.deepEqual(legacy?.favoriteCharacters, []);
         });
 
+        postgresTest('moderation approval publishes the editor text and credits', async () => {
+            const database = await createPostgresTestDatabase('namecard-approve');
+            await seedCanonicalFudabaAgencies(database);
+            const repository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await repository.initialize();
+
+            const ownerId = 'approve-owner';
+            await executeSql(database,
+                `INSERT INTO platform_accounts (id, status, created_at, updated_at)
+                 VALUES (?, 'active', 1, 1)`,
+                [ownerId]
+            );
+            await executeSql(database,
+                `INSERT INTO platform_profiles (account_id, display_name, updated_at)
+                 VALUES (?, '调试用户', 1)`,
+                [ownerId]
+            );
+            const id = await repository.insertPendingCard(guestInput('approve'));
+            // An ownerless card may not carry a trade note, so publish as an
+            // owned card; the moderation queue treats both the same way.
+            // Owned cards must always carry a trade note, so seed it empty
+            // here and let the approval write the submitted text over it.
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                 SET owner_account_id=?, producer_name=?, trade_note=''
+                 WHERE card_number=?`,
+                [ownerId, '待审名称', id]
+            );
+            const payload = {
+                producer_name: '调试用户',
+                producer_reading: 'かとう-せんぱい',
+                bio: '审核页通过验证简介',
+                trade_note: '审核页通过验证说明',
+                credits: [
+                    {
+                        accountId: null,
+                        displayName: '验证创作人员',
+                        url: null,
+                        roles: ['design']
+                    }
+                ],
+                series_codes: ['cg'],
+                favorite_character_ids: [900_002, 900_001],
+                exchange_mode: 'manual',
+                made_on: null,
+                group_name: null,
+                is_original: true,
+                made_with_ai: false,
+                visible: true
+            };
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                 SET publication_status='published', review_status='pending',
+                     pending_payload=CAST(? AS jsonb)
+                 WHERE card_number=?`,
+                [JSON.stringify(payload), id]
+            );
+            const current = await database
+                .prepare('SELECT revision, review_status, publication_status, producer_name, trade_note, pending_payload FROM fudaba_cards WHERE card_number=?')
+                .bind(id)
+                .first<Record<string, unknown>>();
+            assert.ok(current);
+
+            const claim = await repository.beginCardApproval(id, Number(current.revision));
+            assert.equal(claim.status, 'claimed');
+            const completed = await repository.completeCardApproval(
+                id,
+                claim.status === 'claimed' ? claim.card.revision : 0
+            );
+            assert.equal(completed.status, 'updated');
+
+            // The moderation queue must promote every editable field, not just
+            // the ones the legacy submission form used to carry.
+            const [publicCard] = await repository.listApprovedCards(20, 0);
+            assert.ok(publicCard);
+            assert.equal(publicCard.producer_reading, 'かとう-せんぱい');
+            assert.equal(publicCard.bio, '审核页通过验证简介');
+            assert.equal(publicCard.trade_note, '审核页通过验证说明');
+            assert.deepEqual(
+                publicCard.credits?.map((credit) => ({
+                    name: credit.displayName,
+                    roles: credit.roles
+                })),
+                [{ name: '验证创作人员', roles: ['design'] }]
+            );
+        });
+
         postgresTest('may carry optional profile text', async () => {
             const database = await createPostgresTestDatabase('namecard-metadata-profile');
             await seedCanonicalFudabaAgencies(database);
