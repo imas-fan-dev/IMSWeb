@@ -142,12 +142,15 @@ import { test } from 'vitest';
             'createHandleDeleteReaction',
             'handleApproveNamecard',
             'handleFlagNamecard',
+            'handleGetAdminNamecardDiff',
             'handleGetNamecard',
             'handleListAdminNamecards',
             'handleListNamecards',
             'handleListReactions',
             'handleLockNamecard',
             'handleRejectNamecard',
+            'handleServeAdminNamecardMedia',
+            'handleServePublicCardMedia',
             'handleUnlockNamecard'
         ],
         news: [
@@ -489,7 +492,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 142);
+            assert.equal(Object.values(actual).flat().length, 145);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -787,6 +790,8 @@ import { test } from 'vitest';
                 calls.namecardListAdmin.push([limit, offset]);
                 return [];
             },
+            async findCardMediaKey() { return null; },
+            async findPublishedCardMediaKey() { return null; },
             async findCardDiff(id) {
                 calls.namecardDiff.push(id);
                 return null;

@@ -152,6 +152,20 @@ export interface NamecardRepository {
     ): Promise<NamecardPublicRecord[]>;
     findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
     findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null>;
+    /**
+     * Object key backing one artwork page, for the moderator preview. `draft`
+     * prefers the submitted revision and falls back to the live object.
+     */
+    findCardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean
+    ): Promise<string | null>;
+    /** The key of a page the public wall is allowed to serve. */
+    findPublishedCardMediaKey(
+        cardNumber: number,
+        side: string
+    ): Promise<string | null>;
     listAdminCards(
         limit: number,
         offset: number,

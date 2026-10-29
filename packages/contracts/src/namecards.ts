@@ -217,6 +217,12 @@ export const namecardReactionRequestSchema = legacyStripRequestObject({
 })
 export const namecardReactionListQuerySchema = legacyStripRequestObject({ id: z.unknown() })
 export const compatibleNamecardIdParamsSchema = legacyStripRequestObject({ id: z.unknown() })
+/** Artwork routes carry the page handle (and the live/draft variant) in the path. */
+export const namecardMediaParamsSchema = legacyStripRequestObject({
+  id: z.unknown(),
+  side: z.unknown(),
+  variant: z.unknown().optional(),
+})
 export const namecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
   size: z.unknown().optional(),

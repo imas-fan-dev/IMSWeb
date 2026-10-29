@@ -3,43 +3,43 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "252e8850510252227bb216143f6857242af590a94fbf87bfb517371ee229d422",
+    "semanticDigest": "b21d1861ce3779cc5e40c81a2d4939c18f3f83bc9b91e95accfaf6309387cd61",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 264,
-    "carriers": 331,
+    "mountedMethodPaths": 267,
+    "carriers": 334,
     "reject": 67,
-    "acceptAndProject": 166,
+    "acceptAndProject": 169,
     "passthrough": 17,
     "nonObjectApplicable": 81
   },
   "counts": {
-    "mountedRegistrations": 363,
-    "mountedMethodPaths": 272,
+    "mountedRegistrations": 366,
+    "mountedMethodPaths": 275,
     "noInputRoutes": 91,
-    "requestCarriers": 355,
+    "requestCarriers": 358,
     "policies": {
       "reject": 68,
-      "accept-and-project": 189,
+      "accept-and-project": 192,
       "passthrough": 17,
       "non-object-applicable": 81
     },
     "responses": {
-      "total": 762,
-      "json": 692,
-      "nonJson": 70
+      "total": 769,
+      "json": 695,
+      "nonJson": 74
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 264,
-      "requestCarriers": 331,
+      "mountedMethodPaths": 267,
+      "requestCarriers": 334,
       "policies": {
         "reject": 67,
-        "accept-and-project": 166,
+        "accept-and-project": 169,
         "passthrough": 17,
         "non-object-applicable": 81
       }
@@ -117,9 +117,9 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 155,
+      "/api/admin": 157,
       "/api/card": 1,
-      "/api/cards": 1,
+      "/api/cards": 2,
       "/api/check": 1,
       "/api/chronicle": 2,
       "/api/community": 53,
@@ -2044,6 +2044,83 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/:id/diff",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleGetAdminNamecardDiff",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
+          "kind": "json",
+          "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
+          "kind": "json",
+          "expression": "{ error : \"Unable to read the namecard revisions\" } satisfies NamecardErrorResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/:id/media/:variant/:side",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleServeAdminNamecardMedia",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
+          "kind": "non-json",
+          "expression": "NAMECARD_MEDIA_NOT_FOUND"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
+          "kind": "non-json",
+          "expression": "NAMECARD_MEDIA_NOT_FOUND"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/cards/characters",
       "registration": {
         "file": "apps/api/src/domains/admin/namecard-characters/routes.ts"
@@ -3411,12 +3488,48 @@
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
           "kind": "json",
-          "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = await resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) ; const image2ThumbnailUrl = image2Url === null ? null : await resolveNamecardThumbnailUrl ( storage , card . image2_url as string , image2Url ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
+          "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = await resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) ; const image2ThumbnailUrl = image2Url === null ? null : await resolveNamecardThumbnailUrl ( storage , card . image2_url as string , image2Url ) ; const middleImageUrls = await Promise . all ( card . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl , middleImageUrls } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
           "kind": "json",
           "expression": "{ msg : \"\\u67E5\\u8BE2\\u5931\\u8D25\" } satisfies NamecardListErrorResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id/media/:side",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "handlerSymbol": "handleServePublicCardMedia",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
+          "kind": "non-json",
+          "expression": "NAMECARD_MEDIA_NOT_FOUND"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
+          "kind": "non-json",
+          "expression": "NAMECARD_MEDIA_NOT_FOUND"
         }
       ]
     },
@@ -15012,6 +15125,40 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/:id/diff",
+      "handlerSymbol": "handleGetAdminNamecardDiff",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/:id/media/:variant/:side",
+      "handlerSymbol": "handleServeAdminNamecardMedia",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/cards/characters",
       "handlerSymbol": "handleListAdminNamecardCharacters",
       "kind": "query",
@@ -15441,6 +15588,23 @@
         "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
       },
       "schemaSymbol": "namecardListQuerySchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id/media/:side",
+      "handlerSymbol": "handleServePublicCardMedia",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
       "schemaModule": "@imsweb/contracts/namecards",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
@@ -20980,6 +21144,46 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/:id/diff",
+      "handlerSymbol": "handleGetAdminNamecardDiff",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/:id/diff",
+      "handlerSymbol": "handleGetAdminNamecardDiff",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
+      "kind": "json",
+      "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/:id/diff",
+      "handlerSymbol": "handleGetAdminNamecardDiff",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
+      "kind": "json",
+      "expression": "{ error : \"Unable to read the namecard revisions\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/:id/media/:variant/:side",
+      "handlerSymbol": "handleServeAdminNamecardMedia",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
+      "kind": "non-json",
+      "expression": "NAMECARD_MEDIA_NOT_FOUND"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/:id/media/:variant/:side",
+      "handlerSymbol": "handleServeAdminNamecardMedia",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
+      "kind": "non-json",
+      "expression": "NAMECARD_MEDIA_NOT_FOUND"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/cards/characters",
       "handlerSymbol": "handleListAdminNamecardCharacters",
       "file": "apps/api/src/domains/admin/namecard-characters/handlers/list-characters.ts",
@@ -21552,7 +21756,7 @@
       "handlerSymbol": "handleListNamecards",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
       "kind": "json",
-      "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = await resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) ; const image2ThumbnailUrl = image2Url === null ? null : await resolveNamecardThumbnailUrl ( storage , card . image2_url as string , image2Url ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
+      "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = await resolveNamecardThumbnailUrl ( storage , card . image1_url , image1Url ) ; const image2ThumbnailUrl = image2Url === null ? null : await resolveNamecardThumbnailUrl ( storage , card . image2_url as string , image2Url ) ; const middleImageUrls = await Promise . all ( card . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl , middleImageUrls } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
     },
     {
       "method": "GET",
@@ -21561,6 +21765,22 @@
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
       "kind": "json",
       "expression": "{ msg : \"\\u67E5\\u8BE2\\u5931\\u8D25\" } satisfies NamecardListErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id/media/:side",
+      "handlerSymbol": "handleServePublicCardMedia",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
+      "kind": "non-json",
+      "expression": "NAMECARD_MEDIA_NOT_FOUND"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id/media/:side",
+      "handlerSymbol": "handleServePublicCardMedia",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
+      "kind": "non-json",
+      "expression": "NAMECARD_MEDIA_NOT_FOUND"
     },
     {
       "method": "GET",

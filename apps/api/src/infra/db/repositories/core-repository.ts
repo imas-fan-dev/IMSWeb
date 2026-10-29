@@ -439,13 +439,18 @@ export class SqlCoreRepository implements NamecardRepository {
         if (!cardIds.length) return grouped;
         const placeholders = cardIds.map(() => '?').join(', ');
         const result = await database.prepare(
-            `SELECT card_id, object_key FROM public.fudaba_card_media
-             WHERE card_id IN (${placeholders})
-             ORDER BY card_id, display_order`
-        ).bind(...cardIds).all<{ card_id: string; object_key: string }>();
+            `SELECT media.card_id, card.card_number FROM public.fudaba_card_media media
+             JOIN public.fudaba_cards card ON card.id = media.card_id
+             WHERE media.card_id IN (${placeholders})
+             ORDER BY media.card_id, media.display_order`
+        ).bind(...cardIds).all<{ card_id: string; card_number: number | string }>();
         for (const row of result.results) {
-            grouped.get(row.card_id)?.push(
-                namecardOriginalUrlFromObjectKey(row.object_key)
+            const group = grouped.get(row.card_id);
+            if (!group) continue;
+            // Middle pages live under the editor's object layout, which has no
+            // reversible public path, so they are served by card media route.
+            group.push(
+                `/api/cards/${Number(row.card_number)}/media/middle-${group.length + 1}`
             );
         }
         return grouped;
@@ -663,11 +668,11 @@ export class SqlCoreRepository implements NamecardRepository {
         );
         if (!row) return null;
         const cardId = row.internal_id;
-        const [favorites, series, credits, middle] = await Promise.all([
+        const [favorites, series, credits, middleKeys] = await Promise.all([
             this.listNamecardFavorites(this.database, [cardId]),
             this.listNamecardSeries(this.database, [cardId]),
             this.listNamecardCredits(this.database, [cardId]),
-            this.listNamecardMiddleMedia(this.database, [cardId])
+            this.listMiddleKeys(cardId)
         ]);
         const live: NamecardDiffSide = {
             producerName: row.producer_name ?? null,
@@ -682,11 +687,13 @@ export class SqlCoreRepository implements NamecardRepository {
             seriesCodes: series.get(cardId) ?? [],
             credits: credits.get(cardId) ?? [],
             favoriteCharacters: favorites.get(cardId) ?? [],
-            frontImageUrl: namecardOriginalUrlFromObjectKey(row.front_object_key),
+            frontImageUrl: this.adminMediaUrl(cardNumber, 'front'),
             backImageUrl: row.back_object_key
-                ? namecardOriginalUrlFromObjectKey(row.back_object_key)
+                ? this.adminMediaUrl(cardNumber, 'back')
                 : null,
-            middleImageUrls: middle.get(cardId) ?? []
+            middleImageUrls: middleKeys.map((_key, index) =>
+                this.adminMediaUrl(cardNumber, `middle-${index + 1}`)
+            )
         };
         const payload = row.review_status === 'pending'
             ? pendingNamecardPayload(row.pending_payload)
@@ -699,9 +706,73 @@ export class SqlCoreRepository implements NamecardRepository {
                 : null,
             live,
             pending: payload
-                ? await this.pendingDiffSide(row, payload, live.middleImageUrls)
+                ? await this.pendingDiffSide(row, payload, live, middleKeys)
                 : null
         };
+    }
+
+    /**
+     * Moderators read artwork through the admin media route: the stored keys of
+     * a submitted revision have no public URL to reverse.
+     */
+    private adminMediaUrl(cardNumber: number, side: string, draft = false): string {
+        return `/api/admin/cards/${cardNumber}/media/${draft ? 'draft' : 'live'}/${side}`;
+    }
+
+    /** Live middle-page keys in display order. */
+    private async listMiddleKeys(cardId: string): Promise<string[]> {
+        const stored = await queryAll<{ object_key: string }>(this.database,
+            `SELECT object_key FROM public.fudaba_card_media
+             WHERE card_id=? ORDER BY display_order`,
+            [cardId]
+        );
+        return stored.map((row) => row.object_key);
+    }
+
+    /** The object key behind one page of a card's artwork. */
+    findCardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean
+    ): Promise<string | null> {
+        return this.cardMediaKey(cardNumber, side, draft, false);
+    }
+
+    /** The same key, but only for a card the wall may show publicly. */
+    findPublishedCardMediaKey(
+        cardNumber: number,
+        side: string
+    ): Promise<string | null> {
+        return this.cardMediaKey(cardNumber, side, false, true);
+    }
+
+    private async cardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean,
+        publishedOnly: boolean
+    ): Promise<string | null> {
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND deleted_at IS NULL${
+                publishedOnly ? " AND publication_status='published'" : ''
+             }`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const middle = /^middle-(\d{1,2})$/.exec(side);
+        if (side === 'front') {
+            return ((draft ? row.pending_front_object_key : null) ?? row.front_object_key) ?? null;
+        }
+        if (side === 'back') {
+            return ((draft ? row.pending_back_object_key : null) ?? row.back_object_key) ?? null;
+        }
+        if (!middle) return null;
+        if (draft && row.pending_middle_object_keys?.length) {
+            return row.pending_middle_object_keys[Number(middle[1]) - 1] ?? null;
+        }
+        const keys = await this.listMiddleKeys(row.internal_id);
+        return keys[Number(middle[1]) - 1] ?? null;
     }
 
     private exchangeMode(value: unknown): 'auto' | 'manual' | 'none' {
@@ -711,10 +782,30 @@ export class SqlCoreRepository implements NamecardRepository {
     private async pendingDiffSide(
         row: NamecardCardRow,
         payload: NamecardPendingPayload,
-        liveMiddle: string[]
+        live: NamecardDiffSide,
+        liveMiddleKeys: string[]
     ): Promise<NamecardDiffSide> {
         const ids = payload.favorite_character_ids ?? [];
-        const backObjectKey = row.pending_back_object_key ?? row.back_object_key;
+        const cardNumber = Number(row.card_number);
+        const frontKey = row.pending_front_object_key ?? row.front_object_key;
+        const backKey = row.pending_back_object_key ?? row.back_object_key;
+        const middleKeys =
+            row.pending_middle_object_keys?.length
+                ? row.pending_middle_object_keys
+                : liveMiddleKeys;
+        // A page that kept its object keeps the live URL, so the diff compares
+        // equal strings and does not report an untouched image as changed.
+        const pageUrl = (
+            key: string | null,
+            liveKey: string | null,
+            liveUrl: string,
+            side: string
+        ) =>
+            key === null
+                ? null
+                : key === liveKey
+                  ? liveUrl
+                  : this.adminMediaUrl(cardNumber, side, true);
         return {
             producerName: payload.producer_name ?? row.producer_name ?? null,
             producerReading: this.payloadText(payload, 'producer_reading', row.producer_reading),
@@ -728,13 +819,18 @@ export class SqlCoreRepository implements NamecardRepository {
             seriesCodes: payload.series_codes ?? [],
             credits: payload.credits ?? [],
             favoriteCharacters: await this.listCharacterSelections(this.database, ids),
-            frontImageUrl: namecardOriginalUrlFromObjectKey(
-                row.pending_front_object_key ?? row.front_object_key
-            ),
-            backImageUrl: backObjectKey ? namecardOriginalUrlFromObjectKey(backObjectKey) : null,
-            middleImageUrls: row.pending_middle_object_keys?.length
-                ? row.pending_middle_object_keys.map((key) => namecardOriginalUrlFromObjectKey(key))
-                : liveMiddle
+            frontImageUrl:
+                pageUrl(frontKey, row.front_object_key, live.frontImageUrl, 'front') ??
+                live.frontImageUrl,
+            backImageUrl: pageUrl(backKey, row.back_object_key, live.backImageUrl ?? '', 'back'),
+            middleImageUrls: middleKeys.map((key, index) =>
+                pageUrl(
+                    key,
+                    liveMiddleKeys[index] ?? null,
+                    live.middleImageUrls[index] ?? '',
+                    `middle-${index + 1}`
+                ) ?? live.middleImageUrls[index] ?? ''
+            )
         };
     }
 

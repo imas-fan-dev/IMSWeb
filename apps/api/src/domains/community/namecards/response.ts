@@ -22,6 +22,9 @@ export type NamecardFavoriteCharacterResponse = NamecardFavoriteCharacterInput;
 export type PublicNamecardResponse = Namecard;
 export type AdminNamecardResponse = AdminNamecard;
 export type AdminNamecardDiffResponse = AdminNamecardDiff;
+/** Artwork routes answer with a bare 404: the page either exists or it does not. */
+export const NAMECARD_MEDIA_NOT_FOUND = 'Not Found';
+
 export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
 export type NamecardPageResponse = NamecardPage;
 export type AdminNamecardListResponse = AdminNamecardListContractResponse;
@@ -207,8 +210,9 @@ function diffSide(side: NamecardDiffSide): NamecardDiffSideResponse {
         producerReading: side.producerReading,
         groupName: side.groupName,
         madeOn: side.madeOn,
-        bio: side.bio,
-        tradeNote: side.tradeNote,
+        // Legacy rows carry empty strings; the diff contract speaks `null` for "not filled in".
+        bio: side.bio?.trim() ? side.bio : null,
+        tradeNote: side.tradeNote?.trim() ? side.tradeNote : null,
         isOriginal: side.isOriginal,
         madeWithAi: side.madeWithAi,
         exchangeMode: side.exchangeMode,

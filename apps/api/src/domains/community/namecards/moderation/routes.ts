@@ -4,11 +4,13 @@ import { handleGetAdminNamecardDiff } from "@/domains/community/namecards/modera
 import { handleListAdminNamecards } from "@/domains/community/namecards/moderation/handlers/list-admin-namecards";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
+import { handleServeAdminNamecardMedia } from "@/domains/community/namecards/moderation/handlers/serve-admin-namecard-media";
 import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/handlers/unlock-namecard";
 import {
     validateAdminNamecardListQuery,
     validateCompatibleNamecardIdParams,
     validateExpectedRevisionRequest,
+    validateNamecardMediaParams,
     validateRejectedNamecardRequest,
     validateLockedNamecardRequest,
 } from "@/domains/community/namecards/request";
@@ -18,6 +20,7 @@ import {
     expectedNamecardRevisionRequestSchema,
     flaggedNamecardRequestSchema,
     lockedNamecardRequestSchema,
+    namecardMediaParamsSchema,
     rejectedNamecardRequestSchema,
 } from "@imsweb/contracts/namecards";
 import {
@@ -57,6 +60,19 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         namecardIdValidator,
         handleGetAdminNamecardDiff,
+    );
+    // The diff dialog compares the live and submitted artwork, which is not
+    // public for a first submission.
+    routes.get(
+        "/:id/media/:variant/:side",
+        backofficeAuth,
+        opOnly,
+        paramSchemaValidator(
+            namecardMediaParamsSchema,
+            { invalidMessage: "名片 ID 无效" },
+            validateNamecardMediaParams,
+        ),
+        handleServeAdminNamecardMedia,
     );
     routes.post(
         "/approve/:id",
