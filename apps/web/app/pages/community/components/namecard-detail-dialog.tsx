@@ -311,6 +311,19 @@ function madeOnLabel(value: string | null): string {
     : NAMECARD_DATE_ONLY_FORMATTER.format(parsed)
 }
 
+type FieldFade = "none" | "top" | "bottom" | "both"
+
+function fieldFade(node: HTMLElement): FieldFade {
+  const overflowing = node.scrollHeight - node.clientHeight > 1
+  if (!overflowing) return "none"
+  const atTop = node.scrollTop <= 1
+  const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1
+  if (atTop && atBottom) return "none"
+  if (atTop) return "bottom"
+  if (atBottom) return "top"
+  return "both"
+}
+
 function FieldRow({
   label,
   children,
@@ -318,16 +331,45 @@ function FieldRow({
   label: string
   children: React.ReactNode
 }) {
+  const valueRef = useRef<HTMLDivElement>(null)
+  const [fade, setFade] = useState<FieldFade>("none")
+  // The readable height depends on the rendered text and on the scroll
+  // position, so measure on mount, on resize and on scroll. A native listener
+  // is used because scroll events do not bubble through the React root.
+  useEffect(() => {
+    const node = valueRef.current
+    if (!node) return
+    const measure = () => setFade(fieldFade(node))
+    measure()
+    node.addEventListener("scroll", measure, { passive: true })
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure)
+    observer?.observe(node)
+    return () => {
+      node.removeEventListener("scroll", measure)
+      observer?.disconnect()
+    }
+  }, [children])
   return (
     <div className="flex min-h-12 items-start gap-3 border-b border-border/50 py-2.5 last:border-b-0">
       <dt className="w-20 shrink-0 pt-px text-xs/5  text-muted-foreground">
         {label}
       </dt>
-      <dd className="card-field-scroll min-w-0 flex-1 text-sm/5 wrap-break-word">
+      <dd
+        ref={valueRef}
+        data-fade={fade}
+        className="card-field-scroll min-w-0 flex-1 text-sm/5 wrap-break-word"
+      >
         {children}
       </dd>
     </div>
   )
+}
+
+function hasText(value: string | null | undefined) {
+  return Boolean(value && value.trim())
 }
 
 function EmptyDash() {
@@ -457,9 +499,21 @@ export function NamecardDetailDialog({
             ) : card?.claimStatus === "pending" ? (
               <Badge variant="outline">认领审核中</Badge>
             ) : null}
-            {card?.isOriginal ? <Badge variant="secondary">原创</Badge> : null}
+            {card?.isOriginal ? (
+              <Badge
+                variant="secondary"
+                className="border-success/40 bg-success/15 text-success"
+              >
+                原创
+              </Badge>
+            ) : null}
             {card?.madeWithAi ? (
-              <Badge variant="secondary">AI 生成</Badge>
+              <Badge
+                variant="secondary"
+                className="border-warning/40 bg-warning/15 text-warning-foreground"
+              >
+                AI 生成
+              </Badge>
             ) : null}
             {submitted ? (
               <span className="ml-auto whitespace-nowrap">
@@ -569,7 +623,7 @@ export function NamecardDetailDialog({
                     {card ? madeOnLabel(card.madeOn) : <EmptyDash />}
                   </FieldRow>
                   <FieldRow label="所属团体">
-                    {card?.groupName ?? <EmptyDash />}
+                    {hasText(card?.groupName) ? card?.groupName : <EmptyDash />}
                   </FieldRow>
                   <FieldRow label="制作人员">
                     {card?.credits.length ? (
@@ -644,16 +698,18 @@ export function NamecardDetailDialog({
                       <EmptyDash />
                     )}
                   </FieldRow>
-                  <FieldRow label="简介">{card?.bio ?? <EmptyDash />}</FieldRow>
+                  <FieldRow label="简介">
+                    {hasText(card?.bio) ? card?.bio : <EmptyDash />}
+                  </FieldRow>
                   <FieldRow label="交换说明">
-                    {card?.tradeNote ?? <EmptyDash />}
+                    {hasText(card?.tradeNote) ? card?.tradeNote : <EmptyDash />}
                   </FieldRow>
               </dl>
             </div>
           </div>
 
         </DialogBody>
-        <DialogFooter className="mt-1 flex-nowrap justify-end gap-2 overflow-x-auto border-t bg-transparent p-0">
+        <DialogFooter className="flex-nowrap justify-end gap-2 overflow-x-auto border-t bg-transparent">
             {card?.canEdit ? (
               <Button
                 type="button"
@@ -685,7 +741,7 @@ export function NamecardDetailDialog({
               <Button
                 type="button"
                 variant="secondary"
-                className="min-h-11"
+                className="min-h-11 bg-foreground text-background hover:bg-foreground/85"
                 disabled={!canClaim}
                 onClick={() => {
                   if (card) onClaim(card)

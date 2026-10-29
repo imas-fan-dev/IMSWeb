@@ -136,15 +136,46 @@
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* Only the side that still hides content gets the fade, so the reader can
+   tell whether the list continues up, down or both ways. */
+.card-field-scroll[data-fade="top"] {
+  mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 1) 1.5rem);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem
+  );
+}
+
+.card-field-scroll[data-fade="bottom"] {
   mask-image: linear-gradient(
     to top,
-    rgba(0, 0, 0, 1) 75%,
-    rgba(0, 0, 0, 0) 100%
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem
   );
   -webkit-mask-image: linear-gradient(
     to top,
-    rgba(0, 0, 0, 1) 75%,
-    rgba(0, 0, 0, 0) 100%
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem
+  );
+}
+
+.card-field-scroll[data-fade="both"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem,
+    rgba(0, 0, 0, 1) calc(100% - 1.5rem),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem,
+    rgba(0, 0, 0, 1) calc(100% - 1.5rem),
+    transparent 100%
   );
 }
 
