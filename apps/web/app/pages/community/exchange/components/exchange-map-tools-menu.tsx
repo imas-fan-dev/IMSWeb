@@ -18,6 +18,7 @@ import { useSafeAreaCollisionBoundary } from "~/components/ui/use-safe-area-coll
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { useExchangeMapActions } from "./exchange-map-actions"
+import "./exchange-map-tools-menu.css"
 
 interface ExchangeMapToolsMenuProps {
   filterAnchorRef?: RefObject<HTMLElement | null>
@@ -114,7 +115,7 @@ export function ExchangeMapToolsMenu({
             ref={trigger}
             variant="secondary"
             className={cn(
-              "relative size-11 shrink-0 rounded-full",
+              "exchange-map-tools-trigger relative size-11 shrink-0 rounded-full",
               triggerClassName
             )}
             aria-label="更多地图工具"
@@ -122,7 +123,10 @@ export function ExchangeMapToolsMenu({
           />
         }
       >
-        <MoreHorizontalIcon aria-hidden="true" />
+        <MoreHorizontalIcon
+          className="exchange-map-tools-icon"
+          aria-hidden="true"
+        />
         {filterApplied ? (
           <span
             aria-hidden="true"

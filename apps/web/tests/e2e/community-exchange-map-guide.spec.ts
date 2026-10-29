@@ -9,6 +9,93 @@ import {
 
 test.use({ mapGuide: "new" })
 
+test("animates map tools opening and closing, reverses cleanly and respects reduced motion @mobile @firefox", async ({
+  page,
+  api,
+}, testInfo) => {
+  installMapGuideScene(api)
+  await page.emulateMedia({
+    reducedMotion: "no-preference",
+    colorScheme: "dark",
+  })
+  await page.goto("/community/exchange")
+  await expectGuideGeometry(page, 0)
+  await page.getByRole("dialog").getByRole("button", { name: "跳过" }).click()
+  const more = page.getByRole("button", { name: "更多地图工具" })
+  const menu = page.locator(".exchange-map-tools-menu")
+  const sample = () =>
+    page.evaluate(
+      () =>
+        new Promise<{ opacity: number | null; ending: boolean }[]>(
+          (resolve) => {
+            const frames: { opacity: number | null; ending: boolean }[] = []
+            const capture = () => {
+              const popup = document.querySelector(".exchange-map-tools-menu")
+              frames.push({
+                opacity: popup ? Number(getComputedStyle(popup).opacity) : null,
+                ending: popup?.hasAttribute("data-ending-style") ?? false,
+              })
+              if (frames.length === 16) resolve(frames)
+              else requestAnimationFrame(capture)
+            }
+            requestAnimationFrame(capture)
+          }
+        )
+    )
+  const opening = sample()
+  await more.click()
+  const openFrames = await opening
+  await expect(menu).toHaveCSS("opacity", "1")
+  expect(
+    openFrames.some(
+      (frame) =>
+        frame.opacity !== null && frame.opacity > 0 && frame.opacity < 1
+    )
+  ).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath("map-tools-open.png") })
+  const closing = sample()
+  await more.click()
+  const closeFrames = await closing
+  expect(
+    closeFrames.some(
+      (frame) =>
+        frame.ending &&
+        frame.opacity !== null &&
+        frame.opacity > 0 &&
+        frame.opacity < 1
+    )
+  ).toBe(true)
+  await expect(menu).toHaveCount(0)
+  await more.click()
+  await expect(menu).toHaveCSS("opacity", "1")
+  await more.click()
+  await expect(more).toHaveAttribute("aria-expanded", "false")
+  await expect(menu).toHaveAttribute("data-ending-style", "")
+  await more.click()
+  await expect(more).toHaveAttribute("aria-expanded", "true")
+  await expect(menu).toHaveCount(1)
+  await expect(menu).toHaveCSS("opacity", "1")
+  await more.click()
+  await expect(menu).toHaveCount(0)
+  await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" })
+  await more.click()
+  await expect(menu).toHaveCSS("opacity", "1")
+  await expect(menu).toHaveCSS("transform", "none")
+  await expect(menu).toHaveCSS("transition-duration", "0s")
+  await expect(more.locator("svg")).toHaveCSS("transition-duration", "0s")
+  await page.keyboard.press("Escape")
+  await expect(menu).toHaveCount(0)
+  await expect(more).toBeFocused()
+  await testInfo.attach("map-tools-animation-frames", {
+    body: JSON.stringify(
+      { opening: openFrames, closing: closeFrames },
+      null,
+      2
+    ),
+    contentType: "application/json",
+  })
+})
+
 test("moves from the center to each target without accidental dismissal @mobile @firefox", async ({
   page,
   api,
