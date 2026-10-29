@@ -55,8 +55,9 @@ test("App guide adapts to safe areas and short screens without motion @app-iphon
   api,
 }, testInfo) => {
   installMapGuideScene(api)
-  await page.emulateMedia({ reducedMotion: "reduce" })
+  await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" })
   await page.goto("/community/exchange")
+  await expect(page.locator("html")).toHaveClass(/dark/)
   await expectGuideGeometry(page, 0)
   await page.evaluate(() => {
     document.documentElement.style.setProperty("--safe-area-top", "47px")
@@ -69,6 +70,55 @@ test("App guide adapts to safe areas and short screens without motion @app-iphon
     if (step) await card.getByRole("button", { name: "下一步" }).click()
     await expectGuideGeometry(page, step)
   }
+  const contrast = await page
+    .locator(".exchange-map-tools-menu")
+    .evaluate((menu) => {
+      const context = document.createElement("canvas").getContext("2d")!
+      function rgba(color: string) {
+        context.clearRect(0, 0, 1, 1)
+        context.fillStyle = color
+        context.fillRect(0, 0, 1, 1)
+        return Array.from(context.getImageData(0, 0, 1, 1).data)
+      }
+      const css = getComputedStyle(menu)
+      const background = rgba(css.backgroundColor),
+        foreground = rgba(css.color)
+      const luminance = (color: number[]) =>
+        color
+          .map((channel) => {
+            const value = channel / 255
+            return value <= 0.04045
+              ? value / 12.92
+              : ((value + 0.055) / 1.055) ** 2.4
+          })
+          .reduce(
+            (total, channel, i) =>
+              total + channel * [0.2126, 0.7152, 0.0722][i],
+            0
+          )
+      return Math.min(
+        ...[0, 255].map((underlay) => {
+          const bg = background
+            .slice(0, 3)
+            .map(
+              (channel) =>
+                (channel * background[3]) / 255 +
+                underlay * (1 - background[3] / 255)
+            )
+          const fg = foreground
+            .slice(0, 3)
+            .map(
+              (channel, i) =>
+                (channel * foreground[3]) / 255 +
+                bg[i] * (1 - foreground[3] / 255)
+            )
+          const a = luminance(bg),
+            b = luminance(fg)
+          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+        })
+      )
+    })
+  expect(contrast).toBeGreaterThanOrEqual(4.5)
   await expect(card).toHaveCSS("transition-duration", "0s")
   await page.setViewportSize({ width: 390, height: 300 })
   await expectGuideGeometry(page, 5)

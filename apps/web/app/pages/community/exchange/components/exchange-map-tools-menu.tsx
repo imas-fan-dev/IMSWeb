@@ -149,10 +149,10 @@ export function ExchangeMapToolsMenu({
                 : false
             }
             className={cn(
-              "exchange-map-tools-menu max-h-[min(420px,var(--available-height),calc(100dvh-24px))] w-60 max-w-[calc(100vw-24px)] overflow-y-auto border bg-popover text-popover-foreground shadow-lg outline-none",
+              "exchange-map-tools-menu max-h-[min(420px,var(--available-height),calc(100dvh-24px))] w-60 max-w-[calc(100vw-24px)] overflow-y-auto border shadow-lg outline-none",
               IS_APP_TARGET
                 ? "exchange-map-app-surface rounded-3xl p-2 text-foreground"
-                : "rounded-xl p-1.5"
+                : "rounded-xl bg-popover p-1.5 text-popover-foreground"
             )}
           >
             <Menu.Item
