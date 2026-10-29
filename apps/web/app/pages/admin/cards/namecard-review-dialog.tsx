@@ -1,4 +1,9 @@
-import { LoaderCircleIcon } from "lucide-react"
+import {
+  CheckIcon,
+  LoaderCircleIcon,
+  LockIcon,
+  XIcon,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Button } from "~/components/ui/button"
@@ -254,6 +259,7 @@ export function NamecardReviewDialog({
               if (card) onApprove(card)
             }}
           >
+            <CheckIcon data-icon="inline-start" aria-hidden="true" />
             通过
           </Button>
           <Button
@@ -265,16 +271,19 @@ export function NamecardReviewDialog({
               if (card) onReject(card)
             }}
           >
+            <XIcon data-icon="inline-start" aria-hidden="true" />
             驳回
           </Button>
           <Button
             type="button"
-            className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            variant="destructive"
+            className="min-h-11"
             disabled={!card || card.status === "locked"}
             onClick={() => {
               if (card) onLock(card)
             }}
           >
+            <LockIcon data-icon="inline-start" aria-hidden="true" />
             锁定
           </Button>
         </DialogFooter>

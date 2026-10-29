@@ -1,6 +1,5 @@
 import { useState } from "react"
 
-import { NavigationLink } from "~/components/navigation/navigation-link"
 import { cn } from "~/lib/utils"
 
 interface NamecardMediaPreviewProps {
@@ -42,11 +41,8 @@ export function NamecardMediaPreview({
       data-namecard-orientation={portrait ? "portrait" : "landscape"}
     >
       {[...images].map((image, index) => (
-        <NavigationLink
+        <div
           key={`${image}-${index}`}
-          href={image}
-          target="_blank"
-          rel="noreferrer"
           className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden"
         >
           <img
@@ -63,7 +59,7 @@ export function NamecardMediaPreview({
               }
             }}
           />
-        </NavigationLink>
+        </div>
       ))}
     </div>
   )
