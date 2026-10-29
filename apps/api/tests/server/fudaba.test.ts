@@ -25,6 +25,7 @@ import { toPublicNamecardResponse } from '@/domains/community/namecards/response
 import { PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_CSRF_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';
 import type { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
@@ -9410,6 +9411,177 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 media('m1')
             ]);
             assert.equal(reordered.card.revision, first.card.revision + 1);
+        });
+
+        postgresTest('real PostgreSQL lets the backoffice rewrite, transfer and remove a card', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-admin-owner';
+            const nextId = 'postgresql-admin-next';
+            const blockedId = 'postgresql-admin-blocked';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            await fixture.platform.createAccountWithProfile(account(nextId));
+            await fixture.platform.createAccountWithProfile(account(blockedId));
+            const postgres = fixture.database as PostgresConnection;
+            await postgres.pool.query(
+                "UPDATE platform_accounts SET status = 'suspended' WHERE id = $1",
+                [blockedId]
+            );
+            const cardId = 'postgresql-admin-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const core = new SqlCoreRepository(
+                fixture.database,
+                new PostgresqlSchemaStrategy()
+            );
+            await core.initialize();
+
+            const cardNumber = created.card.card_number;
+            const content = {
+                producerName: '修正后的制作人',
+                producerReading: 'しゅうせい',
+                groupName: null,
+                madeOn: null,
+                bio: '修正后的简介',
+                tradeNote: '可交换',
+                isOriginal: false,
+                madeWithAi: false,
+                visible: true,
+                exchangeMode: 'auto' as const,
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [900_001],
+                credits: []
+            };
+            const submission = {
+                ownerAccountId: undefined,
+                status: 'published' as const,
+                reviewStatus: null,
+                content,
+                mediaOrder: ['#0', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            };
+            const saved = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: created.card.revision,
+                reason: '修正录入错误'
+            });
+            assert.equal(saved.status, 'updated');
+            if (saved.status !== 'updated') return;
+            assert.equal(saved.revision, created.card.revision + 1);
+            assert.deepEqual(
+                saved.changedFields.map((change) => change.label),
+                ['制作人名称', '制作人读音', '简介', '交换说明', '交换模式', '名片状态']
+            );
+            const stored = (await postgres.pool.query(
+                'SELECT producer_name, publication_status, review_status, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows as Array<Record<string, unknown>>;
+            assert.equal(stored[0]?.producer_name, '修正后的制作人');
+            assert.equal(stored[0]?.publication_status, 'published');
+            assert.equal(stored[0]?.review_status, null);
+            assert.equal(stored[0]?.pending_payload, null);
+
+            // A verdict without a queued revision is seeded from the submitted
+            // content, so the pending columns always describe one revision.
+            const reviewed = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: saved.revision,
+                reason: '复核不通过',
+                reviewStatus: 'rejected'
+            });
+            assert.equal(reviewed.status, 'updated');
+            if (reviewed.status !== 'updated') return;
+            const judged = (await postgres.pool.query(
+                'SELECT review_status, review_reason, pending_front_object_key, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows as Array<Record<string, unknown>>;
+            assert.equal(judged[0]?.review_status, 'rejected');
+            assert.equal(judged[0]?.review_reason, '复核不通过');
+            assert.equal(
+                judged[0]?.pending_front_object_key,
+                `community/fudaba/cards/${cardId}/front.webp`
+            );
+            assert.ok(judged[0]?.pending_payload !== null);
+
+            // Rewriting nothing needs no reason; rewriting something does.
+            const unchanged = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: null,
+                reviewStatus: 'rejected'
+            });
+            assert.equal(unchanged.status, 'updated');
+            if (unchanged.status !== 'updated') return;
+            assert.deepEqual(unchanged.changedFields, []);
+            assert.equal(unchanged.revision, reviewed.revision);
+
+            const reasonless = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: '   ',
+                content: { ...content, bio: '又被改了一次' }
+            });
+            assert.equal(reasonless.status, 'reason-required');
+
+            const blocked = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: '原持有人离站',
+                ownerAccountId: blockedId
+            });
+            assert.equal(blocked.status, 'invalid-owner');
+
+            const moved = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: '原持有人离站',
+                ownerAccountId: nextId
+            });
+            assert.equal(moved.status, 'updated');
+            if (moved.status !== 'updated') return;
+            assert.deepEqual(moved.ownerChange, {
+                previousAccountId: ownerId,
+                nextAccountId: nextId
+            });
+
+            const notices = (await postgres.pool.query(
+                'SELECT recipient_account_id, kind, body FROM public.namecard_notifications ORDER BY created_at, kind'
+            )).rows as Array<Record<string, unknown>>;
+            // Every notice of one transaction shares its timestamp, so the
+            // comparison is by recipient and kind rather than by insertion order.
+            assert.deepEqual(
+                notices
+                    .map((row) => `${String(row.recipient_account_id)}:${String(row.kind)}`)
+                    .sort(),
+                [
+                    // The field rewrite and the later verdict each told the owner.
+                    `${ownerId}:card-admin-edited`,
+                    `${ownerId}:card-admin-edited`,
+                    `${ownerId}:card-transferred-out`,
+                    `${nextId}:card-admin-edited`,
+                    `${nextId}:card-transferred-in`
+                ].sort()
+            );
+            assert.match(String(notices[0]!.body), /简介/);
+            assert.match(String(notices[0]!.body), /修正录入错误/);
+
+            const removed = await core.deleteCardAsAdmin(cardNumber, moved.revision);
+            assert.equal(removed.status, 'updated');
+            if (removed.status !== 'updated') return;
+            const queue = await core.listAdminCards(50, 0);
+            assert.ok(!queue.some((row) => row.id === cardNumber));
+            assert.equal(
+                (await core.deleteCardAsAdmin(cardNumber, removed.revision)).status,
+                'not-found'
+            );
         });
 
         postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {

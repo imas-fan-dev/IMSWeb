@@ -3,43 +3,43 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "5020539ebbebcd50e3a2e83fd8d6ffe6c2358568936da0c1a121a9bc4cc6e9cb",
+    "semanticDigest": "915a040dffc27942d8de0577ae9c54624a01e2adbd016ab5d9fbf6e8b9cf01dd",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 267,
-    "carriers": 334,
-    "reject": 67,
-    "acceptAndProject": 169,
+    "mountedMethodPaths": 269,
+    "carriers": 338,
+    "reject": 69,
+    "acceptAndProject": 171,
     "passthrough": 17,
     "nonObjectApplicable": 81
   },
   "counts": {
-    "mountedRegistrations": 366,
-    "mountedMethodPaths": 275,
+    "mountedRegistrations": 368,
+    "mountedMethodPaths": 277,
     "noInputRoutes": 91,
-    "requestCarriers": 358,
+    "requestCarriers": 362,
     "policies": {
-      "reject": 68,
-      "accept-and-project": 192,
+      "reject": 70,
+      "accept-and-project": 194,
       "passthrough": 17,
       "non-object-applicable": 81
     },
     "responses": {
-      "total": 769,
-      "json": 695,
+      "total": 778,
+      "json": 704,
       "nonJson": 74
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 267,
-      "requestCarriers": 334,
+      "mountedMethodPaths": 269,
+      "requestCarriers": 338,
       "policies": {
-        "reject": 67,
-        "accept-and-project": 169,
+        "reject": 69,
+        "accept-and-project": 171,
         "passthrough": 17,
         "non-object-applicable": 81
       }
@@ -117,7 +117,7 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 157,
+      "/api/admin": 159,
       "/api/card": 1,
       "/api/cards": 2,
       "/api/check": 1,
@@ -265,6 +265,61 @@
           "file": "apps/api/src/domains/content/editorial/assets/handlers/delete-article-asset.ts",
           "kind": "json",
           "expression": "{ success : true } satisfies EditorialMutationResponse"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/:id",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleDeleteAdminNamecard",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardDeleteRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ success : false , error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ success : true , revision : result . revision } satisfies NamecardMutationResponse"
         }
       ]
     },
@@ -12419,6 +12474,76 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ success : false , error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u8BF7\\u586B\\u5199\\u4FEE\\u6539\\u7406\\u7531\" , field : \"reason\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : result . message } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+          "kind": "json",
+          "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+          "kind": "json",
+          "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/chronicle/:id",
       "registration": {
         "file": "apps/api/src/domains/content/editorial/chronicle/routes.ts"
@@ -14291,6 +14416,40 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleDeleteAdminNamecard",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleDeleteAdminNamecard",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardDeleteRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "DELETE",
@@ -19457,6 +19616,40 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/chronicle/:id",
       "handlerSymbol": "handleUpdateChronicleEntry",
       "kind": "param",
@@ -20365,6 +20558,30 @@
       "file": "apps/api/src/domains/content/editorial/assets/handlers/delete-article-asset.ts",
       "kind": "json",
       "expression": "{ success : true } satisfies EditorialMutationResponse"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleDeleteAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleDeleteAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ success : false , error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleDeleteAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/delete-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ success : true , revision : result . revision } satisfies NamecardMutationResponse"
     },
     {
       "method": "DELETE",
@@ -25301,6 +25518,54 @@
       "file": "apps/api/src/domains/content/about/handlers/update-about-page.ts",
       "kind": "json",
       "expression": "{ error : status > = 500 ? \"\\u5173\\u4E8E\\u9875\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) } satisfies AboutMutationErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ success : false , error : \"Namecard changed; refresh and retry\" , revision : result . revision } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u8BF7\\u586B\\u5199\\u4FEE\\u6539\\u7406\\u7531\" , field : \"reason\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : result . message } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+      "kind": "json",
+      "expression": "{ error : \"Namecard not found\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/cards/:id",
+      "handlerSymbol": "handleUpdateAdminNamecard",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
+      "kind": "json",
+      "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
     },
     {
       "method": "PUT",

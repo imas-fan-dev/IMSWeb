@@ -10,7 +10,10 @@ export type NamecardNotificationCopyKind =
     | 'card-approved'
     | 'card-rejected'
     | 'card-locked'
-    | 'card-unlocked';
+    | 'card-unlocked'
+    | 'card-transferred-out'
+    | 'card-transferred-in'
+    | 'card-admin-edited';
 
 export interface NamecardNotificationCopy {
     kind: NamecardNotificationCopyKind;
@@ -87,4 +90,63 @@ export function cardRevisionFlaggedCopy(
         title: `名片 #${cardNumber} 的新版本已被标记违规`,
         body: `你的名片 #${cardNumber} 的新版本因违规被拒绝。理由：${reason}。此前已发布的版本仍然有效。`
     };
+}
+
+
+/**
+ * The management console rewrote the card. The owner gets a line per changed
+ * field, because "an administrator edited your card" alone leaves them guessing
+ * what to fix.
+ */
+export function cardAdminEditedCopy(
+    cardNumber: number,
+    reason: string,
+    changes: readonly { label: string; before: string | null; after: string | null }[]
+): NamecardNotificationCopy {
+    const lines = changes
+        .slice(0, ADMIN_EDIT_NOTIFICATION_LIMIT)
+        .map((change) => `- ${change.label}：${clip(change.before)} → ${clip(change.after)}`);
+    const overflow = changes.length - lines.length;
+    if (overflow > 0) lines.push(`- 另有 ${overflow} 项改动`);
+    return {
+        kind: 'card-admin-edited',
+        title: `名片 #${cardNumber} 已被管理员修改`,
+        body: clip(
+            `你的名片 #${cardNumber} 已被管理员修改。理由：${reason}。\n修改内容：\n${lines.join('\n')}`,
+            ADMIN_EDIT_NOTIFICATION_BODY_LIMIT
+        )
+    };
+}
+
+/** The card moved to another account: the previous owner is told why. */
+export function cardTransferredOutCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-transferred-out',
+        title: `名片 #${cardNumber} 已转出`,
+        body: `你的名片 #${cardNumber} 已被管理员转移到其他账号。理由：${reason}。`
+    };
+}
+
+/** …and the new owner learns where the card came from. */
+export function cardTransferredInCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-transferred-in',
+        title: `名片 #${cardNumber} 已归入你的账号`,
+        body: `名片 #${cardNumber} 已由管理员归入你的账号。理由：${reason}。`
+    };
+}
+
+const ADMIN_EDIT_NOTIFICATION_LIMIT = 12;
+const ADMIN_EDIT_NOTIFICATION_BODY_LIMIT = 3800;
+
+function clip(value: string | null, limit = 120): string {
+    const text = (value ?? '').replace(/\s+/g, ' ').trim();
+    if (!text.length) return '（空）';
+    return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }

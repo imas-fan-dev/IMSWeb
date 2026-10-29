@@ -21,6 +21,9 @@ export type NamecardNotificationKind =
     | 'card-unlocked'
     | 'claim-approved'
     | 'claim-rejected'
+    | 'card-transferred-out'
+    | 'card-transferred-in'
+    | 'card-admin-edited'
     | 'station-message';
 
 export interface NamecardNotificationRow {

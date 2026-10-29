@@ -9,11 +9,15 @@ import {
 } from "./common.js"
 import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
+  fudabaCardFieldsRequestSchema,
   namecardCreditSchema,
   namecardReactionEmojiSchema,
   type NamecardCredit,
 } from "./fudaba/index.js"
-import { NAMECARD_CREDIT_LIMIT } from "./fudaba/namecard-runtime.js"
+import {
+  NAMECARD_CREDIT_LIMIT,
+  NAMECARD_MIDDLE_IMAGE_LIMIT,
+} from "./fudaba/namecard-runtime.js"
 
 export const cardIdSchema = z.number().int().positive()
 
@@ -96,10 +100,42 @@ export const namecardDiffSideSchema = z
   })
   .strict()
 
+/** The lifecycle column, verbatim; `status` above stays in the legacy
+ * vocabulary the review badges read. */
+export const namecardLifecycleStatusSchema = z.enum([
+  "draft",
+  "pending",
+  "approving",
+  "published",
+  "hidden",
+  "rejected",
+  "withdrawn",
+  "locked",
+])
+
+export const namecardReviewStatusSchema = z.enum([
+  "pending",
+  "rejected",
+  "locked",
+])
+
+/**
+ * Addresses one page of the live artwork: `#0` is the front, `#n-1` the back.
+ * The admin console may reorder or drop pages but never adds new artwork.
+ */
+export const namecardMediaSlotTokenSchema = z.string().regex(/^#\d{1,2}$/)
+
 export const adminNamecardDiffSchema = exactJsonResponse({
   id: cardIdSchema,
   status: z.string(),
-  reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
+  publicationStatus: namecardLifecycleStatusSchema,
+  reviewStatus: namecardReviewStatusSchema.nullable(),
+  revision: z.number().int().nonnegative(),
+  /** The account the card belongs to; null for an unclaimed row. */
+  ownerAccountId: z.string().min(1).nullable(),
+  ownerDisplayName: z.string().min(1).nullable(),
+  lockReason: z.string().min(1).nullable(),
+  reviewReason: z.string().min(1).nullable(),
   live: namecardDiffSideSchema,
   /** The revision waiting for review; null when nothing is queued. */
   pending: namecardDiffSideSchema.nullable(),
@@ -188,6 +224,33 @@ export type AdminNamecardListInput = z.input<typeof adminNamecardListSchema>
 export const adminNamecardMutationSchema = successEnvelope({
   revision: z.number().int().nonnegative(),
 })
+
+/**
+ * The management window always submits the whole card, so the API can diff it
+ * against the live copy and tell the owner exactly what changed.
+ *
+ * `ownerAccountId` is omitted to keep the current owner and `null` to clear it;
+ * `reason` is required whenever the submission changes anything.
+ */
+export const adminNamecardUpdateRequestSchema = fudabaCardFieldsRequestSchema
+  .extend({
+    expected_revision: z.number().int().nonnegative(),
+    reason: z.string().trim().max(400).nullable(),
+    ownerAccountId: z.string().trim().min(1).max(128).nullable().optional(),
+    status: namecardLifecycleStatusSchema,
+    review_status: namecardReviewStatusSchema.nullable(),
+    media_order: z
+      .array(namecardMediaSlotTokenSchema)
+      .min(1)
+      .max(2 + NAMECARD_MIDDLE_IMAGE_LIMIT),
+  })
+  .strict()
+
+export const adminNamecardDeleteRequestSchema = z
+  .object({
+    expected_revision: z.number().int().nonnegative(),
+  })
+  .strict()
 export const namecardDetailResponseSchema = exactJsonResponse({
   image1_url: z.string().min(1),
   image2_url: z.string().min(1).nullable(),
@@ -262,6 +325,8 @@ export const expectedNamecardRevisionQuerySchema = legacyStripRequestObject({
 })
 export const namecardErrorResponseSchema = z.union([
   exactJsonError({ error: z.string() }),
+  /** The backoffice points the operator at the field that failed. */
+  exactJsonError({ error: z.string(), field: z.literal("reason") }),
   exactJsonError({ msg: z.string() }),
   exactJsonError({ success: z.literal(false) }),
   exactJsonError({ success: z.literal(false), error: z.string() }),
@@ -273,6 +338,16 @@ export const adminNamecardHttpErrorSchema = z.union([
 ])
 
 export type AdminNamecardMutation = z.infer<typeof adminNamecardMutationSchema>
+export type AdminNamecardUpdateRequest = z.infer<
+  typeof adminNamecardUpdateRequestSchema
+>
+export type AdminNamecardDeleteRequest = z.infer<
+  typeof adminNamecardDeleteRequestSchema
+>
+export type NamecardLifecycleStatus = z.infer<
+  typeof namecardLifecycleStatusSchema
+>
+export type NamecardReviewStatus = z.infer<typeof namecardReviewStatusSchema>
 export type NamecardDetailResponse = z.infer<typeof namecardDetailResponseSchema>
 export type NamecardEmptyResponse = z.infer<typeof namecardEmptyResponseSchema>
 export type NamecardListErrorResponse = z.infer<typeof namecardListErrorResponseSchema>

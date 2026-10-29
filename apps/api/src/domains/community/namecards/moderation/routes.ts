@@ -1,13 +1,17 @@
 import { handleApproveNamecard } from "@/domains/community/namecards/moderation/handlers/approve-namecard";
 import { handleFlagNamecard } from "@/domains/community/namecards/moderation/handlers/flag-namecard";
+import { handleDeleteAdminNamecard } from "@/domains/community/namecards/moderation/handlers/delete-admin-namecard";
 import { handleGetAdminNamecardDiff } from "@/domains/community/namecards/moderation/handlers/get-admin-namecard-diff";
 import { handleListAdminNamecards } from "@/domains/community/namecards/moderation/handlers/list-admin-namecards";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
 import { handleServeAdminNamecardMedia } from "@/domains/community/namecards/moderation/handlers/serve-admin-namecard-media";
 import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/handlers/unlock-namecard";
+import { handleUpdateAdminNamecard } from "@/domains/community/namecards/moderation/handlers/update-admin-namecard";
 import {
+    validateAdminNamecardDeleteRequest,
     validateAdminNamecardListQuery,
+    validateAdminNamecardUpdateRequest,
     validateCompatibleNamecardIdParams,
     validateExpectedRevisionRequest,
     validateNamecardMediaParams,
@@ -15,7 +19,9 @@ import {
     validateLockedNamecardRequest,
 } from "@/domains/community/namecards/request";
 import {
+    adminNamecardDeleteRequestSchema,
     adminNamecardListQuerySchema,
+    adminNamecardUpdateRequestSchema,
     compatibleNamecardIdParamsSchema,
     expectedNamecardRevisionRequestSchema,
     flaggedNamecardRequestSchema,
@@ -122,6 +128,29 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         namecardIdValidator,
         jsonSchemaValidator(expectedNamecardRevisionRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionRequest),
         handleUnlockNamecard,
+    );
+    // The management window rewrites the live card in one request: fields,
+    // artwork order, both review columns and the owner. It is the only place
+    // that may move a card between accounts.
+    routes.put(
+        "/:id",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        namecardIdValidator,
+        jsonSchemaValidator(adminNamecardUpdateRequestSchema, { invalidMessage: "card content is invalid" }, validateAdminNamecardUpdateRequest),
+        handleUpdateAdminNamecard,
+    );
+    // Removal stamps `deleted_at`, which every read path already filters, so the
+    // card leaves the queue, the wall and the owner's list at once.
+    routes.delete(
+        "/:id",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        namecardIdValidator,
+        jsonSchemaValidator(adminNamecardDeleteRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateAdminNamecardDeleteRequest),
+        handleDeleteAdminNamecard,
     );
     return routes;
 }

@@ -3,6 +3,10 @@ import type { AppEnvironment } from "@/app";
 import { services } from "@/middleware/hono-context";
 import type { UploadedFile } from "@/ports/http";
 import type { ValidatedRequestInput } from "@/middleware/request-validation";
+import type {
+    AdminNamecardDeleteRequest,
+    AdminNamecardUpdateRequest,
+} from "@imsweb/contracts/namecards";
 import {
     canonicalPositiveInteger,
     positiveInteger,
@@ -65,6 +69,24 @@ export type NamecardLockContext = Context<
     string,
     ValidatedRequestInput<"param", CompatibleNamecardIdParams> &
         ValidatedRequestInput<"json", LockedNamecardRequest>
+>;
+
+/**
+ * The management window submits the whole card, so the context carries the
+ * parsed contract instead of a hand-rolled projection.
+ */
+export type NamecardUpdateContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<"param", CompatibleNamecardIdParams> &
+        ValidatedRequestInput<"json", AdminNamecardUpdateRequest>
+>;
+
+export type NamecardDeleteContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<"param", CompatibleNamecardIdParams> &
+        ValidatedRequestInput<"json", AdminNamecardDeleteRequest>
 >;
 
 export type NamecardImageReplaceContext = Context<
@@ -149,6 +171,30 @@ export function validateAdminNamecardListQuery(
                 : null,
         origins: origins.slice(0, 4),
     };
+}
+
+/** Trims the optional reason and rejects a duplicated artwork token. */
+export function validateAdminNamecardUpdateRequest(
+    value: unknown,
+): AdminNamecardUpdateRequest {
+    const request = validateExpectedRevisionRequest(value);
+    const body = requestRecord(value, "名片内容无效");
+    const mediaOrder = Array.isArray(body.media_order) ? body.media_order : [];
+    if (new Set(mediaOrder).size !== mediaOrder.length) {
+        invalidRequest("名片图片顺序无效");
+    }
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    return {
+        ...(body as unknown as AdminNamecardUpdateRequest),
+        ...request,
+        reason: reason === "" ? null : reason.slice(0, LOCKED_NAMECARD_REASON_MAX_LENGTH),
+    };
+}
+
+export function validateAdminNamecardDeleteRequest(
+    value: unknown,
+): AdminNamecardDeleteRequest {
+    return validateExpectedRevisionRequest(value);
 }
 
 export const LOCKED_NAMECARD_REASON_MAX_LENGTH = 400;

@@ -5,7 +5,7 @@
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { createHonoApp } from '@/app';
 import type { ObjectStorage } from '@/ports/object-storage';
-import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
+import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardAdminUpdateInput, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { failureMessageResponseSchema } from '@imsweb/contracts/common';
 import { // pi-lens-ignore: ts:2724
@@ -13,7 +13,7 @@ import { // pi-lens-ignore: ts:2724
 import { // pi-lens-ignore: ts:2305
     legacyEmojiMutationSchema, // pi-lens-ignore: ts:2305
     namecardEmptyResponseSchema, // pi-lens-ignore: ts:2305
-    namecardErrorResponseSchema, adminNamecardListSchema, namecardPageSchema, reactionMutationSchema, reactionSchema } from '@imsweb/contracts/namecards';
+    namecardErrorResponseSchema, adminNamecardDiffSchema, adminNamecardListSchema, namecardPageSchema, reactionMutationSchema, reactionSchema } from '@imsweb/contracts/namecards';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -141,6 +141,7 @@ import { test } from 'vitest';
             'createHandleAddReaction',
             'createHandleDeleteReaction',
             'handleApproveNamecard',
+            'handleDeleteAdminNamecard',
             'handleFlagNamecard',
             'handleGetAdminNamecardDiff',
             'handleGetNamecard',
@@ -151,7 +152,8 @@ import { test } from 'vitest';
             'handleRejectNamecard',
             'handleServeAdminNamecardMedia',
             'handleServePublicCardMedia',
-            'handleUnlockNamecard'
+            'handleUnlockNamecard',
+            'handleUpdateAdminNamecard'
         ],
         news: [
             'handleCreateNews',
@@ -492,7 +494,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 145);
+            assert.equal(Object.values(actual).flat().length, 147);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -840,6 +842,8 @@ import { test } from 'vitest';
             async replaceSubmissionImage() { return { status: 'not-found' }; },
             async resubmitSubmission() { return { status: 'not-found' }; },
             async findCardByMediaUrl() { return null; },
+            async updateCardAsAdmin() { return { status: 'not-found' }; },
+            async deleteCardAsAdmin() { return { status: 'not-found' }; },
             ...namecardOverrides
         };
         const reactions: ReactionRepository = {
@@ -2024,6 +2028,204 @@ import { test } from 'vitest';
             assert.deepEqual(fixture.calls.namecardUnlock, [0]);
             assert.deepEqual(fixture.calls.audit, []);
             assert.equal(fixture.calls.storageWrites, 0);
+        });
+
+        test('the management endpoints rewrite and remove a card behind reason and revision gates', async () => {
+            const updates: NamecardAdminUpdateInput[] = [];
+            const removals: Array<[number, number]> = [];
+            const cardBody = {
+                expected_revision: 6,
+                reason: '修正简介',
+                status: 'published',
+                review_status: null,
+                media_order: ['#0', '#1'],
+                producerName: '天海春香',
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [1],
+                bio: '新简介',
+                tradeNote: '交换说明',
+                exchangeMode: 'auto',
+                madeOn: '2024-05',
+                groupName: null,
+                producerReading: null,
+                isOriginal: true,
+                madeWithAi: false,
+                visible: true,
+                credits: [{ accountId: null, displayName: '画师', url: null, roles: ['design'] }]
+            };
+            const headers = {
+                Cookie: 'token=op-token; csrf_token=csrf',
+                'X-CSRFToken': 'csrf',
+                'Content-Type': 'application/json'
+            };
+            const fixture = createCompatibilityFixture({
+                async updateCardAsAdmin(input) {
+                    updates.push(input);
+                    if (input.expectedRevision !== 6) {
+                        return { status: 'conflict', revision: 7 };
+                    }
+                    if (!input.reason) return { status: 'reason-required' };
+                    return {
+                        status: 'updated',
+                        revision: 7,
+                        changedFields: [{ label: '简介', before: '旧简介', after: '新简介' }],
+                        ownerChange: null
+                    };
+                },
+                async deleteCardAsAdmin(cardNumber, expectedRevision) {
+                    removals.push([cardNumber, expectedRevision]);
+                    return { status: 'updated', revision: expectedRevision + 1 };
+                },
+                // The window keeps its own draft, so the save answers with the
+                // row as it now stands.
+                async findCardDiff() {
+                    return {
+                        id: 12,
+                        status: 'approved',
+                        publicationStatus: 'published',
+                        reviewStatus: null,
+                        revision: 7,
+                        ownerAccountId: null,
+                        ownerDisplayName: null,
+                        lockReason: null,
+                        reviewReason: null,
+                        live: {
+                            producerName: '天海春香',
+                            producerReading: null,
+                            groupName: null,
+                            madeOn: '2024-05',
+                            bio: '新简介',
+                            tradeNote: '交换说明',
+                            isOriginal: true,
+                            madeWithAi: false,
+                            visible: true,
+                            exchangeMode: 'auto',
+                            seriesCodes: ['765'],
+                            credits: [{ accountId: null, displayName: '画师', url: null, roles: ['design'] }],
+                            favoriteCharacters: [{ character_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 1 }],
+                            frontImageUrl: '/api/admin/cards/12/media/live/front',
+                            backImageUrl: '/api/admin/cards/12/media/live/back',
+                            middleImageUrls: []
+                        },
+                        pending: null
+                    };
+                }
+            });
+
+            const saved = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify(cardBody)
+            });
+            assert.equal(saved.status, 200);
+            const savedDiff = await contractJson(saved, adminNamecardDiffSchema);
+            assert.equal(savedDiff.revision, 7);
+            assert.equal(savedDiff.live.bio, '新简介');
+            assert.equal(savedDiff.publicationStatus, 'published');
+            assert.equal(updates.length, 1);
+            const [update] = updates;
+            assert.equal(update!.cardNumber, 12);
+            assert.equal(update!.mediaOrder[1], '#1');
+            assert.equal(update!.content.producerName, '天海春香');
+            assert.equal(update!.content.favoriteCharacterIds[0], 1);
+            assert.equal(fixture.calls.audit.length, 1);
+            assert.equal(fixture.calls.audit[0]!.action, '修改名片');
+            assert.match(fixture.calls.audit[0]!.target, /card_id=12/);
+
+            const reasonless = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ ...cardBody, reason: null })
+            });
+            assert.equal(reasonless.status, 400);
+            assert.deepEqual(await contractJson(reasonless, namecardErrorResponseSchema), {
+                error: '请填写修改理由',
+                field: 'reason'
+            });
+
+            const stale = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ ...cardBody, expected_revision: 5 })
+            });
+            assert.equal(stale.status, 409);
+            assert.deepEqual(await contractJson(stale, namecardErrorResponseSchema), {
+                success: false,
+                error: 'Namecard changed; refresh and retry',
+                revision: 7
+            });
+            assert.equal(updates.length, 3);
+
+            // Duplicated artwork tokens never reach the repository.
+            const duplicated = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ ...cardBody, media_order: ['#0', '#0'] })
+            });
+            assert.equal(duplicated.status, 400);
+            assert.equal(updates.length, 3);
+
+            const removed = await fixture.request('/api/admin/cards/12', {
+                method: 'DELETE',
+                headers,
+                body: JSON.stringify({ expected_revision: 7 })
+            });
+            assert.equal(removed.status, 200);
+            assert.deepEqual(await responseJson(removed), { success: true, revision: 8 });
+            assert.deepEqual(removals, [[12, 7]]);
+            assert.equal(fixture.calls.audit[1]!.action, '删除名片');
+
+            const unguardedDelete = await fixture.request('/api/admin/cards/12', {
+                method: 'DELETE',
+                headers: { Cookie: 'token=op-token; csrf_token=csrf' },
+                body: JSON.stringify({ expected_revision: 7 })
+            });
+            assert.equal(unguardedDelete.status, 403);
+            assert.deepEqual(removals, [[12, 7]]);
+        });
+
+        test('a missing card answers not found on both management verbs', async () => {
+            const fixture = createCompatibilityFixture();
+            const headers = {
+                Cookie: 'token=op-token; csrf_token=csrf',
+                'X-CSRFToken': 'csrf',
+                'Content-Type': 'application/json'
+            };
+            const missing = await fixture.request('/api/admin/cards/404', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({
+                    expected_revision: 0,
+                    reason: null,
+                    status: 'published',
+                    review_status: null,
+                    media_order: ['#0'],
+                    producerName: '天海春香',
+                    seriesCodes: ['765'],
+                    favoriteCharacterIds: [],
+                    bio: '',
+                    tradeNote: '交换说明',
+                    exchangeMode: 'auto',
+                    madeOn: null,
+                    groupName: null,
+                    producerReading: null,
+                    isOriginal: false,
+                    madeWithAi: false,
+                    visible: true,
+                    credits: []
+                })
+            });
+            assert.equal(missing.status, 404);
+            const missingDelete = await fixture.request('/api/admin/cards/404', {
+                method: 'DELETE',
+                headers,
+                body: JSON.stringify({ expected_revision: 0 })
+            });
+            assert.equal(missingDelete.status, 404);
+            assert.deepEqual(await contractJson(missingDelete, namecardErrorResponseSchema), {
+                error: 'Namecard not found'
+            });
+            assert.deepEqual(fixture.calls.audit, []);
         });
 
         test('Wiki admin authentication precedes shared numeric param validation', async () => {

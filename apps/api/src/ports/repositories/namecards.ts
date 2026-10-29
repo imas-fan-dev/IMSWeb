@@ -74,10 +74,86 @@ export interface NamecardDiffSide {
 export interface NamecardDiffRecord {
     id: number;
     status: NamecardSubmissionStatus;
+    /** The lifecycle column verbatim; `status` is its legacy projection. */
+    publicationStatus: NamecardLifecycleStatus;
     reviewStatus: 'pending' | 'rejected' | 'locked' | null;
+    revision: number;
+    ownerAccountId: string | null;
+    ownerDisplayName: string | null;
+    lockReason: string | null;
+    reviewReason: string | null;
     live: NamecardDiffSide;
     pending: NamecardDiffSide | null;
 }
+
+export type NamecardLifecycleStatus =
+    | 'draft'
+    | 'pending'
+    | 'approving'
+    | 'published'
+    | 'hidden'
+    | 'rejected'
+    | 'withdrawn'
+    | 'locked';
+
+export interface NamecardAdminContent {
+    producerName: string;
+    producerReading: string | null;
+    groupName: string | null;
+    madeOn: string | null;
+    bio: string;
+    tradeNote: string;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    exchangeMode: 'auto' | 'manual' | 'none';
+    seriesCodes: readonly string[];
+    favoriteCharacterIds: readonly number[];
+    credits: readonly FudabaCardCredit[];
+}
+
+export interface NamecardAdminUpdateInput {
+    cardNumber: number;
+    expectedRevision: number;
+    reason: string | null;
+    /** Omitted keeps the current owner, `null` removes it. */
+    ownerAccountId?: string | null;
+    status: NamecardLifecycleStatus;
+    reviewStatus: 'pending' | 'rejected' | 'locked' | null;
+    content: NamecardAdminContent;
+    /** `#<index>` tokens over the current live pages, in their new order. */
+    mediaOrder: readonly string[];
+    updatedAt: Date;
+}
+
+/** One line of the notification sent to the owner after an admin edit. */
+export interface NamecardAdminFieldChange {
+    label: string;
+    before: string | null;
+    after: string | null;
+}
+
+export type NamecardAdminUpdateResult =
+    | {
+          status: 'updated';
+          revision: number;
+          changedFields: NamecardAdminFieldChange[];
+          ownerChange: {
+              previousAccountId: string | null;
+              nextAccountId: string | null;
+          } | null;
+      }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' }
+    | { status: 'reason-required' }
+    | { status: 'invalid-media'; message: string }
+    | { status: 'invalid-owner'; message: string };
+
+/** Removal only reports the row; the caller never needs the deleted card. */
+export type NamecardAdminDeleteResult =
+    | { status: 'updated'; revision: number }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' };
 
 export type NamecardSubmissionStatus =
     | "pending"
@@ -197,6 +273,19 @@ export interface NamecardRepository {
         expectedRevision: number,
         reason: string,
     ): Promise<NamecardMutationResult>;
+    /**
+     * Backoffice management: rewrites the live card, its owner and both review
+     * columns in one transaction, and tells the owner what changed.
+     */
+    updateCardAsAdmin(input: NamecardAdminUpdateInput): Promise<NamecardAdminUpdateResult>;
+    /**
+     * Sets `deleted_at`, which hides the card from every surface and every API.
+     * Only a database operator can bring the row back.
+     */
+    deleteCardAsAdmin(
+        cardNumber: number,
+        expectedRevision: number,
+    ): Promise<NamecardAdminDeleteResult>;
     /** Returns a locked card to `pending` and notifies its owner. */
     unlockCard(
         id: number,

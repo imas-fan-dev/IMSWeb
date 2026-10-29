@@ -252,7 +252,13 @@ export function toAdminNamecardDiffResponse(
     return {
         id: record.id,
         status: record.status,
+        publicationStatus: record.publicationStatus,
         reviewStatus: record.reviewStatus,
+        revision: record.revision,
+        ownerAccountId: record.ownerAccountId,
+        ownerDisplayName: record.ownerDisplayName,
+        lockReason: record.lockReason,
+        reviewReason: record.reviewReason,
         live: diffSide(record.live),
         pending: record.pending ? diffSide(record.pending) : null
     };
