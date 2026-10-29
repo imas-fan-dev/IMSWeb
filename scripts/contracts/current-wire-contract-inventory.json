@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "b21d1861ce3779cc5e40c81a2d4939c18f3f83bc9b91e95accfaf6309387cd61",
+    "semanticDigest": "5020539ebbebcd50e3a2e83fd8d6ffe6c2358568936da0c1a121a9bc4cc6e9cb",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -2097,7 +2097,7 @@
           "location": {
             "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
           },
-          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaSymbol": "namecardMediaParamsSchema",
           "schemaModule": "@imsweb/contracts/namecards",
           "schemaLocation": {
             "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
@@ -3511,7 +3511,7 @@
           "location": {
             "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
           },
-          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaSymbol": "namecardMediaParamsSchema",
           "schemaModule": "@imsweb/contracts/namecards",
           "schemaLocation": {
             "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
@@ -15149,7 +15149,7 @@
       "location": {
         "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
       },
-      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaSymbol": "namecardMediaParamsSchema",
       "schemaModule": "@imsweb/contracts/namecards",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
@@ -15604,7 +15604,7 @@
       "location": {
         "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
       },
-      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaSymbol": "namecardMediaParamsSchema",
       "schemaModule": "@imsweb/contracts/namecards",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
