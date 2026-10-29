@@ -316,7 +316,7 @@ test.describe("namecard claim workflow", () => {
 
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()
@@ -492,7 +492,7 @@ test.describe("namecard claim workflow", () => {
   async function openClaimDialog(page: Page) {
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()

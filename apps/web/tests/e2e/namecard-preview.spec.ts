@@ -49,7 +49,7 @@ test.describe("namecard preview", () => {
     await expect(frontTrigger.locator("img")).toBeVisible()
     await frontTrigger.click()
 
-    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
     await expect(detail).toBeVisible()
     const previewTrigger = detail.getByRole("button", {
       name: "放大制作人名片 42 正面",

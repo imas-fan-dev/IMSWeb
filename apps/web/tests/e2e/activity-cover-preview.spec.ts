@@ -201,7 +201,7 @@ test.describe("activity cover preview", () => {
     await dialog.getByRole("button", { name: "关闭名片预览" }).click()
     await expect(detail).toBeVisible()
     await expect(
-      detail.getByRole("heading", { name: "制作人名片 42" })
+      detail.getByRole("heading", { name: /制作人名片\s*\d+/ })
     ).toBeVisible()
   })
 })

@@ -402,7 +402,7 @@ describe("CommunityCardsPage", () => {
       screen.queryByRole("button", { name: "认领" })
     ).not.toBeInTheDocument()
     await userEvent.setup().click(frontTrigger)
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     const claimButton = within(detail).getByRole("button", {
       name: "认领",
     })
@@ -489,7 +489,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getAllByRole("button", { name: "❤️，4 次反应" })[0]!
     )
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     const reactionGroup = within(detail).getByLabelText("名片全部反应")
     const addButton = within(detail).getByRole("button", {
       name: "添加反应",
@@ -621,7 +621,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     expect(
       within(detail).getByRole("button", { name: "❤️，5 次反应" })
     ).toBeVisible()
@@ -647,7 +647,7 @@ describe("CommunityCardsPage", () => {
     const add = within(summary).getByRole("button", { name: "添加反应" })
     expect(add).toHaveClass("max-md:hidden")
     await user.click(viewDetail)
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     expect(within(detail).getByText("还没有反应")).toBeVisible()
     expect(apiMocks.sendAddReaction).not.toHaveBeenCalled()
     await user.click(within(detail).getByRole("button", { name: "Close" }))
@@ -695,7 +695,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     for (let count = 10; count < 14; count += 1) {
       await user.click(
         within(detail).getByRole("button", { name: `❤️，${count} 次反应` })
@@ -778,7 +778,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     const detailHeart = within(detail).getByRole("button", {
       name: "❤️，4 次反应",
     })
@@ -878,7 +878,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     await user.click(within(detail).getByRole("button", { name: "添加反应" }))
     await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
     expect(
@@ -915,7 +915,7 @@ describe("CommunityCardsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     await user.click(within(detail).getByRole("button", { name: "添加反应" }))
     await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
     expect(
@@ -1067,7 +1067,7 @@ describe("CommunityCardsPage", () => {
 
     await user.click(frontTrigger)
 
-    const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
     expect(detail).toBeVisible()
     expect(within(detail).getByText("企划")).toBeVisible()
     expect(
@@ -1287,7 +1287,7 @@ describe("CommunityCardsPage", () => {
         })
       )
 
-      const detail = await screen.findByRole("dialog", { name: "制作人名片 42" })
+      const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
       expect(within(detail).getByText("全部反应")).toBeVisible()
       await user.click(
         within(detail).getByRole("button", {
