@@ -1192,6 +1192,8 @@ test.describe("map first-use guide", () => {
     await page.getByRole("menuitem", { name: "使用帮助" }).click()
     await expect(page.getByRole("dialog", { name: titles[0] })).toBeVisible()
     await page.keyboard.press("Escape")
+    await expect(page.getByRole("dialog", { name: titles[0] })).toBeVisible()
+    await page.getByRole("dialog").getByRole("button", { name: "跳过" }).click()
     await expect(page.getByRole("dialog")).toHaveCount(0)
     expect(
       await page.evaluate(

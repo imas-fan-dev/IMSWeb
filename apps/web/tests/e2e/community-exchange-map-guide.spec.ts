@@ -1,0 +1,127 @@
+import AxeBuilder from "@axe-core/playwright"
+import { expect, test } from "./fixtures/test"
+import {
+  expectGuideGeometry,
+  guideTitles,
+  installMapGuideScene,
+  sampleGuideMotion,
+} from "./fixtures/map-guide"
+
+test.use({ mapGuide: "new" })
+
+test("moves from the center to each target without accidental dismissal @mobile @firefox", async ({
+  page,
+  api,
+}, testInfo) => {
+  installMapGuideScene(api)
+  await page.emulateMedia({ reducedMotion: "no-preference" })
+  await page.goto("/community/exchange")
+  const card = page.locator("[data-guide-card]")
+  const start = await expectGuideGeometry(page, 0)
+  const viewport = page.viewportSize()!
+  expect(Math.abs(start.x + start.width / 2 - viewport.width / 2)).toBeLessThan(
+    1
+  )
+  expect(
+    Math.abs(start.y + start.height / 2 - viewport.height / 2)
+  ).toBeLessThan(1)
+  await expect(card.getByRole("button", { name: "跳过" })).toBeFocused()
+  await page.mouse.click(2, 2)
+  await page.mouse.click(20, 200)
+  await card.getByRole("heading").click()
+  await page.keyboard.press("Escape")
+  await expect(card).toBeVisible()
+  const samples = sampleGuideMotion(page)
+  await card.getByRole("button", { name: "下一步" }).click()
+  const frames = await samples
+  const end = await expectGuideGeometry(page, 1)
+  expect(
+    frames.some(
+      (frame) =>
+        Math.abs(frame.y - start.y) > 0.75 && Math.abs(frame.y - end.y) > 0.75
+    )
+  ).toBe(true)
+  expect(
+    new Set(frames.map((frame) => Math.round(frame.holeHeight))).size
+  ).toBeGreaterThan(2)
+  await testInfo.attach("animation-frames", {
+    body: JSON.stringify(frames, null, 2),
+    contentType: "application/json",
+  })
+  await page.screenshot({
+    path: testInfo.outputPath("guide-follow-search.png"),
+  })
+  for (let step = 2; step < guideTitles.length; step++) {
+    await card.getByRole("button", { name: "下一步" }).click()
+    await expectGuideGeometry(page, step)
+    await expect(
+      card.getByRole("button", { name: step === 5 ? "开始使用" : "下一步" })
+    ).toBeFocused()
+    if (step === 2) {
+      await page.screenshot({
+        path: testInfo.outputPath("guide-follow-directory.png"),
+      })
+      expect(
+        (
+          await new AxeBuilder({ page })
+            .withTags(["wcag2a", "wcag2aa"])
+            .analyze()
+        ).violations
+      ).toEqual([])
+    }
+  }
+  await page.keyboard.press("Enter")
+  await expect(card).toHaveCount(0)
+  await page.getByRole("button", { name: "更多地图工具" }).click()
+  await page.getByRole("menuitem", { name: "使用帮助" }).click()
+  await expectGuideGeometry(page, 0)
+  await expect(card.getByRole("button", { name: "跳过" })).toBeFocused()
+  await page.keyboard.press("Escape")
+  await expect(card).toBeVisible()
+  await card.getByRole("button", { name: "跳过" }).click()
+  await expect(card).toHaveCount(0)
+  expect(
+    await page.evaluate(() => localStorage.getItem("ims:exchange-map-guide:v1"))
+  ).toBe("done")
+})
+
+test("fits short viewports and enlarged text with reduced motion @mobile @firefox", async ({
+  page,
+  api,
+}, testInfo) => {
+  installMapGuideScene(api)
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await page.setViewportSize({ width: 320, height: 568 })
+  await page.goto("/community/exchange")
+  const card = page.locator("[data-guide-card]")
+  await expectGuideGeometry(page, 0)
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px"
+  })
+  await expectGuideGeometry(page, 0)
+  await page.screenshot({
+    path: testInfo.outputPath("guide-320-large-text.png"),
+  })
+  await card.getByRole("button", { name: "下一步" }).click()
+  await expectGuideGeometry(page, 1)
+  await expect(card).toHaveCSS("transition-duration", "0s")
+  await expect(page.locator("[data-guide-spotlight]")).toHaveCSS(
+    "transition-duration",
+    "0s"
+  )
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = ""
+  })
+  await page.setViewportSize({ width: 844, height: 390 })
+  for (let step = 2; step < guideTitles.length; step++) {
+    await card.getByRole("button", { name: "下一步" }).click()
+    await expectGuideGeometry(page, step)
+  }
+  await page.screenshot({
+    path: testInfo.outputPath("guide-landscape-account.png"),
+  })
+  await page.setViewportSize({ width: 390, height: 260 })
+  await expectGuideGeometry(page, 5)
+  await card.getByRole("button", { name: "开始使用" }).click()
+  await expect(card).toHaveCount(0)
+})

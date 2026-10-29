@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react"
+import { useLayoutEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "~/components/ui/button"
 import {
@@ -7,6 +7,8 @@ import {
   DialogDescription,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { useMapGuideLayout } from "../hooks/use-map-guide-layout"
+import "./exchange-map-onboarding.css"
 
 export const mapGuideSteps = [
   {
@@ -27,7 +29,7 @@ export const mapGuideSteps = [
   {
     target: "filters",
     title: "筛选想看的事务所",
-    text: "按城市、作品标签和是否开放交换缩小范围，地图与名录使用同一套筛选。",
+    text: "选择城市和喜欢的作品，也可以只看正在开放交换的事务所。",
   },
   {
     target: "create",
@@ -51,59 +53,44 @@ export function ExchangeMapOnboarding({
   onFinish(): void
 }) {
   const current = step === null ? null : mapGuideSteps[step]
-  const [frame, setFrame] = useState<{
-    left: number
-    top: number
-    width: number
-    height: number
-  } | null>(null)
+  const content = useRef<HTMLDivElement>(null)
+  const actions = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  const layout = useMapGuideLayout(step, current?.target, content, actions)
   useLayoutEffect(() => {
-    if (!current) return
-    const measure = () => {
-      const target = document.querySelector(
-        `[data-map-guide="${current.target}"]`
-      )
-      const rect = target?.getBoundingClientRect()
-      setFrame(
-        rect && rect.width && rect.height
-          ? {
-              left: rect.left - 5,
-              top: rect.top - 5,
-              width: rect.width + 10,
-              height: rect.height + 10,
-            }
-          : null
-      )
+    if (body.current) {
+      body.current.scrollTop = 0
+      if (body.current.parentElement?.dataset.scrollWhole === "true") {
+        body.current.parentElement.scrollTop = 0
+      }
     }
-    const timer = requestAnimationFrame(measure)
-    const mutations = new MutationObserver(measure)
-    mutations.observe(document.body, { childList: true, subtree: true })
-    window.addEventListener("resize", measure)
-    window.addEventListener("scroll", measure, true)
-    const observer = new ResizeObserver(measure)
-    const target = document.querySelector(
-      `[data-map-guide="${current.target}"]`
-    )
-    if (target) observer.observe(target)
-    return () => {
-      cancelAnimationFrame(timer)
-      window.removeEventListener("resize", measure)
-      window.removeEventListener("scroll", measure, true)
-      observer.disconnect()
-      mutations.disconnect()
-    }
-  }, [current])
+  }, [step])
+  const frame = layout?.spotlight
   return (
     <>
       {current && typeof document !== "undefined"
         ? createPortal(
             <div
               aria-hidden="true"
-              className="pointer-events-none fixed z-51 rounded-lg ring-2 ring-primary"
+              className="exchange-map-guide-spotlight pointer-events-none fixed z-51 rounded-lg"
+              data-guide-spotlight
+              data-target-visible={Boolean(frame)}
+              data-guide-motion={layout?.animate ?? false}
+              data-guide-compact={layout?.compact ?? true}
               style={
                 frame
-                  ? { ...frame, boxShadow: "0 0 0 100vmax rgb(0 0 0 / 0.55)" }
-                  : { inset: 0, background: "rgb(0 0 0 / 0.55)" }
+                  ? {
+                      transform: `translate3d(${frame.x}px, ${frame.y}px, 0)`,
+                      width: frame.width,
+                      height: frame.height,
+                      boxShadow: "0 0 0 100vmax rgb(0 0 0 / 0.55)",
+                    }
+                  : {
+                      transform: "translate3d(0, 0, 0)",
+                      width: 0,
+                      height: 0,
+                      boxShadow: "0 0 0 100vmax rgb(0 0 0 / 0.55)",
+                    }
               }
             />,
             document.body
@@ -111,34 +98,55 @@ export function ExchangeMapOnboarding({
         : null}
       <Dialog
         open={Boolean(current)}
-        onOpenChange={(open) => {
-          if (!open) onFinish()
+        onOpenChange={(open, details) => {
+          if (!open) details.cancel()
         }}
       >
         <DialogContent
           showCloseButton={false}
           safeArea="custom"
           overlayClassName="bg-transparent backdrop-blur-none supports-backdrop-filter:backdrop-blur-none"
-          className="inset-x-4 top-[max(1rem,env(safe-area-inset-top))] z-52 mx-auto max-h-[calc(100dvh-2rem)] max-w-sm overflow-y-auto border bg-popover shadow-xl"
+          className="exchange-map-guide-card z-52 flex max-w-none flex-col gap-0 overflow-hidden border bg-popover p-0 shadow-xl"
+          data-guide-card
+          data-guide-step={layout?.step}
+          data-ready={Boolean(layout)}
+          data-guide-motion={layout?.animate ?? false}
+          data-guide-compact={layout?.compact ?? true}
+          data-placement={layout?.placement ?? "center"}
+          data-scroll-whole={layout?.scrollWholeCard ?? false}
           style={
-            frame && frame.top < window.innerHeight / 2
+            layout
               ? {
-                  top: "auto",
-                  bottom: "max(1rem, calc(env(safe-area-inset-bottom) + 1rem))",
+                  transform: `translate3d(${layout.card.x}px, ${layout.card.y}px, 0)`,
+                  width: layout.card.width,
+                  height: layout.card.height,
                 }
-              : undefined
+              : { width: "min(24rem, calc(100vw - 2rem))" }
           }
         >
-          <p className="text-xs text-muted-foreground">
-            地图使用帮助 · {(step ?? 0) + 1} / {mapGuideSteps.length}
-          </p>
-          <DialogTitle>{current?.title}</DialogTitle>
-          <DialogDescription>{current?.text}</DialogDescription>
-          <div className="flex items-center justify-between gap-2">
+          <div
+            ref={body}
+            className="exchange-map-guide-body"
+            role="region"
+            tabIndex={layout?.scrollContent ? 0 : undefined}
+            aria-label="引导说明"
+          >
+            <div ref={content} className="flex flex-col gap-3 p-4">
+              <p className="text-xs text-muted-foreground">
+                地图使用帮助 · {(step ?? 0) + 1} / {mapGuideSteps.length}
+              </p>
+              <DialogTitle>{current?.title}</DialogTitle>
+              <DialogDescription>{current?.text}</DialogDescription>
+            </div>
+          </div>
+          <div
+            ref={actions}
+            className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 pb-4"
+          >
             <Button className="min-h-11" variant="ghost" onClick={onFinish}>
               跳过
             </Button>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 flex-wrap justify-end gap-2">
               <Button
                 className="min-h-11"
                 variant="outline"

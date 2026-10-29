@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, type RefObject } from "react"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Button } from "~/components/ui/button"
+import { useSafeAreaCollisionBoundary } from "~/components/ui/use-safe-area-collision-boundary"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { useExchangeMapActions } from "./exchange-map-actions"
@@ -57,6 +58,7 @@ export function ExchangeMapToolsMenu({
   onOpenAttribution,
 }: ExchangeMapToolsMenuProps) {
   const ownTrigger = useRef<HTMLButtonElement>(null)
+  const collisionBoundary = useSafeAreaCollisionBoundary()
   const actions = useExchangeMapActions()
   const guideOpen = Boolean(
     actions?.tourTarget && !["map", "search"].includes(actions.tourTarget)
@@ -130,12 +132,15 @@ export function ExchangeMapToolsMenu({
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner
+          collisionBoundary={collisionBoundary}
+          collisionPadding={12}
           side={side}
           sideOffset={8}
           align="end"
           className="z-50"
         >
           <Menu.Popup
+            inert={guideOpen}
             aria-labelledby={undefined}
             aria-label="更多地图工具内容"
             finalFocus={(interaction) =>
@@ -144,7 +149,7 @@ export function ExchangeMapToolsMenu({
                 : false
             }
             className={cn(
-              "exchange-map-tools-menu max-h-[min(420px,calc(100dvh-24px))] w-60 max-w-[calc(100vw-24px)] overflow-y-auto border bg-popover text-popover-foreground shadow-lg outline-none",
+              "exchange-map-tools-menu max-h-[min(420px,var(--available-height),calc(100dvh-24px))] w-60 max-w-[calc(100vw-24px)] overflow-y-auto border bg-popover text-popover-foreground shadow-lg outline-none",
               IS_APP_TARGET
                 ? "exchange-map-app-surface rounded-3xl p-2 text-foreground"
                 : "rounded-xl p-1.5"
