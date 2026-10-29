@@ -18,6 +18,7 @@ function side(overrides: Partial<DiffSide> = {}): DiffSide {
     tradeNote: "交换说明",
     isOriginal: true,
     madeWithAi: false,
+    visible: true,
     exchangeMode: "manual",
     seriesCodes: ["765as"],
     credits: [

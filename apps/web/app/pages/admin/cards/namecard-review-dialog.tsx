@@ -107,39 +107,52 @@ function charactersList(side: DiffSide): string[] {
   return side.favoriteCharacters.map((character) => character.name)
 }
 
-/** 字段顺序与名片详情窗一致，只有提交版本才参与比较。 */
+const YES_NO = (value: boolean) => (value ? "是" : "否")
+const EXCHANGE_MODES: Record<DiffSide["exchangeMode"], string> = {
+  auto: "自动允许",
+  manual: "手动允许",
+  none: "不可交换",
+}
+
+/**
+ * 字段顺序与编辑窗口一致；只有提交版本存在的字段才参与比较。
+ */
 export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[] {
-  const rows: Array<[string, string, string]> = [
-    ["制作人名称", live.producerName ?? "", pending?.producerName ?? ""],
-    ["制作人读音", live.producerReading ?? "", pending?.producerReading ?? ""],
-    ["制作日期", live.madeOn ?? "", pending?.madeOn ?? ""],
-    ["所属团体", live.groupName ?? "", pending?.groupName ?? ""],
-    ["简介", live.bio ?? "", pending?.bio ?? ""],
-    ["交换说明", live.tradeNote ?? "", pending?.tradeNote ?? ""],
-  ]
-  const fields: FieldDiff[] = rows.map(([label, before, after]) => ({
+  const next = pending ?? live
+  const textRow = (label: string, before: string, after: string): FieldDiff => ({
     label,
     live: before,
     pending: pending && before !== after ? after : null,
-  }))
-  const lists: Array<[string, readonly string[], readonly string[]]> = [
-    ["制作人员", creditsList(live), pending ? creditsList(pending) : creditsList(live)],
-    ["企划", live.seriesCodes, pending ? pending.seriesCodes : live.seriesCodes],
-    ["担当角色", charactersList(live), pending ? charactersList(pending) : charactersList(live)],
-  ]
-  for (const [label, before, after] of lists) {
+  })
+  const listRow = (
+    label: string,
+    before: readonly string[],
+    after: readonly string[]
+  ): FieldDiff => {
     const items = diffItems(before, after)
-    fields.push({
+    return {
       label,
       live: before.join("、"),
       pending:
-        pending && (items.removed.length || items.added.length)
-          ? after.join("、")
-          : null,
+        pending && (items.removed.length || items.added.length) ? after.join("、") : null,
       items,
-    })
+    }
   }
-  return fields
+  return [
+    textRow("制作人名称", live.producerName ?? "", next.producerName ?? ""),
+    textRow("制作人读音", live.producerReading ?? "", next.producerReading ?? ""),
+    textRow("所属团体", live.groupName ?? "", next.groupName ?? ""),
+    textRow("制作日期", live.madeOn ?? "", next.madeOn ?? ""),
+    listRow("企划", live.seriesCodes, next.seriesCodes),
+    listRow("担当角色", charactersList(live), charactersList(next)),
+    textRow("简介", live.bio ?? "", next.bio ?? ""),
+    listRow("制作人员", creditsList(live), creditsList(next)),
+    textRow("原创标记", YES_NO(live.isOriginal), YES_NO(next.isOriginal)),
+    textRow("AI 标记", YES_NO(live.madeWithAi), YES_NO(next.madeWithAi)),
+    textRow("交换说明", live.tradeNote ?? "", next.tradeNote ?? ""),
+    textRow("交换模式", EXCHANGE_MODES[live.exchangeMode], EXCHANGE_MODES[next.exchangeMode]),
+    textRow("公开显示", YES_NO(live.visible), YES_NO(next.visible)),
+  ]
 }
 
 /** Kept items stay quiet so the eye lands on the removals and additions. */

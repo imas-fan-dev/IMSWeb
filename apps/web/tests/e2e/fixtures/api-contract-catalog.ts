@@ -105,6 +105,7 @@ import {
 import {
   adminNamecardHttpErrorSchema,
   adminNamecardListQuerySchema,
+  adminNamecardDiffSchema,
   adminNamecardListResponseSchema,
   namecardErrorResponseSchema,
   adminNamecardMutationSchema,
@@ -915,6 +916,15 @@ export function resolveApiContract(
       responses: {
         200: adminNamecardListResponseSchema,
         401: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && /^\/api\/admin\/cards\/[^/]+\/diff$/.test(path))
+    return {
+      responses: {
+        200: adminNamecardDiffSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
       },
     }
   if (method === "POST" && /^\/api\/admin\/cards\/approve\/[^/]+$/.test(path))
