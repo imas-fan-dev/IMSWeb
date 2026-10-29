@@ -971,6 +971,40 @@ describe("AccountMeWorkspace", () => {
     expect(await screen.findByText("名片资料已保存。")).toBeVisible()
   })
 
+  it("reports a withdrawn resubmission instead of a plain save", async () => {
+    stubArtworkSizes()
+    const user = userEvent.setup()
+    const awaiting = {
+      ...card,
+      publicationStatus: "published" as const,
+      reviewStatus: "pending" as const,
+    }
+    apiMocks.sendCards.mockResolvedValue({ items: [awaiting] })
+    apiMocks.sendCard.mockResolvedValue({ card: awaiting })
+    renderPage()
+    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(
+      await screen.findByRole("button", { name: /周末交换名片/ })
+    )
+
+    // The card waits for a reviewer; saving it unchanged withdraws that
+    // revision, so the owner must not read "saved" and expect a review.
+    apiMocks.sendCard.mockResolvedValueOnce({
+      card: {
+        ...awaiting,
+        reviewStatus: null,
+        revision: awaiting.revision + 1,
+      },
+    })
+    await user.click(await screen.findByRole("button", { name: "保存并提交" }))
+
+    expect(
+      await screen.findByText(
+        "本次提交与原版本一致，已撤回，已通过的版本继续展示。"
+      )
+    ).toBeVisible()
+  })
+
   it("creates a card from the empty state and deletes it through confirmation", async () => {
     stubArtworkSizes()
     apiMocks.sendCards.mockResolvedValue({ items: [] })

@@ -2,7 +2,13 @@ import {
     NAMECARD_ACCENT_FALLBACK,
     NAMECARD_FAVORITE_CHARACTER_LIMIT,
 } from "@imsweb/contracts/fudaba/runtime";
-import { fudabaReviewPolicy } from "@/ports/repositories/fudaba-review-policy";
+import {
+    fudabaReviewPolicy,
+    isArtworkReorder,
+    sameArtworkOrder,
+    sameCardSubmission,
+    type CardSubmissionSnapshot,
+} from "@/ports/repositories/fudaba-review-policy";
 import type {
     AuditLogInput,
     CardFavoriteSelectionRecord,
@@ -3013,6 +3019,67 @@ export class SqlFudabaRepository implements FudabaRepository {
                           input.cardId,
                       ) ?? []
                     : [];
+                // Resubmitting the approved copy — a mistaken save, or an owner
+                // changing their mind while a revision waits — withdraws the
+                // staged revision instead of queueing an identical one.
+                if (
+                    current &&
+                    current.publication_status === "published" &&
+                    current.review_status === "pending" &&
+                    current.pending_payload !== null &&
+                    sameCardSubmission(
+                        await this.liveSubmissionSnapshot(database, current),
+                        payload,
+                    ) &&
+                    sameArtworkOrder(
+                        this.stagedArtworkKeys(current, currentMiddleKeys),
+                        this.liveArtworkKeys(current, currentMiddleKeys),
+                    )
+                ) {
+                    const withdrawn = await database
+                        .prepare(
+                            `UPDATE fudaba_cards
+                 SET pending_payload=NULL, pending_front_object_key=NULL,
+                     pending_back_object_key=NULL, pending_middle_object_keys='{}'::text[],
+                     review_status=NULL, review_reason=NULL, review_submitted_at=NULL,
+                     revision=revision+1, updated_at=?
+                 WHERE id=? AND owner_account_id=? AND revision=?
+                   AND deleted_at IS NULL AND publication_status='published'
+                 RETURNING ${CARD_COLUMNS}`,
+                        )
+                        .bind(
+                            input.updatedAt,
+                            input.cardId,
+                            input.ownerAccountId,
+                            input.expectedRevision,
+                        )
+                        .run<FudabaCardRow>();
+                    const restored = withdrawn.results[0];
+                    if (!restored) {
+                        return this.cardWriteFailure(
+                            await this.findActiveCardForOwner(
+                                input.cardId,
+                                input.ownerAccountId,
+                            ),
+                            input.expectedRevision,
+                        );
+                    }
+                    const restoredResult = await this.savedCardResult(
+                        restored,
+                        null,
+                        database,
+                    );
+                    if (restoredResult.status === "saved") {
+                        // Staged pages the approved copy never used can be
+                        // dropped; the shared ones are still on the wall.
+                        const live = this.liveArtworkKeys(current, currentMiddleKeys);
+                        restoredResult.previousObjectKeys =
+                            this.stagedArtworkKeys(current, currentMiddleKeys).filter(
+                                (key) => !live.includes(key),
+                            );
+                    }
+                    return restoredResult;
+                }
                 const needsReview = !current || fudabaReviewPolicy.requiresCardReview(
                     {
                         producerName: current.producer_name ?? null,
@@ -3298,6 +3365,67 @@ export class SqlFudabaRepository implements FudabaRepository {
         };
     }
 
+    /** Live values a resubmission is compared against to detect a no-op. */
+    private async liveSubmissionSnapshot(
+        database: SqlDatabase,
+        row: FudabaCardRow,
+    ): Promise<CardSubmissionSnapshot> {
+        const [series, favorites, credits] = await Promise.all([
+            this.listCardSeriesFrom(database, [row.id]),
+            this.listCardFavoritesFrom(database, [row.id]),
+            this.listCardCreditsFrom(database, [row.id]),
+        ]);
+        return {
+            producerName: row.producer_name ?? null,
+            producerReading: row.producer_reading ?? null,
+            bio: row.bio ?? null,
+            tradeNote: row.trade_note ?? null,
+            groupName: row.group_name ?? null,
+            madeOn: row.made_on ?? null,
+            exchangeMode: row.exchange_mode,
+            isOriginal: row.is_original,
+            madeWithAi: row.made_with_ai,
+            visible: row.visible,
+            seriesCodes: series.get(row.id) ?? [],
+            favoriteCharacterIds: (favorites.get(row.id) ?? []).map((entry) =>
+                Number(entry.character_id),
+            ),
+            credits: credits.get(row.id) ?? [],
+        };
+    }
+
+    /** Approved pages in display order: front, the middle pages, then the back. */
+    private liveArtworkKeys(
+        row: FudabaCardRow,
+        middles: readonly string[],
+    ): string[] {
+        return [row.front_object_key, ...middles, row.back_object_key].filter(
+            (key): key is string => key !== null,
+        );
+    }
+
+    /** Pages the owner currently edits, i.e. the staged set when one exists. */
+    private stagedArtworkKeys(
+        row: FudabaCardRow,
+        middles: readonly string[],
+    ): string[] {
+        return [
+            row.pending_front_object_key ?? row.front_object_key,
+            ...(row.pending_middle_object_keys.length > 0
+                ? row.pending_middle_object_keys
+                : middles),
+            row.pending_back_object_key ?? row.back_object_key,
+        ].filter((key): key is string => key !== null);
+    }
+
+    private hasStagedArtwork(row: FudabaCardRow): boolean {
+        return (
+            row.pending_front_object_key !== null ||
+            row.pending_back_object_key !== null ||
+            row.pending_middle_object_keys.length > 0
+        );
+    }
+
     replaceCardMediaForOwner(
         input: ReplaceOwnedFudabaCardMediaInput,
     ): Promise<FudabaCardMutationResult> {
@@ -3331,11 +3459,9 @@ export class SqlFudabaRepository implements FudabaRepository {
                           current.back_object_key,
                           ...current.middle_object_keys,
                       ].filter((key): key is string => key !== null);
-                const pendingPayload =
-                    published && current.pending_payload === null
-                        ? await this.pendingPayloadFromLive(database, current)
-                        : null;
-                const accent = input.accent ?? null;
+                // Moving existing pages around changes nothing reviewers read, so
+                // it lands on the surface the owner edits instead of queueing a
+                // revision. A staged revision keeps its own page set.
                 const guards = `id=? AND owner_account_id=? AND revision=?
                    AND deleted_at IS NULL
                    AND publication_status NOT IN ('approving', 'locked')
@@ -3344,6 +3470,73 @@ export class SqlFudabaRepository implements FudabaRepository {
                        WHERE account.id=fudaba_cards.owner_account_id
                          AND account.status='active' AND account.deleted_at IS NULL
                    )`;
+                const liveMiddles = (
+                    await this.listCardMiddleMediaFrom(database, [input.cardId])
+                ).get(input.cardId) ?? [];
+                const submittedKeys = [
+                    input.frontObjectKey,
+                    ...input.middleObjectKeys,
+                    input.backObjectKey,
+                ].filter((key): key is string => key !== null);
+                const surfaceKeys = published
+                    ? this.stagedArtworkKeys(current, liveMiddles)
+                    : this.liveArtworkKeys(current, liveMiddles);
+                if (published && sameArtworkOrder(submittedKeys, surfaceKeys)) {
+                    return this.savedCardResult(current, null, database);
+                }
+                const reorderOnly =
+                    published && isArtworkReorder(submittedKeys, surfaceKeys);
+                if (reorderOnly) {
+                    const staged = this.hasStagedArtwork(current);
+                    const reordered = await database
+                        .prepare(
+                            staged
+                                ? `UPDATE fudaba_cards
+                 SET pending_front_object_key=?, pending_back_object_key=?,
+                     pending_middle_object_keys=?,
+                     revision=revision+1, updated_at=?
+                 WHERE ${guards}
+                 RETURNING ${CARD_COLUMNS}`
+                                : `UPDATE fudaba_cards
+                 SET front_object_key=?, back_object_key=?,
+                     revision=revision+1, updated_at=?
+                 WHERE ${guards}
+                 RETURNING ${CARD_COLUMNS}`,
+                        )
+                        .bind(
+                            input.frontObjectKey,
+                            input.backObjectKey,
+                            ...(staged ? [input.middleObjectKeys] : []),
+                            input.updatedAt,
+                            input.cardId,
+                            input.ownerAccountId,
+                            input.expectedRevision,
+                        )
+                        .run<FudabaCardRow>();
+                    const moved = reordered.results[0];
+                    if (!moved) {
+                        return this.cardWriteFailure(
+                            await this.findActiveCardForOwner(
+                                input.cardId,
+                                input.ownerAccountId,
+                            ),
+                            input.expectedRevision,
+                        );
+                    }
+                    if (!staged) {
+                        await this.replaceCardMiddleMedia(
+                            database,
+                            input.cardId,
+                            input.middleObjectKeys,
+                        );
+                    }
+                    return this.savedCardResult(moved, null, database);
+                }
+                const pendingPayload =
+                    published && current.pending_payload === null
+                        ? await this.pendingPayloadFromLive(database, current)
+                        : null;
+                const accent = input.accent ?? null;
                 // Two statements instead of one CASE pile: the staged and live
                 // columns differ, and every previous edit bug here came from a
                 // bind list drifting out of step with the placeholders.

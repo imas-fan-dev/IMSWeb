@@ -9310,8 +9310,107 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 if (staged.status !== 'saved') return;
                 assert.equal(staged.card.review_status, 'pending');
                 assert.equal(staged.card.bio, draft.bio);
+
+                // Saving the approved copy again is a withdrawal, not a new
+                // revision: the queue stops waiting for a reviewer.
+                const withdrawn =
+                    await fixture.fudaba.updateCardMetadataForOwner({
+                        ...draft,
+                        cardId,
+                        ownerAccountId: ownerId,
+                        seriesCodes: ['765', 'cg'],
+                        favoriteCharacterIds: [900_001, 900_002],
+                        exchangeMode: 'auto',
+                        madeOn: '2024-05',
+                        groupName: 'Group',
+                        producerReading: 'ぷろでゅーさー',
+                        madeWithAi: true,
+                        credits: [
+                            {
+                                accountId: null,
+                                displayName: 'Illustrator',
+                                url: null,
+                                roles: ['illustration']
+                            }
+                        ],
+                        expectedRevision: staged.card.revision,
+                        updatedAt: MEDIA_UPDATED_AT
+                    });
+                assert.equal(withdrawn.status, 'saved');
+                if (withdrawn.status !== 'saved') return;
+                assert.equal(withdrawn.card.review_status ?? null, null);
+                assert.equal(withdrawn.card.publication_status, 'published');
+                assert.equal(withdrawn.card.bio, draft.bio);
+                assert.equal(withdrawn.card.producer_reading, 'ぷろでゅーさー');
+                assert.deepEqual(
+                    (await postgres.pool.query(
+                        'SELECT pending_payload, review_submitted_at, pending_middle_object_keys FROM public.fudaba_cards WHERE id = $1',
+                        [cardId]
+                    )).rows[0],
+                    {
+                        pending_payload: null,
+                        review_submitted_at: null,
+                        pending_middle_object_keys: []
+                    }
+                );
             }
         );
+
+        postgresTest('real PostgreSQL applies a pure page reorder without a review', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-reorder-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-reorder-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const media = (name: string): string =>
+                `community/fudaba/cards/${cardId}/${name}.webp`;
+            const postgres = fixture.database as PostgresConnection;
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('front'),
+                backObjectKey: media('back'),
+                middleObjectKeys: [media('m1'), media('m2')],
+                accent: null,
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            // Same pages, new order: nothing a reviewer reads has changed.
+            const reordered = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('front'),
+                backObjectKey: media('back'),
+                middleObjectKeys: [media('m2'), media('m1')],
+                accent: null,
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(reordered.status, 'saved');
+            if (reordered.status !== 'saved') return;
+            assert.equal(reordered.card.publication_status, 'published');
+            assert.equal(reordered.card.review_status ?? null, null);
+            assert.equal(reordered.card.review_submitted_at ?? null, null);
+            assert.equal(reordered.card.pending_front_object_key, null);
+            assert.deepEqual(reordered.card.pending_middle_object_keys, []);
+            assert.equal(reordered.card.front_object_key, media('front'));
+            assert.equal(reordered.card.back_object_key, media('back'));
+            assert.deepEqual(reordered.card.middle_object_keys, [
+                media('m2'),
+                media('m1')
+            ]);
+            assert.equal(reordered.card.revision, first.card.revision + 1);
+        });
 
         postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {
             const fixture = await createFixture('postgresql');

@@ -257,8 +257,18 @@ export function CardEditor({
       }).send()
       setDraft(cardFields(result.card))
       onSaved(result.card)
-      setFeedback({ kind: "success", message: "名片资料已保存。" })
-      toast.success("名片资料已保存")
+      // Saving exactly what is on the wall again drops the waiting revision
+      // instead of queueing an identical one.
+      const withdrawn = card.reviewStatus === "pending" && !result.card.reviewStatus
+      setFeedback({
+        kind: "success",
+        message: withdrawn
+          ? "本次提交与原版本一致，已撤回，已通过的版本继续展示。"
+          : "名片资料已保存。",
+      })
+      toast.success(
+        withdrawn ? "已撤回本次提交，已通过的版本继续展示" : "名片资料已保存"
+      )
     } catch (error) {
       mutationFailure(error, "名片保存失败，请重试。")
     } finally {
