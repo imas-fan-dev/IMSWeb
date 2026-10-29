@@ -1,8 +1,11 @@
 import { ImagePlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
 import { useCallback, useMemo, useRef, useState } from "react"
+import type { CSSProperties } from "react"
 import { createPortal } from "react-dom"
 
 import { Button } from "~/components/ui/button"
+import { getOwnerCardMedia } from "~/lib/api"
+import { useOwnerCardMedia } from "./use-owner-card-media"
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from "@imsweb/contracts/fudaba/runtime"
 
 /** One ordered artwork list: the front first, the middle pages, the back last. */
@@ -89,8 +92,8 @@ export function mediaSlotRole(
   return `中间页 ${position}`
 }
 
-function loadSize(
-  url: string
+async function measure(
+  source: string
 ): Promise<{ width: number; height: number } | null> {
   const { promise, resolve } = Promise.withResolvers<{
     width: number
@@ -100,8 +103,29 @@ function loadSize(
   image.onload = () =>
     resolve({ width: image.naturalWidth, height: image.naturalHeight })
   image.onerror = () => resolve(null)
-  image.src = url
+  image.src = source
   return promise
+}
+
+/**
+ * Private artwork only decodes once its bearer header is attached, so the size
+ * probe downloads the bytes for protected sources and measures the blob.
+ */
+async function loadSize(
+  slot: MediaSlot
+): Promise<{ width: number; height: number } | null> {
+  if (slot.kind === "new") return measure(slot.url)
+  try {
+    const blob = await getOwnerCardMedia(slot.url).send()
+    const objectUrl = URL.createObjectURL(blob)
+    try {
+      return await measure(objectUrl)
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  } catch {
+    return null
+  }
 }
 
 export async function artworkSidesMismatch(
@@ -109,8 +133,8 @@ export async function artworkSidesMismatch(
 ): Promise<boolean> {
   if (slots.length < 2) return false
   const [front, back] = await Promise.all([
-    loadSize(slots[0].url),
-    loadSize(slots[slots.length - 1].url),
+    loadSize(slots[0]),
+    loadSize(slots[slots.length - 1]),
   ])
   return artworkShapeMismatch(front, back)
 }
@@ -121,7 +145,7 @@ export function validateArtworkFile(file: File): string | null {
   return null
 }
 
-type DragState = { index: number; url: string; x: number; y: number }
+type DragState = { slot: MediaSlot; index: number; x: number; y: number }
 
 /**
  * The artwork area of the card window: one large preview plus a scrollable
@@ -133,6 +157,48 @@ type DragState = { index: number; url: string; x: number; y: number }
  * it would stop receiving moves. The copy that marks the landing spot is
  * rendered in the strip flow, which keeps it in the scroll area.
  */
+/**
+ * App builds read private artwork through the authenticated media route, so a
+ * raw `/api/...` source would arrive without its bearer header and render
+ * blank. Existing slots therefore borrow the same loader the inventory uses;
+ * newly picked files already have a local object URL.
+ */
+function SlotImage({
+  slot,
+  className,
+  alt,
+  draggable = false,
+  style,
+}: {
+  slot: MediaSlot
+  className: string
+  alt: string
+  draggable?: boolean
+  style?: CSSProperties
+}) {
+  const media = useOwnerCardMedia(slot.kind === "existing" ? slot.url : null)
+  const src = slot.kind === "existing" ? media.src : slot.url
+  if (!src) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`${className} grid place-items-center bg-muted/50 text-[10px] text-muted-foreground`}
+      >
+        {media.failed ? "加载失败" : ""}
+      </span>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      draggable={draggable}
+      style={style}
+    />
+  )
+}
+
 export function CardMediaGallery({
   slots,
   disabled,
@@ -231,7 +297,8 @@ export function CardMediaGallery({
     const startX = event.clientX
     const startY = event.clientY
     const pointerId = event.pointerId
-    const url = slots[index]?.url ?? ""
+    const dragged = slots[index]
+    if (!dragged) return
     let dragging = false
 
     const handleMove = (move: PointerEvent) => {
@@ -246,7 +313,7 @@ export function CardMediaGallery({
         dropRef.current = resolveDrop(move.clientX, index)
         setDropAt(dropRef.current)
       }
-      setDrag({ index, url, x: move.clientX, y: move.clientY })
+      setDrag({ slot: dragged, index, x: move.clientX, y: move.clientY })
     }
 
     const finish = (commit: boolean) => {
@@ -309,8 +376,8 @@ export function CardMediaGallery({
         data-card-artwork-preview
       >
         {current ? (
-          <img
-            src={current.url}
+          <SlotImage
+            slot={current}
             alt={role ? `名片${role}` : "名片图片"}
             className="size-full object-contain"
           />
@@ -397,10 +464,9 @@ export function CardMediaGallery({
             className="relative shrink-0 rounded-md border-2 border-dashed border-primary/70 bg-muted/40"
             style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
           >
-            <img
-              src={drag.url}
+            <SlotImage
+              slot={drag.slot}
               alt=""
-              draggable={false}
               className="size-full rounded-[4px] object-cover opacity-40"
             />
           </div>
@@ -441,10 +507,9 @@ export function CardMediaGallery({
       */}
       {drag
         ? createPortal(
-            <img
-              src={drag.url}
+            <SlotImage
+              slot={drag.slot}
               alt=""
-              aria-hidden="true"
               className="pointer-events-none fixed z-50 rounded-md border-2 border-primary object-cover shadow-xl"
               style={{
                 width: THUMB_SIZE,
@@ -510,11 +575,10 @@ function Thumbnail({
           active ? "ring-2 ring-primary" : ""
         } ${dragging ? "opacity-40" : ""}`}
       >
-        <img
-          src={slot.url}
+        <SlotImage
+          slot={slot}
           alt=""
           className="size-full object-cover"
-          draggable={false}
         />
       </button>
       {!disabled && removable ? (

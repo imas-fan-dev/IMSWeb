@@ -250,6 +250,26 @@ import { describe, onTestFinished, test } from 'vitest';
             // live slot; the draft variant only exists for staged revisions.
             assert.equal(row?.image1_url, `/api/admin/cards/${id}/media/live/front`);
             assert.equal(row?.image2_url, null);
+
+            // The media routes read the stored page instead of reverse
+            // engineering a public URL out of the editor object key.
+            assert.equal(
+                await repository.findCardMediaKey(id, 'front', false),
+                'community/fudaba/cards/card-id/versions/v1/media.webp'
+            );
+            assert.equal(await repository.findCardMediaKey(id, 'middle-1', false), null);
+            assert.equal(await repository.findPublishedCardMediaKey(id, 'front'), null);
+
+            await executeSql(
+                database,
+                `UPDATE public.fudaba_cards SET publication_status='published' WHERE card_number=?`,
+                [id]
+            );
+            assert.equal(
+                await repository.findPublishedCardMediaKey(id, 'front'),
+                'community/fudaba/cards/card-id/versions/v1/media.webp'
+            );
+            assert.equal(await repository.findPublishedCardMediaKey(id, 'back'), null);
         });
 
         postgresTest('persist ordered cross-series character metadata atomically', async () => {

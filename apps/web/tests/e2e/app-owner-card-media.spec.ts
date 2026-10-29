@@ -241,6 +241,11 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
     .toBe(120)
   await inventoryCard.click()
   await expect(page).toHaveURL(/card=owner-card/)
+  // The dialog mounts a tick after the URL changes, and a slow first paint
+  // would let Escape land before the popup owns the key event.
+  await expect(
+    page.getByRole("dialog", { name: "名片详情与编辑" })
+  ).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page).not.toHaveURL(/card=/)
