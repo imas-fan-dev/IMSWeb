@@ -258,6 +258,28 @@ import { describe, onTestFinished, test } from 'vitest';
                 'community/fudaba/cards/card-id/versions/v1/media.webp'
             );
             assert.equal(await repository.findCardMediaKey(id, 'middle-1', false), null);
+
+            // Middle pages live in their own ordered table, so the queue has to
+            // resolve them through the media route as well.
+            await executeSql(
+                database,
+                `INSERT INTO public.fudaba_card_media (card_id, display_order, object_key)
+                 SELECT id, 1, 'community/fudaba/cards/card-id/versions/v1/middle-1.webp'
+                 FROM public.fudaba_cards WHERE card_number=?
+                 UNION ALL
+                 SELECT id, 2, 'community/fudaba/cards/card-id/versions/v1/middle-2.webp'
+                 FROM public.fudaba_cards WHERE card_number=?`,
+                [id, id]
+            );
+            const [withPages] = await repository.listAdminCards(20, 0);
+            assert.deepEqual(withPages?.middle_image_urls, [
+                `/api/admin/cards/${id}/media/live/middle-1`,
+                `/api/admin/cards/${id}/media/live/middle-2`,
+            ]);
+            assert.equal(
+                await repository.findCardMediaKey(id, 'middle-2', false),
+                'community/fudaba/cards/card-id/versions/v1/middle-2.webp'
+            );
             assert.equal(await repository.findPublishedCardMediaKey(id, 'front'), null);
 
             await executeSql(
@@ -270,6 +292,10 @@ import { describe, onTestFinished, test } from 'vitest';
                 'community/fudaba/cards/card-id/versions/v1/media.webp'
             );
             assert.equal(await repository.findPublishedCardMediaKey(id, 'back'), null);
+            assert.equal(
+                await repository.findPublishedCardMediaKey(id, 'middle-1'),
+                'community/fudaba/cards/card-id/versions/v1/middle-1.webp'
+            );
         });
 
         postgresTest('persist ordered cross-series character metadata atomically', async () => {
