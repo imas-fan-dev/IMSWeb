@@ -55,6 +55,7 @@ Issue、release record 或私有运维记录中。
 
 - [数据库配置](operations/database-configuration.md)
 - [部署与发布](operations/github-actions-deployment.md)
+- [旧站到 Preview 的增量同步](operations/preview-data-sync.md)
 - [预览 App 发布](operations/preview-app-release.md)
 - [现网运行手册](operations/runbook.md)
 - [地图资源交付](operations/map-delivery.md)

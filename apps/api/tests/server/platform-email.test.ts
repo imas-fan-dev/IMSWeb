@@ -45,7 +45,7 @@ import { platformEmailBindingResponseSchema, platformEmailCredentialResponseSche
 import { adminPlatformEmailConfigurationTestRequestSchema, adminPlatformEmailConfigurationWriteRequestSchema, adminPlatformEmailHttpErrorSchema, adminPlatformEmailMutationResponseSchema, adminPlatformEmailSettingsResponseSchema, adminPlatformEmailSettingsSchema, adminPlatformEmailTestResponseSchema } from '@imsweb/contracts/platform/admin-email';
 import assert from 'node:assert/strict';
 import { createHash, pbkdf2Sync, randomUUID } from 'node:crypto';
-import { afterAll, describe, onTestFinished, test, test as nodeTest } from 'vitest';
+import { afterAll, describe, onTestFinished, test, test as nodeTest, vi } from 'vitest';
 
 // platform-email-auth.contract.test.ts
 {
@@ -1120,6 +1120,11 @@ import { afterAll, describe, onTestFinished, test, test as nodeTest } from 'vite
 
         postgresTest("password reset cooldown is enumeration-safe with missing or failing cache", async () => {
             const fixture = await createFixture();
+            // Compare known/unknown recipients at one logical instant. Hanging
+            // cache probes still use real timers and must not consume a second
+            // of the cooldown merely because the CI runner is slower.
+            const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
+            onTestFinished(() => clock.mockRestore());
             await fixture.database.prepare(
                 `UPDATE platform_email_configuration
          SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,

@@ -138,6 +138,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Set up PostgreSQL 18 client
+        run: bash scripts/ci/setup-postgres-client.sh
+
       - name: Run static and architecture checks
         run: pnpm run check
 

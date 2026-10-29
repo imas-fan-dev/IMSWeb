@@ -71,6 +71,22 @@ async function frame(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Navigation assertions must not wait on the public brand-asset CDN.
+  // Complete the optional font immediately and exercise its fallback face.
+  await page.route("**/brand/fonts/**", (route) =>
+    route.fulfill({
+      status: 404,
+      headers: { "access-control-allow-origin": "*" },
+      body: "",
+    })
+  )
+  await page.route("**/brand/works/765/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"/>',
+    })
+  )
   await page.addInitScript(() =>
     localStorage.setItem("imsweb.language", "zh-CN")
   )

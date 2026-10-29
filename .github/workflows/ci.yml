@@ -377,6 +377,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Set up PostgreSQL 18 client
+        run: bash scripts/ci/setup-postgres-client.sh
+
       - name: Test API owner
         run: pnpm --filter @imsweb/api run test
         env:
