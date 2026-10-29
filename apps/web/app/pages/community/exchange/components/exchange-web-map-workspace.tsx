@@ -149,7 +149,7 @@ export function ExchangeWebMapWorkspace<Place extends PlaceSearchDisplay>({
       aria-label="地点查找"
       data-drawer-open={open}
     >
-      <div className="exchange-web-search-dock">
+      <div className="exchange-web-search-dock" data-map-guide="search">
         <form
           className="flex min-w-0 flex-1 items-center"
           onSubmit={(event) => {

@@ -169,6 +169,13 @@ export const mapboxGeocodingErrorSchema = z
   .object({ message: z.string() })
   .passthrough();
 
+/** Search Box POIs stay transient; canonical office writes use their own address flow. */
+export const mapboxNearbyResponseSchema = mapboxGeocodingResponseSchema.extend({
+  features: z.array(mapboxGeocodingResponseSchema.shape.features.element).max(10),
+  attribution: z.string().optional(),
+});
+export type MapboxNearbyResponse = z.infer<typeof mapboxNearbyResponseSchema>;
+
 const sourceFields = {
   id: fudabaMapSourceIdSchema,
   name: fudabaMapSourceNameSchema,

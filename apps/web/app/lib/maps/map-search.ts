@@ -26,7 +26,13 @@ export interface MapSearchPlace {
   distanceLabel?: string
   /** Regional office targets should keep their deliberately coarse map scale. */
   zoom?: number
+  /** Vendor data is transient; a canonical map gesture must confirm the saved point. */
+  previewOnly?: boolean
 }
+export type MapNearbySearcher = (
+  point: MapPosition,
+  signal: AbortSignal
+) => Promise<{ items: MapSearchPlace[]; attribution: string }>
 export interface MapSearchContext {
   viewportCenter?: MapPosition
   devicePosition?: MapPosition

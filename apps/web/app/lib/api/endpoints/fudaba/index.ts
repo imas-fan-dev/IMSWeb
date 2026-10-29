@@ -3,6 +3,7 @@ import {
   exchangePath,
   mapsPath,
 } from "@imsweb/contracts/paths"
+export { createMapboxNearbySearch } from "./mapbox-place-search"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"

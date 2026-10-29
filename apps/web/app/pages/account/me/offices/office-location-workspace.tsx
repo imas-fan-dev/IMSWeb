@@ -27,6 +27,8 @@ import {
   type FudabaSeries,
 } from "~/lib/api"
 import { useExchangeMapDialog } from "~/pages/community/exchange/components/exchange-page-surface"
+import { clearOfficeCreateIntent } from "~/lib/maps/office-create-intent"
+import type { MapSearchTarget } from "~/lib/maps/map-search"
 import { apiMessage, isFeatureClosed } from "../account-me-model"
 import { OfficeEditor } from "./office-editor"
 import {
@@ -44,12 +46,14 @@ type WorkspacePhase = "loading" | "ready" | "error"
 
 export function OfficeLocationWorkspace({
   initialOfficeId,
+  initialTarget,
   series,
   homeCity,
   readOnly,
   onWriteClosed,
 }: {
   initialOfficeId?: string
+  initialTarget?: MapSearchTarget | null
   series: FudabaSeries[]
   homeCity: string | null
   readOnly: boolean
@@ -73,6 +77,45 @@ export function OfficeLocationWorkspace({
   const targetId = useRef<string | null>(null)
   const createKey = useRef<string | null>(null)
   const createFingerprint = useRef<string | null>(null)
+  const initializedTarget = useRef<MapSearchTarget | null>(null)
+  const [creationTarget, setCreationTarget] = useState<MapSearchTarget | null>(
+    null
+  )
+  useEffect(() => {
+    if (
+      !initialTarget ||
+      phase !== "ready" ||
+      readOnly ||
+      initializedTarget.current === initialTarget
+    )
+      return
+    const timer = setTimeout(() => {
+      initializedTarget.current = initialTarget
+      clearOfficeCreateIntent()
+      generation.current += 1
+      selectedId.current = null
+      targetId.current = null
+      setOffice(null)
+      setCreating(true)
+      setLoadingSelection(false)
+      setSaving(false)
+      setFeedback(null)
+      setCreationTarget(initialTarget)
+      createKey.current = null
+      createFingerprint.current = null
+      setDraft({
+        ...emptyOfficeDraft(null),
+        ...(initialTarget.kind === "wgs84"
+          ? {
+              longitude: String(initialTarget.position[0]),
+              latitude: String(initialTarget.position[1]),
+            }
+          : {}),
+      })
+      setOpen(true)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [initialTarget, phase, readOnly])
 
   const loadSelection = useCallback(async (id: string) => {
     const current = ++generation.current
@@ -143,6 +186,7 @@ export function OfficeLocationWorkspace({
   }, [loadWorkspace])
 
   function beginCreate() {
+    setCreationTarget(null)
     generation.current += 1
     selectedId.current = null
     targetId.current = null
@@ -351,6 +395,7 @@ export function OfficeLocationWorkspace({
           <div className="mt-4 min-w-0">
             <OfficeEditor
               mode={creating ? "create" : "edit"}
+              initialTarget={creating ? creationTarget : null}
               office={office}
               draft={draft}
               series={series}

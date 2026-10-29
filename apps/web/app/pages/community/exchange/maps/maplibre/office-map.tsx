@@ -38,6 +38,7 @@ import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
 import { useNativeGlassControl } from "~/lib/native-glass-controls"
 import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { createMapPickingEvents } from "~/lib/maps/map-picking-events"
+import { createMapContextEvents } from "~/lib/maps/map-context-events"
 import { cn } from "~/lib/utils"
 import { createUserLocationMarker } from "~/pages/community/exchange/maps/user-location-marker"
 import { createPointPickerMarker } from "../point-picker-marker"
@@ -490,7 +491,13 @@ export function ExchangeOfficeMap({
   onViewportChange,
   onFatalError,
   onAttributionChange,
+  onContextPoint,
+  onReadyChange,
 }: ExchangeOfficeMapProps) {
+  const contextCallbacks = useRef({ onContextPoint, onReadyChange })
+  useLayoutEffect(() => {
+    contextCallbacks.current = { onContextPoint, onReadyChange }
+  })
   const deviceCallback = useRef(onDevicePosition)
   useEffect(() => {
     deviceCallback.current = onDevicePosition
@@ -673,6 +680,7 @@ export function ExchangeOfficeMap({
 
     setLocationState({ phase: "idle", message: "" })
     setMapReady(false)
+    contextCallbacks.current.onReadyChange?.(false)
     container.dataset.mapState = "loading"
     // `styledata` fires repeatedly for one style (source and layer edits), so
     // the notice is deduplicated by content and only crosses the page boundary
@@ -745,6 +753,16 @@ export function ExchangeOfficeMap({
 
     mapRef.current = map
     const picking = createMapPickingEvents(container)
+    const removeContextEvents = contextCallbacks.current.onContextPoint
+      ? createMapContextEvents(container, (pixel) => {
+          if (container.dataset.mapState !== "ready") return
+          const point = map.unproject([pixel.x, pixel.y])
+          contextCallbacks.current.onContextPoint?.({
+            kind: "wgs84",
+            position: [point.lng, point.lat],
+          })
+        })
+      : () => {}
     pickingRef.current = picking
     map.touchZoomRotate.disableRotation()
     map.keyboard.disableRotation()
@@ -957,6 +975,7 @@ export function ExchangeOfficeMap({
         })
         container.dataset.mapState = "ready"
         setMapReady(true)
+        contextCallbacks.current.onReadyChange?.(true)
         scheduleMarkerRefresh()
         const initialSignal = claimInitialLocation?.()
         if (initialSignal && !initialSignal.aborted)
@@ -1009,6 +1028,7 @@ export function ExchangeOfficeMap({
       })
     } catch (error) {
       reportFatalError(error)
+      removeContextEvents()
       picking.dispose()
       pickingRef.current = null
       map.remove()
@@ -1034,6 +1054,8 @@ export function ExchangeOfficeMap({
 
     return () => {
       disposed = true
+      removeContextEvents()
+      contextCallbacks.current.onReadyChange?.(false)
       resizeObserver.disconnect()
       window.removeEventListener("resize", resizeMap)
       window.visualViewport?.removeEventListener("resize", resizeMap)

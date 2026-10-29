@@ -46,6 +46,7 @@ import { expandedSearchMinimumHeight } from "./exchange-search-height"
 import type { WorkspaceSearchTabs } from "../hooks/use-map-workspace-search"
 import { ExchangeSearchTabs } from "./exchange-search-tabs"
 import { ExchangeMapToolsMenu } from "./exchange-map-tools-menu"
+import { useExchangeMapActions } from "./exchange-map-actions"
 import {
   exchangeSearchStatus,
   ExchangeSearchStatus,
@@ -98,6 +99,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
   const subject = tabs?.active === "offices" ? "事务所" : "地点"
   const id = useId()
   const navigate = useNavigation()
+  const mapActions = useExchangeMapActions()
   const cardRef = useRef<HTMLElement>(null)
   const geometryRef = useRef<HTMLSpanElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -257,6 +259,8 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
               offices: "事务所",
               cards: "名片",
               account: "我的交换账号",
+              create: mapActions ? "选择位置创建事务所" : "",
+              help: mapActions ? "使用帮助" : "",
               refresh: "刷新名录",
               refreshing: "正在刷新名录",
               retry: onRetry ? "重试地图" : "",
@@ -267,6 +271,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
           },
     [
       tools.modalOpen,
+      mapActions,
       tools.filterApplied,
       tools.onOpenAttribution,
       hostFrame,
@@ -294,7 +299,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
     ]
   )
   const native = useNativeExchangeSearch(
-    snapshot,
+    mapActions?.tourTarget ? null : snapshot,
     (event) => {
       if (
         event.action === "tab" &&
@@ -346,12 +351,14 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         if (event.value === "filter") tools.onOpenFilter()
         else if (event.value === "offices") tools.onOpenOffices()
         else if (event.value === "cards") tools.onOpenCards()
+        else if (event.value === "create") mapActions?.startCreate()
+        else if (event.value === "help") mapActions?.showHelp()
         else if (event.value === "refresh") tools.onRefresh()
         else if (event.value === "retry") onRetry?.()
         else if (event.value === "source") {
           tools.onOpenAttribution?.(moreRef.current)
         } else if (event.value === "account")
-          void navigate("/account/me/namecards")
+          void navigate("/account/me/offices")
       }
     },
     () => {
@@ -857,6 +864,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
       <section
         ref={cardRef}
         aria-label="地点查找"
+        data-map-guide="search"
         className="exchange-search-card"
         data-detent={detent}
         data-editing={editing || undefined}

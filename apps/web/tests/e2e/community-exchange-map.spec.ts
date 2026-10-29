@@ -1117,3 +1117,141 @@ test.describe("community exchange map", () => {
     }
   )
 })
+
+test.describe("map first-use guide", () => {
+  test.use({ mapGuide: "new" })
+  test("teaches office discovery, remembers completion and replays from tools @mobile", async ({
+    page,
+    api,
+  }, testInfo) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await api.mockRoute(
+      "/api/community/exchange/map/config",
+      (route) =>
+        route.fulfill({
+          json: {
+            provider: "maplibre",
+            search: { provider: "nominatim" },
+            styleUrl: "/maps/exchange-test-style.json",
+          },
+        }),
+      "GET",
+      { min: 1, max: 3 }
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/map/offices?*",
+      (route) =>
+        route.fulfill({ json: { items: mapOffices, truncated: false } }),
+      "GET",
+      { min: 1, max: 8 }
+    )
+    await page.goto("/community/exchange")
+    const titles = [
+      "在地图上找事务所",
+      "搜索地点或事务所",
+      "事务所也能从名录查看",
+      "筛选想看的事务所",
+      "在选定位置创建事务所",
+      "管理自己的事务所",
+    ]
+    for (const [index, title] of titles.entries()) {
+      const dialog = page.getByRole("dialog", { name: title })
+      await expect(dialog).toBeVisible()
+      if (index === 2) {
+        await expect(page.locator('[data-map-guide="offices"]')).toBeVisible()
+        await page.screenshot({
+          path: testInfo.outputPath("map-office-directory-guide.png"),
+        })
+        expect(
+          (
+            await new AxeBuilder({ page })
+              .withTags(["wcag2a", "wcag2aa"])
+              .analyze()
+          ).violations
+        ).toEqual([])
+      }
+      if (index === titles.length - 1)
+        await dialog.getByRole("button", { name: "开始使用" }).click()
+      else await dialog.getByRole("button", { name: "下一步" }).click()
+    }
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("ims:exchange-map-guide:v1"))
+      )
+      .toBe("done")
+    await page.reload()
+    await expect(page.locator("[data-exchange-office-map]")).toHaveAttribute(
+      "data-map-state",
+      "ready"
+    )
+    await page.getByRole("button", { name: "更多地图工具" }).click()
+    await page.getByRole("menuitem", { name: "使用帮助" }).click()
+    await expect(page.getByRole("dialog", { name: titles[0] })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth
+      )
+    ).toBe(true)
+  })
+})
+
+test("offers office creation at a right-clicked position and keyboard-selected map center @mobile", async ({
+  page,
+  api,
+}, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await api.mockRoute(
+    "/api/community/exchange/map/config",
+    (route) =>
+      route.fulfill({
+        json: {
+          provider: "maplibre",
+          search: { provider: "nominatim" },
+          styleUrl: "/maps/exchange-test-style.json",
+        },
+      }),
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/map/offices?*",
+    (route) => route.fulfill({ json: { items: [], truncated: false } }),
+    "GET",
+    { min: 1, max: 5 }
+  )
+  await page.goto("/community/exchange")
+  const surface = page.locator("[data-exchange-office-map]")
+  await expect(surface).toHaveAttribute("data-map-state", "ready")
+  const canvas = page.locator("canvas.maplibregl-canvas")
+  const box = (await canvas.boundingBox())!
+  await canvas.click({
+    button: "right",
+    position: { x: box.width * 0.7, y: box.height * 0.4 },
+  })
+  await expect(
+    page.getByRole("button", { name: "在此创建事务所" })
+  ).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath("map-context-create.png") })
+  await page.keyboard.press("Escape")
+  await expect(
+    page.getByRole("button", { name: "在此创建事务所" })
+  ).toHaveCount(0)
+  await page.getByRole("button", { name: "更多地图工具" }).click()
+  await page.getByRole("menuitem", { name: "选择位置创建事务所" }).click()
+  await canvas.focus()
+  await page.keyboard.press("Enter")
+  await expect(
+    page.getByRole("button", { name: "在此创建事务所" })
+  ).toBeVisible()
+  await page.getByRole("button", { name: "在此创建事务所" }).click()
+  await expect(page).toHaveURL(/\/account\/me\/offices\?create=[\w-]+$/)
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(sessionStorage.getItem("ims:office-create-intent") ?? "null")
+          ?.target.kind
+    )
+  ).toBe("wgs84")
+})

@@ -1364,3 +1364,55 @@ test.describe("app map", () => {
     }
   )
 })
+
+test.describe("App map guide and creation", () => {
+  test.use({ mapGuide: "new" })
+  test("keeps DOM search onboarding and long-press creation usable @app-iphone @app-android @app-webkit", async ({
+    page,
+    api,
+  }, testInfo) => {
+    installMapMocks(api)
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await page.goto("/community/exchange")
+    const guide = page.getByRole("dialog", { name: "在地图上找事务所" })
+    await expect(guide).toBeVisible()
+    await page.screenshot({
+      path: testInfo.outputPath("app-map-first-guide.png"),
+    })
+    await guide.getByRole("button", { name: "跳过" }).click()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    const canvas = page.locator("canvas.maplibregl-canvas")
+    const box = (await canvas.boundingBox())!
+    await canvas.dispatchEvent("pointerdown", {
+      pointerType: "touch",
+      pointerId: 5,
+      isPrimary: true,
+      button: 0,
+      clientX: box.x + box.width * 0.7,
+      clientY: box.y + box.height * 0.4,
+    })
+    await expect(
+      page.getByRole("button", { name: "在此创建事务所" })
+    ).toBeVisible()
+    await canvas.dispatchEvent("pointerup", {
+      pointerType: "touch",
+      pointerId: 5,
+      isPrimary: true,
+    })
+    await page.screenshot({
+      path: testInfo.outputPath("app-map-long-press-create.png"),
+    })
+    await page.getByRole("button", { name: "取消创建选点" }).click()
+    await page.getByRole("button", { name: "更多地图工具" }).click()
+    await expect(
+      page.getByRole("menuitem", { name: "选择位置创建事务所" })
+    ).toBeVisible()
+    await page.getByRole("menuitem", { name: "使用帮助" }).click()
+    await expect(guide).toBeVisible()
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth
+      )
+    ).toBe(true)
+  })
+})

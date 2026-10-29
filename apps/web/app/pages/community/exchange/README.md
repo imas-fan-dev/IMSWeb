@@ -9,15 +9,17 @@
 
 ## 能力与职责地图
 
-| 参与者与能力           | 关键实现路径                                                                                                                                                                    | 职责                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| 访客发现名片与事务所   | [交换页](community-exchange-page.tsx)、[use-exchange-discovery](hooks/use-exchange-discovery.ts)、[发现栏](components/exchange-discovery-rail.tsx)                              | 目录视图、筛选、公开数据加载与功能关闭状态                 |
-| 访客查看事务所详情     | [事务所页](community-office-page.tsx)、[名片墙](components/exchange-card-wall.tsx)                                                                                              | 展示事务所、关联名片与可用交互                             |
-| 地图使用者搜索与浏览   | [地图区块](components/community-exchange-map-section.tsx)、[Web 地图工作区](components/exchange-web-map-workspace.tsx)、[搜索 hooks](hooks/)                                    | 地图、搜索面板与选择状态协作                               |
-| 地图适配实现           | [AMap](maps/amap/)、[Mapbox](maps/mapbox/)、[MapLibre](maps/maplibre/)、[regional](maps/regional/)、[选点地址](maps/resolve-point-address.ts)                                   | 各引擎渲染、坐标、区域搜索与选点地址解析适配               |
-| 地图配置与图层状态     | [provider](maps/exchange-map-provider.ts)、[renderer](maps/exchange-map-renderer.ts)、[model](maps/exchange-map-model.ts)、[事务所查询 hook](hooks/use-exchange-map-offices.ts) | 引擎选择、渲染契约、视图状态与地图点数据                   |
-| 已登录用户互动与管理   | [名片交互](components/exchange-card-interactions.tsx)、[管理对话框](components/exchange-management-dialog.tsx)、[页面承载上下文](components/exchange-page-surface.tsx)          | 收藏、反应及个人工作区的上下文接入                         |
-| 地图路由历史与返回恢复 | [use-exchange-route-session](hooks/use-exchange-route-session.ts)                                                                                                               | 保留地图查询参数、追踪已观察的路由历史，关闭详情时安全返回 |
+| 参与者与能力           | 关键实现路径                                                                                                                                                                    | 职责                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 访客发现名片与事务所   | [交换页](community-exchange-page.tsx)、[use-exchange-discovery](hooks/use-exchange-discovery.ts)、[发现栏](components/exchange-discovery-rail.tsx)                              | 目录视图、筛选、公开数据加载与功能关闭状态                                 |
+| 访客查看事务所详情     | [事务所页](community-office-page.tsx)、[名片墙](components/exchange-card-wall.tsx)                                                                                              | 展示事务所、关联名片与可用交互                                             |
+| 地图使用者搜索与浏览   | [地图区块](components/community-exchange-map-section.tsx)、[Web 地图工作区](components/exchange-web-map-workspace.tsx)、[搜索 hooks](hooks/)                                    | 地图、搜索面板与选择状态协作                                               |
+| 地图适配实现           | [AMap](maps/amap/)、[Mapbox](maps/mapbox/)、[MapLibre](maps/maplibre/)、[regional](maps/regional/)、[选点地址](maps/resolve-point-address.ts)                                   | 各引擎渲染、坐标、区域搜索与选点地址解析适配                               |
+| 地图配置与图层状态     | [provider](maps/exchange-map-provider.ts)、[renderer](maps/exchange-map-renderer.ts)、[model](maps/exchange-map-model.ts)、[事务所查询 hook](hooks/use-exchange-map-offices.ts) | 引擎选择、渲染契约、视图状态与地图点数据                                   |
+| 已登录用户互动与管理   | [名片交互](components/exchange-card-interactions.tsx)、[管理对话框](components/exchange-management-dialog.tsx)、[页面承载上下文](components/exchange-page-surface.tsx)          | 收藏、反应及个人工作区的上下文接入                                         |
+| 地图路由历史与返回恢复 | [use-exchange-route-session](hooks/use-exchange-route-session.ts)                                                                                                               | 保留地图查询参数、追踪已观察的路由历史，关闭详情时安全返回                 |
+| 地图首次使用与帮助     | [顺序蒙版](components/exchange-map-onboarding.tsx)、[引导状态](hooks/use-map-onboarding.ts)、[工具动作](components/exchange-map-actions.tsx)                                    | 展示真实事务所入口，本机记录完成或跳过状态，支持手动重看                   |
+| 地图选点创建事务所     | [背景手势](../../../lib/maps/map-context-events.ts)、[跨页位置意图](../../../lib/maps/office-create-intent.ts)、[附近地点](maps/nearby-places.ts)                               | 右键／长按与显式选点共用创建入口，按所选位置分流附近地点并交给账号表单确认 |
 
 ## 协作边界
 
@@ -36,6 +38,8 @@
 - 页面私有展示放 [components](components/)，请求状态与浏览器行为放
   [hooks](hooks/)，引擎与地理实现放 [maps](maps/)；共享地图基础能力见
   [lib/maps](../../../lib/maps/)。
+- 附近兴趣点属于临时预览，不能直接作为事务所保存位置；用户在底图确认后，沿用选点地址解析和整体审核。
+  地图创建通过短期 session token 保留登录前后的所选位置，不把坐标写入 URL。
 
 ## 测试入口
 

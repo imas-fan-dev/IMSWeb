@@ -5,6 +5,8 @@ import {
   ContactRoundIcon,
   InfoIcon,
   MoreHorizontalIcon,
+  MapPinPlusIcon,
+  CircleHelpIcon,
   SlidersHorizontalIcon,
   UserRoundIcon,
 } from "lucide-react"
@@ -14,6 +16,7 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Button } from "~/components/ui/button"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
+import { useExchangeMapActions } from "./exchange-map-actions"
 
 interface ExchangeMapToolsMenuProps {
   filterAnchorRef?: RefObject<HTMLElement | null>
@@ -54,6 +57,10 @@ export function ExchangeMapToolsMenu({
   onOpenAttribution,
 }: ExchangeMapToolsMenuProps) {
   const ownTrigger = useRef<HTMLButtonElement>(null)
+  const actions = useExchangeMapActions()
+  const guideOpen = Boolean(
+    actions?.tourTarget && !["map", "search"].includes(actions.tourTarget)
+  )
   const trigger = triggerRef ?? ownTrigger
   const [localOpen, setLocalOpen] = useState(false)
   const isOpen = open ?? localOpen
@@ -92,7 +99,8 @@ export function ExchangeMapToolsMenu({
 
   return (
     <Menu.Root
-      open={isOpen}
+      open={guideOpen || isOpen}
+      modal={!guideOpen}
       onOpenChange={(value) => {
         setLocalOpen(value)
         onOpenChange?.(value)
@@ -145,6 +153,7 @@ export function ExchangeMapToolsMenu({
             <Menu.Item
               className={itemClass}
               aria-label={filterApplied ? "打开筛选，已应用筛选" : "打开筛选"}
+              data-map-guide="filters"
               onClick={() => {
                 if (filterAnchorRef) filterAnchorRef.current = trigger.current
                 openTool(onOpenFilter, !filterAnchorRef)
@@ -157,6 +166,7 @@ export function ExchangeMapToolsMenu({
             <Menu.Item
               className={itemClass}
               aria-label="打开事务所名录"
+              data-map-guide="offices"
               onClick={() => openTool(onOpenOffices)}
             >
               <Building2Icon aria-hidden="true" />
@@ -171,9 +181,29 @@ export function ExchangeMapToolsMenu({
               名片
             </Menu.Item>
             <div aria-hidden="true" className="mx-3 my-2 border-t" />
+            {actions ? (
+              <>
+                <Menu.Item
+                  className={itemClass}
+                  data-map-guide="create"
+                  onClick={() => openTool(actions.startCreate)}
+                >
+                  <MapPinPlusIcon aria-hidden="true" />
+                  选择位置创建事务所
+                </Menu.Item>
+                <Menu.Item
+                  className={itemClass}
+                  onClick={() => openTool(actions.showHelp)}
+                >
+                  <CircleHelpIcon aria-hidden="true" />
+                  使用帮助
+                </Menu.Item>
+              </>
+            ) : null}
             <Menu.LinkItem
-              render={<NavigationLink to="/account/me" />}
+              render={<NavigationLink to="/account/me/offices" />}
               className={itemClass}
+              data-map-guide="account"
             >
               <UserRoundIcon aria-hidden="true" />
               我的交换账号

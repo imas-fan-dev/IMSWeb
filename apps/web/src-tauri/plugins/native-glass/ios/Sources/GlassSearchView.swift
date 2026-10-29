@@ -716,13 +716,16 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     submit.configuration?.showsActivityIndicator = snapshot?.busy == true && !UIAccessibility.isReduceMotionEnabled
     submit.isEnabled = snapshot?.busy == false && (field.text?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) >= 2
     submit.accessibilityLabel = label("submit")
-    let signature = [String(snapshot?.pointCount ?? 0), String(snapshot?.hasAttribution == true), String(snapshot?.selected.isEmpty == false), String(snapshot?.filterApplied == true)] + ["filter", "offices", "cards", "range", "account", "retry", "source", "clear"].map { label($0) }
+    let signature = [String(snapshot?.pointCount ?? 0), String(snapshot?.hasAttribution == true), String(snapshot?.selected.isEmpty == false), String(snapshot?.filterApplied == true)] + ["filter", "offices", "cards", "range", "account", "retry", "source", "clear", "create", "help"].map { label($0) }
     guard signature != menuSignature else { return }
     menuSignature = signature
     let tools = [("filter", "line.3.horizontal.decrease"), ("offices", "building.2"), ("cards", "person.crop.rectangle")].map { key, symbol in
       UIAction(title: label(key), image: UIImage(systemName: symbol), state: key == "filter" && snapshot?.filterApplied == true ? .on : .off) { [weak self] _ in self?.tool(key) }
     }
     var menu: [UIMenuElement] = [UIMenu(options: .displayInline, children: tools)]
+    for (key, symbol) in [("create", "mappin.and.ellipse"), ("help", "questionmark.circle")] where snapshot?.labels[key]?.isEmpty == false {
+      menu.append(UIAction(title: label(key), image: UIImage(systemName: symbol)) { [weak self] _ in self?.tool(key) })
+    }
     for key in ["account"] + (label("retry").isEmpty ? [] : ["retry"]) + (snapshot?.hasAttribution == true ? ["source"] : []) {
       menu.append(UIAction(title: label(key)) { [weak self] _ in self?.tool(key) })
     }

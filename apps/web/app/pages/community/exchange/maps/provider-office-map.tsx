@@ -15,6 +15,7 @@ import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { cn } from "~/lib/utils"
 import { createUserLocationMarker } from "./user-location-marker"
 import { createPointPickerMarker } from "./point-picker-marker"
+import { createMapContextEvents } from "~/lib/maps/map-context-events"
 import type {
   MapDriver,
   MapView,
@@ -251,7 +252,9 @@ export function ProviderOfficeMap(props: Props) {
     let initialized = false
     let failed = false
     let cameraTimer: ReturnType<typeof setTimeout> | undefined
+    let removeContextEvents: (() => void) | undefined
     setReady(false)
+    latest.current.onReadyChange?.(false)
     setResourceError(false)
     setLocation({ busy: false, message: "", error: false })
     const measure = () => {
@@ -443,6 +446,12 @@ export function ProviderOfficeMap(props: Props) {
         clearTimeout(initTimer)
         container.dataset.mapState = "ready"
         setReady(true)
+        latest.current.onReadyChange?.(true)
+        if (view.unproject && latest.current.onContextPoint)
+          removeContextEvents = createMapContextEvents(container, (point) => {
+            if (!disposed && view.unproject)
+              latest.current.onContextPoint?.(view.unproject(point))
+          })
         latest.current.onAttributionChange?.(latest.current.attribution)
         updateViewport()
         const initialSignal = latest.current.claimInitialLocation?.()
@@ -459,6 +468,8 @@ export function ProviderOfficeMap(props: Props) {
       })
     return () => {
       disposed = true
+      removeContextEvents?.()
+      latest.current.onReadyChange?.(false)
       clearTimeout(initTimer)
       clearTimeout(cameraTimer)
       observer.disconnect()

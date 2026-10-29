@@ -207,6 +207,16 @@ export function createAMapDriver(
           })
         }
         const view: MapView = {
+          unproject(pixel) {
+            lifecycle.assertActive()
+            const point = map.containerToLngLat?.([pixel.x, pixel.y])
+            if (!point) throw new Error("当前地图不支持位置选择")
+            return {
+              kind: "native",
+              provider: "amap",
+              position: [point.getLng(), point.getLat()],
+            }
+          },
           readCamera() {
             lifecycle.assertActive()
             const point = map.getCenter()
