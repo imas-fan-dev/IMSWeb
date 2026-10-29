@@ -47,15 +47,15 @@ import {
 /** Lifecycle values the management window may set; drafts never reach a card. */
 const STATUS_OPTIONS = [
   { value: "pending", label: "待审核" },
-  { value: "approving", label: "发布处理中" },
   { value: "published", label: "已通过" },
-  { value: "hidden", label: "已隐藏" },
+  // The owner deleted it themselves; hiding is not a management verdict.
+  { value: "hidden", label: "已隐藏（用户删除态）" },
   { value: "rejected", label: "已驳回" },
   { value: "locked", label: "已锁定" },
 ] as const
 
 const REVIEW_OPTIONS = [
-  { value: "none", label: "无待审版本" },
+  { value: "none", label: "无（丢弃待审版本）" },
   { value: "pending", label: "待审核" },
   { value: "rejected", label: "已驳回" },
   { value: "locked", label: "违规锁定" },
@@ -359,7 +359,7 @@ export function NamecardManageDialog({
                 <Alert>
                   <AlertTitle>这张名片有 1 个待审版本</AlertTitle>
                   <AlertDescription>
-                    保存后，待审版本的内容会替换为这里提交的资料。
+                    名片状态不能直接改为已通过，通过请回到名片审核。把版本状态设为「无」，保存会丢弃这个版本。
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -445,9 +445,9 @@ export function NamecardManageDialog({
                     {ownerAccountId ? (
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="text-destructive hover:text-destructive"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
                         disabled={busy}
                         onClick={() => {
                           setOwnerAccountId("")
@@ -479,12 +479,21 @@ export function NamecardManageDialog({
                       </SelectTrigger>
                       <SelectContent align="start">
                         {STATUS_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            disabled={option.value === "published" && queued}
+                          >
                             {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {queued ? (
+                      <FieldDescription>
+                        有待审版本时不能直接改为已通过，请先在名片审核里通过。
+                      </FieldDescription>
+                    ) : null}
                   </Field>
                   <Field data-disabled={busy || !queued || undefined}>
                     <FieldLabel htmlFor="manage-review">版本状态</FieldLabel>
@@ -516,8 +525,6 @@ export function NamecardManageDialog({
                     )}
                   </Field>
                 </div>
-
-                <Separator />
 
                 <div ref={reasonRef} data-card-field="reason" className="grid gap-1.5">
                   <FieldLabel htmlFor="manage-reason">
