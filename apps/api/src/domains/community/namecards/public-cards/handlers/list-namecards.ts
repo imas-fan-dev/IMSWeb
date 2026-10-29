@@ -33,12 +33,15 @@ export async function handleListNamecards(
         ]));
         const cards = rows.map((card) => {
             const status = statusByCardId.get(Number(card.id));
-            return toPublicNamecardResponse({
-                ...card,
-                claim_status: status?.claim_status,
-                viewer_claim_state: status?.viewer_claim_state,
-                claimer_name: status?.claimer_name
-            });
+            return toPublicNamecardResponse(
+                {
+                    ...card,
+                    claim_status: status?.claim_status,
+                    viewer_claim_state: status?.viewer_claim_state,
+                    claimer_name: status?.claimer_name
+                },
+                c.get('platformUser')?.id ?? null
+            );
         });
         const storage = services(c).storage;
         return c.json({
@@ -65,12 +68,18 @@ export async function handleListNamecards(
                                   card.image2_url as string,
                                   image2Url
                               );
+                    const middleImageUrls = await Promise.all(
+                        card.middleImageUrls.map((url) =>
+                            resolvePublicMediaUrl(storage, url)
+                        )
+                    );
                     return {
                         ...card,
                         image1_url: image1Url,
                         image2_url: image2Url,
                         image1_thumbnail_url: image1ThumbnailUrl,
-                        image2_thumbnail_url: image2ThumbnailUrl
+                        image2_thumbnail_url: image2ThumbnailUrl,
+                        middleImageUrls
                     };
                 }))
                 : cards,

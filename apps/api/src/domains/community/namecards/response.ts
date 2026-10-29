@@ -41,6 +41,20 @@ interface NamecardRow {
     claim_status?: unknown;
     viewer_claim_state?: unknown;
     claimer_name?: unknown;
+    cardId?: unknown;
+    card_number?: unknown;
+    group_name?: unknown;
+    made_on?: unknown;
+    is_original?: unknown;
+    made_with_ai?: unknown;
+    bio?: unknown;
+    trade_note?: unknown;
+    exchange_mode?: unknown;
+    accent?: unknown;
+    series_codes?: unknown;
+    credits?: unknown;
+    middle_image_urls?: unknown;
+    owner_account_id?: unknown;
 }
 
 function responseId(value: unknown): NamecardResponseId {
@@ -78,6 +92,44 @@ function responseFavoriteCharacters(value: unknown): NamecardFavoriteCharacterRe
     }));
 }
 
+function responseBoolean(value: unknown): boolean {
+    return value === true;
+}
+
+function responseExchangeMode(
+    value: unknown
+): PublicNamecardResponse['exchangeMode'] {
+    return value === 'auto' || value === 'manual' ? value : 'none';
+}
+
+function responseStringList(value: unknown): string[] {
+    return Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string')
+        : [];
+}
+
+function responseCredits(value: unknown): PublicNamecardResponse['credits'] {
+    if (!Array.isArray(value)) return [];
+    return (value as Array<Record<string, unknown>>)
+        .filter((entry) => typeof entry.displayName === 'string')
+        .map((entry) => ({
+            accountId: typeof entry.accountId === 'string' ? entry.accountId : null,
+            displayName: String(entry.displayName),
+            url: typeof entry.url === 'string' ? entry.url : null,
+            roles: responseCreditRoles(entry.roles)
+        }));
+}
+
+function responseCreditRoles(
+    value: unknown
+): PublicNamecardResponse['credits'][number]['roles'] {
+    const roles = Array.isArray(value)
+        ? value.filter((role): role is 'design' | 'illustration' | 'other' =>
+            role === 'design' || role === 'illustration' || role === 'other')
+        : [];
+    return roles.length ? roles : ['other'];
+}
+
 function responseClaimStatus(value: unknown): PublicNamecardResponse['claimStatus'] {
     return value === 'claimed' || value === 'pending' ? value : 'unclaimed';
 }
@@ -95,11 +147,36 @@ function responseClaimerName(value: unknown): string | null {
     return name ? name : null;
 }
 
-export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardResponse {
+export function toPublicNamecardResponse(
+    row: NamecardRow,
+    viewerAccountId: string | null = null
+): PublicNamecardResponse {
     const image1Url = responseString(row.image1_url, 'image1_url');
     const image2Url = responseOptionalString(row.image2_url);
     const response = {
         id: responseId(row.id),
+        cardId:
+            typeof row.cardId === 'string' && row.cardId
+                ? row.cardId
+                : String(responseId(row.id)),
+        cardNumber: responseId(row.card_number ?? row.id),
+        revision: responseRevision(row.revision ?? 0),
+        producerName: responseOptionalString(row.producer_name),
+        producerReading: responseOptionalString(row.producer_reading),
+        groupName: responseOptionalString(row.group_name),
+        madeOn: responseOptionalString(row.made_on),
+        isOriginal: responseBoolean(row.is_original),
+        madeWithAi: responseBoolean(row.made_with_ai),
+        bio: responseOptionalString(row.bio),
+        tradeNote: responseOptionalString(row.trade_note),
+        exchangeMode: responseExchangeMode(row.exchange_mode),
+        accent: responseOptionalString(row.accent),
+        seriesCodes: responseStringList(row.series_codes),
+        credits: responseCredits(row.credits),
+        middleImageUrls: responseStringList(row.middle_image_urls),
+        canEdit:
+            typeof row.owner_account_id === 'string' &&
+            row.owner_account_id === viewerAccountId,
         seriesCode: responseSeriesCode(row.series_code),
         favoriteCharacters: responseFavoriteCharacters(row.favorite_characters),
         claimStatus: responseClaimStatus(row.claim_status),

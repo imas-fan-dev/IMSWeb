@@ -9,8 +9,10 @@ import {
 } from "./common.js"
 import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
+  namecardCreditSchema,
   namecardReactionEmojiSchema,
 } from "./fudaba/index.js"
+import { NAMECARD_CREDIT_LIMIT } from "./fudaba/namecard-runtime.js"
 
 export const cardIdSchema = z.number().int().positive()
 
@@ -34,9 +36,40 @@ export const namecardMetadataSchema = {
   claimerName: z.string().min(1).nullable(),
 }
 
+/**
+ * The public wall reads the same `fudaba_cards` rows the editor writes, so the
+ * detail view can show the lifecycle fields without a second request. Every
+ * optional text field is null when the producer left it empty.
+ */
+export const namecardPublicDetailSchema = {
+  /** Fudaba row id, used to deep-link the owner editor. */
+  cardId: z.string().min(1),
+  cardNumber: z.number().int().positive(),
+  revision: z.number().int().nonnegative(),
+  producerName: z.string().min(1).nullable(),
+  /** Sorting aid only, rendered in parentheses after the producer name. */
+  producerReading: z.string().min(1).nullable(),
+  groupName: z.string().min(1).nullable(),
+  /** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; empty parts are dropped. */
+  madeOn: z.string().min(1).nullable(),
+  isOriginal: z.boolean(),
+  madeWithAi: z.boolean(),
+  bio: z.string().min(1).nullable(),
+  tradeNote: z.string().min(1).nullable(),
+  exchangeMode: z.enum(["auto", "manual", "none"]),
+  accent: z.string().min(1).nullable(),
+  seriesCodes: z.array(z.string().min(1)).max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
+  credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
+  /** Ordered middle pages; the wall renders them after the back image. */
+  middleImageUrls: z.array(z.string().min(1)),
+  /** True when the signed-in viewer owns the row; drives the edit action. */
+  canEdit: z.boolean(),
+}
+
 export const namecardSchema = exactJsonResponse({
   id: cardIdSchema,
   ...namecardMetadataSchema,
+  ...namecardPublicDetailSchema,
   image1_url: z.string().min(1),
   /** A single-sided card has no back image. */
   image2_url: z.string().min(1).nullable(),

@@ -1,5 +1,6 @@
 import type {
-    CardFavoriteSelectionRecord
+    CardFavoriteSelectionRecord,
+    FudabaCardCredit
 } from '@/ports/repositories/fudaba';
 
 export type NamecardSubmissionKind = 'guest' | 'legacy';
@@ -32,6 +33,23 @@ export interface CardMediaRecord {
     seriesCode?: string | null;
     submissionKind?: NamecardSubmissionKind;
     favoriteCharacters?: CardFavoriteSelectionRecord[];
+    /** Fudaba row id; the public detail deep-links the owner editor with it. */
+    cardId?: string;
+    card_number?: number;
+    producer_name?: string | null;
+    producer_reading?: string | null;
+    group_name?: string | null;
+    made_on?: string | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    is_original?: boolean;
+    made_with_ai?: boolean;
+    exchange_mode?: 'auto' | 'manual' | 'none';
+    accent?: string | null;
+    owner_account_id?: string | null;
+    series_codes?: string[];
+    middle_image_urls?: string[];
+    credits?: FudabaCardCredit[];
 }
 
 export type NamecardSubmissionStatus =

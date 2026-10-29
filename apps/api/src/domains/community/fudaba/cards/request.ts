@@ -1,4 +1,4 @@
-import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba';
+import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba/runtime';
 import { parseFudabaRevision } from '@/domains/community/fudaba/contracts/card';
 
 export type FudabaCardCreditRole = 'design' | 'illustration' | 'other';

@@ -18,6 +18,7 @@ import {
 import type {
     CardFavoriteSelectionRecord,
     CardMediaRecord,
+    FudabaCardCredit,
     NamecardRepository,
     NamecardApprovalClaim,
     NamecardEditResult,
@@ -39,6 +40,10 @@ import {
     namecardOriginalUrlFromObjectKey,
     publicMediaObjectKey
 } from '@/utils/storage/business-object-keys';
+import {
+    NAMECARD_COMPAT_ORIGIN,
+    NAMECARD_PUBLIC_ORIGIN
+} from '@/infra/db/repositories/namecard-origins';
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
 
@@ -50,22 +55,14 @@ type NamecardFavoriteRow = {
     display_order: number | string;
 };
 
-// The legacy/guest compatibility surface (numeric card_number ids) only ever
-// covers rows unified from the anonymous namecard flow; exchange-owned cards
-// keep their own TEXT-id routes through the Fudaba domain.
-const NAMECARD_COMPAT_ORIGIN = "origin IN ('guest', 'legacy')";
-// The public wall serves anonymous submissions plus any card whose media has
-// been copied into the canonical namecard layout -- which approval does for
-// registered-user uploads. Rows that still point at the Fudaba layout are kept
-// out so the public thumbnail reversal never sees a key it cannot read.
-const NAMECARD_PUBLIC_ORIGIN =
-    "(origin IN ('guest', 'legacy') OR front_object_key LIKE 'community/namecards/assets/%')";
 
 const NAMECARD_COLUMNS = `id AS internal_id, card_number, front_object_key,
     back_object_key, publication_status, revision, origin,
     producer_name, producer_reading, group_name, made_on, lock_reason, created_at,
     review_status, review_reason, pending_payload, pending_front_object_key,
-    pending_middle_object_keys, pending_back_object_key`;
+    pending_middle_object_keys, pending_back_object_key,
+    bio, trade_note, is_original, made_with_ai, exchange_mode, accent,
+    owner_account_id`;
 
 function namecardAdminWhere(
     filter?: NamecardAdminFilter
@@ -127,6 +124,13 @@ type NamecardCardRow = {
     pending_payload?: unknown;
     pending_front_object_key?: string | null;
     pending_middle_object_keys?: string[] | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    is_original?: boolean | null;
+    made_with_ai?: boolean | null;
+    exchange_mode?: string | null;
+    accent?: string | null;
+    owner_account_id?: string | null;
     pending_back_object_key?: string | null;
     created_at: string | Date | null;
 };
@@ -304,7 +308,11 @@ export class SqlCoreRepository implements NamecardRepository {
         return grouped;
     }
 
-    private namecardRecordFromRow(row: NamecardCardRow): NamecardSubmissionRow {
+    private namecardRecordFromRow(
+        row: NamecardCardRow,
+        /** `live` serves the published copy; `submission` serves the queue. */
+        content: 'live' | 'submission' = 'submission'
+    ): NamecardSubmissionRow {
         // Exchange rows keep the Fudaba object layout until approval copies the
         // images into the canonical namecard layout, so pending ones are served
         // through the authenticated moderation media route. Once the canonical
@@ -320,10 +328,25 @@ export class SqlCoreRepository implements NamecardRepository {
             row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
                 ? exchangeReviewMediaUrl(key, side)
                 : namecardOriginalUrlFromObjectKey(key);
-        const staged = row.review_status === 'pending';
+        const staged = content === 'submission' && row.review_status === 'pending';
         const payload = staged ? pendingNamecardPayload(row.pending_payload) : null;
         return {
             id: Number(row.card_number),
+            cardId: row.internal_id,
+            card_number: Number(row.card_number),
+            producer_name: row.producer_name ?? null,
+            producer_reading: row.producer_reading ?? null,
+            group_name: row.group_name ?? null,
+            made_on: row.made_on ?? null,
+            bio: row.bio ?? null,
+            trade_note: row.trade_note ?? null,
+            is_original: row.is_original ?? false,
+            made_with_ai: row.made_with_ai ?? false,
+            exchange_mode: row.exchange_mode === 'auto' || row.exchange_mode === 'manual'
+                ? row.exchange_mode
+                : 'none',
+            accent: row.accent ?? null,
+            owner_account_id: row.owner_account_id ?? null,
             // The front image is NOT NULL in the schema, so this never degrades
             // to null the way the optional back image can.
             image1_url: media(
@@ -370,27 +393,88 @@ export class SqlCoreRepository implements NamecardRepository {
 
     private async attachNamecardFavorites(
         database: SqlDatabase,
-        rows: readonly NamecardCardRow[]
+        rows: readonly NamecardCardRow[],
+        content: 'live' | 'submission' = 'submission'
     ): Promise<Array<NamecardSubmissionRow & { favorite_characters: CardFavoriteSelectionRecord[] }>> {
-        const characters = await this.listNamecardFavorites(database, rows.map((row) => row.internal_id));
-        const series = await this.listNamecardSeries(database, rows.map((row) => row.internal_id));
+        const ids = rows.map((row) => row.internal_id);
+        const characters = await this.listNamecardFavorites(database, ids);
+        const series = await this.listNamecardSeries(database, ids);
+        const credits = await this.listNamecardCredits(database, ids);
+        const middle = await this.listNamecardMiddleMedia(database, ids);
         return rows.map((row) => {
             const favoriteCharacters = characters.get(row.internal_id) ?? [];
-            const record = this.namecardRecordFromRow(row);
+            const record = this.namecardRecordFromRow(row, content);
             const payload =
-                row.review_status === 'pending'
+                content === 'submission' && row.review_status === 'pending'
                     ? pendingNamecardPayload(row.pending_payload)
                     : null;
+            const seriesCodes = series.get(row.internal_id) ?? [];
             return {
                 ...record,
                 origin: row.origin,
                 producer_name: payload?.producer_name ?? row.producer_name ?? null,
                 favorite_characters: favoriteCharacters,
-                seriesCode: series.get(row.internal_id)?.[0] ?? record.series_code ?? null,
+                seriesCode: seriesCodes[0] ?? record.series_code ?? null,
+                series_codes: seriesCodes,
+                credits: credits.get(row.internal_id) ?? [],
+                middle_image_urls: middle.get(row.internal_id) ?? [],
                 submissionKind: record.submission_kind ?? 'legacy',
                 favoriteCharacters
             };
         });
+    }
+
+    /** Ordered middle pages of the published copy, as media URLs. */
+    private async listNamecardMiddleMedia(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, string[]>> {
+        const grouped = new Map<string, string[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await database.prepare(
+            `SELECT card_id, object_key FROM public.fudaba_card_media
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{ card_id: string; object_key: string }>();
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push(
+                namecardOriginalUrlFromObjectKey(row.object_key)
+            );
+        }
+        return grouped;
+    }
+
+    private async listNamecardCredits(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, FudabaCardCredit[]>> {
+        const grouped = new Map<string, FudabaCardCredit[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await database.prepare(
+            `SELECT card_id, account_id, display_name, url, roles
+             FROM public.fudaba_card_credits
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{
+            card_id: string;
+            account_id: string | null;
+            display_name: string;
+            url: string | null;
+            roles: string[];
+        }>();
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push({
+                accountId: row.account_id,
+                displayName: row.display_name,
+                url: row.url,
+                roles: row.roles as FudabaCardCredit['roles']
+            });
+        }
+        return grouped;
     }
 
     private async attachOneNamecard(
@@ -521,7 +605,12 @@ export class SqlCoreRepository implements NamecardRepository {
              ORDER BY card_number DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
-        return await this.attachNamecardFavorites(this.database, rows) as NamecardPublicRecord[];
+        // The wall publishes the live copy; a pending revision stays queued.
+        return await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        ) as NamecardPublicRecord[];
     }
 
     async findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
