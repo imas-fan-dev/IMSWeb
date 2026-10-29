@@ -24,6 +24,7 @@ function card(id: number): Namecard {
     credits: [],
     middleImageUrls: [],
     canEdit: false,
+    hasOwner: false,
     seriesCode: null,
     favoriteCharacters: [],
     claimStatus: "unclaimed",

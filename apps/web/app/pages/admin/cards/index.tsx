@@ -1,6 +1,7 @@
 import {
   CheckIcon,
   ContactRoundIcon,
+  ImagesIcon,
   LoaderCircleIcon,
   LockIcon,
   LockOpenIcon,
@@ -46,6 +47,7 @@ import {
   type AdminNamecardList,
 } from "~/lib/api"
 import { NamecardMediaPreview } from "./namecard-media-preview"
+import { NamecardReviewDialog } from "./namecard-review-dialog"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 
 export function meta() {
@@ -214,6 +216,7 @@ export default function AdminCardsPage() {
   })
 
   const [lockReason, setLockReason] = useState("")
+  const [reviewCard, setReviewCard] = useState<AdminNamecard | null>(null)
 
   const LOCK_REASON_PRESETS = [
     "用户主动删除",
@@ -523,11 +526,24 @@ export default function AdminCardsPage() {
                             新版本
                           </Badge>
                         ) : null}
-                        <NamecardMediaPreview
-                          frontImageUrl={card.image1_url}
-                          backImageUrl={card.image2_url}
-                          altBase={`名片 #${card.id}`}
-                        />
+                        <button
+                          type="button"
+                          className="relative block w-full cursor-zoom-in text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                          aria-label={`查看名片 #${card.id} 的审核详情`}
+                          onClick={() => setReviewCard(card)}
+                        >
+                          {card.pageCount > 2 ? (
+                            <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
+                              <ImagesIcon aria-hidden="true" />
+                              {card.pageCount}
+                            </Badge>
+                          ) : null}
+                          <NamecardMediaPreview
+                            frontImageUrl={card.image1_url}
+                            backImageUrl={card.image2_url}
+                            altBase={`名片 #${card.id}`}
+                          />
+                        </button>
                         <div className="flex flex-wrap items-center gap-3 p-4">
                           <div className="mr-auto">
                             <p className="font-medium">
@@ -658,6 +674,26 @@ export default function AdminCardsPage() {
           <CardClaimReviewPanel />
         </TabsContent>
       </Tabs>
+
+      <NamecardReviewDialog
+        key={reviewCard?.id ?? "none"}
+        card={reviewCard}
+        onOpenChange={(open) => {
+          if (!open) setReviewCard(null)
+        }}
+        onApprove={(card) => {
+          setReviewCard(null)
+          approveConfirm.requestAction(card)
+        }}
+        onReject={(card) => {
+          setReviewCard(null)
+          rejectConfirm.requestAction(card)
+        }}
+        onLock={(card) => {
+          setReviewCard(null)
+          lockConfirm.requestAction(card)
+        }}
+      />
 
       <ConfirmActionDialog
         open={approveConfirm.open}

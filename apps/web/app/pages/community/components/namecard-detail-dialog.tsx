@@ -465,7 +465,9 @@ export function NamecardDetailDialog({
       ? NAMECARD_DATE_FORMATTER.format(submitted)
       : "-"
 
-  const unclaimed = card?.claimStatus === "unclaimed"
+  // Ownership is the real gate: a claimed card keeps the queue actions out of
+  // the footer even while its claim request is still being reviewed.
+  const unclaimed = card ? !card.hasOwner : false
   const active = slides[Math.min(activeSlide, Math.max(slides.length - 1, 0))]
 
   return (
@@ -729,6 +731,7 @@ export function NamecardDetailDialog({
             {unclaimed ? (
               <Button
                 type="button"
+                variant="secondary"
                 className="min-h-11"
                 disabled
                 title="暂未开放"

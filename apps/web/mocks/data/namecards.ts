@@ -38,6 +38,7 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     credits: [],
     middleImageUrls: [],
     canEdit: false,
+    hasOwner: false,
     seriesCode: "765",
     favoriteCharacters: [],
     claimStatus: "unclaimed",

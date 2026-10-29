@@ -28,6 +28,7 @@ const card: Namecard = {
   credits: [],
   middleImageUrls: [],
   canEdit: false,
+  hasOwner: false,
   seriesCode: "765",
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   claimStatus: "unclaimed" as const,
