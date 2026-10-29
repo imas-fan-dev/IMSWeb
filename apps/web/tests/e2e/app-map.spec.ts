@@ -1394,6 +1394,11 @@ test.describe("App map guide and creation", () => {
     await expect(
       page.getByRole("button", { name: "在此创建事务所" })
     ).toBeVisible()
+    expect(
+      (await page
+        .getByRole("button", { name: "在此创建事务所" })
+        .boundingBox())!.height
+    ).toBeGreaterThanOrEqual(44)
     await canvas.dispatchEvent("pointerup", {
       pointerType: "touch",
       pointerId: 5,

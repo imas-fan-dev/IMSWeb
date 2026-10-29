@@ -1157,6 +1157,9 @@ test.describe("map first-use guide", () => {
     for (const [index, title] of titles.entries()) {
       const dialog = page.getByRole("dialog", { name: title })
       await expect(dialog).toBeVisible()
+      for (const button of await dialog.getByRole("button").all()) {
+        expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      }
       if (index === 2) {
         await expect(page.locator('[data-map-guide="offices"]')).toBeVisible()
         await page.screenshot({

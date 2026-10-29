@@ -135,11 +135,12 @@ export function ExchangeMapOnboarding({
           <DialogTitle>{current?.title}</DialogTitle>
           <DialogDescription>{current?.text}</DialogDescription>
           <div className="flex items-center justify-between gap-2">
-            <Button variant="ghost" onClick={onFinish}>
+            <Button className="min-h-11" variant="ghost" onClick={onFinish}>
               跳过
             </Button>
             <div className="flex gap-2">
               <Button
+                className="min-h-11"
                 variant="outline"
                 disabled={step === 0}
                 onClick={() => onStep((step ?? 1) - 1)}
@@ -147,6 +148,7 @@ export function ExchangeMapOnboarding({
                 上一步
               </Button>
               <Button
+                className="min-h-11"
                 onClick={() =>
                   step === mapGuideSteps.length - 1
                     ? onFinish()

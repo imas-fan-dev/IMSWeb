@@ -675,6 +675,7 @@ export function CommunityExchangeMapSection({
             <Button
               variant="ghost"
               size="icon-sm"
+              className="size-11"
               aria-label="取消创建选点"
               onClick={() => {
                 setCreatePoint(null)
@@ -685,7 +686,7 @@ export function CommunityExchangeMapSection({
             </Button>
             {createPoint ? (
               <Button
-                className="w-full"
+                className="min-h-11 w-full"
                 onClick={() => {
                   const href = startOfficeCreateIntent(createPoint)
                   setCreatePoint(null)
