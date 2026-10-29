@@ -187,6 +187,10 @@ export const namecardNotificationKindSchema = z.enum([
   "card-rejected",
   "card-locked",
   "card-unlocked",
+  // The management window tells the owner about its own edits and transfers.
+  "card-admin-edited",
+  "card-transferred-in",
+  "card-transferred-out",
   "claim-approved",
   "claim-rejected",
   // Backoffice station messages share this inbox; they carry no card number.
