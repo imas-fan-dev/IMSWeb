@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
-import { MemoryRouter, Route, Routes } from "react-router"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { i18n } from "~/i18n/config"
@@ -80,6 +80,18 @@ function anonymousState() {
   }
 }
 
+function OfficeDestination() {
+  const location = useLocation()
+  return (
+    <>
+      <h1>事务所与位置</h1>
+      <output data-testid="office-url">
+        {location.pathname + location.search + location.hash}
+      </output>
+    </>
+  )
+}
+
 function renderPage(
   mode: "login" | "register" | "password-reset",
   initialEntry = `/account/${mode}`
@@ -102,6 +114,7 @@ function renderPage(
             }
           />
           <Route path="/account/me" element={<h1>个人档案</h1>} />
+          <Route path="/account/me/offices" element={<OfficeDestination />} />
         </Routes>
       </I18nextProvider>
     </MemoryRouter>
@@ -455,5 +468,53 @@ describe("Platform account auth pages", () => {
       screen.getByRole("link", { name: "进入我的交换空间" })
     ).toHaveAttribute("href", "/account/me")
     expect(apiMocks.loginSend).not.toHaveBeenCalled()
+  })
+
+  it("returns a successful login to the requested office draft", async () => {
+    const destination = "/account/me/offices?create=selected-point#editor"
+    apiMocks.loginSend.mockResolvedValue(activeSession)
+    renderPage(
+      "login",
+      `/account/login?returnTo=${encodeURIComponent(destination)}`
+    )
+    const user = await fillLogin()
+    await user.click(screen.getByRole("button", { name: "登录" }))
+    await screen.findByRole("heading", { name: "事务所与位置" })
+    expect(screen.getByTestId("office-url")).toHaveTextContent(destination)
+  })
+
+  it("honors an explicit return destination when the session already exists", async () => {
+    sessionMocks.usePlatformSession.mockReturnValue({
+      ...anonymousState(),
+      status: "authenticated",
+      session: activeSession,
+    })
+    renderPage(
+      "login",
+      "/account/login?returnTo=" +
+        encodeURIComponent("/account/me/offices?create=selected-point")
+    )
+    await screen.findByRole("heading", { name: "事务所与位置" })
+    expect(apiMocks.loginSend).not.toHaveBeenCalled()
+  })
+
+  it("carries the office destination when switching auth modes", () => {
+    const destination = "/account/me/offices?create=selected-point"
+    renderPage(
+      "login",
+      `/account/login?returnTo=${encodeURIComponent(destination)}`
+    )
+    for (const name of [
+      i18n.t("platformAuth.login.switchAction"),
+      i18n.t("platformAuth.forgotPassword"),
+    ]) {
+      const link = screen.getByRole("link", { name })
+      expect(
+        new URL(
+          link.getAttribute("href")!,
+          "https://site.example"
+        ).searchParams.get("returnTo")
+      ).toBe(destination)
+    }
   })
 })

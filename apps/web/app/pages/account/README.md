@@ -26,6 +26,7 @@
 - [routes.ts](../../routes.ts) 把个人页注册在 public 布局下，页面自行处理登录和限制状态；
   Web 与 App 的承载差异见 [public 布局](../../layouts/public-layout.tsx) 和
   [App 布局](../../layouts/app-layout.tsx)。不能套用后台布局的身份边界。
+- 桌面 Web 的匿名个人页入口直接进入桌面登录页；[认证回跳](account-auth-return.ts) 在登录、注册、找回密码之间保留个人工作区的路径、查询与锚点。登录、注册或 Web OAuth 成功后返回原分区；找回密码完成后先回到携带原目标的登录页。回跳仅接受站内个人工作区或安全中心地址，未指定时仍进入个人资料；App 的账号首页与 OAuth 回跳由原有 App 流程负责。
 - [account-me-workspace](me/account-me-workspace.tsx) 分别判断资料修改与交换写入：
   用户限制状态会影响编辑，交换写入还受返回的能力开关约束。登录不代表拥有全部编辑能力。
 - Platform 会话归 [platform 组件](../../components/platform/) 与
@@ -34,6 +35,7 @@
   [fudaba endpoints](../../lib/api/endpoints/fudaba/)。页面统一调用
   [API facade](../../lib/api/index.ts)，上述实现链接不作为直接导入入口。
   wire 来源为 [@imsweb/contracts](../../../../../packages/contracts/README.md)。
+  会话初始化完成前保持加载态；受保护入口不能把恢复会话前的未知状态当作匿名状态跳转。
 - [社区交换](../community/exchange/README.md) 可在地图上下文中复用个人工作区。
   分区选择、指定名片或事务所、关闭与返回行为需兼容独立个人页和地图内管理。
 - 地图创建意图由 [office-create-intent](../../lib/maps/office-create-intent.ts) 暂存，账号工作区在认证及写入能力就绪后打开共享事务所表单；原落点初始化浮标并加载附近地点。候选只用于预览，最终位置与地址仍由用户明确确认。

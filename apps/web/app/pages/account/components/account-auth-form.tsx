@@ -51,6 +51,7 @@ import {
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
+import { accountAuthPath, accountReturnTo } from "../account-auth-return"
 import { PlatformOAuthAppSection } from "./platform-oauth-app-section"
 import {
   platformOAuthReasonKey,
@@ -148,7 +149,18 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const resetSucceeded =
     mode === "login" && searchParams.get("reset") === "success"
   const hasVerificationCode = isRegister || isReset
-  const accountHome = "/account/me"
+  const returnTo = IS_APP_TARGET
+    ? null
+    : accountReturnTo(searchParams.get("returnTo"))
+  const accountHome = returnTo ?? "/account/me"
+  const loginPath = accountAuthPath("login", returnTo)
+  const registerPath = accountAuthPath("register", returnTo)
+  const resetPath = accountAuthPath("password-reset", returnTo)
+  const resetCompletePath = accountAuthPath("login", returnTo, { reset: true })
+  const signedIn = Boolean(
+    platform.session &&
+    (platform.status === "authenticated" || platform.status === "restricted")
+  )
   const verificationCoolingDown = verificationCooldownSeconds > 0
   const title = t(
     isRegister
@@ -166,12 +178,20 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   )
 
   useEffect(() => {
-    if (completed) {
-      void navigate(isReset ? "/account/login?reset=success" : accountHome, {
+    if (completed || (!isReset && returnTo && signedIn)) {
+      void navigate(isReset ? resetCompletePath : accountHome, {
         replace: true,
       })
     }
-  }, [accountHome, completed, isReset, navigate])
+  }, [
+    accountHome,
+    completed,
+    isReset,
+    navigate,
+    resetCompletePath,
+    returnTo,
+    signedIn,
+  ])
 
   useEffect(() => {
     if (isReset) return
@@ -832,7 +852,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                     </FieldLabel>
                     {!isRegister && !isReset ? (
                       <NavigationLink
-                        to="/account/password-reset"
+                        to={resetPath}
                         className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-primary"
                       >
                         <KeyRoundIcon className="size-3.5" aria-hidden="true" />
@@ -1026,11 +1046,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                       : "platformAuth.login.switchPrompt"
                 )}{" "}
                 <NavigationLink
-                  to={
-                    isRegister || isReset
-                      ? "/account/login"
-                      : "/account/register"
-                  }
+                  to={isRegister || isReset ? loginPath : registerPath}
                   className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
                 >
                   {t(
