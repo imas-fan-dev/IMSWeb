@@ -138,6 +138,7 @@ describe("community API contracts", () => {
               credits: [],
               middleImageUrls: [],
               canEdit: false,
+              hasOwner: false,
               seriesCode: null,
               favoriteCharacters: [],
               image1_url: "/uploads/front.webp",
