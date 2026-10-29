@@ -105,10 +105,12 @@ import {
 import {
   adminNamecardHttpErrorSchema,
   adminNamecardListQuerySchema,
+  adminNamecardDeleteRequestSchema,
   adminNamecardDiffSchema,
   adminNamecardListResponseSchema,
   namecardErrorResponseSchema,
   adminNamecardMutationSchema,
+  adminNamecardUpdateRequestSchema,
   expectedNamecardRevisionRequestSchema,
   flaggedNamecardRequestSchema,
   lockedNamecardRequestSchema,
@@ -990,6 +992,30 @@ export function resolveApiContract(
         404: namecardErrorResponseSchema,
         409: namecardErrorResponseSchema,
         410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "PUT" && /^\/api\/admin\/cards\/[^/]+$/.test(path))
+    return {
+      body: adminNamecardUpdateRequestSchema,
+      responses: {
+        200: adminNamecardDiffSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "DELETE" && /^\/api\/admin\/cards\/[^/]+$/.test(path))
+    return {
+      body: adminNamecardDeleteRequestSchema,
+      responses: {
+        200: adminNamecardMutationSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/accounts")

@@ -49,6 +49,11 @@ import {
 import { NamecardMediaPreview } from "./namecard-media-preview"
 import { NamecardReviewDialog } from "./namecard-review-dialog"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
+import {
+  LOCK_REASON_PRESETS,
+  REJECT_REASON_PRESETS,
+  VIOLATION_REASON_PRESETS,
+} from "./reason-presets"
 
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]
@@ -210,7 +215,7 @@ export default function AdminCardsPage() {
     },
     getTitle: () => "通过审核",
     getDescription: (card) =>
-      `名片 #${card.id} 将通过审核并公开在名片墙上展示，之后仍可删除。`,
+      `名片 #${card.id} 将通过审核并公开在名片墙上展示，之后仍可锁定。`,
     successMessage: (card) => `名片 #${card.id} 已通过审核`,
     getFallbackFocus,
   })
@@ -218,13 +223,6 @@ export default function AdminCardsPage() {
   const [lockReason, setLockReason] = useState("")
   const [reviewCard, setReviewCard] = useState<AdminNamecard | null>(null)
 
-
-  const LOCK_REASON_PRESETS = [
-    "用户主动删除",
-    "非企划内容",
-    "NSFW内容",
-    "涉及对现实人物的侮辱",
-  ] as const
 
   const lockConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {
@@ -299,23 +297,6 @@ export default function AdminCardsPage() {
 
   const [rejectReason, setRejectReason] = useState("")
   const [rejectFlagged, setRejectFlagged] = useState(false)
-
-  const REJECT_REASON_PRESETS = [
-    "信息缺失",
-    "信息不符",
-    "图片模糊",
-    "内容不当",
-    "重复提交",
-  ] as const
-
-  // A flagged submission is rejected for breaking the rules, not for being
-  // incomplete, so it gets its own preset set.
-  const VIOLATION_REASON_PRESETS = [
-    "非企划内容",
-    "NSFW内容",
-    "涉及对现实人物的侮辱",
-    "侵权内容",
-  ] as const
 
   const rejectConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {

@@ -202,11 +202,14 @@ function SlotImage({
 export function CardMediaGallery({
   slots,
   disabled,
+  allowUpload = true,
   onChange,
   onError,
 }: {
   slots: readonly MediaSlot[]
   disabled: boolean
+  /** The backoffice may only reorder and drop pages, never add or replace. */
+  allowUpload?: boolean
   onChange: (slots: MediaSlot[]) => void
   onError: (message: string) => void
 }) {
@@ -354,20 +357,22 @@ export function CardMediaGallery({
 
   return (
     <section aria-label="名片图片" className="min-w-0">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="sr-only"
-        aria-label="选择名片图片"
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? [])
-          const replaceAt = replaceRef.current
-          replaceRef.current = null
-          addFiles(files, replaceAt)
-        }}
-      />
+      {allowUpload ? (
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          aria-label="选择名片图片"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? [])
+            const replaceAt = replaceRef.current
+            replaceRef.current = null
+            addFiles(files, replaceAt)
+          }}
+        />
+      ) : null}
 
       <div
         className={`relative aspect-video w-full overflow-hidden rounded-lg border ${
@@ -409,17 +414,19 @@ export function CardMediaGallery({
         ) : null}
         {current ? (
           <div className="absolute right-2 bottom-2 z-10 flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="border bg-background shadow-sm ring-1 ring-border hover:bg-muted"
-              disabled={disabled}
-              onClick={() => pick(position)}
-            >
-              <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-              更换
-            </Button>
+            {allowUpload ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="border bg-background shadow-sm ring-1 ring-border hover:bg-muted"
+                disabled={disabled}
+                onClick={() => pick(position)}
+              >
+                <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+                更换
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -487,7 +494,7 @@ export function CardMediaGallery({
           />
         ))}
 
-        {slots.length < NAMECARD_MEDIA_LIMIT && !drag ? (
+        {allowUpload && slots.length < NAMECARD_MEDIA_LIMIT && !drag ? (
           <button
             type="button"
             disabled={disabled}
@@ -523,8 +530,14 @@ export function CardMediaGallery({
         : null}
 
       <p className="mt-2 text-xs text-muted-foreground">
-        第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。
-        最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。
+        {allowUpload ? (
+          <>
+            第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。
+            最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。
+          </>
+        ) : (
+          "只能删除或调整图片顺序，替换与新增由用户在编辑器里完成。"
+        )}
       </p>
     </section>
   )

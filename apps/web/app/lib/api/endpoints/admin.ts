@@ -6,11 +6,13 @@ import {
 } from "@imsweb/contracts/paths"
 import { createEventResponseSchema } from "@imsweb/contracts/events"
 import {
+  adminNamecardDeleteRequestSchema,
+  adminNamecardDiffSchema,
   adminNamecardHttpErrorSchema,
   adminNamecardListBusinessErrorSchema,
-  adminNamecardDiffSchema,
   adminNamecardListSchema,
   adminNamecardMutationSchema,
+  adminNamecardUpdateRequestSchema,
   namecardErrorResponseSchema,
   namecardMutationResponseSchema,
 } from "@imsweb/contracts/namecards"
@@ -436,6 +438,41 @@ export function getAdminNamecardDiff(id: number) {
       businessErrorSchema: namecardErrorResponseSchema,
       errorSchema: adminNamecardHttpErrorSchema,
       meta: withBackofficeAuth(),
+    })
+  )
+}
+
+/**
+ * Rewrites a card from the backoffice; the server answers with the card as it
+ * now stands so the dialog can keep editing without a second round trip.
+ */
+export function updateAdminNamecard(
+  id: number,
+  input: Parameters<typeof adminNamecardUpdateRequestSchema.parse>[0]
+) {
+  return adminApiClient.Put(
+    adminApiPath(`/cards/${id}`),
+    adminNamecardUpdateRequestSchema.parse(input),
+    parsed(adminNamecardDiffSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
+
+export function deleteAdminNamecard(id: number, expectedRevision: number) {
+  return adminApiClient.Delete(
+    adminApiPath(`/cards/${id}`),
+    adminNamecardDeleteRequestSchema.parse({
+      expected_revision: expectedRevision,
+    }),
+    parsed(adminNamecardMutationSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
     })
   )
 }
