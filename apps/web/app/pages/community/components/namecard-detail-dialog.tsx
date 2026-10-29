@@ -8,6 +8,7 @@ import {
 import { useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
 
+import { formatCredit } from "~/components/community/namecard-credit-format"
 import type { NamecardSide } from "~/components/shared/namecard-preview"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -284,12 +285,6 @@ export function NamecardReactionSummary({
     </div>
   )
 }
-
-const CREATOR_ROLE_LABELS = {
-  design: "设计",
-  illustration: "插画",
-  other: "其他",
-} as const
 
 const NAMECARD_DATE_ONLY_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -629,40 +624,22 @@ export function NamecardDetailDialog({
                   </FieldRow>
                   <FieldRow label="制作人员">
                     {card?.credits.length ? (
-                      <span className="flex flex-wrap items-center gap-1 ">
+                      <ul className="space-y-1">
                         {card.credits.map((credit, index) => (
-                          <span
-                            key={`${credit.displayName}-${index}`}
-                            className="inline-flex items-center gap-1"
-                          >
-                            {index > 0 ? (
-                              <span
-                                aria-hidden="true"
-                                className="text-muted-foreground"
-                              >
-                                &bull;
-                              </span>
-                            ) : null}
+                          <li key={`${credit.displayName}-${index}`}>
                             {credit.url ? (
                               <NavigationLink
                                 href={credit.url}
                                 className="underline underline-offset-2"
                               >
-                                {credit.displayName}
+                                {formatCredit(credit)}
                               </NavigationLink>
                             ) : (
-                              credit.displayName
+                              formatCredit(credit)
                             )}
-                            <span className="text-xs text-muted-foreground">
-                              （
-                              {credit.roles
-                                .map((role) => CREATOR_ROLE_LABELS[role])
-                                .join("/")}
-                              ）
-                            </span>
-                          </span>
+                          </li>
                         ))}
-                      </span>
+                      </ul>
                     ) : (
                       <EmptyDash />
                     )}

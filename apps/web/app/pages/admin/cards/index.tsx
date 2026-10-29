@@ -218,6 +218,7 @@ export default function AdminCardsPage() {
   const [lockReason, setLockReason] = useState("")
   const [reviewCard, setReviewCard] = useState<AdminNamecard | null>(null)
 
+
   const LOCK_REASON_PRESETS = [
     "用户主动删除",
     "非企划内容",
@@ -402,6 +403,13 @@ export default function AdminCardsPage() {
     successMessage: (card) => `名片 #${card.id} 已驳回`,
     getFallbackFocus,
   })
+
+  // Approving or locking drops the row from the queue, so the review window
+  // closes with it instead of showing a revision that no longer exists.
+  const activeReviewCard =
+    reviewCard && cards.some((card) => card.id === reviewCard.id)
+      ? reviewCard
+      : null
 
   const submitting =
     approveConfirm.submitting ||
@@ -677,22 +685,13 @@ export default function AdminCardsPage() {
 
       <NamecardReviewDialog
         key={reviewCard?.id ?? "none"}
-        card={reviewCard}
+        card={activeReviewCard}
         onOpenChange={(open) => {
           if (!open) setReviewCard(null)
         }}
-        onApprove={(card) => {
-          setReviewCard(null)
-          approveConfirm.requestAction(card)
-        }}
-        onReject={(card) => {
-          setReviewCard(null)
-          rejectConfirm.requestAction(card)
-        }}
-        onLock={(card) => {
-          setReviewCard(null)
-          lockConfirm.requestAction(card)
-        }}
+        onApprove={(card) => approveConfirm.requestAction(card)}
+        onReject={(card) => rejectConfirm.requestAction(card)}
+        onLock={(card) => lockConfirm.requestAction(card)}
       />
 
       <ConfirmActionDialog

@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { formatCredit } from "~/components/community/namecard-credit-format"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 import { getAdminNamecardDiff, type AdminNamecard, type AdminNamecardDiff } from "~/lib/api"
 import { cn } from "~/lib/utils"
@@ -31,8 +32,11 @@ interface ImageSlot {
 
 interface FieldDiff {
   label: string
+  /** Single-value fields compare as one line. */
   live: string
   pending: string | null
+  /** List fields compare item by item so only real edits stand out. */
+  items?: { kept: string[]; removed: string[]; added: string[] }
 }
 
 const EMPTY = "-"
@@ -84,16 +88,23 @@ export function diffImageSlots(live: DiffSide, pending: DiffSide | null): ImageS
   return slots
 }
 
-function creditsText(side: DiffSide): string {
-  if (!side.credits.length) return ""
-  return side.credits
-    .map((credit) => credit.displayName)
-    .filter((name) => name.trim())
-    .join("、")
+/** Items that appear on both sides stay neutral; only the edits are coloured. */
+function diffItems(before: readonly string[], after: readonly string[]) {
+  const next = new Set(after)
+  const previous = new Set(before)
+  return {
+    kept: before.filter((item) => next.has(item)),
+    removed: before.filter((item) => !next.has(item)),
+    added: after.filter((item) => !previous.has(item)),
+  }
 }
 
-function charactersText(side: DiffSide): string {
-  return side.favoriteCharacters.map((character) => character.name).join("、")
+function creditsList(side: DiffSide): string[] {
+  return side.credits.map(formatCredit).filter((text) => text.length > 0)
+}
+
+function charactersList(side: DiffSide): string[] {
+  return side.favoriteCharacters.map((character) => character.name)
 }
 
 /** 字段顺序与名片详情窗一致，只有提交版本才参与比较。 */
@@ -103,17 +114,58 @@ export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[
     ["制作人读音", live.producerReading ?? "", pending?.producerReading ?? ""],
     ["制作日期", live.madeOn ?? "", pending?.madeOn ?? ""],
     ["所属团体", live.groupName ?? "", pending?.groupName ?? ""],
-    ["制作人员", creditsText(live), pending ? creditsText(pending) : ""],
-    ["企划", live.seriesCodes.join("、"), pending?.seriesCodes.join("、") ?? ""],
-    ["担当角色", charactersText(live), pending ? charactersText(pending) : ""],
     ["简介", live.bio ?? "", pending?.bio ?? ""],
     ["交换说明", live.tradeNote ?? "", pending?.tradeNote ?? ""],
   ]
-  return rows.map(([label, before, after]) => ({
+  const fields: FieldDiff[] = rows.map(([label, before, after]) => ({
     label,
     live: before,
     pending: pending && before !== after ? after : null,
   }))
+  const lists: Array<[string, readonly string[], readonly string[]]> = [
+    ["制作人员", creditsList(live), pending ? creditsList(pending) : creditsList(live)],
+    ["企划", live.seriesCodes, pending ? pending.seriesCodes : live.seriesCodes],
+    ["担当角色", charactersList(live), pending ? charactersList(pending) : charactersList(live)],
+  ]
+  for (const [label, before, after] of lists) {
+    const items = diffItems(before, after)
+    fields.push({
+      label,
+      live: before.join("、"),
+      pending:
+        pending && (items.removed.length || items.added.length)
+          ? after.join("、")
+          : null,
+      items,
+    })
+  }
+  return fields
+}
+
+/** Kept items stay quiet so the eye lands on the removals and additions. */
+function ItemDiff({ items }: { items: { kept: string[]; removed: string[]; added: string[] } }) {
+  const empty = !items.kept.length && !items.removed.length && !items.added.length
+  if (empty) return <>{EMPTY}</>
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-0.5">
+      {items.kept.map((item) => (
+        <span key={`kept-${item}`}>{item}</span>
+      ))}
+      {items.removed.map((item) => (
+        <span
+          key={`removed-${item}`}
+          className="text-destructive line-through decoration-destructive/70"
+        >
+          {item}
+        </span>
+      ))}
+      {items.added.map((item) => (
+        <span key={`added-${item}`} className="text-success">
+          {item}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 /**
@@ -230,7 +282,9 @@ export function NamecardReviewDialog({
                         {field.label}
                       </dt>
                       <dd className="min-w-0 flex-1 wrap-break-word">
-                        {field.pending === null ? (
+                        {field.items ? (
+                          <ItemDiff items={field.items} />
+                        ) : field.pending === null ? (
                           field.live || EMPTY
                         ) : (
                           <>
