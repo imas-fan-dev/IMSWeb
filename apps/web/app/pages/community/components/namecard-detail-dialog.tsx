@@ -733,7 +733,7 @@ export function NamecardDetailDialog({
             ) : null}
             <Button
               type="button"
-              className="min-h-11"
+              className="min-h-11 bg-foreground text-background hover:bg-foreground/85"
               disabled
               title="暂未开放"
             >
