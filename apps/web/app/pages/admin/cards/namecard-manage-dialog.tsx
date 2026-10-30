@@ -9,7 +9,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
-import { REJECT_REASON_PRESETS } from "./reason-presets"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
@@ -683,19 +682,20 @@ export function NamecardManageDialog({
                       if (event.target.value.trim()) setReasonRequired(false)
                     }}
                   />
-                  <FieldDescription>
-                    {needsReason
-                      ? "本次修改需要理由，保存后会以站内信通知所有者。"
-                      : feedback
-                        ? "受理时只保存这里的改动，不需要理由。"
+                  {needsReason || !feedback ? (
+                    <FieldDescription>
+                      {needsReason
+                        ? "本次修改需要理由，保存后会以站内信通知所有者。"
                         : "没有任何改动时不需要理由。"}
-                  </FieldDescription>
+                    </FieldDescription>
+                  ) : null}
                 </div>
               </div>
 
               <Separator />
 
               <CardFields
+                required={false}
                 draft={draft}
                 series={series}
                 disabled={busy}
@@ -780,28 +780,13 @@ export function NamecardManageDialog({
                 ? " 这里尚未保存的资料改动会一并丢弃。"
                 : null}
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {REJECT_REASON_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  onClick={() => {
-                    setRejectReason(preset)
-                    setRejectError(false)
-                  }}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
             <textarea
               aria-label="驳回理由"
               value={rejectReason}
               maxLength={REASON_LIMIT}
               rows={3}
               aria-invalid={rejectError || undefined}
-              placeholder="填写驳回理由，反馈人会收到「您的反馈未被受理，理由：…」"
+              placeholder="请填写驳回理由"
               className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               onChange={(event) => {
                 setRejectReason(event.currentTarget.value)

@@ -17,6 +17,7 @@ import {
 import {
   NAMECARD_CREDIT_LIMIT,
   NAMECARD_MIDDLE_IMAGE_LIMIT,
+  NAMECARD_SERIES_LIMIT,
 } from "./fudaba/namecard-runtime.js"
 
 export const cardIdSchema = z.number().int().positive()
@@ -51,7 +52,7 @@ export const namecardPublicDetailSchema = {
   cardId: z.string().min(1),
   cardNumber: z.number().int().positive(),
   revision: z.number().int().nonnegative(),
-  producerName: z.string().min(1).nullable(),
+  producerName: z.string().nullable(),
   /** Sorting aid only, rendered in parentheses after the producer name. */
   producerReading: z.string().min(1).nullable(),
   groupName: z.string().min(1).nullable(),
@@ -79,7 +80,7 @@ export const namecardPublicDetailSchema = {
  */
 export const namecardDiffSideSchema = z
   .object({
-    producerName: z.string().min(1).nullable(),
+    producerName: z.string().nullable(),
     producerReading: z.string().min(1).nullable(),
     groupName: z.string().min(1).nullable(),
     madeOn: z.string().min(1).nullable(),
@@ -173,7 +174,7 @@ export const adminNamecardSchema = exactJsonResponse({
   image2_url: z.string().min(1).nullable(),
   status: z.string(),
   revision: z.number().int().nonnegative(),
-  producerName: z.string().min(1).nullable(),
+  producerName: z.string().nullable(),
   /** 制作人名读法：排序辅助，只有填写过的名片才带值。 */
   producerReading: z.string().min(1).nullable(),
   origin: z.string().min(1),
@@ -232,7 +233,18 @@ export const adminNamecardMutationSchema = successEnvelope({
  * `ownerAccountId` is omitted to keep the current owner and `null` to clear it;
  * `reason` is required whenever the submission changes anything.
  */
-export const adminNamecardUpdateRequestSchema = fudabaCardFieldsRequestSchema
+/**
+ * The backoffice may save a card whose producer name or series list is still
+ * empty; the owner editor keeps the strict shape.
+ */
+const adminNamecardFieldsSchema = fudabaCardFieldsRequestSchema
+  .extend({
+    producerName: z.string().trim().max(80),
+    seriesCodes: z.array(z.string().trim().min(1)).max(NAMECARD_SERIES_LIMIT),
+  })
+  .strict()
+
+export const adminNamecardUpdateRequestSchema = adminNamecardFieldsSchema
   .extend({
     expected_revision: z.number().int().nonnegative(),
     reason: z.string().trim().max(400).nullable(),
@@ -272,7 +284,7 @@ export const namecardFeedbackMutationSchema = successEnvelope({})
 export const adminNamecardFeedbackSchema = exactJsonResponse({
   id: z.number().int().positive(),
   cardNumber: z.number().int().positive(),
-  producerName: z.string().min(1).nullable(),
+  producerName: z.string().nullable(),
   image1_url: z.string().min(1),
   image2_url: z.string().min(1).nullable(),
   pageCount: z.number().int().positive(),

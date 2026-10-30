@@ -117,6 +117,7 @@ export function CardFields({
   series,
   disabled,
   modes,
+  required = true,
   onChange,
 }: {
   draft: FudabaCardFields
@@ -124,6 +125,8 @@ export function CardFields({
   disabled: boolean
   /** 每个模块可单独设为仅显示 / 编辑 / 不可见。 */
   modes?: CardModuleModes
+  /** 后台可以保存资料不全的名片，此时不标必填。 */
+  required?: boolean
   onChange: (draft: FudabaCardFields) => void
 }) {
   const { catalog, loading, failed } = useNamecardCharacterCatalog()
@@ -157,13 +160,13 @@ export function CardFields({
         <FieldGroup className="grid gap-5 sm:grid-cols-2">
           <Field data-disabled={disabled || undefined} data-card-field="producerName">
             <FieldLabel htmlFor="exchange-card-producer-name">
-              制作人名称 <RequiredMark />
+              制作人名称 {required ? <RequiredMark /> : null}
             </FieldLabel>
             <Input
               id="exchange-card-producer-name"
               value={draft.producerName}
               maxLength={80}
-              required
+              required={required}
               disabled={disabled}
               onChange={(event) =>
                 patch({ producerName: event.currentTarget.value })
@@ -347,6 +350,7 @@ export function CardFields({
         <div data-card-field="seriesCodes">
           <SeriesMultiSelect
             id="exchange-card-series"
+            required={required}
             series={series}
             selectedCodes={draft.seriesCodes}
             lockedCodes={lockedSeriesCodes}
@@ -365,14 +369,14 @@ export function CardFields({
             selectedIds={draft.favoriteCharacterIds}
             disabled={disabled || loading}
             onChange={(favoriteCharacterIds) => {
-              const required = (catalog?.characters ?? [])
+              const agencyCodes = (catalog?.characters ?? [])
                 .filter((entry) => favoriteCharacterIds.includes(entry.id))
                 .map((entry) => entry.agencyCode)
                 .filter((code): code is string => Boolean(code))
               patch({
                 favoriteCharacterIds,
                 seriesCodes: Array.from(
-                  new Set([...draft.seriesCodes, ...required])
+                  new Set([...draft.seriesCodes, ...agencyCodes])
                 ),
               })
             }}
