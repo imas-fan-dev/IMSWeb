@@ -2064,9 +2064,10 @@ import { test } from 'vitest';
                                 producerName: '天海春香',
                                 ownerAccountId: 'owner-1',
                                 ownerName: '调试用户',
+                                action: 'locked',
                                 reason: '非企划内容',
                                 handledBy: 'debugadmin',
-                                lockedAt: '2026-11-01T00:00:00.000Z'
+                                occurredAt: '2026-11-01T00:00:00.000Z'
                             }
                         ],
                         total: 3,
@@ -2098,14 +2099,23 @@ import { test } from 'vitest';
                 }
             });
             const locks = await fixture.request(
-                '/api/admin/cards/audit/locks?page=2&owner=%E8%B0%83%E8%AF%95&reason=%E4%BC%81%E5%88%92&handler=debug',
+                '/api/admin/cards/audit/locks?page=2&owner=%E8%B0%83%E8%AF%95&reason=%E4%BC%81%E5%88%92&handler=debug&action=unlocked',
                 { headers }
             );
             assert.equal(locks.status, 200);
             const lockBody = await locks.json();
             assert.deepEqual(lockFilters, [
-                { page: 2, pageSize: 20, owner: '调试', reason: '企划', handler: 'debug' }
+                {
+                    page: 2,
+                    pageSize: 20,
+                    owner: '调试',
+                    reason: '企划',
+                    handler: 'debug',
+                    action: 'unlocked'
+                }
             ]);
+            assert.equal(lockBody.data[0].action, 'locked');
+            assert.equal(lockBody.data[0].occurredAt, '2026-11-01T00:00:00.000Z');
             assert.deepEqual(lockBody.data[0].owner, {
                 name: '调试用户',
                 total: 3,

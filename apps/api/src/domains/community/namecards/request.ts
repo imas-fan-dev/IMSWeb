@@ -297,6 +297,7 @@ export interface AdminNamecardLockAuditQuery {
     owner: string | null;
     reason: string | null;
     handler: string | null;
+    action: 'locked' | 'unlocked' | null;
 }
 
 export interface AdminNamecardFeedbackAuditQuery {
@@ -305,6 +306,14 @@ export interface AdminNamecardFeedbackAuditQuery {
     reporter: string | null;
     outcome: 'accepted' | 'rejected' | null;
     handler: string | null;
+}
+
+function auditAction(
+    query: Record<string, unknown>,
+    key: string
+): 'locked' | 'unlocked' | null {
+    const value = auditText(query, key);
+    return value === 'locked' || value === 'unlocked' ? value : null;
 }
 
 function auditText(query: Record<string, unknown>, key: string): string | null {
@@ -322,7 +331,8 @@ export function validateAdminNamecardLockAuditQuery(
         page: legacyPaginationValue(query.page, DEFAULT_PAGE),
         owner: auditText(query, 'owner'),
         reason: auditText(query, 'reason'),
-        handler: auditText(query, 'handler')
+        handler: auditText(query, 'handler'),
+        action: auditAction(query, 'action')
     };
 }
 

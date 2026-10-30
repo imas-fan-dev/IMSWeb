@@ -453,6 +453,7 @@ export interface AdminNamecardLockAuditParams {
   owner?: string
   reason?: string
   handler?: string
+  action?: "locked" | "unlocked"
 }
 
 export interface AdminNamecardFeedbackAuditParams {

@@ -7,13 +7,13 @@ import type { ValidatedRequestContext } from '@/middleware/request-validation';
 const PAGE_SIZE = 20;
 
 /**
- * The lock audit only knows about cards that are locked right now: unlocking
- * deletes the row, so this table never grows into a history browser.
+ * Every lock decision is appended, so the table shows both the moment a card
+ * was taken down and the moment it came back.
  */
 export async function handleListAdminNamecardLockAudit(
     c: ValidatedRequestContext<AppEnvironment, 'query', AdminNamecardLockAuditQuery>
 ): Promise<Response> {
-    const { page, owner, reason, handler } = c.req.valid('query');
+    const { page, owner, reason, handler, action } = c.req.valid('query');
     try {
         const audit = await namecardRepository(c).listNamecardLockAudit({
             page,
@@ -21,6 +21,7 @@ export async function handleListAdminNamecardLockAudit(
             owner,
             reason,
             handler,
+            action,
         });
         const pageCounts = new Map<string, number>();
         for (const row of audit.rows) {
@@ -44,9 +45,10 @@ export async function handleListAdminNamecardLockAudit(
                           pageCount: pageCounts.get(row.ownerAccountId) ?? 1,
                       }
                     : null,
+                action: row.action,
                 reason: row.reason,
                 handledBy: row.handledBy,
-                lockedAt: row.lockedAt,
+                occurredAt: row.occurredAt,
             })),
             pageInfo: {
                 page,

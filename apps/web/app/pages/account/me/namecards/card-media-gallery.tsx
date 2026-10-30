@@ -357,7 +357,7 @@ export function CardMediaGallery({
 
   return (
     <section aria-label="名片图片" className="min-w-0">
-      {allowUpload ? (
+      {allowUpload && !disabled ? (
         <input
           ref={inputRef}
           type="file"

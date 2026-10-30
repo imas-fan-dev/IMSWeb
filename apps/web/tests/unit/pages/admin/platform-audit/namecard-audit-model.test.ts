@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest"
 
 import {
   auditTab,
+  auditUserBadge,
   auditUserLabel,
   auditUserTitle,
   AUDIT_TABS,
@@ -22,6 +23,13 @@ describe("namecard audit model", () => {
     )
     expect(auditUserLabel({ name: "调试用户", total: 3, pageCount: 1 })).toBe(
       "调试用户 (3 次)"
+    )
+  })
+
+  test("keeps the repeat annotation weak and absent for a single record", () => {
+    expect(auditUserBadge({ name: "调试用户", total: 1, pageCount: 1 })).toBeNull()
+    expect(auditUserBadge({ name: "调试用户", total: 4, pageCount: 1 })).toBe(
+      "(4 次)"
     )
   })
 

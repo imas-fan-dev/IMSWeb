@@ -1,5 +1,12 @@
-import { ClipboardListIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
-import { useCallback, useEffect, useState, type FormEvent } from "react"
+import { ClipboardListIcon, RefreshCwIcon, XIcon } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react"
 import { useSearchParams } from "react-router"
 
 import { AdminPagination } from "~/components/admin/admin-pagination"
@@ -7,7 +14,6 @@ import {
   AdminEmptyState,
   AdminPageHeader,
   AdminPanel,
-  adminControlClass,
 } from "~/components/admin/admin-ui"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
@@ -31,6 +37,7 @@ import {
 } from "~/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import type {
+  NamecardAuditUser,
   NamecardFeedbackAuditList,
   NamecardLockAuditList,
 } from "@imsweb/contracts/namecards"
@@ -42,7 +49,7 @@ import { feedbackReasonLabel } from "~/pages/community/exchange/components/namec
 import {
   AUDIT_TABS,
   auditTab,
-  auditUserLabel,
+  auditUserBadge,
   auditUserTitle,
   formatAuditMoment,
   type AuditTab,
@@ -64,6 +71,15 @@ const OUTCOME_ITEMS = [
   { value: "rejected", label: "未受理" },
 ]
 
+const ACTION_ITEMS = [
+  { value: "all", label: "全部操作" },
+  { value: "locked", label: "已锁定" },
+  { value: "unlocked", label: "已解锁" },
+]
+
+/** Typing settles before the table refetches, so every keystroke is one wait. */
+const FILTER_DEBOUNCE_MS = 260
+
 export function meta() {
   return [{ title: "名片审计 | IMSWeb" }]
 }
@@ -76,6 +92,7 @@ export default function AdminNamecardAuditPage() {
   const handler = searchParams.get("handler") ?? ""
   const reporter = searchParams.get("reporter") ?? ""
   const outcome = searchParams.get("outcome") ?? "all"
+  const action = searchParams.get("action") ?? "all"
   const requestedPage = Number(searchParams.get("page") ?? "1")
   const page =
     Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
@@ -89,7 +106,14 @@ export default function AdminNamecardAuditPage() {
   const [reloadToken, setReloadToken] = useState(0)
   const [error, setError] = useState(false)
 
-  const loadKey = `${tab}:${owner}:${reason}:${handler}:${reporter}:${outcome}:${page}:${reloadToken}`
+  const ownerInput = useRef<HTMLInputElement>(null)
+  const reasonInput = useRef<HTMLInputElement>(null)
+  const reporterInput = useRef<HTMLInputElement>(null)
+  const handlerInput = useRef<HTMLInputElement>(null)
+  const filterTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingFilters = useRef<Record<string, string>>({})
+
+  const loadKey = `${tab}:${owner}:${reason}:${handler}:${reporter}:${outcome}:${action}:${page}:${reloadToken}`
   const loading = loadedKey !== loadKey
 
   useEffect(() => {
@@ -101,6 +125,7 @@ export default function AdminNamecardAuditPage() {
             owner,
             reason,
             handler,
+            action: action === "all" ? undefined : (action as "locked" | "unlocked"),
           }).send()
         : getAdminNamecardFeedbackAudit({
             page,
@@ -134,14 +159,18 @@ export default function AdminNamecardAuditPage() {
     return () => {
       active = false
     }
-  }, [handler, loadKey, outcome, owner, page, reason, reporter, tab])
+  }, [action, handler, loadKey, outcome, owner, page, reason, reporter, tab])
+
+  useEffect(() => () => clearTimeout(filterTimer.current), [])
 
   const applyFilters = useCallback(
-    (patch: Record<string, string> = {}) => {
+    (patch: Record<string, string>) => {
       const next = new URLSearchParams()
       const merged: Record<string, string> = { tab, ...patch }
       for (const [key, value] of Object.entries(merged)) {
-        if (!value || (key === "outcome" && value === "all")) continue
+        if (!value || key === "page" && value === "") continue
+        if (key === "outcome" && value === "all") continue
+        if (key === "action" && value === "all") continue
         next.set(key, value)
       }
       setSearchParams(next)
@@ -149,16 +178,62 @@ export default function AdminNamecardAuditPage() {
     [setSearchParams, tab]
   )
 
+  /** Typing filters the table on its own; no confirm button in the way. */
+  const queueFilter = useCallback(
+    (patch: Record<string, string>) => {
+      pendingFilters.current = { ...pendingFilters.current, ...patch, page: "" }
+      clearTimeout(filterTimer.current)
+      filterTimer.current = setTimeout(() => {
+        filterTimer.current = undefined
+        const pending = pendingFilters.current
+        pendingFilters.current = {}
+        applyFilters(pending)
+      }, FILTER_DEBOUNCE_MS)
+    },
+    [applyFilters]
+  )
+
+  const pickUser = useCallback(
+    (field: "owner" | "reporter", name: string) => {
+      const input = field === "owner" ? ownerInput.current : reporterInput.current
+      if (input) input.value = name
+      applyFilters({ [field]: name })
+    },
+    [applyFilters]
+  )
+
+  const clearField = useCallback(
+    (field: "owner" | "reason" | "reporter" | "handler") => {
+      const input = {
+        owner: ownerInput,
+        reason: reasonInput,
+        reporter: reporterInput,
+        handler: handlerInput,
+      }[field].current
+      if (input) input.value = ""
+      applyFilters({ [field]: "", page: "" })
+    },
+    [applyFilters]
+  )
+
   function switchTab(next: AuditTab) {
     setSearchParams({ tab: next })
   }
 
-  const filterKey = `${tab}:${owner}:${reason}:${handler}:${reporter}:${outcome}`
-
   const hasFilters =
     owner !== "" ||
-    (tab === "locks" ? reason !== "" : reporter !== "" || outcome !== "all") ||
-    handler !== ""
+    handler !== "" ||
+    (tab === "locks"
+      ? reason !== "" || action !== "all"
+      : reporter !== "" || outcome !== "all")
+
+  function clearFilters() {
+    if (ownerInput.current) ownerInput.current.value = ""
+    if (reasonInput.current) reasonInput.current.value = ""
+    if (reporterInput.current) reporterInput.current.value = ""
+    if (handlerInput.current) handlerInput.current.value = ""
+    setSearchParams({ tab })
+  }
 
   const rows = tab === "locks" ? lockRows : feedbackRows
 
@@ -202,18 +277,104 @@ export default function AdminNamecardAuditPage() {
         title={tab === "locks" ? "锁定记录" : "反馈记录"}
         description={
           tab === "locks"
-            ? "当前仍处于锁定状态的名片；解锁后对应的记录会被删除。"
+            ? "每次锁定与解锁都会留下一条记录，按时间倒序排列。"
             : "已经处理过的反馈；待处理的反馈留在反馈队列里。"
         }
       >
-        <AuditFilters
-          key={filterKey}
-          tab={tab}
-          filters={{ owner, reason, handler, reporter, outcome }}
-          hasFilters={hasFilters}
-          onSubmit={(next) => applyFilters(next)}
-          onClear={() => setSearchParams({ tab })}
-        />
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <FilterField label="归属用户">
+            <ClearableInput
+              inputRef={ownerInput}
+              defaultValue={owner}
+              placeholder="显示名称或账号 ID"
+              onValueChange={(value) => queueFilter({ owner: value })}
+              onClear={() => clearField("owner")}
+            />
+          </FilterField>
+          {tab === "locks" ? (
+            <>
+              <FilterField label="锁定理由">
+                <ClearableInput
+                  inputRef={reasonInput}
+                  defaultValue={reason}
+                  placeholder="理由关键词"
+                  onValueChange={(value) => queueFilter({ reason: value })}
+                  onClear={() => clearField("reason")}
+                />
+              </FilterField>
+              <FilterField label="操作">
+                <Select
+                  value={action}
+                  onValueChange={(value) => applyFilters({ action: String(value) })}
+                  items={ACTION_ITEMS}
+                >
+                  <SelectTrigger className="w-36" aria-label="操作">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {ACTION_ITEMS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            </>
+          ) : (
+            <>
+              <FilterField label="反馈人">
+                <ClearableInput
+                  inputRef={reporterInput}
+                  defaultValue={reporter}
+                  placeholder="显示名称或账号 ID"
+                  onValueChange={(value) => queueFilter({ reporter: value })}
+                  onClear={() => clearField("reporter")}
+                />
+              </FilterField>
+              <FilterField label="处理结果">
+                <Select
+                  value={outcome}
+                  onValueChange={(value) => applyFilters({ outcome: String(value) })}
+                  items={OUTCOME_ITEMS}
+                >
+                  <SelectTrigger className="w-36" aria-label="处理结果">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {OUTCOME_ITEMS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            </>
+          )}
+          <FilterField label="处理人">
+            <ClearableInput
+              inputRef={handlerInput}
+              defaultValue={handler}
+              placeholder="处理人用户名"
+              onValueChange={(value) => queueFilter({ handler: value })}
+              onClear={() => clearField("handler")}
+            />
+          </FilterField>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={!hasFilters}
+            onClick={clearFilters}
+          >
+            <XIcon data-icon="inline-start" aria-hidden="true" />
+            清除筛选
+          </Button>
+        </div>
 
         {loading ? (
           <div className="space-y-2">
@@ -229,7 +390,7 @@ export default function AdminNamecardAuditPage() {
               hasFilters
                 ? "换一个筛选条件试试。"
                 : tab === "locks"
-                  ? "目前没有名片处于锁定状态。"
+                  ? "还没有任何锁定记录。"
                   : "还没有已经处理过的反馈。"
             }
           />
@@ -238,6 +399,7 @@ export default function AdminNamecardAuditPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>名片</TableHead>
+                {tab === "locks" ? <TableHead>操作</TableHead> : null}
                 <TableHead>归属用户</TableHead>
                 {tab === "feedback" ? <TableHead>反馈人</TableHead> : null}
                 <TableHead>{tab === "locks" ? "锁定理由" : "反馈理由"}</TableHead>
@@ -250,44 +412,43 @@ export default function AdminNamecardAuditPage() {
               {tab === "locks"
                 ? lockRows.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>
-                        <div className="font-medium">名片 #{row.cardNumber}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {row.producerName ?? "未填写制作人"}
-                        </div>
+                      <CardCell
+                        cardNumber={row.cardNumber}
+                        producerName={row.producerName}
+                      />
+                      <TableCell className="whitespace-nowrap">
+                        {row.action === "locked" ? "已锁定" : "已解锁"}
                       </TableCell>
                       <TableCell>
                         {row.owner ? (
                           <UserCell
                             user={row.owner}
-                            onPick={() => applyFilters({ owner: row.owner!.name, page: "" })}
+                            onPick={() => pickUser("owner", row.owner!.name)}
                           />
                         ) : (
                           <span className="text-muted-foreground">无归属用户</span>
                         )}
                       </TableCell>
-                      <TableCell className="max-w-72 whitespace-pre-wrap">
-                        {row.reason}
+                      <TableCell className="max-w-72 whitespace-pre-wrap text-muted-foreground">
+                        {row.reason ?? "—"}
                       </TableCell>
                       <TableCell>{row.handledBy ?? "—"}</TableCell>
                       <TableCell className="whitespace-nowrap">
-                        {formatAuditMoment(row.lockedAt)}
+                        {formatAuditMoment(row.occurredAt)}
                       </TableCell>
                     </TableRow>
                   ))
                 : feedbackRows.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>
-                        <div className="font-medium">名片 #{row.cardNumber}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {row.producerName ?? "未填写制作人"}
-                        </div>
-                      </TableCell>
+                      <CardCell
+                        cardNumber={row.cardNumber}
+                        producerName={row.producerName}
+                      />
                       <TableCell>
                         {row.owner ? (
                           <UserCell
                             user={row.owner}
-                            onPick={() => applyFilters({ owner: row.owner!.name, page: "" })}
+                            onPick={() => pickUser("owner", row.owner!.name)}
                           />
                         ) : (
                           <span className="text-muted-foreground">无归属用户</span>
@@ -296,9 +457,7 @@ export default function AdminNamecardAuditPage() {
                       <TableCell>
                         <UserCell
                           user={row.reporter}
-                          onPick={() =>
-                            applyFilters({ reporter: row.reporter.name, page: "" })
-                          }
+                          onPick={() => pickUser("reporter", row.reporter.name)}
                         />
                       </TableCell>
                       <TableCell>{feedbackReasonLabel(row.reason)}</TableCell>
@@ -331,140 +490,98 @@ export default function AdminNamecardAuditPage() {
   )
 }
 
-interface AuditFiltersValue {
-  owner: string
-  reason: string
-  handler: string
-  reporter: string
-  outcome: string
-}
-
-/**
- * Mounted with a key built from the URL, so switching tabs or following a
- * filter link always starts from the filters the table is actually using.
- */
-function AuditFilters({
-  tab,
-  filters,
-  hasFilters,
-  onSubmit,
-  onClear,
+function FilterField({
+  label,
+  children,
 }: {
-  tab: AuditTab
-  filters: AuditFiltersValue
-  hasFilters: boolean
-  onSubmit: (next: Record<string, string>) => void
-  onClear: () => void
+  label: string
+  children: ReactNode
 }) {
-  const [owner, setOwner] = useState(filters.owner)
-  const [reason, setReason] = useState(filters.reason)
-  const [handler, setHandler] = useState(filters.handler)
-  const [reporter, setReporter] = useState(filters.reporter)
-  const [outcome, setOutcome] = useState(filters.outcome)
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    onSubmit({
-      owner: owner.trim(),
-      reason: tab === "locks" ? reason.trim() : "",
-      handler: handler.trim(),
-      reporter: tab === "feedback" ? reporter.trim() : "",
-      outcome: tab === "feedback" ? outcome : "all",
-    })
-  }
-
   return (
-    <form className="mb-4 flex flex-wrap items-end gap-3" onSubmit={handleSubmit}>
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-muted-foreground">归属用户</span>
-        <Input
-          value={owner}
-          onChange={(event) => setOwner(event.target.value)}
-          placeholder="显示名称或账号 ID"
-          className="w-48"
-        />
-      </label>
-      {tab === "locks" ? (
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">锁定理由</span>
-          <Input
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="理由关键词"
-            className="w-48"
-          />
-        </label>
-      ) : (
-        <>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">反馈人</span>
-            <Input
-              value={reporter}
-              onChange={(event) => setReporter(event.target.value)}
-              placeholder="显示名称或账号 ID"
-              className="w-48"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">处理结果</span>
-            <Select
-              value={outcome}
-              onValueChange={(value) => setOutcome(String(value))}
-              items={OUTCOME_ITEMS}
-            >
-              <SelectTrigger className="w-36" aria-label="处理结果">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {OUTCOME_ITEMS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </label>
-        </>
-      )}
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-muted-foreground">处理人</span>
-        <Input
-          value={handler}
-          onChange={(event) => setHandler(event.target.value)}
-          placeholder="处理人用户名"
-          className="w-40"
-        />
-      </label>
-      <Button type="submit">
-        <SearchIcon data-icon="inline-start" aria-hidden="true" />
-        查询
-      </Button>
-      {hasFilters ? (
-        <Button type="button" variant="ghost" onClick={onClear}>
-          清除筛选
-        </Button>
-      ) : null}
-    </form>
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      {children}
+    </label>
   )
 }
 
+/** The clear cross sits inside the field so a filter never needs the keyboard. */
+function ClearableInput({
+  inputRef,
+  defaultValue,
+  placeholder,
+  onValueChange,
+  onClear,
+}: {
+  inputRef: RefObject<HTMLInputElement | null>
+  defaultValue: string
+  placeholder: string
+  onValueChange: (value: string) => void
+  onClear: () => void
+}) {
+  return (
+    <span className="relative block">
+      <Input
+        ref={inputRef}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        className="w-48 pr-9"
+        onInput={(event) => onValueChange(event.currentTarget.value.trim())}
+      />
+      <button
+        type="button"
+        aria-label={`清空${placeholder}`}
+        className="absolute top-1/2 right-2 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        onClick={onClear}
+      >
+        <XIcon className="size-3.5" aria-hidden="true" />
+      </button>
+    </span>
+  )
+}
+
+function CardCell({
+  cardNumber,
+  producerName,
+}: {
+  cardNumber: number
+  producerName: string | null
+}) {
+  return (
+    <TableCell>
+      <div className="font-medium">名片 #{cardNumber}</div>
+      <div className="text-xs text-muted-foreground">
+        {producerName ?? "未填写制作人"}
+      </div>
+    </TableCell>
+  )
+}
+
+/**
+ * A name that reads as text until hovered: the click filters the table, and the
+ * lifetime count only matters when an account repeats.
+ */
 function UserCell({
   user,
   onPick,
 }: {
-  user: { name: string; total: number; pageCount: number }
+  user: NamecardAuditUser
   onPick: () => void
 }) {
   return (
     <button
       type="button"
-      className={`cursor-pointer text-left underline-offset-2 hover:underline ${adminControlClass}`}
+      className="cursor-pointer text-left text-foreground underline decoration-border decoration-dotted underline-offset-2 hover:decoration-foreground"
       title={auditUserTitle(user)}
       onClick={onPick}
     >
-      {auditUserLabel(user)}
+      {user.name}
+      {auditUserBadge(user) ? (
+        <span className="ml-1 text-xs text-muted-foreground">
+          {auditUserBadge(user)}
+        </span>
+      ) : null}
     </button>
   )
 }
+

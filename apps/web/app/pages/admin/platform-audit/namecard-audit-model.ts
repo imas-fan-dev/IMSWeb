@@ -19,6 +19,11 @@ export function auditUserLabel(user: NamecardAuditUser): string {
   return user.total > 1 ? `${user.name} (${user.total} 次)` : user.name
 }
 
+/** The weak annotation next to a name; null when the account only appears once. */
+export function auditUserBadge(user: NamecardAuditUser): string | null {
+  return user.total > 1 ? `(${user.total} 次)` : null
+}
+
 export function auditUserTitle(user: NamecardAuditUser): string {
   return `${user.name}：本页 ${user.pageCount} 条，累计 ${user.total} 条`
 }

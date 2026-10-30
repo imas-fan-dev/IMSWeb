@@ -40,6 +40,7 @@ import type {
     NamecardDiffRecord,
     NamecardFeedbackAuditFilter,
     NamecardFeedbackAuditPage,
+    NamecardLockAuditAction,
     NamecardLockAuditFilter,
     NamecardLockAuditPage,
     NamecardDiffSide,
@@ -68,9 +69,10 @@ type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters
 
 type NamecardLockAuditRow = {
     id: number | string;
-    reason: string;
+    action: NamecardLockAuditAction;
+    reason: string | null;
     handled_by: string | null;
-    locked_at: Date | string;
+    occurred_at: Date | string;
     card_number: number | string;
     producer_name: string | null;
     owner_account_id: string | null;
@@ -1192,30 +1194,21 @@ export class SqlCoreRepository implements NamecardRepository {
 
 
     /** Locking appends the decision; relocking refreshes the same row. */
+    /**
+     * The audit trail is append-only: both locking and releasing the card leave
+     * their own row, so the console can show how a card arrived at a state.
+     */
     private async appendNamecardLockRecord(
         database: SqlDatabase,
         cardId: string,
-        reason: string,
+        action: NamecardLockAuditAction,
+        reason: string | null,
         actor: string | null
     ): Promise<void> {
         await executeSql(database,
-            'DELETE FROM namecard_lock_records WHERE card_id=?',
-            [cardId]
-        );
-        await executeSql(database,
-            `INSERT INTO namecard_lock_records (card_id, reason, handled_by, locked_at)
-             VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
-            [cardId, reason.trim() || '未记录理由', actor]
-        );
-    }
-
-    private async clearNamecardLockRecords(
-        database: SqlDatabase,
-        cardId: string
-    ): Promise<void> {
-        await executeSql(database,
-            'DELETE FROM namecard_lock_records WHERE card_id=?',
-            [cardId]
+            `INSERT INTO namecard_lock_records (card_id, action, reason, handled_by, occurred_at)
+             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+            [cardId, action, reason?.trim() || null, actor]
         );
     }
 
@@ -1286,6 +1279,10 @@ export class SqlCoreRepository implements NamecardRepository {
             where.push('record.handled_by ILIKE ?');
             values.push(`%${filter.handler}%`);
         }
+        if (filter.action) {
+            where.push('record.action = ?');
+            values.push(filter.action);
+        }
         const source = `FROM namecard_lock_records record
              JOIN fudaba_cards card ON card.id=record.card_id
              LEFT JOIN platform_accounts owner ON owner.id=card.owner_account_id
@@ -1293,11 +1290,12 @@ export class SqlCoreRepository implements NamecardRepository {
              WHERE ${where.join(' AND ')}`;
         const [rows, totalRow] = await Promise.all([
             queryAll<NamecardLockAuditRow>(this.database,
-                `SELECT record.id, record.reason, record.handled_by, record.locked_at,
+                `SELECT record.id, record.action, record.reason, record.handled_by,
+                        record.occurred_at,
                         card.card_number, card.producer_name, card.owner_account_id,
                         owner_profile.display_name AS owner_name
                  ${source}
-                 ORDER BY record.locked_at DESC, record.id DESC
+                 ORDER BY record.occurred_at DESC, record.id DESC
                  LIMIT ? OFFSET ?`,
                 [...values, filter.pageSize, (filter.page - 1) * filter.pageSize]
             ),
@@ -1326,9 +1324,10 @@ export class SqlCoreRepository implements NamecardRepository {
                 ownerName: row.owner_account_id
                     ? (row.owner_name?.trim() || row.owner_account_id)
                     : null,
+                action: row.action,
                 reason: row.reason,
                 handledBy: row.handled_by,
-                lockedAt: new Date(row.locked_at).toISOString()
+                occurredAt: new Date(row.occurred_at).toISOString()
             })),
             total: Number(totalRow?.total ?? 0),
             ownerTotals
@@ -1748,11 +1747,18 @@ export class SqlCoreRepository implements NamecardRepository {
                 await this.appendNamecardLockRecord(
                     database,
                     cardId,
-                    input.reason ?? '未记录理由',
+                    'locked',
+                    input.reason ?? null,
                     input.actor ?? null
                 );
             } else if (current.publication_status === 'locked') {
-                await this.clearNamecardLockRecords(database, cardId);
+                await this.appendNamecardLockRecord(
+                    database,
+                    cardId,
+                    'unlocked',
+                    input.reason ?? null,
+                    input.actor ?? null
+                );
             }
             return {
                 status: 'updated',
@@ -1800,9 +1806,6 @@ export class SqlCoreRepository implements NamecardRepository {
                 [cardNumber, expectedRevision]
             );
             if (!updatedRow) return { status: 'conflict', revision };
-            // A soft delete does not fire the foreign key, so the lock audit is
-            // cleared by hand: nothing may point at a card nobody can see.
-            await this.clearNamecardLockRecords(database, String(current.internal_id));
             if (current.owner_account_id) {
                 await insertNamecardNotification(database, {
                     recipientAccountId: current.owner_account_id,
@@ -1937,7 +1940,13 @@ export class SqlCoreRepository implements NamecardRepository {
                 [reason, id, expectedRevision]
             );
             if (!updatedRow) return { status: 'conflict', revision: current.revision };
-            await this.appendNamecardLockRecord(database, String(updatedRow.internal_id), reason, actor);
+            await this.appendNamecardLockRecord(
+                database,
+                String(updatedRow.internal_id),
+                'locked',
+                reason,
+                actor
+            );
             // A card its owner already deleted is not news to them: locking a
             // `hidden` card stays silent.
             if (updatedRow.owner_account_id && current.status !== 'hidden') {
@@ -1967,8 +1976,13 @@ export class SqlCoreRepository implements NamecardRepository {
                 [id, expectedRevision]
             );
             if (updatedRow) {
-                // Unlocking erases the decision from the audit table by design.
-                await this.clearNamecardLockRecords(database, String(updatedRow.internal_id));
+                await this.appendNamecardLockRecord(
+                    database,
+                    String(updatedRow.internal_id),
+                    'unlocked',
+                    null,
+                    null
+                );
                 if (updatedRow.owner_account_id) {
                     await insertNamecardNotification(database, {
                         recipientAccountId: String(updatedRow.owner_account_id),

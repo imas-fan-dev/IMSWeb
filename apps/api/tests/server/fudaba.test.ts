@@ -8178,7 +8178,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     reporterAccountId: 'reporter',
                     reporterName: '调试用户',
                     reason: 'info-error',
-                    detail: null,
+                    detail: '反馈说明',
                     status: 'pending',
                     createdAt: '2026-05-04T01:02:03.000Z'
                 }
@@ -8204,7 +8204,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 pageCount: 3,
                 reporterName: '调试用户',
                 reason: 'info-error',
-                detail: null,
+                detail: '反馈说明',
                 createdAt: '2026-05-04T01:02:03.000Z'
             });
 
@@ -9757,7 +9757,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     cardId,
                     reporterAccountId: reporterId,
                     reason: 'info-error',
-                    detail: null,
+                    detail: '反馈说明',
                     createdAt
                 }),
                 'duplicate'
@@ -9767,7 +9767,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     cardId: 'missing-feedback-card',
                     reporterAccountId: reporterId,
                     reason: 'info-error',
-                    detail: null,
+                    detail: '反馈说明',
                     createdAt
                 }),
                 'not-found'
@@ -10038,7 +10038,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 pageSize: 20,
                 owner: null,
                 reason: '企划',
-                handler: 'debug'
+                handler: 'debug',
+                action: 'locked'
             });
             assert.equal(page.total, 1);
             assert.equal(page.rows[0]?.cardNumber, cardNumber);
@@ -10051,21 +10052,28 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 'the table annotates owners with their total record count'
             );
 
-            // Unlocking deletes the record instead of keeping a history.
+            // Releasing the card is an event too: the lock stays in the trail.
             const unlocked = await core.unlockCard(cardNumber, locked.card.revision);
             assert.equal(unlocked.status, 'updated');
-            const stillThere = (await postgres.pool.query(
-                'SELECT card_id, reason FROM public.namecard_lock_records ORDER BY id'
+            const trail = (await postgres.pool.query(
+                'SELECT action, reason FROM public.namecard_lock_records ORDER BY id'
             )).rows as Array<Record<string, unknown>>;
-            assert.deepEqual(stillThere, [], 'unlocking deletes the record');
+            assert.deepEqual(
+                trail.map((row) => row.action),
+                ['locked', 'unlocked'],
+                'the audit keeps both decisions'
+            );
             const afterUnlock = await core.listNamecardLockAudit({
                 page: 1,
                 pageSize: 20,
                 owner: null,
                 reason: null,
-                handler: null
+                handler: null,
+                action: 'unlocked'
             });
-            assert.equal(afterUnlock.total, 0);
+            assert.equal(afterUnlock.total, 1);
+            assert.equal(afterUnlock.rows[0]?.action, 'unlocked');
+            assert.equal(afterUnlock.rows[0]?.reason, null);
 
             // The management console can lock by itself; the same table follows.
             const managed = await core.updateCardAsAdmin({
@@ -10082,22 +10090,28 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             });
             assert.equal(managed.status, 'updated');
             const relocked = (await postgres.pool.query(
-                'SELECT reason, handled_by FROM public.namecard_lock_records WHERE card_id = $1',
+                `SELECT reason, handled_by FROM public.namecard_lock_records
+                 WHERE card_id = $1 AND action = 'locked'
+                 ORDER BY id DESC LIMIT 1`,
                 ['postgresql-audit-card']
             )).rows as Array<Record<string, unknown>>;
             assert.equal(relocked.length, 1);
             assert.equal(relocked[0]?.reason, '用户申诉后重新锁定');
             assert.equal(relocked[0]?.handled_by, 'second-op');
 
-            // Deleting the card takes its records with it.
+            // A deleted card leaves the table, so its trail stops being listed.
             if (managed.status !== 'updated') return;
             const removed = await core.deleteCardAsAdmin(cardNumber, managed.revision);
             assert.equal(removed.status, 'updated');
-            const remaining = (await postgres.pool.query(
-                'SELECT count(*)::int AS total FROM public.namecard_lock_records WHERE card_id = $1',
-                ['postgresql-audit-card']
-            )).rows[0] as { total: number };
-            assert.equal(remaining.total, 0);
+            const listed = await core.listNamecardLockAudit({
+                page: 1,
+                pageSize: 20,
+                owner: null,
+                reason: null,
+                handler: null,
+                action: null
+            });
+            assert.equal(listed.total, 0);
         }, 30_000);
 
         postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {

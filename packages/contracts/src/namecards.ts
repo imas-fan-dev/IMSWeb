@@ -274,7 +274,8 @@ export const NAMECARD_FEEDBACK_NOTE_LIMIT = 400
 export const createNamecardFeedbackRequestSchema = z
   .object({
     reason: namecardFeedbackReasonSchema,
-    detail: z.string().trim().max(NAMECARD_FEEDBACK_NOTE_LIMIT).nullable(),
+    /** The reporter describes the problem themselves; the server never fills it. */
+    detail: z.string().trim().min(1).max(NAMECARD_FEEDBACK_NOTE_LIMIT),
   })
   .strict()
 
@@ -325,14 +326,18 @@ export const namecardAuditUserSchema = exactJsonResponse({
   pageCount: z.number().int().nonnegative(),
 })
 
+export const namecardLockAuditActionSchema = z.enum(["locked", "unlocked"])
+
 export const namecardLockAuditRowSchema = exactJsonResponse({
   id: z.number().int().positive(),
   cardNumber: z.number().int().positive(),
   producerName: z.string().nullable(),
   owner: namecardAuditUserSchema.nullable(),
-  reason: z.string().min(1),
+  action: namecardLockAuditActionSchema,
+  /** Present on a lock entry; releases keep whatever the operator typed. */
+  reason: z.string().min(1).nullable(),
   handledBy: z.string().min(1).nullable(),
-  lockedAt: z.string().min(1),
+  occurredAt: z.string().min(1),
 })
 
 export const namecardLockAuditListSchema = successEnvelope({
@@ -374,6 +379,7 @@ export const namecardLockAuditQuerySchema = legacyStripRequestObject({
   owner: z.unknown().optional(),
   reason: z.unknown().optional(),
   handler: z.unknown().optional(),
+  action: z.unknown().optional(),
 })
 
 export const namecardFeedbackAuditQuerySchema = legacyStripRequestObject({

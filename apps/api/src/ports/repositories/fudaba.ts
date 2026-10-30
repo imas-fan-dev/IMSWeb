@@ -1110,7 +1110,7 @@ export interface CreateNamecardFeedbackInput {
     cardId: string;
     reporterAccountId: string;
     reason: NamecardFeedbackReason;
-    detail: string | null;
+    detail: string;
     createdAt: string;
 }
 

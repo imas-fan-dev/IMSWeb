@@ -278,7 +278,7 @@ export function CardEditor({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (readOnly) return
+    if (readOnly || locked) return
     const missing = missingFields()
     if (missing.length > 0) {
       reportMissing(missing)
@@ -327,7 +327,9 @@ export function CardEditor({
   }
 
   const busy = saving || deleting
-  const editDisabled = readOnly || busy
+  // A locked card is a decision, not a draft: nothing in this form may change.
+  const locked = card?.publicationStatus === "locked"
+  const editDisabled = readOnly || busy || locked
 
   if (creating && readOnly && !card) {
     return (

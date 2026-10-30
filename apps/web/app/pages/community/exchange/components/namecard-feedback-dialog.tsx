@@ -44,19 +44,27 @@ export function NamecardFeedbackDialog({
   const [reason, setReason] = useState<NamecardFeedbackReason>("info-error")
   const [detail, setDetail] = useState("")
   const [busy, setBusy] = useState(false)
+  const [detailMissing, setDetailMissing] = useState(false)
 
   const submit = async () => {
     if (busy) return
+    // The reporter has to describe the problem: a bare preset tells the
+    // operator nothing, and guessing on their behalf invents a claim.
+    if (!detail.trim()) {
+      setDetailMissing(true)
+      return
+    }
     setBusy(true)
     try {
       await reportFudabaCardFeedback(cardId, {
         reason,
-        detail: detail.trim() ? detail.trim() : null,
+        detail: detail.trim(),
       }).send()
       toast.success("反馈已提交，处理结果会通过站内信通知你。")
       setOpen(false)
       setDetail("")
       setReason("info-error")
+      setDetailMissing(false)
     } catch (cause) {
       // One open report per reader: the API explains why it refused.
       const payload = isApiError(cause) ? cause.payload : null
@@ -101,10 +109,7 @@ export function NamecardFeedbackDialog({
                     type="button"
                     className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     disabled={busy}
-                    onClick={() => {
-                      setReason(preset.reason)
-                      setDetail(preset.label)
-                    }}
+                    onClick={() => setReason(preset.reason)}
                   >
                     {preset.label}
                   </button>
@@ -115,11 +120,17 @@ export function NamecardFeedbackDialog({
                 value={detail}
                 maxLength={FUDABA_FEEDBACK_REASON_LIMIT}
                 disabled={busy}
+                aria-invalid={detailMissing}
                 placeholder="指出具体是哪一处信息有问题，方便管理员核对。"
-                onChange={(event) => setDetail(event.target.value)}
+                onChange={(event) => {
+                  setDetail(event.target.value)
+                  if (event.target.value.trim()) setDetailMissing(false)
+                }}
               />
               <FieldDescription>
-                可选，最多 {FUDABA_FEEDBACK_REASON_LIMIT} 字。
+                {detailMissing
+                  ? "请先说明这条反馈的具体问题。"
+                  : `必填，最多 ${FUDABA_FEEDBACK_REASON_LIMIT} 字；预设标签只切换反馈理由，说明需要你自己写。`}
               </FieldDescription>
             </Field>
           </DialogBody>

@@ -224,8 +224,12 @@ export interface NamecardAuditFilter {
     pageSize: number;
 }
 
+/** Every lock decision is kept, so the table filters by the action too. */
+export type NamecardLockAuditAction = 'locked' | 'unlocked';
+
 export interface NamecardLockAuditFilter extends NamecardAuditFilter {
     reason: string | null;
+    action: NamecardLockAuditAction | null;
 }
 
 export interface NamecardFeedbackAuditFilter extends NamecardAuditFilter {
@@ -240,9 +244,11 @@ export interface NamecardLockAuditRecord {
     producerName: string | null;
     ownerAccountId: string | null;
     ownerName: string | null;
-    reason: string;
+    action: NamecardLockAuditAction;
+    /** The lock reason; an unlock entry carries whatever the operator typed. */
+    reason: string | null;
     handledBy: string | null;
-    lockedAt: string;
+    occurredAt: string;
 }
 
 export interface NamecardFeedbackAuditRecord {
