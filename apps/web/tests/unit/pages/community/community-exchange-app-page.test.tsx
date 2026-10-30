@@ -92,13 +92,22 @@ describe("CommunityExchangePage App search tools", () => {
     const input = screen.getByRole("textbox", { name: "搜索地点" })
     expect(card).toHaveAttribute("data-detent", "large")
     expect(
+      screen.getByRole("button", { name: "更多地图工具" })
+    ).toHaveTextContent("更多")
+    expect(screen.getByRole("button", { name: "收起地点查找" })).toBeVisible()
+    expect(
       screen.queryByRole("button", { name: "展开结果" })
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: "刷新名录" })
     ).not.toBeInTheDocument()
     await user.type(input, "上海场馆")
-    await user.click(screen.getByRole("button", { name: "取消" }))
+    const more = screen.getByRole("button", { name: "更多地图工具" })
+    await user.click(more)
+    expect(await screen.findByRole("menu")).toBeVisible()
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(more).toHaveFocus())
+    await user.click(screen.getByRole("button", { name: "收起地点查找" }))
     expect(card).toHaveAttribute("data-exiting", "true")
     expect(input).toBeInTheDocument()
     expect(input).not.toHaveFocus()
@@ -119,7 +128,7 @@ describe("CommunityExchangePage App search tools", () => {
     const input = screen.getByRole("textbox", { name: "搜索地点" })
     await user.type(input, "成都")
     await user.click(screen.getByRole("button", { name: "取消" }))
-    await user.click(screen.getByRole("button", { name: "收起地点查找" }))
+    await user.click(screen.getByRole("button", { name: "拖动或收起地点查找" }))
     expect(
       screen.getByRole("region", { name: "地点查找" })
     ).not.toHaveAttribute("data-exiting")

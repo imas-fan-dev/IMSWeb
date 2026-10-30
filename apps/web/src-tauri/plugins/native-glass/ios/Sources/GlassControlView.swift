@@ -43,6 +43,7 @@ struct NativeGlassControlPayload: Decodable {
   let panelCornerRadius: Double?
   let active: Bool?
   let disabled: Bool?
+  let busy: Bool?
   let expanded: Bool?
   let panelWidth: Double?
   let items: [NativeGlassControlMenuItem]?
@@ -109,6 +110,7 @@ private final class GlassControlButton: UIControl {
   private let titleLabel = UILabel()
   private let badgeView = UIView()
   private var isActive = false
+  private var isBusy = false
 
   var cornerRadius: CGFloat = 8 {
     didSet { setNeedsLayout() }
@@ -156,6 +158,7 @@ private final class GlassControlButton: UIControl {
     accessibilityTraits = .button
     addTarget(self, action: #selector(handleActivate), for: .touchUpInside)
     NotificationCenter.default.addObserver(self, selector: #selector(updatePress), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(updateBusyMotion), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
   }
 
   required init?(coder: NSCoder) {
@@ -175,9 +178,11 @@ private final class GlassControlButton: UIControl {
     title: String?,
     active: Bool,
     disabled: Bool,
-    badge: Bool
+    badge: Bool,
+    busy: Bool = false
   ) {
     isActive = active
+    isBusy = busy
     iconView.image = UIImage(named: icon)?.withRenderingMode(.alwaysTemplate)
     titleLabel.text = title
     iconView.tintColor = active ? imsTabBarSelectedColor : .label
@@ -185,6 +190,8 @@ private final class GlassControlButton: UIControl {
     badgeView.isHidden = !badge
     isEnabled = !disabled
     alpha = disabled ? 0.4 : 1
+    accessibilityValue = busy ? "正在处理" : nil
+    updateBusyMotion()
     updateSelection()
     updateTraits(disabled: disabled)
     setNeedsLayout()
@@ -195,6 +202,10 @@ private final class GlassControlButton: UIControl {
       updateSelection()
       updatePress()
     }
+  }
+
+  @objc private func updateBusyMotion() {
+    synchronizeBusyGlyphMotion(iconView, busy: isBusy)
   }
 
   @objc private func updatePress() {
@@ -394,7 +405,8 @@ private final class GlassControlRenderer {
       title: nil,
       active: control.active ?? false,
       disabled: control.disabled ?? false,
-      badge: false
+      badge: false,
+      busy: control.busy ?? false
     )
     button.onActivate = { [weak self] in
       self?.onEvent?(control.id, "press", nil)
@@ -452,7 +464,8 @@ private final class GlassControlRenderer {
         title: nil,
         active: member.control.active ?? false,
         disabled: member.control.disabled ?? false,
-        badge: false
+        badge: false,
+        busy: member.control.busy ?? false
       )
       segment.onActivate = { [weak self] in
         self?.onEvent?(member.control.id, "press", nil)

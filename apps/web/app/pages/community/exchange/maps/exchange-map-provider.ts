@@ -21,6 +21,8 @@ export interface ExchangeMapInteractionProps {
   selectedPlace?: MapSearchPlace | null
   /** Optional editing surface; ordinary map browsing never places a point. */
   pointPicker?: MapPointPickerOptions
+  onContextPoint?(target: import("~/lib/maps/map-search").MapSearchTarget): void
+  onReadyChange?(ready: boolean): void
   occlusion?: { x: number; y: number; width: number; height: number } | null
   attributionPlacement?: "corner" | "avoid-overlay" | "above-overlay"
   /** One page-owned attempt; its signal retires a late result after selection. */

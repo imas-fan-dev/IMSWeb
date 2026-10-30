@@ -43,6 +43,7 @@ export type { ApiDispatcher } from "./api-dispatcher"
 
 export type ApiTestOptions = {
   apiOrigins: string[]
+  mapGuide: "seen" | "new"
 }
 
 let activeApi: ApiDispatcher | undefined
@@ -57,8 +58,21 @@ export const api = new Proxy({} as ApiDispatcher, {
   },
 })
 
-export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
+export const test = base.extend<
+  { api: ApiDispatcher; mapGuideSetup: void } & ApiTestOptions
+>({
   apiOrigins: [[], { option: true }],
+  mapGuide: ["seen", { option: true }],
+  mapGuideSetup: [
+    async ({ context, mapGuide }, run) => {
+      if (mapGuide === "seen")
+        await context.addInitScript(() => {
+          localStorage.setItem("ims:exchange-map-guide:v1", "done")
+        })
+      await run()
+    },
+    { auto: true },
+  ],
   api: [
     async ({ apiOrigins, baseURL, context }, run) => {
       if (!baseURL)

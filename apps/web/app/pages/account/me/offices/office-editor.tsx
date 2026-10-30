@@ -38,6 +38,7 @@ import {
 } from "./office-location-model"
 import { OfficePlaceSearch } from "./office-place-search"
 import type { OfficePlaceServices } from "./office-place-services"
+import type { MapSearchTarget } from "~/lib/maps/map-search"
 
 export function OfficeEditor({
   mode,
@@ -51,6 +52,7 @@ export function OfficeEditor({
   onSubmit,
   onReload,
   placeServices,
+  initialTarget,
   showCoordinates = false,
   embedded = false,
   formId = "fudaba-office-form",
@@ -66,6 +68,7 @@ export function OfficeEditor({
   onSubmit: () => void
   onReload: () => void
   placeServices?: OfficePlaceServices
+  initialTarget?: MapSearchTarget | null
   showCoordinates?: boolean
   embedded?: boolean
   formId?: string
@@ -213,6 +216,7 @@ export function OfficeEditor({
               onChange={onChange}
               placeServices={placeServices}
               showCoordinates={showCoordinates}
+              initialTarget={initialTarget}
             />
 
             <FieldSet disabled={formDisabled}>

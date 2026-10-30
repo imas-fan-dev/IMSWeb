@@ -28,6 +28,7 @@ import {
   type PointAddressResolver,
 } from "~/pages/community/exchange/maps/resolve-point-address"
 import { DEFAULT_EXCHANGE_MAP_VIEWPORT } from "~/pages/community/exchange/maps/exchange-map-model"
+import { createNearbyPlaceSearcher } from "~/pages/community/exchange/maps/nearby-places"
 import { usePlaceSearch } from "~/pages/community/exchange/hooks/use-place-search"
 import type { OfficeDraft } from "./office-location-model"
 import {
@@ -56,6 +57,7 @@ export function ConfiguredOfficePicker({
   onClose,
   onResolved,
   placeServices = ownerOfficePlaceServices,
+  initialTarget,
 }: {
   draft: OfficeDraft
   disabled: boolean
@@ -63,6 +65,7 @@ export function ConfiguredOfficePicker({
   onClose(): void
   onResolved?(attribution: FudabaPlaceReverseResponse["attribution"]): void
   placeServices?: OfficePlaceServices
+  initialTarget?: MapSearchTarget | null
 }) {
   const latest = useRef({ draft, disabled, onChange, onClose, onResolved })
   useLayoutEffect(() => {
@@ -98,9 +101,22 @@ export function ConfiguredOfficePicker({
   const [candidate, setCandidate] = useState<MapPosition | null>(() =>
     draftPosition(draft)
   )
-  const [pinTarget, setPinTarget] = useState<MapSearchTarget | null>(() =>
-    candidate ? { kind: "wgs84", position: [...candidate] } : null
+  const [pinTarget, setPinTarget] = useState<MapSearchTarget | null>(
+    () =>
+      initialTarget ??
+      (candidate ? { kind: "wgs84", position: [...candidate] } : null)
   )
+  const initialPicked = useRef(false)
+  const pickInitial = useRef<(target: MapSearchTarget) => void>(() => {})
+  useLayoutEffect(() => {
+    pickInitial.current = pick
+  })
+  const [nearby, setNearby] = useState<{
+    busy: boolean
+    items: MapSearchPlace[]
+    attribution: string
+    error: string
+  }>({ busy: false, items: [], attribution: "", error: "" })
   const pinRef = useRef(pinTarget)
   const [centerAvailable, setCenterAvailable] = useState(false)
   const [canonical, setCanonical] = useState(false)
@@ -140,6 +156,7 @@ export function ConfiguredOfficePicker({
     pinRef.current = { ...place.target, position: [...place.target.position] }
     setCandidate(
       place.target.kind === "wgs84" &&
+        !place.previewOnly &&
         place.source?.calibration !== "amap-forward-estimate"
         ? canonicalCameraPosition(place.target.position)
         : null
@@ -275,6 +292,50 @@ export function ConfiguredOfficePicker({
     },
     []
   )
+
+  useEffect(() => {
+    if (!loaded || !initialTarget || initialPicked.current) return
+    const timer = setTimeout(() => {
+      initialPicked.current = true
+      pickInitial.current(initialTarget)
+      if (initialTarget.kind === "native")
+        setSelected({
+          id: "map-create-position",
+          label: "所选位置",
+          address: "",
+          target: initialTarget,
+        })
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [loaded, initialTarget])
+
+  useEffect(() => {
+    if (!loaded || !pinTarget || selected?.previewOnly) return
+    const controller = new AbortController()
+    void Promise.resolve()
+      .then(() => {
+        controller.signal.throwIfAborted()
+        setNearby({ busy: true, items: [], attribution: "", error: "" })
+        return createNearbyPlaceSearcher(loaded.config)(
+          pinTarget,
+          controller.signal
+        )
+      })
+      .then((result) => {
+        if (!controller.signal.aborted)
+          setNearby({ ...result, busy: false, error: "" })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setNearby({
+            busy: false,
+            items: [],
+            attribution: "",
+            error: "附近地点暂时无法加载，仍可使用所选位置并手动填写。",
+          })
+      })
+    return () => controller.abort()
+  }, [loaded, pinTarget, selected?.previewOnly])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -435,6 +496,60 @@ export function ConfiguredOfficePicker({
             <p role="status" className="text-sm text-muted-foreground">
               此搜索结果仅供预览，请在底图点击选点或拖动浮标后确认位置。
             </p>
+          ) : null}
+          {selected?.previewOnly && selected.source?.provider !== "amap" ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              此附近地点仅供预览。请在底图点击确认位置或拖动浮标，再填写事务所资料。
+            </p>
+          ) : null}
+          {pinTarget ? (
+            <section
+              aria-label="附近地点"
+              className="space-y-2 rounded-lg border p-3"
+            >
+              <h4 className="text-sm font-medium">附近地点（可选）</h4>
+              <p className="text-xs text-muted-foreground">
+                不选择也可使用原落点；选择地点只预览，底图确认后才绑定位置。
+              </p>
+              {nearby.busy ? (
+                <p role="status" className="text-sm">
+                  正在查找附近地点
+                </p>
+              ) : null}
+              {nearby.error ? (
+                <p role="status" className="text-sm">
+                  {nearby.error}
+                </p>
+              ) : null}
+              {!nearby.busy && !nearby.error && !nearby.items.length ? (
+                <p className="text-sm text-muted-foreground">
+                  暂无附近地点，可继续使用所选位置。
+                </p>
+              ) : null}
+              <ul className="space-y-1">
+                {nearby.items.map((place) => (
+                  <li key={place.id}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto min-h-11 w-full flex-col items-start text-left whitespace-normal"
+                      disabled={disabled}
+                      onClick={() => preview(place)}
+                    >
+                      <span>{place.label}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {place.address}
+                      </span>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              {nearby.attribution ? (
+                <p className="text-xs text-muted-foreground">
+                  {nearby.attribution}
+                </p>
+              ) : null}
+            </section>
           ) : null}
           {loaded?.config.provider === "amap" ? (
             <>

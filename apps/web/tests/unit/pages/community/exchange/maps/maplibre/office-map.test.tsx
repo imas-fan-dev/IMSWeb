@@ -415,6 +415,37 @@ describe("ExchangeOfficeMap App viewport memory", () => {
 
     expect(await screen.findByText(message)).toBeVisible()
     expect(maplibreMocks.instances[0]?.easeTo).not.toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: "重试定位" }) !== null).toBe(
+      kind !== "unsupported"
+    )
+    await user.click(screen.getByRole("button", { name: "关闭定位提示" }))
+    expect(screen.queryByText(message)).not.toBeInTheDocument()
+  })
+
+  it("retries a failure with a real busy phase and clears feedback after success", async () => {
+    const user = userEvent.setup()
+    let resolvePosition!: (value: {
+      longitude: number
+      latitude: number
+    }) => void
+    geolocationMocks.getCurrentCoordinates
+      .mockRejectedValueOnce(new GeolocationFailure("timeout"))
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolvePosition = resolve
+        })
+      )
+    render(<ExchangeOfficeMap {...mapProps} />)
+    await user.click(screen.getByRole("button", { name: "回到我的位置" }))
+    await user.click(screen.getByRole("button", { name: "重试定位" }))
+    const locate = screen.getByRole("button", { name: "回到我的位置" })
+    expect(locate).toBeDisabled()
+    expect(locate).toHaveAttribute("aria-busy", "true")
+    expect(screen.queryByText("获取位置超时，请重试")).not.toBeInTheDocument()
+    await act(async () => resolvePosition({ longitude: 121.4, latitude: 31.2 }))
+    expect(locate).toBeEnabled()
+    expect(locate).toHaveAttribute("aria-busy", "false")
+    expect(maplibreMocks.instances[0]?.easeTo).toHaveBeenCalledOnce()
   })
 
   it("ignores a location result after the map is unmounted", async () => {

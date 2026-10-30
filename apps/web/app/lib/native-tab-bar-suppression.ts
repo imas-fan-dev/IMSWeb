@@ -1,12 +1,16 @@
 export const NATIVE_TAB_BAR_SUPPRESSION_EVENT = "ims:native-tab-bar-suppression"
 
 let nativeTabBarSuppressionCount = 0
+let nativeTabBarInteractionBlockCount = 0
 
 function dispatchNativeTabBarSuppression() {
   if (typeof window === "undefined") return
   window.dispatchEvent(
     new CustomEvent(NATIVE_TAB_BAR_SUPPRESSION_EVENT, {
-      detail: { suppressed: nativeTabBarSuppressionCount > 0 },
+      detail: {
+        suppressed: isNativeTabBarSuppressed(),
+        interactionBlocked: isNativeTabBarInteractionBlocked(),
+      },
     })
   )
 }
@@ -29,6 +33,41 @@ export function suppressNativeTabBar(): () => void {
 
 export function isNativeTabBarSuppressed(): boolean {
   return nativeTabBarSuppressionCount > 0
+}
+
+export function blockNativeTabBarInteraction(): () => void {
+  nativeTabBarInteractionBlockCount += 1
+  if (nativeTabBarInteractionBlockCount === 1) dispatchNativeTabBarSuppression()
+
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    nativeTabBarInteractionBlockCount = Math.max(
+      0,
+      nativeTabBarInteractionBlockCount - 1
+    )
+    if (nativeTabBarInteractionBlockCount === 0) {
+      dispatchNativeTabBarSuppression()
+    }
+  }
+}
+
+export function isNativeTabBarInteractionBlocked(): boolean {
+  return isNativeTabBarSuppressed() || nativeTabBarInteractionBlockCount > 0
+}
+
+export function nativeTabBarInteractionBlocked(event: Event): boolean | null {
+  if (!(event instanceof CustomEvent)) return null
+  const detail = event.detail as {
+    interactionBlocked?: unknown
+    suppressed?: unknown
+  } | null
+  return typeof detail?.interactionBlocked === "boolean"
+    ? detail.interactionBlocked
+    : typeof detail?.suppressed === "boolean"
+      ? detail.suppressed
+      : null
 }
 
 export function nativeTabBarSuppressed(event: Event): boolean | null {

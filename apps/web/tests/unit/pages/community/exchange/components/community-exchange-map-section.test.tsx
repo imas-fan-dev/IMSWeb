@@ -439,6 +439,7 @@ describe("CommunityExchangeMapSection", () => {
   })
 
   it("claims initial location once per page and retires it when an office is selected", async () => {
+    localStorage.setItem("ims:exchange-map-guide:v1", "done")
     const user = userEvent.setup()
     apiMocks.sendOffices.mockResolvedValue({
       items: [office],

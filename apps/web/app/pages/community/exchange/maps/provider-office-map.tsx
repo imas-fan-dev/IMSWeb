@@ -9,12 +9,16 @@ import {
 } from "react"
 import { Button } from "~/components/ui/button"
 import { IS_APP_TARGET } from "~/lib/app-target"
-import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
+import {
+  getCurrentCoordinates,
+  type GeolocationFailureKind,
+} from "~/lib/geolocation"
 import { useNativeGlassControl } from "~/lib/native-glass-controls"
 import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { cn } from "~/lib/utils"
 import { createUserLocationMarker } from "./user-location-marker"
 import { createPointPickerMarker } from "./point-picker-marker"
+import { createMapContextEvents } from "~/lib/maps/map-context-events"
 import type {
   MapDriver,
   MapView,
@@ -36,6 +40,11 @@ import {
 } from "./exchange-map-model"
 import type { ExchangeMapInteractionProps } from "./exchange-map-provider"
 import type { ExchangeMapAttribution } from "./exchange-map-attribution"
+import {
+  locationFailureCopy,
+  locationFailureKind,
+} from "./location-failure-model"
+import { LocationFailureNotice } from "./location-failure-notice"
 
 type Props = ExchangeMapInteractionProps & {
   driver: MapDriver
@@ -79,7 +88,12 @@ export function ProviderOfficeMap(props: Props) {
   const runtime = useRef<MapView | null>(null)
   const [ready, setReady] = useState(false)
   const [resourceError, setResourceError] = useState(false)
-  const [location, setLocation] = useState({
+  const [location, setLocation] = useState<{
+    busy: boolean
+    message: string
+    error: boolean
+    failure?: GeolocationFailureKind
+  }>({
     busy: false,
     message: "",
     error: false,
@@ -203,15 +217,12 @@ export function ProviderOfficeMap(props: Props) {
       } catch (error) {
         if (request !== locationRequest.current || runtime.current !== current)
           return
+        const failure = locationFailureKind(error)
         setLocation({
           busy: false,
           error: !initialSignal,
-          message: initialSignal
-            ? ""
-            : error instanceof GeolocationFailure &&
-                error.kind === "permission-denied"
-              ? "未获得位置权限"
-              : "暂时无法获取您的位置，请重试",
+          message: initialSignal ? "" : locationFailureCopy[failure].title,
+          failure: initialSignal ? undefined : failure,
         })
       }
     },
@@ -228,6 +239,7 @@ export function ProviderOfficeMap(props: Props) {
           ? "office-picker"
           : EXCHANGE_MAP_FLOATING_GROUP,
       disabled: !ready || location.busy,
+      busy: location.busy,
     },
     () => {
       void locateUser()
@@ -251,7 +263,9 @@ export function ProviderOfficeMap(props: Props) {
     let initialized = false
     let failed = false
     let cameraTimer: ReturnType<typeof setTimeout> | undefined
+    let removeContextEvents: (() => void) | undefined
     setReady(false)
+    latest.current.onReadyChange?.(false)
     setResourceError(false)
     setLocation({ busy: false, message: "", error: false })
     const measure = () => {
@@ -443,6 +457,12 @@ export function ProviderOfficeMap(props: Props) {
         clearTimeout(initTimer)
         container.dataset.mapState = "ready"
         setReady(true)
+        latest.current.onReadyChange?.(true)
+        if (view.unproject && latest.current.onContextPoint)
+          removeContextEvents = createMapContextEvents(container, (point) => {
+            if (!disposed && view.unproject)
+              latest.current.onContextPoint?.(view.unproject(point))
+          })
         latest.current.onAttributionChange?.(latest.current.attribution)
         updateViewport()
         const initialSignal = latest.current.claimInitialLocation?.()
@@ -459,6 +479,8 @@ export function ProviderOfficeMap(props: Props) {
       })
     return () => {
       disposed = true
+      removeContextEvents?.()
+      latest.current.onReadyChange?.(false)
       clearTimeout(initTimer)
       clearTimeout(cameraTimer)
       observer.disconnect()
@@ -701,16 +723,21 @@ export function ProviderOfficeMap(props: Props) {
           )}
         </Button>
       </div>
-      <p
-        role="status"
-        className={cn(
-          "pointer-events-none absolute right-16 bottom-20 z-10 max-w-56",
-          location.error ? "rounded bg-background/95 px-2 text-xs" : "sr-only"
-        )}
-        style={{ bottom }}
-      >
-        {location.message}
-      </p>
+      {location.error && location.failure ? (
+        <LocationFailureNotice
+          kind={location.failure}
+          size={size}
+          occlusion={occlusion}
+          onRetry={() => void locateUser()}
+          onDismiss={() =>
+            setLocation({ busy: false, error: false, message: "" })
+          }
+        />
+      ) : (
+        <p role="status" className="sr-only">
+          {location.message}
+        </p>
+      )}
     </div>
   )
 }

@@ -1,0 +1,63 @@
+.exchange-map-guide-spotlight,
+.exchange-map-guide-card {
+  --guide-duration: var(--duration-ui, 240ms);
+  top: 0;
+  left: 0;
+  margin: 0;
+  transition:
+    transform var(--guide-duration) var(--ease-emphasized),
+    width var(--guide-duration) var(--ease-ui),
+    height var(--guide-duration) var(--ease-ui);
+  will-change: transform;
+}
+
+.exchange-map-guide-card[data-open],
+.exchange-map-guide-card[data-closed] {
+  animation: none;
+}
+
+.exchange-map-guide-card[data-ready="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.exchange-map-guide-spotlight {
+  outline: 2px solid var(--primary);
+}
+
+.exchange-map-guide-spotlight[data-target-visible="false"] {
+  outline: none;
+}
+
+[data-guide-compact="true"] {
+  --guide-duration: var(--duration-fast, 140ms);
+}
+
+[data-guide-motion="false"] {
+  transition: none;
+}
+
+.exchange-map-guide-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.exchange-map-guide-card[data-scroll-whole="true"] {
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.exchange-map-guide-card[data-scroll-whole="true"] .exchange-map-guide-body {
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exchange-map-guide-spotlight,
+  .exchange-map-guide-card {
+    transition: none;
+    will-change: auto;
+  }
+}

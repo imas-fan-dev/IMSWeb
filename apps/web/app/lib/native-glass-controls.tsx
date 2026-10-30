@@ -19,9 +19,9 @@ import {
   type NativeGlassMenuItem,
 } from "~/lib/native-glass-panel"
 import {
-  isNativeTabBarSuppressed,
+  isNativeTabBarInteractionBlocked,
   NATIVE_TAB_BAR_SUPPRESSION_EVENT,
-  nativeTabBarSuppressed,
+  nativeTabBarInteractionBlocked,
 } from "~/lib/native-tab-bar-suppression"
 
 /**
@@ -37,6 +37,7 @@ export type NativeGlassControlSpec =
       label: string
       active?: boolean
       disabled?: boolean
+      busy?: boolean
       group?: string
     }
   | {
@@ -152,7 +153,7 @@ export function NativeGlassControlsProvider({
 }) {
   const attempted = useMemo(() => shouldUseNativeGlassControls(), [])
   const registrations = useRef(new Map<string, NativeGlassRegistration>())
-  const suppressedRef = useRef(isNativeTabBarSuppressed())
+  const suppressedRef = useRef(isNativeTabBarInteractionBlocked())
   const frameRef = useRef<number | null>(null)
   const tokenRef = useRef(0)
 
@@ -190,6 +191,7 @@ export function NativeGlassControlsProvider({
           group: spec.group,
           active: spec.active ?? false,
           disabled: spec.disabled ?? false,
+          ...(spec.busy === undefined ? {} : { busy: spec.busy }),
         })
       }
     }
@@ -199,6 +201,7 @@ export function NativeGlassControlsProvider({
   const runSync = useCallback(async () => {
     if (!attempted) return
     const token = ++tokenRef.current
+    const suppressed = suppressedRef.current
     let supported: boolean
     try {
       // An open Sheet or Dialog owns the screen. Native controls float above the
@@ -209,7 +212,7 @@ export function NativeGlassControlsProvider({
       // `.exchange-map-app-control` pins the light glass tokens, so a dark host
       // would draw a second, darker control next to the Web version.
       const status = await syncNativeGlassControls(
-        suppressedRef.current ? [] : collect(),
+        suppressed ? [] : collect(),
         false
       )
       supported = Boolean(status?.supported)
@@ -217,7 +220,7 @@ export function NativeGlassControlsProvider({
       supported = false
     }
     if (token !== tokenRef.current) return
-    if (supported) {
+    if (supported && !suppressed) {
       document.documentElement.dataset.nativeGlass = "controls"
     } else {
       delete document.documentElement.dataset.nativeGlass
@@ -271,9 +274,10 @@ export function NativeGlassControlsProvider({
   useEffect(() => {
     if (!attempted) return
     const handleSuppression = (event: Event) => {
-      const suppressed = nativeTabBarSuppressed(event)
+      const suppressed = nativeTabBarInteractionBlocked(event)
       if (suppressed === null) return
       suppressedRef.current = suppressed
+      tokenRef.current += 1
       schedule()
     }
     window.addEventListener(NATIVE_TAB_BAR_SUPPRESSION_EVENT, handleSuppression)
@@ -287,6 +291,7 @@ export function NativeGlassControlsProvider({
   useEffect(() => {
     if (!attempted) return
     const handleControl = (event: Event) => {
+      if (suppressedRef.current) return
       const parsed = nativeGlassControlEvent(event)
       if (!parsed) return
       registrations.current.get(parsed.id)?.onEvent?.(parsed)

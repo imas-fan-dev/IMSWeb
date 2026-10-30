@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
     | null
     | import("~/pages/community/exchange/maps/exchange-map-provider").ExchangeMapInteractionProps,
   cleanup: vi.fn(),
+  nearby: vi.fn(),
+}))
+vi.mock("~/pages/community/exchange/maps/nearby-places", () => ({
+  createNearbyPlaceSearcher: () => mocks.nearby,
 }))
 vi.mock("~/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/api")>()),
@@ -181,6 +185,7 @@ vi.mock("~/pages/community/exchange/components/exchange-place-search", () => ({
 }))
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.nearby.mockResolvedValue({ items: [], attribution: "" })
   mocks.configGet.mockResolvedValue(mocks.config)
   mocks.reverse.mockImplementation(async (point) => ({
     place: {
@@ -237,6 +242,67 @@ it("keeps preview separate, snapshots viewport, and reverse fills an explicit ma
   expect(onClose).toHaveBeenCalledOnce()
   view.unmount()
   expect(mocks.cleanup).toHaveBeenCalledOnce()
+})
+
+it("initializes the chosen point and nearby preview without committing provider data", async () => {
+  mocks.nearby.mockResolvedValue({
+    items: [
+      {
+        id: "nearby",
+        label: "附近商场",
+        address: "临时地点地址",
+        target: { kind: "wgs84", position: [139.9, 35.8] },
+        previewOnly: true,
+        source: {
+          provider: "mapbox",
+          coordinateSystem: "wgs84",
+          position: [139.9, 35.8],
+          calibration: "identity",
+        },
+      },
+    ],
+    attribution: "© Mapbox",
+  })
+  const onChange = vi.fn(),
+    user = userEvent.setup()
+  render(
+    <ConfiguredOfficePicker
+      draft={emptyOfficeDraft(null)}
+      disabled={false}
+      onChange={onChange}
+      onClose={vi.fn()}
+      initialTarget={{ kind: "wgs84", position: [139.8, 35.7] }}
+    />
+  )
+  await screen.findByRole("button", { name: /附近商场/ })
+  expect(mocks.props?.pointPicker?.target?.position).toEqual([139.8, 35.7])
+  expect(mocks.reverse).toHaveBeenCalledWith({
+    longitude: 139.8,
+    latitude: 35.7,
+  })
+  expect(onChange).not.toHaveBeenCalled()
+  await user.click(screen.getByRole("button", { name: /附近商场/ }))
+  expect(mocks.props?.pointPicker?.target?.position).toEqual([139.9, 35.8])
+  expect(screen.getByText("确认位置并填写地址")).toBeDisabled()
+  expect(onChange).not.toHaveBeenCalled()
+  act(() =>
+    mocks.props?.pointPicker?.onPick(
+      { kind: "wgs84", position: [139.81, 35.71] },
+      "click"
+    )
+  )
+  await waitFor(() =>
+    expect(screen.getByText("确认位置并填写地址")).toBeEnabled()
+  )
+  await user.click(screen.getByText("确认位置并填写地址"))
+  expect(onChange).toHaveBeenCalledWith(
+    expect.objectContaining({
+      longitude: "139.81",
+      latitude: "35.71",
+      address: "后端解析地址",
+      name: "",
+    })
+  )
 })
 it("cancel never writes preview coordinates", async () => {
   const onChange = vi.fn(),

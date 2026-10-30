@@ -9,6 +9,7 @@ import { MapPinIcon } from "lucide-react"
 import type { FudabaPlaceReverseResponse } from "~/lib/api"
 import type { OfficeDraft } from "./office-location-model"
 import type { OfficePlaceServices } from "./office-place-services"
+import type { MapSearchTarget } from "~/lib/maps/map-search"
 
 export function OfficePlaceSearch({
   draft,
@@ -16,15 +17,17 @@ export function OfficePlaceSearch({
   onChange,
   placeServices,
   showCoordinates = false,
+  initialTarget,
 }: {
   draft: OfficeDraft
   disabled: boolean
   onChange: (draft: OfficeDraft) => void
   placeServices?: OfficePlaceServices
   showCoordinates?: boolean
+  initialTarget?: MapSearchTarget | null
 }) {
   const addressId = useId()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(Boolean(initialTarget))
   const [attribution, setAttribution] =
     useState<FudabaPlaceReverseResponse["attribution"]>(null)
   return (
@@ -82,6 +85,7 @@ export function OfficePlaceSearch({
       {open ? (
         <ConfiguredOfficePicker
           draft={draft}
+          initialTarget={initialTarget}
           placeServices={placeServices}
           disabled={disabled}
           onChange={onChange}
