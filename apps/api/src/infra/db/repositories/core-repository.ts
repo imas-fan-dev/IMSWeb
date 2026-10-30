@@ -26,6 +26,7 @@ import type {
     CardFavoriteSelectionRecord,
     CardMediaRecord,
     FudabaCardCredit,
+    NamecardFeedbackReason,
     NamecardRepository,
     NamecardApprovalClaim,
     NamecardEditResult,
@@ -37,6 +38,10 @@ import type {
     NamecardAdminUpdateInput,
     NamecardAdminUpdateResult,
     NamecardDiffRecord,
+    NamecardFeedbackAuditFilter,
+    NamecardFeedbackAuditPage,
+    NamecardLockAuditFilter,
+    NamecardLockAuditPage,
     NamecardDiffSide,
     NamecardPublicRecord,
     NamecardSubmissionKind,
@@ -60,6 +65,31 @@ import {
 } from '@/infra/db/repositories/namecard-origins';
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
+
+type NamecardLockAuditRow = {
+    id: number | string;
+    reason: string;
+    handled_by: string | null;
+    locked_at: Date | string;
+    card_number: number | string;
+    producer_name: string | null;
+    owner_account_id: string | null;
+    owner_name: string | null;
+};
+
+type NamecardFeedbackAuditRow = {
+    id: number | string;
+    reason: NamecardFeedbackReason;
+    status: string;
+    handled_by: string | null;
+    handled_at: Date | string | null;
+    card_number: number | string;
+    producer_name: string | null;
+    owner_account_id: string | null;
+    owner_name: string | null;
+    reporter_account_id: string;
+    reporter_name: string | null;
+};
 
 type NamecardFavoriteRow = {
     card_id: number | string;
@@ -1160,6 +1190,53 @@ export class SqlCoreRepository implements NamecardRepository {
         }
     }
 
+
+    /** Locking appends the decision; relocking refreshes the same row. */
+    private async appendNamecardLockRecord(
+        database: SqlDatabase,
+        cardId: string,
+        reason: string,
+        actor: string | null
+    ): Promise<void> {
+        await executeSql(database,
+            'DELETE FROM namecard_lock_records WHERE card_id=?',
+            [cardId]
+        );
+        await executeSql(database,
+            `INSERT INTO namecard_lock_records (card_id, reason, handled_by, locked_at)
+             VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+            [cardId, reason.trim() || '未记录理由', actor]
+        );
+    }
+
+    private async clearNamecardLockRecords(
+        database: SqlDatabase,
+        cardId: string
+    ): Promise<void> {
+        await executeSql(database,
+            'DELETE FROM namecard_lock_records WHERE card_id=?',
+            [cardId]
+        );
+    }
+
+    private async countAuditAccounts(
+        sql: string,
+        accountIds: readonly string[]
+    ): Promise<Record<string, number>> {
+        if (accountIds.length === 0) return {};
+        const placeholders = accountIds.map(() => '?').join(', ');
+        const rows = await queryAll<{ account_id: string | null; total: number | string }>(
+            this.database,
+            sql.replace('__ID_LIST__', placeholders),
+            accountIds
+        );
+        const totals: Record<string, number> = {};
+        for (const row of rows) {
+            if (row.account_id) totals[row.account_id] = Number(row.total);
+        }
+        return totals;
+    }
+
     private async replaceNamecardCredits(
         database: SqlDatabase,
         cardId: string,
@@ -1185,6 +1262,167 @@ export class SqlCoreRepository implements NamecardRepository {
                 ]
             );
         }
+    }
+
+
+    /**
+     * The lock audit answers "which cards are locked right now", so unlocking
+     * deletes the row that produced it.
+     */
+    async listNamecardLockAudit(
+        filter: NamecardLockAuditFilter
+    ): Promise<NamecardLockAuditPage> {
+        const where = ['card.deleted_at IS NULL'];
+        const values: unknown[] = [];
+        if (filter.owner) {
+            where.push('(owner_profile.display_name ILIKE ? OR card.owner_account_id ILIKE ?)');
+            values.push(`%${filter.owner}%`, `%${filter.owner}%`);
+        }
+        if (filter.reason) {
+            where.push('record.reason ILIKE ?');
+            values.push(`%${filter.reason}%`);
+        }
+        if (filter.handler) {
+            where.push('record.handled_by ILIKE ?');
+            values.push(`%${filter.handler}%`);
+        }
+        const source = `FROM namecard_lock_records record
+             JOIN fudaba_cards card ON card.id=record.card_id
+             LEFT JOIN platform_accounts owner ON owner.id=card.owner_account_id
+             LEFT JOIN platform_profiles owner_profile ON owner_profile.account_id=owner.id
+             WHERE ${where.join(' AND ')}`;
+        const [rows, totalRow] = await Promise.all([
+            queryAll<NamecardLockAuditRow>(this.database,
+                `SELECT record.id, record.reason, record.handled_by, record.locked_at,
+                        card.card_number, card.producer_name, card.owner_account_id,
+                        owner_profile.display_name AS owner_name
+                 ${source}
+                 ORDER BY record.locked_at DESC, record.id DESC
+                 LIMIT ? OFFSET ?`,
+                [...values, filter.pageSize, (filter.page - 1) * filter.pageSize]
+            ),
+            queryOne<{ total: number | string }>(this.database,
+                `SELECT count(*) AS total ${source}`,
+                values
+            )
+        ]);
+        const ownerIds = rows
+            .map((row) => row.owner_account_id)
+            .filter((id): id is string => Boolean(id));
+        const ownerTotals = await this.countAuditAccounts(
+            `SELECT card.owner_account_id AS account_id, count(*)::int AS total
+             FROM namecard_lock_records record
+             JOIN fudaba_cards card ON card.id=record.card_id
+             WHERE card.deleted_at IS NULL AND card.owner_account_id IN (__ID_LIST__)
+             GROUP BY card.owner_account_id`,
+            [...new Set(ownerIds)]
+        );
+        return {
+            rows: rows.map((row) => ({
+                id: Number(row.id),
+                cardNumber: Number(row.card_number),
+                producerName: row.producer_name,
+                ownerAccountId: row.owner_account_id,
+                ownerName: row.owner_account_id
+                    ? (row.owner_name?.trim() || row.owner_account_id)
+                    : null,
+                reason: row.reason,
+                handledBy: row.handled_by,
+                lockedAt: new Date(row.locked_at).toISOString()
+            })),
+            total: Number(totalRow?.total ?? 0),
+            ownerTotals
+        };
+    }
+
+    /** Reports leave the queue once they carry a verdict. */
+    async listNamecardFeedbackAudit(
+        filter: NamecardFeedbackAuditFilter
+    ): Promise<NamecardFeedbackAuditPage> {
+        const where = ["card.deleted_at IS NULL", "record.status <> 'pending'"];
+        const values: unknown[] = [];
+        if (filter.owner) {
+            where.push('(owner_profile.display_name ILIKE ? OR card.owner_account_id ILIKE ?)');
+            values.push(`%${filter.owner}%`, `%${filter.owner}%`);
+        }
+        if (filter.reporter) {
+            where.push('(reporter_profile.display_name ILIKE ? OR record.reporter_account_id ILIKE ?)');
+            values.push(`%${filter.reporter}%`, `%${filter.reporter}%`);
+        }
+        if (filter.outcome) {
+            where.push('record.status=?');
+            values.push(filter.outcome);
+        }
+        if (filter.handler) {
+            where.push('record.handled_by ILIKE ?');
+            values.push(`%${filter.handler}%`);
+        }
+        const source = `FROM namecard_feedback record
+             JOIN fudaba_cards card ON card.id=record.card_id
+             LEFT JOIN platform_accounts owner ON owner.id=card.owner_account_id
+             LEFT JOIN platform_profiles owner_profile ON owner_profile.account_id=owner.id
+             LEFT JOIN platform_profiles reporter_profile ON reporter_profile.account_id=record.reporter_account_id
+             WHERE ${where.join(' AND ')}`;
+        const [rows, totalRow] = await Promise.all([
+            queryAll<NamecardFeedbackAuditRow>(this.database,
+                `SELECT record.id, record.reason, record.status, record.handled_by,
+                        record.handled_at, card.card_number, card.producer_name,
+                        card.owner_account_id, owner_profile.display_name AS owner_name,
+                        record.reporter_account_id, reporter_profile.display_name AS reporter_name
+                 ${source}
+                 ORDER BY record.handled_at DESC NULLS LAST, record.id DESC
+                 LIMIT ? OFFSET ?`,
+                [...values, filter.pageSize, (filter.page - 1) * filter.pageSize]
+            ),
+            queryOne<{ total: number | string }>(this.database,
+                `SELECT count(*) AS total ${source}`,
+                values
+            )
+        ]);
+        const ownerIds = rows
+            .map((row) => row.owner_account_id)
+            .filter((id): id is string => Boolean(id));
+        const reporterIds = rows.map((row) => row.reporter_account_id);
+        const [ownerTotals, reporterTotals] = await Promise.all([
+            this.countAuditAccounts(
+                `SELECT card.owner_account_id AS account_id, count(*)::int AS total
+                 FROM namecard_feedback record
+                 JOIN fudaba_cards card ON card.id=record.card_id
+                 WHERE card.deleted_at IS NULL AND record.status <> 'pending'
+                   AND card.owner_account_id IN (__ID_LIST__)
+                 GROUP BY card.owner_account_id`,
+                [...new Set(ownerIds)]
+            ),
+            this.countAuditAccounts(
+                `SELECT record.reporter_account_id AS account_id, count(*)::int AS total
+                 FROM namecard_feedback record
+                 JOIN fudaba_cards card ON card.id=record.card_id
+                 WHERE card.deleted_at IS NULL AND record.status <> 'pending'
+                   AND record.reporter_account_id IN (__ID_LIST__)
+                 GROUP BY record.reporter_account_id`,
+                [...new Set(reporterIds)]
+            )
+        ]);
+        return {
+            rows: rows.map((row) => ({
+                id: Number(row.id),
+                cardNumber: Number(row.card_number),
+                producerName: row.producer_name,
+                ownerAccountId: row.owner_account_id,
+                ownerName: row.owner_account_id
+                    ? (row.owner_name?.trim() || row.owner_account_id)
+                    : null,
+                reporterAccountId: row.reporter_account_id,
+                reporterName: row.reporter_name?.trim() || row.reporter_account_id,
+                reason: row.reason,
+                outcome: row.status === 'accepted' ? 'accepted' : 'rejected',
+                handledBy: row.handled_by,
+                handledAt: row.handled_at ? new Date(row.handled_at).toISOString() : null
+            })),
+            total: Number(totalRow?.total ?? 0),
+            ownerTotals,
+            reporterTotals
+        };
     }
 
     async findCardMedia(id: number): Promise<CardMediaRecord | null> {
@@ -1504,6 +1742,18 @@ export class SqlCoreRepository implements NamecardRepository {
                     ...cardAdminEditedCopy(cardNumber, reason, changes)
                 });
             }
+            // A management edit can lock or unlock the card by itself, so the
+            // audit trail follows the status it just wrote.
+            if (input.status === 'locked') {
+                await this.appendNamecardLockRecord(
+                    database,
+                    cardId,
+                    input.reason ?? '未记录理由',
+                    input.actor ?? null
+                );
+            } else if (current.publication_status === 'locked') {
+                await this.clearNamecardLockRecords(database, cardId);
+            }
             return {
                 status: 'updated',
                 revision: Number(updatedRow.revision),
@@ -1550,6 +1800,9 @@ export class SqlCoreRepository implements NamecardRepository {
                 [cardNumber, expectedRevision]
             );
             if (!updatedRow) return { status: 'conflict', revision };
+            // A soft delete does not fire the foreign key, so the lock audit is
+            // cleared by hand: nothing may point at a card nobody can see.
+            await this.clearNamecardLockRecords(database, String(current.internal_id));
             if (current.owner_account_id) {
                 await insertNamecardNotification(database, {
                     recipientAccountId: current.owner_account_id,
@@ -1649,7 +1902,8 @@ export class SqlCoreRepository implements NamecardRepository {
     async lockCard(
         id: number,
         expectedRevision: number,
-        reason: string
+        reason: string,
+        actor: string | null = null
     ): Promise<NamecardMutationResult> {
         return this.database.transaction(async (database) => {
             const currentRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
@@ -1683,6 +1937,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 [reason, id, expectedRevision]
             );
             if (!updatedRow) return { status: 'conflict', revision: current.revision };
+            await this.appendNamecardLockRecord(database, String(updatedRow.internal_id), reason, actor);
             // A card its owner already deleted is not news to them: locking a
             // `hidden` card stays silent.
             if (updatedRow.owner_account_id && current.status !== 'hidden') {
@@ -1712,6 +1967,8 @@ export class SqlCoreRepository implements NamecardRepository {
                 [id, expectedRevision]
             );
             if (updatedRow) {
+                // Unlocking erases the decision from the audit table by design.
+                await this.clearNamecardLockRecords(database, String(updatedRow.internal_id));
                 if (updatedRow.owner_account_id) {
                     await insertNamecardNotification(database, {
                         recipientAccountId: String(updatedRow.owner_account_id),

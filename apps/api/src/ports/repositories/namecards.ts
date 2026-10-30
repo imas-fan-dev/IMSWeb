@@ -1,6 +1,7 @@
 import type {
     CardFavoriteSelectionRecord,
-    FudabaCardCredit
+    FudabaCardCredit,
+    NamecardFeedbackReason
 } from '@/ports/repositories/fudaba';
 
 export type NamecardSubmissionKind = 'guest' | 'legacy';
@@ -116,6 +117,8 @@ export interface NamecardAdminUpdateInput {
     cardNumber: number;
     expectedRevision: number;
     reason: string | null;
+    /** Backoffice operator, stored on the audit rows this edit produces. */
+    actor?: string | null;
     /** Omitted keeps the current owner, `null` removes it. */
     ownerAccountId?: string | null;
     status: NamecardLifecycleStatus;
@@ -211,6 +214,65 @@ export type NamecardMutationResult =
     | { status: "withdrawn"; revision: number }
     | { status: "not-found" };
 
+/** Filters shared by both audit tables. */
+export interface NamecardAuditFilter {
+    /** Owner display name or account id. */
+    owner: string | null;
+    /** Backoffice username that handled the record. */
+    handler: string | null;
+    page: number;
+    pageSize: number;
+}
+
+export interface NamecardLockAuditFilter extends NamecardAuditFilter {
+    reason: string | null;
+}
+
+export interface NamecardFeedbackAuditFilter extends NamecardAuditFilter {
+    /** Reporter display name or account id. */
+    reporter: string | null;
+    outcome: 'accepted' | 'rejected' | null;
+}
+
+export interface NamecardLockAuditRecord {
+    id: number;
+    cardNumber: number;
+    producerName: string | null;
+    ownerAccountId: string | null;
+    ownerName: string | null;
+    reason: string;
+    handledBy: string | null;
+    lockedAt: string;
+}
+
+export interface NamecardFeedbackAuditRecord {
+    id: number;
+    cardNumber: number;
+    producerName: string | null;
+    ownerAccountId: string | null;
+    ownerName: string | null;
+    reporterAccountId: string;
+    reporterName: string;
+    reason: NamecardFeedbackReason;
+    outcome: 'accepted' | 'rejected';
+    handledBy: string | null;
+    handledAt: string | null;
+}
+
+/** One page plus the lifetime totals the tables annotate names with. */
+export interface NamecardLockAuditPage {
+    rows: NamecardLockAuditRecord[];
+    total: number;
+    ownerTotals: Record<string, number>;
+}
+
+export interface NamecardFeedbackAuditPage {
+    rows: NamecardFeedbackAuditRecord[];
+    total: number;
+    ownerTotals: Record<string, number>;
+    reporterTotals: Record<string, number>;
+}
+
 export interface NamecardAdminFilter {
     query: string | null;
     status: string | null;
@@ -274,12 +336,19 @@ export interface NamecardRepository {
         id: number,
         expectedRevision: number,
         reason: string,
+        actor?: string | null,
     ): Promise<NamecardMutationResult>;
     /**
      * Backoffice management: rewrites the live card, its owner and both review
      * columns in one transaction, and tells the owner what changed.
      */
     updateCardAsAdmin(input: NamecardAdminUpdateInput): Promise<NamecardAdminUpdateResult>;
+    /** Every card that is locked right now, newest decision first. */
+    listNamecardLockAudit(filter: NamecardLockAuditFilter): Promise<NamecardLockAuditPage>;
+    /** Every report that already has a verdict, newest verdict first. */
+    listNamecardFeedbackAudit(
+        filter: NamecardFeedbackAuditFilter
+    ): Promise<NamecardFeedbackAuditPage>;
     /**
      * Sets `deleted_at`, which hides the card from every surface and every API.
      * Only a database operator can bring the row back.

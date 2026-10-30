@@ -9979,6 +9979,127 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
         });
 
+        postgresTest('real PostgreSQL keeps the lock audit in step with the card status', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-audit-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard('postgresql-audit-card', ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const core = new SqlCoreRepository(
+                fixture.database,
+                new PostgresqlSchemaStrategy()
+            );
+            await core.initialize();
+            const postgres = fixture.database as PostgresConnection;
+            const cardNumber = created.card.card_number;
+            const content = {
+                producerName: '审计制作人',
+                producerReading: null,
+                groupName: null,
+                madeOn: null,
+                bio: '',
+                tradeNote: '',
+                isOriginal: true,
+                madeWithAi: false,
+                visible: true,
+                exchangeMode: 'auto' as const,
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [900_001],
+                credits: []
+            };
+            const published = await core.updateCardAsAdmin({
+                cardNumber,
+                expectedRevision: created.card.revision,
+                reason: '首次发布',
+                ownerAccountId: undefined,
+                status: 'published',
+                reviewStatus: null,
+                content,
+                mediaOrder: ['#0', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(published.status, 'updated');
+            if (published.status !== 'updated') return;
+
+            // Locking through the review screen records the operator.
+            const locked = await core.lockCard(
+                cardNumber,
+                published.revision,
+                '非企划内容',
+                'debugadmin'
+            );
+            assert.equal(locked.status, 'updated');
+            if (locked.status !== 'updated') return;
+            const page = await core.listNamecardLockAudit({
+                page: 1,
+                pageSize: 20,
+                owner: null,
+                reason: '企划',
+                handler: 'debug'
+            });
+            assert.equal(page.total, 1);
+            assert.equal(page.rows[0]?.cardNumber, cardNumber);
+            assert.equal(page.rows[0]?.reason, '非企划内容');
+            assert.equal(page.rows[0]?.handledBy, 'debugadmin');
+            assert.equal(page.rows[0]?.ownerName, `Producer ${ownerId}`);
+            assert.equal(
+                page.ownerTotals[page.rows[0]!.ownerAccountId!],
+                1,
+                'the table annotates owners with their total record count'
+            );
+
+            // Unlocking deletes the record instead of keeping a history.
+            const unlocked = await core.unlockCard(cardNumber, locked.card.revision);
+            assert.equal(unlocked.status, 'updated');
+            const stillThere = (await postgres.pool.query(
+                'SELECT card_id, reason FROM public.namecard_lock_records ORDER BY id'
+            )).rows as Array<Record<string, unknown>>;
+            assert.deepEqual(stillThere, [], 'unlocking deletes the record');
+            const afterUnlock = await core.listNamecardLockAudit({
+                page: 1,
+                pageSize: 20,
+                owner: null,
+                reason: null,
+                handler: null
+            });
+            assert.equal(afterUnlock.total, 0);
+
+            // The management console can lock by itself; the same table follows.
+            const managed = await core.updateCardAsAdmin({
+                cardNumber,
+                expectedRevision: unlocked.status === 'updated' ? unlocked.card.revision : 0,
+                reason: '用户申诉后重新锁定',
+                ownerAccountId: undefined,
+                status: 'locked',
+                reviewStatus: null,
+                content,
+                mediaOrder: ['#0', '#1'],
+                actor: 'second-op',
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(managed.status, 'updated');
+            const relocked = (await postgres.pool.query(
+                'SELECT reason, handled_by FROM public.namecard_lock_records WHERE card_id = $1',
+                ['postgresql-audit-card']
+            )).rows as Array<Record<string, unknown>>;
+            assert.equal(relocked.length, 1);
+            assert.equal(relocked[0]?.reason, '用户申诉后重新锁定');
+            assert.equal(relocked[0]?.handled_by, 'second-op');
+
+            // Deleting the card takes its records with it.
+            if (managed.status !== 'updated') return;
+            const removed = await core.deleteCardAsAdmin(cardNumber, managed.revision);
+            assert.equal(removed.status, 'updated');
+            const remaining = (await postgres.pool.query(
+                'SELECT count(*)::int AS total FROM public.namecard_lock_records WHERE card_id = $1',
+                ['postgresql-audit-card']
+            )).rows[0] as { total: number };
+            assert.equal(remaining.total, 0);
+        }, 30_000);
+
         postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {
             const fixture = await createFixture('postgresql');
             const ownerId = 'postgresql-staged-owner';

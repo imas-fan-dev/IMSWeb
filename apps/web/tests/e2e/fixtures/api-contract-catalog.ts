@@ -112,6 +112,10 @@ import {
   adminNamecardMutationSchema,
   adminNamecardUpdateRequestSchema,
   adminNamecardFeedbackListResponseSchema,
+  namecardFeedbackAuditListResponseSchema,
+  namecardFeedbackAuditQuerySchema,
+  namecardLockAuditListResponseSchema,
+  namecardLockAuditQuerySchema,
   adminNamecardFeedbackListQuerySchema,
   createNamecardFeedbackRequestSchema,
   resolveNamecardFeedbackRequestSchema,
@@ -1005,6 +1009,24 @@ export function resolveApiContract(
         404: namecardErrorResponseSchema,
         409: namecardErrorResponseSchema,
         410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards/audit/locks")
+    return {
+      query: namecardLockAuditQuerySchema,
+      responses: {
+        200: namecardLockAuditListResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards/audit/feedback")
+    return {
+      query: namecardFeedbackAuditQuerySchema,
+      responses: {
+        200: namecardFeedbackAuditListResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/cards/feedback")

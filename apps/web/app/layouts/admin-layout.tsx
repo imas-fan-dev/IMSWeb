@@ -227,6 +227,10 @@ const navigation: Array<{
     icon: UsersRoundIcon,
     accent: "bg-franchise-cg",
     superOnly: true,
+    children: [
+      { to: "/admin/platform/users", label: "用户管理" },
+      { to: "/admin/platform/audit", label: "名片审计" },
+    ],
   },
   {
     to: "/admin/system",

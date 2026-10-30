@@ -4,6 +4,8 @@ import { handleDeleteAdminNamecard } from "@/domains/community/namecards/moderat
 import { handleGetAdminNamecardDiff } from "@/domains/community/namecards/moderation/handlers/get-admin-namecard-diff";
 import { handleListAdminNamecards } from "@/domains/community/namecards/moderation/handlers/list-admin-namecards";
 import { handleListAdminNamecardFeedback } from "@/domains/community/namecards/moderation/handlers/list-admin-feedback";
+import { handleListAdminNamecardFeedbackAudit } from "@/domains/community/namecards/moderation/handlers/list-admin-feedback-audit";
+import { handleListAdminNamecardLockAudit } from "@/domains/community/namecards/moderation/handlers/list-admin-lock-audit";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
 import { handleServeAdminNamecardMedia } from "@/domains/community/namecards/moderation/handlers/serve-admin-namecard-media";
@@ -12,7 +14,9 @@ import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/h
 import { handleUpdateAdminNamecard } from "@/domains/community/namecards/moderation/handlers/update-admin-namecard";
 import {
     validateAdminNamecardDeleteRequest,
+    validateAdminNamecardFeedbackAuditQuery,
     validateAdminNamecardFeedbackListQuery,
+    validateAdminNamecardLockAuditQuery,
     validateAdminNamecardListQuery,
     validateAdminNamecardUpdateRequest,
     validateCompatibleNamecardIdParams,
@@ -44,7 +48,9 @@ import {
 } from "@/middleware/request-validation";
 import {
     adminNamecardFeedbackListQuerySchema,
+    namecardFeedbackAuditQuerySchema,
     namecardFeedbackIdParamsSchema,
+    namecardLockAuditQuerySchema,
     resolveNamecardFeedbackRequestSchema,
 } from "@imsweb/contracts/namecards";
 import {
@@ -75,6 +81,21 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         querySchemaValidator(adminNamecardFeedbackListQuerySchema, { invalidMessage: "反馈分页参数无效" }, validateAdminNamecardFeedbackListQuery),
         handleListAdminNamecardFeedback,
+    );
+    // 名片审计: read-only tables behind the 平台用户 menu.
+    routes.get(
+        "/audit/locks",
+        backofficeAuth,
+        opOnly,
+        querySchemaValidator(namecardLockAuditQuerySchema, { invalidMessage: "名片审计分页参数无效" }, validateAdminNamecardLockAuditQuery),
+        handleListAdminNamecardLockAudit,
+    );
+    routes.get(
+        "/audit/feedback",
+        backofficeAuth,
+        opOnly,
+        querySchemaValidator(namecardFeedbackAuditQuerySchema, { invalidMessage: "名片审计分页参数无效" }, validateAdminNamecardFeedbackAuditQuery),
+        handleListAdminNamecardFeedbackAudit,
     );
     routes.post(
         "/feedback/:feedbackId/resolve",

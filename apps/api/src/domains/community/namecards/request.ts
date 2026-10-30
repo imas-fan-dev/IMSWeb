@@ -292,6 +292,54 @@ export async function parseNamecardReplacementImage(
 }
 
 /** The report queue only needs a page number. */
+export interface AdminNamecardLockAuditQuery {
+    page: number;
+    owner: string | null;
+    reason: string | null;
+    handler: string | null;
+}
+
+export interface AdminNamecardFeedbackAuditQuery {
+    page: number;
+    owner: string | null;
+    reporter: string | null;
+    outcome: 'accepted' | 'rejected' | null;
+    handler: string | null;
+}
+
+function auditText(query: Record<string, unknown>, key: string): string | null {
+    const value = query[key];
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+}
+
+export function validateAdminNamecardLockAuditQuery(
+    value: unknown
+): AdminNamecardLockAuditQuery {
+    const query = requestRecord(value, '名片审计分页参数无效');
+    return {
+        page: legacyPaginationValue(query.page, DEFAULT_PAGE),
+        owner: auditText(query, 'owner'),
+        reason: auditText(query, 'reason'),
+        handler: auditText(query, 'handler')
+    };
+}
+
+export function validateAdminNamecardFeedbackAuditQuery(
+    value: unknown
+): AdminNamecardFeedbackAuditQuery {
+    const query = requestRecord(value, '名片审计分页参数无效');
+    const outcome = auditText(query, 'outcome');
+    return {
+        page: legacyPaginationValue(query.page, DEFAULT_PAGE),
+        owner: auditText(query, 'owner'),
+        reporter: auditText(query, 'reporter'),
+        outcome: outcome === 'accepted' || outcome === 'rejected' ? outcome : null,
+        handler: auditText(query, 'handler')
+    };
+}
+
 export function validateAdminNamecardFeedbackListQuery(
     value: unknown
 ): AdminNamecardFeedbackListQuery {

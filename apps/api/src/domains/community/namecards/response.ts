@@ -7,7 +7,9 @@ import type {
     AdminNamecard,
     AdminNamecardDiff,
     AdminNamecardFeedback,
+    AdminNamecardFeedbackAuditListResponse as AdminNamecardFeedbackAuditContractResponse,
     AdminNamecardFeedbackListResponse as AdminNamecardFeedbackListContractResponse,
+    AdminNamecardLockAuditListResponse as AdminNamecardLockAuditContractResponse,
     NamecardFeedbackResponse as NamecardFeedbackReplyContract,
     AdminNamecardListResponse as AdminNamecardListContractResponse,
     Namecard,
@@ -36,6 +38,9 @@ export type AdminNamecardFeedbackResponse = AdminNamecardFeedback;
 export type AdminNamecardFeedbackListResponse =
     AdminNamecardFeedbackListContractResponse;
 export type NamecardFeedbackResponse = NamecardFeedbackReplyContract;
+export type AdminNamecardLockAuditListResponse = AdminNamecardLockAuditContractResponse;
+export type AdminNamecardFeedbackAuditListResponse =
+    AdminNamecardFeedbackAuditContractResponse;
 
 interface NamecardRow {
     id?: unknown;

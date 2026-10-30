@@ -315,6 +315,87 @@ export const adminNamecardFeedbackListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
 })
 
+/** A person as the audit tables show them: a name plus both tallies. */
+export const namecardAuditUserSchema = exactJsonResponse({
+  /** Display name, falling back to the account id when no profile exists. */
+  name: z.string().min(1),
+  /** Records for this account across the whole audit. */
+  total: z.number().int().nonnegative(),
+  /** Records for this account inside the returned page. */
+  pageCount: z.number().int().nonnegative(),
+})
+
+export const namecardLockAuditRowSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  cardNumber: z.number().int().positive(),
+  producerName: z.string().nullable(),
+  owner: namecardAuditUserSchema.nullable(),
+  reason: z.string().min(1),
+  handledBy: z.string().min(1).nullable(),
+  lockedAt: z.string().min(1),
+})
+
+export const namecardLockAuditListSchema = successEnvelope({
+  data: z.array(namecardLockAuditRowSchema),
+  pageInfo: numberedPageInfoSchema,
+})
+
+export const namecardFeedbackAuditRowSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  cardNumber: z.number().int().positive(),
+  producerName: z.string().nullable(),
+  owner: namecardAuditUserSchema.nullable(),
+  reporter: namecardAuditUserSchema,
+  reason: namecardFeedbackReasonSchema,
+  outcome: z.enum(["accepted", "rejected"]),
+  handledBy: z.string().min(1).nullable(),
+  handledAt: z.string().min(1).nullable(),
+})
+
+export const namecardFeedbackAuditListSchema = successEnvelope({
+  data: z.array(namecardFeedbackAuditRowSchema),
+  pageInfo: numberedPageInfoSchema,
+})
+
+const namecardAuditFailureSchema = z.object({ success: z.literal(false) }).strict()
+
+export const namecardLockAuditListResponseSchema = z.union([
+  namecardLockAuditListSchema,
+  namecardAuditFailureSchema,
+])
+
+export const namecardFeedbackAuditListResponseSchema = z.union([
+  namecardFeedbackAuditListSchema,
+  namecardAuditFailureSchema,
+])
+
+export const namecardLockAuditQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+  owner: z.unknown().optional(),
+  reason: z.unknown().optional(),
+  handler: z.unknown().optional(),
+})
+
+export const namecardFeedbackAuditQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+  owner: z.unknown().optional(),
+  reporter: z.unknown().optional(),
+  outcome: z.unknown().optional(),
+  handler: z.unknown().optional(),
+})
+
+export type NamecardAuditUser = z.infer<typeof namecardAuditUserSchema>
+export type NamecardLockAuditRow = z.infer<typeof namecardLockAuditRowSchema>
+export type NamecardFeedbackAuditRow = z.infer<typeof namecardFeedbackAuditRowSchema>
+export type NamecardLockAuditList = z.infer<typeof namecardLockAuditListSchema>
+export type NamecardFeedbackAuditList = z.infer<typeof namecardFeedbackAuditListSchema>
+export type AdminNamecardLockAuditListResponse = z.infer<
+  typeof namecardLockAuditListResponseSchema
+>
+export type AdminNamecardFeedbackAuditListResponse = z.infer<
+  typeof namecardFeedbackAuditListResponseSchema
+>
+
 export const namecardFeedbackIdParamsSchema = z.object({
   feedbackId: z.coerce.number().int().positive(),
 })

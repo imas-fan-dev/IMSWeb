@@ -37,6 +37,7 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
             credits: body.credits
         },
         mediaOrder: body.media_order,
+        actor: c.get('backofficeUser')?.username ?? null,
         updatedAt: new Date()
     });
     if (result.status === 'not-found') {

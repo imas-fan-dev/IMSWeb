@@ -5,7 +5,7 @@
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { createHonoApp } from '@/app';
 import type { ObjectStorage } from '@/ports/object-storage';
-import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardAdminUpdateInput, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
+import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardAdminUpdateInput, NamecardFeedbackAuditFilter, NamecardLockAuditFilter, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { failureMessageResponseSchema } from '@imsweb/contracts/common';
 import { // pi-lens-ignore: ts:2724
@@ -146,6 +146,8 @@ import { test } from 'vitest';
             'handleGetAdminNamecardDiff',
             'handleGetNamecard',
             'handleListAdminNamecardFeedback',
+            'handleListAdminNamecardFeedbackAudit',
+            'handleListAdminNamecardLockAudit',
             'handleListAdminNamecards',
             'handleListNamecards',
             'handleListReactions',
@@ -496,7 +498,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 149);
+            assert.equal(Object.values(actual).flat().length, 151);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -720,6 +722,8 @@ import { test } from 'vitest';
         namecardFindMedia: number[];
         namecardListAdmin: Array<[number, number]>;
         namecardDiff: number[];
+        namecardLockAudit: NamecardLockAuditFilter[];
+        namecardFeedbackAudit: NamecardFeedbackAuditFilter[];
         namecardMediaKey: Array<[number, string, boolean]>;
         namecardPublishedMediaKey: [number, string][];
         namecardListApproved: Array<[number, number]>;
@@ -749,6 +753,8 @@ import { test } from 'vitest';
             namecardFindMedia: [],
             namecardListAdmin: [],
             namecardDiff: [],
+            namecardLockAudit: [],
+            namecardFeedbackAudit: [],
             namecardMediaKey: [],
             namecardPublishedMediaKey: [],
             namecardListApproved: [],
@@ -846,6 +852,14 @@ import { test } from 'vitest';
             async findCardByMediaUrl() { return null; },
             async updateCardAsAdmin() { return { status: 'not-found' }; },
             async deleteCardAsAdmin() { return { status: 'not-found' }; },
+            async listNamecardLockAudit(filter) {
+                calls.namecardLockAudit.push(filter);
+                return { rows: [], total: 0, ownerTotals: {} };
+            },
+            async listNamecardFeedbackAudit(filter) {
+                calls.namecardFeedbackAudit.push(filter);
+                return { rows: [], total: 0, ownerTotals: {}, reporterTotals: {} };
+            },
             ...namecardOverrides
         };
         const reactions: ReactionRepository = {
@@ -2030,6 +2044,97 @@ import { test } from 'vitest';
             assert.deepEqual(fixture.calls.namecardUnlock, [0]);
             assert.deepEqual(fixture.calls.audit, []);
             assert.equal(fixture.calls.storageWrites, 0);
+        });
+
+        test('the audit tables answer their filters and their page totals', async () => {
+            const headers = {
+                Cookie: 'token=op-token; csrf_token=csrf',
+                'X-CSRFToken': 'csrf'
+            };
+            const lockFilters: NamecardLockAuditFilter[] = [];
+            const feedbackFilters: NamecardFeedbackAuditFilter[] = [];
+            const fixture = createCompatibilityFixture({
+                async listNamecardLockAudit(filter) {
+                    lockFilters.push(filter);
+                    return {
+                        rows: [
+                            {
+                                id: 4,
+                                cardNumber: 12,
+                                producerName: '天海春香',
+                                ownerAccountId: 'owner-1',
+                                ownerName: '调试用户',
+                                reason: '非企划内容',
+                                handledBy: 'debugadmin',
+                                lockedAt: '2026-11-01T00:00:00.000Z'
+                            }
+                        ],
+                        total: 3,
+                        ownerTotals: { 'owner-1': 3 }
+                    };
+                },
+                async listNamecardFeedbackAudit(filter) {
+                    feedbackFilters.push(filter);
+                    return {
+                        rows: [
+                            {
+                                id: 9,
+                                cardNumber: 12,
+                                producerName: '天海春香',
+                                ownerAccountId: 'owner-1',
+                                ownerName: '调试用户',
+                                reporterAccountId: 'reporter-1',
+                                reporterName: '举报者',
+                                reason: 'info-error',
+                                outcome: 'rejected',
+                                handledBy: 'debugadmin',
+                                handledAt: '2026-11-02T00:00:00.000Z'
+                            }
+                        ],
+                        total: 1,
+                        ownerTotals: { 'owner-1': 1 },
+                        reporterTotals: { 'reporter-1': 1 }
+                    };
+                }
+            });
+            const locks = await fixture.request(
+                '/api/admin/cards/audit/locks?page=2&owner=%E8%B0%83%E8%AF%95&reason=%E4%BC%81%E5%88%92&handler=debug',
+                { headers }
+            );
+            assert.equal(locks.status, 200);
+            const lockBody = await locks.json();
+            assert.deepEqual(lockFilters, [
+                { page: 2, pageSize: 20, owner: '调试', reason: '企划', handler: 'debug' }
+            ]);
+            assert.deepEqual(lockBody.data[0].owner, {
+                name: '调试用户',
+                total: 3,
+                pageCount: 1
+            });
+            assert.equal(lockBody.pageInfo.total, 3);
+            assert.equal(lockBody.pageInfo.totalPages, 1);
+
+            const feedback = await fixture.request(
+                '/api/admin/cards/audit/feedback?outcome=rejected&reporter=%E4%B8%BE',
+                { headers }
+            );
+            assert.equal(feedback.status, 200);
+            const feedbackBody = await feedback.json();
+            assert.deepEqual(feedbackFilters, [
+                {
+                    page: 1,
+                    pageSize: 20,
+                    owner: null,
+                    reporter: '举',
+                    outcome: 'rejected',
+                    handler: null
+                }
+            ]);
+            assert.deepEqual(feedbackBody.data[0].reporter, {
+                name: '举报者',
+                total: 1,
+                pageCount: 1
+            });
         });
 
         test('the management endpoints rewrite and remove a card behind reason and revision gates', async () => {

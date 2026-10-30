@@ -9,6 +9,8 @@ import {
   adminNamecardDeleteRequestSchema,
   adminNamecardDiffSchema,
   adminNamecardFeedbackListSchema,
+  namecardFeedbackAuditListSchema,
+  namecardLockAuditListSchema,
   adminNamecardHttpErrorSchema,
   adminNamecardListBusinessErrorSchema,
   adminNamecardListSchema,
@@ -442,6 +444,60 @@ export function getAdminNamecardFeedback(page = 1) {
       errorSchema: adminNamecardHttpErrorSchema,
       meta: withBackofficeAuth(),
       params: { page: String(page) },
+    })
+  )
+}
+
+export interface AdminNamecardLockAuditParams {
+  page?: number
+  owner?: string
+  reason?: string
+  handler?: string
+}
+
+export interface AdminNamecardFeedbackAuditParams {
+  page?: number
+  owner?: string
+  reporter?: string
+  outcome?: "accepted" | "rejected"
+  handler?: string
+}
+
+function auditParams(params: Record<string, number | string | undefined>) {
+  const query: Record<string, string> = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === "") continue
+    query[key] = String(value)
+  }
+  return query
+}
+
+/** Read-only: every card that is locked right now. */
+export function getAdminNamecardLockAudit(
+  params: AdminNamecardLockAuditParams = {}
+) {
+  return adminApiClient.Get(
+    adminApiPath("/cards/audit/locks"),
+    parsed(namecardLockAuditListSchema, {
+      businessErrorSchema: adminNamecardListBusinessErrorSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: auditParams({ ...params }),
+    })
+  )
+}
+
+/** Read-only: every report that already carries a verdict. */
+export function getAdminNamecardFeedbackAudit(
+  params: AdminNamecardFeedbackAuditParams = {}
+) {
+  return adminApiClient.Get(
+    adminApiPath("/cards/audit/feedback"),
+    parsed(namecardFeedbackAuditListSchema, {
+      businessErrorSchema: adminNamecardListBusinessErrorSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: auditParams({ ...params }),
     })
   )
 }
