@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "119f165c4724baf28d5958bcd0f8b5785875c61de9b7054fc2c18fe17ef21518",
+    "semanticDigest": "87f981d8e3fc79d9a530ea509b62caa0661f9118dfe55956e73c0cf91bb6c371",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -2237,7 +2237,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-lock-audit.ts",
           "kind": "json",
-          "expression": "{ success : true , data : audit . rows . map ( ( row ) => ( { id : row . id , cardNumber : row . cardNumber , producerName : row . producerName , owner : row . ownerAccountId ? { name : row . ownerName ?? row . ownerAccountId , total : audit . ownerTotals [ row . ownerAccountId ] ?? 0 , pageCount : pageCounts . get ( row . ownerAccountId ) ?? 1 , } : null , reason : row . reason , handledBy : row . handledBy , lockedAt : row . lockedAt , } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total : audit . total , totalPages , hasNextPage : page < totalPages , } , } satisfies AdminNamecardLockAuditListResponse"
+          "expression": "{ success : true , data : audit . rows . map ( ( row ) => ( { id : row . id , cardNumber : row . cardNumber , producerName : row . producerName , owner : row . ownerAccountId ? { name : row . ownerName ?? row . ownerAccountId , total : audit . ownerTotals [ row . ownerAccountId ] ?? 0 , pageCount : pageCounts . get ( row . ownerAccountId ) ?? 1 , } : null , action : row . action , reason : row . reason , handledBy : row . handledBy , occurredAt : row . occurredAt , } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total : audit . total , totalPages , hasNextPage : page < totalPages , } , } satisfies AdminNamecardLockAuditListResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-lock-audit.ts",
@@ -21768,7 +21768,7 @@
       "handlerSymbol": "handleListAdminNamecardLockAudit",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-lock-audit.ts",
       "kind": "json",
-      "expression": "{ success : true , data : audit . rows . map ( ( row ) => ( { id : row . id , cardNumber : row . cardNumber , producerName : row . producerName , owner : row . ownerAccountId ? { name : row . ownerName ?? row . ownerAccountId , total : audit . ownerTotals [ row . ownerAccountId ] ?? 0 , pageCount : pageCounts . get ( row . ownerAccountId ) ?? 1 , } : null , reason : row . reason , handledBy : row . handledBy , lockedAt : row . lockedAt , } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total : audit . total , totalPages , hasNextPage : page < totalPages , } , } satisfies AdminNamecardLockAuditListResponse"
+      "expression": "{ success : true , data : audit . rows . map ( ( row ) => ( { id : row . id , cardNumber : row . cardNumber , producerName : row . producerName , owner : row . ownerAccountId ? { name : row . ownerName ?? row . ownerAccountId , total : audit . ownerTotals [ row . ownerAccountId ] ?? 0 , pageCount : pageCounts . get ( row . ownerAccountId ) ?? 1 , } : null , action : row . action , reason : row . reason , handledBy : row . handledBy , occurredAt : row . occurredAt , } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total : audit . total , totalPages , hasNextPage : page < totalPages , } , } satisfies AdminNamecardLockAuditListResponse"
     },
     {
       "method": "GET",
