@@ -246,6 +246,102 @@ export const adminNamecardUpdateRequestSchema = fudabaCardFieldsRequestSchema
   })
   .strict()
 
+/**
+ * Readers report a published card from the wall. The three presets cover every
+ * case the queue is meant to handle; `detail` carries whatever the reporter
+ * wants to add.
+ */
+export const namecardFeedbackReasonSchema = z.enum([
+  "info-error",
+  "ownership-error",
+  "content-violation",
+])
+
+export const NAMECARD_FEEDBACK_NOTE_LIMIT = 400
+
+export const createNamecardFeedbackRequestSchema = z
+  .object({
+    reason: namecardFeedbackReasonSchema,
+    detail: z.string().trim().max(NAMECARD_FEEDBACK_NOTE_LIMIT).nullable(),
+  })
+  .strict()
+
+export const namecardFeedbackMutationSchema = successEnvelope({})
+
+/** One row of the report queue: the card on the wall plus who reported it. */
+export const adminNamecardFeedbackSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  cardNumber: z.number().int().positive(),
+  producerName: z.string().min(1).nullable(),
+  image1_url: z.string().min(1),
+  image2_url: z.string().min(1).nullable(),
+  pageCount: z.number().int().positive(),
+  reporterName: z.string().min(1),
+  reason: namecardFeedbackReasonSchema,
+  detail: z.string().min(1).nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const adminNamecardFeedbackListSchema = successEnvelope({
+  data: z.array(adminNamecardFeedbackSchema),
+  pageInfo: numberedPageInfoSchema,
+})
+
+/** The queue can also refuse: the operator session died or the read failed. */
+export const adminNamecardFeedbackListResponseSchema = z.union([
+  adminNamecardFeedbackListSchema,
+  z.object({ success: z.literal(false) }).strict(),
+])
+
+/** Resolving a report answers a flag, or a reason when the row is already gone. */
+export const namecardFeedbackResponseSchema = z.union([
+  namecardFeedbackMutationSchema,
+  z.object({ success: z.literal(false), message: z.string().min(1) }).strict(),
+])
+
+export const adminNamecardFeedbackListQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+})
+
+export const namecardFeedbackIdParamsSchema = z.object({
+  feedbackId: z.coerce.number().int().positive(),
+})
+
+/** The reporter always gets the same template; only the outcome varies. */
+export const resolveNamecardFeedbackRequestSchema = z
+  .object({
+    outcome: z.enum(["accepted", "rejected"]),
+  })
+  .strict()
+
+export type AdminNamecardFeedback = z.infer<typeof adminNamecardFeedbackSchema>
+/** The success payload the client parses. */
+export type AdminNamecardFeedbackList = z.infer<
+  typeof adminNamecardFeedbackListSchema
+>
+export type AdminNamecardFeedbackListResponse = z.infer<
+  typeof adminNamecardFeedbackListResponseSchema
+>
+export type NamecardFeedbackResponse = z.infer<
+  typeof namecardFeedbackResponseSchema
+>
+export type NamecardFeedbackReason = z.infer<typeof namecardFeedbackReasonSchema>
+export type ResolveNamecardFeedbackInput = z.input<
+  typeof resolveNamecardFeedbackRequestSchema
+>
+export type CreateNamecardFeedbackInput = z.input<
+  typeof createNamecardFeedbackRequestSchema
+>
+export type CreateNamecardFeedbackRequest = z.infer<
+  typeof createNamecardFeedbackRequestSchema
+>
+export type ResolveNamecardFeedbackRequest = z.infer<
+  typeof resolveNamecardFeedbackRequestSchema
+>
+export type NamecardFeedbackIdParams = z.infer<
+  typeof namecardFeedbackIdParamsSchema
+>
+
 export const adminNamecardDeleteRequestSchema = z
   .object({
     expected_revision: z.number().int().nonnegative(),

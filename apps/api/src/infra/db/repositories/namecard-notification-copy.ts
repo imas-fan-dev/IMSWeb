@@ -13,7 +13,9 @@ export type NamecardNotificationCopyKind =
     | 'card-unlocked'
     | 'card-transferred-out'
     | 'card-transferred-in'
-    | 'card-admin-edited';
+    | 'card-admin-edited'
+    | 'card-feedback-accepted'
+    | 'card-feedback-rejected';
 
 export interface NamecardNotificationCopy {
     kind: NamecardNotificationCopyKind;
@@ -149,4 +151,25 @@ function clip(value: string | null, limit = 120): string {
     const text = (value ?? '').replace(/\s+/g, ' ').trim();
     if (!text.length) return '（空）';
     return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+/** The reader who reported the card hears the decision, not the owner. */
+export function cardFeedbackAcceptedCopy(
+    cardNumber: number
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-feedback-accepted',
+        title: `名片 #${cardNumber} 的反馈已受理`,
+        body: '您的反馈已受理，感谢你帮忙维护名片墙。'
+    };
+}
+
+export function cardFeedbackRejectedCopy(
+    cardNumber: number
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-feedback-rejected',
+        title: `名片 #${cardNumber} 的反馈未受理`,
+        body: '您的反馈未被受理，感谢你的反馈。'
+    };
 }

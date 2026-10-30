@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "915a040dffc27942d8de0577ae9c54624a01e2adbd016ab5d9fbf6e8b9cf01dd",
+    "semanticDigest": "1ca8bfa3692227903c29e61464e2c2608ab586a8d26a0797c89aede930c46b5b",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 269,
-    "carriers": 338,
-    "reject": 69,
-    "acceptAndProject": 171,
+    "mountedMethodPaths": 272,
+    "carriers": 343,
+    "reject": 71,
+    "acceptAndProject": 173,
     "passthrough": 17,
-    "nonObjectApplicable": 81
+    "nonObjectApplicable": 82
   },
   "counts": {
-    "mountedRegistrations": 368,
-    "mountedMethodPaths": 277,
+    "mountedRegistrations": 371,
+    "mountedMethodPaths": 280,
     "noInputRoutes": 91,
-    "requestCarriers": 362,
+    "requestCarriers": 367,
     "policies": {
-      "reject": 70,
-      "accept-and-project": 194,
+      "reject": 72,
+      "accept-and-project": 196,
       "passthrough": 17,
-      "non-object-applicable": 81
+      "non-object-applicable": 82
     },
     "responses": {
-      "total": 778,
-      "json": 704,
+      "total": 787,
+      "json": 713,
       "nonJson": 74
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 269,
-      "requestCarriers": 338,
+      "mountedMethodPaths": 272,
+      "requestCarriers": 343,
       "policies": {
-        "reject": 69,
-        "accept-and-project": 171,
+        "reject": 71,
+        "accept-and-project": 173,
         "passthrough": 17,
-        "non-object-applicable": 81
+        "non-object-applicable": 82
       }
     },
     "explicitQueryAdditions": [
@@ -117,12 +117,12 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 159,
+      "/api/admin": 161,
       "/api/card": 1,
       "/api/cards": 2,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 53,
+      "/api/community": 54,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -2230,6 +2230,42 @@
           "file": "apps/api/src/domains/admin/namecard-characters/handlers/list-agencies.ts",
           "kind": "json",
           "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/feedback",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminNamecardFeedback",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardFeedbackListQuerySchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
+          "kind": "json",
+          "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : item . middlePageCount + 1 + ( item . backObjectKey ? 1 : 0 ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
+          "kind": "json",
+          "expression": "{ success : false } satisfies AdminNamecardFeedbackListResponse"
         }
       ]
     },
@@ -8895,6 +8931,56 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/feedback/:feedbackId/resolve",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleResolveAdminNamecardFeedback",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "namecardFeedbackIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "schemaSymbol": "resolveNamecardFeedbackRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/resolve-admin-feedback.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u53CD\\u9988\\u5DF2\\u88AB\\u5904\\u7406\" } satisfies NamecardFeedbackResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/resolve-admin-feedback.ts",
+          "kind": "json",
+          "expression": "{ success : true } satisfies NamecardFeedbackResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/flag/:id",
       "registration": {
         "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
@@ -10848,6 +10934,71 @@
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
           "kind": "json",
           "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CREATE_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u521B\\u5EFA\\u5931\\u8D25\" : messageFromError ( error ) }"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "schemaSymbol": "fudabaCardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "schemaSymbol": "createNamecardFeedbackRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u540D\\u7247\\u4E0D\\u5B58\\u5728\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u540D\\u7247\\u4E0D\\u5B58\\u5728\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u4F60\\u5DF2\\u7ECF\\u6709\\u5F85\\u5904\\u7406\\u7684\\u53CD\\u9988\\uFF0C\\u8BF7\\u7B49\\u5F85\\u5904\\u7406\\u7ED3\\u679C\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+          "kind": "json",
+          "expression": "{ success : true }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+          "kind": "json",
+          "expression": "{ message : messageFromError ( error ) }"
         }
       ]
     },
@@ -15335,6 +15486,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/feedback",
+      "handlerSymbol": "handleListAdminNamecardFeedback",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardFeedbackListQuerySchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/cards/units",
       "handlerSymbol": "handleListAdminNamecardUnits",
       "kind": "query",
@@ -18139,6 +18307,40 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/feedback/:feedbackId/resolve",
+      "handlerSymbol": "handleResolveAdminNamecardFeedback",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "namecardFeedbackIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/feedback/:feedbackId/resolve",
+      "handlerSymbol": "handleResolveAdminNamecardFeedback",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "schemaSymbol": "resolveNamecardFeedbackRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/moderation/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/flag/:id",
       "handlerSymbol": "handleFlagNamecard",
       "kind": "param",
@@ -19120,6 +19322,40 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "schemaSymbol": "fudabaCardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "schemaSymbol": "createNamecardFeedbackRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "POST",
@@ -21417,6 +21653,22 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/cards/feedback",
+      "handlerSymbol": "handleListAdminNamecardFeedback",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
+      "kind": "json",
+      "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : item . middlePageCount + 1 + ( item . backObjectKey ? 1 : 0 ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/cards/feedback",
+      "handlerSymbol": "handleListAdminNamecardFeedback",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
+      "kind": "json",
+      "expression": "{ success : false } satisfies AdminNamecardFeedbackListResponse"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/cards/units",
       "handlerSymbol": "handleListAdminNamecardUnits",
       "file": "apps/api/src/domains/admin/namecard-units/handlers/list-units.ts",
@@ -23625,6 +23877,22 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/cards/feedback/:feedbackId/resolve",
+      "handlerSymbol": "handleResolveAdminNamecardFeedback",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/resolve-admin-feedback.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u53CD\\u9988\\u5DF2\\u88AB\\u5904\\u7406\" } satisfies NamecardFeedbackResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/feedback/:feedbackId/resolve",
+      "handlerSymbol": "handleResolveAdminNamecardFeedback",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/resolve-admin-feedback.ts",
+      "kind": "json",
+      "expression": "{ success : true } satisfies NamecardFeedbackResponse"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/cards/flag/:id",
       "handlerSymbol": "handleFlagNamecard",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/flag-namecard.ts",
@@ -24502,6 +24770,46 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
       "kind": "json",
       "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_CREATE_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u521B\\u5EFA\\u5931\\u8D25\" : messageFromError ( error ) }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u540D\\u7247\\u4E0D\\u5B58\\u5728\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u540D\\u7247\\u4E0D\\u5B58\\u5728\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u4F60\\u5DF2\\u7ECF\\u6709\\u5F85\\u5904\\u7406\\u7684\\u53CD\\u9988\\uFF0C\\u8BF7\\u7B49\\u5F85\\u5904\\u7406\\u7ED3\\u679C\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+      "kind": "json",
+      "expression": "{ success : true }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/feedback",
+      "handlerSymbol": "handleCreateFudabaCardFeedback",
+      "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card-feedback.ts",
+      "kind": "json",
+      "expression": "{ message : messageFromError ( error ) }"
     },
     {
       "method": "POST",

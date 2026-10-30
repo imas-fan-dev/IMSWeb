@@ -1272,17 +1272,23 @@ export class SqlCoreRepository implements NamecardRepository {
             const ownerChanged = nextOwner !== previousOwner;
             const currentReviewStatus = toNamecardReviewStatus(current.review_status);
             // Publishing from here would strand the queued revision, because the
-            // review slot belongs to the queue until someone resolves it.
-            if (input.status === 'published' && currentReviewStatus === 'pending') {
+            // review slot belongs to the queue until someone resolves it. A card
+            // that is already live keeps its queue untouched.
+            if (
+                input.status === 'published' &&
+                current.publication_status !== 'published' &&
+                currentReviewStatus === 'pending'
+            ) {
                 return {
                     status: 'blocked',
                     message: '这张名片有待审版本，请先在名片审核里通过'
                 };
             }
-            // Retiring a card drops whatever waited for review with it, so the
-            // queue never holds a revision for a card nobody can see.
+            // Taking a card off the wall drops whatever waited for review with
+            // it, so the queue never holds a revision nobody can look at. A
+            // rejection keeps its queue: that queue is the resubmission the
+            // owner is waiting on.
             const retiresCard =
-                input.status === 'rejected' ||
                 input.status === 'hidden' ||
                 input.status === 'locked' ||
                 input.status === 'withdrawn' ||

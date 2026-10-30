@@ -145,11 +145,13 @@ import { test } from 'vitest';
             'handleFlagNamecard',
             'handleGetAdminNamecardDiff',
             'handleGetNamecard',
+            'handleListAdminNamecardFeedback',
             'handleListAdminNamecards',
             'handleListNamecards',
             'handleListReactions',
             'handleLockNamecard',
             'handleRejectNamecard',
+            'handleResolveAdminNamecardFeedback',
             'handleServeAdminNamecardMedia',
             'handleServePublicCardMedia',
             'handleUnlockNamecard',
@@ -494,7 +496,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 147);
+            assert.equal(Object.values(actual).flat().length, 149);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {

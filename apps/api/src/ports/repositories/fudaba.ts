@@ -825,6 +825,17 @@ export interface FudabaRepository {
     ): Promise<FudabaCardInteractionStateRecord | null>;
     listPublicCardReactions(cardId: string): Promise<FudabaCardReactionRecord[]>;
     applyPublicCardReaction(input: FudabaCardReactionInput): Promise<boolean>;
+    /** Readers report a published card; one open report per reader per card. */
+    createCardFeedback(
+        input: CreateNamecardFeedbackInput,
+    ): Promise<'created' | 'duplicate' | 'not-found'>;
+    listPendingCardFeedback(
+        input: { page: number; pageSize: number },
+    ): Promise<{ items: NamecardFeedbackRecord[]; total: number }>;
+    /** Moves one report out of the queue; null when it was already handled. */
+    resolveCardFeedback(
+        input: ResolveNamecardFeedbackInput,
+    ): Promise<NamecardFeedbackRecord | null>;
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
     findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
     listOfficesForOwner(
@@ -1070,4 +1081,42 @@ export interface FudabaRepository {
     createModerationCase(
         input: NewFudabaModerationCaseInput,
     ): Promise<FudabaModerationCaseRecord>;
+}
+
+export type NamecardFeedbackReason =
+    | 'info-error'
+    | 'ownership-error'
+    | 'content-violation';
+
+export type NamecardFeedbackStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface NamecardFeedbackRecord {
+    id: number;
+    cardId: string;
+    cardNumber: number;
+    producerName: string | null;
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    middlePageCount: number;
+    reporterAccountId: string;
+    reporterName: string;
+    reason: NamecardFeedbackReason;
+    detail: string | null;
+    status: NamecardFeedbackStatus;
+    createdAt: string;
+}
+
+export interface CreateNamecardFeedbackInput {
+    cardId: string;
+    reporterAccountId: string;
+    reason: NamecardFeedbackReason;
+    detail: string | null;
+    createdAt: string;
+}
+
+export interface ResolveNamecardFeedbackInput {
+    id: number;
+    outcome: 'accepted' | 'rejected';
+    handledBy: string;
+    updatedAt: string;
 }

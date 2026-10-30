@@ -7,6 +7,10 @@ import type {
     AdminNamecardDeleteRequest,
     AdminNamecardUpdateRequest,
 } from "@imsweb/contracts/namecards";
+import type {
+    NamecardFeedbackIdParams,
+    ResolveNamecardFeedbackRequest,
+} from "@imsweb/contracts/namecards";
 import {
     canonicalPositiveInteger,
     positiveInteger,
@@ -89,6 +93,13 @@ export type NamecardDeleteContext = Context<
         ValidatedRequestInput<"json", AdminNamecardDeleteRequest>
 >;
 
+export type NamecardFeedbackResolveContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<"param", NamecardFeedbackIdParams> &
+        ValidatedRequestInput<"json", ResolveNamecardFeedbackRequest>
+>;
+
 export type NamecardImageReplaceContext = Context<
     AppEnvironment,
     string,
@@ -148,6 +159,10 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
         size: legacyPaginationValue(query.size, DEFAULT_PAGE_SIZE),
     };
 }
+
+export type AdminNamecardFeedbackListQuery = {
+    page: number;
+};
 
 export function validateAdminNamecardListQuery(
     value: unknown,
@@ -274,4 +289,12 @@ export async function parseNamecardReplacementImage(
     });
     const files = uploadedFiles(parsed.files.image);
     return { image: files[0] ?? null };
+}
+
+/** The report queue only needs a page number. */
+export function validateAdminNamecardFeedbackListQuery(
+    value: unknown
+): AdminNamecardFeedbackListQuery {
+    const query = requestRecord(value, "反馈分页参数无效");
+    return { page: legacyPaginationValue(query.page, DEFAULT_PAGE) };
 }

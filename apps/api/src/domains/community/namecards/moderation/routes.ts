@@ -3,13 +3,16 @@ import { handleFlagNamecard } from "@/domains/community/namecards/moderation/han
 import { handleDeleteAdminNamecard } from "@/domains/community/namecards/moderation/handlers/delete-admin-namecard";
 import { handleGetAdminNamecardDiff } from "@/domains/community/namecards/moderation/handlers/get-admin-namecard-diff";
 import { handleListAdminNamecards } from "@/domains/community/namecards/moderation/handlers/list-admin-namecards";
+import { handleListAdminNamecardFeedback } from "@/domains/community/namecards/moderation/handlers/list-admin-feedback";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
 import { handleServeAdminNamecardMedia } from "@/domains/community/namecards/moderation/handlers/serve-admin-namecard-media";
+import { handleResolveAdminNamecardFeedback } from "@/domains/community/namecards/moderation/handlers/resolve-admin-feedback";
 import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/handlers/unlock-namecard";
 import { handleUpdateAdminNamecard } from "@/domains/community/namecards/moderation/handlers/update-admin-namecard";
 import {
     validateAdminNamecardDeleteRequest,
+    validateAdminNamecardFeedbackListQuery,
     validateAdminNamecardListQuery,
     validateAdminNamecardUpdateRequest,
     validateCompatibleNamecardIdParams,
@@ -40,6 +43,11 @@ import {
     querySchemaValidator,
 } from "@/middleware/request-validation";
 import {
+    adminNamecardFeedbackListQuerySchema,
+    namecardFeedbackIdParamsSchema,
+    resolveNamecardFeedbackRequestSchema,
+} from "@imsweb/contracts/namecards";
+import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
 } from "@/routing/capability-router";
@@ -60,6 +68,23 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
     );
     // The review queue compares the published copy with the submitted one, so
     // the diff endpoint stays separate from the list payload.
+    // The report queue: readers flag a live card, an operator answers it.
+    routes.get(
+        "/feedback",
+        backofficeAuth,
+        opOnly,
+        querySchemaValidator(adminNamecardFeedbackListQuerySchema, { invalidMessage: "反馈分页参数无效" }, validateAdminNamecardFeedbackListQuery),
+        handleListAdminNamecardFeedback,
+    );
+    routes.post(
+        "/feedback/:feedbackId/resolve",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        paramSchemaValidator(namecardFeedbackIdParamsSchema, { invalidMessage: "反馈 ID 无效" }),
+        jsonSchemaValidator(resolveNamecardFeedbackRequestSchema, { invalidMessage: "处理参数无效" }),
+        handleResolveAdminNamecardFeedback,
+    );
     routes.get(
         "/:id/diff",
         backofficeAuth,

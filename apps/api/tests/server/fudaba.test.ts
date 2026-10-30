@@ -4276,6 +4276,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261030120000_namecard_accent_source',
                 '20261030130000_namecard_series_require_one_skip_missing',
                 '20261030140000_namecard_reading_marks',
+                '20261031120000_namecard_admin_notifications',
+                '20261101120000_namecard_feedback',
+                '20261101130000_namecard_feedback_drop_resolution_note',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
@@ -8113,6 +8116,141 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
         // Avatar upload is Platform identity, not Fudaba content; its CAS and
         // object-sweep assertions live in `platform-profile.contract.test.ts`.
+        test('a reader reports a card and the backoffice settles the queue', async () => {
+            const fixture = new OwnerRouteFixture();
+            const url =
+                'http://ims.test/api/community/exchange/cards/owner-card/feedback';
+            const report = () =>
+                fixture.app.request(url, {
+                    method: 'POST',
+                    headers: {
+                        ...bearerHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        reason: 'content-violation',
+                        detail: '卡面不是企划内容'
+                    })
+                });
+
+            const reported = await report();
+            assert.equal(reported.status, 200);
+            assert.deepEqual(await reported.json(), { success: true });
+            assert.deepEqual(
+                fixture.feedbackCreates.map((entry) => [
+                    entry.cardId,
+                    entry.reason,
+                    entry.detail
+                ]),
+                [['owner-card', 'content-violation', '卡面不是企划内容']]
+            );
+            assert.match(fixture.feedbackCreates[0]!.createdAt, /^\d{4}-\d{2}-\d{2}T/);
+
+            // One open report per reader and card.
+            fixture.feedbackCreateResult = 'duplicate';
+            const duplicate = await report();
+            assert.equal(duplicate.status, 409);
+            assert.deepEqual(await duplicate.json(), {
+                error: '你已经有待处理的反馈，请等待处理结果'
+            });
+
+            fixture.feedbackCreateResult = 'not-found';
+            const missing = await report();
+            assert.equal(missing.status, 404);
+            assert.deepEqual(await missing.json(), { error: '名片不存在' });
+
+            // The backoffice reads the queue and leaves it once.
+            const adminHeaders = {
+                Cookie: `${BACKOFFICE_ACCESS_TOKEN_COOKIE}=${BACKOFFICE_TOKEN}; ${BACKOFFICE_CSRF_TOKEN_COOKIE}=admin-csrf`,
+                'X-CSRFToken': 'admin-csrf'
+            };
+            fixture.feedbackQueue = [
+                {
+                    id: 7,
+                    cardId: 'owner-card',
+                    cardNumber: 42,
+                    producerName: '天海春香',
+                    frontObjectKey: 'protected/fudaba/cards/owner-card/front.webp',
+                    backObjectKey: null,
+                    middlePageCount: 2,
+                    reporterAccountId: 'reporter',
+                    reporterName: '调试用户',
+                    reason: 'info-error',
+                    detail: null,
+                    status: 'pending',
+                    createdAt: '2026-05-04T01:02:03.000Z'
+                }
+            ];
+            const queue = await fixture.app.request(
+                'http://ims.test/api/admin/cards/feedback',
+                { headers: adminHeaders }
+            );
+            assert.equal(queue.status, 200);
+            const queueBody = (await queue.json()) as {
+                success: boolean;
+                data: Array<Record<string, unknown>>;
+                pageInfo: { total: number };
+            };
+            assert.equal(queueBody.success, true);
+            assert.equal(queueBody.pageInfo.total, 1);
+            assert.deepEqual(queueBody.data[0], {
+                id: 7,
+                cardNumber: 42,
+                producerName: '天海春香',
+                image1_url: '/api/admin/cards/42/media/live/front',
+                image2_url: null,
+                pageCount: 3,
+                reporterName: '调试用户',
+                reason: 'info-error',
+                detail: null,
+                createdAt: '2026-05-04T01:02:03.000Z'
+            });
+
+            fixture.feedbackResolveResult = {
+                ...fixture.feedbackQueue[0]!,
+                status: 'accepted'
+            };
+            const settled = await fixture.app.request(
+                'http://ims.test/api/admin/cards/feedback/7/resolve',
+                {
+                    method: 'POST',
+                    headers: {
+                        ...adminHeaders,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ outcome: 'accepted' })
+                }
+            );
+            assert.equal(settled.status, 200);
+            assert.deepEqual(await settled.json(), { success: true });
+            assert.deepEqual(
+                fixture.feedbackResolves.map((entry) => [
+                    entry.id,
+                    entry.outcome,
+                    entry.handledBy
+                ]),
+                [[7, 'accepted', 'admin']]
+            );
+
+            fixture.feedbackResolveResult = null;
+            const handled = await fixture.app.request(
+                'http://ims.test/api/admin/cards/feedback/7/resolve',
+                {
+                    method: 'POST',
+                    headers: {
+                        ...adminHeaders,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ outcome: 'rejected' })
+                }
+            );
+            assert.equal(handled.status, 404);
+            assert.deepEqual(await handled.json(), {
+                success: false,
+                message: '反馈已被处理'
+            });
+        });
+
         test('one ordered submit replaces an image and moves another across roles', async () => {
             const fixture = new OwnerRouteFixture();
             const base = 'protected/fudaba/cards/owner-card/versions';
@@ -9584,6 +9722,106 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
         });
 
+        postgresTest('real PostgreSQL queues one report per reader and answers it once', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-feedback-owner';
+            const reporterId = 'postgresql-feedback-reporter';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            await fixture.platform.createAccountWithProfile(account(reporterId));
+            const postgres = fixture.database as PostgresConnection;
+            const cardId = 'postgresql-feedback-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', visible = true WHERE id = $1",
+                [cardId]
+            );
+            const createdAt = new Date('2026-05-04T01:02:03.000Z').toISOString();
+            assert.equal(
+                await fixture.fudaba.createCardFeedback({
+                    cardId,
+                    reporterAccountId: reporterId,
+                    reason: 'content-violation',
+                    detail: '卡面不是企划内容',
+                    createdAt
+                }),
+                'created'
+            );
+            // One reader cannot pile reports on the same card.
+            assert.equal(
+                await fixture.fudaba.createCardFeedback({
+                    cardId,
+                    reporterAccountId: reporterId,
+                    reason: 'info-error',
+                    detail: null,
+                    createdAt
+                }),
+                'duplicate'
+            );
+            assert.equal(
+                await fixture.fudaba.createCardFeedback({
+                    cardId: 'missing-feedback-card',
+                    reporterAccountId: reporterId,
+                    reason: 'info-error',
+                    detail: null,
+                    createdAt
+                }),
+                'not-found'
+            );
+
+            const queue = await fixture.fudaba.listPendingCardFeedback({
+                page: 1,
+                pageSize: 12
+            });
+            assert.equal(queue.total, 1);
+            const [report] = queue.items;
+            assert.equal(report?.cardId, cardId);
+            assert.equal(report?.status, 'pending');
+            assert.equal(report?.reason, 'content-violation');
+            assert.equal(report?.detail, '卡面不是企划内容');
+            assert.equal(report?.reporterAccountId, reporterId);
+
+            const resolved = await fixture.fudaba.resolveCardFeedback({
+                id: report!.id,
+                outcome: 'accepted',
+                handledBy: 'debugadmin',
+                updatedAt: new Date('2026-05-04T02:00:00.000Z').toISOString()
+            });
+            assert.equal(resolved?.status, 'accepted');
+            assert.equal(
+                (
+                    await fixture.fudaba.listPendingCardFeedback({
+                        page: 1,
+                        pageSize: 12
+                    })
+                ).total,
+                0
+            );
+            // A handled report never leaves the queue twice.
+            assert.equal(
+                await fixture.fudaba.resolveCardFeedback({
+                    id: report!.id,
+                    outcome: 'rejected',
+                    handledBy: 'debugadmin',
+                    updatedAt: new Date('2026-05-04T03:00:00.000Z').toISOString()
+                }),
+                null
+            );
+
+            const notices = (await postgres.pool.query(
+                'SELECT kind, body FROM public.namecard_notifications WHERE recipient_account_id = $1',
+                [reporterId]
+            )).rows as Array<Record<string, unknown>>;
+            assert.deepEqual(notices, [
+                {
+                    kind: 'card-feedback-accepted',
+                    body: '您的反馈已受理，感谢你帮忙维护名片墙。'
+                }
+            ]);
+        });
+
         postgresTest('real PostgreSQL keeps the management statuses and the review queue in step', async () => {
             const fixture = await createFixture('postgresql');
             const ownerId = 'postgresql-queue-owner';
@@ -9644,9 +9882,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(queued.status, 'updated');
             if (queued.status !== 'updated') return;
 
-            // Publishing from here would leave the queue pointing at content the
-            // owner already replaced, so the window has to send it to the queue.
-            const stranded = await core.updateCardAsAdmin({
+            // Staying published keeps the queue: only the review screen may
+            // approve what is waiting there.
+            const stayedLive = await core.updateCardAsAdmin({
                 ...base,
                 cardNumber,
                 expectedRevision: queued.revision,
@@ -9655,9 +9893,16 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 reviewStatus: 'pending',
                 content: { ...content, bio: '待审简介' }
             });
-            assert.equal(stranded.status, 'blocked');
+            assert.equal(stayedLive.status, 'updated');
+            const queuedRow = (await postgres.pool.query(
+                'SELECT publication_status, review_status FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows[0] as Record<string, unknown>;
+            assert.equal(queuedRow.publication_status, 'published');
+            assert.equal(queuedRow.review_status, 'pending');
 
-            const retired = await core.updateCardAsAdmin({
+            // A card that is off the wall cannot jump over its own queue.
+            const rejected = await core.updateCardAsAdmin({
                 ...base,
                 cardNumber,
                 expectedRevision: queued.revision,
@@ -9666,11 +9911,46 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 reviewStatus: null,
                 content: { ...content, bio: '待审简介' }
             });
+            assert.equal(rejected.status, 'updated');
+            if (rejected.status !== 'updated') return;
+            const requeued = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: rejected.revision,
+                reason: '用户重新提交',
+                status: 'rejected',
+                reviewStatus: 'pending',
+                content: { ...content, bio: '再试一次' }
+            });
+            assert.equal(requeued.status, 'updated');
+            if (requeued.status !== 'updated') return;
+            const blocked = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: requeued.revision,
+                reason: '越过审核',
+                status: 'published',
+                reviewStatus: 'pending',
+                content: { ...content, bio: '再试一次' }
+            });
+            assert.equal(blocked.status, 'blocked');
+            if (blocked.status !== 'blocked') return;
+            assert.match(blocked.message, /先在名片审核里通过/);
+
+            const retired = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: requeued.revision,
+                reason: '内容不合规',
+                status: 'rejected',
+                reviewStatus: null,
+                content: { ...content, bio: '再试一次' }
+            });
             assert.equal(retired.status, 'updated');
             if (retired.status !== 'updated') return;
             assert.deepEqual(
                 retired.changedFields.map((change) => change.label),
-                ['名片状态', '版本状态']
+                ['版本状态']
             );
             const row = (await postgres.pool.query(
                 'SELECT publication_status, review_status, review_reason, pending_payload, pending_front_object_key FROM public.fudaba_cards WHERE card_number = $1',

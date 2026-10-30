@@ -6,6 +6,9 @@ import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys
 import type {
     AdminNamecard,
     AdminNamecardDiff,
+    AdminNamecardFeedback,
+    AdminNamecardFeedbackListResponse as AdminNamecardFeedbackListContractResponse,
+    NamecardFeedbackResponse as NamecardFeedbackReplyContract,
     AdminNamecardListResponse as AdminNamecardListContractResponse,
     Namecard,
     NamecardEmptyResponse,
@@ -29,6 +32,10 @@ export const NAMECARD_MEDIA_NOT_FOUND = 'Not Found';
 export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
 export type NamecardPageResponse = NamecardPage;
 export type AdminNamecardListResponse = AdminNamecardListContractResponse;
+export type AdminNamecardFeedbackResponse = AdminNamecardFeedback;
+export type AdminNamecardFeedbackListResponse =
+    AdminNamecardFeedbackListContractResponse;
+export type NamecardFeedbackResponse = NamecardFeedbackReplyContract;
 
 interface NamecardRow {
     id?: unknown;

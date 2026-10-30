@@ -24,6 +24,8 @@ export type NamecardNotificationKind =
     | 'card-transferred-out'
     | 'card-transferred-in'
     | 'card-admin-edited'
+    | 'card-feedback-accepted'
+    | 'card-feedback-rejected'
     | 'station-message';
 
 export interface NamecardNotificationRow {

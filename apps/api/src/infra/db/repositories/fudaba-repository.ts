@@ -37,6 +37,11 @@ import type {
     FudabaEnvelopeActionResult,
     FudabaEnvelopeClaimResult,
     FudabaExchangeRequestRecord,
+    CreateNamecardFeedbackInput,
+    NamecardFeedbackReason,
+    NamecardFeedbackRecord,
+    NamecardFeedbackStatus,
+    ResolveNamecardFeedbackInput,
     FudabaModerationCaseRecord,
     FudabaOfficeLocationMutationResult,
     FudabaOfficeLocationReviewRecord,
@@ -84,6 +89,8 @@ import {
 } from "@/infra/db/sql/query";
 import {
     cardApprovedCopy,
+    cardFeedbackAcceptedCopy,
+    cardFeedbackRejectedCopy,
     cardLockedCopy,
     cardRejectedCopy,
     cardRevisionFlaggedCopy,
@@ -167,6 +174,40 @@ const PUBLIC_MAP_OFFICE_COLUMNS = `office.id, office.slug, office.name,
 const OFFICE_LOCATION_REVIEW_COLUMNS = `${QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS},
     office.name AS office_name, office.city AS office_city,
     office.owner_account_id`;
+type NamecardFeedbackRow = {
+    id: number | string;
+    card_id: string;
+    reporter_account_id: string;
+    reason: NamecardFeedbackReason;
+    detail: string | null;
+    status: NamecardFeedbackStatus;
+    created_at: Date | string;
+    card_number: number | string;
+    producer_name: string | null;
+    front_object_key: string;
+    back_object_key: string | null;
+    middle_page_count: number | string;
+    reporter_name: string;
+};
+
+function feedbackRecord(row: NamecardFeedbackRow): NamecardFeedbackRecord {
+    return {
+        id: Number(row.id),
+        cardId: row.card_id,
+        cardNumber: Number(row.card_number),
+        producerName: row.producer_name,
+        frontObjectKey: row.front_object_key,
+        backObjectKey: row.back_object_key,
+        middlePageCount: Number(row.middle_page_count),
+        reporterAccountId: row.reporter_account_id,
+        reporterName: row.reporter_name,
+        reason: row.reason,
+        detail: row.detail,
+        status: row.status,
+        createdAt: new Date(row.created_at).toISOString(),
+    };
+}
+
 const PUBLIC_CARD_COLUMNS = `card.id, card.producer_name,
     card.front_object_key,
     card.back_object_key, card.accent, card.bio, card.trade_note,
@@ -1707,6 +1748,126 @@ export class SqlFudabaRepository implements FudabaRepository {
             this.database,
             rows.map(publicCardRecord),
         );
+    }
+
+    async createCardFeedback(
+        input: CreateNamecardFeedbackInput,
+    ): Promise<"created" | "duplicate" | "not-found"> {
+        const visible = await queryOne<{ id: string }>(
+            this.database,
+            `SELECT card.id FROM fudaba_cards card
+             JOIN platform_accounts card_owner
+               ON card_owner.id=card.owner_account_id
+             WHERE card.id=? AND ${PUBLIC_CARD_ELIGIBILITY}`,
+            [input.cardId],
+        );
+        if (!visible) return "not-found";
+        const open = await queryOne<{ id: number | string }>(
+            this.database,
+            `SELECT id FROM namecard_feedback
+             WHERE card_id=? AND reporter_account_id=? AND status='pending'`,
+            [input.cardId, input.reporterAccountId],
+        );
+        if (open) return "duplicate";
+        await executeSql(
+            this.database,
+            `INSERT INTO namecard_feedback
+                (card_id, reporter_account_id, reason, detail, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+                input.cardId,
+                input.reporterAccountId,
+                input.reason,
+                input.detail,
+                input.createdAt,
+                input.createdAt,
+            ],
+        );
+        return "created";
+    }
+
+    async listPendingCardFeedback(input: {
+        page: number;
+        pageSize: number;
+    }): Promise<{ items: NamecardFeedbackRecord[]; total: number }> {
+        const counted = await queryOne<{ total: number | string }>(
+            this.database,
+            "SELECT COUNT(*) AS total FROM namecard_feedback WHERE status='pending'",
+            [],
+        );
+        const rows = await queryAll<NamecardFeedbackRow>(
+            this.database,
+            `SELECT feedback.id, feedback.card_id,
+                    feedback.reporter_account_id, feedback.reason,
+                    feedback.detail, feedback.status, feedback.created_at,
+                    card.card_number, card.producer_name,
+                    card.front_object_key, card.back_object_key,
+                    (SELECT COUNT(*) FROM fudaba_card_media media
+                      WHERE media.card_id=card.id) AS middle_page_count,
+                    COALESCE(profile.display_name, feedback.reporter_account_id)
+                        AS reporter_name
+             FROM namecard_feedback feedback
+             JOIN fudaba_cards card ON card.id=feedback.card_id
+             LEFT JOIN platform_profiles profile
+               ON profile.account_id=feedback.reporter_account_id
+             WHERE feedback.status='pending'
+             ORDER BY feedback.created_at ASC, feedback.id ASC
+             LIMIT ? OFFSET ?`,
+            [input.pageSize, Math.max(0, input.page - 1) * input.pageSize],
+        );
+        return {
+            items: rows.map((row) => feedbackRecord(row)),
+            total: Number(counted?.total ?? 0),
+        };
+    }
+
+    async resolveCardFeedback(
+        input: ResolveNamecardFeedbackInput,
+    ): Promise<NamecardFeedbackRecord | null> {
+        const updated = await queryOne<NamecardFeedbackRow>(
+            this.database,
+            `WITH handled AS (
+                UPDATE namecard_feedback
+                   SET status=?, handled_by=?, handled_at=?, updated_at=?
+                 WHERE id=? AND status='pending'
+             RETURNING id, card_id, reporter_account_id, reason, detail, status,
+                       created_at
+             )
+             SELECT handled.id, handled.card_id,
+                    handled.reporter_account_id, handled.reason,
+                    handled.detail, handled.status, handled.created_at,
+                    card.card_number, card.producer_name,
+                    card.front_object_key, card.back_object_key,
+                    (SELECT COUNT(*) FROM fudaba_card_media media
+                      WHERE media.card_id=card.id) AS middle_page_count,
+                    COALESCE(profile.display_name, handled.reporter_account_id)
+                        AS reporter_name
+             FROM handled
+             JOIN fudaba_cards card ON card.id=handled.card_id
+             LEFT JOIN platform_profiles profile
+               ON profile.account_id=handled.reporter_account_id`,
+            [
+                input.outcome,
+                input.handledBy,
+                input.updatedAt,
+                input.updatedAt,
+                input.id,
+            ],
+        );
+        if (!updated) return null;
+        const record = feedbackRecord(updated);
+        const copy =
+            record.status === "accepted"
+                ? cardFeedbackAcceptedCopy(record.cardNumber)
+                : cardFeedbackRejectedCopy(record.cardNumber);
+        await insertNamecardNotification(this.database, {
+            recipientAccountId: record.reporterAccountId,
+            kind: copy.kind,
+            cardNumber: record.cardNumber,
+            title: copy.title,
+            body: copy.body,
+        });
+        return record;
     }
 
     async findPublicCardInteractions(
