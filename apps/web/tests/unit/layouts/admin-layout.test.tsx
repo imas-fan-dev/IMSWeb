@@ -405,13 +405,14 @@ describe("AdminLayout", () => {
       "href",
       "/admin/cards"
     )
-    expect(screen.getByText("信息修改")).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "反馈处理" })).toHaveAttribute(
+      "href",
+      "/admin/cards/manage"
+    )
+    expect(screen.getByText("标签管理")).toHaveAttribute(
       "aria-disabled",
       "true"
     )
-    expect(
-      screen.queryByRole("link", { name: "信息修改" })
-    ).not.toBeInTheDocument()
 
     await user.unhover(group)
     await user.hover(group)
