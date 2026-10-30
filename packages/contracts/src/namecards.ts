@@ -311,6 +311,8 @@ export const namecardFeedbackIdParamsSchema = z.object({
 export const resolveNamecardFeedbackRequestSchema = z
   .object({
     outcome: z.enum(["accepted", "rejected"]),
+    /** Required when rejecting: it travels to the reporter verbatim. */
+    note: z.string().trim().max(NAMECARD_FEEDBACK_NOTE_LIMIT).nullable(),
   })
   .strict()
 

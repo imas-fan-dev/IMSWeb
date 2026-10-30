@@ -182,7 +182,11 @@ export type FudabaAdminCardClaimListResponse = z.infer<
 export type FudabaReviewMutationResponse = z.infer<typeof reviewMutationSchema>
 export type FudabaCardClaimError = z.infer<typeof fudabaCardClaimErrorSchema>
 
-export const namecardNotificationKindSchema = z.enum([
+/**
+ * Every row the inbox can hold. The API derives its own union from this list,
+ * so a new kind cannot reach the database without the reader accepting it.
+ */
+export const NAMECARD_NOTIFICATION_KINDS = [
   "card-approved",
   "card-rejected",
   "card-locked",
@@ -191,11 +195,20 @@ export const namecardNotificationKindSchema = z.enum([
   "card-admin-edited",
   "card-transferred-in",
   "card-transferred-out",
+  // Report outcomes go back to whoever filed them.
+  "card-feedback-accepted",
+  "card-feedback-rejected",
   "claim-approved",
   "claim-rejected",
   // Backoffice station messages share this inbox; they carry no card number.
   "station-message",
-])
+] as const
+
+export const namecardNotificationKindSchema = z.enum(NAMECARD_NOTIFICATION_KINDS)
+
+export type NamecardNotificationKind = z.infer<
+  typeof namecardNotificationKindSchema
+>
 
 export const namecardNotificationSchema = z
   .object({

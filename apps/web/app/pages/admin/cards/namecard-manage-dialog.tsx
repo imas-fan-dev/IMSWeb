@@ -110,6 +110,39 @@ export function adminMediaOrder(slots: readonly MediaSlot[]): string[] {
   )
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  producerName: "制作人名称",
+  producerReading: "制作人名读音",
+  groupName: "团体名称",
+  madeOn: "制作时间",
+  bio: "简介",
+  tradeNote: "交换说明",
+  seriesCodes: "企划",
+  favoriteCharacterIds: "担当角色",
+  credits: "创作人员",
+  exchangeMode: "交换方式",
+}
+
+/** `zod` is not a direct dependency here, so the issues are read structurally. */
+type SchemaIssues = { name?: string; issues?: readonly { path: readonly (string | number)[] }[] }
+
+function schemaIssues(error: unknown): SchemaIssues | null {
+  if (typeof error !== "object" || error === null) return null
+  const candidate = error as SchemaIssues
+  return candidate.name === "ZodError" && Array.isArray(candidate.issues)
+    ? candidate
+    : null
+}
+
+/** Names the fields the schema rejected, so the operator knows what to fill. */
+export function incompleteFields(error: SchemaIssues): string {
+  const names = (error.issues ?? []).map((issue) => {
+    const key = String(issue.path[0] ?? "")
+    return FIELD_LABELS[key] ?? key
+  })
+  return Array.from(new Set(names)).join("、") || "必填项"
+}
+
 /**
  * A change needs a written reason, because the owner is told about it. Equal
  * content and untouched selectors mean the save is a no-op.
@@ -318,6 +351,10 @@ export function NamecardManageDialog({
         setReasonRequired(true)
         setMessage("服务端要求填写修改理由，已停在理由输入框。")
         flash(reasonRef.current)
+      } else if (schemaIssues(cause)) {
+        setMessage(
+          `资料不完整：${incompleteFields(schemaIssues(cause)!)} 需要补全后才能保存。`
+        )
       } else {
         setMessage(isApiError(cause) ? cause.message : "保存失败，请稍后重试。")
         if (conflicted(cause)) {
@@ -341,7 +378,11 @@ export function NamecardManageDialog({
     setResolving(true)
     setMessage(null)
     try {
-      await resolveAdminNamecardFeedback(feedback.id, { outcome }).send()
+      // The reporter reads a rejection reason verbatim, so it is required.
+      await resolveAdminNamecardFeedback(feedback.id, {
+        outcome,
+        note: outcome === "rejected" ? reason.trim() : null,
+      }).send()
       onSaved()
       onClose()
     } catch (cause) {
@@ -353,7 +394,29 @@ export function NamecardManageDialog({
 
   async function acceptFeedback() {
     if (!feedback) return
+    // Accepting without touching the card only closes the report; there is
+    // nothing to write, which also keeps legacy cards with missing fields
+    // accepted instead of blocked by the editor's validation.
+    if (!needsReason) {
+      await settleFeedback("accepted")
+      return
+    }
     if (await persist()) await settleFeedback("accepted")
+  }
+
+  function rejectFeedback() {
+    if (!feedback) return
+    if (!reason.trim()) {
+      setReasonRequired(true)
+      flash(reasonRef.current)
+      setMessage("驳回反馈需要填写理由，这条理由会随通知发给反馈人。")
+      return
+    }
+    if (needsReason) {
+      setConfirmReject(true)
+      return
+    }
+    void settleFeedback("rejected")
   }
 
   async function remove() {
@@ -599,7 +662,7 @@ export function NamecardManageDialog({
                 >
                   <FieldLabel htmlFor="manage-reason">
                     理由
-                    {needsReason ? (
+                    {needsReason || feedback ? (
                       <span className="ml-1 text-destructive">*</span>
                     ) : null}
                   </FieldLabel>
@@ -618,7 +681,7 @@ export function NamecardManageDialog({
                   />
                   <FieldDescription>
                     {feedback
-                      ? "受理时会保存这里的改动，改动需要理由；单独驳回不需要理由。"
+                      ? "驳回必填，会随通知发给反馈人；受理时只保存这里的改动。"
                       : needsReason
                         ? "本次修改需要理由，保存后会以站内信通知所有者。"
                         : "没有任何改动时不需要理由。"}
@@ -660,11 +723,7 @@ export function NamecardManageDialog({
                 type="button"
                 variant="outline"
                 disabled={busy || resolving}
-                onClick={() =>
-                  needsReason
-                    ? setConfirmReject(true)
-                    : void settleFeedback("rejected")
-                }
+                onClick={() => rejectFeedback()}
               >
                 <XIcon data-icon="inline-start" aria-hidden="true" />
                 驳回

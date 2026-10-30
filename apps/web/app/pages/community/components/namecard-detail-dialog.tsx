@@ -747,10 +747,10 @@ export function NamecardDetailDialog({
             {card ? (
               <NamecardFeedbackDialog
                 cardId={card.cardId}
-                cardLabel={
-                  card.producerName || `名片 #${card.cardNumber}`
-                }
+                cardLabel={card.producerName || `名片 #${card.cardNumber}`}
                 disabled={!platformCanReport}
+                triggerVariant="destructive"
+                triggerClassName="min-h-11"
               />
             ) : null}
         </DialogFooter>

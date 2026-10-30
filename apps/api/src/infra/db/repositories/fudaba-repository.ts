@@ -234,6 +234,17 @@ const PUBLIC_OFFICE_ELIGIBILITY = `office.status='active'
     AND office_owner.deleted_at IS NULL`;
 const OPEN_OFFICE_CARD_WALL_ELIGIBILITY = `${PUBLIC_OFFICE_ELIGIBILITY}
     AND office.is_open`;
+// Reports accept legacy cards nobody owns yet, so the owner join is optional.
+const FEEDBACK_CARD_ELIGIBILITY = `card.publication_status='published'
+    AND card.deleted_at IS NULL
+    AND (
+        card.owner_account_id IS NULL
+        OR (
+            card_owner.status IN ('active', 'restricted')
+            AND card_owner.deleted_at IS NULL
+        )
+    )`;
+
 const PUBLIC_CARD_ELIGIBILITY = `card.publication_status='published'
     AND card.deleted_at IS NULL
     AND card_owner.status IN ('active', 'restricted')
@@ -1756,9 +1767,9 @@ export class SqlFudabaRepository implements FudabaRepository {
         const visible = await queryOne<{ id: string }>(
             this.database,
             `SELECT card.id FROM fudaba_cards card
-             JOIN platform_accounts card_owner
+             LEFT JOIN platform_accounts card_owner
                ON card_owner.id=card.owner_account_id
-             WHERE card.id=? AND ${PUBLIC_CARD_ELIGIBILITY}`,
+             WHERE card.id=? AND ${FEEDBACK_CARD_ELIGIBILITY}`,
             [input.cardId],
         );
         if (!visible) return "not-found";
@@ -1828,7 +1839,8 @@ export class SqlFudabaRepository implements FudabaRepository {
             this.database,
             `WITH handled AS (
                 UPDATE namecard_feedback
-                   SET status=?, handled_by=?, handled_at=?, updated_at=?
+                   SET status=?, resolution_note=?, handled_by=?, handled_at=?,
+                       updated_at=?
                  WHERE id=? AND status='pending'
              RETURNING id, card_id, reporter_account_id, reason, detail, status,
                        created_at
@@ -1848,6 +1860,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON profile.account_id=handled.reporter_account_id`,
             [
                 input.outcome,
+                input.note,
                 input.handledBy,
                 input.updatedAt,
                 input.updatedAt,
@@ -1859,7 +1872,7 @@ export class SqlFudabaRepository implements FudabaRepository {
         const copy =
             record.status === "accepted"
                 ? cardFeedbackAcceptedCopy(record.cardNumber)
-                : cardFeedbackRejectedCopy(record.cardNumber);
+                : cardFeedbackRejectedCopy(record.cardNumber, input.note ?? '');
         await insertNamecardNotification(this.database, {
             recipientAccountId: record.reporterAccountId,
             kind: copy.kind,

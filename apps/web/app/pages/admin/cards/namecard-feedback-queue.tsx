@@ -11,7 +11,6 @@ import {
   type AdminNamecardFeedback,
   type AdminNamecardFeedbackList,
 } from "~/lib/api"
-import { feedbackReasonLabel } from "~/pages/community/exchange/components/namecard-feedback-model"
 import { NamecardManageDialog } from "./namecard-manage-dialog"
 import { NamecardMediaPreview } from "./namecard-media-preview"
 
@@ -131,10 +130,6 @@ export function NamecardFeedbackQueue() {
                   <p className="text-xs text-muted-foreground">
                     反馈人：{item.reporterName}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {feedbackReasonLabel(item.reason)} ·{" "}
-                    {formatReportedAt(item.createdAt)}
-                  </p>
                 </div>
               </article>
             ))}
@@ -174,11 +169,4 @@ export function NamecardFeedbackQueue() {
       ) : null}
     </>
   )
-}
-
-function formatReportedAt(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const pad = (part: number) => String(part).padStart(2, "0")
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }

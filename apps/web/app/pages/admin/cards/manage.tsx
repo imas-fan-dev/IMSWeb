@@ -365,7 +365,7 @@ export default function AdminNamecardManagePage() {
       <Tabs value={tab} onValueChange={changeTab}>
         <TabsList aria-label="名片管理类型">
           <TabsTrigger value="feedback">反馈处理</TabsTrigger>
-          <TabsTrigger value="advanced">高级管理</TabsTrigger>
+          <TabsTrigger value="advanced">信息修改</TabsTrigger>
         </TabsList>
 
         <TabsContent value="feedback" className="flex flex-col gap-7 pt-5">

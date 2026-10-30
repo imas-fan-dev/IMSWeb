@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "1ca8bfa3692227903c29e61464e2c2608ab586a8d26a0797c89aede930c46b5b",
+    "semanticDigest": "1a03b040f904358dc4008615f7a2d05bbe05248bce66a10935413395998bebf3",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -27,8 +27,8 @@
       "non-object-applicable": 82
     },
     "responses": {
-      "total": 787,
-      "json": 713,
+      "total": 788,
+      "json": 714,
       "nonJson": 74
     },
     "unresolved": 0
@@ -8967,6 +8967,11 @@
         }
       ],
       "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/moderation/handlers/resolve-admin-feedback.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u8BF7\\u586B\\u5199\\u9A73\\u56DE\\u7406\\u7531\" } satisfies NamecardFeedbackResponse"
+        },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/resolve-admin-feedback.ts",
           "kind": "json",
@@ -23874,6 +23879,14 @@
       "file": "apps/api/src/domains/admin/namecard-characters/handlers/create-character.ts",
       "kind": "json",
       "expression": "payload"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/cards/feedback/:feedbackId/resolve",
+      "handlerSymbol": "handleResolveAdminNamecardFeedback",
+      "file": "apps/api/src/domains/community/namecards/moderation/handlers/resolve-admin-feedback.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u8BF7\\u586B\\u5199\\u9A73\\u56DE\\u7406\\u7531\" } satisfies NamecardFeedbackResponse"
     },
     {
       "method": "POST",

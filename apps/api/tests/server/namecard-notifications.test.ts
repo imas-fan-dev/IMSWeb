@@ -13,6 +13,8 @@ import {
 } from '@/infra/db/repositories/namecard-notification-repository';
 import {
     cardApprovedCopy,
+    cardFeedbackAcceptedCopy,
+    cardFeedbackRejectedCopy,
     cardLockedCopy,
     cardRejectedCopy,
     cardRevisionFlaggedCopy,
@@ -60,6 +62,21 @@ test('every verdict keeps one wording, whatever pipeline wrote it', () => {
     assert.equal(
         cardRevisionFlaggedCopy(793, 'NSFW内容').title,
         '名片 #793 的新版本已被标记违规'
+    );
+});
+
+test('the report verdict thanks the reporter and quotes the reason once', () => {
+    assert.equal(
+        cardFeedbackAcceptedCopy(793).body,
+        '您的反馈已受理，感谢您协助维护偶像大师交流站'
+    );
+    assert.equal(
+        cardFeedbackRejectedCopy(793, '该名片不属于反馈人。').body,
+        '您的反馈未被受理，理由：该名片不属于反馈人。'
+    );
+    assert.equal(
+        cardFeedbackRejectedCopy(793, '  信息不符 ').body,
+        '您的反馈未被受理，理由：信息不符。'
     );
 });
 

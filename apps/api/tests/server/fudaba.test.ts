@@ -4279,6 +4279,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261031120000_namecard_admin_notifications',
                 '20261101120000_namecard_feedback',
                 '20261101130000_namecard_feedback_drop_resolution_note',
+                '20261101140000_namecard_feedback_resolution_note',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
@@ -8218,7 +8219,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                         ...adminHeaders,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ outcome: 'accepted' })
+                    body: JSON.stringify({ outcome: 'accepted', note: null })
                 }
             );
             assert.equal(settled.status, 200);
@@ -8241,7 +8242,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                         ...adminHeaders,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ outcome: 'rejected' })
+                    body: JSON.stringify({ outcome: 'rejected', note: '反馈不成立' })
                 }
             );
             assert.equal(handled.status, 404);
@@ -9786,6 +9787,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const resolved = await fixture.fudaba.resolveCardFeedback({
                 id: report!.id,
                 outcome: 'accepted',
+                note: null,
                 handledBy: 'debugadmin',
                 updatedAt: new Date('2026-05-04T02:00:00.000Z').toISOString()
             });
@@ -9804,6 +9806,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 await fixture.fudaba.resolveCardFeedback({
                     id: report!.id,
                     outcome: 'rejected',
+                    note: '反馈不成立',
                     handledBy: 'debugadmin',
                     updatedAt: new Date('2026-05-04T03:00:00.000Z').toISOString()
                 }),
@@ -9817,7 +9820,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.deepEqual(notices, [
                 {
                     kind: 'card-feedback-accepted',
-                    body: '您的反馈已受理，感谢你帮忙维护名片墙。'
+                    body: '您的反馈已受理，感谢您协助维护偶像大师交流站'
                 }
             ]);
         });

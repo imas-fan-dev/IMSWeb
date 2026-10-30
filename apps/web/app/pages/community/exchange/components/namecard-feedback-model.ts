@@ -12,6 +12,23 @@ export const FUDABA_FEEDBACK_REASON_OPTIONS: readonly {
 
 export const FUDABA_FEEDBACK_REASON_LIMIT = 400
 
+/**
+ * One-click reasons. Picking one writes the sentence into the detail box and
+ * remembers the category the queue files it under.
+ */
+export const FUDABA_FEEDBACK_PRESETS: readonly {
+  label: string
+  reason: NamecardFeedbackReason
+}[] = [
+  { label: "制作人名称有误", reason: "info-error" },
+  { label: "企划或角色有误", reason: "info-error" },
+  { label: "制作日期有误", reason: "info-error" },
+  { label: "名片归属他人", reason: "ownership-error" },
+  { label: "非本人作品", reason: "ownership-error" },
+  { label: "内容不当", reason: "content-violation" },
+  { label: "图片与名片不符", reason: "content-violation" },
+]
+
 export function feedbackReasonLabel(reason: NamecardFeedbackReason): string {
   return (
     FUDABA_FEEDBACK_REASON_OPTIONS.find((option) => option.value === reason)

@@ -1117,6 +1117,8 @@ export interface CreateNamecardFeedbackInput {
 export interface ResolveNamecardFeedbackInput {
     id: number;
     outcome: 'accepted' | 'rejected';
+    /** Required for a rejection: it is quoted back to the reporter. */
+    note: string | null;
     handledBy: string;
     updatedAt: string;
 }

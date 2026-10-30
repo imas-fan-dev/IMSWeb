@@ -449,7 +449,7 @@ export function getAdminNamecardFeedback(page = 1) {
 /** Leaves the queue; the reporter is told the outcome. */
 export function resolveAdminNamecardFeedback(
   feedbackId: number,
-  input: { outcome: "accepted" | "rejected" }
+  input: { outcome: "accepted" | "rejected"; note: string | null }
 ) {
   return adminApiClient.Post(
     adminApiPath(`/cards/feedback/${feedbackId}/resolve`),

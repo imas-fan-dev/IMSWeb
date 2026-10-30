@@ -160,16 +160,19 @@ export function cardFeedbackAcceptedCopy(
     return {
         kind: 'card-feedback-accepted',
         title: `名片 #${cardNumber} 的反馈已受理`,
-        body: '您的反馈已受理，感谢你帮忙维护名片墙。'
+        body: '您的反馈已受理，感谢您协助维护偶像大师交流站'
     };
 }
 
 export function cardFeedbackRejectedCopy(
-    cardNumber: number
+    cardNumber: number,
+    reason: string
 ): NamecardNotificationCopy {
+    // The operator usually ends the reason with a period of their own.
+    const sentence = reason.trim().replace(/[。.]+$/u, '');
     return {
         kind: 'card-feedback-rejected',
         title: `名片 #${cardNumber} 的反馈未受理`,
-        body: '您的反馈未被受理，感谢你的反馈。'
+        body: `您的反馈未被受理，理由：${sentence}。`
     };
 }

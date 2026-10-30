@@ -10,23 +10,14 @@ import { queryAll, queryOne, sqlStatement } from '@/infra/db/sql/query';
  * 这样即便某个账号长期不打开消息页，表也不会无界增长，且用户不会因为一次海量
  * 审核动作就丢掉刚发生的通知。
  */
+import type { NamecardNotificationKind } from '@imsweb/contracts/fudaba/card-claims';
+
 export const NAMECARD_NOTIFICATION_LIMIT = 200;
 export const NAMECARD_NOTIFICATION_UNREAD_DAYS = 90;
 export const NAMECARD_NOTIFICATION_READ_DAYS = 30;
 
-export type NamecardNotificationKind =
-    | 'card-approved'
-    | 'card-rejected'
-    | 'card-locked'
-    | 'card-unlocked'
-    | 'claim-approved'
-    | 'claim-rejected'
-    | 'card-transferred-out'
-    | 'card-transferred-in'
-    | 'card-admin-edited'
-    | 'card-feedback-accepted'
-    | 'card-feedback-rejected'
-    | 'station-message';
+/** Owned by the contract so the inbox reader and the writer cannot drift. */
+export type { NamecardNotificationKind };
 
 export interface NamecardNotificationRow {
     id: string;

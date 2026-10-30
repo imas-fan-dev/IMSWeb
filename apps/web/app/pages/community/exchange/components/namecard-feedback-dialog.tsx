@@ -12,18 +12,14 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
 import { Textarea } from "~/components/ui/textarea"
 import { toast } from "sonner"
 import type { NamecardFeedbackReason } from "@imsweb/contracts/namecards"
 
-import { FUDABA_FEEDBACK_REASON_LIMIT, FUDABA_FEEDBACK_REASON_OPTIONS } from "./namecard-feedback-model"
+import {
+  FUDABA_FEEDBACK_PRESETS,
+  FUDABA_FEEDBACK_REASON_LIMIT,
+} from "./namecard-feedback-model"
 import { isApiError, reportFudabaCardFeedback } from "~/lib/api"
 
 /**
@@ -34,10 +30,15 @@ export function NamecardFeedbackDialog({
   cardId,
   cardLabel,
   disabled,
+  triggerVariant = "outline",
+  triggerClassName,
 }: {
   cardId: string
   cardLabel: string
   disabled?: boolean
+  /** The caller owns how the entry looks next to its neighbours. */
+  triggerVariant?: "outline" | "destructive" | "secondary"
+  triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<NamecardFeedbackReason>("info-error")
@@ -73,11 +74,13 @@ export function NamecardFeedbackDialog({
     <>
       <Button
         type="button"
-        variant="outline"
+        variant={triggerVariant}
+        className={triggerClassName}
         disabled={disabled}
+        title={disabled ? "登录后可以提交反馈" : undefined}
         onClick={() => setOpen(true)}
       >
-        <FlagIcon data-icon="inline-start" aria-hidden="true" />
+        <FlagIcon aria-hidden="true" />
         反馈
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -90,29 +93,23 @@ export function NamecardFeedbackDialog({
           </DialogHeader>
           <DialogBody className="space-y-5">
             <Field>
-              <FieldLabel htmlFor="namecard-feedback-reason">反馈理由</FieldLabel>
-              <Select
-                value={reason}
-                items={FUDABA_FEEDBACK_REASON_OPTIONS}
-                disabled={busy}
-                onValueChange={(value) =>
-                  setReason(value as NamecardFeedbackReason)
-                }
-              >
-                <SelectTrigger id="namecard-feedback-reason" aria-label="反馈理由">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FUDABA_FEEDBACK_REASON_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="namecard-feedback-detail">补充说明</FieldLabel>
+              <FieldLabel htmlFor="namecard-feedback-detail">反馈理由</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {FUDABA_FEEDBACK_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    disabled={busy}
+                    onClick={() => {
+                      setReason(preset.reason)
+                      setDetail(preset.label)
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
               <Textarea
                 id="namecard-feedback-detail"
                 value={detail}
