@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router"
+import { Route, Routes, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { i18n } from "~/i18n/config"
 import { AccountMePage } from "~/pages/account/me/account-me-page"
+import { renderPage } from "../../../support/harness"
 
 const session = vi.hoisted(() => ({ use: vi.fn() }))
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: false }))
@@ -31,20 +32,17 @@ function LoginDestination() {
 }
 
 function renderDesktop() {
-  return render(
-    <MemoryRouter
-      initialEntries={["/account/me/offices?create=selected-point#editor"]}
-    >
-      <I18nextProvider i18n={i18n}>
-        <Routes>
-          <Route
-            path="/account/me/offices"
-            element={<AccountMePage section="offices" standaloneSection />}
-          />
-          <Route path="/account/login" element={<LoginDestination />} />
-        </Routes>
-      </I18nextProvider>
-    </MemoryRouter>
+  return renderPage(
+    <I18nextProvider i18n={i18n}>
+      <Routes>
+        <Route
+          path="/account/me/offices"
+          element={<AccountMePage section="offices" standaloneSection />}
+        />
+        <Route path="/account/login" element={<LoginDestination />} />
+      </Routes>
+    </I18nextProvider>,
+    { route: "/account/me/offices?create=selected-point#editor" }
   )
 }
 

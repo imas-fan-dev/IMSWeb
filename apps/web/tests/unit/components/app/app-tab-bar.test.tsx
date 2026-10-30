@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AppNavigationProvider } from "~/components/app/app-navigation-provider"
 import { AppTabBar } from "~/components/app/app-tab-bar"
 import { i18n } from "~/i18n/config"
+import { blockNativeTabBarInteraction } from "~/lib/native-tab-bar-suppression"
 
 const nativeSelectedColor = {
   red: 1,
@@ -13,6 +14,14 @@ const nativeSelectedColor = {
   blue: 79 / 255,
   alpha: 1,
 }
+
+const runtime = vi.hoisted(() => ({ app: false, tauri: false }))
+vi.mock("~/lib/app-target", () => ({
+  get IS_APP_TARGET() {
+    return runtime.app
+  },
+}))
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => runtime.tauri }))
 
 const themeMocks = vi.hoisted(() => ({ resolvedTheme: "light" }))
 
@@ -32,6 +41,7 @@ vi.mock("next-themes", () => ({
 }))
 
 vi.mock("~/lib/native-glass", () => ({
+  isAndroidRuntimeIdentity: (userAgent: string) => /Android/i.test(userAgent),
   configureNativeGlass: nativeMocks.configure,
   destroyNativeGlass: nativeMocks.destroy,
   nativeTabRoute: (event: Event) =>
@@ -83,6 +93,8 @@ describe("AppTabBar platform material", () => {
     expect(nativeMocks.configure).not.toHaveBeenCalled()
   })
   beforeEach(() => {
+    runtime.app = false
+    runtime.tauri = false
     themeMocks.resolvedTheme = "light"
     document.documentElement.classList.remove("dark")
     nativeMocks.configure.mockReset()
@@ -144,6 +156,7 @@ describe("AppTabBar platform material", () => {
       expect(nativeMocks.update).toHaveBeenLastCalledWith({
         dark: false,
         hidden: false,
+        interactionBlocked: false,
         selectedColor: nativeSelectedColor,
         selectedIndex: 2,
       })
@@ -167,6 +180,7 @@ describe("AppTabBar platform material", () => {
       expect(nativeMocks.update).toHaveBeenLastCalledWith({
         dark: false,
         hidden: false,
+        interactionBlocked: false,
         selectedColor: nativeSelectedColor,
         selectedIndex: 2,
       })
@@ -191,6 +205,7 @@ describe("AppTabBar platform material", () => {
       expect(nativeMocks.update).toHaveBeenLastCalledWith({
         dark: false,
         hidden: true,
+        interactionBlocked: true,
         selectedColor: nativeSelectedColor,
         selectedIndex: 0,
       })
@@ -205,6 +220,7 @@ describe("AppTabBar platform material", () => {
       expect(nativeMocks.update).toHaveBeenLastCalledWith({
         dark: false,
         hidden: false,
+        interactionBlocked: false,
         selectedColor: nativeSelectedColor,
         selectedIndex: 0,
       })
@@ -224,6 +240,62 @@ describe("AppTabBar platform material", () => {
     })
     expect(screen.getByRole("navigation")).toBeVisible()
     expect(nativeMocks.update).not.toHaveBeenCalled()
+  })
+
+  it("keeps DOM navigation visible but inert until the guide releases it", () => {
+    renderTabBar("/community/exchange")
+    let release = () => {}
+    act(() => {
+      release = blockNativeTabBarInteraction()
+    })
+    try {
+      expect(screen.getByRole("navigation")).toBeVisible()
+      expect(screen.getByRole("navigation")).toHaveAttribute("inert")
+      fireEvent.click(screen.getByRole("link", { name: "首页" }))
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/community/exchange"
+      )
+    } finally {
+      act(release)
+    }
+    expect(screen.getByRole("navigation")).not.toHaveAttribute("inert")
+    fireEvent.click(screen.getByRole("link", { name: "首页" }))
+    expect(screen.getByTestId("location").textContent).toBe("/")
+  })
+
+  it("keeps UIKit navigation visible and rejects selection during a guide", async () => {
+    nativeMocks.shouldAttempt.mockReturnValue(true)
+    nativeMocks.configure.mockResolvedValue({ supported: true })
+    renderTabBar("/community/exchange")
+    await waitFor(() => expect(nativeMocks.update).toHaveBeenCalled())
+    let release = () => {}
+    act(() => {
+      release = blockNativeTabBarInteraction()
+    })
+    try {
+      await waitFor(() => {
+        expect(nativeMocks.update).toHaveBeenLastCalledWith(
+          expect.objectContaining({ hidden: false, interactionBlocked: true })
+        )
+      })
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent("ims:native-tab-select", {
+            detail: { route: "/" },
+          })
+        )
+      })
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/community/exchange"
+      )
+    } finally {
+      act(release)
+    }
+    await waitFor(() => {
+      expect(nativeMocks.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hidden: false, interactionBlocked: false })
+      )
+    })
   })
 
   it("keeps secondary content routes under Resources", async () => {
@@ -265,8 +337,58 @@ describe("AppTabBar platform material", () => {
       expect(nativeMocks.update).toHaveBeenLastCalledWith({
         dark: false,
         hidden: false,
+        interactionBlocked: false,
         selectedColor: nativeSelectedColor,
       })
     })
+  })
+})
+
+describe("AppTabBar Android drag ownership", () => {
+  beforeEach(() => {
+    nativeMocks.shouldAttempt.mockReturnValue(false)
+    nativeMocks.configure.mockResolvedValue({ supported: false })
+  })
+
+  it.each([
+    [true, true, "Android", true],
+    [false, true, "Android", false],
+    [true, false, "Android", false],
+    [true, true, "iPhone", false],
+  ])("gates App=%s Tauri=%s UA=%s", (app, tauri, userAgent, enabled) => {
+    runtime.app = app
+    runtime.tauri = tauri
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(userAgent)
+    const { container } = renderTabBar()
+    const bar = container.querySelector<HTMLElement>("[data-glass-fallback]")!
+    expect(bar.hasAttribute("data-android-tab-drag")).toBe(enabled)
+  })
+
+  it("keeps the committed tab while dragging and navigates on release", () => {
+    runtime.app = true
+    runtime.tauri = true
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Android")
+    const { container } = renderTabBar()
+    const bar = container.querySelector<HTMLElement>("[data-glass-fallback]")!
+    vi.spyOn(bar, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      width: 508,
+    } as DOMRect)
+    bar.setPointerCapture = vi.fn()
+    const pointer = { pointerId: 1, isPrimary: true, button: 0, clientY: 20 }
+    fireEvent.pointerDown(bar, { ...pointer, clientX: 54 })
+    fireEvent.pointerMove(bar, { ...pointer, clientX: 354 })
+    expect(screen.getByTestId("location")).toHaveTextContent("/")
+    expect(screen.getByRole("link", { name: "首页" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+    fireEvent.pointerUp(bar, { ...pointer, clientX: 354 })
+    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
+    fireEvent.click(bar, { detail: 1 })
+    expect(screen.getByRole("link", { name: "资料" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
   })
 })

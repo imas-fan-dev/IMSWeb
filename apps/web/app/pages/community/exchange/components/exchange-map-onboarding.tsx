@@ -104,6 +104,7 @@ export function ExchangeMapOnboarding({
       >
         <DialogContent
           showCloseButton={false}
+          tabBarBehavior="block-interaction"
           safeArea="custom"
           overlayClassName="bg-transparent backdrop-blur-none supports-backdrop-filter:backdrop-blur-none"
           className="exchange-map-guide-card z-52 flex max-w-none flex-col gap-0 overflow-hidden border bg-popover p-0 shadow-xl"

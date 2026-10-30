@@ -8,4 +8,6 @@ The plugin returns `supported: false` below iOS 26. The React app then keeps its
 
 Web modal surfaces temporarily hide the native tab bar through the existing `update` command. `Dialog`, `AlertDialog`, and `Sheet` share a reference-counted suppression marker, so nested overlays keep the bar hidden until the final surface closes. This is required because a UIKit view above the WKWebView cannot be covered by Web `z-index`.
 
+Map onboarding instead keeps the platform's navigation visible and acquires a separate interaction-blocking lease. The bridge's optional `interactionBlocked` value disables UIKit tab interaction and vetoes user selection while the guide remains modal; the DOM renderer is inert for the same lease. Ordinary modal hiding takes precedence over this lease, and releasing either lease does not release the other. Guide completion or skipping restores navigation through the existing lease cleanup.
+
 The plugin lives outside `src-tauri/gen/` so `tauri ios init` and `tauri android init` can regenerate platform projects without deleting the implementation.

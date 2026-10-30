@@ -23,6 +23,8 @@ pub struct ConfigureOptions {
     pub dark: bool,
     #[serde(default)]
     pub hidden: bool,
+    #[serde(default)]
+    pub interaction_blocked: bool,
     pub items: Vec<NativeGlassTabItem>,
     #[serde(default)]
     pub selected_color: Option<NativeGlassColor>,
@@ -35,6 +37,8 @@ pub struct UpdateOptions {
     pub dark: bool,
     #[serde(default)]
     pub hidden: bool,
+    #[serde(default)]
+    pub interaction_blocked: bool,
     #[serde(default)]
     pub selected_color: Option<NativeGlassColor>,
     pub selected_index: Option<usize>,

@@ -20,6 +20,7 @@ export type NativeGlassTabItem = {
 export type NativeGlassConfigureOptions = {
   dark: boolean
   hidden: boolean
+  interactionBlocked?: boolean
   items: NativeGlassTabItem[]
   selectedColor: NativeGlassColor
   selectedIndex: number
@@ -27,7 +28,7 @@ export type NativeGlassConfigureOptions = {
 
 export type NativeGlassUpdateOptions = Pick<
   NativeGlassConfigureOptions,
-  "dark" | "hidden" | "selectedColor"
+  "dark" | "hidden" | "interactionBlocked" | "selectedColor"
 > & {
   selectedIndex?: number
 }

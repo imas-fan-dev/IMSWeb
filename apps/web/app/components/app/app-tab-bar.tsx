@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core"
 import {
   BookOpenTextIcon,
   CircleUserIcon,
@@ -19,12 +20,15 @@ import {
   appTabIdForPathname,
   appTabIndexForPathname,
 } from "~/components/app/app-tab-model"
+import { useAndroidTabDrag } from "~/components/app/use-android-tab-drag"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import {
   isNonScrollingAppRoute,
   normalizeAppPathname,
 } from "~/lib/app-shell-scroll"
 import {
+  isAndroidRuntimeIdentity,
   configureNativeGlass,
   destroyNativeGlass,
   nativeTabRoute,
@@ -34,7 +38,9 @@ import {
   updateNativeGlass,
 } from "~/lib/native-glass"
 import {
+  isNativeTabBarInteractionBlocked,
   isNativeTabBarSuppressed,
+  nativeTabBarInteractionBlocked,
   nativeTabBarSuppressed,
   NATIVE_TAB_BAR_SUPPRESSION_EVENT,
 } from "~/lib/native-tab-bar-suppression"
@@ -96,7 +102,7 @@ export function AppTabBar() {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
   const { activateTab } = useAppNavigation()
-  const { pathname } = useLocation()
+  const { pathname, key: routeKey } = useLocation()
   const normalizedPathname = normalizeAppPathname(pathname)
   const activeId = appTabIdForPathname(normalizedPathname)
   const unread = useNamecardUnread()
@@ -118,6 +124,10 @@ export function AppTabBar() {
   const [nativeTabBarSuppressedState, setNativeTabBarSuppressedState] =
     useState(isNativeTabBarSuppressed)
   const [initialNativeTabBarSuppressed] = useState(nativeTabBarSuppressedState)
+  const [interactionBlocked, setInteractionBlocked] = useState(
+    isNativeTabBarInteractionBlocked
+  )
+  const [initialInteractionBlocked] = useState(interactionBlocked)
   const [nativeGlassActive, setNativeGlassActive] = useState(false)
   const nativeItems = useMemo(
     () =>
@@ -133,6 +143,7 @@ export function AppTabBar() {
     if (!shouldAttemptNativeGlass()) return
 
     const handleNativeSelection = (event: Event) => {
+      if (isNativeTabBarInteractionBlocked()) return
       const route = nativeTabRoute(event)
       const tab = tabs.find((candidate) => candidate.to === route)
       if (!tab) return
@@ -149,6 +160,8 @@ export function AppTabBar() {
     const handleSuppressionChange = (event: Event) => {
       const suppressed = nativeTabBarSuppressed(event)
       if (suppressed !== null) setNativeTabBarSuppressedState(suppressed)
+      const blocked = nativeTabBarInteractionBlocked(event)
+      if (blocked !== null) setInteractionBlocked(blocked)
     }
 
     window.addEventListener(
@@ -170,6 +183,7 @@ export function AppTabBar() {
     void configureNativeGlass({
       dark: initialNativeGlassDark,
       hidden: initialNativeTabBarSuppressed,
+      interactionBlocked: initialInteractionBlocked,
       items: nativeItems,
       selectedColor: NATIVE_TAB_BAR_SELECTED_COLOR,
       selectedIndex: initialSlot,
@@ -192,6 +206,7 @@ export function AppTabBar() {
   }, [
     initialNativeGlassDark,
     initialNativeTabBarSuppressed,
+    initialInteractionBlocked,
     initialSlot,
     nativeItems,
   ])
@@ -203,6 +218,7 @@ export function AppTabBar() {
     const options = {
       dark: nativeGlassDark,
       hidden: nativeTabBarSuppressedState,
+      interactionBlocked,
       selectedColor: NATIVE_TAB_BAR_SELECTED_COLOR,
       ...(activeIndex >= 0 ? { selectedIndex: activeIndex } : {}),
     }
@@ -226,15 +242,35 @@ export function AppTabBar() {
     }
   }, [
     activeIndex,
+    interactionBlocked,
     nativeGlassActive,
     nativeGlassDark,
     nativeTabBarSuppressedState,
   ])
 
+  const androidDragEnabled =
+    IS_APP_TARGET &&
+    typeof window !== "undefined" &&
+    isTauri() &&
+    isAndroidRuntimeIdentity(window.navigator.userAgent) &&
+    !nativeGlassActive &&
+    !(useLightMapGlass && nativeTabBarSuppressedState)
+  const drag = useAndroidTabDrag({
+    enabled: androidDragEnabled && !interactionBlocked,
+    selectedIndex: activeIndex,
+    count: tabs.length,
+    routeKey,
+    onSelect: (index) => activateTab(tabs[index].id),
+  })
+
   function handleTabClick(
     event: React.MouseEvent<HTMLAnchorElement>,
     tabId: AppTabId
   ) {
+    if (isNativeTabBarInteractionBlocked()) {
+      event.preventDefault()
+      return
+    }
     if (event.defaultPrevented) return
     if (event.button !== 0 || isModifiedEvent(event)) return
 
@@ -258,12 +294,15 @@ export function AppTabBar() {
   return (
     <nav
       aria-label={t("navigation.mainLabel")}
+      inert={interactionBlocked}
       className={cn(
         "pointer-events-none fixed inset-x-0 z-50 flex justify-center px-3",
         BAR_OFFSET
       )}
     >
       <div
+        {...drag}
+        data-android-tab-drag={androidDragEnabled ? "" : undefined}
         data-glass-fallback=""
         className="glass-surface glass-bar glass-refract pointer-events-auto relative w-full max-w-sm rounded-full p-1 shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
         style={

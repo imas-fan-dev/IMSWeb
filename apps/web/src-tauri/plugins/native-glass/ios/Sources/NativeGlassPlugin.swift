@@ -42,6 +42,7 @@ private struct NativeTabItem: Decodable {
 private struct ConfigureArgs: Decodable {
   let dark: Bool
   let hidden: Bool?
+  let interactionBlocked: Bool?
   let items: [NativeTabItem]
   let selectedColor: NativeColor?
   let selectedIndex: Int
@@ -50,6 +51,7 @@ private struct ConfigureArgs: Decodable {
 private struct UpdateArgs: Decodable {
   let dark: Bool
   let hidden: Bool?
+  let interactionBlocked: Bool?
   let selectedColor: NativeColor?
   let selectedIndex: Int?
 }
@@ -163,6 +165,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   private var selectedColor = imsTabBarSelectedColor
   private var selectedIndex = 0
   private var isSynchronizingSelection = false
+  private var interactionBlocked = false
   private var tabBarController: UITabBarController?
   private var tabBarHost: NativeGlassTabBarHostViewController?
   // Stored as the base class so this iOS 15-compatible plugin type never
@@ -330,6 +333,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         self.selectedColor = selectedColor.uiColor
       }
       self.applyAppearance(dark: args.dark)
+      self.setInteractionBlocked(args.interactionBlocked ?? false)
       self.setBarHidden(args.hidden ?? false, animated: true)
       invoke.resolve(["supported": true])
     }
@@ -442,6 +446,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     publishExchangeNavigationLayout(force: true)
     selectTab(at: args.selectedIndex)
     applyAppearance(dark: args.dark)
+    setInteractionBlocked(args.interactionBlocked ?? false)
     setBarHidden(args.hidden ?? false, animated: false)
     return true
   }
@@ -495,6 +500,12 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   }
 
   @available(iOS 18.0, *)
+  private func setInteractionBlocked(_ blocked: Bool) {
+    interactionBlocked = blocked
+    tabBarController?.tabBar.isUserInteractionEnabled = !blocked
+  }
+
+  @available(iOS 18.0, *)
   private func setBarHidden(_ hidden: Bool, animated: Bool) {
     tabBarController?.setTabBarHidden(hidden, animated: animated)
     if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true) }
@@ -532,10 +543,18 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   @available(iOS 18.0, *)
   func tabBarController(
     _ tabBarController: UITabBarController,
+    shouldSelectTab tab: UITab
+  ) -> Bool {
+    return isSynchronizingSelection || !interactionBlocked
+  }
+
+  @available(iOS 18.0, *)
+  func tabBarController(
+    _ tabBarController: UITabBarController,
     didSelectTab selectedTab: UITab,
     previousTab: UITab?
   ) {
-    guard !isSynchronizingSelection else { return }
+    guard !isSynchronizingSelection, !interactionBlocked else { return }
     guard let index = items.firstIndex(where: { $0.route == selectedTab.identifier }) else {
       return
     }

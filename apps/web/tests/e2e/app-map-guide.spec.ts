@@ -16,7 +16,13 @@ test("App guide follows targets and keeps its actions accessible @app-iphone @ap
   await page.emulateMedia({ reducedMotion: "no-preference" })
   await page.goto("/community/exchange")
   const card = page.locator("[data-guide-card]")
+  const navigation = page.locator("nav[aria-label]")
   const first = await expectGuideGeometry(page, 0)
+  await expect(navigation).toBeVisible()
+  await expect(navigation).toHaveAttribute("inert", "")
+  await navigation.locator('a[href="/"]').click({ force: true })
+  await expect(page).toHaveURL(/\/community\/exchange$/)
+  await expect(card).toBeVisible()
   await expect(card).toHaveAttribute("data-guide-compact", "true")
   await page.mouse.click(2, 2)
   await page.keyboard.press("Escape")
@@ -39,6 +45,8 @@ test("App guide follows targets and keeps its actions accessible @app-iphone @ap
   for (let step = 2; step < guideTitles.length; step++) {
     await card.getByRole("button", { name: "下一步" }).click()
     await expectGuideGeometry(page, step)
+    await expect(navigation).toBeVisible()
+    await expect(navigation).toHaveAttribute("inert", "")
     if (step === 2 || step === 5)
       await page.screenshot({
         path: testInfo.outputPath(`app-guide-step-${step}.png`),
@@ -48,6 +56,7 @@ test("App guide follows targets and keeps its actions accessible @app-iphone @ap
   await expectGuideGeometry(page, 4)
   await card.getByRole("button", { name: "跳过" }).click()
   await expect(card).toHaveCount(0)
+  await expect(navigation).not.toHaveAttribute("inert")
 })
 
 test("App guide adapts to safe areas and short screens without motion @app-iphone @app-android @app-landscape @app-webkit", async ({

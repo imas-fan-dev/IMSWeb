@@ -40,3 +40,18 @@ describe("glass accessibility and list performance", () => {
     }
   })
 })
+
+describe("Android tab drag material", () => {
+  it("scopes direct manipulation and reduced deformation to the Android capsule", () => {
+    expect(stylesheet).toContain("[data-android-tab-drag] .glass-tab")
+    expect(stylesheet).toContain("touch-action: pan-y")
+    const start = stylesheet.indexOf("/* Android App direct manipulation")
+    const android = stylesheet.slice(start)
+    expect(android).toContain("--android-tab-index")
+    expect(android).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(android).toContain("transform: none")
+    expect(android.slice(0, android.indexOf("\n}\n") + 3)).not.toContain(
+      "backdrop-filter"
+    )
+  })
+})

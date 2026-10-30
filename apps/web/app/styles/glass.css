@@ -542,3 +542,34 @@
     }
   }
 }
+
+/* Android App direct manipulation; other DOM and UIKit renderers keep ownership. */
+@layer overrides {
+  [data-android-tab-drag],
+  [data-android-tab-drag] .glass-tab {
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  [data-android-tab-drag][data-tab-dragging] .glass-lens {
+    translate: calc(var(--android-tab-index) * 100%) 0;
+    transition: none;
+  }
+
+  [data-android-tab-drag][data-tab-dragging] .glass-lens-skin {
+    animation: none;
+    transform: scaleX(calc(1 + var(--android-tab-stretch, 0)))
+      scaleY(calc(1 - var(--android-tab-stretch, 0) * 0.5));
+  }
+
+  [data-android-tab-drag][data-tab-dragging] .glass-tab:active {
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-android-tab-drag][data-tab-dragging] .glass-lens-skin {
+      transform: none;
+    }
+  }
+}
