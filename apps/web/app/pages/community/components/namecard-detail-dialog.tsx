@@ -372,6 +372,10 @@ function EmptyDash() {
   return <span className="text-muted-foreground">-</span>
 }
 
+/** 窄屏把底栏压成一行：字号与高度都收一档，图标保持 16px。 */
+const FOOTER_BUTTON =
+  "min-h-9 gap-1 px-2 text-xs [&_svg]:size-4 sm:min-h-11 sm:px-2.5 sm:text-sm"
+
 export function NamecardDetailDialog({
   card,
   canClaim,
@@ -384,6 +388,7 @@ export function NamecardDetailDialog({
   onSupplement,
   onReact,
   onReturnFocus,
+  dismissible = true,
 }: {
   card: Namecard | null
   canClaim: boolean
@@ -397,6 +402,8 @@ export function NamecardDetailDialog({
   onSupplement: (card: Namecard) => void
   onReact: (emoji: string) => Promise<boolean>
   onReturnFocus: () => void
+  /** 认领/补充窗开着时置 false，点它不算「点了详情窗外面」。 */
+  dismissible?: boolean
 }) {
   const navigate = useNavigation()
   const platform = useOptionalPlatformSession()
@@ -477,7 +484,11 @@ export function NamecardDetailDialog({
   const active = slides[Math.min(activeSlide, Math.max(slides.length - 1, 0))]
 
   return (
-    <Dialog open={card !== null} onOpenChange={onOpenChange}>
+    <Dialog
+      open={card !== null}
+      onOpenChange={onOpenChange}
+      disablePointerDismissal={!dismissible}
+    >
       <DialogContent
         layout="pinned"
         className="sm:max-w-5xl"
@@ -699,12 +710,12 @@ export function NamecardDetailDialog({
           </div>
 
         </DialogBody>
-        <DialogFooter className="flex-nowrap justify-end gap-2 overflow-x-auto border-t bg-transparent">
+        <DialogFooter className="flex-row flex-nowrap justify-end gap-1.5 overflow-x-auto border-t bg-transparent px-3 sm:gap-2 sm:px-4">
             {card?.canEdit ? (
               <Button
                 type="button"
                 variant="secondary"
-                className="min-h-11"
+                className={FOOTER_BUTTON}
                 onClick={() => {
                   onOpenChange(false)
                   void navigate(
@@ -720,7 +731,7 @@ export function NamecardDetailDialog({
               <Button
                 type="button"
                 variant="secondary"
-                className="min-h-11"
+                className={FOOTER_BUTTON}
                 disabled={!canClaim || supplementBlocked}
                 title={
                   card?.claimStatus === "pending"
@@ -741,7 +752,7 @@ export function NamecardDetailDialog({
               <Button
                 type="button"
                 variant="secondary"
-                className="min-h-11 bg-foreground text-background hover:bg-foreground/85"
+                className={cn(FOOTER_BUTTON, "bg-foreground text-background hover:bg-foreground/85")}
                 disabled={!canClaim || claimBlocked}
                 title={
                   card?.claimStatus === "pending"
@@ -758,7 +769,7 @@ export function NamecardDetailDialog({
             ) : null}
             <Button
               type="button"
-              className="min-h-11 bg-foreground text-background hover:bg-foreground/85"
+              className={cn(FOOTER_BUTTON, "bg-foreground text-background hover:bg-foreground/85")}
               disabled
               title="暂未开放"
             >
@@ -771,7 +782,7 @@ export function NamecardDetailDialog({
                 cardLabel={card.producerName || `名片 #${card.cardNumber}`}
                 disabled={!platformCanReport}
                 triggerVariant="destructive"
-                triggerClassName="min-h-11"
+                triggerClassName={FOOTER_BUTTON}
               />
             ) : null}
         </DialogFooter>

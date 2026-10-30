@@ -488,6 +488,7 @@ export default function CommunityCardsPage() {
         onOpenPreview={openPreview}
         onClaim={setClaimCard}
         onSupplement={setSupplementCard}
+        dismissible={claimCard === null && supplementCard === null}
         onReact={(emoji) =>
           detail.card
             ? reactToCard(detail.card.id, emoji)

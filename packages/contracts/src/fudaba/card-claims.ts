@@ -181,6 +181,9 @@ const supplementCardSchema = z
     cardNumber: z.number().int().positive(),
     producerName: z.string().nullable(),
     frontImageUrl: z.string().min(1),
+    /** Empty for single-sided cards without middle pages. */
+    middleImageUrls: z.array(z.string().min(1)),
+    backImageUrl: z.string().min(1).nullable(),
     pageCount: z.number().int().positive(),
   })
   .strict()

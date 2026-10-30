@@ -413,7 +413,9 @@ describe("CommunityCardsPage", () => {
       name: "认领",
     })
     expect(claimButton).toBeVisible()
-    expect(claimButton).toHaveClass("min-h-11")
+    // 窄屏把底栏压成一行，只有 sm 以上才回到 44px 高。
+    expect(claimButton).toHaveClass("min-h-9")
+    expect(claimButton).toHaveClass("sm:min-h-11")
   })
 
   it("opens the complete reaction picker and updates the selected count", async () => {

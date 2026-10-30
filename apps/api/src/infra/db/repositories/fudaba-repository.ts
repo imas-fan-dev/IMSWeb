@@ -158,6 +158,9 @@ const SUPPLEMENT_COLUMNS = `supplement.id, supplement.card_id,
     supplement.reviewed_at, supplement.revision, supplement.created_at,
     supplement.updated_at, profile.display_name AS submitter_display_name,
     card.card_number AS card_number, card.producer_name AS card_producer_name,
+    (SELECT COUNT(*)::int FROM fudaba_card_media media
+     WHERE media.card_id=card.id) AS card_middle_count,
+    (card.back_object_key IS NOT NULL) AS card_has_back,
     1 + (SELECT COUNT(*)::int FROM fudaba_card_media media
           WHERE media.card_id=card.id)
       + (CASE WHEN card.back_object_key IS NULL THEN 0 ELSE 1 END)
@@ -360,6 +363,8 @@ type FudabaCardSupplementRow = Omit<
     | "card_number"
     | "card_producer_name"
     | "card_page_count"
+    | "card_middle_count"
+    | "card_has_back"
 > & {
     payload: unknown;
     reviewed_by: number | string | null;
@@ -370,6 +375,8 @@ type FudabaCardSupplementRow = Omit<
     card_number: number | string;
     card_producer_name: string | null;
     card_page_count: number | string;
+    card_middle_count: number | string;
+    card_has_back: boolean;
 };
 
 type FudabaAdminCardClaimRow = FudabaCardClaimRow & {
@@ -647,6 +654,8 @@ function supplementRecord(
         updated_at: timestampValue(row.updated_at),
         card_number: Number(row.card_number),
         card_page_count: Number(row.card_page_count),
+        card_middle_count: Number(row.card_middle_count),
+        card_has_back: row.card_has_back === true,
     };
 }
 

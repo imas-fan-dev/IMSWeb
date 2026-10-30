@@ -325,9 +325,12 @@ test.describe("namecard claim workflow", () => {
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
+    // 绑定方式是内联单选列表（不开浮层，点击不会关掉下层的详情窗）。
     await expect(
-      dialog.getByLabel("绑定方式").locator('[data-slot="select-value"]')
-    ).toHaveText("创建一张可管理的注册名片")
+      dialog
+        .getByRole("radiogroup", { name: "绑定方式" })
+        .getByRole("radio", { name: /创建一张可管理的注册名片/ })
+    ).toHaveAttribute("aria-checked", "true")
     // 六个基础字段先填好墙上的值，改过一处才允许提交。
     await expect(
       dialog.getByRole("button", { name: "提交认领审核" })

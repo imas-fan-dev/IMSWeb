@@ -146,9 +146,13 @@ export default function AdminCardsPage() {
     setPageInfo(next.pageInfo)
   }, [])
 
+  // 两个页签各自取数：刷新既重载投稿列表，也让认领页签重读一次。
+  const [reloadToken, setReloadToken] = useState(0)
+
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(false)
+    setReloadToken((token) => token + 1)
     try {
       applyPage(await loadCards(page, filters))
     } catch {
@@ -663,7 +667,7 @@ export default function AdminCardsPage() {
         </TabsContent>
 
         <TabsContent value="claims" className="flex flex-col gap-7 pt-5">
-          <ClaimReviewTab />
+          <ClaimReviewTab reloadToken={reloadToken} />
         </TabsContent>
       </Tabs>
 

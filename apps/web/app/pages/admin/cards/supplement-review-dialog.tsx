@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { ReviewCardPreview } from "./review-card-preview"
 import {
   getAdminFudabaCardSupplement,
   isApiError,
@@ -49,7 +50,9 @@ function fieldRows(
     })
   }
   if (pending.favoriteCharacterIds !== undefined) {
-    const names = new Map(live.favoriteCharacters.map((item) => [item.id, item.name]))
+    const names = new Map(
+      live.favoriteCharacters.map((item) => [item.id, item.name])
+    )
     rows.push({
       label: "担当角色",
       live: live.favoriteCharacters.map((item) => item.name).join("、") || "-",
@@ -67,22 +70,25 @@ function fieldRows(
  */
 export function SupplementReviewDialog({
   supplement,
+  cardNumber,
   cardLabel,
   onOpenChange,
   onReviewed,
 }: {
   supplement: AdminCardSupplement | null
+  cardNumber: number
   cardLabel: string
   onOpenChange: (open: boolean) => void
   onReviewed: () => void
 }) {
-  const [detail, setDetail] = useState<AdminCardSupplementDetailResponse | null>(
-    null
-  )
+  const [detail, setDetail] =
+    useState<AdminCardSupplementDetailResponse | null>(null)
   const [failed, setFailed] = useState(false)
   const [reason, setReason] = useState("")
   const [rejecting, setRejecting] = useState(false)
-  const [submitting, setSubmitting] = useState<"approve" | "reject" | null>(null)
+  const [submitting, setSubmitting] = useState<"approve" | "reject" | null>(
+    null
+  )
 
   useEffect(() => {
     if (!supplement) return
@@ -132,72 +138,82 @@ export function SupplementReviewDialog({
 
   return (
     <Dialog open={supplement !== null} onOpenChange={onOpenChange}>
-      <DialogContent layout="pinned" className="sm:max-w-3xl">
+      <DialogContent layout="pinned" className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>补充审核 · {cardLabel}</DialogTitle>
           <DialogDescription>
             补充只改动制作人名称、团体名称、企划与担当角色，图片与简介不受影响。
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-4">
-          {failed ? (
-            <p className="text-sm text-destructive">补充资料载入失败，请刷新后重试。</p>
-          ) : detail ? (
-            <>
-              <div className="rounded-lg border">
-                {rows.length ? (
-                  rows.map((row) => (
-                    <div
-                      key={row.label}
-                      className="grid gap-1 border-b p-3 last:border-b-0 sm:grid-cols-[6rem_1fr]"
-                    >
-                      <span className="text-xs text-muted-foreground">
-                        {row.label}
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="text-muted-foreground line-through decoration-border">
-                          {row.live}
+        <DialogBody className="grid gap-5 md:grid-cols-2">
+          <div className="min-w-0">
+            <ReviewCardPreview cardNumber={cardNumber} />
+          </div>
+          <div className="min-w-0 space-y-4">
+            {failed ? (
+              <p className="text-sm text-destructive">
+                补充资料载入失败，请刷新后重试。
+              </p>
+            ) : detail ? (
+              <>
+                <div className="rounded-lg border">
+                  {rows.length ? (
+                    rows.map((row) => (
+                      <div
+                        key={row.label}
+                        className="grid gap-1 border-b p-3 last:border-b-0 sm:grid-cols-[6rem_1fr]"
+                      >
+                        <span className="text-xs text-muted-foreground">
+                          {row.label}
                         </span>
-                        <span aria-hidden="true">→</span>
-                        <span className="font-medium">{row.next}</span>
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="text-muted-foreground line-through decoration-border">
+                            {row.live}
+                          </span>
+                          <span aria-hidden="true">→</span>
+                          <span className="font-medium">{row.next}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="p-3 text-sm text-muted-foreground">
-                    这份补充没有带来任何改动。
-                  </p>
-                )}
+                    ))
+                  ) : (
+                    <p className="p-3 text-sm text-muted-foreground">
+                      这份补充没有带来任何改动。
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {REASON_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      onClick={() => setReason(preset)}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  aria-label="审核备注"
+                  value={reason}
+                  maxLength={400}
+                  rows={3}
+                  aria-invalid={rejecting && !reason.trim() ? true : undefined}
+                  placeholder="驳回时必填，会随通知发送给补充人"
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  onChange={(event) => setReason(event.currentTarget.value)}
+                />
+              </>
+            ) : (
+              <div className="flex h-24 items-center text-sm text-muted-foreground">
+                <LoaderCircleIcon
+                  className="mr-2 size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                正在载入
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {REASON_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={() => setReason(preset)}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                aria-label="审核备注"
-                value={reason}
-                maxLength={400}
-                rows={3}
-                aria-invalid={rejecting && !reason.trim() ? true : undefined}
-                placeholder="驳回时必填，会随通知发送给补充人"
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                onChange={(event) => setReason(event.currentTarget.value)}
-              />
-            </>
-          ) : (
-            <div className="flex h-24 items-center text-sm text-muted-foreground">
-              <LoaderCircleIcon className="mr-2 size-4 animate-spin" aria-hidden="true" />
-              正在载入
-            </div>
-          )}
+            )}
+          </div>
         </DialogBody>
         <DialogFooter>
           <Button
@@ -215,7 +231,10 @@ export function SupplementReviewDialog({
             onClick={() => void decide("reject")}
           >
             {submitting === "reject" ? (
-              <LoaderCircleIcon data-icon="inline-start" className="animate-spin" />
+              <LoaderCircleIcon
+                data-icon="inline-start"
+                className="animate-spin"
+              />
             ) : (
               <XIcon data-icon="inline-start" />
             )}
@@ -227,7 +246,10 @@ export function SupplementReviewDialog({
             onClick={() => void decide("approve")}
           >
             {submitting === "approve" ? (
-              <LoaderCircleIcon data-icon="inline-start" className="animate-spin" />
+              <LoaderCircleIcon
+                data-icon="inline-start"
+                className="animate-spin"
+              />
             ) : (
               <CheckIcon data-icon="inline-start" />
             )}

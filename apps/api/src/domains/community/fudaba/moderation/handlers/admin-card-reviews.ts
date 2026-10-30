@@ -443,11 +443,28 @@ export async function handleListFudabaReviewQueue(
                         id: supplement.card_id,
                         cardNumber: supplement.card_number,
                         producerName: supplement.card_producer_name,
+                        // The media route addresses cards by number, not by id.
                         frontImageUrl: adminNamecardMediaPath(
-                            supplement.card_id,
+                            supplement.card_number,
                             'live',
                             'front'
                         ),
+                        middleImageUrls: Array.from(
+                            { length: supplement.card_middle_count },
+                            (_, index) =>
+                                adminNamecardMediaPath(
+                                    supplement.card_number,
+                                    'live',
+                                    `middle-${index + 1}`
+                                )
+                        ),
+                        backImageUrl: supplement.card_has_back
+                            ? adminNamecardMediaPath(
+                                  supplement.card_number,
+                                  'live',
+                                  'back'
+                              )
+                            : null,
                         pageCount: supplement.card_page_count
                     },
                     supplement: fudabaCardSupplementView(supplement)

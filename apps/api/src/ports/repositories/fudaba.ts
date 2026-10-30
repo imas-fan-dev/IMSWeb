@@ -435,6 +435,9 @@ export interface FudabaCardSupplementRecord {
     card_number: number;
     card_producer_name: string | null;
     card_page_count: number;
+    /** Middle pages the card stores today. */
+    card_middle_count: number;
+    card_has_back: boolean;
     submitter_account_id: string;
     submitter_display_name: string;
     state: FudabaCardClaimState;

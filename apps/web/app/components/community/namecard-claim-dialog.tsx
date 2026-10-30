@@ -1,6 +1,8 @@
 import {
+  CheckIcon,
   CircleAlertIcon,
   LoaderCircleIcon,
+  PlusIcon,
   ShieldCheckIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -17,6 +19,7 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
+import { cn } from "~/lib/utils"
 import {
   Dialog,
   DialogBody,
@@ -26,15 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import { Field, FieldLabel } from "~/components/ui/field"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
 import {
   createFudabaLegacyCardClaim,
   getFudabaOwnerCards,
@@ -96,14 +90,11 @@ export function NamecardClaimDialog({
     displayName: agency.name,
     color: agency.color,
   }))
-  const existingTarget = ownerCards.find((item) => item.id === targetCardId)
-  const targetItems = [
-    { value: NEW_CARD_VALUE, label: "创建一张可管理的注册名片" },
-    ...ownerCards.map((ownerCard) => ({
-      value: ownerCard.id,
-      label: `绑定到 ${ownerCard.producerName}`,
-    })),
-  ]
+  // 只有已通过审核的名片才能作为绑定目标。
+  const bindable = ownerCards.filter(
+    (item) => item.publicationStatus === "published"
+  )
+  const existingTarget = bindable.find((item) => item.id === targetCardId)
   const authenticated = platform.status === "authenticated"
   const restricted = platform.status === "restricted"
   const ready = Boolean(card && draft && authenticated && catalog)
@@ -174,32 +165,34 @@ export function NamecardClaimDialog({
             </Alert>
           ) : catalog && draft && live ? (
             <>
-              <Field>
-                <FieldLabel htmlFor="claim-target-card">绑定方式</FieldLabel>
-                <Select
-                  value={targetCardId}
-                  items={targetItems}
-                  onValueChange={(value) =>
-                    setTargetCardId(String(value ?? NEW_CARD_VALUE))
-                  }
-                >
-                  <SelectTrigger id="claim-target-card" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    <SelectGroup>
-                      <SelectItem value={NEW_CARD_VALUE}>
-                        创建一张可管理的注册名片
-                      </SelectItem>
-                      {ownerCards.map((ownerCard) => (
-                        <SelectItem key={ownerCard.id} value={ownerCard.id}>
-                          绑定到 {ownerCard.producerName}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">绑定方式</legend>
+                <div className="space-y-2" role="radiogroup" aria-label="绑定方式">
+                  <TargetOption
+                    selected={targetCardId === NEW_CARD_VALUE}
+                    title="创建一张可管理的注册名片"
+                    description="用下面的六项资料建一张属于你的名片。"
+                    onSelect={() => setTargetCardId(NEW_CARD_VALUE)}
+                  />
+                  {bindable.map((ownerCard) => (
+                    <TargetOption
+                      key={ownerCard.id}
+                      selected={targetCardId === ownerCard.id}
+                      title={`名片 #${ownerCard.cardNumber} · ${ownerCard.producerName}`}
+                      description={ownerCard.favoriteCharacters
+                        .map((character) => character.name)
+                        .join("、")}
+                      thumbnail={ownerCard.frontImageUrl}
+                      onSelect={() => setTargetCardId(ownerCard.id)}
+                    />
+                  ))}
+                </div>
+                {bindable.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    你还没有已通过审核的名片，可以先创建一张。
+                  </p>
+                ) : null}
+              </fieldset>
 
               {existingTarget ? (
                 <Alert>
@@ -258,5 +251,54 @@ export function NamecardClaimDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** 绑定目标的一行：小预览 + 编号与名称 + 说明；与 Select 不同，它不会开浮层。 */
+function TargetOption({
+  selected,
+  title,
+  description,
+  thumbnail,
+  onSelect,
+}: {
+  selected: boolean
+  title: string
+  description?: string
+  thumbnail?: string
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-lg border p-2 text-left transition-colors",
+        selected
+          ? "border-primary/60 bg-primary/5"
+          : "border-border hover:bg-muted/60"
+      )}
+      onClick={onSelect}
+    >
+      <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+        {thumbnail ? (
+          <img src={thumbnail} alt="" className="size-full object-cover" />
+        ) : (
+          <PlusIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{title}</span>
+        {description ? (
+          <span className="block truncate text-xs text-muted-foreground">
+            {description}
+          </span>
+        ) : null}
+      </span>
+      {selected ? (
+        <CheckIcon className="size-4 shrink-0 text-primary" aria-hidden="true" />
+      ) : null}
+    </button>
   )
 }
