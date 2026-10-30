@@ -22,11 +22,8 @@ export const FUDABA_FEEDBACK_PRESETS: readonly {
 }[] = [
   { label: "制作人名称有误", reason: "info-error" },
   { label: "企划或角色有误", reason: "info-error" },
-  { label: "制作日期有误", reason: "info-error" },
   { label: "名片归属他人", reason: "ownership-error" },
-  { label: "非本人作品", reason: "ownership-error" },
   { label: "内容不当", reason: "content-violation" },
-  { label: "图片与名片不符", reason: "content-violation" },
 ]
 
 export function feedbackReasonLabel(reason: NamecardFeedbackReason): string {

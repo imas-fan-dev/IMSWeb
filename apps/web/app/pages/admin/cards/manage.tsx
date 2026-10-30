@@ -96,6 +96,7 @@ export default function AdminNamecardManagePage() {
     hasNextPage: false,
   })
   const [loading, setLoading] = useState(true)
+  const [reloadToken, setReloadToken] = useState(0)
   const [error, setError] = useState(false)
   const listFocusRef = useRef<HTMLDivElement>(null)
   const queryParam = searchParams.get("query") ?? ""
@@ -160,6 +161,7 @@ export default function AdminNamecardManagePage() {
   }, [])
 
   const refresh = useCallback(async () => {
+    setReloadToken((token) => token + 1)
     setLoading(true)
     setError(false)
     try {
@@ -369,7 +371,7 @@ export default function AdminNamecardManagePage() {
         </TabsList>
 
         <TabsContent value="feedback" className="flex flex-col gap-7 pt-5">
-          <NamecardFeedbackQueue />
+          <NamecardFeedbackQueue reloadToken={reloadToken} />
         </TabsContent>
 
         <TabsContent value="advanced" className="flex flex-col gap-7 pt-5">

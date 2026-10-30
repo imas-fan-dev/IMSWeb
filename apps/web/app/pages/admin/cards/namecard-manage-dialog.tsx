@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { REJECT_REASON_PRESETS } from "./reason-presets"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
@@ -216,7 +217,9 @@ export function NamecardManageDialog({
   const [deleting, setDeleting] = useState(false)
   const [resolving, setResolving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [confirmReject, setConfirmReject] = useState(false)
+  const [rejectOpen, setRejectOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [rejectError, setRejectError] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [reasonRequired, setReasonRequired] = useState(false)
   const reasonRef = useRef<HTMLDivElement>(null)
@@ -373,16 +376,16 @@ export function NamecardManageDialog({
     if (await persist()) onSaved()
   }
 
-  async function settleFeedback(outcome: "accepted" | "rejected") {
+  async function settleFeedback(
+    outcome: "accepted" | "rejected",
+    note: string | null = null
+  ) {
     if (!feedback) return
     setResolving(true)
     setMessage(null)
     try {
       // The reporter reads a rejection reason verbatim, so it is required.
-      await resolveAdminNamecardFeedback(feedback.id, {
-        outcome,
-        note: outcome === "rejected" ? reason.trim() : null,
-      }).send()
+      await resolveAdminNamecardFeedback(feedback.id, { outcome, note }).send()
       onSaved()
       onClose()
     } catch (cause) {
@@ -406,17 +409,18 @@ export function NamecardManageDialog({
 
   function rejectFeedback() {
     if (!feedback) return
-    if (!reason.trim()) {
-      setReasonRequired(true)
-      flash(reasonRef.current)
-      setMessage("驳回反馈需要填写理由，这条理由会随通知发给反馈人。")
+    setRejectReason("")
+    setRejectError(false)
+    setRejectOpen(true)
+  }
+
+  async function confirmRejectFeedback() {
+    if (!rejectReason.trim()) {
+      setRejectError(true)
       return
     }
-    if (needsReason) {
-      setConfirmReject(true)
-      return
-    }
-    void settleFeedback("rejected")
+    await settleFeedback("rejected", rejectReason.trim())
+    setRejectOpen(false)
   }
 
   async function remove() {
@@ -662,7 +666,7 @@ export function NamecardManageDialog({
                 >
                   <FieldLabel htmlFor="manage-reason">
                     理由
-                    {needsReason || feedback ? (
+                    {needsReason ? (
                       <span className="ml-1 text-destructive">*</span>
                     ) : null}
                   </FieldLabel>
@@ -680,10 +684,10 @@ export function NamecardManageDialog({
                     }}
                   />
                   <FieldDescription>
-                    {feedback
-                      ? "驳回必填，会随通知发给反馈人；受理时只保存这里的改动。"
-                      : needsReason
-                        ? "本次修改需要理由，保存后会以站内信通知所有者。"
+                    {needsReason
+                      ? "本次修改需要理由，保存后会以站内信通知所有者。"
+                      : feedback
+                        ? "受理时只保存这里的改动，不需要理由。"
                         : "没有任何改动时不需要理由。"}
                   </FieldDescription>
                 </div>
@@ -762,13 +766,56 @@ export function NamecardManageDialog({
       </DialogContent>
 
       <ConfirmActionDialog
-        open={confirmReject}
-        onOpenChange={setConfirmReject}
-        title="驳回反馈并放弃修改？"
-        description="这里的资料改动尚未保存，驳回反馈会丢弃它们，只记录「未受理」这个结论。"
+        open={rejectOpen}
+        onOpenChange={(open) => {
+          setRejectOpen(open)
+          if (!open) setRejectError(false)
+        }}
+        title="驳回反馈"
+        description={
+          <div className="space-y-2">
+            <p>
+              这条反馈会被标记为未受理，理由会原样写进发给反馈人的通知。
+              {needsReason
+                ? " 这里尚未保存的资料改动会一并丢弃。"
+                : null}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {REJECT_REASON_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={() => {
+                    setRejectReason(preset)
+                    setRejectError(false)
+                  }}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <textarea
+              aria-label="驳回理由"
+              value={rejectReason}
+              maxLength={REASON_LIMIT}
+              rows={3}
+              aria-invalid={rejectError || undefined}
+              placeholder="填写驳回理由，反馈人会收到「您的反馈未被受理，理由：…」"
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              onChange={(event) => {
+                setRejectReason(event.currentTarget.value)
+                if (event.currentTarget.value.trim()) setRejectError(false)
+              }}
+            />
+            {rejectError ? (
+              <p className="text-xs text-destructive">驳回需要填写理由。</p>
+            ) : null}
+          </div>
+        }
         submitting={resolving}
-        confirmLabel="驳回并放弃"
-        onConfirm={() => void settleFeedback("rejected")}
+        confirmLabel="确认驳回"
+        onConfirm={() => void confirmRejectFeedback()}
       />
       <ConfirmActionDialog
         open={confirmDelete}

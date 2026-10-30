@@ -28,7 +28,16 @@ function QueueSkeleton() {
  * The default face of the management entry: reports filed from the card wall.
  * Cards carry no actions — opening one shows the reported card in the editor.
  */
-export function NamecardFeedbackQueue() {
+/**
+ * `reloadToken` lets the page header's refresh button re-read the queue:
+ * the button lives outside this component but must refresh whatever tab
+ * is showing.
+ */
+export function NamecardFeedbackQueue({
+  reloadToken = 0,
+}: {
+  reloadToken?: number
+}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedPage = Number(searchParams.get("page") ?? "1")
   const page =
@@ -37,7 +46,8 @@ export function NamecardFeedbackQueue() {
   const [pageInfo, setPageInfo] = useState<AdminNamecardFeedbackList["pageInfo"]>(
     { page: 1, pageSize: 12, total: 0, totalPages: 0, hasNextPage: false }
   )
-  const [loading, setLoading] = useState(true)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
+  const [localToken, setLocalToken] = useState(0)
   const [error, setError] = useState(false)
   const [openItem, setOpenItem] = useState<AdminNamecardFeedback | null>(null)
 
@@ -46,37 +56,37 @@ export function NamecardFeedbackQueue() {
     setPageInfo(next.pageInfo)
   }, [])
 
-  const refresh = useCallback(async () => {
-    try {
-      applyPage(await getAdminNamecardFeedback(page).send())
-      setError(false)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [applyPage, page])
+  // Loading is derived from the request key: a new page or a refresh makes the
+  // rows stale immediately without writing state from inside the effect.
+  const loadKey = `${page}:${reloadToken}:${localToken}`
+  const loading = loadedKey !== loadKey
 
   useEffect(() => {
     let active = true
     void getAdminNamecardFeedback(page)
       .send()
       .then((next) => {
-        if (active) applyPage(next)
+        if (active) {
+          applyPage(next)
+          setError(false)
+        }
       })
       .catch(() => {
         if (active) setError(true)
       })
       .finally(() => {
-        if (active) setLoading(false)
+        if (active) setLoadedKey(loadKey)
       })
     return () => {
       active = false
     }
-  }, [applyPage, page])
+  }, [applyPage, loadKey, page])
+
+  function refresh() {
+    setLocalToken((token) => token + 1)
+  }
 
   function changePage(nextPage: number) {
-    setLoading(true)
     const next = new URLSearchParams(searchParams)
     next.set("page", String(Math.max(1, nextPage)))
     setSearchParams(next)
@@ -162,8 +172,7 @@ export function NamecardFeedbackQueue() {
           onClose={() => setOpenItem(null)}
           onSaved={() => {
             setOpenItem(null)
-            setLoading(true)
-            void refresh()
+            refresh()
           }}
         />
       ) : null}
