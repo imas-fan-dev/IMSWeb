@@ -3,6 +3,14 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { CharacterMultiSelect } from "~/components/community/character-multi-select"
+import {
+  CLEAR_DATE,
+  joinMadeOn,
+  PRODUCTION_MONTHS,
+  PRODUCTION_YEARS,
+  productionDays,
+  splitMadeOn,
+} from "~/components/community/namecard-made-on"
 import { normalizeProducerReading } from "./card-reading"
 import { SeriesMultiSelect } from "~/components/community/series-multi-select"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -24,53 +32,9 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { Textarea } from "~/components/ui/textarea"
 import type { FudabaCardFields, FudabaSeries } from "~/lib/api"
-import {
-  NAMECARD_PRODUCTION_YEAR_MAX,
-  NAMECARD_PRODUCTION_YEAR_MIN,
-} from "@imsweb/contracts/fudaba/runtime"
-
 import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { CreditsEditor } from "./card-credits-editor"
 import { CardModule, type CardModuleModes } from "./card-module"
-
-const PRODUCTION_YEAR_MIN = NAMECARD_PRODUCTION_YEAR_MIN
-/** 不能制作未来日期的名片，所以上限是今年（契约上限只是结构性兜底）。 */
-const PRODUCTION_YEAR_MAX = Math.min(
-  NAMECARD_PRODUCTION_YEAR_MAX,
-  new Date().getFullYear()
-)
-const PRODUCTION_YEARS = Array.from(
-  { length: PRODUCTION_YEAR_MAX - PRODUCTION_YEAR_MIN + 1 },
-  (_, index) => String(PRODUCTION_YEAR_MAX - index)
-)
-const PRODUCTION_MONTHS = Array.from({ length: 12 }, (_, index) =>
-  String(index + 1).padStart(2, "0")
-)
-/** 三个日期下拉都给了「-」，用户任何一级都能退回到「只填到这里」。 */
-const CLEAR_DATE = "-"
-
-/** 只给出该年该月真实存在的日子，2 月与大小月都按实际天数截断。 */
-function productionDays(year: string, month: string): string[] {
-  const monthNumber = Number(month)
-  if (!year || !monthNumber) return []
-  const total = new Date(Number(year), monthNumber, 0).getDate()
-  return Array.from({ length: total }, (_, index) =>
-    String(index + 1).padStart(2, "0")
-  )
-}
-
-/** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; every part is optional but the year. */
-function splitMadeOn(value: string | null) {
-  const [year = "", month = "", day = ""] = (value ?? "").split("-")
-  return { year, month: year ? month : "", day: year && month ? day : "" }
-}
-
-function joinMadeOn(year: string, month: string, day: string): string | null {
-  if (!year) return null
-  if (!month) return year
-  if (!day) return `${year}-${month}`
-  return `${year}-${month}-${day}`
-}
 
 const FLAG_OPTIONS = [
   {

@@ -21,17 +21,6 @@ export type FudabaCardClaimState =
     | "rejected"
     | "cancelled";
 
-export type FudabaClaimEnvelopeKind =
-    | "legacy-card-match"
-    | "claim-approved"
-    | "claim-rejected";
-
-export type FudabaClaimEnvelopeActionState =
-    | "pending"
-    | "confirmed"
-    | "declined"
-    | "none";
-
 export interface CardFavoriteSelectionRecord {
     character_id: number;
     agency_code: string;
@@ -369,21 +358,6 @@ export type FudabaCardMutationResult =
     | { status: "conflict"; revision: number }
     | { status: "unavailable" };
 
-export interface FudabaClaimEnvelopeRecord {
-    id: number;
-    recipient_account_id: string;
-    legacy_card_id: number;
-    kind: FudabaClaimEnvelopeKind;
-    action_state: FudabaClaimEnvelopeActionState;
-    claim_id: string | null;
-    title: string;
-    body: string;
-    read_at: string | null;
-    actioned_at: string | null;
-    created_at: string;
-    revision: number;
-}
-
 export interface FudabaCardClaimRecord {
     id: string;
     legacy_card_id: number;
@@ -392,6 +366,7 @@ export interface FudabaCardClaimRecord {
     series_code: string;
     state: FudabaCardClaimState;
     message: string;
+    payload: FudabaCardPayload;
     review_note: string;
     reviewed_by: number | null;
     reviewed_at: string | null;
@@ -416,6 +391,22 @@ export interface LegacyNamecardClaimStatusRecord {
     claim_status: "unclaimed" | "pending" | "claimed";
     viewer_claim_state: FudabaCardClaimState | null;
     claimer_name: string | null;
+    /** A visitor's supplement is waiting for review on this wall card. */
+    supplement_pending: boolean;
+}
+
+/**
+ * The wall's claim and supplement forms send only the fields the visitor
+ * changed, so an absent key means "leave the live value alone" while an
+ * explicit `null` clears it.
+ */
+export interface FudabaCardPayload {
+    producerName?: string;
+    producerReading?: string | null;
+    groupName?: string | null;
+    madeOn?: string | null;
+    seriesCodes?: string[];
+    favoriteCharacterIds?: number[];
 }
 
 export interface CreateFudabaCardClaimInput {
@@ -423,42 +414,64 @@ export interface CreateFudabaCardClaimInput {
     legacyCardId: number;
     claimantAccountId: string;
     targetCardId: string | null;
-    seriesCode: string | null;
-    characterIds: number[];
+    payload: FudabaCardPayload;
     message: string;
     createdAt: string;
     updatedAt: string;
 }
 
-export interface ConfirmFudabaLegacyEnvelopeInput
-    extends Omit<
-        CreateFudabaCardClaimInput,
-        "legacyCardId" | "claimantAccountId"
-    > {
-    envelopeId: number;
-    recipientAccountId: string;
-    expectedRevision: number;
-    actionedAt: string;
+export interface CreateFudabaCardSupplementInput {
+    id: string;
+    cardId: string;
+    submitterAccountId: string;
+    payload: FudabaCardPayload;
+    createdAt: string;
+    updatedAt: string;
 }
+
+export interface FudabaCardSupplementRecord {
+    id: string;
+    card_id: string;
+    card_number: number;
+    card_producer_name: string | null;
+    card_page_count: number;
+    submitter_account_id: string;
+    submitter_display_name: string;
+    state: FudabaCardClaimState;
+    payload: FudabaCardPayload;
+    base_revision: number;
+    review_note: string;
+    reviewed_by: number | null;
+    reviewed_at: string | null;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export type FudabaSupplementCreateResult =
+    | { status: "created"; supplement: FudabaCardSupplementRecord }
+    | {
+          status: "conflict";
+          supplementId: string;
+          state: FudabaCardClaimState;
+      }
+    /** Every submitted field already matches the live card. */
+    | { status: "unchanged" }
+    | { status: "unavailable" };
+
+export type FudabaSupplementReviewResult =
+    | {
+          status: "saved";
+          supplement: FudabaCardSupplementRecord;
+          card: FudabaCardRecord | null;
+      }
+    | { status: "conflict"; revision: number; state: FudabaCardClaimState }
+    | { status: "unavailable" };
 
 export type FudabaClaimCreateResult =
     | { status: "created"; claim: FudabaCardClaimRecord }
     | { status: "conflict"; claimId: string; state: FudabaCardClaimState }
     | { status: "series-required" }
-    | { status: "unavailable" };
-
-export type FudabaEnvelopeActionResult =
-    | { status: "saved"; envelope: FudabaClaimEnvelopeRecord }
-    | { status: "conflict"; revision: number }
-    | { status: "unavailable" };
-
-export type FudabaEnvelopeClaimResult =
-    | {
-          status: "created";
-          envelope: FudabaClaimEnvelopeRecord;
-          claim: FudabaCardClaimRecord;
-      }
-    | { status: "conflict"; revision: number }
     | { status: "unavailable" };
 
 export type FudabaRegisteredCardReviewClaim =
@@ -513,16 +526,40 @@ interface CompleteFudabaClaimReviewBaseInput {
     audit: AuditLogInput;
 }
 
+export interface ClaimedCardMediaInput {
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    /** `null` keeps the card's current accent. */
+    accent: string | null;
+}
+
 export type CompleteFudabaClaimReviewInput =
     | (CompleteFudabaClaimReviewBaseInput & {
           decision: "approve";
-          target:
-              | { kind: "existing"; cardId: string }
-              | { kind: "create"; card: CreateClaimedFudabaCardInput };
+          /**
+           * Present when the reviewed claim becomes the wall card itself: the
+           * artwork has to move to owner-owned objects. Absent when the claim
+           * binds to a card the claimant already owns, whose artwork stays.
+           */
+          media: ClaimedCardMediaInput | null;
       })
     | (CompleteFudabaClaimReviewBaseInput & {
           decision: "reject";
       });
+
+export interface CompleteFudabaSupplementReviewInput {
+    supplementId: string;
+    /** The revision the reviewer read before deciding. */
+    expectedRevision: number;
+    decision: "approve" | "reject";
+    reviewNote: string;
+    reviewedBy: number;
+    reviewedAt: string;
+    audit: AuditLogInput;
+    /** Points awarded once per (account, card) when a supplement is approved. */
+    contributionPoints: number;
+    contributionId: string;
+}
 
 export type FudabaClaimReviewResult =
     | {
@@ -950,31 +987,8 @@ export interface FudabaRepository {
     softDeleteCardForOwner(
         input: SoftDeleteOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult>;
-    ensureSameIdLegacyCardEnvelopes(input: {
-        title: string;
-        body: string;
-        createdAt: string;
-    }): Promise<FudabaClaimEnvelopeRecord[]>;
-    listClaimEnvelopesForOwner(
-        recipientAccountId: string,
-        limit: number,
-    ): Promise<FudabaClaimEnvelopeRecord[]>;
-    markClaimEnvelopeRead(input: {
-        envelopeId: number;
-        recipientAccountId: string;
-        expectedRevision: number;
-        readAt: string;
-    }): Promise<FudabaEnvelopeActionResult>;
-    actionClaimEnvelope(input: {
-        envelopeId: number;
-        recipientAccountId: string;
-        action: "decline";
-        expectedRevision: number;
-        actionedAt: string;
-    }): Promise<FudabaEnvelopeActionResult>;
-    confirmLegacyCardEnvelope(
-        input: ConfirmFudabaLegacyEnvelopeInput,
-    ): Promise<FudabaEnvelopeClaimResult>;
+    /** Sends the "this wall card may be yours" notice to matching accounts. */
+    notifyLegacyCardMatchesForAccount(accountId: string): Promise<number>;
     createCardClaimForOwner(
         input: CreateFudabaCardClaimInput,
     ): Promise<FudabaClaimCreateResult>;
@@ -1027,6 +1041,21 @@ export interface FudabaRepository {
     completeCardClaimReview(
         input: CompleteFudabaClaimReviewInput,
     ): Promise<FudabaClaimReviewResult>;
+    createCardSupplementForOwner(
+        input: CreateFudabaCardSupplementInput,
+    ): Promise<FudabaSupplementCreateResult>;
+    findCardSupplement(
+        supplementId: string,
+    ): Promise<{
+        supplement: FudabaCardSupplementRecord;
+        live: FudabaCardRecord;
+    } | null>;
+    listAdminPendingSupplements(
+        limit: number,
+    ): Promise<FudabaCardSupplementRecord[]>;
+    completeCardSupplementReview(
+        input: CompleteFudabaSupplementReviewInput,
+    ): Promise<FudabaSupplementReviewResult>;
     placeOwnedCard(input: {
         officeId: string;
         cardId: string;

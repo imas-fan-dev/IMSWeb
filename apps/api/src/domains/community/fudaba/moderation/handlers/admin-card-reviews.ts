@@ -1,12 +1,30 @@
 import type {
     // pi-lens-ignore: ts:2305
+    AdminCardSupplementDetailResponse,
+    // pi-lens-ignore: ts:2305
     FudabaAdminCardClaimListResponse,
     // pi-lens-ignore: ts:2724
-    FudabaRegisteredCardReviewListResponse
+    FudabaRegisteredCardReviewListResponse,
+    // pi-lens-ignore: ts:2305
+    FudabaCardClaimError,
+    // pi-lens-ignore: ts:2305
+    ReviewQueueListResponse,
+    // pi-lens-ignore: ts:2305
+    ReviewQueueRow,
+    // pi-lens-ignore: ts:2305
+    SupplementListResponse,
+    // pi-lens-ignore: ts:2305
+    SupplementMutationResponse
 } from '@imsweb/contracts/fudaba/card-claims';
+import { adminNamecardMediaPath } from '@imsweb/contracts/paths';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { parseCardReview } from '@/domains/community/fudaba/moderation/request';
+import {
+    parseCardReview,
+    parseCardSupplementReview,
+    parseReviewQueueQuery
+} from '@/domains/community/fudaba/moderation/request';
+import { fudabaCardSupplementView } from '@/domains/community/fudaba/claims/response';
 import { fudabaAdminCardClaimView, fudabaRegisteredCardReviewView } from '@/domains/community/fudaba/moderation/response';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import {
@@ -15,6 +33,8 @@ import {
     services
 } from '@/middleware/hono-context';
 import type { ObjectStorage } from '@/ports/object-storage';
+import { namecardMediaPath } from '@imsweb/contracts/paths';
+import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
 import type { FudabaAdminCardClaimRecord } from '@/ports/repositories';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -31,6 +51,28 @@ import {
 interface CreatedObject {
     key: string;
     ownerToken: string;
+}
+
+/** Legacy cards keep bare object keys, so the queue resolves them to URLs. */
+async function legacyMediaUrl(
+    storage: ObjectStorage | undefined,
+    key: string | null,
+    legacyCardId: number,
+    side: 'front' | 'back'
+): Promise<string> {
+    const fallback = namecardMediaPath(legacyCardId, side);
+    if (!storage || !key) return fallback;
+    return resolvePublicObjectUrl(storage, key, fallback);
+}
+
+/** The queue merges three lists in memory, so each one is read in full. */
+const QUEUE_FETCH_LIMIT = 200;
+
+/** The search box filters every queue kind on the name the card carries. */
+function rowProducerName(row: ReviewQueueRow): string {
+    if (row.type === 'submission') return row.review.card.producerName;
+    if (row.type === 'claim') return row.claim.claimant.displayName;
+    return row.card.producerName ?? '';
 }
 
 async function jsonBody(c: Context<AppEnvironment>): Promise<unknown> {
@@ -236,6 +278,214 @@ export async function handleServeFudabaRegisteredCardReviewMedia(
     return response ?? c.text('Not Found', 404);
 }
 
+export async function handleListFudabaCardSupplements(
+    c: Context<AppEnvironment>
+): Promise<Response> {
+    try {
+        const supplements = await fudabaRepository(c).listAdminPendingSupplements(100);
+        return c.json({
+            items: supplements.map(fudabaCardSupplementView)
+        } satisfies SupplementListResponse);
+    } catch (error) {
+        console.error('Failed to list card supplements', error);
+        return c.json({
+            success: false,
+            code: 'FUDABA_CARD_SUPPLEMENT_LIST_FAILED',
+            message: '资料补充审核列表加载失败'
+        }, 500);
+    }
+}
+
+export async function handleGetFudabaCardSupplement(
+    c: Context<AppEnvironment>
+): Promise<Response> {
+    const supplementId = c.req.param('supplementId') || '';
+    if (!validFudabaCardId(supplementId)) {
+        return c.json({ success: false, code: 'FUDABA_CARD_SUPPLEMENT_NOT_FOUND' }, 404);
+    }
+    try {
+        const found = await fudabaRepository(c).findCardSupplement(supplementId);
+        if (!found) {
+            return c.json({ success: false, code: 'FUDABA_CARD_SUPPLEMENT_NOT_FOUND' }, 404);
+        }
+        return c.json({
+            success: true,
+            supplement: fudabaCardSupplementView(found.supplement),
+            live: {
+                producerName: found.live.producer_name,
+                groupName: found.live.group_name,
+                seriesCodes: found.live.series_codes,
+                favoriteCharacters: found.live.favorite_characters.map(
+                    (character) => ({
+                        id: character.character_id,
+                        name: character.name_cn
+                    })
+                )
+            }
+        } satisfies AdminCardSupplementDetailResponse);
+    } catch (error) {
+        console.error('Failed to read card supplement', error);
+        return c.json({
+            success: false,
+            code: 'FUDABA_CARD_SUPPLEMENT_READ_FAILED',
+            message: '资料补充加载失败'
+        }, 500);
+    }
+}
+
+export async function handleReviewFudabaCardSupplement(
+    c: Context<AppEnvironment>
+): Promise<Response> {
+    const supplementId = c.req.param('supplementId') || '';
+    if (!validFudabaCardId(supplementId)) {
+        return c.json({ success: false, code: 'FUDABA_CARD_SUPPLEMENT_NOT_FOUND' }, 404);
+    }
+    try {
+        const body = parseCardSupplementReview(await jsonBody(c));
+        const now = new Date().toISOString();
+        const actor = c.get('backofficeUser')!;
+        const result = await fudabaRepository(c).completeCardSupplementReview({
+            supplementId,
+            decision: body.decision,
+            expectedRevision: body.expectedRevision,
+            reviewNote: body.note,
+            reviewedAt: now,
+            reviewedBy: actor.id,
+            audit: audit(
+                c,
+                body.decision === 'approve' ? 'approve-card-supplement' : 'reject-card-supplement',
+                `card-supplement:${supplementId}`,
+                now
+            ),
+            contributionId: crypto.randomUUID(),
+            contributionPoints: body.decision === 'approve' ? 1 : 0
+        });
+        if (result.status === 'unavailable') {
+            return c.json({ success: false, code: 'FUDABA_CARD_SUPPLEMENT_NOT_FOUND' }, 404);
+        }
+        if (result.status === 'conflict') {
+            return c.json({
+                success: false,
+                code: 'FUDABA_CARD_SUPPLEMENT_CONFLICT',
+                revision: result.revision,
+                state: result.state
+            } satisfies FudabaCardClaimError, 409);
+        }
+        return c.json({
+            success: true,
+            supplement: fudabaCardSupplementView(result.supplement)
+        } satisfies SupplementMutationResponse);
+    } catch (error) {
+        const status = statusFromError(error);
+        if (status >= 500) console.error('Failed to review card supplement', error);
+        return c.json({
+            success: false,
+            code: status >= 500
+                ? 'FUDABA_CARD_SUPPLEMENT_REVIEW_FAILED'
+                : 'FUDABA_CARD_SUPPLEMENT_REVIEW_INVALID',
+            message: status >= 500 ? '资料补充审核失败' : messageFromError(error)
+        }, status as 400 | 500);
+    }
+}
+
+export async function handleListFudabaReviewQueue(
+    c: Context<AppEnvironment>
+): Promise<Response> {
+    try {
+        const { type, query, page, pageSize } = parseReviewQueueQuery(c.req.query());
+        const repository = fudabaRepository(c);
+        const rows: ReviewQueueRow[] = [];
+        if (type === null || type === 'submission') {
+            for (const card of await repository.listAdminPendingCards(QUEUE_FETCH_LIMIT)) {
+                rows.push({
+                    type: 'submission',
+                    submittedAt: card.review_submitted_at ?? card.created_at,
+                    review: fudabaRegisteredCardReviewView(card)
+                });
+            }
+        }
+        if (type === null || type === 'claim') {
+            const storage = services(c).storage;
+            for (const claim of await repository.listAdminPendingClaims(QUEUE_FETCH_LIMIT)) {
+                const view = fudabaAdminCardClaimView(claim);
+                rows.push({
+                    type: 'claim',
+                    submittedAt: claim.created_at,
+                    claim: {
+                        ...view,
+                        // The claim still stores the legacy object keys; the
+                        // admin console needs deliverable URLs.
+                        legacyCard: {
+                            id: view.legacyCard.id,
+                            frontImageUrl: await legacyMediaUrl(
+                                storage,
+                                view.legacyCard.frontImageUrl,
+                                view.legacyCard.id,
+                                'front'
+                            ),
+                            backImageUrl: await legacyMediaUrl(
+                                storage,
+                                view.legacyCard.backImageUrl,
+                                view.legacyCard.id,
+                                'back'
+                            )
+                        }
+                    }
+                });
+            }
+        }
+        if (type === null || type === 'supplement') {
+            for (const supplement of await repository.listAdminPendingSupplements(QUEUE_FETCH_LIMIT)) {
+                rows.push({
+                    type: 'supplement',
+                    submittedAt: supplement.created_at,
+                    card: {
+                        id: supplement.card_id,
+                        cardNumber: supplement.card_number,
+                        producerName: supplement.card_producer_name,
+                        frontImageUrl: adminNamecardMediaPath(
+                            supplement.card_id,
+                            'live',
+                            'front'
+                        ),
+                        pageCount: supplement.card_page_count
+                    },
+                    supplement: fudabaCardSupplementView(supplement)
+                });
+            }
+        }
+        // One queue, oldest first: the review desk works top to bottom.
+        rows.sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+        const needle = query.toLocaleLowerCase();
+        const matched = needle
+            ? rows.filter((row) => rowProducerName(row).toLocaleLowerCase().includes(needle))
+            : rows;
+        const start = (page - 1) * pageSize;
+        const total = matched.length;
+        return c.json({
+            success: true,
+            data: matched.slice(start, start + pageSize),
+            pageInfo: {
+                page,
+                pageSize,
+                total,
+                totalPages: Math.ceil(total / pageSize),
+                hasNextPage: start + pageSize < total
+            }
+        } satisfies ReviewQueueListResponse);
+    } catch (error) {
+        const status = statusFromError(error);
+        if (status >= 500) console.error('Failed to list the review queue', error);
+        return c.json({
+            success: false,
+            code: status >= 500
+                ? 'FUDABA_REVIEW_QUEUE_FAILED'
+                : 'FUDABA_REVIEW_QUEUE_INVALID',
+            message: status >= 500 ? '审核队列加载失败' : messageFromError(error)
+        }, status as 400 | 500);
+    }
+}
+
 export async function handleListFudabaCardClaimReviews(
     c: Context<AppEnvironment>
 ): Promise<Response> {
@@ -352,42 +602,26 @@ export async function handleReviewFudabaCardClaim(
             result = await repository.completeCardClaimReview({
                 ...base,
                 decision: 'approve',
-                target: { kind: 'existing', cardId: context.target_card_id }
+                media: null
             });
         } else {
             const storage = services(c).storage;
             if (!storage?.publish) throw new Error('Object publication unavailable');
-            // The legacy card is already the ownerless fudaba_cards row
-            // 'legacy-<id>'; the review binds it in place rather than
-            // minting a new row, so media moves into that same identity
-            // instead of an unrelated random one.
+            // The legacy card is already the ownerless fudaba_cards row, so
+            // the review upgrades it in place; only the artwork has to move
+            // to owner-owned objects because the owner media route serves
+            // protected keys.
             const boundCardId = `legacy-${context.legacy_card_id}`;
-            createdCardId = boundCardId;
             await copyLegacyMedia(storage, context, boundCardId, created);
             await Promise.all(created.map(({ key }) => storage.publish!(key)));
             completionAttempted = true;
             result = await repository.completeCardClaimReview({
                 ...base,
                 decision: 'approve',
-                target: {
-                    kind: 'create',
-                    card: {
-                        id: boundCardId,
-                        producerName: context.claimant_display_name,
-                        producerReading: null,
-                        seriesCode: context.series_code,
-                        frontObjectKey: created[0]!.key,
-                        backObjectKey: created[1]?.key ?? null,
-                        accent: '#dc2626',
-                        bio: '',
-                        tradeNote: '',
-                        exchangeMode: 'none',
-                        madeOn: null,
-                        groupName: null,
-                        isOriginal: false,
-                        madeWithAi: false,
-                        visible: true
-                    }
+                media: {
+                    frontObjectKey: created[0]!.key,
+                    backObjectKey: created[1]?.key ?? null,
+                    accent: null
                 }
             });
         }

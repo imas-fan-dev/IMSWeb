@@ -7,7 +7,13 @@ import { NAMECARD_SERIES_LIMIT } from "@imsweb/contracts/fudaba/runtime"
 import { Badge } from "~/components/ui/badge"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
-import type { FudabaSeries } from "~/lib/api"
+
+/** 只需要这三个字段，调用方可以只拿企划目录的投影。 */
+export interface SeriesOption {
+  code: string
+  displayName: string
+  color: string
+}
 
 /**
  * A card may sit in several series at once (a crossover print, a set spanning
@@ -24,7 +30,7 @@ export function SeriesMultiSelect({
   onChange,
 }: {
   id: string
-  series: readonly FudabaSeries[]
+  series: readonly SeriesOption[]
   selectedCodes: readonly string[]
   /** Series of the selected characters; those cannot be unchecked. */
   lockedCodes?: readonly string[]

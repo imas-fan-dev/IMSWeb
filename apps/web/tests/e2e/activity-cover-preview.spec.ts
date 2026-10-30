@@ -137,6 +137,7 @@ test.describe("activity cover preview", () => {
           seriesCode: null,
           favoriteCharacters: [],
           claimStatus: "unclaimed",
+          supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
           image1_url: coverUrl,

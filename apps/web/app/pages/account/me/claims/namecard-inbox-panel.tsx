@@ -2,16 +2,17 @@ import {
   CheckIcon,
   ChevronRightIcon,
   CircleAlertIcon,
+  IdCardIcon,
   LoaderCircleIcon,
   MailIcon,
-  XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
+import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Dialog,
   DialogBody,
@@ -22,44 +23,24 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog"
 import {
-  getFudabaClaimEnvelopes,
   getNamecardNotifications,
-  isApiError,
   markNamecardNotificationsRead,
-  respondFudabaClaimEnvelope,
-  type FudabaClaimEnvelope,
 } from "~/lib/api"
 import { setNamecardUnread } from "~/lib/use-namecard-unread"
 import type { NamecardNotification } from "@imsweb/contracts/fudaba/card-claims"
 
-interface InboxEntry {
-  kind: "notification" | "claim"
-  key: string
-  at: string
-  read: boolean
-  title: string
-  body: string
-  notificationId: string | null
-  envelope: FudabaClaimEnvelope | null
-}
-
 interface InboxDetail {
-  key: string
   title: string
   at: string
   body: string
-  notificationId: string | null
-  envelope: FudabaClaimEnvelope | null
+  cardNumber: number | null
 }
 
-export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
-  const [items, setItems] = useState<FudabaClaimEnvelope[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [busyId, setBusyId] = useState<string | null>(null)
+export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
   const [notifications, setNotifications] = useState<NamecardNotification[]>([])
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [notificationsLoading, setNotificationsLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [markingRead, setMarkingRead] = useState(false)
   const [readingId, setReadingId] = useState<string | null>(null)
   const [detail, setDetail] = useState<InboxDetail | null>(null)
@@ -76,6 +57,7 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
       })
       .catch(() => {
         // Signed out or offline: keep the message panel usable.
+        if (active) setLoadFailed(true)
       })
       .finally(() => {
         if (active) setNotificationsLoading(false)
@@ -130,113 +112,22 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
   }
 
   /** 打开详情即视为读过：正文比列表里的摘要长得多，看完就算送达。 */
-  function openDetail(entry: InboxEntry) {
+  function openDetail(entry: NamecardNotification) {
     setDetail({
-      key: entry.key,
       title: entry.title,
-      at: entry.at,
+      at: entry.createdAt,
       body: entry.body,
-      notificationId: entry.notificationId,
-      envelope: entry.envelope,
+      cardNumber: entry.cardNumber,
     })
-    if (entry.notificationId !== null && !entry.read) {
-      void markOneRead(entry.notificationId)
+    if (!entry.readAt) {
+      void markOneRead(entry.id)
     }
   }
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(false)
-    try {
-      const result = await getFudabaClaimEnvelopes().send()
-      setItems(result.items)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    void getFudabaClaimEnvelopes()
-      .send()
-      .then((result) => {
-        if (active) setItems(result.items)
-      })
-      .catch(() => {
-        if (active) setError(true)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
-
-  async function respond(
-    envelope: FudabaClaimEnvelope,
-    decision: "confirm" | "decline"
-  ) {
-    if (busyId || readOnly) return
-    setBusyId(envelope.id)
-    try {
-      const result = await respondFudabaClaimEnvelope(
-        envelope.id,
-        decision,
-        envelope.revision
-      ).send()
-      setItems((current) =>
-        current.map((item) =>
-          item.id === result.envelope.id ? result.envelope : item
-        )
-      )
-      toast.success(
-        decision === "confirm"
-          ? "已确认本人名片，认领申请等待管理员审核"
-          : "已拒绝这次名片匹配"
-      )
-    } catch (responseError) {
-      toast.error(
-        isApiError(responseError)
-          ? responseError.message
-          : "信封处理失败，请刷新后重试"
-      )
-      if (isApiError(responseError) && responseError.status === 409) {
-        await load()
-      }
-    } finally {
-      setBusyId(null)
-    }
+  /** 同号名片提示把用户带回名片墙，认领窗口在那张卡自己的详情里。 */
+  function claimHref(cardNumber: number) {
+    return `/community/cards?card=${encodeURIComponent(String(cardNumber))}`
   }
-
-  const feed: InboxEntry[] = [
-    ...notifications.map((item) => ({
-      kind: "notification" as const,
-      key: item.id,
-      at: item.createdAt,
-      read: item.readAt !== null,
-      title: item.title,
-      body: item.body,
-      notificationId: item.id,
-      envelope: null,
-    })),
-    ...items
-      .filter((item) => item.actionState === "pending")
-      .map((item) => ({
-        kind: "claim" as const,
-        key: item.id,
-        at: item.createdAt,
-        read: false,
-        title: item.title,
-        body: item.body,
-        notificationId: null,
-        envelope: item,
-      })),
-  ].sort((left, right) =>
-    left.at < right.at ? 1 : left.at > right.at ? -1 : 0
-  )
 
   return (
     <section aria-labelledby="claim-inbox-title">
@@ -270,13 +161,13 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
           ) : null}
         </div>
 
-        {error ? (
+        {loadFailed && !notificationsLoading ? (
           <Alert variant="destructive" className="mt-4">
             <CircleAlertIcon aria-hidden="true" />
             <AlertTitle>消息读取失败</AlertTitle>
             <AlertDescription>请刷新后重试。</AlertDescription>
           </Alert>
-        ) : loading || notificationsLoading ? (
+        ) : notificationsLoading ? (
           <div
             className="mt-4 flex h-16 items-center text-sm text-muted-foreground"
             aria-label="正在读取消息"
@@ -287,84 +178,51 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
             />
             正在读取
           </div>
-        ) : feed.length ? (
+        ) : notifications.length ? (
           <div className="mt-4 divide-y rounded-lg border">
-            {feed.map((entry) => {
-              const envelope = entry.envelope
+            {notifications.map((entry) => {
+              const claimable =
+                entry.cardNumber !== null && entry.kind === "legacy-card-match"
               return (
                 <div
-                  key={entry.key}
-                  className={entry.read ? "p-4" : "bg-primary/5 p-4"}
+                  key={entry.id}
+                  className={entry.readAt ? "p-4" : "bg-primary/5 p-4"}
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-medium">{entry.title}</h3>
                     <span className="text-xs text-muted-foreground">
-                      {entry.at.slice(0, 16).replace("T", " ")}
+                      {entry.createdAt.slice(0, 16).replace("T", " ")}
                     </span>
-                    {entry.notificationId !== null ? (
-                      entry.read ? null : (
-                        <Badge variant="secondary">未读</Badge>
-                      )
-                    ) : (
-                      <Badge variant="outline">待处理</Badge>
+                    {entry.readAt ? null : (
+                      <Badge variant="secondary">未读</Badge>
                     )}
                   </div>
                   <p className="mt-1 line-clamp-2 text-sm wrap-break-word whitespace-pre-wrap text-muted-foreground">
                     {entry.body}
                   </p>
-                  {envelope ? (
-                    <p className="mt-2 font-mono text-xs text-muted-foreground">
-                      历史名片 #{envelope.legacyCardId} · 注册名片{" "}
-                      {envelope.cardId}
-                    </p>
-                  ) : null}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {envelope ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={readOnly || busyId !== null}
-                          onClick={() => void respond(envelope, "confirm")}
-                        >
-                          {busyId === envelope.id ? (
-                            <LoaderCircleIcon
-                              data-icon="inline-start"
-                              className="animate-spin motion-reduce:animate-none"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <CheckIcon
-                              data-icon="inline-start"
-                              aria-hidden="true"
-                            />
-                          )}
-                          是本人名片
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={readOnly || busyId !== null}
-                          onClick={() => void respond(envelope, "decline")}
-                        >
-                          <XIcon data-icon="inline-start" aria-hidden="true" />
-                          不是本人名片
-                        </Button>
-                      </>
+                    {claimable ? (
+                      <NavigationLink
+                        to={claimHref(entry.cardNumber!)}
+                        className={buttonVariants({
+                          size: "sm",
+                          className: "h-7 px-2.5 text-[0.8rem]",
+                        })}
+                      >
+                        <IdCardIcon className="size-3.5" aria-hidden="true" />
+                        去认领
+                      </NavigationLink>
                     ) : null}
                     <div className="ml-auto flex items-center gap-2">
-                      {entry.notificationId !== null && !entry.read ? (
+                      {entry.readAt ? null : (
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          disabled={readingId !== null}
-                          onClick={() =>
-                            void markOneRead(entry.notificationId!)
-                          }
+                          disabled={readOnly || readingId !== null}
+                          onClick={() => void markOneRead(entry.id)}
                         >
-                          {readingId === entry.notificationId ? (
+                          {readingId === entry.id ? (
                             <LoaderCircleIcon
                               data-icon="inline-start"
                               className="animate-spin motion-reduce:animate-none"
@@ -378,7 +236,7 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
                           )}
                           标为已读
                         </Button>
-                      ) : null}
+                      )}
                       <Button
                         type="button"
                         size="sm"
@@ -426,34 +284,14 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
             </div>
           </DialogBody>
           <DialogFooter>
-            {detail?.envelope ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={readOnly || busyId !== null}
-                  onClick={() => {
-                    const envelope = detail.envelope
-                    setDetail(null)
-                    if (envelope) void respond(envelope, "decline")
-                  }}
-                >
-                  <XIcon data-icon="inline-start" aria-hidden="true" />
-                  不是本人名片
-                </Button>
-                <Button
-                  type="button"
-                  disabled={readOnly || busyId !== null}
-                  onClick={() => {
-                    const envelope = detail.envelope
-                    setDetail(null)
-                    if (envelope) void respond(envelope, "confirm")
-                  }}
-                >
-                  <CheckIcon data-icon="inline-start" aria-hidden="true" />
-                  是本人名片
-                </Button>
-              </>
+            {detail?.cardNumber ? (
+              <NavigationLink
+                to={claimHref(detail.cardNumber)}
+                className={buttonVariants({ variant: "outline" })}
+                onClick={() => setDetail(null)}
+              >
+                查看名片
+              </NavigationLink>
             ) : null}
             <Button
               type="button"

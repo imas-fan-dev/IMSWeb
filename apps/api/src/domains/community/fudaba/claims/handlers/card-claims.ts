@@ -1,17 +1,17 @@
 import type {
     // pi-lens-ignore: ts:2305
-    FudabaClaimEnvelopeListResponse,
+    FudabaCardClaimError,
     // pi-lens-ignore: ts:2305
     FudabaClaimMutationResponse,
     // pi-lens-ignore: ts:2305
-    FudabaEnvelopeMutationResponse,
+    FudabaOwnerClaimListResponse,
     // pi-lens-ignore: ts:2305
-    FudabaOwnerClaimListResponse
+    SupplementMutationResponse
 } from '@imsweb/contracts/fudaba/card-claims';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { parseEnvelopeAction, parseLegacyCardClaim, parseLegacyCardId } from '@/domains/community/fudaba/claims/request';
-import { fudabaClaimEnvelopeView } from '@/domains/community/fudaba/claims/response';
+import { parseCardSupplementPayload, parseLegacyCardClaim, parseLegacyCardId } from '@/domains/community/fudaba/claims/request';
+import { fudabaCardSupplementView } from '@/domains/community/fudaba/claims/response';
 import { fudabaCardClaimView } from '@/domains/community/fudaba/contracts/claim';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import { fudabaRepository } from '@/middleware/hono-context';
@@ -21,129 +21,6 @@ async function jsonBody(c: Context<AppEnvironment>): Promise<unknown> {
     return c.req.json().catch(() => {
         throw Object.assign(new Error('请求体必须是有效 JSON'), { status: 400 });
     });
-}
-
-function envelopeId(value: string): number | null {
-    if (!/^[1-9]\d*$/.test(value)) return null;
-    const id = Number(value);
-    return Number.isSafeInteger(id) ? id : null;
-}
-
-export async function handleListFudabaClaimEnvelopes(
-    c: Context<AppEnvironment>
-): Promise<Response> {
-    try {
-        const repository = fudabaRepository(c);
-        await repository.ensureSameIdLegacyCardEnvelopes({
-            title: '这张旧名片是您的吗？',
-            body: '检测到旧名片与您的注册名片 ID 相同。确认后将提交管理员审核，审核通过后才会绑定。',
-            createdAt: new Date().toISOString()
-        });
-        const items = await repository.listClaimEnvelopesForOwner(
-            c.get('platformUser')!.id,
-            100
-        );
-        return c.json({
-            items: items.map(fudabaClaimEnvelopeView)
-        } satisfies FudabaClaimEnvelopeListResponse);
-    } catch (error) {
-        console.error('Failed to list Fudaba claim envelopes', error);
-        return c.json({
-            success: false,
-            code: 'FUDABA_CLAIM_ENVELOPE_LIST_FAILED',
-            message: '认领信封加载失败'
-        }, 500);
-    }
-}
-
-export async function handleRespondFudabaClaimEnvelope(
-    c: Context<AppEnvironment>
-): Promise<Response> {
-    try {
-        const id = envelopeId(c.req.param('envelopeId') || '');
-        if (!id) {
-            return c.json({ success: false, code: 'FUDABA_CLAIM_ENVELOPE_NOT_FOUND' }, 404);
-        }
-        const action = parseEnvelopeAction(await jsonBody(c));
-        const repository = fudabaRepository(c);
-        const accountId = c.get('platformUser')!.id;
-        if (action.decision === 'decline') {
-            const result = await repository.actionClaimEnvelope({
-                envelopeId: id,
-                recipientAccountId: accountId,
-                action: 'decline',
-                expectedRevision: action.expectedRevision,
-                actionedAt: new Date().toISOString()
-            });
-            if (result.status === 'unavailable') {
-                return c.json({ success: false, code: 'FUDABA_CLAIM_ENVELOPE_NOT_FOUND' }, 404);
-            }
-            if (result.status === 'conflict') {
-                return c.json({
-                    success: false,
-                    code: 'FUDABA_CLAIM_ENVELOPE_CONFLICT',
-                    revision: result.revision
-                }, 409);
-            }
-            return c.json({
-                success: true,
-                envelope: fudabaClaimEnvelopeView(result.envelope),
-                claim: null
-            } satisfies FudabaEnvelopeMutationResponse);
-        }
-
-        const envelopes = await repository.listClaimEnvelopesForOwner(accountId, 100);
-        const envelope = envelopes.find((candidate) => candidate.id === id);
-        if (!envelope) {
-            return c.json({ success: false, code: 'FUDABA_CLAIM_ENVELOPE_NOT_FOUND' }, 404);
-        }
-        const targetCardId = String(envelope.legacy_card_id);
-        const target = validFudabaCardId(targetCardId)
-            ? await repository.findCardForOwner(targetCardId, accountId)
-            : null;
-        if (!target || target.favorite_characters.length < 1) {
-            return c.json({ success: false, code: 'FUDABA_CLAIM_TARGET_UNAVAILABLE' }, 409);
-        }
-        const now = new Date().toISOString();
-        const result = await repository.confirmLegacyCardEnvelope({
-            id: crypto.randomUUID(),
-            envelopeId: id,
-            recipientAccountId: accountId,
-            targetCardId,
-            seriesCode: target.series_codes[0] ?? '',
-            characterIds: target.favorite_characters.map((character) => character.character_id),
-            message: '同 ID 旧名片身份确认',
-            expectedRevision: action.expectedRevision,
-            actionedAt: now,
-            createdAt: now,
-            updatedAt: now
-        });
-        if (result.status === 'unavailable') {
-            return c.json({ success: false, code: 'FUDABA_CLAIM_ENVELOPE_NOT_FOUND' }, 404);
-        }
-        if (result.status === 'conflict') {
-            return c.json({
-                success: false,
-                code: 'FUDABA_CLAIM_ENVELOPE_CONFLICT',
-                revision: result.revision
-            }, 409);
-        }
-        return c.json({
-            success: true,
-            envelope: fudabaClaimEnvelopeView(result.envelope),
-            claim: fudabaCardClaimView(result.claim)
-        } satisfies FudabaEnvelopeMutationResponse);
-    } catch (error) {
-        const status = statusFromError(error);
-        if (status >= 500) console.error('Failed to respond to claim envelope', error);
-        return c.json({
-            success: false,
-            code: status >= 500
-                ? 'FUDABA_CLAIM_ENVELOPE_ACTION_FAILED'
-                : 'FUDABA_CLAIM_ENVELOPE_INVALID',
-            message: status >= 500 ? '认领信封处理失败' : messageFromError(error)
-        }, status as 400 | 500);
-    }
 }
 
 export async function handleListFudabaOwnerCardClaims(
@@ -167,6 +44,79 @@ export async function handleListFudabaOwnerCardClaims(
     }
 }
 
+export async function handleCreateFudabaCardSupplement(
+    c: Context<AppEnvironment>
+): Promise<Response> {
+    try {
+        const cardId = c.req.param('cardId') || '';
+        if (!validFudabaCardId(cardId)) {
+            return c.json(
+                { success: false, code: 'FUDABA_CARD_NOT_FOUND' },
+                404
+            );
+        }
+        const payload = parseCardSupplementPayload(await jsonBody(c));
+        const now = new Date().toISOString();
+        const result = await fudabaRepository(c).createCardSupplementForOwner({
+            id: crypto.randomUUID(),
+            cardId,
+            submitterAccountId: c.get('platformUser')!.id,
+            payload,
+            createdAt: now,
+            updatedAt: now
+        });
+        if (result.status === 'unchanged') {
+            return c.json(
+                {
+                    success: false,
+                    code: 'FUDABA_CARD_SUPPLEMENT_UNCHANGED',
+                    message: '补充的资料和现在的名片一致，不用提交'
+                },
+                409
+            );
+        }
+        if (result.status === 'unavailable') {
+            return c.json(
+                { success: false, code: 'FUDABA_CARD_SUPPLEMENT_UNAVAILABLE' },
+                404
+            );
+        }
+        if (result.status === 'conflict') {
+            return c.json(
+                {
+                    success: false,
+                    code: 'FUDABA_CARD_SUPPLEMENT_CONFLICT',
+                    supplementId: result.supplementId,
+                    state: result.state
+                } satisfies FudabaCardClaimError,
+                409
+            );
+        }
+        return c.json(
+            {
+                success: true,
+                supplement: fudabaCardSupplementView(result.supplement)
+            } satisfies SupplementMutationResponse,
+            201
+        );
+    } catch (error) {
+        const status = statusFromError(error);
+        if (status >= 500)
+            console.error('Failed to create card supplement', error);
+        return c.json(
+            {
+                success: false,
+                code:
+                    status >= 500
+                        ? 'FUDABA_CARD_SUPPLEMENT_FAILED'
+                        : 'FUDABA_CARD_SUPPLEMENT_INVALID',
+                message: status >= 500 ? '资料补充提交失败' : messageFromError(error)
+            },
+            status as 400 | 500
+        );
+    }
+}
+
 export async function handleCreateFudabaLegacyCardClaim(
     c: Context<AppEnvironment>
 ): Promise<Response> {
@@ -179,8 +129,7 @@ export async function handleCreateFudabaLegacyCardClaim(
             legacyCardId,
             claimantAccountId: c.get('platformUser')!.id,
             targetCardId: input.targetCardId,
-            seriesCode: input.seriesCode,
-            characterIds: input.favoriteCharacterIds,
+            payload: input.payload,
             message: input.message,
             createdAt: now,
             updatedAt: now

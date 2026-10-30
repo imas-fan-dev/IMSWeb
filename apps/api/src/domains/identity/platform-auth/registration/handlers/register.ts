@@ -7,7 +7,11 @@ import {
 } from "@/domains/identity/platform-auth/contracts/session";
 import { clearPlatformEmailVerificationCooldown } from "@/domains/identity/platform-auth/registration/email-verification-cache";
 import { hashPlatformEmailVerificationCode } from "@/domains/identity/platform-auth/registration/email-verification";
-import { platformAccountRepository, services } from "@/middleware/hono-context";
+import {
+    fudabaRepository,
+    platformAccountRepository,
+    services,
+} from "@/middleware/hono-context";
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { randomHex } from "@/utils/crypto/random";
 
@@ -87,6 +91,15 @@ export async function handlePlatformRegister(
         services(c).cache,
         input.email,
     );
+    // A wall card may already carry this display name; the notice is a
+    // courtesy, so it must never fail a registration that already committed.
+    try {
+        await fudabaRepository(c).notifyLegacyCardMatchesForAccount(
+            result.identity.account.id,
+        );
+    } catch (error) {
+        console.error('Failed to notify legacy card matches', error);
+    }
     const tokens = await establishPlatformSession(c, result.identity);
     if (!tokens) {
         return c.json(

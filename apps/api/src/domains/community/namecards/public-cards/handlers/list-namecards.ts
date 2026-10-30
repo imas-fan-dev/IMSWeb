@@ -38,7 +38,8 @@ export async function handleListNamecards(
                     ...card,
                     claim_status: status?.claim_status,
                     viewer_claim_state: status?.viewer_claim_state,
-                    claimer_name: status?.claimer_name
+                    claimer_name: status?.claimer_name,
+                    supplement_pending: status?.supplement_pending ?? false
                 },
                 c.get('platformUser')?.id ?? null
             );

@@ -381,6 +381,7 @@ export function NamecardDetailDialog({
   onOpenChange,
   onOpenPreview,
   onClaim,
+  onSupplement,
   onReact,
   onReturnFocus,
 }: {
@@ -393,6 +394,7 @@ export function NamecardDetailDialog({
   onOpenChange: (open: boolean) => void
   onOpenPreview: (side: NamecardSide, trigger: HTMLButtonElement) => void
   onClaim: (card: Namecard) => void
+  onSupplement: (card: Namecard) => void
   onReact: (emoji: string) => Promise<boolean>
   onReturnFocus: () => void
 }) {
@@ -467,6 +469,11 @@ export function NamecardDetailDialog({
   // Ownership is the real gate: a claimed card keeps the queue actions out of
   // the footer even while its claim request is still being reviewed.
   const unclaimed = card ? !card.hasOwner : false
+  // 认领优先于补充：认领审核期间这张卡不再接受补充，也不接受第二份认领。
+  const claimBlocked = card ? card.claimStatus !== "unclaimed" : true
+  const supplementBlocked = card
+    ? card.claimStatus !== "unclaimed" || card.supplementPending
+    : true
   const active = slides[Math.min(activeSlide, Math.max(slides.length - 1, 0))]
 
   return (
@@ -714,8 +721,17 @@ export function NamecardDetailDialog({
                 type="button"
                 variant="secondary"
                 className="min-h-11"
-                disabled
-                title="暂未开放"
+                disabled={!canClaim || supplementBlocked}
+                title={
+                  card?.claimStatus === "pending"
+                    ? "这张名片正在认领审核，认领优先于补充"
+                    : card?.supplementPending
+                      ? "这张名片已有一份补充在审核"
+                      : undefined
+                }
+                onClick={() => {
+                  if (card) onSupplement(card)
+                }}
               >
                 <PlusIcon aria-hidden="true" />
                 补充
@@ -726,7 +742,12 @@ export function NamecardDetailDialog({
                 type="button"
                 variant="secondary"
                 className="min-h-11 bg-foreground text-background hover:bg-foreground/85"
-                disabled={!canClaim}
+                disabled={!canClaim || claimBlocked}
+                title={
+                  card?.claimStatus === "pending"
+                    ? "这张名片已经有一份认领在审核"
+                    : undefined
+                }
                 onClick={() => {
                   if (card) onClaim(card)
                 }}

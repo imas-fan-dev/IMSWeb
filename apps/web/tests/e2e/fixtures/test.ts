@@ -1,6 +1,9 @@
 import { test as base } from "@playwright/test"
 import { fudabaSeriesListSchema } from "@imsweb/contracts/fudaba"
-import { namecardNotificationListResponseSchema } from "@imsweb/contracts/fudaba/card-claims"
+import {
+  namecardNotificationListResponseSchema,
+  type NamecardNotification,
+} from "@imsweb/contracts/fudaba/card-claims"
 import { exchangePath } from "@imsweb/contracts/paths"
 
 import { ApiDispatcher } from "./api-dispatcher"
@@ -10,7 +13,10 @@ import { ApiDispatcher } from "./api-dispatcher"
  * spec that signs in would otherwise fail on an unregistered request it never
  * cared about. Specs that assert the inbox register their own expectation.
  */
-function installInboxProbe(dispatcher: ApiDispatcher) {
+function installInboxProbe(
+  dispatcher: ApiDispatcher,
+  inbox: NamecardNotification[],
+) {
   dispatcher.expect({
     method: "GET",
     path: exchangePath("/me/notifications"),
@@ -18,7 +24,10 @@ function installInboxProbe(dispatcher: ApiDispatcher) {
     times: { min: 0, max: 1_000 },
     handle: () => ({
       status: 200,
-      json: { items: [], unread: 0 },
+      json: {
+        items: inbox,
+        unread: inbox.filter((item) => item.readAt === null).length,
+      },
     }),
   })
 }
@@ -43,6 +52,8 @@ export type { ApiDispatcher } from "./api-dispatcher"
 
 export type ApiTestOptions = {
   apiOrigins: string[]
+  /** The inbox the shell's unread probe answers with; specs that read it set this. */
+  inboxNotifications: NamecardNotification[]
 }
 
 let activeApi: ApiDispatcher | undefined
@@ -59,13 +70,14 @@ export const api = new Proxy({} as ApiDispatcher, {
 
 export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
   apiOrigins: [[], { option: true }],
+  inboxNotifications: [[], { option: true }],
   api: [
-    async ({ apiOrigins, baseURL, context }, run) => {
+    async ({ apiOrigins, baseURL, context, inboxNotifications }, run) => {
       if (!baseURL)
         throw new Error("Playwright API dispatcher requires baseURL")
       const dispatcher = new ApiDispatcher(baseURL, apiOrigins)
       await dispatcher.install(context)
-      installInboxProbe(dispatcher)
+      installInboxProbe(dispatcher, inboxNotifications)
       installSeriesProbe(dispatcher)
       if (activeApi) {
         await dispatcher.dispose()

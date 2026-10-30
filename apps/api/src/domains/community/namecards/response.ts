@@ -60,6 +60,7 @@ interface NamecardRow {
     claim_status?: unknown;
     viewer_claim_state?: unknown;
     claimer_name?: unknown;
+    supplement_pending?: unknown;
     cardId?: unknown;
     card_number?: unknown;
     group_name?: unknown;
@@ -213,6 +214,7 @@ export function toPublicNamecardResponse(
         seriesCode: responseSeriesCode(row.series_code),
         favoriteCharacters: responseFavoriteCharacters(row.favorite_characters),
         claimStatus: responseClaimStatus(row.claim_status),
+        supplementPending: row.supplement_pending === true,
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
         image1_url: image1Url,
         image2_url: image2Url,

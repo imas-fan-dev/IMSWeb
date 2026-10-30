@@ -1,6 +1,6 @@
 import {
-    fudabaClaimEnvelopeActionRequestSchema,
-    fudabaClaimEnvelopeParamsSchema,
+    fudabaCardSupplementRequestSchema,
+    fudabaCardSupplementSubmitParamsSchema,
     fudabaLegacyCardClaimParamsSchema,
     fudabaLegacyCardClaimRequestSchema,
     namecardNotificationReadRequestSchema,
@@ -9,10 +9,9 @@ import { fudabaIgnoredQuerySchema } from '@imsweb/contracts/fudaba';
 import { activePlatformMutation, platformAuth, platformCsrf } from '@/middleware/hono-auth';
 import { requireFudabaWrite } from '@/domains/community/fudaba/access-policy';
 import {
+    handleCreateFudabaCardSupplement,
     handleCreateFudabaLegacyCardClaim,
-    handleListFudabaClaimEnvelopes,
-    handleListFudabaOwnerCardClaims,
-    handleRespondFudabaClaimEnvelope
+    handleListFudabaOwnerCardClaims
 } from '@/domains/community/fudaba/claims/handlers/card-claims';
 import {
     handleListNamecardNotifications,
@@ -40,12 +39,6 @@ const write = [
 export function fudabaClaimRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
     routes.get(
-        '/me/claim-envelopes',
-        platformAuth,
-        querySchemaValidator(fudabaIgnoredQuerySchema),
-        handleListFudabaClaimEnvelopes
-    );
-    routes.get(
         '/me/card-claims',
         platformAuth,
         querySchemaValidator(fudabaIgnoredQuerySchema),
@@ -70,12 +63,12 @@ export function fudabaClaimRoutes(): ImsCapabilityRouter {
         jsonSchemaValidator(fudabaLegacyCardClaimRequestSchema),
         handleCreateFudabaLegacyCardClaim
     );
-    routes.put(
-        '/me/claim-envelopes/:envelopeId',
+    routes.post(
+        '/cards/:cardId/supplements',
         ...write,
-        paramSchemaValidator(fudabaClaimEnvelopeParamsSchema),
-        jsonSchemaValidator(fudabaClaimEnvelopeActionRequestSchema),
-        handleRespondFudabaClaimEnvelope
+        paramSchemaValidator(fudabaCardSupplementSubmitParamsSchema),
+        jsonSchemaValidator(fudabaCardSupplementRequestSchema),
+        handleCreateFudabaCardSupplement
     );
     return routes;
 }

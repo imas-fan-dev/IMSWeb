@@ -1,12 +1,24 @@
 import { z } from "zod"
-import { backofficeProtectedHttpErrorSchema, exactJsonError, strictRequestObject, successEnvelope } from "../common.js"
+import {
+  backofficeProtectedHttpErrorSchema,
+  exactJsonError,
+  exactJsonResponse,
+  numberedPageInfoSchema,
+  strictRequestObject,
+  successEnvelope,
+} from "../common.js"
+import { namecardDiffSideSchema } from "../namecards.js"
 
 import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
   fudabaCharacterSelectionSchema,
   fudabaOwnerCardSchema,
   fudabaRevisionSchema,
+  namecardProducerReadingSchema,
+  namecardProductionDateSchema,
+  namecardSeriesCodesSchema,
   ownerCardIdSchema,
+  ownerCardRequestTextSchema,
   ownerCardTextSchema,
   seriesCodeSchema,
 } from "./index.js"
@@ -22,20 +34,35 @@ const claimStateSchema = z.enum([
   "cancelled",
 ])
 
-export const fudabaClaimEnvelopeSchema = z
+/**
+ * The wall edits a card through two shorter forms than the owner editor: a
+ * claim carries the six basic fields, a supplement the four that need no
+ * artwork. Both send only what the visitor changed, so every key is optional
+ * and an empty payload is rejected instead of stored as a no-op revision.
+ */
+const claimFieldSchema = {
+  producerName: ownerCardRequestTextSchema(80, true),
+  producerReading: namecardProducerReadingSchema.nullable(),
+  groupName: ownerCardRequestTextSchema(80).nullable(),
+  madeOn: namecardProductionDateSchema.nullable(),
+  seriesCodes: namecardSeriesCodesSchema,
+  favoriteCharacterIds: z
+    .array(z.number().int().positive())
+    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
+    .refine((ids) => new Set(ids).size === ids.length),
+} as const
+
+const filledInAtLeastOnce = (value: object) => Object.keys(value).length > 0
+
+/** 认领记录里的字段快照：空对象表示「只提交归属关系」。 */
+export const fudabaCardClaimPayloadSchema = z
   .object({
-    id: z.string().min(1),
-    legacyCardId: legacyCardIdSchema,
-    cardId: z.string().min(1),
-    kind: z.enum(["legacy-card-match", "claim-approved", "claim-rejected"]),
-    title: z.string().min(1),
-    body: z.string(),
-    actionState: z.enum(["pending", "confirmed", "declined", "none"]),
-    claimId: z.string().min(1).nullable(),
-    revision: revisionSchema,
-    readAt: timestampSchema.nullable(),
-    actedAt: timestampSchema.nullable(),
-    createdAt: timestampSchema,
+    producerName: claimFieldSchema.producerName.optional(),
+    producerReading: claimFieldSchema.producerReading.optional(),
+    groupName: claimFieldSchema.groupName.optional(),
+    madeOn: claimFieldSchema.madeOn.optional(),
+    seriesCodes: claimFieldSchema.seriesCodes.optional(),
+    favoriteCharacterIds: claimFieldSchema.favoriteCharacterIds.optional(),
   })
   .strict()
 
@@ -45,6 +72,8 @@ export const fudabaCardClaimSchema = z
     legacyCardId: legacyCardIdSchema,
     targetCardId: z.string().min(1).nullable(),
     seriesCode: z.string().min(1),
+    /** The fields the claimant touched; omitted keys keep the live value. */
+    payload: fudabaCardClaimPayloadSchema,
     favoriteCharacters: z
       .array(fudabaCharacterSelectionSchema)
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
@@ -58,18 +87,10 @@ export const fudabaCardClaimSchema = z
   })
   .strict()
 
-export const claimEnvelopeListSchema = z
-  .object({ items: z.array(fudabaClaimEnvelopeSchema) })
-  .strict()
 export const ownerClaimListSchema = z
   .object({ items: z.array(fudabaCardClaimSchema) })
   .strict()
 export const claimMutationSchema = successEnvelope({ claim: fudabaCardClaimSchema })
-  .strict()
-export const envelopeMutationSchema = successEnvelope({
-    envelope: fudabaClaimEnvelopeSchema,
-    claim: fudabaCardClaimSchema.nullable(),
-  })
   .strict()
 
 export const fudabaRegisteredCardReviewSchema = z
@@ -111,34 +132,161 @@ export const adminCardClaimListSchema = z
 export const reviewMutationSchema = successEnvelope({ revision: revisionSchema })
   .strict()
 
+/** Supplements cover identity, series and idols; artwork stays with the owner. */
+export const fudabaCardSupplementPayloadSchema = z
+  .object({
+    producerName: claimFieldSchema.producerName.optional(),
+    groupName: claimFieldSchema.groupName.optional(),
+    seriesCodes: claimFieldSchema.seriesCodes.optional(),
+    favoriteCharacterIds: claimFieldSchema.favoriteCharacterIds.optional(),
+  })
+  .strict()
+  .refine(filledInAtLeastOnce, { message: "至少要改动一处资料" })
+
 export const fudabaLegacyCardClaimRequestSchema = z.object({
   targetCardId: ownerCardIdSchema.nullable(),
-  // Both are optional: the API derives the series from the card the claim binds
-  // to, then the selected idols' agency, then the legacy card itself, and only
-  // asks the claimant when none of those resolve.
-  seriesCode: seriesCodeSchema.max(64).nullable().optional(),
-  favoriteCharacterIds: z
-    .array(z.number().int().positive())
-    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
-    .refine((ids) => new Set(ids).size === ids.length)
-    .optional(),
+  /**
+   * The six fields as the claimant left them; omitted keys stay untouched.
+   * Binding to an existing card sends nothing: that card's data wins.
+   */
+  payload: fudabaCardClaimPayloadSchema.optional(),
   message: ownerCardTextSchema(1000),
 }).strict()
-export const fudabaClaimEnvelopeActionRequestSchema = z.object({
-  decision: z.enum(["confirm", "decline"]),
-  expectedRevision: fudabaRevisionSchema,
+
+/** A supplement waiting for review, exactly as the wall submitted it. */
+export const adminCardSupplementSchema = z
+  .object({
+    id: z.string().min(1),
+    cardId: ownerCardIdSchema,
+    state: claimStateSchema,
+    payload: fudabaCardSupplementPayloadSchema,
+    submitter: z
+      .object({
+        id: z.string().min(1),
+        displayName: z.string().min(1),
+      })
+      .strict(),
+    reviewNote: z.string(),
+    revision: revisionSchema,
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+    reviewedAt: timestampSchema.nullable(),
+  })
+  .strict()
+
+/** A wall card waiting for a supplement review, as the queue row shows it. */
+const supplementCardSchema = z
+  .object({
+    id: ownerCardIdSchema,
+    cardNumber: z.number().int().positive(),
+    producerName: z.string().nullable(),
+    frontImageUrl: z.string().min(1),
+    pageCount: z.number().int().positive(),
+  })
+  .strict()
+
+export const fudabaCardSupplementRequestSchema = fudabaCardSupplementPayloadSchema
+
+export const supplementMutationSchema = successEnvelope({
+  supplement: adminCardSupplementSchema,
 }).strict()
+
+export const supplementListSchema = exactJsonResponse({
+  items: z.array(adminCardSupplementSchema),
+})
+
+/**
+ * The review queue lists three kinds of work under one filter. A claim carries
+ * its own legacy card, a supplement the wall card it wants to correct, and a
+ * submission the registered card the owner staged.
+ */
+export const reviewQueueRowSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("submission"),
+      submittedAt: timestampSchema,
+      review: fudabaRegisteredCardReviewSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("claim"),
+      submittedAt: timestampSchema,
+      claim: fudabaAdminCardClaimSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("supplement"),
+      submittedAt: timestampSchema,
+      card: supplementCardSchema,
+      supplement: adminCardSupplementSchema,
+    })
+    .strict(),
+])
+
+export const reviewQueueTypeSchema = z.enum(["submission", "claim", "supplement"])
+
+export const reviewQueueListSchema = successEnvelope({
+  data: z.array(reviewQueueRowSchema),
+  pageInfo: numberedPageInfoSchema,
+}).strict()
+
+export const adminCardClaimDetailSchema = successEnvelope({
+  claim: fudabaAdminCardClaimSchema,
+  live: namecardDiffSideSchema,
+}).strict()
+
+/**
+ * Supplements only touch identity, series and idols, so the review compare
+ * panel reads exactly those four fields off the wall card.
+ */
+export const supplementLiveSchema = z
+  .object({
+    producerName: z.string().nullable(),
+    groupName: z.string().nullable(),
+    seriesCodes: z.array(z.string().min(1)),
+    favoriteCharacters: z.array(
+      z
+        .object({
+          id: z.number().int().positive(),
+          name: z.string().min(1),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
+
+export const adminCardSupplementDetailSchema = successEnvelope({
+  supplement: adminCardSupplementSchema,
+  live: supplementLiveSchema,
+}).strict()
+
+export const adminCardSupplementParamsSchema = strictRequestObject({
+  supplementId: z.unknown(),
+})
+export const fudabaCardSupplementSubmitParamsSchema = strictRequestObject({
+  cardId: z.unknown(),
+})
+export const reviewQueueQuerySchema = strictRequestObject({
+  type: z.unknown().optional(),
+  query: z.unknown().optional(),
+  page: z.unknown().optional(),
+  pageSize: z.unknown().optional(),
+})
 export const fudabaCardReviewRequestSchema = strictRequestObject({
   /** `flag` marks the submission as a violation instead of a plain rejection. */
   decision: z.enum(["approve", "reject", "flag"]),
   expectedRevision: fudabaRevisionSchema,
   note: ownerCardTextSchema(1000),
 })
+export const fudabaSupplementReviewRequestSchema = strictRequestObject({
+  decision: z.enum(["approve", "reject"]),
+  expectedRevision: fudabaRevisionSchema,
+  note: ownerCardTextSchema(1000),
+})
 export const fudabaLegacyCardClaimParamsSchema = strictRequestObject({
   legacyCardId: z.unknown(),
-})
-export const fudabaClaimEnvelopeParamsSchema = strictRequestObject({
-  envelopeId: z.unknown(),
 })
 export const fudabaRegisteredCardReviewParamsSchema = strictRequestObject({
   cardId: z.unknown(),
@@ -152,6 +300,8 @@ export const fudabaCardClaimErrorSchema = z.union([
   exactJsonError({ success: z.literal(false), code: z.string() }),
   exactJsonError({ success: z.literal(false), code: z.string(), revision: revisionSchema }),
   exactJsonError({ success: z.literal(false), code: z.string(), claimId: z.string(), state: claimStateSchema }),
+  exactJsonError({ success: z.literal(false), code: z.string(), supplementId: z.string(), state: claimStateSchema }),
+  exactJsonError({ success: z.literal(false), code: z.string(), revision: revisionSchema, state: claimStateSchema }),
   exactJsonError({ success: z.literal(false), code: z.string(), message: z.string() }),
 ])
 export const fudabaAdminCardClaimHttpErrorSchema = z.union([
@@ -159,16 +309,9 @@ export const fudabaAdminCardClaimHttpErrorSchema = z.union([
   fudabaCardClaimErrorSchema,
 ])
 
-export type FudabaClaimEnvelope = z.infer<typeof fudabaClaimEnvelopeSchema>
-export type FudabaClaimEnvelopeListResponse = z.infer<
-  typeof claimEnvelopeListSchema
->
 export type FudabaCardClaim = z.infer<typeof fudabaCardClaimSchema>
 export type FudabaOwnerClaimListResponse = z.infer<typeof ownerClaimListSchema>
 export type FudabaClaimMutationResponse = z.infer<typeof claimMutationSchema>
-export type FudabaEnvelopeMutationResponse = z.infer<
-  typeof envelopeMutationSchema
->
 export type FudabaRegisteredCardReview = z.infer<
   typeof fudabaRegisteredCardReviewSchema
 >
@@ -181,6 +324,28 @@ export type FudabaAdminCardClaimListResponse = z.infer<
 >
 export type FudabaReviewMutationResponse = z.infer<typeof reviewMutationSchema>
 export type FudabaCardClaimError = z.infer<typeof fudabaCardClaimErrorSchema>
+export type FudabaCardClaimPayload = z.infer<typeof fudabaCardClaimPayloadSchema>
+export type FudabaCardSupplementPayload = z.infer<
+  typeof fudabaCardSupplementPayloadSchema
+>
+export type FudabaCardSupplementRequestInput = z.input<
+  typeof fudabaCardSupplementRequestSchema
+>
+export type AdminCardSupplement = z.infer<typeof adminCardSupplementSchema>
+export type SupplementMutationResponse = z.infer<typeof supplementMutationSchema>
+export type SupplementListResponse = z.infer<typeof supplementListSchema>
+export type FudabaCardClaimRequestInput = z.input<
+  typeof fudabaLegacyCardClaimRequestSchema
+>
+export type ReviewQueueRow = z.infer<typeof reviewQueueRowSchema>
+export type ReviewQueueType = z.infer<typeof reviewQueueTypeSchema>
+export type ReviewQueueListResponse = z.infer<typeof reviewQueueListSchema>
+export type AdminCardClaimDetailResponse = z.infer<
+  typeof adminCardClaimDetailSchema
+>
+export type AdminCardSupplementDetailResponse = z.infer<
+  typeof adminCardSupplementDetailSchema
+>
 
 /**
  * Every row the inbox can hold. The API derives its own union from this list,
@@ -200,6 +365,12 @@ export const NAMECARD_NOTIFICATION_KINDS = [
   "card-feedback-rejected",
   "claim-approved",
   "claim-rejected",
+  // Wall corrections made by other visitors report back to the submitter.
+  "card-supplement-approved",
+  "card-supplement-rejected",
+  // An ownerless card whose producer name matches an account invites that
+  // account to claim it.
+  "legacy-card-match",
   // Backoffice station messages share this inbox; they carry no card number.
   "station-message",
 ] as const
@@ -243,6 +414,12 @@ export type NamecardNotificationListResponse = z.infer<
 >
 export type NamecardNotificationReadResponse = z.infer<
   typeof namecardNotificationReadResponseSchema
+>
+export type FudabaCardClaimPayloadInput = z.input<
+  typeof fudabaCardClaimPayloadSchema
+>
+export type FudabaCardSupplementPayloadInput = z.input<
+  typeof fudabaCardSupplementPayloadSchema
 >
 export type FudabaLegacyCardClaimRequestInput = z.input<
   typeof fudabaLegacyCardClaimRequestSchema

@@ -179,7 +179,7 @@ export const ownerOfficeTextSchema = (maximum: number, required = false) =>
     .max(maximum)
     .refine((value) => !hasAsciiControl(value));
 
-const ownerCardRequestTextSchema = (maximum: number, required = false) =>
+export const ownerCardRequestTextSchema = (maximum: number, required = false) =>
   z.string().transform((value) => value.trim()).pipe(ownerCardTextSchema(maximum, required));
 const ownerOfficeRequestTextSchema = (maximum: number, required = false) =>
   z.string().transform((value) => value.trim()).pipe(ownerOfficeTextSchema(maximum, required));

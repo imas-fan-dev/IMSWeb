@@ -3,6 +3,7 @@ import {
   ContactRoundIcon,
   ImagesIcon,
   LoaderCircleIcon,
+  LockOpenIcon,
   RefreshCwIcon,
   SearchIcon,
   Trash2Icon,
@@ -35,6 +36,7 @@ import {
   getAdminNamecards,
   isApiError,
   rejectAdminNamecard,
+  unlockAdminNamecard,
   type AdminNamecard,
   type AdminNamecardList,
 } from "~/lib/api"
@@ -311,6 +313,27 @@ export default function AdminNamecardManagePage() {
     getFallbackFocus,
   })
 
+  const unlockConfirm = useConfirmAction<AdminNamecard>({
+    onConfirm: async (card) => {
+      try {
+        await unlockAdminNamecard(card.id, card.revision).send()
+        await refresh()
+      } catch (cause) {
+        if (isStaleSubmission(cause)) await refresh()
+        throw cause
+      }
+    },
+    getTitle: (card) => `解除名片 #${card.id} 的锁定？`,
+    getDescription: (card) => (
+      <div className="space-y-2">
+        <p>名片 #{card.id} 会回到待审核状态，并在审核通过后重新出现在名片墙上。</p>
+        <p>名片的主人会收到一条已解锁的站内信。</p>
+      </div>
+    ),
+    successMessage: (card) => `名片 #${card.id} 已解除锁定`,
+    getFallbackFocus,
+  })
+
   const deleteConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {
       try {
@@ -539,6 +562,32 @@ export default function AdminNamecardManagePage() {
                               )}
                             </Button>
                           ) : null}
+                          {card.status === "locked" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={submitting}
+                              aria-label={`解除名片 #${card.id} 的锁定`}
+                              onClick={(event) =>
+                                unlockConfirm.requestAction(
+                                  card,
+                                  event.currentTarget
+                                )
+                              }
+                            >
+                              {unlockConfirm.submitting &&
+                              unlockConfirm.target?.id === card.id ? (
+                                <LoaderCircleIcon
+                                  data-icon="inline-start"
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <LockOpenIcon data-icon="inline-start" />
+                              )}
+                              解锁
+                            </Button>
+                          ) : null}
                           <Button
                             type="button"
                             size="sm"
@@ -610,6 +659,15 @@ export default function AdminNamecardManagePage() {
         description={rejectConfirm.description}
         submitting={rejectConfirm.submitting}
         onConfirm={() => void rejectConfirm.confirmAction()}
+      />
+      <ConfirmActionDialog
+        open={unlockConfirm.open}
+        onOpenChange={unlockConfirm.onOpenChange}
+        title={unlockConfirm.title}
+        description={unlockConfirm.description}
+        submitting={unlockConfirm.submitting}
+        confirmLabel="确认解锁"
+        onConfirm={() => void unlockConfirm.confirmAction()}
       />
       <ConfirmActionDialog
         open={deleteConfirm.open}

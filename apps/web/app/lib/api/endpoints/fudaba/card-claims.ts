@@ -18,46 +18,39 @@ import {
 } from "@imsweb/contracts/fudaba/card-claims"
 import {
   adminCardClaimListSchema,
+  adminCardSupplementDetailSchema,
   // pi-lens-ignore: ts:2724
   fudabaAdminCardClaimHttpErrorSchema,
   fudabaCardClaimErrorSchema,
-  claimEnvelopeListSchema,
-  fudabaClaimEnvelopeActionRequestSchema,
   fudabaCardReviewRequestSchema,
+  fudabaCardSupplementRequestSchema,
   fudabaLegacyCardClaimRequestSchema,
+  fudabaSupplementReviewRequestSchema,
   claimMutationSchema,
-  envelopeMutationSchema,
   ownerClaimListSchema,
   registeredCardReviewListSchema,
   reviewMutationSchema,
+  reviewQueueListSchema,
+  supplementMutationSchema,
+  type FudabaCardSupplementPayloadInput,
   type FudabaLegacyCardClaimRequestInput,
+  type ReviewQueueType,
 } from "@imsweb/contracts/fudaba/card-claims"
 
 export {
-  fudabaClaimEnvelopeSchema,
   fudabaCardClaimSchema,
-  claimEnvelopeListSchema,
   ownerClaimListSchema,
   claimMutationSchema,
-  envelopeMutationSchema,
   fudabaRegisteredCardReviewSchema,
   fudabaAdminCardClaimSchema,
   registeredCardReviewListSchema,
   adminCardClaimListSchema,
   reviewMutationSchema,
+  reviewQueueListSchema,
+  adminCardSupplementDetailSchema,
+  supplementMutationSchema,
 } from "@imsweb/contracts/fudaba/card-claims"
 export type * from "@imsweb/contracts/fudaba/card-claims"
-
-export function getFudabaClaimEnvelopes() {
-  return platformApiClient.Get(
-    exchangePath("/me/claim-envelopes"),
-    parsed(claimEnvelopeListSchema, {
-      errorSchema: fudabaCardClaimErrorSchema,
-      businessErrorSchema: fudabaCardClaimErrorSchema,
-      meta: withPlatformAuth(),
-    })
-  )
-}
 
 export function getNamecardNotifications() {
   return platformApiClient.Get(
@@ -75,26 +68,6 @@ export function markNamecardNotificationsRead(ids?: string[]) {
     exchangePath("/me/notifications/read"),
     ids === undefined ? {} : { ids },
     parsed(namecardNotificationReadResponseSchema, {
-      errorSchema: fudabaCardClaimErrorSchema,
-      businessErrorSchema: fudabaCardClaimErrorSchema,
-      meta: withPlatformCsrf(),
-    })
-  )
-}
-
-export function respondFudabaClaimEnvelope(
-  envelopeId: string,
-  decision: "confirm" | "decline",
-  expectedRevision: number
-) {
-  const submission = fudabaClaimEnvelopeActionRequestSchema.parse({
-    decision,
-    expectedRevision,
-  })
-  return platformApiClient.Put(
-    exchangePath(`/me/claim-envelopes/${encodeURIComponent(envelopeId)}`),
-    submission,
-    parsed(envelopeMutationSchema, {
       errorSchema: fudabaCardClaimErrorSchema,
       businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withPlatformCsrf(),
@@ -186,6 +159,75 @@ export function reviewAdminFudabaCardClaim(
     adminExchangePath(`/card-claims/${encodeURIComponent(claimId)}`),
     submission,
     parsed(reviewMutationSchema, {
+      errorSchema: fudabaAdminCardClaimHttpErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+/** 名片墙对无主名片提交的简化更正，审核通过后写回那张卡。 */
+export function createFudabaCardSupplement(
+  cardId: string,
+  input: FudabaCardSupplementPayloadInput
+) {
+  const submission = fudabaCardSupplementRequestSchema.parse(input)
+  return platformApiClient.Post(
+    exchangePath(`/cards/${encodeURIComponent(cardId)}/supplements`),
+    submission,
+    parsed(supplementMutationSchema, {
+      errorSchema: fudabaCardClaimErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/** 后台审核队列：投稿、认领、补充三类共用一页，筛选由服务端合并。 */
+export function getAdminFudabaReviewQueue(query: {
+  type: ReviewQueueType
+  query?: string
+  page?: number
+  pageSize?: number
+}) {
+  const params = new URLSearchParams({ type: query.type })
+  if (query.query) params.set("query", query.query)
+  if (query.page && query.page > 1) params.set("page", String(query.page))
+  if (query.pageSize) params.set("pageSize", String(query.pageSize))
+  return adminApiClient.Get(
+    adminExchangePath(`/review-queue?${params.toString()}`),
+    parsed(reviewQueueListSchema, {
+      errorSchema: fudabaAdminCardClaimHttpErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+export function getAdminFudabaCardSupplement(supplementId: string) {
+  return adminApiClient.Get(
+    adminExchangePath(`/card-supplements/${encodeURIComponent(supplementId)}`),
+    parsed(adminCardSupplementDetailSchema, {
+      errorSchema: fudabaAdminCardClaimHttpErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+export function reviewAdminFudabaCardSupplement(
+  supplementId: string,
+  input: {
+    decision: "approve" | "reject"
+    expectedRevision: number
+    note: string
+  }
+) {
+  const submission = fudabaSupplementReviewRequestSchema.parse(input)
+  return adminApiClient.Put(
+    adminExchangePath(`/card-supplements/${encodeURIComponent(supplementId)}`),
+    submission,
+    parsed(supplementMutationSchema, {
       errorSchema: fudabaAdminCardClaimHttpErrorSchema,
       businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withBackofficeCsrf(),

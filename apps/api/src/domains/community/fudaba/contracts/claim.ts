@@ -14,6 +14,7 @@ export function fudabaCardClaimView(claim: FudabaCardClaimRecord) {
         legacyCardId: claim.legacy_card_id,
         targetCardId: claim.target_card_id,
         seriesCode: claim.series_code,
+        payload: claim.payload,
         favoriteCharacters: favoriteCharacters(claim),
         state: claim.state,
         message: claim.message,

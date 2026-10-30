@@ -15,7 +15,12 @@ export type NamecardNotificationCopyKind =
     | 'card-transferred-in'
     | 'card-admin-edited'
     | 'card-feedback-accepted'
-    | 'card-feedback-rejected';
+    | 'card-feedback-rejected'
+    | 'claim-approved'
+    | 'claim-rejected'
+    | 'card-supplement-approved'
+    | 'card-supplement-rejected'
+    | 'legacy-card-match';
 
 export interface NamecardNotificationCopy {
     kind: NamecardNotificationCopyKind;
@@ -174,5 +179,55 @@ export function cardFeedbackRejectedCopy(
         kind: 'card-feedback-rejected',
         title: `名片 #${cardNumber} 的反馈未受理`,
         body: `您的反馈未被受理，理由：${sentence}。`
+    };
+}
+
+/** The visitor who filled in someone else's card hears the reviewer's verdict. */
+export function cardSupplementApprovedCopy(
+    cardNumber: number,
+    points: number
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-supplement-approved',
+        title: `名片 #${cardNumber} 的补充已通过`,
+        body:
+            points > 0
+                ? `你补充的资料已更新到名片 #${cardNumber}，感谢协助维护偶像大师交流站。本次获得 ${points} 点贡献值。`
+                : `你补充的资料已更新到名片 #${cardNumber}，感谢协助维护偶像大师交流站。`
+    };
+}
+
+export function cardSupplementRejectedCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    const sentence = reason.trim().replace(/[。.]+$/u, '');
+    return {
+        kind: 'card-supplement-rejected',
+        title: `名片 #${cardNumber} 的补充未通过`,
+        body: `你补充的资料未被采纳，理由：${sentence}。`
+    };
+}
+
+/** The owner's claim outranks a supplement that was still waiting. */
+export function cardSupplementSupersededCopy(
+    cardNumber: number
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-supplement-rejected',
+        title: `名片 #${cardNumber} 的补充已撤销`,
+        body: `这张名片已被制作人认领，你提交的补充无需再审核。`
+    };
+}
+
+/** Invites an account whose name matches an ownerless card to claim it. */
+export function legacyCardMatchCopy(
+    cardNumber: number,
+    producerName: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'legacy-card-match',
+        title: `名片 #${cardNumber} 可能属于你`,
+        body: `名片墙上有一张无主名片 #${cardNumber}，制作人名称是「${producerName}」。如果这是你的名片，可以在名片详情里认领它。`
     };
 }

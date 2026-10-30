@@ -141,7 +141,9 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261101140000_namecard_feedback_resolution_note', phase: 'post-data' },
                 { version: '20261101150000_namecard_admin_flexible_identity', phase: 'pre-data' },
                 { version: '20261101160000_namecard_lock_records', phase: 'post-data' },
-                { version: '20261101170000_namecard_lock_records_history', phase: 'pre-data' }
+                { version: '20261101170000_namecard_lock_records_history', phase: 'pre-data' },
+                { version: '20261101180000_namecard_supplements', phase: 'post-data' },
+                { version: '20261101190000_namecard_envelope_notifications', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -670,11 +672,12 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 74);
+        assert.equal(catalog.count, 76);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261101170000_namecard_lock_records_history'
+            '20261101190000_namecard_envelope_notifications',
+            '20261101190000_namecard_envelope_notifications'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1028,7 +1031,9 @@ test.describe('PostgreSQL migration', () => {
                 '20261101140000_namecard_feedback_resolution_note',
                 '20261101150000_namecard_admin_flexible_identity',
                 '20261101160000_namecard_lock_records',
-                '20261101170000_namecard_lock_records_history'
+                '20261101170000_namecard_lock_records_history',
+                '20261101180000_namecard_supplements',
+                '20261101190000_namecard_envelope_notifications'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

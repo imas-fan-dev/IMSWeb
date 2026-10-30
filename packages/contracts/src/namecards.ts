@@ -40,6 +40,8 @@ export const namecardMetadataSchema = {
     .enum(["pending", "approving", "approved", "rejected", "cancelled"])
     .nullable(),
   claimerName: z.string().min(1).nullable(),
+  /** Someone's supplement is waiting for review, so nobody else may submit. */
+  supplementPending: z.boolean(),
 }
 
 /**

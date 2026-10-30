@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "87f981d8e3fc79d9a530ea509b62caa0661f9118dfe55956e73c0cf91bb6c371",
+    "semanticDigest": "d2fdb72e1621c5c85573929f8d7c0d00e4a2337771f3356956134ce6359c40cd",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 274,
-    "carriers": 345,
-    "reject": 71,
+    "mountedMethodPaths": 277,
+    "carriers": 349,
+    "reject": 73,
     "acceptAndProject": 175,
     "passthrough": 17,
-    "nonObjectApplicable": 82
+    "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 373,
-    "mountedMethodPaths": 282,
-    "noInputRoutes": 91,
-    "requestCarriers": 369,
+    "mountedRegistrations": 376,
+    "mountedMethodPaths": 284,
+    "noInputRoutes": 92,
+    "requestCarriers": 372,
     "policies": {
-      "reject": 72,
-      "accept-and-project": 198,
+      "reject": 74,
+      "accept-and-project": 197,
       "passthrough": 17,
-      "non-object-applicable": 82
+      "non-object-applicable": 84
     },
     "responses": {
-      "total": 792,
-      "json": 718,
+      "total": 800,
+      "json": 726,
       "nonJson": 74
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 274,
-      "requestCarriers": 345,
+      "mountedMethodPaths": 277,
+      "requestCarriers": 349,
       "policies": {
-        "reject": 71,
+        "reject": 73,
         "accept-and-project": 175,
         "passthrough": 17,
-        "non-object-applicable": 82
+        "non-object-applicable": 84
       }
     },
     "explicitQueryAdditions": [
@@ -86,14 +86,13 @@
       {
         "module": "@imsweb/contracts/fudaba",
         "symbol": "fudabaIgnoredQuerySchema",
-        "carriers": 7,
+        "carriers": 6,
         "policy": "accept-and-project",
-        "actualCarriers": 7,
+        "actualCarriers": 6,
         "routes": [
           "GET /api/community/exchange/me/card-claims",
           "GET /api/community/exchange/me/cards",
           "GET /api/community/exchange/me/cards/:cardId",
-          "GET /api/community/exchange/me/claim-envelopes",
           "GET /api/community/exchange/me/notifications",
           "GET /api/community/exchange/me/offices",
           "GET /api/community/exchange/me/offices/:officeId"
@@ -117,12 +116,12 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 163,
+      "/api/admin": 167,
       "/api/card": 1,
       "/api/cards": 2,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 54,
+      "/api/community": 53,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -2674,6 +2673,85 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleListFudabaCardSupplements",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ items : supplements . map ( fudabaCardSupplementView ) } satisfies SupplementListResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_LIST_FAILED\" , message : \"\\u8D44\\u6599\\u8865\\u5145\\u5BA1\\u6838\\u5217\\u8868\\u52A0\\u8F7D\\u5931\\u8D25\" }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleGetFudabaCardSupplement",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": "adminCardSupplementParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : true , supplement : fudabaCardSupplementView ( found . supplement ) , live : { producerName : found . live . producer_name , groupName : found . live . group_name , seriesCodes : found . live . series_codes , favoriteCharacters : found . live . favorite_characters . map ( ( character ) => ( { id : character . character_id , name : character . name_cn } ) ) } } satisfies AdminCardSupplementDetailResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_READ_FAILED\" , message : \"\\u8D44\\u6599\\u8865\\u5145\\u52A0\\u8F7D\\u5931\\u8D25\" }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/community/exchange/map-delivery",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/map-delivery/routes.ts"
@@ -3010,6 +3088,42 @@
           "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
           "kind": "json",
           "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_FAILED\" , }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/review-queue",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleListFudabaReviewQueue",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": "reviewQueueQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : true , data : matched . slice ( start , start + pageSize ) , pageInfo : { page , pageSize , total , totalPages : Math . ceil ( total / pageSize ) , hasNextPage : start + pageSize < total } } satisfies ReviewQueueListResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_REVIEW_QUEUE_FAILED\" : \"FUDABA_REVIEW_QUEUE_INVALID\" , message : status > = 500 ? \"\\u5BA1\\u6838\\u961F\\u5217\\u52A0\\u8F7D\\u5931\\u8D25\" : messageFromError ( error ) }"
         }
       ]
     },
@@ -4314,42 +4428,6 @@
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
           "kind": "non-json",
           "expression": "\"Not Found\""
-        }
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/claim-envelopes",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-      },
-      "handlerSymbol": "handleListFudabaClaimEnvelopes",
-      "carriers": [
-        {
-          "kind": "query",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-          },
-          "schemaSymbol": "fudabaIgnoredQuerySchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ items : items . map ( fudabaClaimEnvelopeView ) } satisfies FudabaClaimEnvelopeListResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_LIST_FAILED\" , message : \"\\u8BA4\\u9886\\u4FE1\\u5C01\\u52A0\\u8F7D\\u5931\\u8D25\" }"
         }
       ]
     },
@@ -11151,6 +11229,81 @@
     },
     {
       "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "schemaSymbol": "fudabaCardSupplementSubmitParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "schemaSymbol": "fudabaCardSupplementRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_UNCHANGED\" , message : \"\\u8865\\u5145\\u7684\\u8D44\\u6599\\u548C\\u73B0\\u5728\\u7684\\u540D\\u7247\\u4E00\\u81F4\\uFF0C\\u4E0D\\u7528\\u63D0\\u4EA4\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_UNAVAILABLE\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_CONFLICT\" , supplementId : result . supplementId , state : result . state } satisfies FudabaCardClaimError"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "{ success : true , supplement : fudabaCardSupplementView ( result . supplement ) } satisfies SupplementMutationResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_SUPPLEMENT_FAILED\" : \"FUDABA_CARD_SUPPLEMENT_INVALID\" , message : status > = 500 ? \"\\u8D44\\u6599\\u8865\\u5145\\u63D0\\u4EA4\\u5931\\u8D25\" : messageFromError ( error ) }"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/community/exchange/guest-submissions",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
@@ -13109,6 +13262,76 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": "adminCardSupplementParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "schemaSymbol": "fudabaSupplementReviewRequestSchema",
+          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_CONFLICT\" , revision : result . revision , state : result . state } satisfies FudabaCardClaimError"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : true , supplement : fudabaCardSupplementView ( result . supplement ) } satisfies SupplementMutationResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_SUPPLEMENT_REVIEW_FAILED\" : \"FUDABA_CARD_SUPPLEMENT_REVIEW_INVALID\" , message : status > = 500 ? \"\\u8D44\\u6599\\u8865\\u5145\\u5BA1\\u6838\\u5931\\u8D25\" : messageFromError ( error ) }"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/community/exchange/map-delivery/active",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/map-delivery/routes.ts"
@@ -14063,101 +14286,6 @@
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
           "kind": "json",
           "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u56FE\\u7247\\u66F4\\u65B0\\u5931\\u8D25\" : messageFromError ( error ) }"
-        }
-      ]
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-      },
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-          },
-          "schemaSymbol": "fudabaClaimEnvelopeParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-          },
-          "policy": "non-object-applicable",
-          "syntaxPolicy": "reject"
-        },
-        {
-          "kind": "json",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-          },
-          "schemaSymbol": "fudabaClaimEnvelopeActionRequestSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/card-claims",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-          },
-          "policy": "reject",
-          "syntaxPolicy": "reject"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "<no body>"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_CONFLICT\" , revision : result . revision }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : true , envelope : fudabaClaimEnvelopeView ( result . envelope ) , claim : null } satisfies FudabaEnvelopeMutationResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_TARGET_UNAVAILABLE\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_CONFLICT\" , revision : result . revision }"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : true , envelope : fudabaClaimEnvelopeView ( result . envelope ) , claim : fudabaCardClaimView ( result . claim ) } satisfies FudabaEnvelopeMutationResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CLAIM_ENVELOPE_ACTION_FAILED\" : \"FUDABA_CLAIM_ENVELOPE_INVALID\" , message : status > = 500 ? \"\\u8BA4\\u9886\\u4FE1\\u5C01\\u5904\\u7406\\u5931\\u8D25\" : messageFromError ( error ) }"
         }
       ]
     },
@@ -15714,6 +15842,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleGetFudabaCardSupplement",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "schemaSymbol": "adminCardSupplementParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/community/exchange/map-delivery",
       "handlerSymbol": "handleGetFudabaMapDelivery",
       "kind": "query",
@@ -15845,6 +15990,23 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/review-queue",
+      "handlerSymbol": "handleListFudabaReviewQueue",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "schemaSymbol": "reviewQueueQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",
@@ -16318,23 +16480,6 @@
       "schemaModule": "@imsweb/contracts/fudaba",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/claim-envelopes",
-      "handlerSymbol": "handleListFudabaClaimEnvelopes",
-      "kind": "query",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-      },
-      "schemaSymbol": "fudabaIgnoredQuerySchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
@@ -19504,6 +19649,40 @@
     },
     {
       "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "schemaSymbol": "fudabaCardSupplementSubmitParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "schemaSymbol": "fudabaCardSupplementRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
       "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
       "kind": "param",
@@ -20167,6 +20346,40 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "schemaSymbol": "adminCardSupplementParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "schemaSymbol": "fudabaSupplementReviewRequestSchema",
+      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/community/exchange/map-delivery/active",
       "handlerSymbol": "handleActivateFudabaMapSource",
       "kind": "json",
@@ -20656,40 +20869,6 @@
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
       },
       "policy": "non-object-applicable",
-      "syntaxPolicy": "reject"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-      },
-      "schemaSymbol": "fudabaClaimEnvelopeParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-      },
-      "policy": "non-object-applicable",
-      "syntaxPolicy": "reject"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "kind": "json",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-      },
-      "schemaSymbol": "fudabaClaimEnvelopeActionRequestSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/card-claims",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
-      },
-      "policy": "reject",
       "syntaxPolicy": "reject"
     },
     {
@@ -21948,6 +22127,54 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements",
+      "handlerSymbol": "handleListFudabaCardSupplements",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ items : supplements . map ( fudabaCardSupplementView ) } satisfies SupplementListResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements",
+      "handlerSymbol": "handleListFudabaCardSupplements",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_LIST_FAILED\" , message : \"\\u8D44\\u6599\\u8865\\u5145\\u5BA1\\u6838\\u5217\\u8868\\u52A0\\u8F7D\\u5931\\u8D25\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleGetFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleGetFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleGetFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : true , supplement : fudabaCardSupplementView ( found . supplement ) , live : { producerName : found . live . producer_name , groupName : found . live . group_name , seriesCodes : found . live . series_codes , favoriteCharacters : found . live . favorite_characters . map ( ( character ) => ( { id : character . character_id , name : character . name_cn } ) ) } } satisfies AdminCardSupplementDetailResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleGetFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_READ_FAILED\" , message : \"\\u8D44\\u6599\\u8865\\u5145\\u52A0\\u8F7D\\u5931\\u8D25\" }"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/community/exchange/map-delivery",
       "handlerSymbol": "handleGetFudabaMapDelivery",
       "file": "apps/api/src/domains/community/fudaba/map-delivery/handlers/get-map-delivery.ts",
@@ -22161,6 +22388,22 @@
       "file": "apps/api/src/domains/community/fudaba/locations/handlers/search-places.ts",
       "kind": "json",
       "expression": "{ success : false , code : \"FUDABA_PLACE_SEARCH_FAILED\" , }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/review-queue",
+      "handlerSymbol": "handleListFudabaReviewQueue",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : true , data : matched . slice ( start , start + pageSize ) , pageInfo : { page , pageSize , total , totalPages : Math . ceil ( total / pageSize ) , hasNextPage : start + pageSize < total } } satisfies ReviewQueueListResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/community/exchange/review-queue",
+      "handlerSymbol": "handleListFudabaReviewQueue",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_REVIEW_QUEUE_FAILED\" : \"FUDABA_REVIEW_QUEUE_INVALID\" , message : status > = 500 ? \"\\u5BA1\\u6838\\u961F\\u5217\\u52A0\\u8F7D\\u5931\\u8D25\" : messageFromError ( error ) }"
     },
     {
       "method": "GET",
@@ -22649,22 +22892,6 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
       "kind": "non-json",
       "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/claim-envelopes",
-      "handlerSymbol": "handleListFudabaClaimEnvelopes",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ items : items . map ( fudabaClaimEnvelopeView ) } satisfies FudabaClaimEnvelopeListResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/claim-envelopes",
-      "handlerSymbol": "handleListFudabaClaimEnvelopes",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_LIST_FAILED\" , message : \"\\u8BA4\\u9886\\u4FE1\\u5C01\\u52A0\\u8F7D\\u5931\\u8D25\" }"
     },
     {
       "method": "GET",
@@ -25012,6 +25239,62 @@
     },
     {
       "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "<no body>"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_UNCHANGED\" , message : \"\\u8865\\u5145\\u7684\\u8D44\\u6599\\u548C\\u73B0\\u5728\\u7684\\u540D\\u7247\\u4E00\\u81F4\\uFF0C\\u4E0D\\u7528\\u63D0\\u4EA4\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_UNAVAILABLE\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_CONFLICT\" , supplementId : result . supplementId , state : result . state } satisfies FudabaCardClaimError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "{ success : true , supplement : fudabaCardSupplementView ( result . supplement ) } satisfies SupplementMutationResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/cards/:cardId/supplements",
+      "handlerSymbol": "handleCreateFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_SUPPLEMENT_FAILED\" : \"FUDABA_CARD_SUPPLEMENT_INVALID\" , message : status > = 500 ? \"\\u8D44\\u6599\\u8865\\u5145\\u63D0\\u4EA4\\u5931\\u8D25\" : messageFromError ( error ) }"
+    },
+    {
+      "method": "POST",
       "path": "/api/community/exchange/guest-submissions",
       "handlerSymbol": "handleCreateFudabaGuestSubmission",
       "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
@@ -26228,6 +26511,54 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "<no body>"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_NOT_FOUND\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_CARD_SUPPLEMENT_CONFLICT\" , revision : result . revision , state : result . state } satisfies FudabaCardClaimError"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : true , supplement : fudabaCardSupplementView ( result . supplement ) } satisfies SupplementMutationResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/community/exchange/card-supplements/:supplementId",
+      "handlerSymbol": "handleReviewFudabaCardSupplement",
+      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_SUPPLEMENT_REVIEW_FAILED\" : \"FUDABA_CARD_SUPPLEMENT_REVIEW_INVALID\" , message : status > = 500 ? \"\\u8D44\\u6599\\u8865\\u5145\\u5BA1\\u6838\\u5931\\u8D25\" : messageFromError ( error ) }"
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/community/exchange/map-delivery/active",
       "handlerSymbol": "handleActivateFudabaMapSource",
       "file": "apps/api/src/domains/community/fudaba/map-delivery/handlers/activate-map-source.ts",
@@ -26681,94 +27012,6 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
       "kind": "json",
       "expression": "{ success : false , code : status > = 500 ? \"FUDABA_UPLOAD_FAILED\" : \"FUDABA_CARD_INVALID\" , message : status > = 500 ? \"\\u540D\\u7247\\u56FE\\u7247\\u66F4\\u65B0\\u5931\\u8D25\" : messageFromError ( error ) }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "<no body>"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_CONFLICT\" , revision : result . revision }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : true , envelope : fudabaClaimEnvelopeView ( result . envelope ) , claim : null } satisfies FudabaEnvelopeMutationResponse"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_TARGET_UNAVAILABLE\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_NOT_FOUND\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"FUDABA_CLAIM_ENVELOPE_CONFLICT\" , revision : result . revision }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : true , envelope : fudabaClaimEnvelopeView ( result . envelope ) , claim : fudabaCardClaimView ( result . claim ) } satisfies FudabaEnvelopeMutationResponse"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/claim-envelopes/:envelopeId",
-      "handlerSymbol": "handleRespondFudabaClaimEnvelope",
-      "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CLAIM_ENVELOPE_ACTION_FAILED\" : \"FUDABA_CLAIM_ENVELOPE_INVALID\" , message : status > = 500 ? \"\\u8BA4\\u9886\\u4FE1\\u5C01\\u5904\\u7406\\u5931\\u8D25\" : messageFromError ( error ) }"
     },
     {
       "method": "PUT",

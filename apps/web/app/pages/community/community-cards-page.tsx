@@ -11,6 +11,7 @@ import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
+import { NamecardSupplementDialog } from "~/components/community/namecard-supplement-dialog"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import {
   NamecardPreview,
@@ -226,6 +227,7 @@ export default function CommunityCardsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [claimCard, setClaimCard] = useState<Namecard | null>(null)
+  const [supplementCard, setSupplementCard] = useState<Namecard | null>(null)
   const [previewSide, setPreviewSide] = useState<NamecardSide | null>(null)
   const [detailSide, setDetailSide] = useState<NamecardSide | null>(null)
   const [previewReturnTarget, setPreviewReturnTarget] =
@@ -288,6 +290,18 @@ export default function CommunityCardsPage() {
       active = false
     }
   }, [page, pageSize, reload])
+
+  // 站内信里的「去认领」用 ?card=<编号> 直接打开那张牌的详情。
+  useEffect(() => {
+    if (!result || detail.card) return
+    const wanted = searchParams.get("card")
+    if (!wanted) return
+    const found = result.list.find(
+      (item) =>
+        String(item.cardNumber ?? item.id) === wanted || String(item.id) === wanted
+    )
+    if (found) detail.open(found)
+  }, [detail, result, searchParams])
 
   useEffect(() => {
     if (!result) return
@@ -414,6 +428,11 @@ export default function CommunityCardsPage() {
     if (previewSide !== null) return
     prepareRestore()
     detail.close()
+    if (searchParams.has("card")) {
+      const next = new URLSearchParams(searchParams)
+      next.delete("card")
+      setSearchParams(next, { replace: true })
+    }
   }
 
   function openPreview(side: NamecardSide, trigger: HTMLButtonElement) {
@@ -468,6 +487,7 @@ export default function CommunityCardsPage() {
         }}
         onOpenPreview={openPreview}
         onClaim={setClaimCard}
+        onSupplement={setSupplementCard}
         onReact={(emoji) =>
           detail.card
             ? reactToCard(detail.card.id, emoji)
@@ -475,7 +495,33 @@ export default function CommunityCardsPage() {
         }
         onReturnFocus={restore}
       />
+      <NamecardSupplementDialog
+        key={supplementCard?.id ?? "none"}
+        card={canClaim ? supplementCard : null}
+        open={canClaim && supplementCard !== null}
+        onOpenChange={(open) => {
+          if (!open) setSupplementCard(null)
+        }}
+        onSubmitted={() => {
+          const submitted = supplementCard
+          setSupplementCard(null)
+          if (!submitted) return
+          setResult((current) =>
+            current
+              ? {
+                  ...current,
+                  list: current.list.map((card) =>
+                    card.id === submitted.id
+                      ? { ...card, supplementPending: true }
+                      : card
+                  ),
+                }
+              : current
+          )
+        }}
+      />
       <NamecardClaimDialog
+        key={claimCard?.id ?? "none"}
         card={canClaim ? claimCard : null}
         open={canClaim && claimCard !== null}
         onOpenChange={(open) => {

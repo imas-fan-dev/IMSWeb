@@ -31,12 +31,18 @@ import {
 } from "@imsweb/contracts/editorial"
 import {
   adminCardClaimListSchema,
-  claimEnvelopeListSchema,
+  adminCardSupplementDetailSchema,
   claimMutationSchema,
-  envelopeMutationSchema,
   fudabaCardReviewRequestSchema,
-  fudabaClaimEnvelopeActionRequestSchema,
+  fudabaCardSupplementRequestSchema,
   fudabaLegacyCardClaimRequestSchema,
+  fudabaSupplementReviewRequestSchema,
+  namecardNotificationReadRequestSchema,
+  namecardNotificationReadResponseSchema,
+  reviewQueueListSchema,
+  reviewQueueQuerySchema as reviewQueueQuerySchemaRef,
+  supplementListSchema,
+  supplementMutationSchema,
   fudabaAdminCardClaimHttpErrorSchema,
   fudabaCardClaimErrorSchema,
   registeredCardReviewListSchema,
@@ -486,6 +492,14 @@ export function resolveApiContract(
       },
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
+  if (
+    method === "POST" &&
+    path === `${exchange}/me/notifications/read`
+  )
+    return {
+      body: namecardNotificationReadRequestSchema,
+      responses: { 200: namecardNotificationReadResponseSchema, 401: fudabaCardClaimErrorSchema },
+    }
   if (method === "GET" && path === `${exchange}/me/cards`)
     return {
       query: fudabaIgnoredQuerySchema,
@@ -654,17 +668,17 @@ export function resolveApiContract(
         ...fudabaClaimErrors,
       },
     }
-  if (method === "GET" && path === `${exchange}/me/claim-envelopes`)
-    return {
-      responses: { 200: claimEnvelopeListSchema, ...fudabaClaimErrors },
-    }
   if (
-    method === "PUT" &&
-    /^\/api\/community\/exchange\/me\/claim-envelopes\/[^/]+$/.test(path)
+    method === "POST" &&
+    /^\/api\/community\/exchange\/cards\/[^/]+\/supplements$/.test(path)
   )
     return {
-      body: fudabaClaimEnvelopeActionRequestSchema,
-      responses: { 200: envelopeMutationSchema, ...fudabaClaimErrors },
+      body: fudabaCardSupplementRequestSchema,
+      responses: {
+        200: supplementMutationSchema,
+        201: supplementMutationSchema,
+        ...fudabaClaimErrors,
+      },
     }
 
   if (method === "GET" && path === "/api/platform/auth/oauth/providers")
@@ -927,6 +941,58 @@ export function resolveApiContract(
         400: fudabaCardClaimErrorSchema,
         401: fudabaAdminCardClaimHttpErrorSchema,
         403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/review-queue"
+  )
+    return {
+      query: reviewQueueQuerySchemaRef,
+      responses: {
+        200: [reviewQueueListSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/card-supplements"
+  )
+    return {
+      responses: {
+        200: [supplementListSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/admin\/community\/exchange\/card-supplements\/[^/]+$/.test(path)
+  )
+    return {
+      responses: {
+        200: [adminCardSupplementDetailSchema, fudabaCardClaimErrorSchema],
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+        404: fudabaCardClaimErrorSchema,
+      },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/admin\/community\/exchange\/card-supplements\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaSupplementReviewRequestSchema,
+      responses: {
+        200: [supplementMutationSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+        404: fudabaCardClaimErrorSchema,
+        409: fudabaCardClaimErrorSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/cards")

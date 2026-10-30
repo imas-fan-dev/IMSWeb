@@ -162,3 +162,70 @@ export function parseCardReview(value: unknown): CardReviewInput {
         note: reviewNote(body.note),
     };
 }
+
+export interface CardSupplementReviewInput {
+    decision: 'approve' | 'reject';
+    expectedRevision: number;
+    note: string;
+}
+
+/** A supplement is a correction, so rejecting it always states why. */
+export function parseCardSupplementReview(
+    value: unknown,
+): CardSupplementReviewInput {
+    const body = object(value);
+    allowedKeys(body, ['decision', 'expectedRevision', 'note']);
+    if (body.decision !== 'approve' && body.decision !== 'reject') {
+        throw badRequest('decision 无效');
+    }
+    if (
+        !Number.isSafeInteger(body.expectedRevision) ||
+        Number(body.expectedRevision) < 0
+    ) {
+        throw badRequest('expectedRevision 必须是非负整数');
+    }
+    const note = reviewNote(body.note);
+    if (body.decision === 'reject' && !note)
+        throw badRequest('驳回补充必须填写理由');
+    return {
+        decision: body.decision,
+        expectedRevision: Number(body.expectedRevision),
+        note,
+    };
+}
+
+const QUEUE_PAGE_SIZE = 20;
+
+export interface ReviewQueueQuery {
+    type: 'submission' | 'claim' | 'supplement' | null;
+    /** Matches the producer name of any of the three row kinds. */
+    query: string;
+    page: number;
+    pageSize: number;
+}
+
+export function parseReviewQueueQuery(raw: {
+    type?: string;
+    query?: string;
+    page?: string;
+    pageSize?: string;
+}): ReviewQueueQuery {
+    const type = raw.type ?? null;
+    if (
+        type !== null &&
+        type !== 'submission' &&
+        type !== 'claim' &&
+        type !== 'supplement'
+    ) {
+        throw badRequest('type 必须是 submission、claim 或 supplement');
+    }
+    const page =
+        raw.page === undefined ? 1 : positiveLimit(raw.page, 1, MAX_REVIEW_LIMIT);
+    const pageSize =
+        raw.pageSize === undefined
+            ? QUEUE_PAGE_SIZE
+            : positiveLimit(raw.pageSize, QUEUE_PAGE_SIZE, MAX_REVIEW_LIMIT);
+    const query = (raw.query ?? '').trim();
+    if (query.length > 80) throw badRequest('query 最多 80 个字符');
+    return { type, query, page, pageSize };
+}

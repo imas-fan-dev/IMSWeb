@@ -34,7 +34,7 @@ import {
 import { cn } from "~/lib/utils"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { CardWorkspace } from "./namecards/card-workspace"
-import { ClaimEnvelopePanel } from "./claims/claim-envelope-panel"
+import { NamecardInboxPanel } from "./claims/namecard-inbox-panel"
 import { FavoriteCollection } from "./favorites/favorite-collection"
 import { apiMessage, isFeatureClosed } from "./account-me-model"
 import { OfficeLocationWorkspace } from "./offices/office-location-workspace"
@@ -652,7 +652,7 @@ function ProfileWorkspace({
             className={sectionReadOnlyReason ? "mt-6" : undefined}
             hidden={activeSection !== "claims"}
           >
-            <ClaimEnvelopePanel readOnly={exchangeReadOnly} />
+            <NamecardInboxPanel readOnly={exchangeReadOnly} />
           </div>
         </div>
       </div>

@@ -17,8 +17,21 @@ import {
 } from "~/components/ui/dialog"
 import { formatCredit } from "~/components/community/namecard-credit-format"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
-import { getAdminNamecardDiff, type AdminNamecard, type AdminNamecardDiff } from "~/lib/api"
+import { getAdminNamecardDiff, type AdminNamecardDiff } from "~/lib/api"
 import { cn } from "~/lib/utils"
+
+/**
+ * 审核队列里一行待审名片的最小快照：详情与差异都由 `:id` 现取，
+ * 列表只需要够渲染标题与按钮可用状态。
+ */
+export interface NamecardReviewTarget {
+  /** Legacy numeric id, which is also the card number the diff route takes. */
+  id: number
+  producerName: string | null
+  revision: number
+  status: string
+  reviewStatus: string | null
+}
 
 type DiffSide = AdminNamecardDiff["live"]
 
@@ -191,11 +204,11 @@ export function NamecardReviewDialog({
   onReject,
   onLock,
 }: {
-  card: AdminNamecard | null
+  card: NamecardReviewTarget | null
   onOpenChange: (open: boolean) => void
-  onApprove: (card: AdminNamecard) => void
-  onReject: (card: AdminNamecard) => void
-  onLock: (card: AdminNamecard) => void
+  onApprove: (card: NamecardReviewTarget) => void
+  onReject: (card: NamecardReviewTarget) => void
+  onLock: (card: NamecardReviewTarget) => void
 }) {
   const [diff, setDiff] = useState<AdminNamecardDiff | null>(null)
   const [failed, setFailed] = useState(false)
