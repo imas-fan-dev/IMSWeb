@@ -1,27 +1,19 @@
 import {
   CheckIcon,
   ContactRoundIcon,
-  IdCardIcon,
   ImagesIcon,
   LoaderCircleIcon,
-  PlusIcon,
+  LockIcon,
+  LockOpenIcon,
   RefreshCwIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "react-router"
 
-import {
-  AdminEmptyState,
-  AdminPageHeader,
-  AdminPanel,
-} from "~/components/admin/admin-ui"
-import { AdminPagination } from "~/components/admin/admin-pagination"
-import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
-import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
-import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
+import { Checkbox } from "~/components/ui/checkbox"
 import { Input } from "~/components/ui/input"
 import {
   Select,
@@ -31,86 +23,63 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { Skeleton } from "~/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import {
+  AdminEmptyState,
+  AdminPageHeader,
+  AdminPanel,
+} from "~/components/admin/admin-ui"
+import { AdminPagination } from "~/components/admin/admin-pagination"
+import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { Badge } from "~/components/ui/badge"
+import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
+import { ClaimReviewTab } from "./claim-review-tab"
+import { useDebouncedValue } from "~/lib/use-debounced-value"
 import {
   approveAdminNamecard,
   flagAdminNamecard,
-  getAdminFudabaReviewQueue,
+  getAdminNamecards,
   isApiError,
   lockAdminNamecard,
   rejectAdminNamecard,
-  reviewAdminFudabaCardClaim,
-  type FudabaAdminCardClaim,
-  type ReviewQueueRow,
-  type ReviewQueueType,
-  type ReviewQueueListResponse,
+  unlockAdminNamecard,
+  type AdminNamecard,
+  type AdminNamecardList,
 } from "~/lib/api"
-import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
-import { useDebouncedValue } from "~/lib/use-debounced-value"
 import { NamecardMediaPreview } from "./namecard-media-preview"
-import { NamecardReviewDialog, type NamecardReviewTarget } from "./namecard-review-dialog"
-import { SupplementReviewDialog } from "./supplement-review-dialog"
-import { LOCK_REASON_PRESETS, REJECT_REASON_PRESETS, VIOLATION_REASON_PRESETS } from "./reason-presets"
+import { NamecardReviewDialog } from "./namecard-review-dialog"
+import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
+import {
+  LOCK_REASON_PRESETS,
+  REJECT_REASON_PRESETS,
+  VIOLATION_REASON_PRESETS,
+} from "./reason-presets"
 
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]
 }
 
-const TYPE_ITEMS: { value: ReviewQueueType; label: string }[] = [
-  { value: "submission", label: "投稿审核" },
-  { value: "claim", label: "名片认领" },
-  { value: "supplement", label: "信息补充" },
+const STATUS_ITEMS = [
+  { value: "all", label: "全部状态" },
+  { value: "pending", label: "待审核" },
+  { value: "published", label: "已通过" },
+  { value: "rejected", label: "已驳回" },
+  { value: "locked", label: "已锁定" },
+  { value: "hidden", label: "已隐藏" },
 ]
 
-const TYPE_LABELS: Record<ReviewQueueType, string> = {
-  submission: "投稿审核",
-  claim: "名片认领",
-  supplement: "信息补充",
+interface NamecardListFilters {
+  query: string
+  status: string
+  origins: string[]
 }
 
-function typeFromParam(value: string | null): ReviewQueueType {
-  return value === "claim" || value === "supplement" ? value : "submission"
+async function loadCards(page: number, filters: NamecardListFilters) {
+  return getAdminNamecards(page, filters).send()
 }
 
 function isStaleSubmission(error: unknown) {
   return isApiError(error) && (error.status === 409 || error.status === 410)
-}
-
-/** 投稿行只需要够渲染标题与按钮可用状态，差异由详情窗按 id 现取。 */
-function toReviewTarget(row: Extract<ReviewQueueRow, { type: "submission" }>): NamecardReviewTarget {
-  const card = row.review.card
-  const status =
-    card.publicationStatus === "published"
-      ? "approved"
-      : card.publicationStatus === "locked"
-        ? "locked"
-        : card.publicationStatus === "hidden"
-          ? "hidden"
-          : card.publicationStatus === "rejected"
-            ? "rejected"
-            : "pending"
-  return {
-    // 审核接口与差异窗都按名片编号取卡，内部 UUID 不参与。
-    id: card.cardNumber,
-    producerName: card.producerName,
-    revision: card.revision,
-    status,
-    reviewStatus: card.reviewStatus,
-  }
-}
-
-function rowKey(row: ReviewQueueRow) {
-  return row.type === "submission"
-    ? `submission:${row.review.card.id}`
-    : row.type === "claim"
-      ? `claim:${row.claim.id}`
-      : `supplement:${row.supplement.id}`
-}
-
-function rowLabel(row: ReviewQueueRow) {
-  if (row.type === "submission")
-    return row.review.card.producerName || `名片 #${row.review.card.cardNumber}`
-  if (row.type === "claim") return `名片 #${row.claim.legacyCardId}`
-  return row.card.producerName || `名片 #${row.card.cardNumber}`
 }
 
 export default function AdminCardsPage() {
@@ -118,14 +87,10 @@ export default function AdminCardsPage() {
   const requestedPage = Number(searchParams.get("page") ?? "1")
   const page =
     Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
-  const type = typeFromParam(searchParams.get("type"))
-  const queryParam = searchParams.get("query") ?? ""
-  const [rows, setRows] = useState<ReviewQueueRow[]>([])
-  const [pageInfo, setPageInfo] = useState<
-    ReviewQueueListResponse["pageInfo"]
-  >({
+  const [cards, setCards] = useState<AdminNamecard[]>([])
+  const [pageInfo, setPageInfo] = useState<AdminNamecardList["pageInfo"]>({
     page: 1,
-    pageSize: 20,
+    pageSize: 10,
     total: 0,
     totalPages: 0,
     hasNextPage: false,
@@ -133,8 +98,19 @@ export default function AdminCardsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const listFocusRef = useRef<HTMLDivElement>(null)
+  const queryParam = searchParams.get("query") ?? ""
+  const statusParam = searchParams.get("status") ?? ""
+  const originParam = searchParams.get("origin") ?? ""
+  const origins = useMemo(
+    () => (originParam ? originParam.split(",").filter(Boolean) : []),
+    [originParam]
+  )
   const [draftQuery, setDraftQuery] = useState(queryParam)
   const debouncedQuery = useDebouncedValue(draftQuery, 300)
+  const filters = useMemo<NamecardListFilters>(
+    () => ({ query: queryParam, status: statusParam, origins }),
+    [origins, queryParam, statusParam]
+  )
 
   useEffect(() => {
     const trimmed = debouncedQuery.trim()
@@ -146,16 +122,27 @@ export default function AdminCardsPage() {
     setSearchParams(next, { replace: true })
   }, [debouncedQuery, queryParam, searchParams, setSearchParams])
 
-  function setTypeFilter(value: ReviewQueueType) {
+  function setStatusFilter(value: string) {
     const next = new URLSearchParams(searchParams)
-    if (value === "submission") next.delete("type")
-    else next.set("type", value)
+    if (value) next.set("status", value)
+    else next.delete("status")
     next.delete("page")
     setSearchParams(next)
   }
 
-  const apply = useCallback((next: ReviewQueueListResponse) => {
-    setRows(next.data)
+  function toggleOrigin(value: string, checked: boolean) {
+    const current = new Set(origins)
+    if (checked) current.add(value)
+    else current.delete(value)
+    const next = new URLSearchParams(searchParams)
+    if (current.size > 0) next.set("origin", [...current].join(","))
+    else next.delete("origin")
+    next.delete("page")
+    setSearchParams(next)
+  }
+
+  const applyPage = useCallback((next: AdminNamecardList) => {
+    setCards(next.data)
     setPageInfo(next.pageInfo)
   }, [])
 
@@ -163,20 +150,19 @@ export default function AdminCardsPage() {
     setLoading(true)
     setError(false)
     try {
-      apply(await getAdminFudabaReviewQueue({ type, query: queryParam, page }).send())
+      applyPage(await loadCards(page, filters))
     } catch {
       setError(true)
     } finally {
       setLoading(false)
     }
-  }, [apply, page, queryParam, type])
+  }, [applyPage, filters, page])
 
   useEffect(() => {
     let active = true
-    void getAdminFudabaReviewQueue({ type, query: queryParam, page })
-      .send()
+    void loadCards(page, filters)
       .then((next) => {
-        if (active) apply(next)
+        if (active) applyPage(next)
       })
       .catch(() => {
         if (active) setError(true)
@@ -187,7 +173,7 @@ export default function AdminCardsPage() {
     return () => {
       active = false
     }
-  }, [apply, page, queryParam, type])
+  }, [applyPage, filters, page])
 
   function changePage(nextPage: number) {
     setLoading(true)
@@ -198,34 +184,29 @@ export default function AdminCardsPage() {
   }
 
   const getFallbackFocus = useCallback(
-    (target: NamecardReviewTarget) => {
-      const index = rows.findIndex(
-        (row) =>
-          row.type === "submission" &&
-          row.review.card.cardNumber === target.id
-      )
-      const neighbour = rows[index + 1] ?? rows[index - 1]
+    (card: AdminNamecard) => {
+      const index = cards.findIndex((item) => item.id === card.id)
+      const neighbour = cards[index + 1] ?? cards[index - 1]
       if (neighbour) {
         return document.querySelector<HTMLElement>(
-          `[data-queue-key="${CSS.escape(rowKey(neighbour))}"] button`
+          `[data-namecard-id="${neighbour.id}"] button`
         )
       }
       return listFocusRef.current
     },
-    [rows]
+    [cards]
   )
 
-  const [reviewTarget, setReviewTarget] = useState<NamecardReviewTarget | null>(
-    null
-  )
-  const [supplementRow, setSupplementRow] = useState<
-    Extract<ReviewQueueRow, { type: "supplement" }> | null
-  >(null)
-
-  const approveConfirm = useConfirmAction<NamecardReviewTarget>({
-    onConfirm: async (target) => {
+  const approveConfirm = useConfirmAction<AdminNamecard>({
+    onConfirm: async (card) => {
       try {
-        await approveAdminNamecard(target.id, target.revision).send()
+        const response = await approveAdminNamecard(
+          card.id,
+          card.revision
+        ).send()
+        void response
+        // Reload instead of patching locally: the queue is filtered and sorted on
+        // the server, so a published card may belong on another page.
         await refresh()
       } catch (error) {
         if (isStaleSubmission(error)) await refresh()
@@ -233,37 +214,39 @@ export default function AdminCardsPage() {
       }
     },
     getTitle: () => "通过审核",
-    getDescription: (target) =>
-      `名片 #${target.id} 将通过审核并公开在名片墙上展示，之后仍可锁定。`,
-    successMessage: (target) => `名片 #${target.id} 已通过审核`,
+    getDescription: (card) =>
+      `名片 #${card.id} 将通过审核并公开在名片墙上展示，之后仍可锁定。`,
+    successMessage: (card) => `名片 #${card.id} 已通过审核`,
     getFallbackFocus,
   })
 
   const [lockReason, setLockReason] = useState("")
+  const [reviewCard, setReviewCard] = useState<AdminNamecard | null>(null)
 
-  const lockConfirm = useConfirmAction<NamecardReviewTarget>({
-    onConfirm: async (target) => {
+
+  const lockConfirm = useConfirmAction<AdminNamecard>({
+    onConfirm: async (card) => {
       try {
         await lockAdminNamecard(
-          target.id,
-          target.revision,
+          card.id,
+          card.revision,
           lockReason.trim()
         ).send()
         setLockReason("")
         await refresh()
-        if (rows.length === 1 && page > 1) changePage(page - 1)
+        if (cards.length === 1 && page > 1) changePage(page - 1)
       } catch (error) {
         if (isStaleSubmission(error)) await refresh()
         throw error
       }
     },
     getTitle: () => "锁定名片",
-    getDescription: (target) => (
+    getDescription: (card) => (
       <div className="space-y-2">
         <p>
-          名片 #{target.id} 将被锁定并从名片墙移除；投稿人会收到带理由的通知。
+          名片 #{card.id} 将被锁定并从名片墙移除；投稿人会收到带理由的通知。
         </p>
-        {target.reviewStatus === "pending" ? (
+        {card.reviewStatus === "pending" ? (
           <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive">
             该名片当前已有一个版本公开中。锁定会同时下架线上版本，并丢弃本次待审提交。
           </p>
@@ -291,48 +274,65 @@ export default function AdminCardsPage() {
         />
       </div>
     ),
-    successMessage: (target) => `名片 #${target.id} 已锁定`,
+    successMessage: (card) => `名片 #${card.id} 已锁定`,
+    getFallbackFocus,
+  })
+
+  const unlockConfirm = useConfirmAction<AdminNamecard>({
+    onConfirm: async (card) => {
+      try {
+        await unlockAdminNamecard(card.id, card.revision).send()
+        await refresh()
+      } catch (error) {
+        if (isStaleSubmission(error)) await refresh()
+        throw error
+      }
+    },
+    getTitle: () => "解除锁定",
+    getDescription: (card) =>
+      `名片 #${card.id} 将回到待审核队列，并通知投稿人。审核通过后会重新展示在名片墙上。`,
+    successMessage: (card) => `名片 #${card.id} 已解除锁定`,
     getFallbackFocus,
   })
 
   const [rejectReason, setRejectReason] = useState("")
   const [rejectFlagged, setRejectFlagged] = useState(false)
 
-  const rejectConfirm = useConfirmAction<NamecardReviewTarget>({
-    onConfirm: async (target) => {
+  const rejectConfirm = useConfirmAction<AdminNamecard>({
+    onConfirm: async (card) => {
       try {
         const reason = rejectReason.trim()
         if (rejectFlagged) {
           await flagAdminNamecard(
-            target.id,
-            target.revision,
+            card.id,
+            card.revision,
             reason || "违规内容"
           ).send()
         } else {
           await rejectAdminNamecard(
-            target.id,
-            target.revision,
+            card.id,
+            card.revision,
             reason || undefined
           ).send()
         }
         setRejectReason("")
         setRejectFlagged(false)
         await refresh()
-        if (rows.length === 1 && page > 1) changePage(page - 1)
+        if (cards.length === 1 && page > 1) changePage(page - 1)
       } catch (error) {
         if (isStaleSubmission(error)) await refresh()
         throw error
       }
     },
-    getTitle: (target) =>
+    getTitle: (card) =>
       rejectFlagged
         ? "标记违规并驳回"
-        : target.reviewStatus === "pending"
+        : card.reviewStatus === "pending"
           ? "驳回新版本"
           : "驳回名片",
-    getDescription: (target) => (
+    getDescription: (card) => (
       <div className="space-y-2">
-        <p>名片 #{target.id} 将被驳回，不会显示在名片墙上；投稿人可重新提交。</p>
+        <p>名片 #{card.id} 将被驳回，不会显示在名片墙上；投稿人可重新提交。</p>
         <div className="flex flex-wrap gap-1.5">
           {(rejectFlagged
             ? VIOLATION_REASON_PRESETS
@@ -361,7 +361,9 @@ export default function AdminCardsPage() {
           className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           onChange={(event) => setRejectReason(event.currentTarget.value)}
         />
-        {target.reviewStatus === "pending" ? (
+        {/* A first submission is locked, not flagged: the lock button already
+            covers that case, and two controls for one outcome invite mistakes. */}
+        {card.reviewStatus === "pending" ? (
           <label className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive">
             <input
               type="checkbox"
@@ -379,101 +381,29 @@ export default function AdminCardsPage() {
         ) : null}
       </div>
     ),
-    successMessage: (target) => `名片 #${target.id} 已驳回`,
+    successMessage: (card) => `名片 #${card.id} 已驳回`,
     getFallbackFocus,
   })
 
-  const claimApprove = useConfirmAction<FudabaAdminCardClaim>({
-    onConfirm: async (claim) => {
-      try {
-        await reviewAdminFudabaCardClaim(claim.id, {
-          decision: "approve",
-          expectedRevision: claim.revision,
-          note: "已核对历史名片与申请资料",
-        }).send()
-        await refresh()
-      } catch (error) {
-        if (isStaleSubmission(error)) await refresh()
-        throw error
-      }
-    },
-    getTitle: () => "通过名片认领",
-    getDescription: (claim) =>
-      `名片 #${claim.legacyCardId} 将绑定给 ${claim.claimant.displayName}，并成为可管理的注册名片。`,
-    successMessage: (claim) => `名片 #${claim.legacyCardId} 已完成认领`,
-  })
-
-  const claimReject = useConfirmAction<FudabaAdminCardClaim>({
-    onConfirm: async (claim) => {
-      try {
-        await reviewAdminFudabaCardClaim(claim.id, {
-          decision: "reject",
-          expectedRevision: claim.revision,
-          note: rejectReason.trim() || "无法确认名片归属",
-        }).send()
-        setRejectReason("")
-        await refresh()
-      } catch (error) {
-        if (isStaleSubmission(error)) await refresh()
-        throw error
-      }
-    },
-    getTitle: () => "驳回名片认领",
-    getDescription: (claim) => (
-      <div className="space-y-2">
-        <p>
-          名片 #${claim.legacyCardId} 将保持无主，不会绑定到
-          {" "}{claim.claimant.displayName}。
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {REJECT_REASON_PRESETS.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              onClick={() => setRejectReason(preset)}
-            >
-              {preset}
-            </button>
-          ))}
-        </div>
-        <textarea
-          aria-label="驳回理由"
-          value={rejectReason}
-          maxLength={400}
-          rows={3}
-          placeholder="驳回理由（必填），会随通知发送给申请人"
-          className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          onChange={(event) => setRejectReason(event.currentTarget.value)}
-        />
-      </div>
-    ),
-    successMessage: (claim) => `名片 #${claim.legacyCardId} 的认领已驳回`,
-  })
-
-  const activeReviewTarget =
-    reviewTarget &&
-    rows.some(
-      (row) =>
-        row.type === "submission" &&
-        row.review.card.cardNumber === reviewTarget.id
-    )
-      ? reviewTarget
+  // Approving or locking drops the row from the queue, so the review window
+  // closes with it instead of showing a revision that no longer exists.
+  const activeReviewCard =
+    reviewCard && cards.some((card) => card.id === reviewCard.id)
+      ? reviewCard
       : null
 
   const submitting =
     approveConfirm.submitting ||
     rejectConfirm.submitting ||
     lockConfirm.submitting ||
-    claimApprove.submitting ||
-    claimReject.submitting
+    unlockConfirm.submitting
 
   return (
     <div className="flex flex-col gap-7">
       <AdminPageHeader
         eyebrow="NAMECARD REVIEW"
         title="制作人名片审核"
-        description="投稿审核、名片认领与信息补充共用一条队列，用审核类型切换。"
+        description="统一处理投稿审核与旧名片认领，投稿来源在下方筛选。"
         actions={
           <Button
             type="button"
@@ -487,272 +417,265 @@ export default function AdminCardsPage() {
         }
       />
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
-        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-          审核类型
-          <Select
-            value={type}
-            items={TYPE_ITEMS}
-            onValueChange={(value) => setTypeFilter(value as ReviewQueueType)}
-          >
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TYPE_ITEMS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-          制作人名称
-          <div className="relative">
-            <SearchIcon
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              value={draftQuery}
-              placeholder="搜索制作人名称"
-              className="w-56 pl-8"
-              onChange={(event) => setDraftQuery(event.currentTarget.value)}
-            />
-          </div>
-        </label>
-      </div>
+      <Tabs defaultValue="guest">
+        <TabsList aria-label="名片审核类型">
+          <TabsTrigger value="guest">投稿审核</TabsTrigger>
+          <TabsTrigger value="claims">旧名片认领</TabsTrigger>
+        </TabsList>
 
-      <AdminPanel
-        title="名片队列"
-        description={`共 ${pageInfo.total} 条${TYPE_LABELS[type]}记录`}
-        icon={ContactRoundIcon}
-      >
-        <div ref={listFocusRef} tabIndex={-1} aria-label="名片队列内容">
-          {loading ? (
-            <CardsSkeleton />
-          ) : error ? (
-            <AdminEmptyState
-              icon={ContactRoundIcon}
-              title="无法读取名片队列"
-              description="请确认管理会话有效，然后刷新页面重试。"
-            />
-          ) : rows.length ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
-              {rows.map((row) => (
-                <article
-                  key={rowKey(row)}
-                  data-queue-key={rowKey(row)}
-                  className="relative overflow-hidden rounded-xl border"
-                >
-                  {row.type === "submission" &&
-                  row.review.card.reviewStatus === "pending" ? (
-                    <Badge className="absolute top-2 left-2 z-10 border-warning-foreground/40 bg-warning text-warning-foreground shadow-sm">
-                      新版本
-                    </Badge>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="relative block w-full cursor-zoom-in text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    aria-label={`查看${TYPE_LABELS[row.type]} ${rowLabel(row)} 的审核详情`}
-                    onClick={() => {
-                      if (row.type === "submission") setReviewTarget(toReviewTarget(row))
-                      else if (row.type === "supplement") setSupplementRow(row)
-                    }}
-                  >
-                    {row.type === "submission" &&
-                    row.review.card.middleImageUrls.length > 0 ? (
-                      <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
-                        <ImagesIcon aria-hidden="true" />
-                        {row.review.card.middleImageUrls.length +
-                          (row.review.card.backImageUrl ? 2 : 1)}
-                      </Badge>
-                    ) : null}
-                    {row.type === "claim" ? (
-                      <NamecardMediaPreview
-                        frontImageUrl={row.claim.legacyCard.frontImageUrl}
-                        backImageUrl={row.claim.legacyCard.backImageUrl}
-                        altBase={`名片 #${row.claim.legacyCardId}`}
-                      />
-                    ) : (
-                      <NamecardMediaPreview
-                        frontImageUrl={
-                          row.type === "submission"
-                            ? row.review.card.frontImageUrl
-                            : row.card.frontImageUrl
-                        }
-                        backImageUrl={
-                          row.type === "submission" ? row.review.card.backImageUrl : null
-                        }
-                        altBase={rowLabel(row)}
-                      />
-                    )}
-                  </button>
-                  <div className="flex flex-wrap items-center gap-3 p-4">
-                    <div className="mr-auto">
-                      <p className="font-medium">{rowLabel(row)}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary">
-                          {row.type === "claim" ? (
-                            <IdCardIcon aria-hidden="true" />
-                          ) : row.type === "supplement" ? (
-                            <PlusIcon aria-hidden="true" />
-                          ) : null}
-                          {TYPE_LABELS[row.type]}
-                        </Badge>
-                        {row.type === "submission" ? (
-                          <NamecardStatusBadge
-                            status={toReviewTarget(row).status}
-                            reviewStatus={row.review.card.reviewStatus}
-                          />
-                        ) : null}
-                        {row.type === "claim" ? (
-                          <span className="text-xs text-muted-foreground">
-                            {row.claim.claimant.displayName}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    {row.type === "submission" ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          aria-label="通过"
-                          title="通过"
-                          disabled={submitting}
-                          onClick={(event) =>
-                            approveConfirm.requestAction(
-                              toReviewTarget(row),
-                              event.currentTarget
-                            )
-                          }
-                        >
-                          {approveConfirm.submitting &&
-                          approveConfirm.target?.id ===
-                          row.review.card.cardNumber ? (
-                            <LoaderCircleIcon className="animate-spin" />
-                          ) : (
-                            <CheckIcon />
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="outline"
-                          aria-label="驳回"
-                          title="驳回"
-                          disabled={submitting}
-                          onClick={(event) =>
-                            rejectConfirm.requestAction(
-                              toReviewTarget(row),
-                              event.currentTarget
-                            )
-                          }
-                        >
-                          {rejectConfirm.submitting &&
-                          rejectConfirm.target?.id ===
-                          row.review.card.cardNumber ? (
-                            <LoaderCircleIcon className="animate-spin" />
-                          ) : (
-                            <XIcon />
-                          )}
-                        </Button>
-                      </>
-                    ) : row.type === "claim" ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          aria-label="通过"
-                          title="通过"
-                          disabled={submitting}
-                          onClick={() =>
-                            claimApprove.requestAction(row.claim)
-                          }
-                        >
-                          {claimApprove.submitting &&
-                          claimApprove.target?.id === row.claim.id ? (
-                            <LoaderCircleIcon className="animate-spin" />
-                          ) : (
-                            <CheckIcon />
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="outline"
-                          aria-label="驳回"
-                          title="驳回"
-                          disabled={submitting}
-                          onClick={() =>
-                            claimReject.requestAction(row.claim)
-                          }
-                        >
-                          {claimReject.submitting &&
-                          claimReject.target?.id === row.claim.id ? (
-                            <LoaderCircleIcon className="animate-spin" />
-                          ) : (
-                            <XIcon />
-                          )}
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={submitting}
-                        onClick={() => setSupplementRow(row)}
-                      >
-                        审核
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              ))}
+        <TabsContent value="guest" className="flex flex-col gap-7 pt-5">
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
+            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+              制作人名称
+              <div className="relative">
+                <SearchIcon
+                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  value={draftQuery}
+                  placeholder="搜索制作人名称"
+                  className="w-56 pl-8"
+                  onChange={(event) => setDraftQuery(event.currentTarget.value)}
+                />
+              </div>
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+              审核状态
+              <Select
+                value={statusParam || "all"}
+                items={STATUS_ITEMS}
+                onValueChange={(value) =>
+                  setStatusFilter(value === "all" ? "" : String(value))
+                }
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="pending">待审核</SelectItem>
+                  <SelectItem value="published">已通过</SelectItem>
+                  <SelectItem value="rejected">已驳回</SelectItem>
+                  <SelectItem value="locked">已锁定</SelectItem>
+                  <SelectItem value="hidden">已隐藏</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+              <span>投稿来源</span>
+              <div className="flex h-9 items-center gap-4">
+                <label className="flex items-center gap-1.5 text-sm text-foreground">
+                  <Checkbox
+                    checked={origins.includes("legacy")}
+                    onCheckedChange={(checked) =>
+                      toggleOrigin("legacy", checked === true)
+                    }
+                  />
+                  游客投稿
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-foreground">
+                  <Checkbox
+                    checked={origins.includes("exchange")}
+                    onCheckedChange={(checked) =>
+                      toggleOrigin("exchange", checked === true)
+                    }
+                  />
+                  注册用户投稿
+                </label>
+              </div>
             </div>
-          ) : (
-            <AdminEmptyState
-              icon={CheckIcon}
-              title="当前没有待审核记录"
-              description={`新的${TYPE_LABELS[type]}会显示在这里。`}
-            />
-          )}
-        </div>
-      </AdminPanel>
+          </div>
 
-      <AdminPagination
-        page={page}
-        totalPages={pageInfo.totalPages}
-        disabled={loading}
-        onChange={changePage}
-      />
+          <AdminPanel
+            title="名片队列"
+            description={`每条投稿包含正面和背面两张图片 · 共 ${pageInfo.total} 条记录`}
+            icon={ContactRoundIcon}
+          >
+            <div ref={listFocusRef} tabIndex={-1} aria-label="名片队列内容">
+              {loading ? (
+                <CardsSkeleton />
+              ) : error ? (
+                <AdminEmptyState
+                  icon={ContactRoundIcon}
+                  title="无法读取名片队列"
+                  description="请确认管理会话有效，然后刷新页面重试。"
+                />
+              ) : cards.length ? (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
+                  {cards.map((card) => {
+                    return (
+                      <article
+                        key={card.id}
+                        data-namecard-id={card.id}
+                        className="relative overflow-hidden rounded-xl border"
+                      >
+                        {card.reviewStatus === "pending" ? (
+                          <Badge className="absolute top-2 left-2 z-10 border-warning-foreground/40 bg-warning text-warning-foreground shadow-sm">
+                            新版本
+                          </Badge>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="relative block w-full cursor-zoom-in text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                          aria-label={`查看名片 #${card.id} 的审核详情`}
+                          onClick={() => setReviewCard(card)}
+                        >
+                          {card.pageCount > 2 ? (
+                            <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
+                              <ImagesIcon aria-hidden="true" />
+                              {card.pageCount}
+                            </Badge>
+                          ) : null}
+                          <NamecardMediaPreview
+                            frontImageUrl={card.image1_url}
+                            backImageUrl={card.image2_url}
+                            altBase={`名片 #${card.id}`}
+                          />
+                        </button>
+                        <div className="flex flex-wrap items-center gap-3 p-4">
+                          <div className="mr-auto">
+                            <p className="font-medium">
+                              {card.producerName ?? `名片 #${card.id}`}
+                            </p>
+                            <NamecardStatusBadge
+                              status={card.status}
+                              reviewStatus={card.reviewStatus}
+                            />
+                          </div>
+                          {card.status === "pending" ? (
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              aria-label="通过"
+                              title="通过"
+                              disabled={submitting}
+                              onClick={(event) =>
+                                approveConfirm.requestAction(
+                                  card,
+                                  event.currentTarget
+                                )
+                              }
+                            >
+                              {approveConfirm.submitting &&
+                              approveConfirm.target?.id === card.id ? (
+                                <LoaderCircleIcon className="animate-spin" />
+                              ) : (
+                                <CheckIcon />
+                              )}
+                            </Button>
+                          ) : null}
+                          {card.status === "pending" ? (
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="outline"
+                              aria-label="驳回"
+                              title="驳回"
+                              disabled={submitting}
+                              onClick={(event) =>
+                                rejectConfirm.requestAction(
+                                  card,
+                                  event.currentTarget
+                                )
+                              }
+                            >
+                              {rejectConfirm.submitting &&
+                              rejectConfirm.target?.id === card.id ? (
+                                <LoaderCircleIcon className="animate-spin" />
+                              ) : (
+                                <XIcon />
+                              )}
+                            </Button>
+                          ) : null}
+                          {card.status === "locked" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={submitting}
+                              aria-label={`解除锁定名片 #${card.id}`}
+                              onClick={(event) =>
+                                unlockConfirm.requestAction(
+                                  card,
+                                  event.currentTarget
+                                )
+                              }
+                            >
+                              {unlockConfirm.submitting &&
+                              unlockConfirm.target?.id === card.id ? (
+                                <LoaderCircleIcon
+                                  data-icon="inline-start"
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <LockOpenIcon data-icon="inline-start" />
+                              )}
+                              解锁
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              disabled={submitting}
+                              aria-label={`锁定名片 #${card.id}`}
+                              onClick={(event) =>
+                                lockConfirm.requestAction(
+                                  card,
+                                  event.currentTarget
+                                )
+                              }
+                            >
+                              {lockConfirm.submitting &&
+                              lockConfirm.target?.id === card.id ? (
+                                <LoaderCircleIcon
+                                  data-icon="inline-start"
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <LockIcon data-icon="inline-start" />
+                              )}
+                              锁定
+                            </Button>
+                          )}
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              ) : (
+                <AdminEmptyState
+                  icon={CheckIcon}
+                  title="当前页没有名片"
+                  description="新的名片投稿会显示在这里。"
+                />
+              )}
+            </div>
+          </AdminPanel>
+
+          <AdminPagination
+            page={page}
+            totalPages={pageInfo.totalPages}
+            disabled={loading}
+            onChange={changePage}
+          />
+        </TabsContent>
+
+        <TabsContent value="claims" className="flex flex-col gap-7 pt-5">
+          <ClaimReviewTab />
+        </TabsContent>
+      </Tabs>
 
       <NamecardReviewDialog
-        key={activeReviewTarget?.id ?? "none"}
-        card={activeReviewTarget}
+        key={reviewCard?.id ?? "none"}
+        card={activeReviewCard}
         onOpenChange={(open) => {
-          if (!open) setReviewTarget(null)
+          if (!open) setReviewCard(null)
         }}
-        onApprove={(target) => approveConfirm.requestAction(target)}
-        onReject={(target) => rejectConfirm.requestAction(target)}
-        onLock={(target) => lockConfirm.requestAction(target)}
-      />
-
-      <SupplementReviewDialog
-        key={supplementRow?.supplement?.id ?? "none"}
-        supplement={supplementRow?.supplement ?? null}
-        cardLabel={
-          supplementRow
-            ? `名片 #${supplementRow.card.cardNumber}`
-            : ""
-        }
-        onOpenChange={(open) => {
-          if (!open) setSupplementRow(null)
-        }}
-        onReviewed={() => void refresh()}
+        onApprove={(card) => approveConfirm.requestAction(card)}
+        onReject={(card) => rejectConfirm.requestAction(card)}
+        onLock={(card) => lockConfirm.requestAction(card)}
       />
 
       <ConfirmActionDialog
@@ -792,25 +715,13 @@ export default function AdminCardsPage() {
       />
 
       <ConfirmActionDialog
-        open={claimApprove.open}
-        onOpenChange={claimApprove.onOpenChange}
-        title={claimApprove.title}
-        description={claimApprove.description}
-        submitting={claimApprove.submitting}
-        onConfirm={() => void claimApprove.confirmAction()}
-        confirmLabel="确认通过"
-        variant="default"
-      />
-
-      <ConfirmActionDialog
-        open={claimReject.open}
-        onOpenChange={claimReject.onOpenChange}
-        title={claimReject.title}
-        description={claimReject.description}
-        submitting={claimReject.submitting}
-        onConfirm={() => void claimReject.confirmAction()}
-        confirmLabel="确认驳回"
-        variant="default"
+        open={unlockConfirm.open}
+        onOpenChange={unlockConfirm.onOpenChange}
+        title={unlockConfirm.title}
+        description={unlockConfirm.description}
+        submitting={unlockConfirm.submitting}
+        onConfirm={() => void unlockConfirm.confirmAction()}
+        confirmLabel="确认解锁"
       />
     </div>
   )

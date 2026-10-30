@@ -225,7 +225,13 @@ export const reviewQueueRowSchema = z.discriminatedUnion("type", [
     .strict(),
 ])
 
-export const reviewQueueTypeSchema = z.enum(["submission", "claim", "supplement"])
+export const reviewQueueTypeSchema = z.enum([
+  "submission",
+  "claim",
+  "supplement",
+  /** Both ownerless-card review kinds, for the claim tab's default view. */
+  "all",
+])
 
 export const reviewQueueListSchema = successEnvelope({
   data: z.array(reviewQueueRowSchema),

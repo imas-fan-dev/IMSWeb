@@ -404,7 +404,7 @@ export async function handleListFudabaReviewQueue(
                 });
             }
         }
-        if (type === null || type === 'claim') {
+        if (type === null || type === 'claim' || type === 'all') {
             const storage = services(c).storage;
             for (const claim of await repository.listAdminPendingClaims(QUEUE_FETCH_LIMIT)) {
                 const view = fudabaAdminCardClaimView(claim);
@@ -434,7 +434,7 @@ export async function handleListFudabaReviewQueue(
                 });
             }
         }
-        if (type === null || type === 'supplement') {
+        if (type === null || type === 'supplement' || type === 'all') {
             for (const supplement of await repository.listAdminPendingSupplements(QUEUE_FETCH_LIMIT)) {
                 rows.push({
                     type: 'supplement',

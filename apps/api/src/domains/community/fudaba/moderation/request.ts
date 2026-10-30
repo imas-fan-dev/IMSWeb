@@ -197,7 +197,7 @@ export function parseCardSupplementReview(
 const QUEUE_PAGE_SIZE = 20;
 
 export interface ReviewQueueQuery {
-    type: 'submission' | 'claim' | 'supplement' | null;
+    type: 'submission' | 'claim' | 'supplement' | 'all' | null;
     /** Matches the producer name of any of the three row kinds. */
     query: string;
     page: number;
@@ -215,9 +215,10 @@ export function parseReviewQueueQuery(raw: {
         type !== null &&
         type !== 'submission' &&
         type !== 'claim' &&
-        type !== 'supplement'
+        type !== 'supplement' &&
+        type !== 'all'
     ) {
-        throw badRequest('type 必须是 submission、claim 或 supplement');
+        throw badRequest('type 必须是 submission、claim、supplement 或 all');
     }
     const page =
         raw.page === undefined ? 1 : positiveLimit(raw.page, 1, MAX_REVIEW_LIMIT);

@@ -616,34 +616,19 @@ test.describe("namecard claim workflow", () => {
     })
   })
 
-  const registeredCard = {
-    id: "registered-card-e2e",
-    cardNumber: 42,
+  const pendingSubmission = {
+    id: 42,
+    image1_url: FRONT_IMAGE,
+    image2_url: BACK_IMAGE,
+    status: "pending",
+    revision: 1,
     producerName: "注册制作人",
-    seriesCodes: ["765"],
-    favoriteCharacters: [favoriteCharacter],
-    frontImageUrl: FRONT_IMAGE,
-    middleImageUrls: [],
-    backImageUrl: BACK_IMAGE,
-    accent: "#f34e6c",
-    bio: "",
-    tradeNote: "",
-    exchangeMode: "manual",
-    madeOn: null,
-    groupName: null,
     producerReading: null,
-    isOriginal: false,
-    madeWithAi: false,
-    visible: true,
-    credits: [],
-    publicationStatus: "pending",
+    origin: "exchange",
+    lockReason: null,
     reviewStatus: null,
     reviewReason: null,
-    reviewSubmittedAt: null,
-    pendingContent: null,
-    revision: 1,
-    createdAt: "2026-08-16T19:30:00.000Z",
-    updatedAt: "2026-08-16T19:30:00.000Z",
+    pageCount: 2,
   }
 
   const pendingClaim = {
@@ -813,7 +798,7 @@ test.describe("namecard claim workflow", () => {
     })
   })
 
-  test("administrator reviews submissions and claims from one queue", async ({
+  test("administrator reviews submissions and claims from two tabs", async ({
     page,
     api,
   }, testInfo) => {
@@ -834,46 +819,19 @@ test.describe("namecard claim workflow", () => {
       csrf: string | undefined
     }> = []
 
-    // 一条队列服务三类记录，页面按 type 取数后渲染同一张卡片。
+    // 投稿审核页签仍是原来的名片列表接口。
     await api.mockRoute(
-      "**/api/admin/community/exchange/review-queue**",
+      "**/api/admin/cards",
       async (route) => {
-        const type = new URL(route.request().url()).searchParams.get("type")
-        const rows =
-          type === "claim"
-            ? claimPending
-              ? [
-                  {
-                    type: "claim",
-                    submittedAt: "2026-08-16T19:31:00.000Z",
-                    claim: pendingClaim,
-                  },
-                ]
-              : []
-            : submissionPending
-              ? [
-                  {
-                    type: "submission",
-                    submittedAt: "2026-08-16T19:30:00.000Z",
-                    review: {
-                      card: registeredCard,
-                      owner: {
-                        id: "platform-owner",
-                        displayName: "注册制作人",
-                      },
-                    },
-                  },
-                ]
-              : []
         await route.fulfill({
           json: {
             success: true,
-            data: rows,
+            data: submissionPending ? [pendingSubmission] : [],
             pageInfo: {
               page: 1,
               pageSize: 20,
-              total: rows.length,
-              totalPages: rows.length ? 1 : 0,
+              total: submissionPending ? 1 : 0,
+              totalPages: submissionPending ? 1 : 0,
               hasNextPage: false,
             },
           },
@@ -883,7 +841,7 @@ test.describe("namecard claim workflow", () => {
       { min: 1, max: 20 }
     )
     await api.mockRoute(
-      `/api/admin/cards/approve/${registeredCard.cardNumber}`,
+      `/api/admin/cards/approve/${pendingSubmission.id}`,
       async (route) => {
         reviews.push({
           kind: "registered",
@@ -894,6 +852,36 @@ test.describe("namecard claim workflow", () => {
         await route.fulfill({ json: { success: true, revision: 2 } })
       },
       "POST"
+    )
+
+    // 旧名片认领页签按审核类型取数，结构与投稿审核一致。
+    await api.mockRoute(
+      "**/api/admin/community/exchange/review-queue",
+      async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: claimPending
+              ? [
+                  {
+                    type: "claim",
+                    submittedAt: "2026-08-16T19:31:00.000Z",
+                    claim: pendingClaim,
+                  },
+                ]
+              : [],
+            pageInfo: {
+              page: 1,
+              pageSize: 20,
+              total: claimPending ? 1 : 0,
+              totalPages: claimPending ? 1 : 0,
+              hasNextPage: false,
+            },
+          },
+        })
+      },
+      "GET",
+      { min: 1, max: 20 }
     )
     await api.mockRoute(
       "/api/admin/community/exchange/card-claims/claim-admin-e2e",
@@ -910,19 +898,22 @@ test.describe("namecard claim workflow", () => {
     )
 
     await page.goto("/admin/cards")
+    await expect(page.getByRole("tab", { name: "投稿审核" })).toBeVisible()
     await expect(page.getByText("注册制作人")).toBeVisible()
     await page.getByRole("button", { name: "通过", exact: true }).click()
     await page.getByRole("button", { name: "确认通过" }).click()
     await expect(page.getByText("注册制作人")).toHaveCount(0)
-    await expect(page.getByText("当前没有待审核记录")).toBeVisible()
 
-    // 审核类型换成名片认领，同一位置渲染认领记录。
-    await page.getByRole("combobox").first().click()
-    await page.getByRole("option", { name: "名片认领" }).click()
+    // 认领页签：同一套卡片结构，筛选换成审核类型。
+    await page.getByRole("tab", { name: "旧名片认领" }).click()
     await expect(page.getByText("名片 #42").first()).toBeVisible()
+    // 卡片上的类型徽标（页签与标题也叫这个名字，需要限定在卡片内）。
+    await expect(
+      page.locator("article").getByText("名片认领", { exact: true })
+    ).toBeVisible()
     await page.getByRole("button", { name: "通过", exact: true }).click()
     await page.getByRole("button", { name: "确认通过" }).click()
-    await expect(page.getByText("名片 #42")).toHaveCount(0)
+    await expect(page.getByText("没有待审核的认领或补充")).toBeVisible()
 
     expect(reviews).toEqual([
       {
