@@ -203,6 +203,8 @@ export function CardMediaGallery({
   slots,
   disabled,
   allowUpload = true,
+  /** 审核窗的纯预览：不提供任何编辑动作，也不显示编辑说明。 */
+  readOnly = false,
   onChange,
   onError,
 }: {
@@ -210,6 +212,7 @@ export function CardMediaGallery({
   disabled: boolean
   /** The backoffice may only reorder and drop pages, never add or replace. */
   allowUpload?: boolean
+  readOnly?: boolean
   onChange: (slots: MediaSlot[]) => void
   onError: (message: string) => void
 }) {
@@ -412,7 +415,7 @@ export function CardMediaGallery({
             {role}
           </span>
         ) : null}
-        {current ? (
+        {current && !readOnly ? (
           <div className="absolute right-2 bottom-2 z-10 flex gap-2">
             {allowUpload ? (
               <Button
@@ -529,6 +532,7 @@ export function CardMediaGallery({
           )
         : null}
 
+      {readOnly ? null : (
       <p className="mt-2 text-xs text-muted-foreground">
         {allowUpload ? (
           <>
@@ -539,6 +543,7 @@ export function CardMediaGallery({
           "只能删除或调整图片顺序，替换与新增由用户在编辑器里完成。"
         )}
       </p>
+      )}
     </section>
   )
 }

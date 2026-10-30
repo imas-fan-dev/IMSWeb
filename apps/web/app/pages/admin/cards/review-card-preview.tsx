@@ -57,6 +57,7 @@ export function ReviewCardPreview({ cardNumber }: { cardNumber: number }) {
     <CardMediaGallery
       slots={slots}
       disabled
+      readOnly
       allowUpload={false}
       onChange={() => {}}
       onError={() => {}}
