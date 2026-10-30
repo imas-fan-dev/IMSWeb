@@ -1,6 +1,8 @@
 import type { Locator, Page } from "@playwright/test"
 import { installMapGuideScene } from "./map-guide"
-import { expect, test } from "./test"
+import { expect } from "./test"
+
+type FixtureTest = typeof import("./test").test
 
 declare global {
   interface Window {
@@ -73,7 +75,7 @@ async function rotationFrames(control: Locator) {
   })
 }
 
-export function registerMapLocationFeedbackTests() {
+export function registerMapLocationFeedbackTests(test: FixtureTest) {
   const tags = ["@mobile", "@app-iphone", "@app-android", "@app-landscape"]
 
   test(
