@@ -1,4 +1,11 @@
-import { LoaderCircleIcon, SaveIcon, SearchIcon, Trash2Icon } from "lucide-react"
+import {
+  CheckIcon,
+  LoaderCircleIcon,
+  SaveIcon,
+  SearchIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
@@ -36,13 +43,16 @@ import {
   getAdminPlatformUsers,
   getPublicFudabaSeries,
   isApiError,
+  resolveAdminNamecardFeedback,
   updateAdminNamecard,
   type AdminNamecardDiff,
   type AdminPlatformUser,
   type FudabaCardFields,
   type FudabaSeries,
   type NamecardDiffSide,
+  type NamecardFeedbackReason,
 } from "~/lib/api"
+import { feedbackReasonLabel } from "~/pages/community/exchange/components/namecard-feedback-model"
 
 /** Lifecycle values the management window may set; drafts never reach a card. */
 const STATUS_OPTIONS = [
@@ -135,12 +145,22 @@ function flash(element: HTMLElement | null) {
   )
 }
 
+export interface ManageDialogFeedback {
+  id: number
+  reason: NamecardFeedbackReason
+  detail: string | null
+  reporterName: string
+}
+
 export function NamecardManageDialog({
   cardNumber,
+  feedback = null,
   onClose,
   onSaved,
 }: {
   cardNumber: number
+  /** Set when the window was opened from the report queue. */
+  feedback?: ManageDialogFeedback | null
   onClose: () => void
   onSaved: () => void
 }) {
@@ -161,7 +181,9 @@ export function NamecardManageDialog({
   const [loadFailed, setLoadFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [resolving, setResolving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmReject, setConfirmReject] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [reasonRequired, setReasonRequired] = useState(false)
   const reasonRef = useRef<HTMLDivElement>(null)
@@ -258,15 +280,15 @@ export function NamecardManageDialog({
     }
   }
 
-  async function save() {
-    if (!diff || !draft) return
+  async function persist(): Promise<boolean> {
+    if (!diff || !draft) return false
     if (needsReason && !reason.trim()) {
       setReasonRequired(true)
       setMessage(
         "本次修改需要填写理由：名片资料、状态或归属账号发生了变动。请补充理由后再保存。"
       )
       flash(reasonRef.current)
-      return
+      return false
     }
     setSaving(true)
     setMessage(null)
@@ -283,10 +305,11 @@ export function NamecardManageDialog({
         media_order: adminMediaOrder(slots),
       }).send()
       applyCard(next)
-      onSaved()
+      return true
     } catch (cause) {
       const field =
-        isApiError(cause) && typeof cause.payload === "object" &&
+        isApiError(cause) &&
+        typeof cause.payload === "object" &&
         cause.payload !== null &&
         "field" in cause.payload
           ? (cause.payload as { field?: string }).field
@@ -296,18 +319,41 @@ export function NamecardManageDialog({
         setMessage("服务端要求填写修改理由，已停在理由输入框。")
         flash(reasonRef.current)
       } else {
-        setMessage(
-          isApiError(cause) ? cause.message : "保存失败，请稍后重试。"
-        )
+        setMessage(isApiError(cause) ? cause.message : "保存失败，请稍后重试。")
         if (conflicted(cause)) {
           // Another operator saved first: reload so the next save fences the
           // revision that is actually live now.
           await reload()
         }
       }
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  async function save() {
+    if (await persist()) onSaved()
+  }
+
+  async function settleFeedback(outcome: "accepted" | "rejected") {
+    if (!feedback) return
+    setResolving(true)
+    setMessage(null)
+    try {
+      await resolveAdminNamecardFeedback(feedback.id, { outcome }).send()
+      onSaved()
+      onClose()
+    } catch (cause) {
+      setMessage(isApiError(cause) ? cause.message : "处理失败，请稍后重试。")
+    } finally {
+      setResolving(false)
+    }
+  }
+
+  async function acceptFeedback() {
+    if (!feedback) return
+    if (await persist()) await settleFeedback("accepted")
   }
 
   async function remove() {
@@ -326,7 +372,7 @@ export function NamecardManageDialog({
     }
   }
 
-  const busy = saving || deleting
+  const busy = saving || deleting || resolving
   const queued = diff?.reviewStatus === "pending"
 
   return (
@@ -349,6 +395,21 @@ export function NamecardManageDialog({
             </p>
           ) : (
             <div className="flex flex-col gap-6">
+              {feedback ? (
+                <Alert>
+                  <AlertTitle>
+                    反馈：{feedbackReasonLabel(feedback.reason)}
+                  </AlertTitle>
+                  <AlertDescription>
+                    <p>由 {feedback.reporterName} 提交。</p>
+                    {feedback.detail ? (
+                      <p className="mt-1 whitespace-pre-wrap">
+                        {feedback.detail}
+                      </p>
+                    ) : null}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
               {message ? (
                 <Alert variant="destructive">
                   <AlertTitle>无法保存</AlertTitle>
@@ -403,7 +464,12 @@ export function NamecardManageDialog({
                           const current = account.id === ownerAccountId
                           const usable = account.status === "active" && !current
                           return (
-                            <li key={account.id} role="option" aria-selected={false} aria-disabled={!usable}>
+                            <li
+                              key={account.id}
+                              role="option"
+                              aria-selected={false}
+                              aria-disabled={!usable}
+                            >
                               <button
                                 type="button"
                                 className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
@@ -526,7 +592,11 @@ export function NamecardManageDialog({
                   </Field>
                 </div>
 
-                <div ref={reasonRef} data-card-field="reason" className="grid gap-1.5">
+                <div
+                  ref={reasonRef}
+                  data-card-field="reason"
+                  className="grid gap-1.5"
+                >
                   <FieldLabel htmlFor="manage-reason">
                     理由
                     {needsReason ? (
@@ -547,9 +617,11 @@ export function NamecardManageDialog({
                     }}
                   />
                   <FieldDescription>
-                    {needsReason
-                      ? "本次修改需要理由，保存后会以站内信通知所有者。"
-                      : "没有任何改动时不需要理由。"}
+                    {feedback
+                      ? "受理时会保存这里的改动，改动需要理由；单独驳回不需要理由。"
+                      : needsReason
+                        ? "本次修改需要理由，保存后会以站内信通知所有者。"
+                        : "没有任何改动时不需要理由。"}
                   </FieldDescription>
                 </div>
               </div>
@@ -566,34 +638,79 @@ export function NamecardManageDialog({
           )}
         </DialogBody>
         <DialogFooter>
-          <Button
-            type="button"
-            disabled={busy || loading || !draft}
-            onClick={() => void save()}
-          >
-            {saving ? (
-              <LoaderCircleIcon
-                data-icon="inline-start"
-                className="animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              <SaveIcon data-icon="inline-start" aria-hidden="true" />
-            )}
-            保存
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={busy || loading || !diff}
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2Icon data-icon="inline-start" aria-hidden="true" />
-            删除
-          </Button>
+          {feedback ? (
+            <>
+              <Button
+                type="button"
+                disabled={busy || loading || !draft}
+                onClick={() => void acceptFeedback()}
+              >
+                {resolving ? (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <CheckIcon data-icon="inline-start" aria-hidden="true" />
+                )}
+                受理
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || resolving}
+                onClick={() =>
+                  needsReason
+                    ? setConfirmReject(true)
+                    : void settleFeedback("rejected")
+                }
+              >
+                <XIcon data-icon="inline-start" aria-hidden="true" />
+                驳回
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                disabled={busy || loading || !draft}
+                onClick={() => void save()}
+              >
+                {saving ? (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <SaveIcon data-icon="inline-start" aria-hidden="true" />
+                )}
+                保存
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={busy || loading || !diff}
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2Icon data-icon="inline-start" aria-hidden="true" />
+                删除
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
 
+      <ConfirmActionDialog
+        open={confirmReject}
+        onOpenChange={setConfirmReject}
+        title="驳回反馈并放弃修改？"
+        description="这里的资料改动尚未保存，驳回反馈会丢弃它们，只记录「未受理」这个结论。"
+        submitting={resolving}
+        confirmLabel="驳回并放弃"
+        onConfirm={() => void settleFeedback("rejected")}
+      />
       <ConfirmActionDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

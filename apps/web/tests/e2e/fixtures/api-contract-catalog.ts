@@ -111,6 +111,11 @@ import {
   namecardErrorResponseSchema,
   adminNamecardMutationSchema,
   adminNamecardUpdateRequestSchema,
+  adminNamecardFeedbackListResponseSchema,
+  adminNamecardFeedbackListQuerySchema,
+  createNamecardFeedbackRequestSchema,
+  resolveNamecardFeedbackRequestSchema,
+  namecardFeedbackMutationSchema,
   expectedNamecardRevisionRequestSchema,
   flaggedNamecardRequestSchema,
   lockedNamecardRequestSchema,
@@ -494,6 +499,14 @@ export function resolveApiContract(
     return {
       body: fudabaCardUpdateRequestSchema,
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/community\/exchange\/cards\/[^/]+\/feedback$/.test(path)
+  )
+    return {
+      body: createNamecardFeedbackRequestSchema,
+      responses: { 200: namecardFeedbackMutationSchema, ...fudabaErrors },
     }
   if (
     method === "PUT" &&
@@ -992,6 +1005,29 @@ export function resolveApiContract(
         404: namecardErrorResponseSchema,
         409: namecardErrorResponseSchema,
         410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards/feedback")
+    return {
+      query: adminNamecardFeedbackListQuerySchema,
+      responses: {
+        200: adminNamecardFeedbackListResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/admin\/cards\/feedback\/[^/]+\/resolve$/.test(path)
+  )
+    return {
+      body: resolveNamecardFeedbackRequestSchema,
+      responses: {
+        200: namecardFeedbackMutationSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardFeedbackMutationSchema,
       },
     }
   if (method === "PUT" && /^\/api\/admin\/cards\/[^/]+$/.test(path))

@@ -3,6 +3,11 @@ import {
   exchangePath,
   mapsPath,
 } from "@imsweb/contracts/paths"
+import {
+  createNamecardFeedbackRequestSchema,
+  namecardFeedbackMutationSchema,
+  type NamecardFeedbackReason,
+} from "@imsweb/contracts/namecards"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"
@@ -864,6 +869,22 @@ export function replaceFudabaCardMedia(
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformCsrf(),
       select: normalizeFudabaCardMutation,
+    })
+  )
+}
+
+/** Wall readers report a published card; the backoffice queue answers it. */
+export function reportFudabaCardFeedback(
+  cardId: string,
+  input: { reason: NamecardFeedbackReason; detail: string | null }
+) {
+  return platformApiClient.Post(
+    exchangePath(`/cards/${encodeURIComponent(cardId)}/feedback`),
+    createNamecardFeedbackRequestSchema.parse(input),
+    parsed(namecardFeedbackMutationSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
     })
   )
 }

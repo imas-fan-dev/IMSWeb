@@ -40,12 +40,13 @@ import {
 } from "~/lib/api"
 import { useDebouncedValue } from "~/lib/use-debounced-value"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
+import { NamecardFeedbackQueue } from "./namecard-feedback-queue"
 import { NamecardManageDialog } from "./namecard-manage-dialog"
 import { NamecardMediaPreview } from "./namecard-media-preview"
 import { REJECT_REASON_PRESETS, VIOLATION_REASON_PRESETS } from "./reason-presets"
 
 export function meta() {
-  return [{ title: "名片信息修改 | IMSWeb" }]
+  return [{ title: "名片管理 | IMSWeb" }]
 }
 
 const STATUS_ITEMS = [
@@ -123,6 +124,16 @@ export default function AdminNamecardManagePage() {
     next.delete("page")
     setSearchParams(next, { replace: true })
   }, [debouncedQuery, queryParam, searchParams, setSearchParams])
+
+  const tab = searchParams.get("tab") === "advanced" ? "advanced" : "feedback"
+
+  function changeTab(value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (value === "advanced") next.set("tab", "advanced")
+    else next.delete("tab")
+    next.delete("page")
+    setSearchParams(next)
+  }
 
   function setStatusFilter(value: string) {
     const next = new URLSearchParams(searchParams)
@@ -336,8 +347,8 @@ export default function AdminNamecardManagePage() {
     <div className="flex flex-col gap-7">
       <AdminPageHeader
         eyebrow="NAMECARD MANAGEMENT"
-        title="名片信息修改"
-        description="修改任意名片的资料、生命周期状态与归属账号，改动会以站内信通知所有者。"
+        title="名片管理"
+        description="处理名片墙上提交的反馈，或直接修改任意名片的资料、状态与归属账号。"
         actions={
           <Button
             type="button"
@@ -351,12 +362,17 @@ export default function AdminNamecardManagePage() {
         }
       />
 
-      <Tabs defaultValue="manage">
+      <Tabs value={tab} onValueChange={changeTab}>
         <TabsList aria-label="名片管理类型">
-          <TabsTrigger value="manage">信息修改</TabsTrigger>
+          <TabsTrigger value="feedback">反馈处理</TabsTrigger>
+          <TabsTrigger value="advanced">高级管理</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="manage" className="flex flex-col gap-7 pt-5">
+        <TabsContent value="feedback" className="flex flex-col gap-7 pt-5">
+          <NamecardFeedbackQueue />
+        </TabsContent>
+
+        <TabsContent value="advanced" className="flex flex-col gap-7 pt-5">
           <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
             <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
               制作人名称

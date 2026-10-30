@@ -8,13 +8,16 @@ import { createEventResponseSchema } from "@imsweb/contracts/events"
 import {
   adminNamecardDeleteRequestSchema,
   adminNamecardDiffSchema,
+  adminNamecardFeedbackListSchema,
   adminNamecardHttpErrorSchema,
   adminNamecardListBusinessErrorSchema,
   adminNamecardListSchema,
   adminNamecardMutationSchema,
   adminNamecardUpdateRequestSchema,
   namecardErrorResponseSchema,
+  namecardFeedbackMutationSchema,
   namecardMutationResponseSchema,
+  resolveNamecardFeedbackRequestSchema,
 } from "@imsweb/contracts/namecards"
 import {
   idolMediaCatalogSchema,
@@ -426,6 +429,34 @@ export function getAdminNamecards(
       errorSchema: adminNamecardHttpErrorSchema,
       meta: withBackofficeAuth(),
       params,
+    })
+  )
+}
+
+/** The report queue: published cards readers flagged. */
+export function getAdminNamecardFeedback(page = 1) {
+  return adminApiClient.Get(
+    adminApiPath("/cards/feedback"),
+    parsed(adminNamecardFeedbackListSchema, {
+      businessErrorSchema: adminNamecardListBusinessErrorSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: { page: String(page) },
+    })
+  )
+}
+
+/** Leaves the queue; the reporter is told the outcome. */
+export function resolveAdminNamecardFeedback(
+  feedbackId: number,
+  input: { outcome: "accepted" | "rejected" }
+) {
+  return adminApiClient.Post(
+    adminApiPath(`/cards/feedback/${feedbackId}/resolve`),
+    resolveNamecardFeedbackRequestSchema.parse(input),
+    parsed(namecardFeedbackMutationSchema, {
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
     })
   )
 }

@@ -1,6 +1,5 @@
 import {
   ArrowLeftRightIcon,
-  FlagIcon,
   PlusIcon,
   ShieldCheckIcon,
   SquarePenIcon,
@@ -27,6 +26,7 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover"
 import { getFudabaSeries, NAMECARD_REACTIONS } from "~/lib/api"
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import type {
   FudabaSeries,
   Namecard,
@@ -37,6 +37,7 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
 import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
+import { NamecardFeedbackDialog } from "~/pages/community/exchange/components/namecard-feedback-dialog"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
@@ -396,6 +397,9 @@ export function NamecardDetailDialog({
   onReturnFocus: () => void
 }) {
   const navigate = useNavigation()
+  const platform = useOptionalPlatformSession()
+  const platformCanReport =
+    platform.status === "authenticated" || platform.status === "restricted"
   const entries = activeNamecardReactions(reactions.reactions)
   const [series, setSeries] = useState<ReadonlyMap<string, FudabaSeries>>(
     new Map()
@@ -740,16 +744,15 @@ export function NamecardDetailDialog({
               <ArrowLeftRightIcon aria-hidden="true" />
               交换
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              className="min-h-11"
-              disabled
-              title="暂未开放"
-            >
-              <FlagIcon aria-hidden="true" />
-              反馈
-            </Button>
+            {card ? (
+              <NamecardFeedbackDialog
+                cardId={card.cardId}
+                cardLabel={
+                  card.producerName || `名片 #${card.cardNumber}`
+                }
+                disabled={!platformCanReport}
+              />
+            ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
