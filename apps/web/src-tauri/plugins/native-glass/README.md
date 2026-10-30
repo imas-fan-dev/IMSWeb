@@ -11,3 +11,5 @@ Web modal surfaces temporarily hide the native tab bar through the existing `upd
 Map onboarding instead acquires a separate interaction-blocking lease and uses DOM navigation, search and map controls for the duration of help. UIKit tabs hide immediately and native controls relinquish their overlay; the DOM navigation remains visible and inert while the guide is modal. The bridge's optional `interactionBlocked` value also vetoes native selection during handoff. Ordinary modal hiding takes precedence over this lease, and releasing either lease does not release the other. Guide completion or skipping restores the native renderers through the existing lease cleanup.
 
 The plugin lives outside `src-tauri/gen/` so `tauri ios init` and `tauri android init` can regenerate platform projects without deleting the implementation.
+
+The collapsed search More button supplies an oval `UITargetedPreview` of its glass surface for both menu presentation and dismissal. Its rectangular content button is not the preview shape. This keeps UIKit's closing snapshot circular without replacing the retained search host, footer button or native menu.

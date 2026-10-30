@@ -94,6 +94,35 @@ private class SearchActionButton: UIButton {
   }
 }
 
+/// The menu source is the circular material, not the rectangular content button.
+/// Use the same clipped preview for presentation and dismissal so UIKit cannot
+/// briefly restore a square snapshot over the glass after closing the menu.
+private final class CircularSearchMenuButton: SearchActionButton {
+  weak var previewSurface: UIView?
+
+  private func circularPreview() -> UITargetedPreview? {
+    guard let surface = previewSurface, surface.window != nil, !surface.bounds.isEmpty else { return nil }
+    let parameters = UIPreviewParameters()
+    parameters.backgroundColor = .clear
+    parameters.visiblePath = UIBezierPath(ovalIn: surface.bounds)
+    return UITargetedPreview(view: surface, parameters: parameters)
+  }
+
+  override func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration
+  ) -> UITargetedPreview? {
+    circularPreview() ?? super.contextMenuInteraction(interaction, previewForHighlightingMenuWithConfiguration: configuration)
+  }
+
+  override func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration
+  ) -> UITargetedPreview? {
+    circularPreview() ?? super.contextMenuInteraction(interaction, previewForDismissingMenuWithConfiguration: configuration)
+  }
+}
+
 /// The outer glass owns rounding. Text has a rectangular, fitted reading area
 /// and one persistent action/accessibility target, without a UIButton capsule mask.
 private final class SearchSummaryButton: SearchActionButton {
@@ -176,7 +205,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   private let handle = UIButton(type: .system)
   private let field = UISearchTextField()
   private let search = SearchSummaryButton(frame: .zero)
-  private let more = SearchActionButton(type: .system)
+  private let more = CircularSearchMenuButton(type: .system)
   private let refresh = SearchActionButton(type: .system)
   private let actions = UIStackView()
   private weak var inputRow: UIStackView?
@@ -312,6 +341,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     more.accessibilityIdentifier = "ims-native-exchange-more"
     more.setImage(UIImage(systemName: "ellipsis"), for: .normal)
     more.tintColor = .secondaryLabel
+    more.previewSurface = moreGlass
     moreGlass.contentView.addSubview(more)
     sideGlass.contentView.addSubview(refresh)
     refresh.accessibilityIdentifier = "ims-native-exchange-refresh"

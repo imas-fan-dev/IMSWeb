@@ -1,4 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { hydrateRoot, type Root } from "react-dom/client"
+import { renderToString } from "react-dom/server"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -57,8 +59,8 @@ function LocationProbe() {
   return <output data-testid="location">{useLocation().pathname}</output>
 }
 
-function renderTabBar(initialEntry = "/") {
-  return render(
+function tabBarTree(initialEntry = "/") {
+  return (
     <I18nextProvider i18n={i18n}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <AppNavigationProvider>
@@ -68,6 +70,10 @@ function renderTabBar(initialEntry = "/") {
       </MemoryRouter>
     </I18nextProvider>
   )
+}
+
+function renderTabBar(initialEntry = "/") {
+  return render(tabBarTree(initialEntry))
 }
 
 describe("AppTabBar platform material", () => {
@@ -394,4 +400,86 @@ describe("AppTabBar Android drag ownership", () => {
       "page"
     )
   })
+})
+
+describe("AppTabBar prerendered runtime admission", () => {
+  beforeEach(() => {
+    nativeMocks.shouldAttempt.mockReturnValue(false)
+    nativeMocks.configure.mockResolvedValue({ supported: false })
+    document.documentElement.classList.remove("dark")
+    themeMocks.resolvedTheme = "light"
+  })
+
+  it.each([
+    [true, true, "Android", true],
+    [false, true, "Android", false],
+    [true, false, "Android", false],
+    [true, true, "iPhone", false],
+  ])(
+    "hydrates App=%s Tauri=%s UA=%s without mismatches",
+    async (app, tauri, userAgent, enabled) => {
+      runtime.app = app
+      runtime.tauri = tauri
+      vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(userAgent)
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {})
+      const recoverableError = vi.fn()
+      const tree = tabBarTree()
+      let html: string
+      // Prerender has no browser globals, even when the eventual client is Tauri.
+      vi.stubGlobal("window", undefined)
+      try {
+        html = renderToString(tree)
+      } finally {
+        vi.unstubAllGlobals()
+      }
+      expect(html).not.toContain("data-android-tab-drag")
+      const container = document.createElement("div")
+      container.innerHTML = html
+      document.body.append(container)
+      let root: Root | undefined
+      try {
+        await act(async () => {
+          root = hydrateRoot(container, tree, {
+            onRecoverableError: recoverableError,
+          })
+        })
+        const bar = container.querySelector<HTMLElement>(
+          "[data-glass-fallback]"
+        )!
+        expect(bar.hasAttribute("data-android-tab-drag")).toBe(enabled)
+        expect(errors).not.toHaveBeenCalled()
+        expect(recoverableError).not.toHaveBeenCalled()
+        if (enabled) {
+          bar.style.padding = "4px"
+          vi.spyOn(bar, "getBoundingClientRect").mockReturnValue({
+            left: 0,
+            width: 508,
+          } as DOMRect)
+          bar.setPointerCapture = vi.fn()
+          const pointer = {
+            pointerId: 1,
+            pointerType: "touch",
+            isPrimary: true,
+            button: 0,
+            clientY: 20,
+          }
+          fireEvent.pointerDown(bar, { ...pointer, clientX: 54 })
+          fireEvent.pointerMove(bar, { ...pointer, clientX: 354 })
+          expect(bar).toHaveAttribute("data-tab-dragging")
+          expect(bar.style.getPropertyValue("--android-tab-index")).toBe("3")
+          expect(container.querySelector("output")).toHaveTextContent("/")
+          fireEvent.pointerUp(bar, { ...pointer, clientX: 354 })
+          expect(container.querySelector("output")).toHaveTextContent("/apps")
+          fireEvent.click(container.querySelector('a[href="/account/me"]')!, {
+            detail: 1,
+          })
+          expect(container.querySelector("output")).toHaveTextContent("/apps")
+          expect(errors).not.toHaveBeenCalled()
+        }
+      } finally {
+        await act(async () => root?.unmount())
+        container.remove()
+      }
+    }
+  )
 })

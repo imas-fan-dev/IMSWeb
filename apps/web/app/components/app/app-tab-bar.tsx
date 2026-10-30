@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
@@ -98,7 +98,15 @@ function isModifiedEvent(event: React.MouseEvent<HTMLAnchorElement>) {
   return event.metaKey || event.altKey || event.ctrlKey || event.shiftKey
 }
 
+const subscribeToHydration = () => () => undefined
+
 export function AppTabBar() {
+  // Match prerendered HTML before admitting browser-only gesture styles.
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false
+  )
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
   const { activateTab } = useAppNavigation()
@@ -249,6 +257,7 @@ export function AppTabBar() {
   ])
 
   const androidDragEnabled =
+    hydrated &&
     IS_APP_TARGET &&
     typeof window !== "undefined" &&
     isTauri() &&
