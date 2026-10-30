@@ -334,7 +334,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
       }
       self.applyAppearance(dark: args.dark)
       self.setInteractionBlocked(args.interactionBlocked ?? false)
-      self.setBarHidden(args.hidden ?? false, animated: true)
+      self.setBarHidden(args.hidden ?? false, animated: args.interactionBlocked != true)
       invoke.resolve(["supported": true])
     }
   }

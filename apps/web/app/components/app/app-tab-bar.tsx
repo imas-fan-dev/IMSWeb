@@ -182,7 +182,7 @@ export function AppTabBar() {
 
     void configureNativeGlass({
       dark: initialNativeGlassDark,
-      hidden: initialNativeTabBarSuppressed,
+      hidden: initialNativeTabBarSuppressed || initialInteractionBlocked,
       interactionBlocked: initialInteractionBlocked,
       items: nativeItems,
       selectedColor: NATIVE_TAB_BAR_SELECTED_COLOR,
@@ -217,7 +217,7 @@ export function AppTabBar() {
 
     const options = {
       dark: nativeGlassDark,
-      hidden: nativeTabBarSuppressedState,
+      hidden: nativeTabBarSuppressedState || interactionBlocked,
       interactionBlocked,
       selectedColor: NATIVE_TAB_BAR_SELECTED_COLOR,
       ...(activeIndex >= 0 ? { selectedIndex: activeIndex } : {}),
@@ -288,7 +288,10 @@ export function AppTabBar() {
     setTravel({ slot, distance: Math.abs(slot - travel.slot) })
   }
 
-  if (nativeGlassActive || (useLightMapGlass && nativeTabBarSuppressedState))
+  if (
+    (nativeGlassActive && !interactionBlocked) ||
+    (useLightMapGlass && nativeTabBarSuppressedState)
+  )
     return null
 
   return (

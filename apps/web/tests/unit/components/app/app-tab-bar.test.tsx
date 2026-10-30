@@ -263,7 +263,7 @@ describe("AppTabBar platform material", () => {
     expect(screen.getByTestId("location").textContent).toBe("/")
   })
 
-  it("keeps UIKit navigation visible and rejects selection during a guide", async () => {
+  it("uses inert DOM navigation during help and restores UIKit afterward", async () => {
     nativeMocks.shouldAttempt.mockReturnValue(true)
     nativeMocks.configure.mockResolvedValue({ supported: true })
     renderTabBar("/community/exchange")
@@ -275,9 +275,11 @@ describe("AppTabBar platform material", () => {
     try {
       await waitFor(() => {
         expect(nativeMocks.update).toHaveBeenLastCalledWith(
-          expect.objectContaining({ hidden: false, interactionBlocked: true })
+          expect.objectContaining({ hidden: true, interactionBlocked: true })
         )
       })
+      expect(screen.getByRole("navigation")).toBeVisible()
+      expect(screen.getByRole("navigation")).toHaveAttribute("inert")
       act(() => {
         window.dispatchEvent(
           new CustomEvent("ims:native-tab-select", {
@@ -296,6 +298,7 @@ describe("AppTabBar platform material", () => {
         expect.objectContaining({ hidden: false, interactionBlocked: false })
       )
     })
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
   })
 
   it("keeps secondary content routes under Resources", async () => {

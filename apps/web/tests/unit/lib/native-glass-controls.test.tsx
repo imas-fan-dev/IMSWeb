@@ -10,7 +10,10 @@ import {
   type NativeGlassControl,
   type NativeGlassControlEvent,
 } from "~/lib/native-glass-panel"
-import { NATIVE_TAB_BAR_SUPPRESSION_EVENT } from "~/lib/native-tab-bar-suppression"
+import {
+  blockNativeTabBarInteraction,
+  NATIVE_TAB_BAR_SUPPRESSION_EVENT,
+} from "~/lib/native-tab-bar-suppression"
 
 const mocks = vi.hoisted(() => ({
   admitted: true,
@@ -330,6 +333,71 @@ describe("native glass control overlay", () => {
     await settle()
 
     expect(lastControls()).toEqual([])
+  })
+
+  it("relinquishes native controls for help and restores them after release", async () => {
+    const onEvent = vi.fn()
+    render(
+      <NativeGlassControlsProvider>
+        <LocateTwin onEvent={onEvent} />
+      </NativeGlassControlsProvider>
+    )
+    measure(locateButton(), { x: 12, y: 400, width: 44, height: 44 })
+    await settle()
+    let release = () => {}
+    act(() => {
+      release = blockNativeTabBarInteraction()
+    })
+    try {
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent(NATIVE_GLASS_CONTROL_EVENT, {
+            detail: { id: "locate", action: "press" },
+          })
+        )
+      })
+      await settle()
+      expect(lastControls()).toEqual([])
+      expect(document.documentElement.dataset.nativeGlass).toBeUndefined()
+      expect(onEvent).not.toHaveBeenCalled()
+    } finally {
+      act(release)
+    }
+    await settle()
+    expect(lastControls()).toHaveLength(1)
+    expect(document.documentElement.dataset.nativeGlass).toBe("controls")
+  })
+
+  it("does not let a delayed native install reclaim controls during help", async () => {
+    let acceptInstall: (status: { supported: boolean }) => void = () => {}
+    mocks.sync.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          acceptInstall = resolve
+        })
+    )
+    render(
+      <NativeGlassControlsProvider>
+        <LocateTwin />
+      </NativeGlassControlsProvider>
+    )
+    measure(locateButton(), { x: 12, y: 400, width: 44, height: 44 })
+    await settle()
+    let release = () => {}
+    act(() => {
+      release = blockNativeTabBarInteraction()
+    })
+    try {
+      await act(async () => acceptInstall({ supported: true }))
+      expect(document.documentElement.dataset.nativeGlass).toBeUndefined()
+      await settle()
+      expect(lastControls()).toEqual([])
+      expect(document.documentElement.dataset.nativeGlass).toBeUndefined()
+    } finally {
+      act(release)
+    }
+    await settle()
+    expect(lastControls()).toHaveLength(1)
   })
 
   it("forwards the menu panel width and items", async () => {
