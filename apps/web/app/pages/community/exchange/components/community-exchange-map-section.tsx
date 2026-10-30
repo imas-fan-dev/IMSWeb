@@ -593,6 +593,9 @@ export function CommunityExchangeMapSection({
         aria-label="区域地图"
         data-exchange-web-map={IS_APP_TARGET ? undefined : ""}
         data-exchange-web-workspace={webWorkspace ? "" : undefined}
+        data-app-search-expanded={
+          IS_APP_TARGET && searchExpanded ? "" : undefined
+        }
         data-office-list-open={webWorkspace && officeListOpen ? "" : undefined}
         data-map-results-state={data.phase}
       >

@@ -882,4 +882,9 @@
     .exchange-search-input:hover {
     background: var(--secondary);
   }
+  /* Expanded search owns the compact App work surface. Keep the map's
+   * floating actions out of the status bar when little map area remains. */
+  [data-app-search-expanded] [data-exchange-side-controls] {
+    display: none;
+  }
 }

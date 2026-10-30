@@ -99,7 +99,7 @@ export function registerMapLocationFeedbackTests() {
         const obstacles = [
           document.querySelector('[data-map-guide="search"]'),
           document.querySelector('[aria-label="回到我的位置"]'),
-          document.querySelector('[aria-label="全局导航"]'),
+          document.querySelector('nav[aria-label="主导航"]'),
         ].filter((element): element is Element => element !== null)
         return {
           inside:
@@ -168,6 +168,12 @@ export function registerMapLocationFeedbackTests() {
       await expect(notice).toContainText("获取位置超时，请重试")
       await notice.getByRole("button", { name: "关闭定位提示" }).click()
       await expect(notice).toHaveCount(0)
+      if (await page.locator("[data-app-search]").count()) {
+        await page.getByRole("button", { name: "展开地点查找" }).click()
+        await expect(locate).toBeHidden()
+        await page.getByRole("button", { name: "取消", exact: true }).click()
+        await expect(locate).toBeVisible()
+      }
     }
   )
 
