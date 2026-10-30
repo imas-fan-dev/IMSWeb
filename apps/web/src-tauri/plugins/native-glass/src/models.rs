@@ -90,6 +90,8 @@ pub enum NativeGlassControl {
         active: bool,
         #[serde(default)]
         disabled: bool,
+        #[serde(default)]
+        busy: bool,
     },
     #[serde(rename = "menu", rename_all = "camelCase")]
     Menu {

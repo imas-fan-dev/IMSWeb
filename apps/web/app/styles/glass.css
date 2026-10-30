@@ -543,6 +543,21 @@
   }
 }
 
+/* Frosted map search material: shared diffusion and fine edge, without refraction. */
+@layer components {
+  [data-android-map-glass] {
+    color-scheme: light;
+    --background: oklch(0.995 0.002 90);
+    --foreground: oklch(0.17 0.008 270);
+    --muted-foreground: oklch(0.48 0.02 260);
+    --glass-rgb: 255 255 255;
+    --glass-highlight: rgb(255 255 255 / 80%);
+    --glass-edge: rgb(255 255 255 / 55%);
+    --glass-shadow: 0 10px 36px -12px rgb(0 0 0 / 0.45);
+    background-image: none;
+  }
+}
+
 /* Android App direct manipulation; other DOM and UIKit renderers keep ownership. */
 @layer overrides {
   [data-android-tab-drag],

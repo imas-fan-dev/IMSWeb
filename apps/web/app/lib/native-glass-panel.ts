@@ -47,6 +47,7 @@ export type NativeGlassControl =
       kind: "icon-button"
       active?: boolean
       disabled?: boolean
+      busy?: boolean
     })
   | (NativeGlassControlBase & {
       kind: "menu"

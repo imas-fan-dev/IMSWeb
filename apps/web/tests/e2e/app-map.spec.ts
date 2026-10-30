@@ -538,6 +538,27 @@ test.describe("app map", () => {
         hits: true,
       })
     await page.screenshot({ path: testInfo.outputPath("a-dom-browse.png") })
+    await expect
+      .poll(() =>
+        card.evaluate((element) => {
+          // Short landscape docks search on the left and map controls on the right.
+          if (innerWidth >= innerHeight) return true
+          const more = element
+            .querySelector('[aria-label="更多地图工具"]')!
+            .getBoundingClientRect()
+          return [
+            ...document.querySelectorAll(
+              "[data-exchange-side-controls] button"
+            ),
+          ].every((button) => {
+            const box = button.getBoundingClientRect()
+            return (
+              Math.abs(box.x + box.width / 2 - more.x - more.width / 2) <= 1
+            )
+          })
+        })
+      )
+      .toBe(true)
     for (const safeBottom of [0, 24, 34]) {
       for (const fontSize of [16, 20]) {
         await page.evaluate(
@@ -600,6 +621,26 @@ test.describe("app map", () => {
     await expect(
       card.getByRole("textbox", { name: "搜索事务所" })
     ).toBeFocused()
+    await expect(
+      card.getByRole("button", { name: "收起地点查找", exact: true })
+    ).toBeVisible()
+    await expect(card.getByRole("button", { name: "更多地图工具" })).toHaveText(
+      "更多"
+    )
+    await expect(card.locator(".exchange-search-field > svg")).toBeVisible()
+    await expect
+      .poll(() =>
+        card.evaluate((element) => {
+          const row = element
+            .querySelector(".exchange-search-row")!
+            .getBoundingClientRect()
+          const submit = element
+            .querySelector(".exchange-search-actions > button")!
+            .getBoundingClientRect()
+          return Math.abs(row.width - submit.width) <= 1
+        })
+      )
+      .toBe(true)
     await card.getByRole("tab", { name: "地点", exact: true }).click()
     await expect(page.getByRole("navigation", { name: "主导航" })).toBeHidden()
     const input = card.getByRole("textbox", { name: "搜索地点" })
@@ -643,6 +684,33 @@ test.describe("app map", () => {
       )
     })
     await page.screenshot({ path: testInfo.outputPath("a-dom-focused.png") })
+    // Android's edge-to-edge WebView can keep visualViewport full-height.
+    // Exercise the native IME boundary independently of browser emulation.
+    const keyboardTop = Math.round(page.viewportSize()!.height * 0.65)
+    await page.evaluate((top) => {
+      document.documentElement.style.setProperty(
+        "--app-keyboard-top",
+        `${top}px`
+      )
+      window.dispatchEvent(new Event("ims:android-keyboard-layout"))
+    }, keyboardTop)
+    await expect
+      .poll(async () => {
+        const box = await card.boundingBox()
+        return box !== null && box.y + box.height <= keyboardTop - 11
+      })
+      .toBe(true)
+    await expect(input).toBeInViewport()
+    const collapseFooter = card.getByRole("button", {
+      name: "收起地点查找",
+      exact: true,
+    })
+    await collapseFooter.scrollIntoViewIfNeeded()
+    await expect(collapseFooter).toBeInViewport()
+    await page.evaluate(() => {
+      document.documentElement.style.removeProperty("--app-keyboard-top")
+      window.dispatchEvent(new Event("ims:android-keyboard-layout"))
+    })
     await card.getByRole("button", { name: "取消" }).click()
     await expect(card.locator('input[aria-label="搜索地点"]')).toBeAttached()
     await expect(page.getByRole("navigation", { name: "主导航" })).toBeHidden()
@@ -652,7 +720,7 @@ test.describe("app map", () => {
     await expect(input).toHaveValue("上海场馆")
     await card.getByRole("button", { name: "清除搜索文字" }).click()
     await expect(input).toHaveValue("")
-    const handle = card.getByRole("button", { name: "收起地点查找" })
+    const handle = card.locator(".exchange-search-handle")
     const handleBox = await handle.boundingBox()
     await page.mouse.move(
       handleBox!.x + handleBox!.width / 2,

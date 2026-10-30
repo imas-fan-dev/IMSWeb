@@ -373,6 +373,35 @@ describe("AppTabBar Android drag ownership", () => {
     expect(bar.hasAttribute("data-android-tab-drag")).toBe(enabled)
   })
 
+  it.each([
+    [true, true, "Android", "/community/exchange", true],
+    [true, true, "Android", "/community/exchange/", true],
+    [true, true, "Android", "/community/exchange/offices/1", false],
+    [true, true, "Android", "/", false],
+    [false, true, "Android", "/community/exchange", false],
+    [true, false, "Android", "/community/exchange", false],
+    [true, true, "iPhone", "/community/exchange", false],
+  ])(
+    "scopes map glass App=%s Tauri=%s UA=%s route=%s",
+    (app, tauri, userAgent, route, enabled) => {
+      runtime.app = app
+      runtime.tauri = tauri
+      vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(userAgent)
+      const { container } = renderTabBar(route)
+      const bar = container.querySelector<HTMLElement>("[data-glass-fallback]")!
+      expect(bar.hasAttribute("data-android-map-glass")).toBe(enabled)
+      expect(bar.className.includes("shadow-[")).toBe(!enabled)
+      expect(bar.classList.contains("glass-refract")).toBe(!enabled)
+      expect(bar.classList.contains("ring-foreground/10")).toBe(!enabled)
+      expect(bar.querySelectorAll(".glass-lens")).toHaveLength(1)
+      expect(bar.querySelectorAll(".glass-lens-skin")).toHaveLength(1)
+      if (enabled)
+        expect(screen.getByRole("link", { name: "交换地图" })).toHaveClass(
+          "text-primary"
+        )
+    }
+  )
+
   it("keeps the committed tab while dragging and navigates on release", () => {
     runtime.app = true
     runtime.tauri = true
@@ -423,7 +452,7 @@ describe("AppTabBar prerendered runtime admission", () => {
       vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(userAgent)
       const errors = vi.spyOn(console, "error").mockImplementation(() => {})
       const recoverableError = vi.fn()
-      const tree = tabBarTree()
+      const tree = tabBarTree("/community/exchange")
       let html: string
       // Prerender has no browser globals, even when the eventual client is Tauri.
       const browserWindow = window
@@ -434,6 +463,7 @@ describe("AppTabBar prerendered runtime admission", () => {
         vi.stubGlobal("window", browserWindow)
       }
       expect(html).not.toContain("data-android-tab-drag")
+      expect(html).not.toContain("data-android-map-glass")
       const container = document.createElement("div")
       container.innerHTML = html
       document.body.append(container)
@@ -448,6 +478,7 @@ describe("AppTabBar prerendered runtime admission", () => {
           "[data-glass-fallback]"
         )!
         expect(bar.hasAttribute("data-android-tab-drag")).toBe(enabled)
+        expect(bar.hasAttribute("data-android-map-glass")).toBe(enabled)
         expect(errors).not.toHaveBeenCalled()
         expect(recoverableError).not.toHaveBeenCalled()
         if (enabled) {
@@ -468,9 +499,12 @@ describe("AppTabBar prerendered runtime admission", () => {
           fireEvent.pointerMove(bar, { ...pointer, clientX: 354 })
           expect(bar).toHaveAttribute("data-tab-dragging")
           expect(bar.style.getPropertyValue("--android-tab-index")).toBe("3")
-          expect(container.querySelector("output")).toHaveTextContent("/")
+          expect(container.querySelector("output")).toHaveTextContent(
+            "/community/exchange"
+          )
           fireEvent.pointerUp(bar, { ...pointer, clientX: 354 })
           expect(container.querySelector("output")).toHaveTextContent("/apps")
+          expect(bar).not.toHaveAttribute("data-android-map-glass")
           fireEvent.click(container.querySelector('a[href="/account/me"]')!, {
             detail: 1,
           })

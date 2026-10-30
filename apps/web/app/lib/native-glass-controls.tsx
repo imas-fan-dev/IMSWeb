@@ -37,6 +37,7 @@ export type NativeGlassControlSpec =
       label: string
       active?: boolean
       disabled?: boolean
+      busy?: boolean
       group?: string
     }
   | {
@@ -190,6 +191,7 @@ export function NativeGlassControlsProvider({
           group: spec.group,
           active: spec.active ?? false,
           disabled: spec.disabled ?? false,
+          ...(spec.busy === undefined ? {} : { busy: spec.busy }),
         })
       }
     }

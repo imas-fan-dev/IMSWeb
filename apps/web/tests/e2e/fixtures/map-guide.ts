@@ -30,7 +30,10 @@ export const guideTitles = [
   "管理自己的事务所",
 ]
 
-export function installMapGuideScene(api: ApiDispatcher) {
+export function installMapGuideScene(
+  api: ApiDispatcher,
+  options: { beforeDirectory?: () => void | Promise<void> } = {}
+) {
   // Web can receive shell links in SSR data; the App shell does not need them.
   installHomepageLinksMock(api, { min: 0, max: 3 })
   installSeededPublicApis(api, [
@@ -59,7 +62,10 @@ export function installMapGuideScene(api: ApiDispatcher) {
     query: fudabaOfficeQuerySchema,
     responses: { 200: fudabaOfficePageSchema },
     times: { min: 1, max: 8 },
-    handle: () => ({ status: 200, json: emptyPage }),
+    handle: async () => {
+      await options.beforeDirectory?.()
+      return { status: 200, json: emptyPage }
+    },
   })
   api.expect({
     name: "guide cards",

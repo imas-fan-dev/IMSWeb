@@ -29,6 +29,7 @@ interface ExchangeMapToolsMenuProps {
   onOpenChange?: (open: boolean) => void
   triggerRef?: RefObject<HTMLButtonElement | null>
   triggerClassName?: string
+  triggerLabel?: string
   side?: "top" | "bottom"
   onOpenFilter: () => void
   onOpenOffices: () => void
@@ -52,6 +53,7 @@ export function ExchangeMapToolsMenu({
   onOpenChange,
   triggerRef,
   triggerClassName,
+  triggerLabel,
   side = "top",
   onOpenFilter,
   onOpenOffices,
@@ -123,10 +125,12 @@ export function ExchangeMapToolsMenu({
           />
         }
       >
-        <MoreHorizontalIcon
-          className="exchange-map-tools-icon"
-          aria-hidden="true"
-        />
+        {triggerLabel ?? (
+          <MoreHorizontalIcon
+            className="exchange-map-tools-icon"
+            aria-hidden="true"
+          />
+        )}
         {filterApplied ? (
           <span
             aria-hidden="true"

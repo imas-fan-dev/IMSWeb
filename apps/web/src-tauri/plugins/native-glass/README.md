@@ -13,3 +13,5 @@ Map onboarding instead acquires a separate interaction-blocking lease and uses D
 The plugin lives outside `src-tauri/gen/` so `tauri ios init` and `tauri android init` can regenerate platform projects without deleting the implementation.
 
 The collapsed search More button supplies an oval `UITargetedPreview` of its glass surface for both menu presentation and dismissal. Its rectangular content button is not the preview shape. This keeps UIKit's closing snapshot circular without replacing the retained search host, footer button or native menu.
+
+Floating icon controls carry optional `busy` independently of `disabled` in the TypeScript, Rust and Swift bridge models. Locate uses [BusyGlyphMotion.swift](ios/Sources/BusyGlyphMotion.swift): it rotates only the glyph, keeps its phase across geometry updates, and stops on completion or Reduced Motion. Search refresh retains UIKit's activity indicator. Accessibility state and disabled interactions still follow the real request.

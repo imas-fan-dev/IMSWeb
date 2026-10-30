@@ -34,7 +34,10 @@ import {
   resolveMapTransportOrigin,
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
-import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
+import {
+  getCurrentCoordinates,
+  type GeolocationFailureKind,
+} from "~/lib/geolocation"
 import { useNativeGlassControl } from "~/lib/native-glass-controls"
 import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { createMapPickingEvents } from "~/lib/maps/map-picking-events"
@@ -42,6 +45,11 @@ import { createMapContextEvents } from "~/lib/maps/map-context-events"
 import { cn } from "~/lib/utils"
 import { createUserLocationMarker } from "~/pages/community/exchange/maps/user-location-marker"
 import { createPointPickerMarker } from "../point-picker-marker"
+import {
+  locationFailureCopy,
+  locationFailureKind,
+} from "../location-failure-model"
+import { LocationFailureNotice } from "../location-failure-notice"
 
 import {
   applyChinaBoundaryCompliance,
@@ -464,16 +472,6 @@ function applyPortalMapPalette(map: MapLibreMap) {
   }
 }
 
-function geolocationErrorMessage(error: unknown) {
-  if (!(error instanceof GeolocationFailure)) {
-    return "暂时无法获取您的位置"
-  }
-  if (error.kind === "permission-denied") return "未获得位置权限"
-  if (error.kind === "timeout") return "获取位置超时，请重试"
-  if (error.kind === "unsupported") return "当前设备不支持位置服务"
-  return "暂时无法获取您的位置"
-}
-
 export function ExchangeOfficeMap({
   styleUrl,
   initialViewport: suppliedViewport,
@@ -539,6 +537,7 @@ export function ExchangeOfficeMap({
   const [locationState, setLocationState] = useState<{
     phase: "idle" | "locating" | "success" | "error"
     message: string
+    failure?: GeolocationFailureKind
   }>({ phase: "idle", message: "" })
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 })
   const [mapReady, setMapReady] = useState(false)
@@ -618,9 +617,11 @@ export function ExchangeOfficeMap({
         if (locationRequestRef.current !== request || mapRef.current !== map) {
           return
         }
+        const failure = locationFailureKind(error)
         setLocationState({
           phase: initialSignal ? "idle" : "error",
-          message: initialSignal ? "" : geolocationErrorMessage(error),
+          message: initialSignal ? "" : locationFailureCopy[failure].title,
+          failure: initialSignal ? undefined : failure,
         })
       }
     },
@@ -640,6 +641,7 @@ export function ExchangeOfficeMap({
             ? "office-picker"
             : EXCHANGE_MAP_FLOATING_GROUP,
         disabled: locationState.phase === "locating",
+        busy: locationState.phase === "locating",
       },
       () => {
         void locateUser()
@@ -1325,34 +1327,19 @@ export function ExchangeOfficeMap({
         </TooltipProvider>
       </div>
 
-      <div
-        className={cn(
-          "pointer-events-none absolute z-10 max-w-56",
-          IS_APP_TARGET
-            ? "right-16 bottom-[calc(var(--app-floating-bottom)+3rem)] md:right-12 md:bottom-[calc(var(--app-floating-bottom)+2.5rem)]"
-            : "right-12 bottom-20"
-        )}
-        aria-live="polite"
-        style={
-          occlusion
-            ? {
-                bottom:
-                  occlusion.width < mapSize.width * 0.65
-                    ? 12
-                    : Math.max(12, mapSize.height - occlusion.y + 12),
-                right: 64,
-              }
-            : undefined
-        }
-      >
-        {locationState.phase === "error" ? (
-          <p className="rounded-md border bg-background/95 px-2.5 py-2 text-xs text-foreground shadow-sm backdrop-blur-sm">
-            {locationState.message}
-          </p>
-        ) : (
-          <span className="sr-only">{locationState.message}</span>
-        )}
-      </div>
+      {locationState.phase === "error" && locationState.failure ? (
+        <LocationFailureNotice
+          kind={locationState.failure}
+          size={mapSize}
+          occlusion={occlusion}
+          onRetry={() => void locateUser()}
+          onDismiss={() => setLocationState({ phase: "idle", message: "" })}
+        />
+      ) : (
+        <p role="status" className="sr-only">
+          {locationState.message}
+        </p>
+      )}
     </div>
   )
 }

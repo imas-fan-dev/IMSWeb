@@ -83,10 +83,12 @@ function LocateTwin({
   group,
   onEvent,
   geometryTrigger = false,
+  busy,
 }: {
   group?: string
   onEvent?: (event: NativeGlassControlEvent) => void
   geometryTrigger?: boolean
+  busy?: boolean
 }) {
   const { controlRef, refreshGeometry } = useNativeGlassControl(
     "locate",
@@ -95,6 +97,7 @@ function LocateTwin({
       icon: "locate-fixed",
       label: "回到我的位置",
       group,
+      busy,
     },
     onEvent
   )
@@ -198,6 +201,24 @@ beforeEach(() => {
 })
 
 describe("native glass control overlay", () => {
+  it("forwards busy independently of the control's disabled state", async () => {
+    const view = render(
+      <NativeGlassControlsProvider>
+        <LocateTwin busy />
+      </NativeGlassControlsProvider>
+    )
+    measure(locateButton(), { x: 12, y: 400, width: 44, height: 44 })
+    await settle()
+    expect(lastControls()[0]).toMatchObject({ busy: true, disabled: false })
+    view.rerender(
+      <NativeGlassControlsProvider>
+        <LocateTwin busy={false} />
+      </NativeGlassControlsProvider>
+    )
+    await settle()
+    expect(lastControls()[0]).toMatchObject({ busy: false })
+  })
+
   it("does not reach the plugin after a viewport change when not admitted", async () => {
     mocks.admitted = false
     render(

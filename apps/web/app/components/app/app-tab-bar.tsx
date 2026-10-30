@@ -264,6 +264,7 @@ export function AppTabBar() {
     isAndroidRuntimeIdentity(window.navigator.userAgent) &&
     !nativeGlassActive &&
     !(useLightMapGlass && nativeTabBarSuppressedState)
+  const androidMapGlass = androidDragEnabled && useLightMapGlass
   const drag = useAndroidTabDrag({
     enabled: androidDragEnabled && !interactionBlocked,
     selectedIndex: activeIndex,
@@ -315,8 +316,13 @@ export function AppTabBar() {
       <div
         {...drag}
         data-android-tab-drag={androidDragEnabled ? "" : undefined}
+        data-android-map-glass={androidMapGlass ? "" : undefined}
         data-glass-fallback=""
-        className="glass-surface glass-bar glass-refract pointer-events-auto relative w-full max-w-sm rounded-full p-1 shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
+        className={cn(
+          "glass-surface glass-bar pointer-events-auto relative w-full max-w-sm rounded-full p-1",
+          !androidMapGlass &&
+            "glass-refract shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
+        )}
         style={
           {
             "--tab-index": slot,

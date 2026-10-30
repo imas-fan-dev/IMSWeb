@@ -5,7 +5,7 @@ export function ExchangeSearchTabs({ tabs }: { tabs: WorkspaceSearchTabs }) {
     <div
       role="tablist"
       aria-label="搜索类型"
-      className="flex gap-1 border-b px-4 py-2"
+      className="exchange-search-tabs flex gap-1 border-b px-4 py-2"
     >
       {(
         [

@@ -480,9 +480,21 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
           ) || 0
         : 0
       const top = Math.max(hostBox.top + safeTop, viewport?.offsetTop ?? 0)
+      // Android edge-to-edge can leave visualViewport full-height behind the
+      // keyboard. Native-glass supplies its top in WebView CSS coordinates.
+      const keyboardTop = IS_APP_TARGET
+        ? parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--app-keyboard-top"
+            )
+          )
+        : NaN
       const end = Math.min(
         hostBox.bottom,
-        (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)
+        (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight),
+        Number.isFinite(keyboardTop) && keyboardTop >= 0
+          ? keyboardTop
+          : Infinity
       )
       const shell = card.closest("[data-app-shell]")
       let domNavigation: NativeGlassFrame | undefined
@@ -580,6 +592,21 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
       setBottom(nextBottom)
       setAvailable(Math.max(120, hostBox.bottom - nextBottom - top - 12))
       const box = card.getBoundingClientRect()
+      if (
+        IS_APP_TARGET &&
+        hostBox.width < 768 &&
+        hostBox.height > hostBox.width &&
+        !expanded &&
+        !native &&
+        box.width
+      ) {
+        const more = moreRef.current?.getBoundingClientRect()
+        if (more?.width)
+          host.style.setProperty(
+            "--exchange-map-controls-right",
+            `${hostBox.right - more.right}px`
+          )
+      } else host.style.removeProperty("--exchange-map-controls-right")
       const surface = card.querySelector<HTMLElement>(
         ".exchange-search-surface"
       )
@@ -677,6 +704,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         receiveNavigation
       )
     window.addEventListener("resize", measure)
+    window.addEventListener("ims:android-keyboard-layout", measure)
     window.visualViewport?.addEventListener("resize", measure)
     window.visualViewport?.addEventListener("scroll", measure)
     return () => {
@@ -689,6 +717,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         receiveNavigation
       )
       window.removeEventListener("resize", measure)
+      window.removeEventListener("ims:android-keyboard-layout", measure)
       window.visualViewport?.removeEventListener("resize", measure)
       window.visualViewport?.removeEventListener("scroll", measure)
     }
@@ -816,6 +845,37 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         )
     : undefined
 
+  const toolsMenu = (
+    <ExchangeMapToolsMenu
+      triggerRef={moreRef}
+      triggerClassName={
+        IS_APP_TARGET && expanded
+          ? "exchange-search-pill"
+          : "exchange-search-round"
+      }
+      triggerLabel={IS_APP_TARGET && expanded ? "更多" : undefined}
+      open={more && !native && !tools.modalOpen}
+      onOpenChange={(value) => {
+        if (value) {
+          inputRef.current?.blur()
+          setEditing(false)
+        }
+        setMore(value)
+      }}
+      filterApplied={tools.filterApplied}
+      modalOpen={tools.modalOpen}
+      pointCount={pointCount}
+      onOpenFilter={() => tool(tools.onOpenFilter)}
+      onOpenOffices={() => tool(tools.onOpenOffices)}
+      onOpenCards={() => tool(tools.onOpenCards)}
+      onOpenAttribution={
+        tools.onOpenAttribution
+          ? (trigger) => tool(() => tools.onOpenAttribution?.(trigger))
+          : undefined
+      }
+    />
+  )
+
   return (
     <>
       {refreshHost &&
@@ -924,7 +984,13 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
           <button
             type="button"
             className="exchange-search-handle"
-            aria-label={expanded ? "收起地点查找" : "展开地点查找"}
+            aria-label={
+              expanded
+                ? IS_APP_TARGET
+                  ? "拖动或收起地点查找"
+                  : "收起地点查找"
+                : "展开地点查找"
+            }
             aria-expanded={expanded}
             onClick={() => {
               if (suppressHandleClick.current) {
@@ -1006,33 +1072,49 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
 
           <div className="exchange-search-row" inert={exiting || undefined}>
             {expanded ? (
-              <Input
-                ref={inputRef}
-                id={id}
-                className="exchange-search-input"
-                aria-label={`搜索${subject}`}
-                placeholder={
-                  subject === "事务所"
-                    ? "事务所名称、城市或地址"
-                    : "场馆、商圈或完整地址"
-                }
-                value={model.query}
-                maxLength={120}
-                onChange={(event) => {
-                  model.cancelPending()
-                  model.edit(event.currentTarget.value)
-                }}
-                onFocus={() => setEditing(true)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" || event.nativeEvent.isComposing)
-                    return
-                  event.preventDefault()
-                  event.stopPropagation()
-                  setEditing(false)
-                  inputRef.current?.blur()
-                  void model.submit()
-                }}
-              />
+              <div className="exchange-search-field">
+                {IS_APP_TARGET ? <SearchIcon aria-hidden="true" /> : null}
+                <Input
+                  ref={inputRef}
+                  id={id}
+                  className="exchange-search-input"
+                  aria-label={`搜索${subject}`}
+                  placeholder={
+                    subject === "事务所"
+                      ? "事务所名称、城市或地址"
+                      : "场馆、商圈或完整地址"
+                  }
+                  value={model.query}
+                  maxLength={120}
+                  onChange={(event) => {
+                    model.cancelPending()
+                    model.edit(event.currentTarget.value)
+                  }}
+                  onFocus={() => setEditing(true)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" || event.nativeEvent.isComposing)
+                      return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setEditing(false)
+                    inputRef.current?.blur()
+                    void model.submit()
+                  }}
+                />
+                {IS_APP_TARGET && model.query ? (
+                  <Button
+                    variant="ghost"
+                    className="exchange-search-round exchange-search-clear"
+                    aria-label="清除搜索文字"
+                    onClick={() => {
+                      model.edit("")
+                      inputRef.current?.focus({ preventScroll: true })
+                    }}
+                  >
+                    <XIcon aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </div>
             ) : selectedPlace ? (
               <Button
                 ref={triggerRef}
@@ -1063,7 +1145,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
                 查找{subject}
               </Button>
             )}
-            {expanded && model.query ? (
+            {expanded && !IS_APP_TARGET && model.query ? (
               <Button
                 variant="ghost"
                 className="exchange-search-round"
@@ -1091,29 +1173,19 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
                 <XIcon aria-hidden="true" />
               </Button>
             ) : null}
-            <ExchangeMapToolsMenu
-              triggerRef={moreRef}
-              triggerClassName="exchange-search-round"
-              open={more && !native && !tools.modalOpen}
-              onOpenChange={(value) => {
-                if (value) {
-                  inputRef.current?.blur()
-                  setEditing(false)
-                }
-                setMore(value)
-              }}
-              filterApplied={tools.filterApplied}
-              modalOpen={tools.modalOpen}
-              pointCount={pointCount}
-              onOpenFilter={() => tool(tools.onOpenFilter)}
-              onOpenOffices={() => tool(tools.onOpenOffices)}
-              onOpenCards={() => tool(tools.onOpenCards)}
-              onOpenAttribution={
-                tools.onOpenAttribution
-                  ? (trigger) => tool(() => tools.onOpenAttribution?.(trigger))
-                  : undefined
-              }
-            />
+            {IS_APP_TARGET && expanded ? (
+              <Button
+                ref={cancelRef}
+                variant="ghost"
+                className="exchange-search-round exchange-search-close"
+                aria-label="取消"
+                onClick={collapse}
+              >
+                <XIcon aria-hidden="true" />
+              </Button>
+            ) : (
+              toolsMenu
+            )}
           </div>
         </div>
 
@@ -1134,14 +1206,16 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
             >
               查找
             </Button>
-            <Button
-              ref={cancelRef}
-              className="exchange-search-pill"
-              variant="secondary"
-              onClick={collapse}
-            >
-              取消
-            </Button>
+            {!IS_APP_TARGET ? (
+              <Button
+                ref={cancelRef}
+                className="exchange-search-pill"
+                variant="secondary"
+                onClick={collapse}
+              >
+                取消
+              </Button>
+            ) : null}
             {!IS_APP_TARGET && largeHeight > mediumHeight ? (
               <Button
                 className="exchange-search-pill"
@@ -1157,80 +1231,94 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         ) : null}
 
         {expanded ? (
-          <div
-            className="exchange-search-content"
-            data-placeholder={!model.results.length || undefined}
-            role={tabs ? "tabpanel" : undefined}
-            id={tabs?.panelId}
-            aria-labelledby={
-              tabs?.panelId ? `${tabs.panelId}-${tabs.active}` : undefined
-            }
-            aria-label={`${subject}搜索结果`}
-            inert={exiting || undefined}
-          >
-            {tabs ? (
-              <ExchangeSearchTabs tabs={tabs} />
-            ) : model.results.length ? (
-              <h2 className="text-lg font-semibold">{subject}</h2>
-            ) : null}
-            {feedback}
-            {status ? (
-              <ExchangeSearchStatus
-                status={status}
-                compact={Boolean(model.results.length)}
-              >
-                {currentFeedback && onRetry ? (
-                  <Button
-                    className="exchange-search-pill"
-                    variant="secondary"
-                    onClick={onRetry}
-                  >
-                    重试地图
-                  </Button>
-                ) : null}
-                {currentFeedback && onRetry ? (
-                  <Button
-                    className="exchange-search-pill"
-                    variant="ghost"
-                    onClick={() => tool(tools.onOpenOffices)}
-                  >
-                    查看名录
-                  </Button>
-                ) : null}
-              </ExchangeSearchStatus>
-            ) : null}
-            {model.results.map((place) => (
-              <button
-                key={place.id}
-                type="button"
-                disabled={place.disabled}
-                className="exchange-search-result"
-                onClick={() => {
-                  onSelect(place)
-                  collapse()
-                }}
-              >
-                <strong>{place.label}</strong>
-                <span>
-                  {[place.address, place.distanceLabel]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </button>
-            ))}
-            {tabs?.hasMore ? (
-              <Button
-                variant="ghost"
-                disabled={model.busy}
-                onClick={tabs.onLoadMore}
-              >
-                加载更多事务所
-              </Button>
-            ) : null}
-            {!IS_APP_TARGET && model.attribution ? (
-              <p className="text-xs text-muted-foreground">
-                {model.attribution}
-              </p>
+          <div className="exchange-search-reading" inert={exiting || undefined}>
+            <div
+              className="exchange-search-content"
+              data-placeholder={!model.results.length || undefined}
+              role={tabs ? "tabpanel" : undefined}
+              id={tabs?.panelId}
+              aria-labelledby={
+                tabs?.panelId ? `${tabs.panelId}-${tabs.active}` : undefined
+              }
+              aria-label={`${subject}搜索结果`}
+              inert={exiting || undefined}
+            >
+              {tabs ? (
+                <ExchangeSearchTabs tabs={tabs} />
+              ) : model.results.length ? (
+                <h2 className="text-lg font-semibold">{subject}</h2>
+              ) : null}
+              {feedback}
+              {status ? (
+                <ExchangeSearchStatus
+                  status={status}
+                  compact={Boolean(model.results.length)}
+                >
+                  {currentFeedback && onRetry ? (
+                    <Button
+                      className="exchange-search-pill"
+                      variant="secondary"
+                      onClick={onRetry}
+                    >
+                      重试地图
+                    </Button>
+                  ) : null}
+                  {currentFeedback && onRetry ? (
+                    <Button
+                      className="exchange-search-pill"
+                      variant="ghost"
+                      onClick={() => tool(tools.onOpenOffices)}
+                    >
+                      查看名录
+                    </Button>
+                  ) : null}
+                </ExchangeSearchStatus>
+              ) : null}
+              {model.results.map((place) => (
+                <button
+                  key={place.id}
+                  type="button"
+                  disabled={place.disabled}
+                  className="exchange-search-result"
+                  onClick={() => {
+                    onSelect(place)
+                    collapse()
+                  }}
+                >
+                  <strong>{place.label}</strong>
+                  <span>
+                    {[place.address, place.distanceLabel]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </button>
+              ))}
+              {tabs?.hasMore ? (
+                <Button
+                  variant="ghost"
+                  disabled={model.busy}
+                  onClick={tabs.onLoadMore}
+                >
+                  加载更多事务所
+                </Button>
+              ) : null}
+              {!IS_APP_TARGET && model.attribution ? (
+                <p className="text-xs text-muted-foreground">
+                  {model.attribution}
+                </p>
+              ) : null}
+            </div>
+            {IS_APP_TARGET ? (
+              <div className="exchange-search-footer">
+                {toolsMenu}
+                <Button
+                  className="exchange-search-pill"
+                  variant="ghost"
+                  onClick={collapse}
+                >
+                  收起地点查找
+                </Button>
+              </div>
             ) : null}
           </div>
         ) : null}

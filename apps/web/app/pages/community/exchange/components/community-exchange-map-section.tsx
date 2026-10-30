@@ -781,6 +781,7 @@ export function CommunityExchangeMapSection({
             variant="secondary"
             className="exchange-web-refresh"
             aria-label="刷新地图结果"
+            aria-busy={Boolean(searchTools.refreshing)}
             disabled={searchTools.refreshing}
             onClick={() => {
               refreshMapOffices()
