@@ -426,11 +426,12 @@ describe("AppTabBar prerendered runtime admission", () => {
       const tree = tabBarTree()
       let html: string
       // Prerender has no browser globals, even when the eventual client is Tauri.
+      const browserWindow = window
       vi.stubGlobal("window", undefined)
       try {
         html = renderToString(tree)
       } finally {
-        vi.unstubAllGlobals()
+        vi.stubGlobal("window", browserWindow)
       }
       expect(html).not.toContain("data-android-tab-drag")
       const container = document.createElement("div")
