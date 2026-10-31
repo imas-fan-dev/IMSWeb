@@ -6,7 +6,6 @@
 /// the active tab stack has a page to return to, and reports the gesture to the
 /// web provider, which performs the single navigation.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
