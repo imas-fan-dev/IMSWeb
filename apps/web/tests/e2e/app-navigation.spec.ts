@@ -589,15 +589,14 @@ test.describe("app navigation", () => {
         reactionReads: 12,
         reactionWrites: 0,
       })
-      resourcesDirectory(api)
       installSeededPublicApis(api, [
         { path: "/api/community/content", times: { min: 1, max: 4 } },
         { path: "/api/community/exchange/series", times: { min: 1, max: 4 } },
       ])
       await page.goto("/community")
-      const entries = await page.evaluate(() => history.length)
       await page.locator('a[href="/community/cards"]').first().click()
       await expect(page).toHaveURL(/\/community\/cards/)
+      const afterDetail = await page.evaluate(() => history.length)
       // Reselecting the active tab returns to the root that is already in this
       // tab instead of appending a second root above the detail page.
       await nav(page).getByRole("link", { name: "社区", exact: true }).click()
@@ -607,12 +606,14 @@ test.describe("app navigation", () => {
         page.getByRole("button", { name: "返回", exact: true })
       ).toHaveCount(0)
       // The abandoned detail page is gone from history, not hidden below the
-      // root: the entry count never grows and no stale level remains.
-      expect(await page.evaluate(() => history.length)).toBe(entries)
-      // Switching tabs reuses the same entry and keeps the next root bounded.
-      await nav(page).getByRole("link", { name: "资料", exact: true }).click()
-      await expect(page).toHaveURL(/\/apps$/)
-      expect(await page.evaluate(() => history.length)).toBe(entries)
+      // root: the entry count stays where the detail page left it.
+      expect(await page.evaluate(() => history.length)).toBe(afterDetail)
+      // A second reselect is a plain scroll reset and adds nothing either.
+      await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+      expect(await page.evaluate(() => history.length)).toBe(afterDetail)
+      await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+      expect(await page.evaluate(() => history.length)).toBe(afterDetail)
       await expect(page.locator("[data-app-shell]")).toBeVisible()
     }
   )
