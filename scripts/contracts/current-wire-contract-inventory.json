@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "d2fdb72e1621c5c85573929f8d7c0d00e4a2337771f3356956134ce6359c40cd",
+    "semanticDigest": "2a49d96642a3b480f46263c665c0c441ca14ac955873bfd378ae48778a1e810d",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,9 +16,9 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 376,
+    "mountedRegistrations": 378,
     "mountedMethodPaths": 284,
-    "noInputRoutes": 92,
+    "noInputRoutes": 94,
     "requestCarriers": 372,
     "policies": {
       "reject": 74,
@@ -27,8 +27,8 @@
       "non-object-applicable": 84
     },
     "responses": {
-      "total": 800,
-      "json": 726,
+      "total": 804,
+      "json": 730,
       "nonJson": 74
     },
     "unresolved": 0
@@ -118,7 +118,7 @@
       "/api/about": 1,
       "/api/admin": 167,
       "/api/card": 1,
-      "/api/cards": 2,
+      "/api/cards": 4,
       "/api/check": 1,
       "/api/chronicle": 2,
       "/api/community": 53,
@@ -3807,6 +3807,72 @@
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
           "kind": "non-json",
           "expression": "NAMECARD_MEDIA_NOT_FOUND"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/random-ownerless",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "handlerSymbol": "handleGetRandomOwnerlessCard",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-random-ownerless-card.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"FUDABA_NO_OWNERLESS_CARD\" }"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-random-ownerless-card.ts",
+          "kind": "json",
+          "expression": "{ cardNumber } satisfies RandomOwnerlessCard"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/wall-insights",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "handlerSymbol": "handleGetWallInsights",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-wall-insights.ts",
+          "kind": "json",
+          "expression": "{ ownerless : 0 , ownerlessMissingSeries : 0 , claimed : 0 , claimsPending : 0 , supplemented : 0 , supplementsPending : 0 , contributors : [ ] , viewer : null , } satisfies WallInsights"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-wall-insights.ts",
+          "kind": "json",
+          "expression": "{ ownerless : insights . ownerless , ownerlessMissingSeries : insights . ownerless_missing_series , claimed : insights . claimed , claimsPending : insights . claims_pending , supplemented : insights . supplemented , supplementsPending : insights . supplements_pending , contributors : insights . contributors . map ( ( contributor ) => ( { accountId : contributor . account_id , displayName : contributor . display_name , points : contributor . points , cards : contributor . cards , } ) ) , viewer : insights . viewer ? { accountId : insights . viewer . account_id , displayName : insights . viewer . display_name , points : insights . viewer . points , rank : insights . viewer . rank , } : null , } satisfies WallInsights"
         }
       ]
     },
@@ -22636,6 +22702,38 @@
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
       "kind": "non-json",
       "expression": "NAMECARD_MEDIA_NOT_FOUND"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/random-ownerless",
+      "handlerSymbol": "handleGetRandomOwnerlessCard",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-random-ownerless-card.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"FUDABA_NO_OWNERLESS_CARD\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/random-ownerless",
+      "handlerSymbol": "handleGetRandomOwnerlessCard",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-random-ownerless-card.ts",
+      "kind": "json",
+      "expression": "{ cardNumber } satisfies RandomOwnerlessCard"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/wall-insights",
+      "handlerSymbol": "handleGetWallInsights",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-wall-insights.ts",
+      "kind": "json",
+      "expression": "{ ownerless : 0 , ownerlessMissingSeries : 0 , claimed : 0 , claimsPending : 0 , supplemented : 0 , supplementsPending : 0 , contributors : [ ] , viewer : null , } satisfies WallInsights"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/wall-insights",
+      "handlerSymbol": "handleGetWallInsights",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-wall-insights.ts",
+      "kind": "json",
+      "expression": "{ ownerless : insights . ownerless , ownerlessMissingSeries : insights . ownerless_missing_series , claimed : insights . claimed , claimsPending : insights . claims_pending , supplemented : insights . supplemented , supplementsPending : insights . supplements_pending , contributors : insights . contributors . map ( ( contributor ) => ( { accountId : contributor . account_id , displayName : contributor . display_name , points : contributor . points , cards : contributor . cards , } ) ) , viewer : insights . viewer ? { accountId : insights . viewer . account_id , displayName : insights . viewer . display_name , points : insights . viewer . points , rank : insights . viewer . rank , } : null , } satisfies WallInsights"
     },
     {
       "method": "GET",

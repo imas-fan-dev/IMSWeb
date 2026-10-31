@@ -134,6 +134,9 @@ import {
   namecardMutationResponseSchema,
   rejectedNamecardRequestSchema,
   namecardPageSchema,
+  randomOwnerlessCardErrorSchema,
+  randomOwnerlessCardSchema,
+  wallInsightsSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
 } from "@imsweb/contracts/namecards"
@@ -395,6 +398,20 @@ export function resolveApiContract(
         400: namecardErrorResponseSchema,
         500: namecardErrorResponseSchema,
         503: namecardListErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/cards/wall-insights")
+    return {
+      responses: {
+        200: wallInsightsSchema,
+        500: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/cards/random-ownerless")
+    return {
+      responses: {
+        200: randomOwnerlessCardSchema,
+        404: randomOwnerlessCardErrorSchema,
       },
     }
   if (method === "GET" && path === "/api/reactions")

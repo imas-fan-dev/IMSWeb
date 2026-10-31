@@ -395,6 +395,25 @@ export interface LegacyNamecardClaimStatusRecord {
     supplement_pending: boolean;
 }
 
+/** 名片墙顶部面板的一次性读数：进度、贡献榜与当前用户的名次。 */
+export interface WallInsightContributorRecord {
+    account_id: string;
+    display_name: string;
+    points: number;
+    cards: number;
+}
+
+export interface WallInsightsRecord {
+    ownerless: number;
+    ownerless_missing_series: number;
+    claimed: number;
+    claims_pending: number;
+    supplemented: number;
+    supplements_pending: number;
+    contributors: WallInsightContributorRecord[];
+    viewer: (WallInsightContributorRecord & { rank: number | null }) | null;
+}
+
 /**
  * The wall's claim and supplement forms send only the fields the visitor
  * changed, so an absent key means "leave the live value alone" while an
@@ -999,6 +1018,13 @@ export interface FudabaRepository {
         claimantAccountId: string,
         limit: number,
     ): Promise<FudabaCardClaimRecord[]>;
+    wallInsights(viewerAccountId: string | null): Promise<WallInsightsRecord>;
+    /**
+     * 随机挑一张缺少企划的无主名片，优先没人补充过的那些；没有可抽的返回 null。
+     */
+    randomOwnerlessCardMissingSeries(
+        viewerAccountId: string | null,
+    ): Promise<number | null>;
     listLegacyNamecardClaimStatuses(
         legacyCardIds: number[],
         viewerAccountId: string | null,

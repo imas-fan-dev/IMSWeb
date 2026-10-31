@@ -11,6 +11,7 @@ import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
+import { WallInsightsPanel } from "./components/wall-insights-panel"
 import { NamecardSupplementDialog } from "~/components/community/namecard-supplement-dialog"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import {
@@ -460,6 +461,13 @@ export default function CommunityCardsPage() {
       width="wide"
       className={!IS_APP_TARGET ? "py-3 sm:py-3 md:py-8" : undefined}
     >
+      <WallInsightsPanel
+        onPickCard={(cardNumber) => {
+          const next = new URLSearchParams(searchParams)
+          next.set("card", String(cardNumber))
+          setSearchParams(next)
+        }}
+      />
       <NamecardPreview
         card={previewSide === null ? null : detail.card}
         side={previewSide ?? "front"}

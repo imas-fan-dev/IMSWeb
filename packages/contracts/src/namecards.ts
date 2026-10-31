@@ -557,3 +557,49 @@ export type ReactionMutation = z.infer<typeof reactionMutationSchema>
 export type LegacyEmojiMutation = z.infer<typeof legacyEmojiMutationSchema>
 export type ReactionMutationResponse = z.infer<typeof reactionMutationResponseSchema>
 export type ReactionErrorResponse = z.infer<typeof reactionErrorResponseSchema>
+
+/** 名片墙顶部的临时面板：进度、贡献榜与当前用户的贡献。 */
+export const wallInsightContributorSchema = z
+  .object({
+    accountId: z.string().min(1),
+    displayName: z.string().min(1),
+    points: z.number().int().nonnegative(),
+    cards: z.number().int().nonnegative(),
+  })
+  .strict()
+
+export const wallInsightViewerSchema = z
+  .object({
+    accountId: z.string().min(1),
+    displayName: z.string().min(1),
+    points: z.number().int().nonnegative(),
+    /** 1 起的全局名次；没有贡献时为 null。 */
+    rank: z.number().int().positive().nullable(),
+  })
+  .strict()
+
+export const wallInsightsSchema = exactJsonResponse({
+  /** 名片墙上还没有主人的名片总数（认领进度的分母）。 */
+  ownerless: z.number().int().nonnegative(),
+  /** 这些无主名片里连企划都没有的张数（补充进度的分母）。 */
+  ownerlessMissingSeries: z.number().int().nonnegative(),
+  claimed: z.number().int().nonnegative(),
+  claimsPending: z.number().int().nonnegative(),
+  supplemented: z.number().int().nonnegative(),
+  supplementsPending: z.number().int().nonnegative(),
+  contributors: z.array(wallInsightContributorSchema).max(10),
+  viewer: wallInsightViewerSchema.nullable(),
+})
+
+export const randomOwnerlessCardSchema = exactJsonResponse({
+  cardNumber: z.number().int().positive(),
+})
+
+export const randomOwnerlessCardErrorSchema = exactJsonError({
+  success: z.literal(false),
+  code: z.literal("FUDABA_NO_OWNERLESS_CARD"),
+})
+
+export type WallInsightContributor = z.infer<typeof wallInsightContributorSchema>
+export type WallInsights = z.infer<typeof wallInsightsSchema>
+export type RandomOwnerlessCard = z.infer<typeof randomOwnerlessCardSchema>

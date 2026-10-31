@@ -1,4 +1,6 @@
 import { handleGetNamecard } from "@/domains/community/namecards/public-cards/handlers/get-namecard";
+import { handleGetRandomOwnerlessCard } from "@/domains/community/namecards/public-cards/handlers/get-random-ownerless-card";
+import { handleGetWallInsights } from "@/domains/community/namecards/public-cards/handlers/get-wall-insights";
 import { handleListNamecards } from "@/domains/community/namecards/public-cards/handlers/list-namecards";
 import { handleServePublicCardMedia } from "@/domains/community/namecards/public-cards/handlers/serve-card-media";
 import {
@@ -25,6 +27,17 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         querySchemaValidator(namecardListQuerySchema, { invalidMessage: "名片分页参数无效" }, validateNamecardListQuery),
         handleListNamecards,
+    );
+    // 墙顶面板的读数与「随机补充」入口都在 /cards 下，静态段优先于 /cards/:id。
+    routes.get(
+        "/cards/wall-insights",
+        optionalPlatformAuth,
+        handleGetWallInsights,
+    );
+    routes.get(
+        "/cards/random-ownerless",
+        optionalPlatformAuth,
+        handleGetRandomOwnerlessCard,
     );
     // Wall artwork addresses middle pages by card number: the editor's object
     // layout has no reversible public path.

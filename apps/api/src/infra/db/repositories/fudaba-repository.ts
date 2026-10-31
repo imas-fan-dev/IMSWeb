@@ -69,6 +69,8 @@ import type {
     ListFudabaPublicMapOfficesInput,
     ListFudabaPublicOfficesInput,
     LegacyNamecardClaimStatusRecord,
+    WallInsightContributorRecord,
+    WallInsightsRecord,
     NewFudabaCardInput,
     NewFudabaModerationCaseInput,
     NewFudabaOfficeInput,
@@ -930,6 +932,19 @@ function cardPlacementRecord(
         updated_at: timestampValue(row.updated_at),
     };
 }
+
+/** 贡献值榜单的公共读数：一次补充通过记一条事件，`points` 求和即贡献度。 */
+const CONTRIBUTION_LEADER_SQL = `SELECT event.account_id AS account_id,
+               profile.display_name AS display_name,
+               SUM(event.points)::int AS points,
+               COUNT(DISTINCT event.card_id)::int AS cards
+          FROM namecard_contribution_events event
+          JOIN platform_profiles profile ON profile.account_id=event.account_id
+          JOIN platform_accounts account
+            ON account.id=event.account_id
+           AND account.status='active'
+           AND account.deleted_at IS NULL
+         GROUP BY event.account_id, profile.display_name`;
 
 export class SqlFudabaRepository implements FudabaRepository {
     private initialized?: Promise<void>;
@@ -4137,6 +4152,135 @@ export class SqlFudabaRepository implements FudabaRepository {
             [claimantAccountId, limit],
         );
         return this.attachClaimSelections(this.database, rows.map(claimRecord));
+    }
+
+    async wallInsights(viewerAccountId: string | null): Promise<WallInsightsRecord> {
+        const [counts, contributors] = await Promise.all([
+            queryOne<{
+                ownerless: number;
+                ownerless_missing_series: number;
+                claimed: number;
+                claims_pending: number;
+                supplemented: number;
+                supplements_pending: number;
+            }>(
+                this.database,
+                `SELECT
+                    (SELECT COUNT(*)::int FROM fudaba_cards card
+                      WHERE card.owner_account_id IS NULL
+                        AND card.deleted_at IS NULL
+                        AND card.publication_status='published') AS ownerless,
+                    (SELECT COUNT(*)::int FROM fudaba_cards card
+                      WHERE card.owner_account_id IS NULL
+                        AND card.deleted_at IS NULL
+                        AND card.publication_status='published'
+                        AND NOT EXISTS (
+                            SELECT 1 FROM fudaba_card_series series WHERE series.card_id=card.id
+                        )) AS ownerless_missing_series,
+                    (SELECT COUNT(*)::int FROM fudaba_cards card
+                      WHERE card.legacy_card_id IS NOT NULL
+                        AND card.owner_account_id IS NOT NULL
+                        AND card.deleted_at IS NULL) AS claimed,
+                    (SELECT COUNT(*)::int FROM fudaba_card_claims claim
+                      WHERE claim.state IN ('pending', 'approving')) AS claims_pending,
+                    (SELECT COUNT(DISTINCT event.card_id)::int
+                       FROM namecard_contribution_events event) AS supplemented,
+                    (SELECT COUNT(*)::int FROM fudaba_card_supplements supplement
+                      WHERE supplement.state IN ('pending', 'approving')) AS supplements_pending`,
+                [],
+            ),
+            queryAll<WallInsightContributorRecord>(
+                this.database,
+                `${CONTRIBUTION_LEADER_SQL}
+                 ORDER BY points DESC, display_name ASC, account_id ASC
+                 LIMIT 5`,
+                [],
+            ),
+        ]);
+        const viewer = viewerAccountId
+            ? await queryOne<WallInsightContributorRecord & { rank_position: number | null }>(
+                  this.database,
+                  `WITH leader AS (${CONTRIBUTION_LEADER_SQL}),
+                        viewer AS (
+                            SELECT * FROM leader WHERE account_id=?
+                        )
+                   SELECT viewer.account_id, viewer.display_name, viewer.points, viewer.cards,
+                          COALESCE((
+                              SELECT 1 + COUNT(*)::int FROM leader other
+                               WHERE other.points > viewer.points
+                                  OR (other.points = viewer.points AND other.display_name < viewer.display_name)
+                                  OR (other.points = viewer.points AND other.display_name = viewer.display_name
+                                      AND other.account_id < viewer.account_id)
+                          ), NULL)::int AS rank_position
+                     FROM viewer`,
+                  [viewerAccountId],
+              )
+            : null;
+        return {
+            ownerless: Number(counts?.ownerless ?? 0),
+            ownerless_missing_series: Number(counts?.ownerless_missing_series ?? 0),
+            claimed: Number(counts?.claimed ?? 0),
+            claims_pending: Number(counts?.claims_pending ?? 0),
+            supplemented: Number(counts?.supplemented ?? 0),
+            supplements_pending: Number(counts?.supplements_pending ?? 0),
+            contributors: contributors.map((row) => ({
+                account_id: row.account_id,
+                display_name: row.display_name,
+                points: Number(row.points),
+                cards: Number(row.cards),
+            })),
+            viewer: viewer
+                ? {
+                      account_id: viewer.account_id,
+                      display_name: viewer.display_name,
+                      points: Number(viewer.points),
+                      cards: Number(viewer.cards),
+                      rank: viewer.rank_position === null ? null : Number(viewer.rank_position),
+                  }
+                : null,
+        };
+    }
+
+    async randomOwnerlessCardMissingSeries(
+        viewerAccountId: string | null,
+    ): Promise<number | null> {
+        const row = await queryOne<{ card_number: number }>(
+            this.database,
+            `SELECT card.card_number
+               FROM fudaba_cards card
+              WHERE card.owner_account_id IS NULL
+                AND card.deleted_at IS NULL
+                AND card.publication_status='published'
+                AND NOT EXISTS (
+                    SELECT 1 FROM fudaba_card_series series WHERE series.card_id=card.id
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM fudaba_card_supplements open_supplement
+                     WHERE open_supplement.card_id=card.id
+                       AND open_supplement.state IN ('pending', 'approving')
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM fudaba_card_claims open_claim
+                     WHERE open_claim.legacy_card_id=card.card_number
+                       AND open_claim.state IN ('pending', 'approving')
+                )
+                AND (
+                    CAST(? AS text) IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1 FROM fudaba_card_supplements own_supplement
+                         WHERE own_supplement.card_id=card.id
+                           AND own_supplement.submitter_account_id=?
+                           AND own_supplement.state IN ('pending', 'approving')
+                    )
+                )
+              ORDER BY (
+                    SELECT COUNT(*) FROM fudaba_card_supplements seen
+                     WHERE seen.card_id=card.id
+                ) ASC, random()
+              LIMIT 1`,
+            [viewerAccountId, viewerAccountId],
+        );
+        return row ? Number(row.card_number) : null;
     }
 
     async listLegacyNamecardClaimStatuses(
