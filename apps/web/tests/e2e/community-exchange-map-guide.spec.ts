@@ -118,10 +118,14 @@ test("moves from the center to each target without accidental dismissal @mobile 
   await card.getByRole("heading").click()
   await page.keyboard.press("Escape")
   await expect(card).toBeVisible()
-  const samples = sampleGuideMotion(page)
-  await card.getByRole("button", { name: "下一步" }).click()
-  const frames = await samples
+  const frames = await sampleGuideMotion(page, () =>
+    card.getByRole("button", { name: "下一步" }).click()
+  )
   const end = await expectGuideGeometry(page, 1)
+  await testInfo.attach("animation-frames", {
+    body: JSON.stringify(frames, null, 2),
+    contentType: "application/json",
+  })
   expect(
     frames.some(
       (frame) =>
@@ -131,10 +135,6 @@ test("moves from the center to each target without accidental dismissal @mobile 
   expect(
     new Set(frames.map((frame) => Math.round(frame.holeHeight))).size
   ).toBeGreaterThan(2)
-  await testInfo.attach("animation-frames", {
-    body: JSON.stringify(frames, null, 2),
-    contentType: "application/json",
-  })
   await page.screenshot({
     path: testInfo.outputPath("guide-follow-search.png"),
   })

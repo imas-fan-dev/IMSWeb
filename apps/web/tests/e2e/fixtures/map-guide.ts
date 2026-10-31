@@ -207,35 +207,57 @@ export async function expectGuideGeometry(page: Page, step: number) {
   return (await card.boundingBox())!
 }
 
-export async function sampleGuideMotion(page: Page) {
-  return page.evaluate(
-    () =>
-      new Promise<
-        { x: number; y: number; width: number; holeHeight: number }[]
-      >((resolve) => {
-        const frames: {
-          x: number
-          y: number
-          width: number
-          holeHeight: number
-        }[] = []
-        const sample = () => {
-          const card = document
-            .querySelector("[data-guide-card]")!
-            .getBoundingClientRect()
-          const hole = document
-            .querySelector("[data-guide-spotlight]")!
-            .getBoundingClientRect()
-          frames.push({
-            x: card.x,
-            y: card.y,
-            width: card.width,
-            holeHeight: hole.height,
-          })
-          if (frames.length === 12) resolve(frames)
-          else requestAnimationFrame(sample)
-        }
-        requestAnimationFrame(sample)
+export async function sampleGuideMotion(
+  page: Page,
+  action: () => Promise<unknown>
+) {
+  const recording = await page.evaluateHandle(() => {
+    const frames: {
+      x: number
+      y: number
+      width: number
+      holeHeight: number
+      time: number
+      motion: string | undefined
+      transition: string
+    }[] = []
+    let frame = 0
+    const sample = (time: number) => {
+      const element = document.querySelector<HTMLElement>("[data-guide-card]")!
+      const card = element.getBoundingClientRect()
+      const hole = document
+        .querySelector("[data-guide-spotlight]")!
+        .getBoundingClientRect()
+      frames.push({
+        x: card.x,
+        y: card.y,
+        width: card.width,
+        holeHeight: hole.height,
+        time,
+        motion: element.dataset.guideMotion,
+        transition: getComputedStyle(element).transitionDuration,
       })
-  )
+      frame = requestAnimationFrame(sample)
+    }
+    sample(performance.now())
+    return { frames, stop: () => cancelAnimationFrame(frame) }
+  })
+  try {
+    await action()
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          let frames = 0
+          const sample = () => {
+            if (++frames === 12) resolve()
+            else requestAnimationFrame(sample)
+          }
+          requestAnimationFrame(sample)
+        })
+    )
+    return await recording.evaluate((value) => value.frames)
+  } finally {
+    await recording.evaluate((value) => value.stop())
+    await recording.dispose()
+  }
 }

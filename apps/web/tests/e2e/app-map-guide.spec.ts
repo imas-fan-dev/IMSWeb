@@ -27,10 +27,14 @@ test("App guide follows targets and keeps its actions accessible @app-iphone @ap
   await page.mouse.click(2, 2)
   await page.keyboard.press("Escape")
   await expect(card).toBeVisible()
-  const sampling = sampleGuideMotion(page)
-  await card.getByRole("button", { name: "下一步" }).click()
-  const frames = await sampling
+  const frames = await sampleGuideMotion(page, () =>
+    card.getByRole("button", { name: "下一步" }).click()
+  )
   const second = await expectGuideGeometry(page, 1)
+  await testInfo.attach("animation-frames", {
+    body: JSON.stringify(frames, null, 2),
+    contentType: "application/json",
+  })
   expect(
     frames.some(
       (frame) =>
@@ -38,10 +42,6 @@ test("App guide follows targets and keeps its actions accessible @app-iphone @ap
         Math.abs(frame.y - second.y) > 0.75
     )
   ).toBe(true)
-  await testInfo.attach("animation-frames", {
-    body: JSON.stringify(frames, null, 2),
-    contentType: "application/json",
-  })
   for (let step = 2; step < guideTitles.length; step++) {
     await card.getByRole("button", { name: "下一步" }).click()
     await expectGuideGeometry(page, step)

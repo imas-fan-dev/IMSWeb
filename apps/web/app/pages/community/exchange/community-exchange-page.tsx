@@ -88,6 +88,24 @@ import "~/pages/community/exchange/maps/exchange-office-map.css"
 
 type DirectoryView = "offices" | "cards"
 
+function mapToolsFocusTarget(...preferred: (HTMLElement | null)[]) {
+  const candidates = [
+    ...preferred,
+    ...document.querySelectorAll<HTMLElement>(
+      '.exchange-search-card button[aria-label="更多地图工具"], aside[aria-label="交换发现栏"] button[aria-label="更多地图工具"]'
+    ),
+  ]
+  return (
+    candidates.find(
+      (node) =>
+        node?.isConnected &&
+        !node.closest('[inert], [role="menu"], [role="dialog"]') &&
+        node.getClientRects().length &&
+        getComputedStyle(node).visibility === "visible"
+    ) ?? false
+  )
+}
+
 function useNarrowWorkspace() {
   const [isNarrow, setIsNarrow] = useState(false)
 
@@ -486,27 +504,6 @@ export default function CommunityExchangePage() {
     setAttributionOpen(true)
   }, [])
 
-  const handleAttributionOpenChange = useCallback((open: boolean) => {
-    setAttributionOpen(open)
-    if (open) return
-
-    window.requestAnimationFrame(() => {
-      const entries = [
-        attributionTriggerRef.current,
-        ...document.querySelectorAll<HTMLElement>(
-          '.exchange-search-card button[aria-label="更多地图工具"], aside[aria-label="交换发现栏"] button[aria-label="更多地图工具"]'
-        ),
-      ]
-      const target = entries.find(
-        (entry) =>
-          entry?.isConnected &&
-          !entry.closest("[inert]") &&
-          entry.getClientRects().length
-      )
-      target?.focus({ preventScroll: true })
-    })
-  }, [])
-
   if (!hasAttribution && attributionOpen) setAttributionOpen(false)
 
   useEffect(() => {
@@ -804,7 +801,10 @@ export default function CommunityExchangePage() {
                   IS_APP_TARGET ? searchAttributions : undefined
                 }
                 open={attributionOpen}
-                onOpenChange={handleAttributionOpenChange}
+                onOpenChange={setAttributionOpen}
+                finalFocus={() =>
+                  mapToolsFocusTarget(attributionTriggerRef.current)
+                }
               />
             </NativeGlassControlsProvider>
           ) : (
@@ -877,20 +877,9 @@ export default function CommunityExchangePage() {
               showCloseButton={false}
               initialFocus={dialogTitleRef}
               finalFocus={() => {
-                const candidates = [
+                return mapToolsFocusTarget(
                   routeOpener.current,
-                  directoryOpener.current,
-                  document.querySelector<HTMLElement>(
-                    '.exchange-web-search-dock button[aria-label="更多地图工具"]'
-                  ),
-                ]
-                return (
-                  candidates.find(
-                    (node) =>
-                      node?.isConnected &&
-                      !node.closest("[inert]") &&
-                      node.getClientRects().length
-                  ) ?? false
+                  directoryOpener.current
                 )
               }}
               className="exchange-map-page-dialog h-[min(48rem,var(--overlay-safe-height))] gap-0 rounded-lg p-0 motion-reduce:animate-none sm:max-w-5xl"
