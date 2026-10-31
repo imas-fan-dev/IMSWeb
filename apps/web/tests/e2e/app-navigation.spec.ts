@@ -106,8 +106,8 @@ test.describe("app navigation", () => {
         reactionWrites: 0,
       })
       installSeededPublicApis(api, [
-        { path: "/api/community/content", times: 1 },
-        { path: "/api/community/exchange/series", times: 1 },
+        { path: "/api/community/content", times: { min: 1, max: 4 } },
+        { path: "/api/community/exchange/series", times: { min: 1, max: 4 } },
       ])
       await page.goto(cardsUrl)
       const top = await readCards(page)
@@ -570,10 +570,9 @@ test.describe("app navigation", () => {
       await expect(
         page.getByRole("button", { name: "返回", exact: true })
       ).toHaveCount(0)
-      // The root is a hard boundary: a rejected traversal restores this page
-      // instead of surfacing the other tab's stale entry.
-      await page.goBack()
-      await expect(page).toHaveURL(/\/account\/me$/)
+      // The root is a hard boundary. Tab activation projects the stack top into
+      // a single entry, so no abandoned page sits below it in WebView history.
+      expect(await page.evaluate(() => history.length)).toBe(1)
       await expect(
         page.getByRole("heading", { name: "我的", exact: true, level: 1 })
       ).toBeVisible()
@@ -600,21 +599,17 @@ test.describe("app navigation", () => {
       // tab instead of appending a second root above the detail page.
       await nav(page).getByRole("link", { name: "社区", exact: true }).click()
       await expect(page).toHaveURL(/\/community$/)
+      await expect(page.locator("[data-app-shell]")).toBeVisible()
+      // The abandoned detail page is gone from history, not hidden below the
+      // root: the shell keeps exactly one entry and offers no back control.
+      expect(await page.evaluate(() => history.length)).toBe(1)
       await expect(
-        page.getByRole("heading", { level: 1 }).first()
-      ).toBeVisible()
-      // A native traversal cannot leave the root for the abandoned detail page.
-      await page.goBack()
-      await expect(page).toHaveURL(/\/community$/)
-      await expect(
-        page.getByRole("heading", { level: 1 }).first()
-      ).toBeVisible()
-      // The same boundary holds after another tab is opened.
+        page.getByRole("button", { name: "返回", exact: true })
+      ).toHaveCount(0)
       await nav(page).getByRole("link", { name: "资料", exact: true }).click()
       await expect(page).toHaveURL(/\/apps$/)
-      await page.goBack()
-      await expect(page).toHaveURL(/\/apps$/)
-      await expect(page.getByRole("main")).toBeVisible()
+      expect(await page.evaluate(() => history.length)).toBe(1)
+      await expect(page.locator("[data-app-shell]")).toBeVisible()
     }
   )
 
@@ -638,8 +633,12 @@ test.describe("app navigation", () => {
       // header control returns there without using WebView history.
       await page.getByRole("button", { name: "返回", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
-      await page.goBack()
-      await expect(page).toHaveURL(/\/account\/me$/)
+      // At the root the control disappears and the browser entry is the only
+      // one, so nothing can traverse back into the restored section.
+      await expect(
+        page.getByRole("button", { name: "返回", exact: true })
+      ).toHaveCount(0)
+      expect(await page.evaluate(() => history.length)).toBe(1)
       await expect(
         page.getByRole("heading", { name: "我的", exact: true, level: 1 })
       ).toBeVisible()
