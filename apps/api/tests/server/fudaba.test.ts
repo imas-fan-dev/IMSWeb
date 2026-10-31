@@ -2862,6 +2862,27 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
             assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 0);
 
+            // 站内名常写成「深蓝白」，名片上却是「深蓝白P」：结尾的 P 不影响匹配。
+            await database
+                .prepare(
+                    `UPDATE platform_profiles SET display_name='深蓝白'
+                      WHERE account_id=?`
+                )
+                .bind(ownerB)
+                .run();
+            const suffixCardId = 'legacy-hint-suffix-card';
+            await fudaba.createCard(registeredCard(suffixCardId, ownerA));
+            await database
+                .prepare(
+                    `UPDATE fudaba_cards
+                     SET owner_account_id=NULL, producer_name=?,
+                         trade_note=NULL, exchange_mode='none'
+                     WHERE id=?`
+                )
+                .bind('深蓝白P', suffixCardId)
+                .run();
+            assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 1);
+
             const claimId = 'same-id-claim';
             const createdClaim = await fudaba.createCardClaimForOwner({
                 id: claimId,
@@ -4463,6 +4484,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261101170000_namecard_lock_records_history',
                 '20261101180000_namecard_supplements',
                 '20261101190000_namecard_envelope_notifications',
+                '20261101200000_namecard_match_key',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');

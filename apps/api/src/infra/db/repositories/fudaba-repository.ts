@@ -5185,7 +5185,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                     card.producer_name
                FROM fudaba_cards card
                JOIN platform_profiles profile
-                 ON lower(btrim(profile.display_name))=lower(btrim(card.producer_name))
+                 ON namecard_match_key(profile.display_name)
+                  = namecard_match_key(card.producer_name)
                JOIN platform_accounts account
                  ON account.id=profile.account_id
                 AND account.status='active' AND account.deleted_at IS NULL
