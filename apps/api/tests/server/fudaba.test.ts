@@ -2883,6 +2883,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 .run();
             assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 1);
 
+            // 输入法打出的全角 Ｐ 同样算同一个名字。
+            await database
+                .prepare('UPDATE fudaba_cards SET producer_name=? WHERE id=?')
+                .bind('深蓝白Ｐ', suffixCardId)
+                .run();
+            await database
+                .prepare(
+                    `DELETE FROM namecard_notifications
+                      WHERE kind='legacy-card-match' AND recipient_account_id=?`
+                )
+                .bind(ownerB)
+                .run();
+            assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 1);
+
             const claimId = 'same-id-claim';
             const createdClaim = await fudaba.createCardClaimForOwner({
                 id: claimId,
@@ -4485,6 +4499,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261101180000_namecard_supplements',
                 '20261101190000_namecard_envelope_notifications',
                 '20261101200000_namecard_match_key',
+                '20261101210000_namecard_match_key_width',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
