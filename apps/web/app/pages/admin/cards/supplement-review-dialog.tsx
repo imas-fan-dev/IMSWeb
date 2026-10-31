@@ -79,6 +79,7 @@ export function SupplementReviewDialog({
   onOpenChange,
   onApprove,
   onReject,
+  dismissible = true,
 }: {
   supplement: AdminCardSupplement | null
   cardNumber: number
@@ -86,6 +87,8 @@ export function SupplementReviewDialog({
   onOpenChange: (open: boolean) => void
   onApprove: (supplement: AdminCardSupplement) => void
   onReject: (supplement: AdminCardSupplement) => void
+  /** 二次确认窗打开时别再让点击穿透关掉这扇窗。 */
+  dismissible?: boolean
 }) {
   const labels = useReviewLabels()
   const [detail, setDetail] =
@@ -111,7 +114,11 @@ export function SupplementReviewDialog({
   const rows = detail ? fieldRows(detail, labels) : []
 
   return (
-    <Dialog open={supplement !== null} onOpenChange={onOpenChange}>
+    <Dialog
+      open={supplement !== null}
+      onOpenChange={onOpenChange}
+      disablePointerDismissal={!dismissible}
+    >
       <DialogContent layout="pinned" className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>补充审核 · {cardLabel}</DialogTitle>
@@ -146,9 +153,7 @@ export function SupplementReviewDialog({
             type="button"
             disabled={!supplement}
             onClick={() => {
-              if (!supplement) return
-              onOpenChange(false)
-              onApprove(supplement)
+              if (supplement) onApprove(supplement)
             }}
           >
             <CheckIcon data-icon="inline-start" aria-hidden="true" />
@@ -159,9 +164,7 @@ export function SupplementReviewDialog({
             variant="outline"
             disabled={!supplement}
             onClick={() => {
-              if (!supplement) return
-              onOpenChange(false)
-              onReject(supplement)
+              if (supplement) onReject(supplement)
             }}
           >
             <XIcon data-icon="inline-start" aria-hidden="true" />

@@ -23,7 +23,7 @@ import {
   type AdminNamecardDiff,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import { ReviewFieldRows } from "./review-field-rows"
+import { ReviewFieldRows, useReviewLabels } from "./review-field-rows"
 
 type DiffSide = AdminNamecardDiff["live"]
 
@@ -111,6 +111,8 @@ function charactersList(side: DiffSide): string[] {
 }
 
 const YES_NO = (value: boolean) => (value ? "是" : "否")
+/** 原创与 AI 是「声明」，没勾等于没声明，不等于否认。 */
+const DECLARED = (value: boolean) => (value ? "是" : "未声明")
 const EXCHANGE_MODES: Record<DiffSide["exchangeMode"], string> = {
   auto: "自动允许",
   manual: "手动允许",
@@ -120,7 +122,20 @@ const EXCHANGE_MODES: Record<DiffSide["exchangeMode"], string> = {
 /**
  * 字段顺序与编辑窗口一致；只有提交版本存在的字段才参与比较。
  */
-export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[] {
+/** 审核员看的是企划名称，不是 `765as` 这类代号；没给解析器时退回代号。 */
+export interface DiffLabels {
+  seriesList: (codes: readonly string[]) => string
+}
+
+const RAW_LABELS: DiffLabels = {
+  seriesList: (codes) => codes.join("、"),
+}
+
+export function diffFields(
+  live: DiffSide,
+  pending: DiffSide | null,
+  labels: DiffLabels = RAW_LABELS
+): FieldDiff[] {
   const next = pending ?? live
   const textRow = (label: string, before: string, after: string): FieldDiff => ({
     label,
@@ -130,14 +145,17 @@ export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[
   const listRow = (
     label: string,
     before: readonly string[],
-    after: readonly string[]
+    after: readonly string[],
+    render: (values: readonly string[]) => string = RAW_LABELS.seriesList
   ): FieldDiff => {
     const items = diffItems(before, after)
     return {
       label,
-      live: before.join("、"),
+      live: render(before),
       pending:
-        pending && (items.removed.length || items.added.length) ? after.join("、") : null,
+        pending && (items.removed.length || items.added.length)
+          ? render(after)
+          : null,
       items,
     }
   }
@@ -146,12 +164,12 @@ export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[
     textRow("制作人读音", live.producerReading ?? "", next.producerReading ?? ""),
     textRow("所属团体", live.groupName ?? "", next.groupName ?? ""),
     textRow("制作日期", live.madeOn ?? "", next.madeOn ?? ""),
-    listRow("企划", live.seriesCodes, next.seriesCodes),
+    listRow("企划", live.seriesCodes, next.seriesCodes, labels.seriesList),
     listRow("担当角色", charactersList(live), charactersList(next)),
     textRow("简介", live.bio ?? "", next.bio ?? ""),
     listRow("制作人员", creditsList(live), creditsList(next)),
-    textRow("原创标记", YES_NO(live.isOriginal), YES_NO(next.isOriginal)),
-    textRow("AI 标记", YES_NO(live.madeWithAi), YES_NO(next.madeWithAi)),
+    textRow("原创标记", DECLARED(live.isOriginal), DECLARED(next.isOriginal)),
+    textRow("AI 标记", DECLARED(live.madeWithAi), DECLARED(next.madeWithAi)),
     textRow("交换说明", live.tradeNote ?? "", next.tradeNote ?? ""),
     textRow("交换模式", EXCHANGE_MODES[live.exchangeMode], EXCHANGE_MODES[next.exchangeMode]),
     textRow("公开显示", YES_NO(live.visible), YES_NO(next.visible)),
@@ -174,6 +192,7 @@ export function NamecardReviewDialog({
   onReject: (card: AdminNamecard) => void
   onLock: (card: AdminNamecard) => void
 }) {
+  const labels = useReviewLabels()
   const [diff, setDiff] = useState<AdminNamecardDiff | null>(null)
   const [failed, setFailed] = useState(false)
   const [activeSlot, setActiveSlot] = useState(0)
@@ -195,7 +214,7 @@ export function NamecardReviewDialog({
   }, [card])
 
   const slots = diff ? diffImageSlots(diff.live, diff.pending) : []
-  const fields = diff ? diffFields(diff.live, diff.pending) : []
+  const fields = diff ? diffFields(diff.live, diff.pending, labels) : []
   const active = slots[Math.min(activeSlot, Math.max(slots.length - 1, 0))]
 
   return (
@@ -250,7 +269,7 @@ export function NamecardReviewDialog({
                         aria-pressed={index === activeSlot}
                         onClick={() => setActiveSlot(index)}
                         className={cn(
-                          "relative block size-16 overflow-hidden rounded-md border",
+                          "relative block size-20 overflow-hidden rounded-md border",
                           slot.state === "removed" && "border-2 border-destructive",
                           slot.state === "added" && "border-2 border-success",
                           index === activeSlot && "ring-2 ring-primary"

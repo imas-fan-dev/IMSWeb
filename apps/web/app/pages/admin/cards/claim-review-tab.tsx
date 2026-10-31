@@ -135,6 +135,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
           expectedRevision: claim.revision,
           note: "已核对历史名片与申请资料",
         }).send()
+        setClaimRow(null)
         await refresh()
       } catch (reviewError) {
         if (staleReview(reviewError)) await refresh()
@@ -156,6 +157,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
           note: rejectReason.trim() || "无法确认名片归属",
         }).send()
         setRejectReason("")
+        setClaimRow(null)
         await refresh()
       } catch (reviewError) {
         if (staleReview(reviewError)) await refresh()
@@ -469,6 +471,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
         onOpenChange={(open) => {
           if (!open) setClaimRow(null)
         }}
+        dismissible={!claimApprove.open && !claimReject.open}
         onApprove={(claim) => claimApprove.requestAction(claim)}
         onReject={(claim) => claimReject.requestAction(claim)}
       />
@@ -482,6 +485,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
         onOpenChange={(open) => {
           if (!open) setSupplementRow(null)
         }}
+        dismissible={!supplementApprove.open && !supplementReject.open}
         onApprove={(supplement) => supplementApprove.requestAction(supplement)}
         onReject={(supplement) => supplementReject.requestAction(supplement)}
       />

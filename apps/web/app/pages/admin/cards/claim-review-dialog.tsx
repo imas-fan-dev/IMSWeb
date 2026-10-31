@@ -85,11 +85,14 @@ export function ClaimReviewDialog({
   onOpenChange,
   onApprove,
   onReject,
+  dismissible = true,
 }: {
   claim: FudabaAdminCardClaim | null
   onOpenChange: (open: boolean) => void
   onApprove: (claim: FudabaAdminCardClaim) => void
   onReject: (claim: FudabaAdminCardClaim) => void
+  /** 二次确认窗打开时别再让点击穿透关掉这扇窗。 */
+  dismissible?: boolean
 }) {
   const labels = useReviewLabels()
   const [live, setLive] = useState<LiveSide | null>(null)
@@ -114,7 +117,11 @@ export function ClaimReviewDialog({
   const rows = claim ? claimRows(claim, live, labels) : []
 
   return (
-    <Dialog open={claim !== null} onOpenChange={onOpenChange}>
+    <Dialog
+      open={claim !== null}
+      onOpenChange={onOpenChange}
+      disablePointerDismissal={!dismissible}
+    >
       <DialogContent layout="pinned" className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>名片认领 · 名片 #{claim?.legacyCardId ?? ""}</DialogTitle>
@@ -147,9 +154,7 @@ export function ClaimReviewDialog({
           <Button
             type="button"
             onClick={() => {
-              if (!claim) return
-              onOpenChange(false)
-              onApprove(claim)
+              if (claim) onApprove(claim)
             }}
           >
             <CheckIcon data-icon="inline-start" aria-hidden="true" />
@@ -159,9 +164,7 @@ export function ClaimReviewDialog({
             type="button"
             variant="outline"
             onClick={() => {
-              if (!claim) return
-              onOpenChange(false)
-              onReject(claim)
+              if (claim) onReject(claim)
             }}
           >
             <XIcon data-icon="inline-start" aria-hidden="true" />
