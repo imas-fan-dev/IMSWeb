@@ -25,6 +25,7 @@ export function appPreviewSpaRoutes() {
     .filter(
       (route) =>
         route.path &&
+        route.path !== "*" &&
         (route.delivery === "spa" ||
           (route.delivery === "none" &&
             route.targets.every((target) => target === "app")))
