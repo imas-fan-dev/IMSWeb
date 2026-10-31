@@ -37,8 +37,8 @@ importers:
         specifier: ^3.1092.0
         version: 3.1092.0
       '@hono/node-server':
-        specifier: 2.0.10
-        version: 2.0.10(hono@4.13.2)
+        specifier: 2.1.3
+        version: 2.1.3(hono@4.13.2)
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
@@ -893,8 +893,8 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@hono/node-server@2.0.10':
-    resolution: {integrity: sha512-ZcnNVhKTmyDJeg0UlnZjvM73JBsTAuhrH/J4fjwGOw59PwOW51r4J+p6CsKZWXdKSme4MFqU62CZMOsdDrU4CA==}
+  '@hono/node-server@2.1.3':
+    resolution: {integrity: sha512-TA//nWMqPhbfdfneACk6t5a9eqbS9lABEPyKn0/xZTah3H3U2XaVg85rJFl0/Fyit0I552YDHgXGVSf3GwqbUw==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
@@ -1525,6 +1525,7 @@ packages:
   '@smithy/core@3.29.6':
     resolution: {integrity: sha512-TO3w25cdGWBeYqKNDaqH3v4O3jjMPpKwf39YlG5X5xhqWfpOWJbi5gQi1lrllukuwohdhY0TPB8jBEv6UC50Vg==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.4.11':
     resolution: {integrity: sha512-6CUvZwS0tCcVCrcvh2TpwTXxmAkuY6JGNPeKODYRLjHtUUhFLGS3dNkNdRvT/ttJyqimqnhFMTS2nqp4pDZ7oQ==}
@@ -5449,7 +5450,7 @@ snapshots:
     dependencies:
       hono: 4.13.2
 
-  '@hono/node-server@2.0.10(hono@4.13.2)':
+  '@hono/node-server@2.1.3(hono@4.13.2)':
     dependencies:
       hono: 4.13.2
 
