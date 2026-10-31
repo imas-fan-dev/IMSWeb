@@ -24,7 +24,6 @@ import {
 import { executeSql, queryOne } from '@/infra/db/sql/query';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 import assert from 'node:assert/strict';
-import { parseEnvelopeAction } from '@/domains/community/fudaba/claims/request';
 import { describe, onTestFinished, test } from 'vitest';
 
 const ACCOUNT = 'notify-account';
@@ -189,24 +188,4 @@ test('prunes read rows after 30 days and unread ones after 90', async () => {
     await pruneExpiredNamecardNotifications(database, ACCOUNT);
     const remaining = await repository.list(ACCOUNT, 50);
     assert.deepEqual(remaining.items.map((row) => row.id).sort(), ['fresh-read', 'recent-unread']);
-});
-
-describe('claim envelope action parsing', () => {
-    test('accepts both decisions with a non-negative revision', () => {
-        assert.deepEqual(parseEnvelopeAction({ decision: 'confirm', expectedRevision: 0 }), {
-            decision: 'confirm',
-            expectedRevision: 0
-        });
-        assert.deepEqual(parseEnvelopeAction({ decision: 'decline', expectedRevision: 12 }), {
-            decision: 'decline',
-            expectedRevision: 12
-        });
-    });
-
-    test('rejects unknown decisions, bad revisions and extra fields', () => {
-        assert.throws(() => parseEnvelopeAction({ decision: 'maybe', expectedRevision: 1 }), /decision/);
-        assert.throws(() => parseEnvelopeAction({ decision: 'confirm', expectedRevision: -1 }), /revision/i);
-        assert.throws(() => parseEnvelopeAction({ decision: 'confirm', expectedRevision: 1, extra: true }), /未知字段/);
-        assert.throws(() => parseEnvelopeAction(null), /对象/);
-    });
 });

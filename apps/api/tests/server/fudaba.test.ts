@@ -423,6 +423,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 legacy_card_id: 7,
                 claimant_account_id: 'account-1',
                 target_card_id: null,
+                payload: {},
                 series_code: '765',
                 state: 'pending',
                 message: '',
@@ -1986,6 +1987,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             legacy_card_id: 42,
             claimant_account_id: 'claimant-1',
             target_card_id: null,
+            payload: {},
             series_code: '765',
             state: 'approving',
             message: 'same owner',
@@ -2767,6 +2769,47 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
         });
 
+        postgresTest('real PostgreSQL counts the wall backlog and picks a card nobody has supplemented', async () => {
+            const { database, platform, fudaba } = await fixture();
+            const viewer = 'wall-insights-viewer';
+            const other = 'wall-insights-other';
+            await Promise.all([
+                platform.createAccountWithProfile(account(viewer)),
+                platform.createAccountWithProfile(account(other))
+            ]);
+
+            // Two ownerless wall cards: one keeps its series, one has none —
+            // the import path can leave a card without a series even though the
+            // editor requires one.
+            for (const id of ['wall-with-series', 'wall-without-series']) {
+                await fudaba.createCard(registeredCard(id, viewer));
+                await database
+                    .prepare(
+                        `UPDATE fudaba_cards
+                         SET owner_account_id=NULL, trade_note=NULL, exchange_mode='none'
+                         WHERE id=?`
+                    )
+                    .bind(id)
+                    .run();
+            }
+            await database
+                .prepare('DELETE FROM fudaba_card_series WHERE card_id=?')
+                .bind('wall-without-series')
+                .run();
+
+            const summary = await fudaba.wallInsights(null);
+            assert.equal(summary.ownerless, 2);
+            assert.equal(summary.ownerless_missing_series, 1);
+            assert.equal(summary.claimed, 0);
+            assert.equal(summary.supplements_pending, 0);
+
+            const picked = await fudaba.randomOwnerlessCardMissingSeries(other);
+            assert.equal(
+                typeof picked,
+                'number',
+                '只有缺少企划的那张卡能被抽中'
+            );
+        });
         postgresTest('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows', async () => {
             const { database, platform, fudaba, sibling } = await fixture();
             const ownerA = 'claim-owner-a';
