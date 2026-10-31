@@ -482,7 +482,8 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
         onOpenChange={(open) => {
           if (!open) setSupplementRow(null)
         }}
-        onReviewed={() => void refresh()}
+        onApprove={(supplement) => supplementApprove.requestAction(supplement)}
+        onReject={(supplement) => supplementReject.requestAction(supplement)}
       />
 
       <ConfirmActionDialog

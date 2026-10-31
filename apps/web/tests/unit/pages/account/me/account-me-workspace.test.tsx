@@ -414,6 +414,17 @@ describe("AccountMeWorkspace", () => {
     )
   })
 
+  it("opens a card addressed by its wall number instead of the internal id", async () => {
+    apiMocks.sendCards.mockResolvedValue({
+      items: [{ ...card, cardNumber: 793 }],
+    })
+    renderAccountSection("namecards?card=793")
+    await screen.findByRole("dialog", { name: "名片详情与编辑" })
+    expect(screen.getByRole("textbox", { name: "制作人名称" })).toHaveValue(
+      card.producerName
+    )
+  })
+
   it("synchronizes close, explicit navigation, rows and history with owned cards", async () => {
     const user = userEvent.setup()
     apiMocks.sendCards.mockResolvedValue({

@@ -3,6 +3,7 @@ import {
   ChevronRightIcon,
   CircleAlertIcon,
   IdCardIcon,
+  SquarePenIcon,
   LoaderCircleIcon,
   MailIcon,
 } from "lucide-react"
@@ -129,6 +130,11 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
     return `/community/cards?card=${encodeURIComponent(String(cardNumber))}`
   }
 
+  /** 被驳回的投稿/复审直接落到编辑窗口，编号与 UUID 两种写法编辑页都认。 */
+  function editHref(cardNumber: number) {
+    return `/account/me/namecards?card=${encodeURIComponent(String(cardNumber))}`
+  }
+
   return (
     <section aria-labelledby="claim-inbox-title">
       <div className="w-full">
@@ -183,6 +189,9 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
             {notifications.map((entry) => {
               const claimable =
                 entry.cardNumber !== null && entry.kind === "legacy-card-match"
+              // 只有被驳回才需要改稿；通过/锁定/编辑提示不引导用户去编辑。
+              const revisable =
+                entry.cardNumber !== null && entry.kind === "card-rejected"
               return (
                 <div
                   key={entry.id}
@@ -211,6 +220,18 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
                       >
                         <IdCardIcon className="size-3.5" aria-hidden="true" />
                         去认领
+                      </NavigationLink>
+                    ) : null}
+                    {revisable ? (
+                      <NavigationLink
+                        to={editHref(entry.cardNumber!)}
+                        className={buttonVariants({
+                          size: "sm",
+                          className: "h-7 px-2.5 text-[0.8rem]",
+                        })}
+                      >
+                        <SquarePenIcon className="size-3.5" aria-hidden="true" />
+                        去修改
                       </NavigationLink>
                     ) : null}
                     <div className="ml-auto flex items-center gap-2">

@@ -23,6 +23,7 @@ import {
   type AdminNamecardDiff,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { ReviewFieldRows } from "./review-field-rows"
 
 type DiffSide = AdminNamecardDiff["live"]
 
@@ -42,8 +43,6 @@ interface FieldDiff {
   /** List fields compare item by item so only real edits stand out. */
   items?: { kept: string[]; removed: string[]; added: string[] }
 }
-
-const EMPTY = "-"
 
 function pairSlots(
   before: string | null,
@@ -159,32 +158,6 @@ export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[
   ]
 }
 
-/** Kept items stay quiet so the eye lands on the removals and additions. */
-function ItemDiff({ items }: { items: { kept: string[]; removed: string[]; added: string[] } }) {
-  const empty = !items.kept.length && !items.removed.length && !items.added.length
-  if (empty) return <>{EMPTY}</>
-  return (
-    <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-0.5">
-      {items.kept.map((item) => (
-        <span key={`kept-${item}`}>{item}</span>
-      ))}
-      {items.removed.map((item) => (
-        <span
-          key={`removed-${item}`}
-          className="text-destructive line-through decoration-destructive/70"
-        >
-          {item}
-        </span>
-      ))}
-      {items.added.map((item) => (
-        <span key={`added-${item}`} className="text-success">
-          {item}
-        </span>
-      ))}
-    </span>
-  )
-}
-
 /**
  * 审核队列里的详情窗：左边对比两版的图片，右边逐字段对比文字，底部只留裁决按钮。
  */
@@ -296,32 +269,14 @@ export function NamecardReviewDialog({
                   ))}
                 </ul>
               </section>
-              <section aria-label="内容对比">
-                <dl className="space-y-2 text-sm">
-                  {fields.map((field) => (
-                    <div key={field.label} className="flex gap-3">
-                      <dt className="w-20 shrink-0 text-muted-foreground">
-                        {field.label}
-                      </dt>
-                      <dd className="min-w-0 flex-1 wrap-break-word">
-                        {field.items ? (
-                          <ItemDiff items={field.items} />
-                        ) : field.pending === null ? (
-                          field.live || EMPTY
-                        ) : (
-                          <>
-                            <span className="text-destructive line-through decoration-destructive/70">
-                              {field.live || EMPTY}
-                            </span>{" "}
-                            <span className="text-success">
-                              {field.pending || EMPTY}
-                            </span>
-                          </>
-                        )}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+              <section aria-label="内容对比" className="min-w-0">
+                <ReviewFieldRows
+                  rows={fields.map((field) => ({
+                    label: field.label,
+                    live: field.live,
+                    pending: field.pending ?? field.live,
+                  }))}
+                />
               </section>
             </div>
           )}
@@ -340,7 +295,7 @@ export function NamecardReviewDialog({
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             className="min-h-11"
             disabled={!card || card.status !== "pending"}
             onClick={() => {

@@ -714,8 +714,8 @@ export function NamecardDetailDialog({
             {card?.canEdit ? (
               <Button
                 type="button"
-                variant="secondary"
-                className={FOOTER_BUTTON}
+                variant="outline"
+                className={cn(FOOTER_BUTTON, "bg-background")}
                 onClick={() => {
                   onOpenChange(false)
                   void navigate(
@@ -730,8 +730,8 @@ export function NamecardDetailDialog({
             {unclaimed ? (
               <Button
                 type="button"
-                variant="secondary"
-                className={FOOTER_BUTTON}
+                variant="outline"
+                className={cn(FOOTER_BUTTON, "bg-background")}
                 disabled={!canClaim || supplementBlocked}
                 title={
                   card?.claimStatus === "pending"
@@ -751,8 +751,7 @@ export function NamecardDetailDialog({
             {unclaimed ? (
               <Button
                 type="button"
-                variant="secondary"
-                className={cn(FOOTER_BUTTON, "bg-foreground text-background hover:bg-foreground/85")}
+                className={FOOTER_BUTTON}
                 disabled={!canClaim || claimBlocked}
                 title={
                   card?.claimStatus === "pending"
@@ -767,15 +766,17 @@ export function NamecardDetailDialog({
                 认领
               </Button>
             ) : null}
-            <Button
-              type="button"
-              className={cn(FOOTER_BUTTON, "bg-foreground text-background hover:bg-foreground/85")}
-              disabled
-              title="暂未开放"
-            >
-              <ArrowLeftRightIcon aria-hidden="true" />
-              交换
-            </Button>
+            {unclaimed ? null : (
+              <Button
+                type="button"
+                className={FOOTER_BUTTON}
+                disabled
+                title="暂未开放"
+              >
+                <ArrowLeftRightIcon aria-hidden="true" />
+                交换
+              </Button>
+            )}
             {card ? (
               <NamecardFeedbackDialog
                 cardId={card.cardId}
