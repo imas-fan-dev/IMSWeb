@@ -4,14 +4,9 @@ import type { FudabaLocationReviewState } from '@/ports/repositories';
 const DEFAULT_REVIEW_LIMIT = 50;
 const MAX_REVIEW_LIMIT = 200;
 
-export interface FudabaLocationReviewSubmission {
-    decision: 'publish' | 'reject';
-    expectedRevision: number;
-    reviewNote: string;
-}
-
 export interface CardReviewInput {
-    decision: 'approve' | 'reject';
+    /** `flag` rejects the submission and records it as breaking the rules. */
+    decision: 'approve' | 'reject' | 'flag';
     expectedRevision: number;
     note: string;
 }
@@ -27,7 +22,10 @@ function object(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
 }
 
-function exactKeys(value: Record<string, unknown>, expected: readonly string[]): void {
+function exactKeys(
+    value: Record<string, unknown>,
+    expected: readonly string[],
+): void {
     const actual = Object.keys(value);
     const allowed = new Set(expected);
     if (
@@ -38,7 +36,10 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
     }
 }
 
-function allowedKeys(value: Record<string, unknown>, allowed: readonly string[]): void {
+function allowedKeys(
+    value: Record<string, unknown>,
+    allowed: readonly string[],
+): void {
     const expected = new Set(allowed);
     if (Object.keys(value).some((key) => !expected.has(key))) {
         throw badRequest('请求体包含未知字段');
@@ -47,10 +48,11 @@ function allowedKeys(value: Record<string, unknown>, allowed: readonly string[])
 
 function validateQueryKeys(
     parameters: URLSearchParams,
-    allowed: ReadonlySet<string>
+    allowed: ReadonlySet<string>,
 ): void {
     for (const key of parameters.keys()) {
-        if (!allowed.has(key)) throw badRequest(`Unsupported query parameter: ${key}`);
+        if (!allowed.has(key))
+            throw badRequest(`Unsupported query parameter: ${key}`);
         if (parameters.getAll(key).length !== 1) {
             throw badRequest(`Query parameter must appear once: ${key}`);
         }
@@ -60,7 +62,7 @@ function validateQueryKeys(
 function positiveLimit(
     value: string | null,
     defaultValue: number,
-    maximum: number
+    maximum: number,
 ): number {
     if (value === null) return defaultValue;
     if (!/^[1-9]\d*$/.test(value)) {
@@ -105,42 +107,58 @@ export function parseFudabaLocationReviewQuery(url: string): {
         limit: positiveLimit(
             parameters.get('limit'),
             DEFAULT_REVIEW_LIMIT,
-            MAX_REVIEW_LIMIT
-        )
+            MAX_REVIEW_LIMIT,
+        ),
     };
 }
 
-export function parseFudabaLocationReview(
-    value: unknown
-): FudabaLocationReviewSubmission {
+export interface FudabaOfficeReviewSubmission {
+    decision: 'publish' | 'reject' | 'withdraw';
+    expectedRevision: number;
+    reviewNote: string;
+}
+
+export function parseFudabaOfficeReview(
+    value: unknown,
+): FudabaOfficeReviewSubmission {
     const body = object(value);
     exactKeys(body, ['decision', 'expectedRevision', 'note']);
-    if (body.decision !== 'publish' && body.decision !== 'reject') {
-        throw badRequest('decision must be publish or reject');
+    if (
+        body.decision !== 'publish' &&
+        body.decision !== 'reject' &&
+        body.decision !== 'withdraw'
+    ) {
+        throw badRequest('decision must be publish, reject, or withdraw');
     }
     const note = reviewNote(body.note);
-    if (body.decision === 'reject' && !note) {
+    if (body.decision === 'reject' && !note)
         throw badRequest('reject 必须填写 note');
-    }
     return {
         decision: body.decision,
         expectedRevision: parseFudabaRevision(body.expectedRevision),
-        reviewNote: note
+        reviewNote: note,
     };
 }
 
 export function parseCardReview(value: unknown): CardReviewInput {
     const body = object(value);
     allowedKeys(body, ['decision', 'expectedRevision', 'note']);
-    if (body.decision !== 'approve' && body.decision !== 'reject') {
+    if (
+        body.decision !== 'approve' &&
+        body.decision !== 'reject' &&
+        body.decision !== 'flag'
+    ) {
         throw badRequest('decision 无效');
     }
-    if (!Number.isSafeInteger(body.expectedRevision) || Number(body.expectedRevision) < 0) {
+    if (
+        !Number.isSafeInteger(body.expectedRevision) ||
+        Number(body.expectedRevision) < 0
+    ) {
         throw badRequest('expectedRevision 必须是非负整数');
     }
     return {
         decision: body.decision,
         expectedRevision: Number(body.expectedRevision),
-        note: reviewNote(body.note)
+        note: reviewNote(body.note),
     };
 }

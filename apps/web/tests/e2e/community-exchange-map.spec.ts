@@ -67,7 +67,7 @@ const mapOffices = [
     location: {
       latitude: 31.2,
       longitude: 121.5,
-      precision: "regional",
+      precision: "exact",
     },
   },
   {
@@ -82,7 +82,7 @@ const mapOffices = [
     location: {
       latitude: 31.2,
       longitude: 121.5,
-      precision: "regional",
+      precision: "exact",
     },
   },
 ]
@@ -182,6 +182,106 @@ test.beforeEach(async ({ page, api }, testInfo) => {
 })
 
 test.describe("community exchange map", () => {
+  test("retains exact published points and groups only identical coordinates of the same precision", async ({
+    page,
+    api,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    const exact = {
+      ...mapOffices[0]!,
+      id: "exact-office",
+      name: "精确交换事务所",
+      location: {
+        latitude: 31.20001,
+        longitude: 121.50001,
+        precision: "exact",
+      },
+    }
+    const records = [
+      mapOffices[0]!,
+      exact,
+      { ...exact, id: "same-exact", name: "同点精确事务所" },
+      {
+        ...exact,
+        id: "nearby-exact",
+        name: "附近精确事务所",
+        location: { ...exact.location, longitude: 121.50002 },
+      },
+      {
+        ...exact,
+        id: "exact-grid",
+        name: "同格精确事务所",
+        location: { latitude: 31.2, longitude: 121.5, precision: "exact" },
+      },
+    ]
+    await api.mockRoute(
+      "/api/community/exchange/map/config",
+      (route) =>
+        route.fulfill({
+          json: {
+            provider: "maplibre",
+            search: { provider: "nominatim" },
+            styleUrl: "/maps/exchange-test-style.json",
+          },
+        }),
+      "GET"
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/map/offices?*",
+      (route) => route.fulfill({ json: { items: records, truncated: false } }),
+      "GET",
+      { min: 1, max: 4 }
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/places/search?*",
+      (route) =>
+        route.fulfill({
+          json: {
+            success: true,
+            items: [
+              {
+                id: "exact-test-position",
+                label: "精确测试位置",
+                address: "测试选点",
+                city: "上海市",
+                location: exact.location,
+              },
+            ],
+            attribution: "© OpenStreetMap contributors",
+          },
+        }),
+      "GET",
+      1
+    )
+    await page.goto("/community/exchange")
+    await expect(page.locator("[data-map-office-count]")).toHaveText("5")
+    await page.getByRole("button", { name: "展开地图面板" }).click()
+    await page.getByRole("tab", { name: "地点", exact: true }).click()
+    const query = page.getByRole("textbox", { name: "搜索地点" })
+    await query.fill("精确测试位置")
+    await query.press("Enter")
+    await page
+      .getByRole("button", { name: "精确测试位置 测试选点", exact: true })
+      .click()
+    await expect(
+      page.getByRole("status").filter({ hasText: "已定位：精确测试位置" })
+    ).toBeVisible()
+    const exactMarker = page.locator(
+      '[data-map-office-group="exact:31.20001,121.50001"]'
+    )
+    await expect(exactMarker).toHaveAttribute(
+      "aria-label",
+      "精确交换事务所、同点精确事务所，2 个事务所"
+    )
+    await expect(
+      page.locator('[data-map-office-group="exact:31.20001,121.50002"]')
+    ).toHaveCount(1)
+    await expect(
+      page.locator('[data-map-office-group="exact:31.2,121.5"]')
+    ).toHaveCount(1)
+    await expect(page.locator("[data-map-office-group]")).toHaveCount(3)
+  })
+
   test("retains committed counts and cluster nodes through a real pan and equal response @mobile", async ({
     page,
     api,
@@ -190,7 +290,7 @@ test.describe("community exchange map", () => {
       mapOffices[0]!,
       {
         ...mapOffices[1]!,
-        location: { latitude: 31.3, longitude: 121.6, precision: "regional" },
+        location: { latitude: 31.3, longitude: 121.6, precision: "exact" },
       },
     ]
     let requests = 0

@@ -160,13 +160,6 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     }
   ),
   route(
-    "community/exchange/me",
-    "pages/community/exchange/me/community-exchange-me-page.tsx",
-    "public",
-    SHARED_TARGETS,
-    "spa"
-  ),
-  route(
     "community/exchange/offices/:officeSlug",
     "pages/community/exchange/community-office-page.tsx",
     "public",
@@ -308,15 +301,15 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "account/me",
     "pages/account/me/account-me-page.tsx",
     "public",
-    APP_TARGET,
-    "none"
+    SHARED_TARGETS,
+    "spa"
   ),
   route(
     "account/me/:section",
     "pages/account/me/account-me-section-page.tsx",
     "public",
-    APP_TARGET,
-    "none"
+    SHARED_TARGETS,
+    "spa"
   ),
   route(
     "wiki/classic",
@@ -487,6 +480,20 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
   route(
     "platform/email",
     "pages/admin/platform-email/index.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "platform/messages",
+    "pages/admin/platform-messages/index.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "platform/messages/history",
+    "pages/admin/platform-messages/history.tsx",
     "admin",
     WEB_TARGET,
     "spa"

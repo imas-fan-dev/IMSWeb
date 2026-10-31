@@ -250,7 +250,7 @@ import { describe, onTestFinished, test } from 'vitest';
             );
 
             await executeSql(database,
-                "UPDATE fudaba_cards SET publication_status='published', media_rights_status='approved' WHERE card_number=?",
+                "UPDATE fudaba_cards SET publication_status='published' WHERE card_number=?",
                 [id]
             );
             const [publicCard] = await repository.listApprovedCards(20, 0);
@@ -413,8 +413,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 `INSERT INTO fudaba_cards
             (id, owner_account_id, producer_name, display_name, series_code,
              favorite_idol, front_object_key, back_object_key, accent, bio,
-             trade_note, available, source_url, source_label, source_credit,
-             media_rights_status, publication_status, revision, created_at,
+             trade_note, available, source_url, source_label, source_credit, media_rights_status,
+             publication_status, revision, created_at,
              updated_at, deleted_at)
          VALUES ('migration-fudaba', 'migration-owner', 'Producer', 'Card',
                  '765', '', 'migration/front.webp', 'migration/back.webp',
@@ -629,8 +629,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 `INSERT INTO fudaba_cards
             (id, owner_account_id, producer_name, display_name, series_code,
              favorite_idol, front_object_key, back_object_key, accent, bio,
-             trade_note, available, source_url, source_label, source_credit,
-             media_rights_status, publication_status, revision, created_at,
+             trade_note, available, source_url, source_label, source_credit, media_rights_status,
+             publication_status, revision, created_at,
              updated_at, deleted_at)
          VALUES ('unification-exchange', 'unification-owner', 'Producer', 'Card',
                  '765', '', 'exchange/front.webp', 'exchange/back.webp',
@@ -643,7 +643,7 @@ import { describe, onTestFinished, test } from 'vitest';
             const migratedApproved = await harness.connection.prepare(
                 `SELECT card_number, origin, series_code, publication_status,
                 front_object_key, back_object_key, available, revision,
-                owner_account_id, producer_name, media_rights_status
+                owner_account_id, producer_name
          FROM fudaba_cards WHERE id=?`
             ).bind(`legacy-${approved.id}`).first<Record<string, unknown>>();
             assert.deepEqual(migratedApproved, {
@@ -657,7 +657,6 @@ import { describe, onTestFinished, test } from 'vitest';
                 revision: 3,
                 owner_account_id: null,
                 producer_name: null,
-                media_rights_status: 'approved'
             });
 
             const migratedGuest = await harness.connection.prepare(
@@ -701,9 +700,9 @@ import { describe, onTestFinished, test } from 'vitest';
                 harness.connection.prepare(
                     `INSERT INTO fudaba_cards
                 (id, origin, front_object_key, back_object_key, producer_name,
-                 media_rights_status, publication_status, created_at, updated_at)
+                 publication_status, created_at, updated_at)
              VALUES ('half-filled', 'guest', 'half/front.webp', 'half/back.webp',
-                     'Producer', 'unknown', 'pending', CURRENT_TIMESTAMP,
+                     'Producer', 'pending', CURRENT_TIMESTAMP,
                      CURRENT_TIMESTAMP)`
                 ).run(),
                 /fudaba_cards_owner_layer_check/,

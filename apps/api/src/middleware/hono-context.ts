@@ -14,7 +14,8 @@ import type {
     NewsRepository,
     PlatformAccountRepository,
     ReactionRepository,
-    SitePackageRepository
+    SitePackageRepository,
+    StationMessageRepository
 } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 
@@ -53,6 +54,12 @@ export function fudabaRepository(c: Context<AppEnvironment>): FudabaRepository {
 
 export function auditRepository(c: Context<AppEnvironment>): AuditRepository {
     return requireRepository(c, 'audit');
+}
+
+export function stationMessageRepository(
+    c: Context<AppEnvironment>
+): StationMessageRepository {
+    return requireRepository(c, 'stationMessages');
 }
 
 export function newsRepository(c: Context<AppEnvironment>): NewsRepository {

@@ -20,7 +20,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
-import { profileWorkspaceSections } from "~/pages/community/exchange/me/profile-workspace-navigation"
+import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
+import { useNamecardUnread } from "~/lib/use-namecard-unread"
+import { AccountMeWorkspace } from "~/pages/account/me/account-me-workspace"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import {
+  type ProfileWorkspaceSection,
+  profileWorkspaceSections,
+} from "~/pages/account/me/profile-workspace-navigation"
 
 type LogoutFeedback = "idle" | "pending" | "success" | "error"
 
@@ -58,10 +65,15 @@ function AccountUtilities() {
   )
 }
 
-export default function AccountMePage() {
+export function AccountMePage({
+  section = "profile",
+  standaloneSection = false,
+}: { section?: ProfileWorkspaceSection; standaloneSection?: boolean } = {}) {
   const { t } = useTranslation()
   const platform = usePlatformSession()
+  const desktop = useDesktopAccountWorkspace()
   const avatarSource = platform.session?.profile.avatarUrl
+  const unread = useNamecardUnread()
   const [logoutAttempt, setLogoutAttempt] =
     useState<Exclude<LogoutFeedback, "success">>("idle")
   const logoutFeedback: LogoutFeedback =
@@ -74,6 +86,22 @@ export default function AccountMePage() {
   function logout() {
     setLogoutAttempt("pending")
     void platform.logout().catch(() => setLogoutAttempt("error"))
+  }
+
+  if (
+    logoutFeedback === "idle" &&
+    ((standaloneSection && !desktop) ||
+      (desktop &&
+        (platform.status === "authenticated" ||
+          platform.status === "restricted")))
+  ) {
+    return (
+      <AccountMeWorkspace
+        section={section}
+        sectionBasePath="/account/me"
+        onLogout={logout}
+      />
+    )
   }
 
   if (platform.status === "loading") {
@@ -89,7 +117,9 @@ export default function AccountMePage() {
         aria-label={label}
         aria-busy="true"
       >
-        <h1 className="sr-only">{t("appNavigation.account")}</h1>
+        <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+          {t("appNavigation.account")}
+        </h1>
         <p className="sr-only" aria-live="polite">
           {label}
         </p>
@@ -117,7 +147,9 @@ export default function AccountMePage() {
 
     return (
       <PageShell width="read" data-account-state="error">
-        <h1 className="sr-only">{t("appNavigation.account")}</h1>
+        <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+          {t("appNavigation.account")}
+        </h1>
         <Alert variant="destructive" className="mt-5">
           <CircleAlertIcon aria-hidden="true" />
           <AlertTitle>
@@ -159,7 +191,9 @@ export default function AccountMePage() {
         data-account-state="anonymous"
       >
         <header>
-          <h1 className="sr-only">{t("appNavigation.account")}</h1>
+          <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+            {t("appNavigation.account")}
+          </h1>
           <p className="text-sm text-muted-foreground">
             {t("platformAccount.anonymous")}
           </p>
@@ -221,7 +255,9 @@ export default function AccountMePage() {
       className="space-y-8"
       data-account-state={restricted ? "restricted" : "authenticated"}
     >
-      <h1 className="sr-only">{t("appNavigation.account")}</h1>
+      <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+        {t("appNavigation.account")}
+      </h1>
 
       <section
         className="flex min-w-0 items-center gap-4 border-y py-5"
@@ -291,6 +327,14 @@ export default function AccountMePage() {
                       {t(section.descriptionKey)}
                     </span>
                   </span>
+                  {section.id === "claims" && unread > 0 ? (
+                    <span
+                      className="grid size-5 shrink-0 place-items-center rounded-full bg-destructive text-[10px] leading-none font-medium text-destructive-foreground"
+                      aria-label={`${unread} 条未读消息`}
+                    >
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  ) : null}
                   <ChevronRightIcon
                     className="size-4 shrink-0 text-muted-foreground"
                     aria-hidden="true"
@@ -381,3 +425,5 @@ export default function AccountMePage() {
     </PageShell>
   )
 }
+
+export default AccountMePage

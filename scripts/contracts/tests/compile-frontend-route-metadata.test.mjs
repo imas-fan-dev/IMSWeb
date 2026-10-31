@@ -62,7 +62,7 @@ async function runFixture(paths, arguments_) {
   });
 }
 
-test.describe('frontend route metadata compiler', () => {
+test.describe("frontend route metadata compiler", () => {
   test("writes deterministic TypeScript and accepts a current artifact", async () => {
     const paths = fixture();
     await runFixture(paths, ["--write"]);
@@ -209,6 +209,46 @@ test.describe('frontend route metadata compiler', () => {
     assert.ok(
       rendered.indexOf("id: 'first/:firstId'") <
         rendered.indexOf("id: 'second/:secondId'"),
+    );
+  });
+
+  test("accepts an exact page and its parameterized child sharing a base path", () => {
+    const patterns = [
+      {
+        id: "account/me",
+        match: "exact",
+        path: "/account/me",
+        segments: ["account", "me"],
+      },
+      {
+        id: "account/me/:section",
+        match: "prefix",
+        path: "/account/me",
+        segments: ["account", "me"],
+        segmentCount: 3,
+      },
+    ];
+    const metadata = {
+      routeDescriptors: patterns.map(({ id }) => ({
+        path: id,
+        file: id.includes(":") ? "pages/section.tsx" : "pages/account.tsx",
+        layout: "public",
+        targets: ["web", "app"],
+        delivery: "spa",
+      })),
+      prerenderRoutesForTarget: () => [],
+      spaFallbackPatternsForTarget: () => patterns,
+    };
+    const rendered = renderFrontendRouteMetadata(metadata);
+    assert.match(rendered, /id: 'account\/me'/);
+    assert.match(rendered, /id: 'account\/me\/:section'/);
+    assert.throws(
+      () =>
+        renderFrontendRouteMetadata({
+          ...metadata,
+          spaFallbackPatternsForTarget: () => [patterns[0], patterns[0]],
+        }),
+      /SPA fallback pattern ids contains duplicate/,
     );
   });
 

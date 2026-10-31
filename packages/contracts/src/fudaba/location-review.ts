@@ -1,27 +1,12 @@
 import { z } from "zod"
 import { backofficeProtectedHttpErrorSchema, exactJsonError, successEnvelope, strictRequestObject } from "../common.js"
+import { fudabaPublicOfficeLocationSchema } from "./index.js"
+
+export { fudabaPublicOfficeLocationSchema } from "./index.js"
 
 const timestampSchema = z.string().datetime({ offset: true })
 const reviewStateSchema = z.enum(["pending", "published", "rejected"])
 const revisionSchema = z.number().int().safe().nonnegative()
-const regionalCoordinateSchema = (minimum: number, maximum: number) =>
-  z
-    .number()
-    .finite()
-    .min(minimum)
-    .max(maximum)
-    .refine(
-      (value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8,
-      "regional coordinates must use the 0.1 degree grid"
-    )
-
-const regionalLocationSchema = z
-  .object({
-    latitude: regionalCoordinateSchema(-60, 60),
-    longitude: regionalCoordinateSchema(-180, 180),
-    precision: z.literal("regional"),
-  })
-  .strict()
 
 export const fudabaLocationReviewSchema = z
   .object({
@@ -29,7 +14,8 @@ export const fudabaLocationReviewSchema = z
     officeName: z.string().min(1),
     city: z.string().min(1),
     ownerAccountId: z.string().min(1),
-    location: regionalLocationSchema,
+    location: fudabaPublicOfficeLocationSchema,
+    exactLocationConsentAt: timestampSchema.nullable(),
     reviewState: reviewStateSchema,
     revision: revisionSchema,
     submittedAt: timestampSchema,
@@ -48,7 +34,8 @@ export const fudabaLocationReviewListSchema = z
 const fudabaReviewedLocationSchema = z
   .object({
     officeId: z.string().min(1).max(128),
-    location: regionalLocationSchema,
+    location: fudabaPublicOfficeLocationSchema,
+    exactLocationConsentAt: timestampSchema.nullable(),
     reviewState: reviewStateSchema,
     revision: revisionSchema,
     submittedAt: timestampSchema,

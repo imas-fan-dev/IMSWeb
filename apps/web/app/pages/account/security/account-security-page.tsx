@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { Separator } from "~/components/ui/separator"
 import { Skeleton } from "~/components/ui/skeleton"
+import { IS_APP_TARGET } from "~/lib/app-target"
 
 import { EmailCredentialSection } from "./email-credential-section"
 import { OAuthLinkSection } from "./oauth-link-section"
@@ -142,6 +143,14 @@ export default function AccountSecurityPage() {
       data-account-state={readOnly ? "restricted" : "authenticated"}
     >
       <header>
+        {!IS_APP_TARGET ? (
+          <NavigationLink
+            to="/account/me"
+            className="mb-6 inline-flex min-h-10 items-center text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            返回我的
+          </NavigationLink>
+        ) : null}
         <h1 className="text-xl font-semibold">
           {t("platformAccount.security.title")}
         </h1>

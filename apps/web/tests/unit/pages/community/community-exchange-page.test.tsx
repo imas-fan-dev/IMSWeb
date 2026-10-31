@@ -29,34 +29,37 @@ vi.mock("~/lib/api", async (importOriginal) => {
   }
 })
 
-vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
-  CommunityExchangeMapSection: (props: {
-    city?: string
-    series?: readonly string[]
-    open?: boolean
-    onSwitchDirectory: () => void
-    searchTools?: ExchangeSearchCardTools
-  }) => {
-    mapSectionMock.renders(props)
-    return (
-      <>
-        <button
-          type="button"
-          ref={(node) => {
-            if (props.searchTools?.filterAnchorRef)
-              props.searchTools.filterAnchorRef.current = node
-          }}
-          onClick={() => props.searchTools?.onOpenFilter()}
-        >
-          打开筛选
-        </button>
-        <button type="button" onClick={props.onSwitchDirectory}>
-          模拟地图内容
-        </button>
-      </>
-    )
-  },
-}))
+vi.mock(
+  "~/pages/community/exchange/components/community-exchange-map-section",
+  () => ({
+    CommunityExchangeMapSection: (props: {
+      city?: string
+      series?: readonly string[]
+      open?: boolean
+      onSwitchDirectory: () => void
+      searchTools?: ExchangeSearchCardTools
+    }) => {
+      mapSectionMock.renders(props)
+      return (
+        <>
+          <button
+            type="button"
+            ref={(node) => {
+              if (props.searchTools?.filterAnchorRef)
+                props.searchTools.filterAnchorRef.current = node
+            }}
+            onClick={() => props.searchTools?.onOpenFilter()}
+          >
+            打开筛选
+          </button>
+          <button type="button" onClick={props.onSwitchDirectory}>
+            模拟地图内容
+          </button>
+        </>
+      )
+    },
+  })
+)
 
 const office = {
   id: "office-1",

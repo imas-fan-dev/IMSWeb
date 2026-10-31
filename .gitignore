@@ -124,3 +124,17 @@ reports/
 !.agents/skills/imsweb-ui-testing-and-evidence/scripts/
 !.agents/skills/imsweb-ui-testing-and-evidence/scripts/*.mjs
 .pi/
+
+/.pi/teams/state/
+/.pi/teams/cache/
+/.pi/teams/worktrees/
+/.pi/teams/imports/
+/.pi/teams/audit/
+!/.pi/teams/artifacts/
+!/.pi/teams/graphs/
+/.crew/
+/.crew
+!.crew/artifacts/
+!.crew/graphs/
+!.crew/artifacts/.gitkeep
+!.crew/graphs/.gitkeep

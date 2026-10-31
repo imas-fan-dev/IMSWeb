@@ -46,10 +46,6 @@ function writeError(_error: Error): void {
     );
 }
 
-function normalizeError(error: unknown): Error {
-    return error instanceof Error ? error : new Error(String(error));
-}
-
 // pi-lens-ignore: large-class -- Polling, lease renewal, and shutdown share one lifecycle invariant.
 export class NodeEmailDeliveryRunner {
     private readonly now: () => number;
@@ -503,7 +499,7 @@ export class NodeEmailDeliveryRunner {
 
     private reportError(_error: unknown, operation = 'operation'): void {
         try {
-            this.onError(normalizeError(`Platform email worker ${operation} failed`));
+            this.onError(new Error(`Platform email worker ${operation} failed`));
         } catch {
             // Worker progress must not depend on the observability sink.
         }

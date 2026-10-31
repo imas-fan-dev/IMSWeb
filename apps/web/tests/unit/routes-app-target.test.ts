@@ -67,7 +67,7 @@ describe("app target routes", () => {
     const { default: routes } = await import("~/routes")
     const leaves = routeLeaves(routes)
 
-    expect(leaves).toHaveLength(31)
+    expect(leaves).toHaveLength(30)
     expect(sortedLeaves(leaves)).toEqual(
       sortedLeaves(routeDescriptorsForTarget("app").map(descriptorLeaf))
     )
@@ -84,7 +84,7 @@ describe("app target routes", () => {
 
   it("resolves every App target route inside the back tree", () => {
     const descriptors = routeDescriptorsForTarget("app")
-    expect(descriptors).toHaveLength(31)
+    expect(descriptors).toHaveLength(30)
     for (const descriptor of descriptors) {
       const path = descriptor.index ? "" : (descriptor.path ?? "")
       const pathname = `/${path.replace(/:[^/]+/g, "sample")}`
@@ -95,13 +95,18 @@ describe("app target routes", () => {
     }
   })
 
-  it("keeps App-only routes out of the Web manifest", async () => {
+  it("shares personal pages with Web while keeping the App download hub exclusive", async () => {
     vi.stubEnv("VITE_IMS_APP_TARGET", "web")
     vi.resetModules()
 
     const { default: routes } = await import("~/routes")
 
     expect(routeFile(routes, "apps")).toBeUndefined()
-    expect(routeFile(routes, "account/me/:section")).toBeUndefined()
+    expect(routeFile(routes, "account/me")).toBe(
+      "pages/account/me/account-me-page.tsx"
+    )
+    expect(routeFile(routes, "account/me/:section")).toBe(
+      "pages/account/me/account-me-section-page.tsx"
+    )
   })
 })

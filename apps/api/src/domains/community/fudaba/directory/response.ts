@@ -4,7 +4,7 @@ import type {
     NamecardCharacterCatalogEntry,
     NamecardCharacterCatalogUnit,
 } from "@imsweb/contracts/fudaba/characters";
-import { regionalLocation } from "@/domains/community/fudaba/contracts/location";
+import { publicOfficeLocation } from '@/domains/community/fudaba/contracts/location';
 import type { ObjectStorage } from "@/ports/object-storage";
 import type {
     FudabaPublicCardRecord,
@@ -47,8 +47,8 @@ export async function fudabaPublicOfficeView(
         visitorCount: office.visitor_count,
         seriesCodes: office.series_codes,
         ...(includeLocation ? {
-            location: office.public_latitude_e1 != null && office.public_longitude_e1 != null
-                ? regionalLocation(office.public_latitude_e1, office.public_longitude_e1)
+            location: office.public_latitude_exact != null && office.public_longitude_exact != null
+                ? { precision: 'exact' as const, latitude: office.public_latitude_exact, longitude: office.public_longitude_exact }
                 : null
         } : {}),
     };
@@ -132,7 +132,7 @@ export function fudabaPublicMapOfficeView(
         accent: office.accent,
         isOpen: office.is_open,
         seriesCodes: office.series_codes,
-        location: regionalLocation(office.latitude_e1, office.longitude_e1),
+        location: publicOfficeLocation(office),
     };
 }
 

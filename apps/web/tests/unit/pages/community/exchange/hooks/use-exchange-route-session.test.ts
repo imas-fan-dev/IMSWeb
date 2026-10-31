@@ -17,8 +17,8 @@ const office = {
 }
 const profile = {
   key: "profile",
-  pathname: "/community/exchange/me",
-  search: "?section=cards",
+  pathname: "/account/me",
+  search: "?section=namecards",
 }
 
 describe("exchange route session", () => {
@@ -32,7 +32,10 @@ describe("exchange route session", () => {
     expect(distance(session)).toBe(2)
   })
   it("never returns to unknown browser history from a direct profile link", () => {
-    const session = initial({ ...profile, search: "?section=cards&city=上海" })
+    const session = initial({
+      ...profile,
+      search: "?section=namecards&city=上海",
+    })
     expect(distance(session)).toBeNull()
     const filters = new URLSearchParams(session.mapSearch)
     expect(filters.get("city")).toBe("上海")

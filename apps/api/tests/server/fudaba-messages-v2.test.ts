@@ -1,3 +1,4 @@
+import { insertBackofficeAccount } from '../fixtures/rows';
 import sharp from 'sharp';
 import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
 import { createFudabaTinyPreview } from '@/domains/community/fudaba/card-preview';
@@ -63,6 +64,10 @@ async function fixture() {
         )
         .bind(now, now, now, now)
         .run();
+    const wallReviewer = await insertBackofficeAccount(database, 'message-office-reviewer');
+    await database.prepare("UPDATE fudaba_offices SET review_state='published', review_submitted_at=created_at, reviewed_at=updated_at, reviewed_by=?, review_note='', review_operation_id=NULL, review_audit_id=?")
+      .bind(wallReviewer, '00000000-0000-4000-8000-000000000001').run();
+
     const repo = new SqlFudabaRepository(database, noopSchema);
     const hash = (value: string) =>
         createHash('sha256').update(value).digest('hex');
@@ -342,7 +347,7 @@ test(
         const { database, repo } = await fixture();
         await database
             .prepare(
-                `INSERT INTO fudaba_cards(id,owner_account_id,producer_name,display_name,series_code,front_object_key,back_object_key,media_rights_status,publication_status,created_at,updated_at) SELECT 'card-'||lpad(n::text,4,'0'),'owner','Producer','Card '||n,'765','community/fudaba/'||n||'/front.webp','community/fudaba/'||n||'/back.webp','approved','published',?::timestamptz,?::timestamptz FROM generate_series(1,500)n`
+                `INSERT INTO fudaba_cards(id,owner_account_id,producer_name,display_name,series_code,front_object_key,back_object_key,publication_status,created_at,updated_at) SELECT 'card-'||lpad(n::text,4,'0'),'owner','Producer','Card '||n,'765','community/fudaba/'||n||'/front.webp','community/fudaba/'||n||'/back.webp','published',?::timestamptz,?::timestamptz FROM generate_series(1,500)n`
             )
             .bind(now, now)
             .run();
@@ -877,7 +882,7 @@ test(
         const { database, repo } = await fixture();
         await database
             .prepare(
-                "INSERT INTO fudaba_cards(id,owner_account_id,producer_name,display_name,series_code,front_object_key,back_object_key,media_rights_status,publication_status,created_at,updated_at) VALUES('visitor-card','author','Author','Visitor','765','community/fudaba/visitor/front.webp','community/fudaba/visitor/back.webp','approved','published',?,?)"
+                "INSERT INTO fudaba_cards(id,owner_account_id,producer_name,display_name,series_code,front_object_key,back_object_key,publication_status,created_at,updated_at) VALUES('visitor-card','author','Author','Visitor','765','community/fudaba/visitor/front.webp','community/fudaba/visitor/back.webp','published',?,?)"
             )
             .bind(now, now)
             .run();
@@ -1223,8 +1228,8 @@ test('late previews cannot restore stale media after a concurrent replacement', 
     await database
         .prepare(
             `INSERT INTO fudaba_cards
-        (id, owner_account_id, producer_name, display_name, series_code, front_object_key, back_object_key, media_rights_status, publication_status, created_at, updated_at)
-        VALUES ('race-card', 'owner', 'Producer', 'Race', '765', ?, 'community/fudaba/race/back.webp', 'approved', 'published', ?, ?)`
+        (id, owner_account_id, producer_name, display_name, series_code, front_object_key, back_object_key, publication_status, created_at, updated_at)
+        VALUES ('race-card', 'owner', 'Producer', 'Race', '765', ?, 'community/fudaba/race/back.webp', 'published', ?, ?)`
         )
         .bind(objectKey, now, now)
         .run();

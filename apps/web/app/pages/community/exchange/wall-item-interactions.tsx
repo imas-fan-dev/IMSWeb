@@ -8,7 +8,7 @@ import {
 } from "~/components/ui/tooltip"
 import type { FudabaCardPlacement } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import type { WallPlacement } from "./exchange-card-wall"
+import type { WallPlacement } from "./components/exchange-card-wall"
 
 function fields(placement: FudabaCardPlacement): WallPlacement {
   return {

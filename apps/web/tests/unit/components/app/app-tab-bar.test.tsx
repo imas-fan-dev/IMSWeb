@@ -241,9 +241,9 @@ describe("AppTabBar platform material", () => {
     )
   })
 
-  it("assigns the personal exchange workspace to Account before Map", async () => {
+  it("assigns the personal workspace to Account", async () => {
     nativeMocks.shouldAttempt.mockReturnValue(true)
-    renderTabBar("/community/exchange/me")
+    renderTabBar("/account/me")
 
     await waitFor(() => {
       expect(nativeMocks.configure).toHaveBeenCalledWith(

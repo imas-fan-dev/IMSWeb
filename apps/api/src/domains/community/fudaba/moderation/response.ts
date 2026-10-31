@@ -1,30 +1,41 @@
-import { adminExchangePath } from "@imsweb/contracts/paths";
-import type { FudabaAdminCardClaim, FudabaRegisteredCardReview } from "@imsweb/contracts/fudaba/card-claims";
-import type { FudabaLocationReview } from "@imsweb/contracts/fudaba/location-review";
-import { fudabaOwnerCardView } from "@/domains/community/fudaba/contracts/card";
-import { fudabaCardClaimView } from "@/domains/community/fudaba/contracts/claim";
-import { regionalLocation } from "@/domains/community/fudaba/contracts/location";
+import { adminExchangePath } from '@imsweb/contracts/paths';
+import type { AdminOfficeReview } from '@imsweb/contracts/fudaba/office-review';
+import { fudabaOwnerOfficeView } from '@/domains/community/fudaba/offices/response';
+import type {
+    FudabaAdminCardClaim,
+    FudabaRegisteredCardReview,
+} from '@imsweb/contracts/fudaba/card-claims';
+import { fudabaOwnerCardView } from '@/domains/community/fudaba/contracts/card';
+import { fudabaCardClaimView } from '@/domains/community/fudaba/contracts/claim';
 import type {
     FudabaAdminCardClaimRecord,
-    FudabaOfficeLocationReviewRecord,
     FudabaRegisteredCardReviewRecord,
-} from "@/ports/repositories";
+    FudabaOfficeReviewRecord,
+} from '@/ports/repositories';
 
-export function fudabaLocationReviewView(
-    location: FudabaOfficeLocationReviewRecord,
-): FudabaLocationReview {
+export function fudabaAdminOfficeReviewView(
+    record: FudabaOfficeReviewRecord,
+): AdminOfficeReview {
     return {
-        officeId: location.office_id,
-        officeName: location.office_name,
-        city: location.office_city,
-        ownerAccountId: location.owner_account_id,
-        location: regionalLocation(location.latitude_e1, location.longitude_e1),
-        reviewState: location.review_state,
-        revision: location.revision,
-        submittedAt: location.submitted_at,
-        reviewedAt: location.reviewed_at,
-        reviewedBy: location.reviewed_by,
-        reviewNote: location.review_note,
+        office: fudabaOwnerOfficeView(
+            record.office,
+            adminExchangePath(
+                `/offices/${encodeURIComponent(record.office.id)}`,
+            ),
+        ),
+        owner: {
+            id: record.office.owner_account_id,
+            email: record.owner_email,
+            displayName: record.owner_display_name,
+        },
+        reviewer:
+            record.office.reviewed_by === null
+                ? null
+                : {
+                      id: record.office.reviewed_by,
+                      username: record.reviewer_username,
+                      displayName: record.reviewer_display_name,
+                  },
     };
 }
 

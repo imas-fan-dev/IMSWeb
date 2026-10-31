@@ -12,7 +12,6 @@ import {
 
 import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 import { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
-import { isFudabaMapStyleUrl } from "./runtime.js";
 
 import { wikiImageTransformSchema } from "../wiki.js";
 
@@ -90,11 +89,13 @@ export const fudabaSeriesListSchema = z
   })
   .strict();
 
-const publicOfficeLocationSchema = z.object({
-  latitude: regionalCoordinateSchema(-60, 60),
-  longitude: regionalCoordinateSchema(-180, 180),
-  precision: z.literal("regional"),
+export const fudabaPublicOfficeLocationSchema = z.object({
+  latitude: exactCoordinateSchema(-90, 90),
+  longitude: exactCoordinateSchema(-180, 180),
+  precision: z.literal("exact"),
 }).strict();
+
+const publicOfficeLocationSchema = fudabaPublicOfficeLocationSchema;
 
 export const fudabaOfficeSchema = exactJsonResponse({
   id: z.string().min(1),
@@ -249,6 +250,19 @@ export const fudabaPlaceSearchResponseSchema = successEnvelope({
   attribution: z.string().min(1),
 }).strict();
 
+// Missing city/address text stays empty for the owner to complete before saving.
+export const fudabaPlaceReverseResultSchema = fudabaPlaceSearchResultSchema.extend({
+  city: z.string(),
+  address: z.string(),
+}).strict();
+export const fudabaPlaceReverseResponseSchema = exactJsonResponse({
+  place: fudabaPlaceReverseResultSchema.nullable(),
+  attribution: exactJsonResponse({
+    text: z.string().min(1),
+    url: z.string().url(),
+  }).nullable(),
+});
+
 export const ownerCardIdSchema = z
   .string()
   .min(1)
@@ -281,6 +295,24 @@ export const ownerOfficeSeriesCodesSchema = z
   .max(8)
   .refine((codes) => new Set(codes).size === codes.length);
 
+/** The copy a submitter is asking to replace the published card with. */
+export const fudabaPendingCardContentSchema = z
+  .object({
+    producerName: ownerCardTextSchema(80, true),
+    displayName: ownerCardTextSchema(120, true),
+    seriesCode: seriesCodeSchema.max(64),
+    favoriteCharacter: ownerCardTextSchema(200),
+    /** Character ids; the editor already holds the catalogue to name them. */
+    favoriteCharacterIds: z.array(z.number().int().positive()),
+    frontImageUrl: publicMediaUrlSchema,
+    backImageUrl: publicMediaUrlSchema,
+    accent: accentSchema,
+    bio: ownerCardTextSchema(2000),
+    tradeNote: ownerCardTextSchema(1000),
+    available: z.boolean(),
+  })
+  .strict();
+
 export const fudabaOwnerCardSchema = z
   .object({
     id: ownerCardIdSchema,
@@ -297,7 +329,6 @@ export const fudabaOwnerCardSchema = z
     bio: ownerCardTextSchema(2000),
     tradeNote: ownerCardTextSchema(1000),
     available: z.boolean(),
-    mediaRightsStatus: z.enum(["unknown", "approved", "denied"]),
     publicationStatus: z.enum([
       "draft",
       "pending",
@@ -305,8 +336,18 @@ export const fudabaOwnerCardSchema = z
       "published",
       "hidden",
       "rejected",
+      "withdrawn",
+      "locked",
     ]),
     revision: fudabaRevisionSchema,
+    /**
+     * Verdict on the newest submission of an already published card. While this
+     * is set the published version keeps serving the wall and exchange.
+     */
+    reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
+    reviewReason: z.string().nullable(),
+    reviewSubmittedAt: timestampSchema.nullable(),
+    pendingContent: fudabaPendingCardContentSchema.nullable(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -364,6 +405,12 @@ export const fudabaOwnerOfficeSchema = z
     isOpen: z.boolean(),
     visitorCount: z.number().int().nonnegative(),
     status: z.enum(["active", "hidden", "archived"]),
+    reviewState: z.enum(["pending", "published", "rejected"]),
+    submittedAt: timestampSchema,
+    reviewedAt: timestampSchema.nullable(),
+    reviewedBy: z.number().int().positive().nullable(),
+    reviewNote: z.string().max(1000),
+    reviewInProgress: z.boolean(),
     revision: fudabaRevisionSchema,
     seriesCodes: ownerOfficeSeriesCodesSchema,
     createdAt: timestampSchema,
@@ -393,13 +440,8 @@ export const fudabaOfficeConflictResponseSchema = exactJsonResponse({
 export const fudabaOwnerLocationSchema = z
   .object({
     officeId: ownerCardIdSchema,
-    location: z
-      .object({
-        latitude: regionalCoordinateSchema(-60, 60),
-        longitude: regionalCoordinateSchema(-180, 180),
-        precision: z.literal("regional"),
-      })
-      .strict(),
+    location: fudabaPublicOfficeLocationSchema,
+    exactLocationConsentAt: timestampSchema.nullable(),
     reviewState: z.enum(["pending", "published", "rejected"]),
     revision: fudabaRevisionSchema,
     submittedAt: timestampSchema,
@@ -512,20 +554,36 @@ export const fudabaOfficeFieldsRequestSchema = z.object({
 export const fudabaOfficeUpdateRequestSchema = fudabaOfficeFieldsRequestSchema.extend({
   expectedRevision: fudabaRevisionSchema,
 }).strict();
-export const fudabaOwnerLocationSaveRequestSchema = z.object({
+export const fudabaOwnerLocationSaveRequestSchema = z.union([z.object({
   latitude: exactCoordinateSchema(-60, 60),
   longitude: exactCoordinateSchema(-180, 180),
   expectedRevision: fudabaRevisionSchema.nullable(),
-}).strict();
+  precision: z.literal("regional").optional(),
+}).strict(), z.object({
+  latitude: exactCoordinateSchema(-60, 60),
+  longitude: exactCoordinateSchema(-180, 180),
+  expectedRevision: fudabaRevisionSchema.nullable(),
+  precision: z.literal("exact"),
+  exactLocationConsent: z.literal(true),
+}).strict()]);
 export const fudabaReactionRequestSchema = legacyStripRequestObject({
   // The handler owns the legacy error code for an unsupported palette entry.
   emoji: z.unknown(),
 });
 export const fudabaMediaQuerySchema = legacyStripRequestObject({
   v: z.string().optional(),
+  /** `1` serves the media of the revision still under review. */
+  draft: z.enum(["1"]).optional(),
 });
 export const fudabaPlaceSearchQuerySchema = legacyStripRequestObject({
   q: z.string().trim().min(2).max(120).refine((value) => !hasAsciiControl(value)),
+});
+const reverseCoordinateQuery = (minimum: number, maximum: number) =>
+  z.union([z.number(), z.string().trim().min(1)])
+    .pipe(z.coerce.number().finite().min(minimum).max(maximum));
+export const fudabaPlaceReverseQuerySchema = strictRequestObject({
+  longitude: reverseCoordinateQuery(-180, 180),
+  latitude: reverseCoordinateQuery(-90, 90),
 });
 export const fudabaCardReactionErrorSchema = z.union([
   exactJsonError({ success: z.literal(false), code: z.string() }),
@@ -561,6 +619,12 @@ export type FudabaPlaceSearchResult = z.infer<
 >;
 export type FudabaPlaceSearchResponse = z.infer<
   typeof fudabaPlaceSearchResponseSchema
+>;
+export type FudabaPlaceReverseQuery = z.infer<typeof fudabaPlaceReverseQuerySchema>;
+export type FudabaPlaceReverseResult = z.infer<typeof fudabaPlaceReverseResultSchema>;
+export type FudabaPlaceReverseResponse = z.infer<typeof fudabaPlaceReverseResponseSchema>;
+export type FudabaPendingCardContent = z.infer<
+  typeof fudabaPendingCardContentSchema
 >;
 export type FudabaOwnerCard = z.infer<typeof fudabaOwnerCardSchema>;
 export type FudabaOwnerCardList = z.infer<typeof fudabaOwnerCardListSchema>;

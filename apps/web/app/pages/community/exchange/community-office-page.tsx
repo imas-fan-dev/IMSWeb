@@ -9,6 +9,8 @@ import {
   type FudabaMessage,
   type FudabaPublicMessage,
 } from "~/lib/api"
+import { CardInteractionScope } from "~/pages/community/exchange/components/exchange-card-interactions"
+import { ExchangeDataRevision } from "./components/exchange-page-surface"
 import {
   ArrowLeftIcon,
   Building2Icon,
@@ -23,7 +25,14 @@ import {
   PlusIcon,
   RefreshCwIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { useParams, useSearchParams } from "react-router"
 import { toast } from "sonner"
 
@@ -68,8 +77,9 @@ import {
   ExchangeCard,
   PlacedCardWall,
   SeriesBadge,
-} from "./exchange-components"
-import type { WallPlacement } from "./exchange-card-wall"
+} from "~/pages/community/exchange/components/exchange-components"
+import type { WallPlacement } from "~/pages/community/exchange/components/exchange-card-wall"
+import { ExchangeManagementDialog } from "./components/exchange-management-dialog"
 import type { WallBounds, WallFocus } from "./wall-viewport"
 import {
   ExchangePageSurface,
@@ -153,9 +163,10 @@ export function meta() {
   ]
 }
 
-export default function CommunityOfficePage() {
+function CommunityOfficePageContent() {
   const { officeSlug } = useParams()
   const embedded = useExchangeMapDialog()
+  const dataRevision = useContext(ExchangeDataRevision)
   const platform = usePlatformSession()
   const [state, setState] = useState<DetailState>(initialState)
   const [wallEditor, setWallEditor] = useState<WallEditorState>(
@@ -238,8 +249,8 @@ export default function CommunityOfficePage() {
       return
     }
     const currentScope = `${officeSlug}:${platform.session?.account.id ?? "public"}`
-    if (officeLoadScope.current === currentScope)
-      void layoutIndexRef.current.reload()
+    const sameScope = officeLoadScope.current === currentScope
+    if (sameScope) void layoutIndexRef.current.reload()
     officeLoadScope.current = currentScope
     const generation = ++requestGeneration.current
     sceneGeneration.current += 1
@@ -247,7 +258,11 @@ export default function CommunityOfficePage() {
     loadedBounds.current = null
     sceneCache.current = []
     setWallLoading(false)
-    setState((current) => ({ ...current, phase: "loading", error: null }))
+    setState((current) => ({
+      ...current,
+      phase: sameScope && current.phase === "ready" ? "ready" : "loading",
+      error: null,
+    }))
     try {
       const [officeResult, seriesResult] = await Promise.allSettled([
         getFudabaWallScene(officeSlug, { bbox: [0, 0, 1600, 900] }).send(),
@@ -275,7 +290,7 @@ export default function CommunityOfficePage() {
     return () => {
       requestGeneration.current += 1
     }
-  }, [loadOffice])
+  }, [loadOffice, dataRevision])
 
   useEffect(() => {
     if (platform.status !== "authenticated") {
@@ -493,11 +508,7 @@ export default function CommunityOfficePage() {
 
   const eligibleOwnerCards = useMemo(
     () =>
-      wallEditor.cards.filter(
-        (card) =>
-          card.publicationStatus === "published" &&
-          card.mediaRightsStatus === "approved"
-      ),
+      wallEditor.cards.filter((card) => card.publicationStatus === "published"),
     [wallEditor.cards]
   )
   const placedCardIds = useMemo(() => {
@@ -1152,6 +1163,15 @@ export default function CommunityOfficePage() {
         )}
       >
         <header className="border-b pb-8">
+          {platform.status === "authenticated" ||
+          platform.status === "restricted" ? (
+            <div className="mb-5">
+              <ExchangeManagementDialog
+                section="offices"
+                officeId={office.id}
+              />
+            </div>
+          ) : null}
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
             <div className="max-w-3xl min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -1263,7 +1283,7 @@ export default function CommunityOfficePage() {
               {platform.status === "authenticated" &&
               wallEditor.phase === "error" ? (
                 <NavigationLink
-                  to="/community/exchange/me"
+                  to="/account/me/namecards"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   管理我的名片
@@ -1309,7 +1329,7 @@ export default function CommunityOfficePage() {
               eligibleOwnerCards.length === 0 &&
               !hasOwnedPlacedCard ? (
                 <NavigationLink
-                  to="/community/exchange/me"
+                  to="/account/me/namecards"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   创建可公开名片
@@ -1364,7 +1384,7 @@ export default function CommunityOfficePage() {
               </div>
               <div className="flex gap-2">
                 <NavigationLink
-                  to="/community/exchange/me"
+                  to="/account/me/namecards"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   管理名片
@@ -1606,5 +1626,13 @@ export default function CommunityOfficePage() {
         />
       ) : null}
     </ExchangePageSurface>
+  )
+}
+
+export default function CommunityOfficePage() {
+  return (
+    <CardInteractionScope>
+      <CommunityOfficePageContent />
+    </CardInteractionScope>
   )
 }

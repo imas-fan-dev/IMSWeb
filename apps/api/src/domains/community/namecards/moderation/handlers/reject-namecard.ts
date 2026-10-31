@@ -8,8 +8,13 @@ import { namecardRepository } from '@/middleware/hono-context';
 
 export async function handleRejectNamecard(c: NamecardMutationContext): Promise<Response> {
     const { id } = c.req.valid('param');
-    const { expected_revision: expectedRevision } = c.req.valid('json');
-    const result = await namecardRepository(c).rejectSubmission(id, expectedRevision);
+    const body = c.req.valid('json') as { expected_revision: number; reason?: unknown };
+    const { expected_revision: expectedRevision } = body;
+    const reason =
+        typeof body.reason === 'string' && body.reason.trim().length > 0
+            ? body.reason.trim().slice(0, 400)
+            : null;
+    const result = await namecardRepository(c).rejectSubmission(id, expectedRevision, reason);
     if (result.status === 'not-found') {
         return c.json({ error: 'Namecard not found' } satisfies NamecardErrorResponse, 404);
     }

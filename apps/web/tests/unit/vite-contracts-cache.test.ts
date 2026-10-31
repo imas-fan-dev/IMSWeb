@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 import type {
   MinimalPluginContextWithoutEnvironment,
@@ -48,6 +48,10 @@ function outputDirectory() {
   directories.push(workspace)
   const directory = join(workspace, "packages/contracts/dist")
   mkdirSync(directory, { recursive: true })
+  for (const name of ["esm/index.js", "esm/paths.js", "cjs/index.js"]) {
+    mkdirSync(dirname(join(directory, name)), { recursive: true })
+    writeFileSync(join(directory, name), "exports.ready = true")
+  }
   return directory
 }
 afterEach(() => {
@@ -110,14 +114,14 @@ describe("contracts dependency cache", () => {
     )
     watcher.emit("all", "change", join(directory, "messages.js"))
     watcher.emit("all", "unlink", join(directory, "obsolete.js"))
-    await vi.advanceTimersByTimeAsync(499)
+    await vi.advanceTimersByTimeAsync(1199)
     expect(restart).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
     expect(restart).toHaveBeenCalledExactlyOnceWith(true)
     writeFileSync(join(directory, "messages.js"), "exports.layout = undefined")
     watcher.emit("all", "change", join(directory, "messages.js"))
     plugin.closeBundle.call({} as never)
-    await vi.advanceTimersByTimeAsync(500)
+    await vi.advanceTimersByTimeAsync(6000)
     expect(restart).toHaveBeenCalledExactlyOnceWith(true)
     expect(watcher.listenerCount("all")).toBe(0)
   })
@@ -147,11 +151,11 @@ describe("contracts dependency cache", () => {
       })
     })
     watcher.emit("all", "change", file)
-    await vi.advanceTimersByTimeAsync(500)
+    await vi.advanceTimersByTimeAsync(1200)
     expect(restart).not.toHaveBeenCalled()
     expect(error).not.toHaveBeenCalled()
     watcher.emit("all", "add", file)
-    await vi.advanceTimersByTimeAsync(500)
+    await vi.advanceTimersByTimeAsync(1200)
     expect(restart).toHaveBeenCalledExactlyOnceWith(true)
     plugin.closeBundle.call({} as never)
   })

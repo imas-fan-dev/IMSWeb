@@ -8,8 +8,6 @@ import {
 } from "../common.js"
 import {
   NAMECARD_CHARACTER_CATEGORIES,
-  NAMECARD_CHARACTER_DEFAULT_PAGE_SIZE,
-  NAMECARD_CHARACTER_MAX_PAGE_SIZE,
   NAMECARD_CHARACTER_MAX_QUERY_LENGTH,
 } from "./namecard-runtime.js"
 

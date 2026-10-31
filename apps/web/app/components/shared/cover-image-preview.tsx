@@ -6,7 +6,7 @@ import {
   ZoomInIcon,
   ZoomOutIcon,
 } from "lucide-react"
-import { useRef, useState } from "react"
+import { useRef, useState, type ReactNode } from "react"
 
 import { Button } from "~/components/ui/button"
 import {
@@ -62,6 +62,7 @@ export function CoverImagePreview({
   onPreviewRequest,
   imageDraggable,
   triggerProps,
+  previewActions,
 }: {
   src: string
   alt: string
@@ -84,6 +85,7 @@ export function CoverImagePreview({
     | "onKeyDown"
     | "title"
   >
+  previewActions?: ReactNode
 }) {
   const previewCount = Math.max(previewItems?.length ?? 0, 1)
   const initialPreviewIndex =
@@ -171,6 +173,16 @@ export function CoverImagePreview({
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const target = event.target
+    if (
+      target instanceof Element &&
+      (target.closest(
+        "input, textarea, select, [contenteditable]:not([contenteditable='false'])"
+      ) ||
+        target.closest('[role="dialog"]') !==
+          event.currentTarget.closest('[role="dialog"]'))
+    )
+      return
     const panDistance = event.shiftKey ? PAN_STEP * 3 : PAN_STEP
     if (event.key === "+" || event.key === "=") {
       event.preventDefault()
@@ -344,7 +356,13 @@ export function CoverImagePreview({
           />
         </div>
 
-        <footer className="flex min-h-[calc(5rem+var(--safe-area-bottom))] items-center justify-center pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]">
+        <footer
+          className={cn(
+            "flex min-h-[calc(5rem+var(--safe-area-bottom))] items-center justify-center pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]",
+            previewActions && "flex-col gap-2"
+          )}
+        >
+          {previewActions}
           <div className="flex items-center gap-1 rounded-lg border border-foreground/10 bg-background/35 p-1 shadow-lg backdrop-blur-xl">
             <Button
               type="button"

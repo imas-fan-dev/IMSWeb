@@ -65,7 +65,7 @@ describe("Web route metadata", () => {
     )
 
     expect(manifest).toEqual(descriptors)
-    expect(manifest).toHaveLength(60)
+    expect(manifest).toHaveLength(63)
   })
 
   it("registers every Web prerender and preserves the 30-document set", () => {
@@ -92,7 +92,7 @@ describe("Web route metadata", () => {
     }
   })
 
-  it("keeps Web exchange detail routes under the persistent map page", () => {
+  it("keeps office dialogs on the map and account pages outside it", () => {
     const publicRoutes = routes[0]!.children!
     const map = publicRoutes.find(
       (entry) => entry.path === "community/exchange"
@@ -101,9 +101,21 @@ describe("Web route metadata", () => {
       "pages/community/exchange/community-exchange-page.tsx"
     )
     expect(map.children?.map((entry) => entry.path).sort()).toEqual([
-      "me",
       "offices/:officeSlug",
     ])
+    for (const path of [
+      "account/me",
+      "account/me/:section",
+      "account/security",
+    ]) {
+      expect(publicRoutes.some((entry) => entry.path === path)).toBe(true)
+      for (const target of ["web", "app"] as const) {
+        expect(
+          routeDescriptorsForTarget(target).some((entry) => entry.path === path)
+        ).toBe(true)
+      }
+    }
+    expect(routeFile("community/exchange/me")).toBeUndefined()
     expect(
       publicRoutes.some(
         (entry) => entry.path === "community/exchange/offices/:officeSlug"

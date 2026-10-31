@@ -4,6 +4,7 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export const ExchangeMapDialogContext = createContext<{
   close: () => void
+  changed?: () => void
 } | null>(null)
 
 export function useExchangeMapDialog() {
@@ -58,3 +59,5 @@ export function ExchangeMapReturnLink(
     />
   )
 }
+
+export const ExchangeDataRevision = createContext(0)

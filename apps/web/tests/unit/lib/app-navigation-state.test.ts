@@ -89,7 +89,7 @@ describe("App navigation memory", () => {
     expect(hasUsableAppHistoryBack(state)).toBe(false)
   })
 
-  it.each(["/account/me/favorites", "/community/exchange/me/profile"])(
+  it.each(["/account/me/favorites", "/account/me/profile"])(
     "clears personal %s only after a settled identity change",
     (href) => {
       const state = createAppNavigationState()

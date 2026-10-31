@@ -129,7 +129,8 @@ export const fudabaClaimEnvelopeActionRequestSchema = z.object({
   expectedRevision: fudabaRevisionSchema,
 }).strict()
 export const fudabaCardReviewRequestSchema = strictRequestObject({
-  decision: z.enum(["approve", "reject"]),
+  /** `flag` marks the submission as a violation instead of a plain rejection. */
+  decision: z.enum(["approve", "reject", "flag"]),
   expectedRevision: fudabaRevisionSchema,
   note: ownerCardTextSchema(1000),
 })
@@ -180,6 +181,52 @@ export type FudabaAdminCardClaimListResponse = z.infer<
 >
 export type FudabaReviewMutationResponse = z.infer<typeof reviewMutationSchema>
 export type FudabaCardClaimError = z.infer<typeof fudabaCardClaimErrorSchema>
+
+export const namecardNotificationKindSchema = z.enum([
+  "card-approved",
+  "card-rejected",
+  "card-locked",
+  "card-unlocked",
+  "claim-approved",
+  "claim-rejected",
+  // Backoffice station messages share this inbox; they carry no card number.
+  "station-message",
+])
+
+export const namecardNotificationSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: namecardNotificationKindSchema,
+    cardNumber: z.number().int().positive().nullable(),
+    title: z.string().min(1),
+    body: z.string().max(4000),
+    readAt: z.string().nullable(),
+    createdAt: z.string(),
+  })
+  .strict()
+
+export const namecardNotificationListResponseSchema = z
+  .object({
+    items: z.array(namecardNotificationSchema),
+    unread: z.number().int().nonnegative(),
+  })
+  .strict()
+
+export const namecardNotificationReadRequestSchema = strictRequestObject({
+  ids: z.array(z.string().min(1)).max(200).optional(),
+})
+
+export const namecardNotificationReadResponseSchema = successEnvelope({
+  updated: z.number().int().nonnegative(),
+})
+
+export type NamecardNotification = z.infer<typeof namecardNotificationSchema>
+export type NamecardNotificationListResponse = z.infer<
+  typeof namecardNotificationListResponseSchema
+>
+export type NamecardNotificationReadResponse = z.infer<
+  typeof namecardNotificationReadResponseSchema
+>
 export type FudabaLegacyCardClaimRequestInput = z.input<
   typeof fudabaLegacyCardClaimRequestSchema
 >

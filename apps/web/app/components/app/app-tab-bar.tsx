@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
+import { useNamecardUnread } from "~/lib/use-namecard-unread"
 import { useAppNavigation } from "~/components/app/app-navigation-provider"
 import {
   APP_TABS,
@@ -98,6 +99,7 @@ export function AppTabBar() {
   const { pathname } = useLocation()
   const normalizedPathname = normalizeAppPathname(pathname)
   const activeId = appTabIdForPathname(normalizedPathname)
+  const unread = useNamecardUnread()
   const activeIndex = appTabIndexForPathname(normalizedPathname)
   const slot = Math.max(activeIndex, 0)
   const useLightMapGlass = isNonScrollingAppRoute(normalizedPathname)
@@ -310,7 +312,17 @@ export function AppTabBar() {
                     tab.id === activeId && "fill-primary/15"
                   )}
                 />
-                <span>{t(tab.label)}</span>
+                <span className="relative">
+                  {t(tab.label)}
+                  {tab.id === "account" && unread > 0 ? (
+                    <span
+                      className="absolute -top-6.5 -right-3 grid size-3.5 place-items-center rounded-full bg-destructive text-[9px] leading-none font-medium text-destructive-foreground"
+                      aria-label={`${unread} 条未读消息`}
+                    >
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  ) : null}
+                </span>
               </NavigationLink>
             </li>
           ))}

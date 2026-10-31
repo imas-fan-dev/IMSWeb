@@ -35,7 +35,7 @@ export const APP_TABS = [
   },
 ] as const
 
-const PERSONAL_PREFIXES = ["/account", "/community/exchange/me"] as const
+const PERSONAL_PREFIXES = ["/account"] as const
 const ACCOUNT_PREFIXES = [...PERSONAL_PREFIXES, "/about"] as const
 
 const COMMUNITY_PREFIXES = ["/community", "/events", "/producer-map"] as const
@@ -112,9 +112,6 @@ interface AppBackRule {
  *
  * - Every tab root matches exactly. `/` must stay exact: as a prefix it would
  *   swallow every other route.
- * - `/account/me` precedes the exchange-map rules, because
- *   `/community/exchange/me` is a My page even though the map owns the rest of
- *   that subtree.
  * - `/community/cards/submissions` precedes `/community/cards`, which precedes
  *   the general Community prefix.
  * - Exact rules precede prefix rules on the same path (`/events`, `/works`,
@@ -148,10 +145,6 @@ const APP_BACK_RULES: readonly AppBackRule[] = [
     target: { kind: "parent", href: "/account/me" },
   },
   { path: "/about", target: { kind: "parent", href: "/account/me" } },
-  {
-    path: "/community/exchange/me",
-    target: { kind: "parent", href: "/account/me" },
-  },
 
   {
     path: "/community/exchange/offices",

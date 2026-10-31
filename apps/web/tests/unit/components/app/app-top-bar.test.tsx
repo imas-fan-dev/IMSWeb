@@ -67,7 +67,7 @@ describe("AppTopBar", () => {
     ["/account/register", "/account/me", "我的"],
     ["/account/password-reset", "/account/me", "我的"],
     ["/about", "/account/me", "我的"],
-    ["/community/exchange/me", "/account/me", "我的"],
+    ["/account/me/profile", "/account/me", "我的"],
     ["/works/sample", "/works", "资料"],
     ["/events/42", "/events", "社区"],
     ["/story", "/wiki", "资料"],

@@ -78,6 +78,7 @@ const card = {
   },
 }
 test.beforeEach(async ({ page, api }, testInfo) => {
+  const isApp = testInfo.project.name.startsWith("app-")
   installEmptyWikiCatalogMock(api)
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
@@ -85,6 +86,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
   const discoveryTest = testInfo.title.startsWith(
     "discovers an exchange office"
   )
+  const discoveryRequests = isApp && !discoveryTest ? 0 : { min: 1, max: 8 }
   await api.mockRoute(
     "**/api/community/exchange/series",
     async (route) => {
@@ -108,7 +110,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       })
     },
     "GET",
-    { min: 1, max: 8 }
+    discoveryRequests
   )
   await api.mockRoute(
     "**/api/community/exchange/cards?*",
@@ -121,7 +123,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       })
     },
     "GET",
-    { min: 1, max: 8 }
+    discoveryRequests
   )
   await api.mockRoute(
     "/api/community/exchange/map/config",
@@ -134,7 +136,13 @@ test.beforeEach(async ({ page, api }, testInfo) => {
         },
       }),
     "GET",
-    discoveryTest || testInfo.title.startsWith("lets a card owner") ? 2 : 1
+    isApp
+      ? discoveryTest
+        ? 1
+        : 0
+      : discoveryTest || testInfo.title.startsWith("lets a card owner")
+        ? 2
+        : 1
   )
   await api.mockRoute(
     "/api/community/exchange/map/offices",
@@ -154,7 +162,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
               location: {
                 latitude: 31.2,
                 longitude: 121.5,
-                precision: "regional",
+                precision: "exact",
               },
             },
           ],
@@ -181,6 +189,7 @@ test.describe("community exchange", () => {
     isMobile,
   }, testInfo) => {
     test.slow()
+    const isApp = testInfo.project.name.startsWith("app-")
     await api.mockRoute(
       "/api/community/exchange/offices/shanghai-weekend/wall?*",
       (route) =>
@@ -273,12 +282,23 @@ test.describe("community exchange", () => {
     await expect(exchangeLink).toBeVisible()
     await exchangeLink.click()
     await expect(page).toHaveURL(/\/community\/exchange$/)
+    if (isApp) {
+      await page
+        .getByRole("button", { name: "展开地点查找", exact: true })
+        .click()
+    }
     await expect(
       page.getByRole("textbox", { name: "搜索事务所" })
     ).toBeVisible()
-    await expect(
-      page.getByRole("complementary", { name: "交换发现栏" })
-    ).toHaveCount(0)
+    const discoveryRail = page.getByRole("complementary", {
+      name: "交换发现栏",
+      includeHidden: true,
+    })
+    if (isApp) {
+      await expect(discoveryRail).toBeHidden()
+    } else {
+      await expect(discoveryRail).toHaveCount(0)
+    }
 
     const mobileNavigation = page.getByRole("navigation", {
       name: "交换地图导航",
@@ -383,7 +403,8 @@ test.describe("community exchange", () => {
   })
   test("keeps boundary card placements inside the visible wall @mobile", async ({
     page,
-  }) => {
+  }, testInfo) => {
+    const isApp = testInfo.project.name.startsWith("app-")
     await api.mockRoute(
       "**/api/community/exchange/offices/shanghai-weekend/wall?*",
       async (route) => {
@@ -504,7 +525,7 @@ test.describe("community exchange", () => {
         })
       },
       "GET",
-      { min: 2, max: 12 }
+      isApp ? 1 : { min: 2, max: 12 }
     )
     for (const cardId of ["card-north-west", "card-south-east"]) {
       await api.mockRoute(
@@ -533,9 +554,12 @@ test.describe("community exchange", () => {
       )
       const wallBox = await wall.boundingBox()
       expect(wallBox).not.toBeNull()
-      const cardBox = await page
-        .getByRole("button", { name: `查看${name}正面` })
-        .boundingBox()
+      const wallCard = wall.getByRole("button", {
+        name: `查看${name}正面`,
+        exact: true,
+      })
+      await expect(wallCard).toHaveCount(1)
+      const cardBox = await wallCard.boundingBox()
       expect(cardBox).not.toBeNull()
       expect(cardBox!.x).toBeGreaterThanOrEqual(wallBox!.x)
       expect(cardBox!.y).toBeGreaterThanOrEqual(wallBox!.y)
@@ -553,6 +577,7 @@ test.describe("community exchange", () => {
     isMobile,
   }, testInfo) => {
     test.slow()
+    const isApp = testInfo.project.name.startsWith("app-")
     await context.addCookies([
       {
         name: "ims_platform_csrf",
@@ -575,8 +600,11 @@ test.describe("community exchange", () => {
         bio: "上海地区制作人",
         tradeNote: "现场交换同系列名片",
         available: true,
-        mediaRightsStatus: "approved",
         publicationStatus: "published",
+        reviewStatus: null,
+        reviewReason: null,
+        reviewSubmittedAt: null,
+        pendingContent: null,
         revision: 2,
         createdAt: "2026-08-02T08:00:00.000Z",
         updatedAt: "2026-08-02T09:00:00.000Z",
@@ -594,8 +622,11 @@ test.describe("community exchange", () => {
         bio: "自由摆放测试",
         tradeNote: "也欢迎交换",
         available: true,
-        mediaRightsStatus: "approved",
         publicationStatus: "published",
+        reviewStatus: null,
+        reviewReason: null,
+        reviewSubmittedAt: null,
+        pendingContent: null,
         revision: 1,
         createdAt: "2026-08-02T08:10:00.000Z",
         updatedAt: "2026-08-02T09:10:00.000Z",
@@ -811,26 +842,33 @@ test.describe("community exchange", () => {
     await page.goto("/community/exchange/offices/shanghai-weekend")
     await expect(page.getByRole("button", { name: "布置名片墙" })).toBeVisible()
     const firstCard = page.locator('[data-card-id="card-1"] button').first()
+    const cardPreview = page.getByRole("dialog", {
+      name: /^(?:周末交换会名片|第二张公开名片)(?:正面|背面)$/,
+    })
     const activateCard = async (target: typeof firstCard) => {
       if (isMobile) await target.tap()
       else await target.click()
     }
     await activateCard(firstCard)
     await expect(page.getByRole("button", { name: "完成布置" })).toBeVisible()
-    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(cardPreview).toHaveCount(0)
     await activateCard(firstCard)
-    await expect(page.getByRole("dialog")).toBeVisible()
-    await page.getByRole("button", { name: "关闭名片预览" }).click()
+    await expect(cardPreview).toBeVisible()
+    await cardPreview
+      .getByRole("button", { name: "关闭名片预览", exact: true })
+      .click()
     await page.getByRole("button", { name: "完成布置" }).click()
     await expect(page.locator('[data-card-id="card-1"]')).not.toHaveClass(
       /ring-2/
     )
     await activateCard(firstCard)
     await expect(page.getByRole("button", { name: "完成布置" })).toBeVisible()
-    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(cardPreview).toHaveCount(0)
     await activateCard(firstCard)
-    await expect(page.getByRole("dialog")).toBeVisible()
-    await page.getByRole("button", { name: "关闭名片预览" }).click()
+    await expect(cardPreview).toBeVisible()
+    await cardPreview
+      .getByRole("button", { name: "关闭名片预览", exact: true })
+      .click()
     await page.getByRole("button", { name: "放到墙上" }).click()
     await expect(
       page.getByRole("button", { name: "移动第二张公开名片" })
@@ -851,7 +889,7 @@ test.describe("community exchange", () => {
     })
     await activateCard(moveHandle)
     await expect(page.locator('[data-card-id="card-2"]')).toHaveClass(/ring-2/)
-    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(cardPreview).toHaveCount(0)
     const viewport = page.getByRole("region", { name: "名片墙放置区域" })
     expect(
       await viewport.evaluate((element) => getComputedStyle(element).userSelect)
@@ -920,7 +958,7 @@ test.describe("community exchange", () => {
       await page.mouse.up()
     }
     await expect.poll(() => placementWrites.length).toBe(2)
-    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(cardPreview).toHaveCount(0)
     expect(nativeDrags).toEqual([])
     expect(placementWrites[1]).toMatchObject({
       cardId: "card-2",
@@ -965,36 +1003,50 @@ test.describe("community exchange", () => {
     await page.getByRole("tab", { name: "墙面" }).focus()
     await page.mouse.move(0, 0)
     await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
-    await expect(page.getByRole("dialog", { name: "事务所详情" })).toBeVisible()
+    if (isApp) {
+      await expect(page.locator("main#main-content")).toBeVisible()
+      await expect(
+        page.getByRole("heading", { name: office.name })
+      ).toBeVisible()
+    } else {
+      await expect(
+        page.getByRole("dialog", { name: "事务所详情" })
+      ).toBeVisible()
+    }
     await settleToasts(page)
     const accessibility = await new AxeBuilder({ page }).analyze()
-    const viewportGeometry = await page.evaluate(() => ({
-      clientWidth: document.documentElement.clientWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      scrollX: window.scrollX,
-      overflowingElements: Array.from(
-        document.querySelectorAll(".exchange-map-page-dialog *")
-      )
-        .filter((element) => !element.closest("[data-wall-camera-x]"))
-        .map((element) => {
-          const bounds = element.getBoundingClientRect()
-          return {
-            tag: element.tagName,
-            className: element.getAttribute("class"),
-            label: element.getAttribute("aria-label"),
-            left: Math.round(bounds.left),
-            right: Math.round(bounds.right),
-            width: Math.round(bounds.width),
-          }
-        })
-        .filter(
-          (element) =>
-            element.width > 0 &&
-            (element.left < -1 ||
-              element.right > document.documentElement.clientWidth + 1)
+    const viewportGeometry = await page.evaluate(
+      (appTarget) => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollX: window.scrollX,
+        overflowingElements: Array.from(
+          document.querySelectorAll(
+            appTarget ? "main#main-content *" : ".exchange-map-page-dialog *"
+          )
         )
-        .slice(0, 12),
-    }))
+          .filter((element) => !element.closest("[data-wall-camera-x]"))
+          .map((element) => {
+            const bounds = element.getBoundingClientRect()
+            return {
+              tag: element.tagName,
+              className: element.getAttribute("class"),
+              label: element.getAttribute("aria-label"),
+              left: Math.round(bounds.left),
+              right: Math.round(bounds.right),
+              width: Math.round(bounds.width),
+            }
+          })
+          .filter(
+            (element) =>
+              element.width > 0 &&
+              (element.left < -1 ||
+                element.right > document.documentElement.clientWidth + 1)
+          )
+          .slice(0, 12),
+      }),
+      isApp
+    )
     expect(viewportGeometry.scrollX).toBe(0)
     expect(viewportGeometry.overflowingElements).toEqual([])
     expect(viewportGeometry.scrollWidth).toBeLessThanOrEqual(

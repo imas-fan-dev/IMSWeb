@@ -104,7 +104,7 @@ test("merges range offices with their count while retaining the portrait search 
               location: {
                 latitude: 31.2,
                 longitude: 121.5,
-                precision: "regional",
+                precision: "exact",
               },
             },
           ],

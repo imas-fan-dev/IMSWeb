@@ -114,3 +114,47 @@ test("animates the office panel in both directions and respects reduced motion @
       .evaluate((node) => node.getAnimations({ subtree: true }).length)
   ).toBe(0)
 })
+
+test("retains automatic office search when Enter submits the same pending query @mobile", async ({
+  api,
+  page,
+}, info) => {
+  let started!: () => void
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  const response = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const failures: string[] = []
+  page.on("requestfailed", (request) => {
+    if (new URL(request.url()).searchParams.get("q") === "上海")
+      failures.push(request.failure()?.errorText ?? "failed")
+  })
+  const queries = await installUnifiedSearchApis(api, async () => {
+    started()
+    await response
+  })
+  await page.goto("/community/exchange?view=map")
+  await expect(page.locator("[data-map-results-state]")).toHaveAttribute(
+    "data-map-results-state",
+    "ready"
+  )
+  const canvas = await page.locator("canvas.maplibregl-canvas").elementHandle()
+  const input = page.getByRole("textbox", { name: "搜索事务所" })
+  await input.fill("上海")
+  await pending
+  try {
+    await input.press("Enter")
+  } finally {
+    release()
+  }
+  await expect(
+    page.getByRole("button", { name: /上海交换事务所/ })
+  ).toBeVisible()
+  expect(queries).toEqual(["上海"])
+  expect(failures).toEqual([])
+  expect(await canvas?.evaluate((node) => node.isConnected)).toBe(true)
+  await page.screenshot({ path: info.outputPath("pending-search-enter.png") })
+})

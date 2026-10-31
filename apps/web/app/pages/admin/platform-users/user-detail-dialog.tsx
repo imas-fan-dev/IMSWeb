@@ -15,17 +15,15 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog"
 import { Skeleton } from "~/components/ui/skeleton"
-import {
-  getAdminPlatformUser,
-  type AdminPlatformUserDetail,
-} from "~/lib/api"
+import { getAdminPlatformUser, type AdminPlatformUserDetail } from "~/lib/api"
 
 export interface UserDetailDialogProps {
   userId: string | null
   /** Bumped by the page after an unlink so the links list is re-read. */
   reloadKey: number
+  label?: string
   onOpenChange: (open: boolean) => void
-  onRequestUnlink: (
+  onRequestUnlink?: (
     userId: string,
     provider: string,
     providerName: string
@@ -42,6 +40,7 @@ export function UserDetailDialog({
   reloadKey,
   onOpenChange,
   onRequestUnlink,
+  label,
 }: UserDetailDialogProps) {
   const { t } = useTranslation()
   return (
@@ -49,7 +48,7 @@ export function UserDetailDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("adminPlatformUsers.detail.title")}</DialogTitle>
-          <DialogDescription>{userId}</DialogDescription>
+          <DialogDescription>{label ?? userId}</DialogDescription>
         </DialogHeader>
         {userId ? (
           // Remounting on id/reload resets the loading flag, so the effect
@@ -191,26 +190,28 @@ function UserDetailDialogBody({
                         ) : null}
                       </div>
                       <Badge variant="secondary">{link.provider}</Badge>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={!link.removable}
-                        title={
-                          link.removable
-                            ? undefined
-                            : t("adminPlatformUsers.detail.oauthNotRemovable")
-                        }
-                        onClick={() =>
-                          onRequestUnlink(
-                            userId,
-                            link.provider,
-                            link.providerName || link.provider
-                          )
-                        }
-                      >
-                        {t("adminPlatformUsers.detail.unlink")}
-                      </Button>
+                      {onRequestUnlink ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!link.removable}
+                          title={
+                            link.removable
+                              ? undefined
+                              : t("adminPlatformUsers.detail.oauthNotRemovable")
+                          }
+                          onClick={() =>
+                            onRequestUnlink?.(
+                              userId,
+                              link.provider,
+                              link.providerName || link.provider
+                            )
+                          }
+                        >
+                          {t("adminPlatformUsers.detail.unlink")}
+                        </Button>
+                      ) : null}
                     </li>
                   )
                 })}

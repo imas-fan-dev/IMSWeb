@@ -47,7 +47,7 @@ test.describe("admin platform email", () => {
     await page.goto("/admin/platform/email")
 
     await expect(
-      page.getByRole("heading", { name: "邮件服务配置", exact: true })
+      page.getByRole("heading", { name: "邮件配置", exact: true })
     ).toBeVisible()
     const resendCooldown = page.getByRole("spinbutton", {
       name: "验证码重发间隔（秒）",

@@ -41,8 +41,8 @@ describe("app tab route ownership", () => {
     ["/packages/sample", "resources"],
     ["/account/login", "account"],
     ["/account/me/profile", "account"],
-    ["/community/exchange/me", "account"],
-    ["/community/exchange/me/profile", "account"],
+    ["/account/me", "account"],
+    ["/account/me/namecards", "account"],
     ["/about", "account"],
   ] as const)("assigns %s to %s", (pathname, tab) => {
     expect(appTabIdForPathname(pathname)).toBe(tab)
@@ -75,7 +75,7 @@ describe("app back tree", () => {
 
   it.each([
     ["/account/me/profile", "/account/me"],
-    ["/account/me/cards", "/account/me"],
+    ["/account/me/namecards", "/account/me"],
     ["/account/me/favorites/", "/account/me"],
     ["/account/security", "/account/me"],
     ["/account/security/", "/account/me"],
@@ -83,8 +83,6 @@ describe("app back tree", () => {
     ["/account/register", "/account/me"],
     ["/account/password-reset", "/account/me"],
     ["/about", "/account/me"],
-    ["/community/exchange/me", "/account/me"],
-    ["/community/exchange/me/profile", "/account/me"],
     ["/community/exchange/offices/tokyo", "/community/exchange"],
     ["/community/cards/submissions/42", "/community/cards"],
     ["/community/cards", "/community"],
@@ -118,10 +116,11 @@ describe("app back tree", () => {
     expect(resolveAppBackTarget("/wiki?agency=X")).toEqual(
       resolveAppBackTarget("/wiki")
     )
-    expect(
-      resolveAppBackTarget("/community/exchange/me?section=profile")
-    ).toEqual({ kind: "parent", href: "/account/me" })
-    expect(resolveAppBackTarget("/account/me/cards#token=abc")).toEqual({
+    expect(resolveAppBackTarget("/account/me/profile?from=map")).toEqual({
+      kind: "parent",
+      href: "/account/me",
+    })
+    expect(resolveAppBackTarget("/account/me/namecards#token=abc")).toEqual({
       kind: "parent",
       href: "/account/me",
     })

@@ -73,7 +73,7 @@ describe("independent idol catalog management", () => {
     ).toHaveLength(1)
     expect(screen.getByText("暂不公开")).toBeVisible()
     await user.click(screen.getByRole("combobox", { name: "类型" }))
-    await user.click(screen.getByRole("option", { name: "组合" }))
+    await user.click(await screen.findByRole("option", { name: "组合" }))
     expect(router.state.location.search).toContain("type=unit")
     expect(
       screen.queryByRole("button", { name: "编辑内容页 天海春香" })

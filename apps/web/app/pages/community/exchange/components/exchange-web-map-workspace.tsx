@@ -117,7 +117,7 @@ export function ExchangeWebMapWorkspace<Place extends PlaceSearchDisplay>({
     if (reveal) {
       setOpen(true)
     }
-    latest.current.model.cancelPending()
+    // Editing and tab changes cancel obsolete work; Enter keeps the active query.
     void latest.current.model.submit(value, !latest.current.available)
   }
   function edit(value: string) {

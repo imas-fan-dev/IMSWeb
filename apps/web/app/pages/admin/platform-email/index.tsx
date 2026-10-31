@@ -66,7 +66,7 @@ function errorMessage(error: unknown) {
 }
 
 export function meta() {
-  return [{ title: "邮件服务配置 | IMSWeb" }]
+  return [{ title: "邮件配置 | IMSWeb" }]
 }
 
 export default function AdminPlatformEmailPage() {
@@ -133,7 +133,7 @@ export default function AdminPlatformEmailPage() {
       <div className="flex flex-col gap-8">
         <AdminPageHeader
           eyebrow="PLATFORM EMAIL"
-          title="邮件服务配置"
+          title="邮件配置"
           description="管理平台 SMTP 发件服务。"
         />
         <Alert variant="destructive">
@@ -153,8 +153,8 @@ export default function AdminPlatformEmailPage() {
     <div className="flex min-w-0 flex-col gap-8">
       <AdminPageHeader
         eyebrow="PLATFORM EMAIL"
-        title="邮件服务配置"
-        description="管理注册验证与密码重置邮件的 SMTP 发件服务。"
+        title="邮件配置"
+        description="管理注册验证、密码重置与站内通知转发邮件的 SMTP 发件服务。"
         actions={
           <div className="flex items-center gap-2">
             <AdminStatus>

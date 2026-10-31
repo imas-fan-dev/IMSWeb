@@ -19,13 +19,15 @@ export default function PublicLayout() {
       : location.pathname
   const isExchangeMap =
     normalizedPathname === "/community/exchange" ||
-    normalizedPathname.startsWith("/community/exchange/")
+    normalizedPathname.startsWith("/community/exchange/offices/")
   const isWikiCatalog =
     normalizedPathname === "/wiki" || normalizedPathname === "/wiki/modern"
   const isModernStory =
     normalizedPathname === "/story" || normalizedPathname === "/story/modern"
   const isNamecardWall = Boolean(useMatch("/community/cards"))
   const isEventDetailPage = Boolean(useMatch("/events/:eventId"))
+  const isAccountAuthPage =
+    /^\/account\/(?:login|register|password-reset)$/.test(normalizedPathname)
 
   return (
     <PlatformSessionProvider>
@@ -47,7 +49,11 @@ export default function PublicLayout() {
           className={cn(
             "relative flex-1 bg-background/75 sm:bg-background/60",
             isModernStory ? "z-20" : "z-10",
-            isExchangeMap && "min-h-0 bg-[#e8f2f4] sm:bg-[#e8f2f4]"
+            isAccountAuthPage && "flex flex-col",
+            isExchangeMap && "min-h-0 bg-[#e8f2f4] sm:bg-[#e8f2f4]",
+            /^\/account\/me(?:\/(?:profile|namecards|favorites|offices|claims))?\/?$/.test(
+              normalizedPathname
+            ) && "lg:flex lg:flex-col"
           )}
         >
           <Outlet />

@@ -101,7 +101,7 @@ function renderPage(
               )
             }
           />
-          <Route path="/community/exchange/me" element={<h1>个人档案</h1>} />
+          <Route path="/account/me" element={<h1>个人档案</h1>} />
         </Routes>
       </I18nextProvider>
     </MemoryRouter>
@@ -453,7 +453,7 @@ describe("Platform account auth pages", () => {
     expect(screen.getByText("当前帐号：测试制作人")).toBeVisible()
     expect(
       screen.getByRole("link", { name: "进入我的交换空间" })
-    ).toHaveAttribute("href", "/community/exchange/me")
+    ).toHaveAttribute("href", "/account/me")
     expect(apiMocks.loginSend).not.toHaveBeenCalled()
   })
 })

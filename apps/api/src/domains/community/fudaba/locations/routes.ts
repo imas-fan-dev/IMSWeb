@@ -1,66 +1,54 @@
 import {
-    fudabaOfficeIdParamsSchema,
-    fudabaOwnerLocationSaveRequestSchema,
     fudabaPlaceSearchQuerySchema,
-    fudabaRevisionRequestSchema,
-} from "@imsweb/contracts/fudaba";
+    fudabaPlaceReverseQuerySchema,
+} from '@imsweb/contracts/fudaba';
 import {
-    activePlatformMutation,
     platformAuth,
-    platformCsrf,
-} from "@/middleware/hono-auth";
-import { requireFudabaWrite } from "@/domains/community/fudaba/access-policy";
+    backofficeAuth,
+    currentBackofficeOp,
+} from '@/middleware/hono-auth';
 import { requireFudabaPlaceSearch } from '@/domains/community/fudaba/locations/place-search-policy';
-import { handleGetFudabaOwnerLocation } from "@/domains/community/fudaba/locations/handlers/get-owner-location";
-import { handleSaveFudabaOwnerLocation } from "@/domains/community/fudaba/locations/handlers/save-owner-location";
-import { handleSearchFudabaPlaces } from "@/domains/community/fudaba/locations/handlers/search-places";
-import { handleWithdrawFudabaOwnerLocation } from "@/domains/community/fudaba/locations/handlers/withdraw-owner-location";
-import {
-    platformLocationRateLimit,
-    platformWriteRateLimit,
-} from "@/middleware/platform-mutation-limit";
-import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from "@/middleware/request-validation";
+import { handleSearchFudabaPlaces } from '@/domains/community/fudaba/locations/handlers/search-places';
+import { handleReverseFudabaPlace } from '@/domains/community/fudaba/locations/handlers/reverse-place';
+import { querySchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
-} from "@/routing/capability-router";
-
-const locationWrite = [
-    requireFudabaWrite,
-    platformAuth,
-    activePlatformMutation,
-    platformCsrf,
-    platformLocationRateLimit,
-    platformWriteRateLimit,
-] as const;
+} from '@/routing/capability-router';
 
 export function fudabaLocationRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
     routes.get(
-        "/places/search",
+        '/places/reverse',
+        platformAuth,
+        requireFudabaPlaceSearch,
+        querySchemaValidator(fudabaPlaceReverseQuerySchema),
+        handleReverseFudabaPlace,
+    );
+    routes.get(
+        '/places/search',
         requireFudabaPlaceSearch,
         querySchemaValidator(fudabaPlaceSearchQuerySchema),
         handleSearchFudabaPlaces,
     );
+    return routes;
+}
+
+export function fudabaAdminLocationRoutes(): ImsCapabilityRouter {
+    const routes = createCapabilityRouter();
     routes.get(
-        "/me/offices/:officeId/location",
-        platformAuth,
-        paramSchemaValidator(fudabaOfficeIdParamsSchema),
-        handleGetFudabaOwnerLocation,
+        '/places/reverse',
+        backofficeAuth,
+        currentBackofficeOp,
+        querySchemaValidator(fudabaPlaceReverseQuerySchema),
+        handleReverseFudabaPlace,
     );
-    routes.put(
-        "/me/offices/:officeId/location",
-        ...locationWrite,
-        paramSchemaValidator(fudabaOfficeIdParamsSchema),
-        jsonSchemaValidator(fudabaOwnerLocationSaveRequestSchema),
-        handleSaveFudabaOwnerLocation,
-    );
-    routes.delete(
-        "/me/offices/:officeId/location",
-        ...locationWrite,
-        paramSchemaValidator(fudabaOfficeIdParamsSchema),
-        jsonSchemaValidator(fudabaRevisionRequestSchema),
-        handleWithdrawFudabaOwnerLocation,
+    routes.get(
+        '/places/search',
+        backofficeAuth,
+        currentBackofficeOp,
+        querySchemaValidator(fudabaPlaceSearchQuerySchema),
+        handleSearchFudabaPlaces,
     );
     return routes;
 }

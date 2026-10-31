@@ -148,7 +148,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const resetSucceeded =
     mode === "login" && searchParams.get("reset") === "success"
   const hasVerificationCode = isRegister || isReset
-  const accountHome = IS_APP_TARGET ? "/account/me" : "/community/exchange/me"
+  const accountHome = "/account/me"
   const verificationCoolingDown = verificationCooldownSeconds > 0
   const title = t(
     isRegister

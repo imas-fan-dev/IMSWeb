@@ -8,7 +8,6 @@ import {
 import {
     isBcryptPasswordSafe,
     isMigratedPbkdf2Parameters,
-    isPlatformJsonContentType,
 } from "@/domains/identity/platform-auth/contracts/credentials";
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import type { PlatformEmailIdentity } from "@/ports/repositories";

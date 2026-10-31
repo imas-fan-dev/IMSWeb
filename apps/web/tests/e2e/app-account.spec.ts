@@ -316,7 +316,7 @@ test.describe("app account", () => {
     {
       tag: ["@app-iphone", "@app-android", "@app-webkit"],
     },
-    async ({ page, api, apiOrigins, baseURL }) => {
+    async ({ page, api, apiOrigins, baseURL }, testInfo) => {
       await openAccountPage({ page, api, apiOrigins, baseURL })
       await expect(page.getByText("App 制作人")).toBeVisible()
       await expect(page.getByText("上海")).toBeVisible()
@@ -324,13 +324,35 @@ test.describe("app account", () => {
       await expect(
         accountNavigation.getByRole("link", { name: "我的" })
       ).toHaveAttribute("aria-current", "page")
+      await expect(page.locator("[data-app-cold-start-mask]")).toHaveCSS(
+        "opacity",
+        "0"
+      )
+      const profileLink = page.locator('a[href="/account/me/profile"]')
+      const cardsLink = page.locator('a[href="/account/me/namecards"]')
+      for (const width of [390, 1440]) {
+        await page.setViewportSize({ width, height: 844 })
+        const profileBox = await profileLink.boundingBox()
+        const cardsBox = await cardsLink.boundingBox()
+        expect(cardsBox!.x).toBe(profileBox!.x)
+        expect(cardsBox!.y).toBeGreaterThan(profileBox!.y)
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth
+          )
+        ).toBe(true)
+      }
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.screenshot({
+        path: testInfo.outputPath("app-personal-hub.png"),
+      })
 
       for (const [name, href] of [
         ["个人资料", "/account/me/profile"],
-        ["交换名片", "/account/me/cards"],
+        ["交换名片", "/account/me/namecards"],
         ["收藏夹", "/account/me/favorites"],
         ["事务所与位置", "/account/me/offices"],
-        ["认领消息", "/account/me/claims"],
+        ["消息", "/account/me/claims"],
       ] as const) {
         const link = page.locator(`a[href="${href}"]`)
         await expect(link).toContainText(name)
@@ -355,6 +377,18 @@ test.describe("app account", () => {
       await expect(
         accountNavigation.getByRole("link", { name: "我的" })
       ).toHaveAttribute("aria-current", "page")
+      await page.reload()
+      await expect(
+        page.getByRole("heading", { name: "个人资料", exact: true })
+      ).toBeVisible()
+      await expect(page.getByRole("dialog")).toHaveCount(0)
+      await expect(page.locator("[data-app-cold-start-mask]")).toHaveCSS(
+        "opacity",
+        "0"
+      )
+      await page.screenshot({
+        path: testInfo.outputPath("app-personal-profile.png"),
+      })
       await backButton.click()
       await expect(page).toHaveURL(/\/account\/me$/)
     }
@@ -610,10 +644,10 @@ test.describe("app account", () => {
 
         const sections = [
           ["profile", "个人资料"],
-          ["cards", "交换名片"],
+          ["namecards", "交换名片"],
           ["favorites", "收藏夹"],
           ["offices", "事务所与位置"],
-          ["claims", "认领消息"],
+          ["claims", "消息"],
         ] as const
         const panelIds = sections.map(([id]) => id)
 

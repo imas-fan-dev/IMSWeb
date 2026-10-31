@@ -149,17 +149,20 @@ test.describe("exchange Web search geometry", () => {
       })
       await expect(result).toBeVisible()
       await result.scrollIntoViewIfNeeded()
-      expect(
-        await result.evaluate((element) => {
-          const rect = element.getBoundingClientRect()
-          return element.contains(
-            document.elementFromPoint(
-              rect.x + rect.width / 2,
-              rect.y + rect.height / 2
+      // Visibility can precede the drawer's expansion and result entry motion.
+      await expect
+        .poll(() =>
+          result.evaluate((element) => {
+            const rect = element.getBoundingClientRect()
+            return element.contains(
+              document.elementFromPoint(
+                rect.x + rect.width / 2,
+                rect.y + rect.height / 2
+              )
             )
-          )
-        })
-      ).toBe(true)
+          })
+        )
+        .toBe(true)
       await page.screenshot({ path: testInfo.outputPath("results.png") })
       await result.click()
       await expect(input).toBeFocused()

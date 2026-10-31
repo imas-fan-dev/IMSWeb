@@ -4,11 +4,10 @@ import type {
 } from "@/infra/db/sql/database";
 
 // Must name the newest migration whose columns production code already reads.
-// The independent email worker reads the delivery queue and resend policy, so a
-// deploy that skipped this migration has to fail at startup with an actionable
-// message instead of throwing "relation does not exist" on its first poll.
+// Whole-office review reads require review metadata on the canonical office.
+// Fail at startup if deployment has not yet applied the additive migration.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    "20260913120000_platform_email_delivery_jobs";
+    '20261026230000_fudaba_office_review';
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<

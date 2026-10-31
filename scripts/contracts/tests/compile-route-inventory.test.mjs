@@ -147,7 +147,7 @@ test.describe('route inventory compiler', () => {
     assert.equal(query?.schemaSymbol, 'fudabaMixedWallQuerySchema');
   }
 
-    const messageRoutes = current.routes.filter(route => route.path.includes('/messages') || route.path.endsWith('/mixed-wall'));
+    const messageRoutes = current.routes.filter(route => (route.path.startsWith('/api/community/exchange/') || route.path.startsWith('/api/admin/community/exchange/')) && (route.path.includes('/messages') || route.path.endsWith('/mixed-wall')));
     assert.equal(messageRoutes.length, 11);
     for (const route of messageRoutes) {
       for (const carrier of route.carriers) {
@@ -163,17 +163,17 @@ test.describe('route inventory compiler', () => {
 
     // The combined office-wall and directory APIs retain every request and response.
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 362,
-      mountedMethodPaths: 271,
+      mountedRegistrations: 377,
+      mountedMethodPaths: 286,
       noInputRoutes: 91,
-      requestCarriers: 365,
+      requestCarriers: 380,
       policies: {
-        reject: 75,
-        "accept-and-project": 183,
+        reject: 81,
+        "accept-and-project": 189,
         passthrough: 17,
-        "non-object-applicable": 90,
+        "non-object-applicable": 93,
       },
-      responses: { total: 702, json: 638, nonJson: 64 },
+      responses: { total: 753, json: 689, nonJson: 64 },
       unresolved: 0,
     });
     const wallRead = current.routes.find((route) => route.method === "GET"

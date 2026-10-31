@@ -75,10 +75,24 @@ function ReviewDetails({ item }: { item: FudabaLocationReview }) {
         <dd className="mt-1 font-medium">{item.city}</dd>
       </div>
       <div className="min-w-0">
-        <dt className="text-xs text-muted-foreground">公开区域坐标</dt>
+        <dt className="text-xs text-muted-foreground">公开位置坐标</dt>
         <dd className="mt-1 font-mono tabular-nums">
-          {item.location.latitude.toFixed(1)}°,{" "}
-          {item.location.longitude.toFixed(1)}°
+          {item.location.precision === "exact"
+            ? item.location.latitude
+            : item.location.latitude.toFixed(1)}
+          °,{" "}
+          {item.location.precision === "exact"
+            ? item.location.longitude
+            : item.location.longitude.toFixed(1)}
+          °
+        </dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-xs text-muted-foreground">精确位置公开同意时间</dt>
+        <dd className="mt-1">
+          {item.exactLocationConsentAt
+            ? formatDate(item.exactLocationConsentAt)
+            : "未同意公开精确位置"}
         </dd>
       </div>
       <div className="min-w-0">
@@ -140,7 +154,9 @@ export function LocationReviewCard({
             <ReviewStatusBadge state={item.reviewState} />
             <Badge variant="outline">
               <MapPinIcon data-icon="inline-start" aria-hidden="true" />
-              0.1° 区域精度
+              {item.location.precision === "exact"
+                ? "精确位置"
+                : "0.1° 区域精度"}
             </Badge>
             <Badge variant="outline">修订 {item.revision}</Badge>
           </div>

@@ -43,4 +43,3 @@ export const platformSessionRateLimit = limiter('platform-security-session-accou
 // no room for grinding the endpoint to enumerate provider codes.
 export const platformOAuthLinkRateLimit = limiter('platform-security-oauth-account', 30);
 export const platformUploadRateLimit = limiter('platform-upload-account', 30);
-export const platformLocationRateLimit = limiter('fudaba-location-account', 12);

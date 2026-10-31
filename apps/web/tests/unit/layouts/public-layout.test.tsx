@@ -161,36 +161,57 @@ describe("PublicLayout", () => {
     }
   )
 
-  it.each([
-    "/community/exchange/me",
-    "/community/exchange/offices/sample-office",
-    "/community/exchange/me/",
-  ])("keeps the map shell behind nested exchange pages at %s", (pathname) => {
-    render(
-      <I18nextProvider i18n={i18n}>
-        <MemoryRouter initialEntries={[pathname]}>
-          <Routes>
-            <Route element={<PublicLayout />}>
-              <Route
-                path="community/exchange/*"
-                element={<main>交换帐号内容</main>}
-              />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </I18nextProvider>
-    )
+  it.each(["/community/exchange/offices/sample-office"])(
+    "keeps the map shell behind contextual office pages at %s",
+    (pathname) => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <MemoryRouter initialEntries={[pathname]}>
+            <Routes>
+              <Route element={<PublicLayout />}>
+                <Route
+                  path="community/exchange/*"
+                  element={<main>交换帐号内容</main>}
+                />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </I18nextProvider>
+      )
 
-    const shell = screen.getByTestId(
-      "platform-session-boundary"
-    ).firstElementChild
-    expect(shell).toHaveClass("h-dvh", "min-h-0", "overflow-hidden")
-    expect(
-      screen.queryByTestId("series-icon-background")
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText("站点页脚")).not.toBeInTheDocument()
-    expect(screen.getByText("交换帐号内容")).toBeVisible()
-  })
+      const shell = screen.getByTestId(
+        "platform-session-boundary"
+      ).firstElementChild
+      expect(shell).toHaveClass("h-dvh", "min-h-0", "overflow-hidden")
+      expect(
+        screen.queryByTestId("series-icon-background")
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText("站点页脚")).not.toBeInTheDocument()
+      expect(screen.getByText("交换帐号内容")).toBeVisible()
+    }
+  )
+
+  it.each(["/account/me/profile", "/account/me", "/account/me/offices"])(
+    "gives personal pages a scrolling document at %s",
+    (pathname) => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <MemoryRouter initialEntries={[pathname]}>
+            <Routes>
+              <Route element={<PublicLayout />}>
+                <Route path="*" element={<main>个人页面</main>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </I18nextProvider>
+      )
+      expect(screen.getByText("站点页脚")).toBeVisible()
+      expect(screen.getByTestId("series-icon-background")).toBeVisible()
+      expect(
+        screen.getByTestId("platform-session-boundary").firstElementChild
+      ).not.toHaveClass("overflow-hidden")
+    }
+  )
 
   it("removes the floating admin shortcut on event detail routes", () => {
     render(

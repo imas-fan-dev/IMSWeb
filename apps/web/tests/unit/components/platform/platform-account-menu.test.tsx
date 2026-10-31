@@ -191,8 +191,10 @@ describe("PlatformAccountMenu", () => {
       screen.getByRole("button", { name: "帐号：Platform Producer" })
     )
 
-    // /account/security is web-delivered and prerendered, but its only entry
-    // sat on /account/me, which the web target does not route.
+    expect(screen.getByRole("link", { name: "个人档案" })).toHaveAttribute(
+      "href",
+      "/account/me"
+    )
     const entry = screen.getByRole("link", { name: "帐号安全" })
     expect(entry).toHaveAttribute("href", "/account/security")
     expect(entry.querySelector("svg")).toHaveClass("lucide-shield-check")

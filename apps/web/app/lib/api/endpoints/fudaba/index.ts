@@ -18,6 +18,7 @@ import type { GeoJSONSourceSpecification } from "maplibre-gl"
 import type {
   FudabaMapSourceWrite,
   FudabaMapRouting,
+  FudabaPlaceReverseQuery,
 } from "@imsweb/contracts/fudaba"
 
 import {
@@ -70,6 +71,8 @@ import {
   fudabaOfficeUpdateRequestSchema,
   fudabaPlaceSearchResponseSchema,
   fudabaPlaceSearchQuerySchema,
+  fudabaPlaceReverseQuerySchema,
+  fudabaPlaceReverseResponseSchema,
   fudabaReactionRequestSchema,
   fudabaRevisionRequestSchema,
   fudabaOwnerCardDetailSchema,
@@ -115,6 +118,8 @@ export {
   fudabaMapOfficeSchema,
   fudabaMapOfficeListSchema,
   fudabaPlaceSearchResultSchema,
+  fudabaPlaceReverseResultSchema,
+  fudabaPlaceReverseResponseSchema,
   fudabaPlaceSearchResponseSchema,
   fudabaMapConfigSchema,
   ownerCardIdSchema,
@@ -419,6 +424,8 @@ export function getFudabaMapConfig() {
   return platformApiClient.Get(
     exchangePath("/map/config"),
     parsed(fudabaMapConfigSchema, {
+      // Main map and dialog picker own independent cancellation lifecycles.
+      shareRequest: false,
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformAuth(),
@@ -514,6 +521,26 @@ export function searchFudabaPlaces(query: string) {
     ),
     parsed(fudabaPlaceSearchResponseSchema, {
       shareRequest: false,
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function reverseFudabaPlace(input: FudabaPlaceReverseQuery) {
+  const point = fudabaPlaceReverseQuerySchema.parse(input)
+  return platformApiClient.Get(
+    withQuery(
+      exchangePath("/places/reverse"),
+      new URLSearchParams({
+        longitude: String(point.longitude),
+        latitude: String(point.latitude),
+      })
+    ),
+    parsed(fudabaPlaceReverseResponseSchema, {
+      shareRequest: false,
+      cacheFor: 0,
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformAuth(),

@@ -52,11 +52,21 @@ it("uses worldwide temporary geocoding without portal credentials, cache or redi
         label: "東京",
         address: "東京都 日本",
         target: { kind: "wgs84", position: [139.69, 35.68] },
+        source: {
+          provider: "mapbox",
+          coordinateSystem: "wgs84",
+          position: [139.69, 35.68],
+          calibration: "identity",
+        },
       },
     ],
     attribution: "© Mapbox",
   })
   expect(mapboxGeocodingResponseSchema.parse(response)).toEqual(response)
+  const item = result.items[0]!
+  expect(item.target.position).not.toBe(item.source!.position)
+  item.target.position[0] = 0
+  expect(item.source!.position).toEqual([139.69, 35.68])
 })
 
 it("biases Mapbox candidates toward the submitted map centre rather than the distance-ranking device fix", async () => {

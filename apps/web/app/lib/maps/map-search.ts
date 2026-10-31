@@ -5,12 +5,23 @@ export type MapSearchTarget =
   | { kind: "wgs84"; position: MapPosition }
   | { kind: "native"; provider: string; position: MapPosition }
 
+/** Search provenance stays in page memory, separate from the display target. */
+export interface MapSearchSource {
+  readonly provider: "mapbox" | "nominatim" | "amap"
+  readonly coordinateSystem: "wgs84" | "gcj02"
+  /** Independent snapshot of the original provider coordinates. */
+  readonly position: Readonly<MapPosition>
+  readonly calibration: "identity" | "amap-forward-estimate"
+}
+
 export interface MapSearchPlace {
   id: string
   label: string
   address: string
   attribution?: string
   target: MapSearchTarget
+  /** Optional for existing callers; search adapters always provide provenance. */
+  source?: MapSearchSource
   distanceMeters?: number
   distanceLabel?: string
   /** Regional office targets should keep their deliberately coarse map scale. */

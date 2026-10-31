@@ -63,6 +63,17 @@ export const adminNamecardSchema = exactJsonResponse({
   image2_url: z.string().min(1),
   status: z.string(),
   revision: z.number().int().nonnegative(),
+  displayName: z.string().min(1).nullable(),
+  producerName: z.string().min(1).nullable(),
+  origin: z.string().min(1),
+  /** 锁定理由；只有 `locked` 状态的名片会带值。 */
+  lockReason: z.string().min(1).nullable(),
+  /**
+   * 待审版本的复核结果。为 `pending` 时列表里的内容来自待审版本，
+   * 已发布版本仍在对外展示。
+   */
+  reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
+  reviewReason: z.string().min(1).nullable(),
 })
 
 export const adminNamecardListSchema = successEnvelope({
@@ -132,9 +143,33 @@ export const namecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
   size: z.unknown().optional(),
 })
-export const adminNamecardListQuerySchema = legacyStripRequestObject({ page: z.unknown().optional() })
+export const adminNamecardListQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+  query: z.unknown().optional(),
+  status: z.unknown().optional(),
+  origin: z.unknown().optional(),
+})
 export const expectedNamecardRevisionRequestSchema = legacyStripRequestObject({
   expected_revision: z.unknown(),
+})
+/** 驳回请求额外带驳回理由（通过请求仍用上面那个 schema，忽略 reason）。 */
+export const rejectedNamecardRequestSchema = legacyStripRequestObject({
+  expected_revision: z.unknown(),
+  reason: z.unknown().optional(),
+})
+/** 锁定请求必须带锁定理由，解锁请求沿用 {@link expectedNamecardRevisionRequestSchema}。 */
+export const lockedNamecardRequestSchema = legacyStripRequestObject({
+  expected_revision: z.unknown(),
+  reason: z.unknown(),
+})
+
+/**
+ * Marks the pending submission as a violation. Same shape as locking, but the
+ * verdict lands on the submission: the published version stays online.
+ */
+export const flaggedNamecardRequestSchema = legacyStripRequestObject({
+  expected_revision: z.unknown(),
+  reason: z.unknown(),
 })
 export const expectedNamecardRevisionQuerySchema = legacyStripRequestObject({
   expected_revision: z.unknown().optional(),

@@ -1,3 +1,4 @@
+import { insertBackofficeAccount } from '../fixtures/rows';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { onTestFinished, test } from 'vitest';
@@ -34,6 +35,7 @@ const {
 async function seed(
     database: Awaited<ReturnType<typeof createPostgresTestDatabase>>,
     count: number,
+    legacySchema = false,
 ) {
     await seedCanonicalFudabaAgencies(database);
     await database
@@ -51,14 +53,20 @@ async function seed(
         )
         .bind(time, time)
         .run();
+    if (!legacySchema) {
+    const wallReviewer = await insertBackofficeAccount(database, 'wall-office-reviewer');
+    await database.prepare("UPDATE fudaba_offices SET review_state='published', review_submitted_at=created_at, reviewed_at=updated_at, reviewed_by=?, review_note='', review_operation_id=NULL, review_audit_id=?")
+      .bind(wallReviewer, '00000000-0000-4000-8000-000000000001').run();
+    }
+
     await database
         .prepare(
             `INSERT INTO fudaba_cards
         (id,owner_account_id,producer_name,display_name,series_code,
-        front_object_key,back_object_key,media_rights_status,publication_status,created_at,updated_at)
+        front_object_key,back_object_key,${legacySchema ? 'media_rights_status,' : ''}publication_status,created_at,updated_at)
         SELECT 'wall-card-' || lpad(n::text,4,'0'), 'wall-owner','Producer','Card ' || n,'765',
         'community/fudaba/' || n || '/front.webp','community/fudaba/' || n || '/back.webp',
-        'approved','published',?::timestamptz,?::timestamptz FROM generate_series(1,?) n`,
+        ${legacySchema ? "'approved'," : ''}'published',?::timestamptz,?::timestamptz FROM generate_series(1,?) n`,
         )
         .bind(time, time, count)
         .run();
@@ -274,7 +282,7 @@ test('legacy migration preserves identities, exchange references and layout when
     const harness = await createPostgresTestHarness({ migrationsPath });
     onTestFinished(() => harness.close());
     const database = harness.connection;
-    await seed(database, 2);
+    await seed(database, 2, true);
     await database
         .prepare(
             `INSERT INTO fudaba_office_cards

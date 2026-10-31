@@ -8,10 +8,8 @@ import {
 } from "../common.js"
 import { namecardCharacterCategorySchema } from "./admin-characters.js"
 import {
-  NAMECARD_UNIT_DEFAULT_PAGE_SIZE,
   NAMECARD_UNIT_MAX_AGENCIES,
   NAMECARD_UNIT_MAX_MEMBERS,
-  NAMECARD_UNIT_MAX_PAGE_SIZE,
   NAMECARD_UNIT_MAX_QUERY_LENGTH,
 } from "./namecard-runtime.js"
 

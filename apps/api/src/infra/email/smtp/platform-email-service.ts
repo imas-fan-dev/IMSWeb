@@ -14,6 +14,9 @@ import type {
     PlatformEmailConfigurationRecord,
     PlatformEmailConfigurationStore,
     PlatformEmailConfigurationWriteInput,
+    PlatformEmailMessage,
+    PlatformEmailMessageResult,
+    PlatformEmailMessageSender,
     PlatformEmailSecretBox,
     PlatformEmailVerificationMessage,
 } from '@/ports/email';
@@ -273,6 +276,14 @@ function acceptedRecipient(value: unknown): string | null {
     return null;
 }
 
+function messageHtml(text: string): string {
+    const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    return `<p>${escaped.replace(/\n/g, '<br />')}</p>`;
+}
+
 function verificationContent(
     message: PlatformEmailVerificationMessage,
     purpose: string,
@@ -293,7 +304,10 @@ function verificationContent(
 }
 
 export class ConfiguredPlatformEmailService
-    implements PlatformEmailConfiguration, PlatformEmailWorkerSender
+    implements
+        PlatformEmailConfiguration,
+        PlatformEmailWorkerSender,
+        PlatformEmailMessageSender
 {
     private readonly resendPolicyCache?: PlatformEmailResendPolicyCache;
     private readonly reportResendPolicyCacheError: PlatformEmailResendPolicyWriteErrorReporter;
@@ -395,6 +409,75 @@ export class ConfiguredPlatformEmailService
             });
         });
         return { status: 'sent', recipient };
+    }
+
+    /**
+     * 用同一条 SMTP 连接批量发送站内信的邮件副本。
+     *
+     * 调用方（站内信派发器）自己记录每个收件人的进度，因此这里只返回逐封结果；
+     * 鉴权/配置类错误会中止整批，避免拿错误的凭据连着撞 N 次。
+     */
+    async sendMessages(
+        messages: readonly PlatformEmailMessage[],
+    ): Promise<PlatformEmailMessageResult[]> {
+        if (messages.length === 0) return [];
+        let config: RuntimeSmtpConfiguration;
+        try {
+            const record = await this.store.getPlatformEmailConfiguration();
+            if (!record.enabled) {
+                return messages.map(() => ({
+                    status: 'failed' as const,
+                    retryable: false,
+                    message: 'SMTP 邮件服务未启用',
+                }));
+            }
+            config = this.runtimeConfiguration(record);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return messages.map(() => ({ status: 'failed' as const, retryable: false, message }));
+        }
+
+        const results: PlatformEmailMessageResult[] = [];
+        let aborted: PlatformEmailMessageResult | null = null;
+        try {
+            await this.withTransport(config, async (transport) => {
+                for (const message of messages) {
+                    if (aborted) {
+                        results.push(aborted);
+                        continue;
+                    }
+                    try {
+                        await transport.sendMail({
+                            from: { address: config.fromAddress, name: config.fromName },
+                            to: message.recipient,
+                            subject: message.subject,
+                            text: message.text,
+                            html: messageHtml(message.text),
+                        });
+                        results.push({ status: 'sent', retryable: false, message: null });
+                    } catch (error) {
+                        const failure = classifiedFailure(error);
+                        const retryable = failure.transient || failure.acceptanceAmbiguous;
+                        const result: PlatformEmailMessageResult = {
+                            status: 'failed',
+                            retryable,
+                            message: error instanceof Error ? error.message : String(error),
+                        };
+                        results.push(result);
+                        if (!retryable) aborted = result;
+                    }
+                }
+            });
+        } catch (error) {
+            // 连接/解析阶段就失败：整批按可重试处理，由派发器按次数上限收敛。
+            const result: PlatformEmailMessageResult = {
+                status: 'failed',
+                retryable: true,
+                message: error instanceof Error ? error.message : String(error),
+            };
+            while (results.length < messages.length) results.push(result);
+        }
+        return results;
     }
 
     async deliverVerification(input: {

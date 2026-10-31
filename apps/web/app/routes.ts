@@ -28,7 +28,7 @@ function entriesFor(layout: RouteLayout) {
   if (target !== "web" || layout !== "public") return entries
   const mapPath = "community/exchange"
   const children = entries.filter((entry) =>
-    entry.path?.startsWith(`${mapPath}/`)
+    entry.path?.startsWith(`${mapPath}/offices/`)
   )
   return entries
     .filter((entry) => !children.includes(entry))

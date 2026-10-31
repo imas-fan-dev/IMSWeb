@@ -117,6 +117,7 @@ export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
 const NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN =
     /^community\/namecards\/assets\/([^/]+)\/image\.([a-z0-9]+)$/;
 
+
 // Reverses namecardImageObjectKey so unified fudaba_cards rows (which only
 // store the object key) can hand the legacy /uploads/namecard/original/...
 // shape back to response and media-resolution code that still expects it.

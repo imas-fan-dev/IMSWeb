@@ -3,6 +3,7 @@ import {
     fudabaClaimEnvelopeParamsSchema,
     fudabaLegacyCardClaimParamsSchema,
     fudabaLegacyCardClaimRequestSchema,
+    namecardNotificationReadRequestSchema,
 } from '@imsweb/contracts/fudaba/card-claims';
 import { fudabaIgnoredQuerySchema } from '@imsweb/contracts/fudaba';
 import { activePlatformMutation, platformAuth, platformCsrf } from '@/middleware/hono-auth';
@@ -13,6 +14,10 @@ import {
     handleListFudabaOwnerCardClaims,
     handleRespondFudabaClaimEnvelope
 } from '@/domains/community/fudaba/claims/handlers/card-claims';
+import {
+    handleListNamecardNotifications,
+    handleMarkNamecardNotificationsRead
+} from '@/domains/community/fudaba/claims/handlers/namecard-notifications';
 import { platformWriteRateLimit } from '@/middleware/platform-mutation-limit';
 import {
     jsonSchemaValidator,
@@ -45,6 +50,18 @@ export function fudabaClaimRoutes(): ImsCapabilityRouter {
         platformAuth,
         querySchemaValidator(fudabaIgnoredQuerySchema),
         handleListFudabaOwnerCardClaims
+    );
+    routes.get(
+        '/me/notifications',
+        platformAuth,
+        querySchemaValidator(fudabaIgnoredQuerySchema),
+        handleListNamecardNotifications
+    );
+    routes.post(
+        '/me/notifications/read',
+        ...write,
+        jsonSchemaValidator(namecardNotificationReadRequestSchema),
+        handleMarkNamecardNotificationsRead
     );
     routes.post(
         '/legacy-cards/:legacyCardId/claims',

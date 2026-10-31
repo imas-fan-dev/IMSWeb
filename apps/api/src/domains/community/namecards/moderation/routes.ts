@@ -1,18 +1,23 @@
 import { handleApproveNamecard } from "@/domains/community/namecards/moderation/handlers/approve-namecard";
-import { handleDeleteNamecard } from "@/domains/community/namecards/moderation/handlers/delete-namecard";
+import { handleFlagNamecard } from "@/domains/community/namecards/moderation/handlers/flag-namecard";
 import { handleListAdminNamecards } from "@/domains/community/namecards/moderation/handlers/list-admin-namecards";
+import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
+import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/handlers/unlock-namecard";
 import {
     validateAdminNamecardListQuery,
     validateCompatibleNamecardIdParams,
-    validateExpectedRevisionQuery,
     validateExpectedRevisionRequest,
+    validateRejectedNamecardRequest,
+    validateLockedNamecardRequest,
 } from "@/domains/community/namecards/request";
 import {
     adminNamecardListQuerySchema,
     compatibleNamecardIdParamsSchema,
-    expectedNamecardRevisionQuerySchema,
     expectedNamecardRevisionRequestSchema,
+    flaggedNamecardRequestSchema,
+    lockedNamecardRequestSchema,
+    rejectedNamecardRequestSchema,
 } from "@imsweb/contracts/namecards";
 import {
     backofficeAuth,
@@ -58,17 +63,39 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         backofficeCsrf,
         namecardIdValidator,
-        jsonSchemaValidator(expectedNamecardRevisionRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionRequest),
+        jsonSchemaValidator(rejectedNamecardRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateRejectedNamecardRequest),
         handleRejectNamecard,
     );
-    routes.delete(
-        "/:id",
+    // Flagging is a verdict on the submitted revision only; a published card
+    // keeps its live copy, a first submission is locked like a rejection.
+    routes.post(
+        "/flag/:id",
         backofficeAuth,
         opOnly,
         backofficeCsrf,
         namecardIdValidator,
-        querySchemaValidator(expectedNamecardRevisionQuerySchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionQuery),
-        handleDeleteNamecard,
+        jsonSchemaValidator(flaggedNamecardRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer and reason is required" }, validateLockedNamecardRequest),
+        handleFlagNamecard,
+    );
+    // Moderation locks a card instead of deleting it: the row and its media stay
+    // so a reviewer can revisit the decision, and nothing is lost for the owner.
+    routes.post(
+        "/lock/:id",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        namecardIdValidator,
+        jsonSchemaValidator(lockedNamecardRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer and reason is required" }, validateLockedNamecardRequest),
+        handleLockNamecard,
+    );
+    routes.post(
+        "/unlock/:id",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        namecardIdValidator,
+        jsonSchemaValidator(expectedNamecardRevisionRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionRequest),
+        handleUnlockNamecard,
     );
     return routes;
 }

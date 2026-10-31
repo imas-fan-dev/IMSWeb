@@ -32,6 +32,12 @@ interface NamecardRow {
     revision?: unknown;
     series_code?: unknown;
     favorite_characters?: unknown;
+    display_name?: unknown;
+    producer_name?: unknown;
+    origin?: unknown;
+    lockReason?: unknown;
+    reviewStatus?: unknown;
+    reviewReason?: unknown;
     claim_status?: unknown;
     viewer_claim_state?: unknown;
     claimer_name?: unknown;
@@ -41,6 +47,10 @@ function responseId(value: unknown): NamecardResponseId {
     const id = typeof value === 'string' ? Number(value) : value;
     if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) return id;
     throw new Error('Namecard response has an invalid id');
+}
+
+function responseOptionalString(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
 
 function responseString(value: unknown, field: string): string {
@@ -112,8 +122,22 @@ export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse
         image1_url: responseString(row.image1_url, 'image1_url'),
         image2_url: responseString(row.image2_url, 'image2_url'),
         status: responseString(row.status, 'status'),
-        revision: responseRevision(row.revision)
+        revision: responseRevision(row.revision),
+        displayName: responseOptionalString(row.display_name),
+        producerName: responseOptionalString(row.producer_name),
+        origin: responseOptionalString(row.origin) ?? 'legacy',
+        lockReason: responseOptionalString(row.lockReason),
+        reviewStatus: responseReviewStatus(row.reviewStatus),
+        reviewReason: responseOptionalString(row.reviewReason)
     };
+}
+
+function responseReviewStatus(
+    value: unknown
+): 'pending' | 'rejected' | 'locked' | null {
+    return value === 'pending' || value === 'rejected' || value === 'locked'
+        ? value
+        : null;
 }
 
 function responseRevision(value: unknown): number {

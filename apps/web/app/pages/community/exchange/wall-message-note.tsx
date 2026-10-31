@@ -5,7 +5,7 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react"
 import type { FudabaCardPlacement, FudabaPublicMessage } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import type { WallPlacement } from "./exchange-card-wall"
+import type { WallPlacement } from "./components/exchange-card-wall"
 
 export const noteColors = [
   {

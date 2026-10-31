@@ -23,9 +23,12 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getFudabaCardPage: apiMocks.getFudabaCardPage,
   }
 })
-vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
-  CommunityExchangeMapSection: () => <div>模拟地图</div>,
-}))
+vi.mock(
+  "~/pages/community/exchange/components/community-exchange-map-section",
+  () => ({
+    CommunityExchangeMapSection: () => <div>模拟地图</div>,
+  })
+)
 vi.mock(
   "~/pages/community/exchange/components/exchange-discovery-rail",
   () => ({ ExchangeDiscoveryRail: () => null })

@@ -1,9 +1,18 @@
 import { Navigate, useParams } from "react-router"
 
-import { CommunityExchangeMeWorkspace } from "~/pages/community/exchange/me/community-exchange-me-workspace"
-import { isProfileWorkspaceSection } from "~/pages/community/exchange/me/profile-workspace-navigation"
+import { AccountMePage } from "./account-me-page"
 
-export { meta } from "~/pages/community/exchange/me/community-exchange-me-page"
+import {
+  isProfileWorkspaceSection,
+  profileWorkspaceSections,
+} from "~/pages/account/me/profile-workspace-navigation"
+
+export function meta({ params }: { params: { section?: string } }) {
+  const section = profileWorkspaceSections.find(
+    (item) => item.id === params.section
+  )
+  return [{ title: `${section?.label ?? "我的"} | IMSWeb` }]
+}
 
 export default function AccountMeSectionPage() {
   const { section } = useParams()
@@ -13,10 +22,5 @@ export default function AccountMeSectionPage() {
     return <Navigate to="/account/me" replace />
   }
 
-  return (
-    <CommunityExchangeMeWorkspace
-      section={requestedSection}
-      sectionBasePath="/account/me"
-    />
-  )
+  return <AccountMePage section={requestedSection} standaloneSection />
 }

@@ -39,7 +39,9 @@ export type NamecardSubmissionStatus =
     | "approving"
     | "approved"
     | "rejected"
-    | "withdrawn";
+    | "withdrawn"
+    | "hidden"
+    | "locked";
 
 export interface NamecardSubmissionRecord extends CardMediaRecord {
     id: number;
@@ -52,6 +54,11 @@ export interface NamecardSubmissionRecord extends CardMediaRecord {
     submissionKind?: NamecardSubmissionKind;
     favoriteCharacters?: CardFavoriteSelectionRecord[];
     created_at: string | Date | null;
+    /** Set while the card is `locked`; cleared by the unlock transition. */
+    lockReason?: string | null;
+    /** Verdict on the submitted revision, independent of `status`. */
+    reviewStatus?: 'pending' | 'rejected' | 'locked' | null;
+    reviewReason?: string | null;
 }
 
 export interface NamecardPublicRecord extends NamecardSubmissionRecord {
@@ -81,6 +88,12 @@ export type NamecardMutationResult =
     | { status: "withdrawn"; revision: number }
     | { status: "not-found" };
 
+export interface NamecardAdminFilter {
+    query: string | null;
+    status: string | null;
+    origins: string[];
+}
+
 export interface NamecardRepository {
     findCardByOrderedHashes(
         hash1: string,
@@ -88,7 +101,7 @@ export interface NamecardRepository {
     ): Promise<{ id: number } | null>;
     insertPendingCard(input: PendingCardInput): Promise<number>;
     countApprovedCards(): Promise<number>;
-    countAdminCards(): Promise<number>;
+    countAdminCards(filter?: NamecardAdminFilter): Promise<number>;
     listApprovedCards(
         limit: number,
         offset: number,
@@ -97,6 +110,7 @@ export interface NamecardRepository {
     listAdminCards(
         limit: number,
         offset: number,
+        filter?: NamecardAdminFilter,
     ): Promise<NamecardSubmissionRecord[]>;
     beginCardApproval(
         id: number,
@@ -106,15 +120,58 @@ export interface NamecardRepository {
         id: number,
         approvingRevision: number,
     ): Promise<NamecardMutationResult>;
+    /** Returns a card to `pending` when approval aborts before completion. */
+    /** Rewrites an approved upload's media into the canonical namecard layout. */
+    attachCanonicalMedia(
+        cardId: string,
+        frontObjectKey: string,
+        backObjectKey: string
+    ): Promise<void>;
     findCardMedia(id: number): Promise<CardMediaRecord | null>;
-    deleteCard(
+    /**
+     * Backoffice moderation state: the card leaves every public surface but
+     * keeps its row and media so the decision can be revisited.
+     */
+    lockCard(
+        id: number,
+        expectedRevision: number,
+        reason: string,
+    ): Promise<NamecardMutationResult>;
+    /** Returns a locked card to `pending` and notifies its owner. */
+    unlockCard(
         id: number,
         expectedRevision: number,
     ): Promise<NamecardMutationResult>;
     rejectSubmission(
         id: number,
         expectedRevision: number,
+        reason?: string | null,
     ): Promise<NamecardMutationResult>;
+    /** Marks a submission as breaking the rules without touching a live card. */
+    flagSubmission(
+        id: number,
+        expectedRevision: number,
+        reason: string,
+    ): Promise<NamecardMutationResult>;
+    listNamecardNotifications(
+        recipientAccountId: string,
+        limit: number,
+    ): Promise<{
+        items: Array<{
+            id: string;
+            kind: string;
+            card_number: number | string | null;
+            title: string;
+            body: string;
+            read_at: Date | string | null;
+            created_at: Date | string;
+        }>;
+        unread: number;
+    }>;
+    markNamecardNotificationsRead(
+        recipientAccountId: string,
+        ids: readonly string[] | null,
+    ): Promise<number>;
     purgeTerminalCards(
         cutoff: Date,
     ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;

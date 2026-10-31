@@ -18,6 +18,7 @@ import type {
 import type { SitePackageRepository } from "@/ports/repositories/site-packages";
 import type { NamecardCharacterRepository } from "@/ports/repositories/namecard-characters";
 import type { NamecardUnitRepository } from "@/ports/repositories/namecard-units";
+import type { StationMessageRepository } from "@/ports/repositories/station-messages";
 import type { StoryRepository } from "@/ports/repositories/wiki";
 
 export interface RepositoryServices {
@@ -35,6 +36,7 @@ export interface RepositoryServices {
     sitePackages: SitePackageRepository;
     namecardCharacters: NamecardCharacterRepository;
     namecardUnits: NamecardUnitRepository;
+    stationMessages: StationMessageRepository;
     story: StoryRepository;
 }
 
@@ -46,4 +48,5 @@ export * from "@/ports/repositories/content";
 export * from "@/ports/repositories/site-packages";
 export * from "@/ports/repositories/namecard-characters";
 export * from "@/ports/repositories/namecard-units";
+export * from "@/ports/repositories/station-messages";
 export * from "@/ports/repositories/wiki";

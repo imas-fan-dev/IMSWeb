@@ -211,10 +211,8 @@ function validateMetadata(metadata) {
     spaFallbackPatterns.map(({ id }) => id),
     "SPA fallback pattern ids",
   );
-  assertUnique(
-    spaFallbackPatterns.map(({ path }) => path),
-    "SPA fallback pattern paths",
-  );
+  // Exact pages and parameterized children may share a base path. IDs and
+  // the descriptor comparison below validate their distinct match rules.
 
   for (const route of appPrerenders) {
     if (!webPrerenders.includes(route)) {

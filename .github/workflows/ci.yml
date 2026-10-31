@@ -1,13 +1,18 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
+      - release/v1.1
   push:
     branches:
       - main
       - release/v1.1
+      # Feature branches are verified on their own commit so a long-running
+      # branch never has to occupy `release/v1.1` to learn whether it is green.
+      - "feat/**"
 
 permissions:
   contents: read
@@ -371,6 +376,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Set up PostgreSQL 18 client
+        run: bash scripts/ci/setup-postgres-client.sh
 
       - name: Test API owner
         run: pnpm --filter @imsweb/api run test

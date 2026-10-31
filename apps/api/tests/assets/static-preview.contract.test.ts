@@ -40,8 +40,10 @@ test(`compiled ${target === 'web' ? 'Web' : 'App'} preview preserves document, a
         for (const [route, document] of [
             ['/', 'index.html'], ['/about/', 'about/index.html'],
             ['/events/36?from=preview', '__spa-fallback.html'],
+            ['/account/me', '__spa-fallback.html'],
+            ['/account/me/profile', '__spa-fallback.html'],
             ...(target === 'app'
-                ? [['/account/me/cards', '__spa-fallback.html'], ['/apps', '__spa-fallback.html']]
+                ? [['/account/me/namecards', '__spa-fallback.html'], ['/apps', '__spa-fallback.html']]
                 : [['/admin/chronicle/pending', '__spa-fallback.html']]),
         ]) {
             const response = await fetch(`${origin}${route}`);
@@ -63,7 +65,7 @@ test(`compiled ${target === 'web' ? 'Web' : 'App'} preview preserves document, a
             '/assets/missing.js', '/missing', '/api/news', '/packages/example', '/community/cards/submissions/example',
             ...(target === 'app'
                 ? ['/admin', '/admin/login', '/admin/chronicle/pending', '/wiki/classic', '/wiki/classic/', '/story/classic', '/story/classic/']
-                : ['/account/me', '/apps']),
+                : ['/apps']),
         ]) {
             const response = await fetch(`${origin}${route}`);
             assert.equal(response.status, 404, route);

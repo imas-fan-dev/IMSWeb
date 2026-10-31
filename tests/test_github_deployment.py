@@ -175,6 +175,34 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("pull_request:", workflow)
         self.assertNotIn("contents: write", workflow)
 
+    def test_snapshot_test_jobs_select_postgresql_18_clients_before_testing(self):
+        setup_command = "run: bash scripts/ci/setup-postgres-client.sh"
+        for workflow_path, job_name, test_step in (
+            (CI_WORKFLOW, "api", "name: Test API owner"),
+            (DEPLOY_WORKFLOW, "publish", "name: Run static and architecture checks"),
+        ):
+            workflow = workflow_path.read_text(encoding="utf-8")
+            job = workflow.split(f"\n  {job_name}:\n", 1)[1]
+            job = re.split(r"\n  [a-z][a-z0-9-]*:\n", job, maxsplit=1)[0]
+            self.assertIn("image: postgres:18.4-alpine", job)
+            self.assertIn(setup_command, job)
+            self.assertLess(job.index(setup_command), job.index(test_step))
+
+        setup = (PROJECT_ROOT / "scripts/ci/setup-postgres-client.sh").read_text(
+            encoding="utf-8"
+        )
+        for token in (
+            "postgresql-client-18",
+            "apt.postgresql.org.sh -y",
+            "/usr/lib/postgresql/18/bin",
+            '>> "$GITHUB_PATH"',
+            'export PATH="$postgres_bin:$PATH"',
+            'command -v "$tool"',
+            '"$tool" --version',
+            "18\\.",
+        ):
+            self.assertIn(token, setup)
+
     def test_ci_workflow_splits_affected_validation_lanes(self):
         ci = CI_WORKFLOW.read_text(encoding="utf-8")
         jobs_text = ci.split("\njobs:\n", maxsplit=1)[1]

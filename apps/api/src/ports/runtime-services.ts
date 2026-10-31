@@ -12,6 +12,7 @@ import type { MediaServices } from "@/ports/media";
 import type { ObjectStorageServices } from "@/ports/object-storage";
 import type { OAuthServices } from "@/ports/oauth";
 import type { RepositoryServices } from "@/ports/repositories";
+import type { StationMessageDispatchRunner } from "@/ports/station-message-dispatch";
 import type { SecurityServices } from "@/ports/security";
 
 export interface FudabaGeocodingRuntimeConfig {
@@ -54,6 +55,7 @@ export interface RuntimeServices
     platformEmailJobPayloadCipher?: PlatformEmailJobPayloadCipher;
     platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
     platformEmailResendPolicy?: PlatformEmailResendPolicyReader;
+    stationMessageRunner?: StationMessageDispatchRunner;
     config?: Partial<NodeRuntimeConfig>;
 }
 
@@ -72,6 +74,7 @@ export interface NodeRuntimeServices
     platformEmailJobPayloadCipher: PlatformEmailJobPayloadCipher;
     platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
     platformEmailResendPolicy: PlatformEmailResendPolicyReader;
+    stationMessageRunner: StationMessageDispatchRunner;
     config: NodeRuntimeConfig;
 }
 

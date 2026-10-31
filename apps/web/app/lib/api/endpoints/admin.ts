@@ -11,6 +11,7 @@ import {
   adminNamecardListSchema,
   adminNamecardMutationSchema,
   namecardErrorResponseSchema,
+  namecardMutationResponseSchema,
 } from "@imsweb/contracts/namecards"
 import {
   idolMediaCatalogSchema,
@@ -401,14 +402,27 @@ export function deleteUsedChronicleMedia(activityId: string, filename: string) {
   )
 }
 
-export function getAdminNamecards(page = 1) {
+export interface AdminNamecardListFilters {
+  query?: string
+  status?: string
+  origins?: string[]
+}
+
+export function getAdminNamecards(
+  page = 1,
+  filters?: AdminNamecardListFilters
+) {
+  const params: Record<string, string> = { page: String(page) }
+  if (filters?.query) params.query = filters.query
+  if (filters?.status) params.status = filters.status
+  if (filters?.origins?.length) params.origin = filters.origins.join(",")
   return adminApiClient.Get(
     adminApiPath("/cards"),
     parsed(adminNamecardListSchema, {
       businessErrorSchema: adminNamecardListBusinessErrorSchema,
       errorSchema: adminNamecardHttpErrorSchema,
       meta: withBackofficeAuth(),
-      params: { page },
+      params,
     })
   )
 }
@@ -426,10 +440,14 @@ export function approveAdminNamecard(id: number, expectedRevision: number) {
   )
 }
 
-export function rejectAdminNamecard(id: number, expectedRevision: number) {
+export function rejectAdminNamecard(
+  id: number,
+  expectedRevision: number,
+  reason?: string
+) {
   return adminApiClient.Post(
     adminApiPath(`/cards/reject/${id}`),
-    { expected_revision: expectedRevision },
+    { expected_revision: expectedRevision, ...(reason ? { reason } : {}) },
     parsed(successFlagSchema, {
       businessErrorSchema: namecardErrorResponseSchema,
       errorSchema: adminNamecardHttpErrorSchema,
@@ -439,11 +457,48 @@ export function rejectAdminNamecard(id: number, expectedRevision: number) {
   )
 }
 
-export function deleteAdminNamecard(id: number, expectedRevision: number) {
-  return adminApiClient.Delete(
-    adminApiPath(`/cards/${id}?expected_revision=${expectedRevision}`),
-    undefined,
-    parsed(successFlagSchema, {
+/** Locks a card instead of deleting it; the reviewer's reason is required. */
+export function lockAdminNamecard(
+  id: number,
+  expectedRevision: number,
+  reason: string
+) {
+  return adminApiClient.Post(
+    adminApiPath(`/cards/lock/${id}`),
+    { expected_revision: expectedRevision, reason },
+    parsed(namecardMutationResponseSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
+
+/** Records a submission as breaking the rules; a live copy stays online. */
+export function flagAdminNamecard(
+  id: number,
+  expectedRevision: number,
+  reason: string
+) {
+  return adminApiClient.Post(
+    adminApiPath(`/cards/flag/${id}`),
+    { expected_revision: expectedRevision, reason },
+    parsed(namecardMutationResponseSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
+
+/** Returns a locked card to the review queue and notifies its owner. */
+export function unlockAdminNamecard(id: number, expectedRevision: number) {
+  return adminApiClient.Post(
+    adminApiPath(`/cards/unlock/${id}`),
+    { expected_revision: expectedRevision },
+    parsed(namecardMutationResponseSchema, {
       businessErrorSchema: namecardErrorResponseSchema,
       errorSchema: adminNamecardHttpErrorSchema,
       meta: withBackofficeCsrf(),

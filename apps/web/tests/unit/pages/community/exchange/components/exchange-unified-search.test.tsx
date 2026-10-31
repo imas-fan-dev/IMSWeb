@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { act, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, it, vi } from "vitest"
 import { renderPage } from "@/tests/unit/support/harness"
@@ -32,7 +32,13 @@ const tools = {
   onOpenCards: noop,
   onRefresh: noop,
 }
-function Harness({ mobile }: { mobile: boolean }) {
+function Harness({
+  mobile,
+  automatic = false,
+}: {
+  mobile: boolean
+  automatic?: boolean
+}) {
   const search = useMapWorkspaceSearch(placeSearcher)
   return mobile ? (
     <ExchangeSearchCard
@@ -52,7 +58,7 @@ function Harness({ mobile }: { mobile: boolean }) {
       model={search.model}
       searchOwner={search.owner}
       available={search.available}
-      automatic={false}
+      automatic={automatic}
       selectionKey={null}
       selectedPlace={null}
       selectedAttribution=""
@@ -69,7 +75,7 @@ beforeEach(() => {
       items: [
         makeFudabaOffice({
           name: "上海事务所",
-          location: { latitude: 31.2, longitude: 121.5, precision: "regional" },
+          location: { latitude: 31.2, longitude: 121.5, precision: "exact" },
         }),
       ],
       pageInfo: { hasNextPage: false, nextCursor: null },
@@ -115,3 +121,54 @@ it.each([false, true])(
     )
   }
 )
+
+it("keeps an automatic pending query on Enter and cancels it when edited", async () => {
+  const user = userEvent.setup()
+  const requests: {
+    resolve: (value: unknown) => void
+    abort: ReturnType<typeof vi.fn>
+  }[] = []
+  api.page.mockImplementation(() => {
+    let resolve!: (value: unknown) => void
+    const response = new Promise((done) => {
+      resolve = done
+    })
+    const abort = vi.fn().mockResolvedValue(undefined)
+    requests.push({ resolve, abort })
+    return { send: () => response, abort }
+  })
+  renderPage(<Harness mobile={false} automatic />)
+  const input = screen.getByRole("textbox", { name: "搜索事务所" })
+  await user.type(input, "上海")
+  await vi.waitFor(() => expect(requests).toHaveLength(1))
+  await user.keyboard("{Enter}")
+  expect(requests[0].abort).not.toHaveBeenCalled()
+  expect(api.page).toHaveBeenCalledTimes(1)
+  await user.clear(input)
+  await user.type(input, "北京")
+  expect(requests[0].abort).toHaveBeenCalledTimes(1)
+  await user.keyboard("{Enter}")
+  expect(requests).toHaveLength(2)
+  const page = (name: string) => ({
+    items: [
+      makeFudabaOffice({
+        name,
+        location: { latitude: 31.2, longitude: 121.5, precision: "exact" },
+      }),
+    ],
+    pageInfo: { hasNextPage: false, nextCursor: null },
+  })
+  await act(async () => {
+    requests[1].resolve(page("北京事务所"))
+  })
+  expect(
+    await screen.findByRole("button", { name: /北京事务所/ })
+  ).toBeVisible()
+  await act(async () => {
+    requests[0].resolve(page("上海事务所"))
+  })
+  expect(
+    screen.queryByRole("button", { name: /上海事务所/ })
+  ).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: /北京事务所/ })).toBeVisible()
+})

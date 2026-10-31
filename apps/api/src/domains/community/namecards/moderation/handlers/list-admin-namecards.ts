@@ -11,14 +11,15 @@ import type { ValidatedRequestContext } from '@/middleware/request-validation';
 export async function handleListAdminNamecards(
     c: ValidatedRequestContext<AppEnvironment, 'query', AdminNamecardListQuery>
 ): Promise<Response> {
-    const { page } = c.req.valid('query');
+    const { page, query, status, origins } = c.req.valid('query');
+    const filter = { query, status, origins };
     try {
         const repository = namecardRepository(c);
         await purgeExpiredNamecardSubmissions(c);
-        const pageSize = 10;
+        const pageSize = 12;
         const [rows, total] = await Promise.all([
-            repository.listAdminCards(pageSize, (page - 1) * pageSize),
-            repository.countAdminCards()
+            repository.listAdminCards(pageSize, (page - 1) * pageSize, filter),
+            repository.countAdminCards(filter)
         ]);
         const totalPages = Math.ceil(total / pageSize);
         return c.json({
@@ -32,7 +33,8 @@ export async function handleListAdminNamecards(
                 hasNextPage: page < totalPages
             }
         } satisfies AdminNamecardListResponse);
-    } catch {
+    } catch (error) {
+        console.error('[admin-namecards]', error);
         return c.json({ success: false } satisfies AdminNamecardListResponse);
     }
 }

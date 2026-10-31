@@ -1,11 +1,11 @@
 import { fileURLToPath } from "node:url"
 import { join } from "node:path"
 import { test, expect } from "./fixtures/test"
-import type { AMapSdk } from "../../app/pages/community/exchange/amap-sdk"
+import type { AMapSdk } from "~/pages/community/exchange/maps/amap/sdk"
 
 declare global {
   interface Window {
-    GeographicRaster: typeof import("../../app/pages/community/exchange/geographic-raster")
+    GeographicRaster: typeof import("~/pages/community/exchange/maps/amap/raster/geographic-raster")
   }
 }
 
@@ -22,7 +22,10 @@ test.beforeAll(async () => {
       write: false,
       minify: false,
       lib: {
-        entry: join(root, "app/pages/community/exchange/geographic-raster.ts"),
+        entry: join(
+          root,
+          "app/pages/community/exchange/maps/amap/raster/geographic-raster.ts"
+        ),
         name: "GeographicRaster",
         formats: ["iife"],
       },

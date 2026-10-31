@@ -2405,7 +2405,6 @@ function operationForRow(table, row, descriptor, context) {
                     source_url: row.source_url,
                     source_label: row.source_label,
                     source_credit: row.source_credit,
-                    media_rights_status: "approved",
                     publication_status: "draft",
                     revision: 0,
                     created_at: created.iso,

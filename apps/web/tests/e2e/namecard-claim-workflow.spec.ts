@@ -5,7 +5,6 @@ import type { Locator, Page } from "@playwright/test"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
-import { installSeededPublicApis } from "./fixtures/public-content"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -572,8 +571,11 @@ test.describe("namecard claim workflow", () => {
     bio: "",
     tradeNote: "",
     available: true,
-    mediaRightsStatus: "unknown",
     publicationStatus: "pending",
+    reviewStatus: null,
+    reviewReason: null,
+    reviewSubmittedAt: null,
+    pendingContent: null,
     revision: 1,
     createdAt: "2026-08-16T19:30:00.000Z",
     updatedAt: "2026-08-16T19:30:00.000Z",
@@ -582,16 +584,6 @@ test.describe("namecard claim workflow", () => {
   test("same-ID envelope asks the owner before submitting an admin-reviewed claim", async ({
     page,
   }) => {
-    installSeededPublicApis(api, [
-      { path: "/api/community/exchange/series", times: 1 },
-      { path: "/api/community/exchange/offices", times: 1 },
-      { path: "/api/community/exchange/cards", times: 1 },
-      { path: "/api/community/exchange/map/config", times: 1 },
-      {
-        path: "/api/community/exchange/map/offices",
-        times: { min: 0, max: 8 },
-      },
-    ])
     await mockPlatformSession(page)
     await api.mockRoute(
       "**/api/platform/me",
@@ -645,13 +637,6 @@ test.describe("namecard claim workflow", () => {
       "**/api/wiki/catalog**",
       async (route) => {
         await route.fulfill({ json: catalog })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/community/exchange/characters",
-      async (route) => {
-        await route.fulfill({ json: makeCharacterCatalog() })
       },
       "GET"
     )
@@ -746,9 +731,12 @@ test.describe("namecard claim workflow", () => {
       "PUT"
     )
 
-    await page.goto("/community/exchange/me")
-    await page.getByRole("link", { name: "认领消息", exact: true }).click()
-    await expect(page.getByText("1 封待确认")).toBeVisible()
+    await page.goto("/account/me/claims")
+    await expect(
+      page.getByRole("heading", { name: "消息", exact: true })
+    ).toBeVisible()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page.getByText("历史名片 #42")).toBeVisible()
     const confirmationResponse = page.waitForResponse(
       (response) =>
@@ -760,7 +748,7 @@ test.describe("namecard claim workflow", () => {
     await expect(
       page.getByText("已确认本人名片，认领申请等待管理员审核")
     ).toBeVisible()
-    await expect(page.getByText("当前没有待确认信封。")).toBeVisible()
+    await expect(page.getByText("当前没有消息。")).toBeVisible()
     expect(responseBody).toEqual({ decision: "confirm", expectedRevision: 0 })
     expect(csrf).toBe("claim-workflow-csrf")
   })
