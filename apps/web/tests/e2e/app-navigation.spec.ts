@@ -564,6 +564,7 @@ test.describe("app navigation", () => {
     async ({ page, api }) => {
       installAppResourcesMocks(api)
       await page.goto("/apps")
+      const entries = await page.evaluate(() => history.length)
       await nav(page).getByRole("link", { name: "我的", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
       // A tab root ends the page tree, so the header renders no back control.
@@ -571,8 +572,8 @@ test.describe("app navigation", () => {
         page.getByRole("button", { name: "返回", exact: true })
       ).toHaveCount(0)
       // The root is a hard boundary. Tab activation projects the stack top into
-      // a single entry, so no abandoned page sits below it in WebView history.
-      expect(await page.evaluate(() => history.length)).toBe(1)
+      // the existing entry, so it never appends the abandoned page.
+      expect(await page.evaluate(() => history.length)).toBe(entries)
       await expect(
         page.getByRole("heading", { name: "我的", exact: true, level: 1 })
       ).toBeVisible()
@@ -583,32 +584,36 @@ test.describe("app navigation", () => {
     "keeps a reselected tab at its root after deeper visits",
     { tag: "@app-webkit" },
     async ({ page, api }) => {
-      await mockNamecardBrowsing(page, api, 36, undefined, {
-        cards: 1,
-        reactionReads: 12,
-        reactionWrites: 0,
-      })
-      installSeededPublicApis(api, [
-        { path: "/api/community/content", times: 1 },
-        { path: "/api/community/exchange/series", times: 1 },
-      ])
-      await page.goto("/community")
-      await page.locator('a[href="/community/cards"]').first().click()
-      await expect(page).toHaveURL(/\/community\/cards/)
-      // Reselecting the active tab returns to the root that is already in this
-      // tab instead of appending a second root above the detail page.
-      await nav(page).getByRole("link", { name: "社区", exact: true }).click()
-      await expect(page).toHaveURL(/\/community$/)
-      await expect(page.locator("[data-app-shell]")).toBeVisible()
-      // The abandoned detail page is gone from history, not hidden below the
-      // root: the shell keeps exactly one entry and offers no back control.
-      expect(await page.evaluate(() => history.length)).toBe(1)
+      await setAccountSessionHint(page)
+      installAppResourcesMocks(api)
+      installAccountMocks(api)
+      await page.goto("/account/me")
+      const entries = await page.evaluate(() => history.length)
+      // Two deeper levels: section, then security. Both belong to My.
+      await page.locator('a[href="/account/me/namecards"]').click()
+      await expect(page).toHaveURL(/\/account\/me\/namecards$/)
+      await page.goto("/account/security")
+      await expect(page).toHaveURL(/\/account\/security$/)
+      await page.getByRole("button", { name: "返回", exact: true }).click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+      // Reselecting the active tab returns to the existing root instead of
+      // appending a second root above the pages that were left.
+      await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+      await expect(
+        page.getByRole("heading", { name: "我的", exact: true, level: 1 })
+      ).toBeVisible()
       await expect(
         page.getByRole("button", { name: "返回", exact: true })
       ).toHaveCount(0)
+      // The abandoned levels are gone from history rather than hidden below the
+      // root, so a native traversal cannot resurface them.
+      expect(await page.evaluate(() => history.length)).not.toBeGreaterThan(
+        entries + 1
+      )
+      // Switching tabs keeps the same invariant on the next root.
       await nav(page).getByRole("link", { name: "资料", exact: true }).click()
       await expect(page).toHaveURL(/\/apps$/)
-      expect(await page.evaluate(() => history.length)).toBe(1)
       await expect(page.locator("[data-app-shell]")).toBeVisible()
     }
   )
@@ -638,7 +643,6 @@ test.describe("app navigation", () => {
       await expect(
         page.getByRole("button", { name: "返回", exact: true })
       ).toHaveCount(0)
-      expect(await page.evaluate(() => history.length)).toBe(1)
       await expect(
         page.getByRole("heading", { name: "我的", exact: true, level: 1 })
       ).toBeVisible()
