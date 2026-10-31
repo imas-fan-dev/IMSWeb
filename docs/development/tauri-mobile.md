@@ -277,6 +277,14 @@ pnpm --filter @imsweb/web run tauri android build
 ESLint 禁止页面重新直接导入 React Router 导航 API或调用 `window.open`、
 `location.assign`、`location.replace`。原生 `href` 只在已审计的 skip/hash 文件中放行。
 
+App 的页面树由 `lib/app-navigation-stacks.ts` 持有：五个一级入口各有独立页面栈，默认父级
+写在 `route-metadata.ts` 的 `appNavigation` 中。切换 Tab、重选当前 Tab 与返回都只 replace
+当前浏览器条目，因此 WebView 历史不会积累其他栏目的旧页面。顶部返回、Android 系统返回和
+iOS 边缘手势统一经过 `AppNavigationProvider`；iOS 关闭了 WKWebView 自带的
+`allowsBackForwardNavigationGestures`，改由 native-glass 插件的边缘手势上报
+begin/progress/cancel/commit，只有当前栈存在上一页时才允许开始。根页的 Android 返回交给
+系统把任务置于后台，不回放历史。未匹配地址由 `pages/app-not-found-page.tsx` 呈现。
+
 ### 静态站点包
 
 App 的 `/packages/<slug>` 先从当前 API 获取站点信息，再通过 `publicSite(slug)` 构造公开页面目标，
