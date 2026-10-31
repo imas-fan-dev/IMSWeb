@@ -169,13 +169,14 @@ private final class SearchSummaryButton: SearchActionButton {
 @available(iOS 26.0, *)
 final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITableViewDataSource, UITableViewDelegate {
   var onEvent: (([String: Any]) -> Void)?
-  var onSideLayout: ((CGRect?) -> Void)?
+  var onSideLayout: ((CGRect?, Bool) -> Void)?
   var navigationRange: (() -> CGRect?)?
   var navigationDockingFrame: (() -> CGRect?)?
   var hasLocate = false {
     didSet { if hasLocate != oldValue { view.setNeedsLayout() } }
   }
   private(set) var locateFrame: CGRect?
+  private(set) var locateCovered = false
   weak var webview: WKWebView?
   private(set) var snapshot: NativeSearchArgs?
   private let overlay = SearchOverlayView()
@@ -240,6 +241,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   private var settling = false
   private var settleAnimator: UIViewPropertyAnimator?
   private var browsingBottom: CGFloat?
+  private var browsingFrame: CGRect?
   private var browsingBounds = CGRect.zero
 
   override func loadView() {
@@ -261,10 +263,11 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
       overlay.addSubview(surface)
     }
     sideGlass.accessibilityIdentifier = "ims-native-exchange-side-controls"
+    overlay.insertSubview(sideGlass, belowSubview: glass)
     overlay.surfaces = [glass, moreGlass, sideGlass]
     moreGlass.accessibilityIdentifier = "ims-native-exchange-more-surface"
     stack.axis = .vertical
-    stack.spacing = 4
+    stack.spacing = ExchangeSearchLayout.readingSpacing
     stack.isLayoutMarginsRelativeArrangement = true
     stack.translatesAutoresizingMaskIntoConstraints = false
     contentSurface.translatesAutoresizingMaskIntoConstraints = false
@@ -303,6 +306,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     handle.addAction(UIAction { [weak self] _ in self?.setDetent(self?.detent == "collapsed" ? "large" : "collapsed") }, for: .touchUpInside)
     handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(pan(_:))))
     stack.addArrangedSubview(handle)
+    stack.setCustomSpacing(4, after: handle)
     let row = UIStackView(arrangedSubviews: [browseHandle, search, field, clearSelection])
     row.spacing = 4
     row.alignment = .center
@@ -359,7 +363,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     readingViewport.contentInsetAdjustmentBehavior = .never
     readingViewport.accessibilityIdentifier = "ims-native-exchange-reading-viewport"
     readingStack.axis = .vertical
-    readingStack.spacing = 4
+    readingStack.spacing = ExchangeSearchLayout.readingSpacing
     readingStack.translatesAutoresizingMaskIntoConstraints = false
     stack.addArrangedSubview(readingViewport)
     readingViewport.addSubview(readingStack)
@@ -846,7 +850,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
       notice.setActive(false)
       placeholder.setActive(false)
       for surface in [glass, sideGlass, moreGlass] { surface.isHidden = true }
-      onSideLayout?(nil)
+      onSideLayout?(nil, false)
     }
     emit("tool", value: key)
   }
@@ -916,7 +920,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     contentSurface.accessibilityElementsHidden = true
     sideGlass.isHidden = true
     refresh.isHidden = true
-    onSideLayout?(nil)
+    onSideLayout?(nil, false)
     // A zero-duration property animator uses UIKit's default duration rather
     // than completing immediately. Reduced Motion must bypass it entirely.
     if UIAccessibility.isReduceMotionEnabled {
@@ -1045,6 +1049,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     let height = min(available, collapsed ? proposedHeight : max(minimumExpanded, proposedHeight))
     let x = horizontal.minX
     let union = CGRect(x: x, y: bottom - height, width: width, height: height)
+    if detent == "collapsed" && !settling { browsingFrame = union }
     if collapsed {
       glass.frame = CGRect(x: x, y: union.minY, width: width - 56, height: height)
       moreGlass.frame = CGRect(x: union.maxX - 44, y: union.midY - 22, width: 44, height: 44)
@@ -1058,17 +1063,27 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     // layout pass began. Resolve its new bounds in the fitted surface now.
     glass.setNeedsLayout()
     glass.layoutIfNeeded()
-    let sideX = short ? host.maxX - 8 - 48 : union.maxX - 48
-    let sideY = short ? max(safeTop + 8, bottom - sideHeight) : union.minY - 12 - sideHeight
-    sideGlass.frame = CGRect(x: sideX, y: sideY, width: 48, height: sideHeight)
+    let anchorBottom = browsingBounds == view.bounds ? (browsingBottom ?? bottom) :
+      ExchangeSearchLayout.collapsedBottom(host: host, viewport: view.bounds, collapsed: true, portrait: view.bounds.height > view.bounds.width, clearance: CGFloat(args.bottomClearance), keyboardTop: host.maxY, navigation: navigationDockingFrame?() ?? domNavigation)
+    let anchorHorizontal = ExchangeSearchLayout.horizontalFrame(host: host, collapsed: true, portrait: view.bounds.height > view.bounds.width, navigation: navigationRange?() ?? domNavigation ?? fallbackNavigation)
+    let fallbackFrame = CGRect(x: anchorHorizontal.minX, y: anchorBottom - collapsedHeight, width: anchorHorizontal.width, height: collapsedHeight)
+    let collapsedFrame = browsingBounds == view.bounds ? (browsingFrame ?? fallbackFrame) : fallbackFrame
+    sideGlass.frame = ExchangeSearchLayout.sideControlsFrame(collapsedFrame: collapsedFrame, hasLocate: hasLocate)
     sideGlass.layer.cornerRadius = 24
     refresh.frame = CGRect(x: 0, y: 0, width: 48, height: 48)
-    sideGlass.isHidden = !collapsed || settling
-    refresh.isHidden = !collapsed || settling
-    let nextLocate = hasLocate && collapsed && !settling ? CGRect(x: sideX, y: sideY + 48, width: 48, height: 48) : nil
-    if locateFrame != nextLocate {
+    let refreshFrame = refresh.convert(refresh.bounds, to: view)
+    let refreshCovered = settling || glass.frame.intersects(refreshFrame) || refreshFrame.maxY > keyboardTop
+    refresh.isHidden = refreshCovered
+    // Locate ink is hosted by the shared control overlay above this view.
+    // Retire only the covered ink; its browsing anchor stays stationary.
+    let candidate = CGRect(x: sideGlass.frame.minX, y: sideGlass.frame.maxY - 48, width: 48, height: 48)
+    let nextLocate = hasLocate ? candidate : nil
+    let covered = settling || glass.frame.intersects(candidate) || candidate.maxY > keyboardTop
+    sideGlass.isHidden = refreshCovered && (!hasLocate || covered)
+    if locateFrame != nextLocate || locateCovered != covered {
       locateFrame = nextLocate
-      onSideLayout?(nextLocate)
+      locateCovered = covered
+      onSideLayout?(nextLocate, covered)
     }
     guard union != lastGeometry else { return }
     let now = CACurrentMediaTime()
@@ -1130,7 +1145,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     view.endEditing(true)
     snapshot = nil
     onEvent = nil
-    onSideLayout?(nil)
+    onSideLayout?(nil, false)
     onSideLayout = nil
     for surface in [glass, sideGlass, moreGlass] { surface.removeFromSuperview() }
     overlay.surfaces = []

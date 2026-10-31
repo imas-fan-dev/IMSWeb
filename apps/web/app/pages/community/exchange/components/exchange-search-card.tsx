@@ -119,6 +119,16 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
     occlusionCallback.current = onOcclusion
   }, [onOcclusion])
   useLayoutEffect(() => () => occlusionCallback.current(null), [])
+  useLayoutEffect(() => {
+    const host = cardRef.current?.parentElement
+    return () => {
+      host?.style.removeProperty("--exchange-map-controls-bottom")
+      const controls = host?.querySelector<HTMLElement>(
+        "[data-exchange-side-controls]"
+      )
+      if (controls) controls.inert = false
+    }
+  }, [])
   const [detent, setDetent] = useState<"collapsed" | "medium" | "large">(
     "collapsed"
   )
@@ -592,20 +602,26 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
       setBottom(nextBottom)
       setAvailable(Math.max(120, hostBox.bottom - nextBottom - top - 12))
       const box = card.getBoundingClientRect()
+      const controls = host.querySelector<HTMLElement>(
+        "[data-exchange-side-controls]"
+      )
+      const controlsCovered = IS_APP_TARGET && expanded && !native
+      if (controls && controls.inert !== controlsCovered)
+        controls.inert = controlsCovered
       if (
         IS_APP_TARGET &&
         hostBox.width < 768 &&
         hostBox.height > hostBox.width &&
-        !expanded &&
-        !native &&
-        box.width
+        !native
       ) {
-        const more = moreRef.current?.getBoundingClientRect()
-        if (more?.width)
-          host.style.setProperty(
-            "--exchange-map-controls-right",
-            `${hostBox.right - more.right}px`
-          )
+        if (!expanded && box.width) {
+          const more = moreRef.current?.getBoundingClientRect()
+          if (more?.width)
+            host.style.setProperty(
+              "--exchange-map-controls-right",
+              `${hostBox.right - more.right}px`
+            )
+        }
       } else host.style.removeProperty("--exchange-map-controls-right")
       const surface = card.querySelector<HTMLElement>(
         ".exchange-search-surface"
@@ -635,11 +651,14 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
           })
         )
       }
-      setRefreshBottom(
-        hostBox.width >= 640 && end - top <= 500
-          ? Math.max(12, hostBox.bottom - end + 12)
-          : Math.max(12, hostBox.bottom - box.top + 12)
-      )
+      if (!expanded && box.width && box.height) {
+        const controlsBottom = Math.max(12, hostBox.bottom - box.top + 12)
+        host.style.setProperty(
+          "--exchange-map-controls-bottom",
+          `${controlsBottom}px`
+        )
+        setRefreshBottom(controlsBottom)
+      }
       if (!expanded && box.width && box.height)
         setCollapsedHeight(
           IS_APP_TARGET
@@ -878,10 +897,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
 
   return (
     <>
-      {refreshHost &&
-      !native &&
-      !tools.modalOpen &&
-      !(IS_APP_TARGET && expanded)
+      {refreshHost && !native && !tools.modalOpen
         ? createPortal(
             <div
               className={
@@ -893,7 +909,7 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
                 !refreshHost.hasAttribute("data-exchange-refresh-anchor") ||
                 undefined
               }
-              data-app-search={IS_APP_TARGET || undefined}
+              inert={IS_APP_TARGET && expanded}
               style={
                 refreshHost.hasAttribute("data-exchange-refresh-anchor")
                   ? undefined

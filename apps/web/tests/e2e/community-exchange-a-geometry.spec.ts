@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures/test"
 import { installBrowserIconMock } from "./fixtures/homepage"
+import { installMapGuideScene } from "./fixtures/map-guide"
 
 test.describe("exchange Web search geometry", () => {
   for (const [width, height] of [
@@ -136,7 +137,9 @@ test.describe("exchange Web search geometry", () => {
             element.parentElement!.getBoundingClientRect().bottom -
             element.getBoundingClientRect().bottom
         )
-      await expect.poll(footerClearance).toBeGreaterThanOrEqual(56)
+      await expect
+        .poll(footerClearance)
+        .toBeGreaterThanOrEqual(width < 1024 ? 8 : 56)
       await page.screenshot({ path: testInfo.outputPath("browse.png") })
       await input.fill("西岸")
       expect(searches).toBe(0)
@@ -176,9 +179,27 @@ test.describe("exchange Web search geometry", () => {
       await expect(workspace.getByRole("status")).toContainText(
         "已定位：西岸艺术中心"
       )
+      if (width < 1024) {
+        await page.screenshot({
+          path: testInfo.outputPath("place-camera-position.png"),
+        })
+        await expect
+          .poll(async () => {
+            const marker = await page
+              .getByRole("img", { name: "搜索地点：西岸艺术中心" })
+              .boundingBox()
+            const map = await canvas.boundingBox()
+            return Math.abs(
+              marker!.y + marker!.height / 2 - (map!.y + map!.height / 2)
+            )
+          })
+          .toBeLessThanOrEqual(24)
+      }
       await expect.poll(reachable).toBe(true)
       await expect.poll(() => canvas.boundingBox()).toEqual(mapFrame)
-      await expect.poll(footerClearance).toBeGreaterThanOrEqual(56)
+      await expect
+        .poll(footerClearance)
+        .toBeGreaterThanOrEqual(width < 1024 ? 8 : 56)
       await expect(
         page.getByRole("button", { name: "回到我的位置" })
       ).toBeInViewport()
@@ -194,4 +215,75 @@ test.describe("exchange Web search geometry", () => {
       ).toBe(true)
     })
   }
+})
+
+test("mobile Web docks its controls above the collapsed search and covers them while reading @mobile", async ({
+  page,
+  api,
+}, testInfo) => {
+  installMapGuideScene(api)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/community/exchange")
+  const workspace = page.getByRole("region", { name: "地点查找" })
+  const dock = workspace.locator(".exchange-web-search-dock")
+  const locate = page.getByRole("button", { name: "回到我的位置" })
+  const refresh = page.getByRole("button", { name: "刷新地图结果" })
+  await expect(page.locator("[data-exchange-office-map]")).toHaveAttribute(
+    "data-map-state",
+    "ready"
+  )
+  await page.screenshot({
+    path: testInfo.outputPath("mobile-bottom-baseline.png"),
+  })
+  await expect
+    .poll(() =>
+      workspace.evaluate(
+        (node) =>
+          node.parentElement!.getBoundingClientRect().bottom -
+          node.getBoundingClientRect().bottom
+      )
+    )
+    .toBeLessThanOrEqual(16)
+  await expect
+    .poll(async () => {
+      const field = await dock.boundingBox()
+      const a = await locate.boundingBox()
+      const b = await refresh.boundingBox()
+      return field!.y - Math.max(a!.y + a!.height, b!.y + b!.height)
+    })
+    .toBeGreaterThanOrEqual(8)
+  await expect
+    .poll(async () => {
+      const field = await dock.boundingBox()
+      const a = await locate.boundingBox()
+      const b = await refresh.boundingBox()
+      return field!.y - Math.max(a!.y + a!.height, b!.y + b!.height)
+    })
+    .toBeLessThanOrEqual(16)
+  const frames = [await locate.boundingBox(), await refresh.boundingBox()]
+  await workspace.getByRole("button", { name: "展开地图面板" }).click()
+  await expect(
+    workspace.getByRole("tab", { name: "地点", exact: true })
+  ).toBeVisible()
+  for (const [index, button] of [locate, refresh].entries()) {
+    await expect.poll(() => button.boundingBox()).toEqual(frames[index])
+    await expect
+      .poll(() =>
+        button.evaluate((node) => {
+          const box = node.getBoundingClientRect()
+          return document
+            .querySelector('[aria-label="地点查找"]')!
+            .contains(
+              document.elementFromPoint(
+                box.x + box.width / 2,
+                box.y + box.height / 2
+              )
+            )
+        })
+      )
+      .toBe(true)
+  }
+  await page.screenshot({
+    path: testInfo.outputPath("mobile-search-covers-controls.png"),
+  })
 })

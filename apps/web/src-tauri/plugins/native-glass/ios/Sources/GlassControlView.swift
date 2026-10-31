@@ -306,6 +306,7 @@ private final class GlassControlRenderer {
   private var iconButtons: [String: GlassControlButton] = [:]
   var onEvent: ((String, String, String?) -> Void)?
   var searchLocateFrame: CGRect?
+  var searchLocateCovered = false
 
   init(overlay: GlassControlOverlayView) {
     self.overlay = overlay
@@ -396,6 +397,7 @@ private final class GlassControlRenderer {
     button.center = CGPoint(x: frame.midX, y: frame.midY)
     button.cornerRadius = CGFloat(control.cornerRadius)
     button.usesExternalSurface = grouped
+    button.isHidden = grouped && searchLocateCovered
     // This button owns the lower half of the search skin, not a separate circle.
     button.externalHitBounds = grouped ? CGRect(x: 0, y: -48, width: 48, height: 96) : nil
     button.accessibilityLabel = control.label
@@ -658,9 +660,10 @@ final class NativeGlassControlHostViewController: UIViewController {
 
   var hasLocate: Bool { currentControls.contains { $0.id == "locate" && $0.kind == "icon-button" } }
 
-  func setSearchLocateFrame(_ frame: CGRect?) {
-    guard renderer.searchLocateFrame != frame else { return }
+  func setSearchLocateFrame(_ frame: CGRect?, covered: Bool = false) {
+    guard renderer.searchLocateFrame != frame || renderer.searchLocateCovered != covered else { return }
     renderer.searchLocateFrame = frame
+    renderer.searchLocateCovered = covered
     if !currentControls.isEmpty {
       _ = renderer.render(currentControls, dark: currentDark, offset: currentOffset)
     }
@@ -698,6 +701,7 @@ final class NativeGlassControlHostViewController: UIViewController {
   func clear() {
     currentControls = []
     renderer.searchLocateFrame = nil
+    renderer.searchLocateCovered = false
     renderer.clear()
   }
 }

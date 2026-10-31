@@ -87,6 +87,7 @@ describe("CommunityExchangePage App search tools", () => {
     const user = userEvent.setup()
     renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
     const trigger = await screen.findByRole("button", { name: "查找地点" })
+    const refresh = await screen.findByRole("button", { name: "刷新名录" })
     await user.click(trigger)
     const card = screen.getByRole("region", { name: "地点查找" })
     const input = screen.getByRole("textbox", { name: "搜索地点" })
@@ -98,9 +99,8 @@ describe("CommunityExchangePage App search tools", () => {
     expect(
       screen.queryByRole("button", { name: "展开结果" })
     ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: "刷新名录" })
-    ).not.toBeInTheDocument()
+    expect(refresh).toBeInTheDocument()
+    expect(refresh.closest(".exchange-map-refresh")).toHaveAttribute("inert")
     await user.type(input, "上海场馆")
     const more = screen.getByRole("button", { name: "更多地图工具" })
     await user.click(more)

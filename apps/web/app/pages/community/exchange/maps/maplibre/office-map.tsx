@@ -1114,27 +1114,33 @@ export function ExchangeOfficeMap({
     map.easeTo({
       center,
       zoom: selectedPlace.zoom ?? EXCHANGE_MAP_SEARCH_ZOOM,
-      padding: occlusionRef.current
-        ? occlusionRef.current.width <
-          (containerRef.current?.clientWidth ?? 0) * 0.65
-          ? {
-              left: occlusionRef.current.x + occlusionRef.current.width + 12,
-              right: 12,
-              top: 12,
-              bottom: 12,
-            }
-          : {
-              left: 12,
-              right: 12,
-              top: 12,
-              bottom: Math.max(
-                12,
-                (containerRef.current?.clientHeight ?? 0) -
-                  occlusionRef.current.y +
-                  12
-              ),
-            }
-        : { left: 0, right: 0, top: 0, bottom: 0 },
+      // Mobile selection collapses the search panel. Its outgoing expanded
+      // rectangle must not become persistent camera padding for the new point.
+      padding:
+        IS_APP_TARGET || (containerRef.current?.clientWidth ?? 0) < 1024
+          ? { left: 0, right: 0, top: 0, bottom: 0 }
+          : occlusionRef.current
+            ? occlusionRef.current.width <
+              (containerRef.current?.clientWidth ?? 0) * 0.65
+              ? {
+                  left:
+                    occlusionRef.current.x + occlusionRef.current.width + 12,
+                  right: 12,
+                  top: 12,
+                  bottom: 12,
+                }
+              : {
+                  left: 12,
+                  right: 12,
+                  top: 12,
+                  bottom: Math.max(
+                    12,
+                    (containerRef.current?.clientHeight ?? 0) -
+                      occlusionRef.current.y +
+                      12
+                  ),
+                }
+            : { left: 0, right: 0, top: 0, bottom: 0 },
       duration:
         !persistViewport ||
         window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
@@ -1280,8 +1286,9 @@ export function ExchangeOfficeMap({
         style={
           occlusion
             ? {
-                bottom:
-                  occlusion.width < mapSize.width * 0.65
+                bottom: IS_APP_TARGET
+                  ? "var(--exchange-map-controls-bottom, 12px)"
+                  : occlusion.width < mapSize.width * 0.65
                     ? 12
                     : Math.max(12, mapSize.height - occlusion.y + 12),
               }

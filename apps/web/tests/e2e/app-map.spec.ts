@@ -653,9 +653,13 @@ test.describe("app map", () => {
     await input.fill("上海场馆")
     await expect(card).toHaveAttribute("data-detent", "large")
     await expect(card.getByRole("button", { name: "展开结果" })).toHaveCount(0)
+    await expect(page.locator(".exchange-map-refresh")).toHaveAttribute(
+      "inert",
+      ""
+    )
     await expect(
       page.getByRole("button", { name: "刷新名录", exact: true })
-    ).toHaveCount(0)
+    ).toBeAttached()
     await expect
       .poll(() =>
         card.evaluate((element) => {
@@ -791,6 +795,27 @@ test.describe("app map", () => {
         name: "查找事务所",
         exact: true,
       })
+      const locate = page.getByRole("button", { name: "回到我的位置" })
+      const refresh = page.getByRole("button", {
+        name: "刷新名录",
+        exact: true,
+      })
+      await expect(refresh).toBeVisible()
+      await expect
+        .poll(async () => {
+          const dock = await page.locator("[data-app-search]").boundingBox()
+          const button = await locate.boundingBox()
+          return dock!.y - button!.y - button!.height
+        })
+        .toBe(12)
+      const browsingControls = [
+        await locate.boundingBox(),
+        await refresh.boundingBox(),
+      ]
+      const browsingHandles = [
+        await locate.elementHandle(),
+        await refresh.elementHandle(),
+      ]
       await trigger.click()
       await page.getByRole("tab", { name: "地点", exact: true }).click()
       const query = page.getByRole("textbox", { name: "搜索地点" })
@@ -824,6 +849,46 @@ test.describe("app map", () => {
             .map((animation) => animation.finished.catch(() => {}))
         )
       })
+      for (const [index, control] of browsingHandles.entries()) {
+        await expect
+          .poll(() => control!.boundingBox())
+          .toEqual(browsingControls[index])
+        await expect
+          .poll(() =>
+            control!.evaluate((element) => {
+              const box = element.getBoundingClientRect()
+              return document
+                .querySelector("[data-app-search]")!
+                .contains(
+                  document.elementFromPoint(
+                    box.x + box.width / 2,
+                    box.y + box.height / 2
+                  )
+                )
+            })
+          )
+          .toBe(true)
+      }
+      const spacing = await focusedCard.evaluate((element) => {
+        const row = element
+          .querySelector(".exchange-search-row")!
+          .getBoundingClientRect()
+        const submit = element
+          .querySelector(".exchange-search-actions")!
+          .getBoundingClientRect()
+        const tabs = element
+          .querySelector('[role="tablist"]')!
+          .getBoundingClientRect()
+        return {
+          inputToSubmit: submit.top - row.bottom,
+          submitToTabs: tabs.top - submit.bottom,
+        }
+      })
+      expect(spacing).toEqual({ inputToSubmit: 12, submitToTabs: 12 })
+      await testInfo.attach("app-search-spacing-and-controls", {
+        contentType: "application/json",
+        body: JSON.stringify({ spacing, browsingControls }, null, 2),
+      })
       await page.screenshot({
         path: testInfo.outputPath("app-map-search-edit.png"),
       })
@@ -854,6 +919,22 @@ test.describe("app map", () => {
       await expect(
         page.getByRole("img", { name: "搜索地点：西岸艺术中心" })
       ).toBeVisible()
+      await page.screenshot({
+        path: testInfo.outputPath("app-place-camera-position.png"),
+      })
+      await expect
+        .poll(async () => {
+          const marker = await page
+            .getByRole("img", { name: "搜索地点：西岸艺术中心" })
+            .boundingBox()
+          const map = await page
+            .locator("canvas.maplibregl-canvas")
+            .boundingBox()
+          return Math.abs(
+            marker!.y + marker!.height / 2 - (map!.y + map!.height / 2)
+          )
+        })
+        .toBeLessThanOrEqual(24)
       await expect
         .poll(() =>
           bounds.some((value) => {

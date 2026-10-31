@@ -313,6 +313,39 @@ describe("ExchangeOfficeMap App viewport memory", () => {
     expect(marker?.remove).toHaveBeenCalled()
   })
 
+  it.each([390, 844])(
+    "centers a mobile search selection without retaining expanded-panel padding at %d px",
+    (width) => {
+      const props = {
+        ...mapProps,
+        occlusion: { x: 8, y: 60, width: width - 16, height: 700 },
+      }
+      const view = render(<ExchangeOfficeMap {...props} />)
+      Object.defineProperty(
+        screen.getByLabelText("区域事务所地图工作面"),
+        "clientWidth",
+        { value: width }
+      )
+      view.rerender(
+        <ExchangeOfficeMap
+          {...props}
+          selectedPlace={{
+            id: "place",
+            label: "西岸艺术中心",
+            address: "上海西岸",
+            target: { kind: "wgs84", position: [121.4665, 31.1842] },
+          }}
+        />
+      )
+      expect(maplibreMocks.instances[0]?.easeTo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          center: [121.4665, 31.1842],
+          padding: { left: 0, right: 0, top: 0, bottom: 0 },
+        })
+      )
+    }
+  )
+
   it("applies the portal palette before MapLibre receives the first style", () => {
     render(<ExchangeOfficeMap {...mapProps} />)
     const map = maplibreMocks.instances[0]

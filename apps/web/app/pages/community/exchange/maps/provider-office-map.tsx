@@ -569,7 +569,7 @@ export function ProviderOfficeMap(props: Props) {
         current,
         target,
         selectedPlace.zoom ?? EXCHANGE_MAP_SEARCH_ZOOM,
-        true,
+        !IS_APP_TARGET && (containerRef.current?.clientWidth ?? 0) >= 1024,
         controller.signal
       )
     })().catch((error: unknown) => {
@@ -696,7 +696,11 @@ export function ProviderOfficeMap(props: Props) {
             : "contents"
         }
         data-exchange-side-controls={occlusion ? "" : undefined}
-        style={{ bottom }}
+        style={{
+          bottom: IS_APP_TARGET
+            ? "var(--exchange-map-controls-bottom, 12px)"
+            : bottom,
+        }}
       >
         <div data-exchange-refresh-anchor />
         <Button

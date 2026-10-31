@@ -229,11 +229,11 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         return self?.tabBarHost?.navigationDockingFrame(in: host.view)
       }
       host.hasLocate = (self.controlHost as? NativeGlassControlHostViewController)?.hasLocate == true
-      host.onSideLayout = { [weak self, weak host] frame in
+      host.onSideLayout = { [weak self, weak host] frame, covered in
         guard let self, let host,
           let controls = self.controlHost as? NativeGlassControlHostViewController else { return }
         let converted = frame.map { host.view.convert($0, to: controls.overlayView) }
-        controls.setSearchLocateFrame(converted)
+        controls.setSearchLocateFrame(converted, covered: covered)
       }
       host.onEvent = { [weak self] detail in
         guard let data = try? JSONSerialization.data(withJSONObject: detail),

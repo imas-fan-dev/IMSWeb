@@ -233,7 +233,7 @@
     flex: 1;
     min-height: 0;
     flex-direction: column;
-    margin-top: 4px;
+    margin-top: 12px;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -241,6 +241,16 @@
     flex: 1 0 auto;
     margin-top: 0;
     overflow: visible;
+    padding: 0;
+  }
+  .exchange-search-card[data-app-search]
+    .exchange-search-content
+    > [role="tablist"] {
+    margin-bottom: 12px;
+  }
+  .exchange-search-card[data-app-search]:not([data-detent="collapsed"])
+    .exchange-search-handle {
+    margin-bottom: 4px;
   }
   .exchange-search-card[data-app-search] .exchange-search-tabs {
     gap: 2px;
@@ -534,7 +544,7 @@
   }
   .exchange-map-side-controls {
     position: absolute;
-    z-index: 20;
+    z-index: 10;
     right: 8px;
     width: 48px;
     border-radius: 24px;
@@ -720,7 +730,7 @@
   }
   @media (min-width: 1024px) {
     .exchange-search-card:not([data-app-search]),
-    .exchange-map-refresh:not([data-app-search]) {
+    .exchange-map-refresh:not(.exchange-map-app-surface) {
       display: none;
     }
   }
@@ -881,10 +891,5 @@
   .exchange-search-card:not([data-app-search])[data-detent="collapsed"]
     .exchange-search-input:hover {
     background: var(--secondary);
-  }
-  /* Expanded search owns the compact App work surface. Keep the map's
-   * floating actions out of the status bar when little map area remains. */
-  [data-app-search-expanded] [data-exchange-side-controls] {
-    display: none;
   }
 }

@@ -94,6 +94,12 @@ export function ExchangeWebMapWorkspace<Place extends PlaceSearchDisplay>({
     const update = () => {
       const frame = element.getBoundingClientRect()
       const map = element.parentElement!.getBoundingClientRect()
+      const dock = element.querySelector(".exchange-web-search-dock")
+      if (dock)
+        element.parentElement!.style.setProperty(
+          "--exchange-map-controls-bottom",
+          `${map.bottom - dock.getBoundingClientRect().top + 12}px`
+        )
       onOcclusion({
         x: frame.x - map.x,
         y: frame.y - map.y,
@@ -108,6 +114,9 @@ export function ExchangeWebMapWorkspace<Place extends PlaceSearchDisplay>({
     return () => {
       observer.disconnect()
       window.removeEventListener("resize", update)
+      element.parentElement?.style.removeProperty(
+        "--exchange-map-controls-bottom"
+      )
       onOcclusion(null)
     }
   }, [onOcclusion])
