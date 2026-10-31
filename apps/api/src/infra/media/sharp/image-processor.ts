@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { pickAccentFromPixels } from '@/infra/media/sharp/accent';
 import {
     ImagePixelLimitError,
     type ImageInfo,
@@ -124,5 +125,16 @@ export class SharpImageProcessor implements ImageProcessor {
         return new Uint8Array(await sharp(body, inputOptions(maxInputPixels(options)))
             .resize({ width, height, fit: 'inside', withoutEnlargement: true })
             .jpeg({ quality: 80 }).toBuffer());
+    }
+
+    async dominantColor(body: Uint8Array): Promise<string | null> {
+        // Downsampling first keeps a 40 MP upload cheap: the hue histogram of a
+        // 48x48 thumbnail is the same colour family as the original artwork.
+        const { data, info } = await sharp(body, inputOptions(maxInputPixels()))
+            .resize({ width: 48, height: 48, fit: 'inside', withoutEnlargement: true })
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        return pickAccentFromPixels(new Uint8Array(data), info.channels);
     }
 }

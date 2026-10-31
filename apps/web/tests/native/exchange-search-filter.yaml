@@ -1,0 +1,12 @@
+appId: top.idol-master.imsweb
+---
+- tapOn: "筛选"
+- assertVisible: "筛选地图"
+- assertNotVisible:
+    id: "ims-native-exchange-search"
+- assertNotVisible:
+    id: "ims-native-exchange-search-input"
+- assertNotVisible:
+    id: "inputView"
+- takeScreenshot:
+    path: "NativeSearchFilterTeardown"

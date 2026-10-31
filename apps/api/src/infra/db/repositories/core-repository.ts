@@ -1,57 +1,207 @@
+import {
+    adminExchangePath,
+    adminNamecardMediaPath,
+    namecardMediaPath
+} from '@imsweb/contracts/paths';
+import {
+    NAMECARD_ACCENT_FALLBACK,
+    NAMECARD_FAVORITE_CHARACTER_LIMIT,
+} from '@imsweb/contracts/fudaba/runtime';
+import {
+    insertNamecardNotification,
+    SqlNamecardNotificationRepository
+} from '@/infra/db/repositories/namecard-notification-repository';
+import {
+    cardApprovedCopy,
+    cardLockedCopy,
+    cardRejectedCopy,
+    cardRevisionFlaggedCopy,
+    cardRevisionRejectedCopy,
+    cardUnlockedCopy,
+} from '@/infra/db/repositories/namecard-notification-copy';
 import type {
-    AdminAccountRecord,
-    AdminAccountRepository,
-    AuditLogInput,
-    AuditRepository,
-    AuthRepository,
+    CardFavoriteSelectionRecord,
     CardMediaRecord,
-    DeleteSitePackageRevisionInput,
-    EventRepository,
-    EventInput,
-    HomepageLinkRecord,
-    HomepageLinkRepository,
-    HomepageLinkSection,
-    HomepageLinkUpdateInput,
+    FudabaCardCredit,
     NamecardRepository,
     NamecardApprovalClaim,
     NamecardEditResult,
     NamecardMutationResult,
+    NamecardAdminFilter,
+    NamecardDiffRecord,
+    NamecardDiffSide,
+    NamecardPublicRecord,
+    NamecardSubmissionKind,
     NamecardSubmissionRecord,
     NamecardSubmissionWithHashesRecord,
-    NewAdminAccountInput,
-    NewHomepageLinkInput,
-    NewRefreshSessionInput,
-    NewSitePackageInput,
-    NewSitePackageRevisionInput,
-    NewsRepository,
-    NewsInput,
-    PendingCardInput,
-    ReactionRepository,
-    RefreshSessionRecord,
-    SitePackageRecord,
-    SitePackagePublicationResult,
-    SitePackageRepository,
-    SitePackageRevisionDeletionResult,
-    SitePackageRevisionRecord,
-    SitePackageWithRevisions,
-    UserRecord
+    PendingCardInput
 } from '@/ports/repositories';
 import type {
     ManagedSqlDatabase,
+    SqlDatabase,
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
-import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/query';
+import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
+import {
+    namecardOriginalUrlFromObjectKey,
+    publicMediaObjectKey
+} from '@/utils/storage/business-object-keys';
+import {
+    NAMECARD_COMPAT_ORIGIN,
+    NAMECARD_PUBLIC_ORIGIN
+} from '@/infra/db/repositories/namecard-origins';
 
-export class SqlCoreRepository implements
-    AuthRepository,
-    AdminAccountRepository,
-    AuditRepository,
-    NewsRepository,
-    EventRepository,
-    NamecardRepository,
-    ReactionRepository,
-    HomepageLinkRepository,
-    SitePackageRepository {
+type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
+
+type NamecardFavoriteRow = {
+    card_id: number | string;
+    character_id: number | string;
+    agency_code: string;
+    name_cn: string;
+    display_order: number | string;
+};
+
+
+const NAMECARD_COLUMNS = `id AS internal_id, card_number, front_object_key,
+    back_object_key, publication_status, revision, origin,
+    producer_name, producer_reading, group_name, made_on, lock_reason, created_at,
+    review_status, review_reason, pending_payload, pending_front_object_key,
+    pending_middle_object_keys, pending_back_object_key,
+    bio, trade_note, is_original, made_with_ai, exchange_mode, accent,
+    owner_account_id`;
+
+function namecardAdminWhere(
+    filter?: NamecardAdminFilter
+): { sql: string; values: unknown[] } {
+    // Withdrawn submissions are gone from the submitter's side, so they never
+    // enter the queue; rejected ones stay visible so they can be inspected.
+    const clauses = [
+        "publication_status <> 'withdrawn'",
+        'deleted_at IS NULL'
+    ];
+    const values: unknown[] = [];
+    if (filter?.status === 'pending') {
+        // A revision of a published card waits in the same queue while the
+        // live copy stays online.
+        clauses.push(
+            "(publication_status IN ('pending','approving') OR review_status = 'pending')"
+        );
+    } else if (filter?.status === 'published') {
+        clauses.push("publication_status = 'published'");
+    } else if (filter?.status === 'rejected') {
+        clauses.push(
+            "(publication_status = 'rejected' OR review_status IN ('rejected','locked'))"
+        );
+    } else if (filter?.status === 'locked') {
+        clauses.push("publication_status = 'locked'");
+    } else if (filter?.status === 'hidden') {
+        clauses.push("publication_status = 'hidden'");
+    }
+    if (filter !== undefined && filter.origins.length > 0) {
+        clauses.push(`origin IN (${filter.origins.map(() => '?').join(', ')})`);
+        values.push(...filter.origins);
+    }
+    if (filter !== undefined && filter.query !== null && filter.query !== '') {
+        const pattern = `%${filter.query.replace(/[\\%_]/g, '\\$&')}%`;
+        clauses.push(
+            "(COALESCE(producer_name, '') ILIKE ? ESCAPE '\\' OR COALESCE(producer_reading, '') ILIKE ? ESCAPE '\\')"
+        );
+        values.push(pattern, pattern);
+    }
+    return { sql: clauses.join(' AND '), values };
+}
+
+type NamecardCardRow = {
+    internal_id: string;
+    card_number: number | string;
+    front_object_key: string;
+    back_object_key: string | null;
+    publication_status: string;
+    revision: number | string;
+    series_code: string | null;
+    origin: string;
+    producer_name?: string | null;
+    producer_reading?: string | null;
+    group_name?: string | null;
+    made_on?: string | null;
+    lock_reason?: string | null;
+    review_status?: string | null;
+    review_reason?: string | null;
+    pending_payload?: unknown;
+    pending_front_object_key?: string | null;
+    pending_middle_object_keys?: string[] | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    is_original?: boolean | null;
+    made_with_ai?: boolean | null;
+    visible?: boolean | null;
+    exchange_mode?: string | null;
+    accent?: string | null;
+    owner_account_id?: string | null;
+    pending_back_object_key?: string | null;
+    created_at: string | Date | null;
+};
+
+// A revision waiting for review keeps the live columns untouched; reviewers and
+// the owner both read the submitted copy through this projection instead.
+type NamecardPendingPayload = {
+    producer_name?: string | null;
+    producer_reading?: string | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    credits?: FudabaCardCredit[];
+    series_codes?: string[];
+    group_name?: string | null;
+    made_on?: string | null;
+    is_original?: boolean;
+    made_with_ai?: boolean;
+    visible?: boolean;
+    exchange_mode?: string;
+    favorite_character_ids?: number[];
+};
+
+function pendingNamecardPayload(value: unknown): NamecardPendingPayload | null {
+    if (!value) return null;
+    if (typeof value === 'string') {
+        try {
+            const parsed: unknown = JSON.parse(value);
+            return parsed && typeof parsed === 'object'
+                ? (parsed as NamecardPendingPayload)
+                : null;
+        } catch {
+            return null;
+        }
+    }
+    return typeof value === 'object' ? (value as NamecardPendingPayload) : null;
+}
+
+// The admin queue speaks the same vocabulary as the database: a card that went
+// live is `published`. The intermediate `approving` lock only exists for the
+// two-phase approval, so it surfaces as `pending` instead of leaking out.
+function toLegacyNamecardStatus(status: string): NamecardSubmissionRecord['status'] {
+    // The public routes still speak the legacy vocabulary: `published` serves as
+    // `approved`, and the approval lock reads as `pending`.
+    const normalized =
+        status === 'published' ? 'approved' : status === 'approving' ? 'pending' : status;
+    return normalized as NamecardSubmissionRecord['status'];
+}
+
+/** Verdict of the submitted revision, independent of the live publication. */
+function toNamecardReviewStatus(
+    status: string | null | undefined
+): 'pending' | 'rejected' | 'locked' | null {
+    return status === 'pending' || status === 'rejected' || status === 'locked'
+        ? status
+        : null;
+}
+
+function exchangeReviewMediaUrl(key: string, side: 'front' | 'back'): string {
+    const match = /^community\/fudaba\/cards\/([^/]+)\//.exec(key);
+    if (!match) throw new Error(`Unsupported exchange card object key: ${key}`);
+    return `${adminExchangePath()}/card-reviews/${match[1]}/media/${side}`;
+}
+
+export class SqlCoreRepository implements NamecardRepository {
     private initialized?: Promise<void>;
 
     constructor(
@@ -68,427 +218,729 @@ export class SqlCoreRepository implements
         return this.database.close();
     }
 
-    findUserByUsername(username: string): Promise<UserRecord | null> {
-        return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE username=?', [username]);
-    }
-
-    findUserById(id: number): Promise<UserRecord | null> {
-        return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE id=?', [id]);
-    }
-
-    async ensureSuperAdmin(username?: string): Promise<void> {
-        const current = await queryAll<AdminAccountRecord>(this.database,
-            `SELECT id, username, producername, admin_role
-             FROM users WHERE dept='op' AND admin_role='super_admin'`
-        );
-        if (current.length > 1) throw new Error('Multiple super administrators are configured');
-        if (current.length === 1) {
-            if (username && current[0]!.username !== username) {
-                throw new Error(
-                    'IMS_SUPER_ADMIN_USERNAME does not match the configured super administrator'
-                );
-            }
-            return;
-        }
-        if (!username) {
-            throw new Error(
-                'IMS_SUPER_ADMIN_USERNAME is required until a super administrator is configured'
-            );
-        }
-        const target = await this.findUserByUsername(username);
-        if (!target || target.dept !== 'op') {
-            throw new Error('IMS_SUPER_ADMIN_USERNAME must identify an existing op account');
-        }
-        const result = await executeSql(this.database,
-            `UPDATE users SET admin_role='super_admin'
-             WHERE id=? AND dept='op' AND admin_role='admin'`,
-            [target.id]
-        );
-        if (result.meta.changes !== 1) {
-            throw new Error('Failed to configure the super administrator');
-        }
-    }
-
-    listAdminAccounts(): Promise<AdminAccountRecord[]> {
-        return queryAll<AdminAccountRecord>(this.database,
-            `SELECT id, username, producername, admin_role
-             FROM users
-             WHERE dept='op' AND admin_role IN ('admin', 'super_admin')
-             ORDER BY CASE admin_role WHEN 'super_admin' THEN 0 ELSE 1 END, id`
-        );
-    }
-
-    async createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord> {
-        const created = await queryOne<AdminAccountRecord>(this.database,
-            `INSERT INTO users (username, password, dept, producername, admin_role)
-             VALUES (?, ?, 'op', ?, 'admin')
-             RETURNING id, username, producername, admin_role`,
-            [input.username, input.passwordHash, input.producername]
-        );
-        if (!created) throw new Error('Failed to create administrator account');
-        return created;
-    }
-
-    async deleteAdminAccount(id: number): Promise<boolean> {
-        const result = await executeSql(this.database,
-            `DELETE FROM users WHERE id=? AND dept='op' AND admin_role='admin'`,
-            [id]
-        );
-        return result.meta.changes === 1;
-    }
-
-    async createRefreshSession(input: NewRefreshSessionInput): Promise<void> {
-        await executeSql(this.database,
-            `INSERT INTO auth_refresh_sessions
-             (id, user_id, token_hash, previous_token_hash, csrf_hash,
-              expires_at, created_at, updated_at, revoked_at)
-             VALUES (?, ?, ?, NULL, ?, ?, ?, ?, NULL)`,
-            [
-                input.id,
-                input.userId,
-                input.tokenHash,
-                input.csrfHash,
-                input.expiresAt,
-                input.createdAt,
-                input.createdAt
-            ]
-        );
-    }
-
-    findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSessionRecord | null> {
-        return queryOne<RefreshSessionRecord>(this.database,
-            `SELECT * FROM auth_refresh_sessions
-             WHERE token_hash=? OR previous_token_hash=?
-             ORDER BY CASE WHEN token_hash=? THEN 0 ELSE 1 END
-             LIMIT 1`,
-            [tokenHash, tokenHash, tokenHash]
-        );
-    }
-
-    async rotateRefreshSession(input: {
-        id: string;
-        currentTokenHash: string;
-        nextTokenHash: string;
-        nextExpiresAt: number;
-        updatedAt: number;
-    }): Promise<boolean> {
-        const result = await executeSql(this.database,
-            `UPDATE auth_refresh_sessions
-             SET previous_token_hash=token_hash, token_hash=?, expires_at=?, updated_at=?
-             WHERE id=? AND token_hash=? AND revoked_at IS NULL AND expires_at>?`,
-            [
-                input.nextTokenHash,
-                input.nextExpiresAt,
-                input.updatedAt,
-                input.id,
-                input.currentTokenHash,
-                input.updatedAt
-            ]
-        );
-        return result.meta.changes === 1;
-    }
-
-    async revokeRefreshSession(id: string, revokedAt: number): Promise<void> {
-        await executeSql(this.database,
-            `UPDATE auth_refresh_sessions
-             SET revoked_at=COALESCE(revoked_at, ?), updated_at=?
-             WHERE id=?`,
-            [revokedAt, revokedAt, id]
-        );
-    }
-
-    async deleteExpiredRefreshSessions(now: number): Promise<void> {
-        await executeSql(
-            this.database,
-            'DELETE FROM auth_refresh_sessions WHERE expires_at<=?',
-            [now]
-        );
-    }
-
-    async insertAuditLog(input: AuditLogInput): Promise<void> {
-        await executeSql(this.database,
-            'INSERT INTO logs (username, producername, action, target, ip, time) VALUES (?, ?, ?, ?, ?, ?)',
-            [input.username, input.producername, input.action, input.target, input.ip, input.time]
-        );
-    }
-
-    listRecentAuditLogs(limit: number): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database, 'SELECT * FROM logs ORDER BY id DESC LIMIT ?', [limit]);
-    }
-
-    listPublicNews(): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database,
-            'SELECT id, title, thumbnail, content, date FROM news ORDER BY id DESC'
-        );
-    }
-
-    async findLatestPublicNewsId(): Promise<string | null> {
-        const row = await queryOne<{ id: string | null }>(
-            this.database,
-            'SELECT CAST(MAX(id) AS TEXT) AS id FROM news'
-        );
-        return row?.id ?? null;
-    }
-
-    listPublicNewsByCursor(
-        limit: number,
-        snapshotId: string,
-        afterId?: string
-    ): Promise<Record<string, unknown>[]> {
-        if (afterId) {
-            return queryAll(this.database,
-                `SELECT id, title, thumbnail, content, date FROM news
-                 WHERE id<=? AND id<? ORDER BY id DESC LIMIT ?`,
-                [snapshotId, afterId, limit]
-            );
-        }
-        return queryAll(this.database,
-            `SELECT id, title, thumbnail, content, date FROM news
-             WHERE id<=? ORDER BY id DESC LIMIT ?`,
-            [snapshotId, limit]
-        );
-    }
-
-    listAdminNews(): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database, 'SELECT * FROM news ORDER BY id DESC');
-    }
-
-    async insertNews(input: NewsInput): Promise<number> {
-        const result = await queryOne<{ id: number }>(this.database,
-            `INSERT INTO news (title, image, thumbnail, content, date, author)
-             VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-            [input.title, input.image, input.thumbnail, input.content, input.date, input.author]
-        );
-        if (!result) throw new Error('News insert did not return an ID');
-        return result.id;
-    }
-
-    findNewsMedia(id: number): Promise<{ image: string; thumbnail: string } | null> {
-        return queryOne(this.database, 'SELECT image, thumbnail FROM news WHERE id=?', [id]);
-    }
-
-    async deleteNews(id: number): Promise<void> {
-        await executeSql(this.database, 'DELETE FROM news WHERE id=?', [id]);
-    }
-
-    async insertEvent(input: EventInput): Promise<number> {
-        const result = input.operationKey
-            ? await queryOne<{ id: number }>(this.database,
-                `INSERT INTO events
-                 (title, name, contact, image_url, operation_key, request_fingerprint,
-                  publication_state)
-                 VALUES (?, ?, ?, ?, ?, ?, 'publishing')
-                 ON CONFLICT (operation_key) WHERE operation_key IS NOT NULL
-                 DO UPDATE SET operation_key=EXCLUDED.operation_key
-                 WHERE events.request_fingerprint=EXCLUDED.request_fingerprint
-                 RETURNING id`,
-                [
-                    input.title,
-                    input.name,
-                    input.contact,
-                    input.imageUrl,
-                    input.operationKey,
-                    input.requestFingerprint
-                ]
-            )
-            : await queryOne<{ id: number }>(this.database,
-                `INSERT INTO events (title, name, contact, image_url, publication_state)
-                 VALUES (?, ?, ?, ?, 'ready') RETURNING id`,
-                [input.title, input.name, input.contact, input.imageUrl]
-            );
-        if (!result) throw new Error('Event insert did not return an ID');
-        return result.id;
-    }
-
-    async updateEvent(
-        id: number,
-        input: EventInput,
-        expectedImageUrl: string
-    ): Promise<boolean> {
-        const result = await executeSql(
-            this.database,
-            `UPDATE events
-             SET title=?, name=?, contact=?, image_url=?
-             WHERE id=? AND image_url=?`,
-            [
-                input.title,
-                input.name,
-                input.contact,
-                input.imageUrl,
-                id,
-                expectedImageUrl
-            ]
-        );
-        return result.meta.changes > 0;
-    }
-
-    findEventByOperationKey(operationKey: string): Promise<Record<string, unknown> | null> {
-        return queryOne(this.database, 'SELECT * FROM events WHERE operation_key=?', [operationKey]);
-    }
-
-    async markEventReady(id: number, operationKey: string): Promise<boolean> {
-        const result = await executeSql(this.database,
-            `UPDATE events SET publication_state='ready'
-             WHERE id=? AND operation_key=? AND publication_state='publishing'`,
-            [id, operationKey]
-        );
-        if (result.meta.changes === 1) return true;
-        const current = await this.findEventByOperationKey(operationKey);
-        return current?.id === id && current.publication_state === 'ready';
-    }
-
-    async countEvents(): Promise<number> {
-        const row = await queryOne<{ total: number }>(
-            this.database,
-            "SELECT CAST(COUNT(*) AS INTEGER) AS total FROM events WHERE publication_state='ready'"
-        );
-        return row?.total ?? 0;
-    }
-
-    listEvents(limit: number, offset: number): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database,
-            `SELECT id, title, name, contact, image_url, created_at
-             FROM events WHERE publication_state='ready'
-             ORDER BY id DESC LIMIT ? OFFSET ?`,
-            [limit, offset]
-        );
-    }
-
-    async findLatestEventId(): Promise<string | null> {
-        const row = await queryOne<{ id: string | null }>(
-            this.database,
-            "SELECT CAST(MAX(id) AS TEXT) AS id FROM events WHERE publication_state='ready'"
-        );
-        return row?.id ?? null;
-    }
-
-    listEventsByCursor(
-        limit: number,
-        snapshotId: string,
-        afterId?: string
-    ): Promise<Record<string, unknown>[]> {
-        if (afterId) {
-            return queryAll(this.database,
-                `SELECT id, title, name, contact, image_url, created_at FROM events
-                 WHERE publication_state='ready' AND id<=? AND id<? ORDER BY id DESC LIMIT ?`,
-                [snapshotId, afterId, limit]
-            );
-        }
-        return queryAll(this.database,
-            `SELECT id, title, name, contact, image_url, created_at FROM events
-             WHERE publication_state='ready' AND id<=? ORDER BY id DESC LIMIT ?`,
-            [snapshotId, limit]
-        );
-    }
-
-    findEvent(id: number): Promise<Record<string, unknown> | null> {
-        return queryOne(this.database,
-            `SELECT id, title, name, contact, image_url, created_at FROM events
-             WHERE id=? AND publication_state='ready'`, [id]);
-    }
-
-    findEventMedia(id: number): Promise<{ image_url: string } | null> {
-        return queryOne(this.database, 'SELECT image_url FROM events WHERE id=?', [id]);
-    }
-
-    async countEventMediaReferences(imageUrl: string): Promise<number> {
-        const row = await queryOne<{ count: number }>(
-            this.database,
-            'SELECT COUNT(*) AS count FROM events WHERE image_url=?',
-            [imageUrl]
-        );
-        return row?.count ?? 0;
-    }
-
-    async deleteEvent(id: number): Promise<boolean> {
-        const result = await executeSql(this.database, 'DELETE FROM events WHERE id=?', [id]);
-        return result.meta.changes > 0;
-    }
-
     findCardByOrderedHashes(hash1: string, hash2: string): Promise<{ id: number } | null> {
         return queryOne(this.database,
-            `SELECT id FROM cards WHERE hash1=? AND hash2=? AND status NOT IN ('withdrawn','rejected')`,
+            `SELECT card.card_number AS id
+             FROM namecard_guest_attributes guest
+             JOIN fudaba_cards card ON card.id=guest.card_id
+             WHERE guest.hash1=? AND guest.hash2=?
+               AND card.publication_status NOT IN ('withdrawn','rejected')`,
             [hash1, hash2]
         );
     }
 
-    async insertPendingCard(input: PendingCardInput): Promise<number> {
-        const result = await queryOne<{ id: number }>(this.database,
-            `INSERT INTO cards
-             (image1_url, image2_url, hash1, hash2, ip, status, withdrawal_token_hash)
-             VALUES (?, ?, ?, ?, ?, 'pending', ?) RETURNING id`,
-            [
-                input.image1Url,
-                input.image2Url,
-                input.hash1,
-                input.hash2,
-                input.ip,
-                input.withdrawalTokenHash
-            ]
+    private async validateNamecardSelection(
+        database: SqlDatabase,
+        seriesCode: string | null,
+        characterIds: readonly number[],
+        submissionKind: NamecardSubmissionKind
+    ): Promise<CardFavoriteSelectionRecord[]> {
+        if (submissionKind === 'guest' && !seriesCode) {
+            throw new Error('Guest namecard submissions require a series code');
+        }
+        if (
+            submissionKind === 'guest' &&
+            (characterIds.length < 1 ||
+                characterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT)
+        ) {
+            throw new Error(
+                `Guest namecard submissions require between 1 and ${NAMECARD_FAVORITE_CHARACTER_LIMIT} characters`
+            );
+        }
+        if (
+            characterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT ||
+            new Set(characterIds).size !== characterIds.length
+        ) {
+            throw new Error(
+                `Namecard character selections must be unique and contain at most ${NAMECARD_FAVORITE_CHARACTER_LIMIT} characters`
+            );
+        }
+        if (seriesCode) {
+            const series = await queryOne<{ code: string }>(
+                database,
+                'SELECT code FROM agencies WHERE code=?',
+                [seriesCode]
+            );
+            if (!series) throw new Error('Namecard series does not exist');
+        }
+        if (!characterIds.length) return [];
+        const placeholders = characterIds.map(() => '?').join(', ');
+        const rows = await queryAll<Omit<NamecardFavoriteRow, 'card_id' | 'display_order'>>(
+            database,
+            `SELECT character.id AS character_id, agency.code AS agency_code, character.name_cn
+             FROM namecard_characters character
+             JOIN agencies agency ON agency.id=character.agency_id
+             WHERE character.id IN (${placeholders}) AND character.deleted_at IS NULL`,
+            characterIds
         );
-        if (!result) throw new Error('Card insert did not return an ID');
-        return result.id;
+        const byId = new Map(rows.map((row) => [Number(row.character_id), row]));
+        if (byId.size !== characterIds.length) {
+            throw new Error('One or more selected namecard characters do not exist');
+        }
+        return characterIds.map((characterId, displayOrder) => {
+            const character = byId.get(characterId)!;
+            return {
+                character_id: characterId,
+                agency_code: character.agency_code,
+                name_cn: character.name_cn,
+                display_order: displayOrder
+            };
+        });
+    }
+
+    private async listNamecardFavorites(
+        database: SqlDatabase,
+        internalIds: readonly string[]
+    ): Promise<Map<string, CardFavoriteSelectionRecord[]>> {
+        const grouped = new Map<string, CardFavoriteSelectionRecord[]>();
+        for (const internalId of internalIds) grouped.set(internalId, []);
+        if (!internalIds.length) return grouped;
+        const placeholders = internalIds.map(() => '?').join(', ');
+        const rows = await queryAll<NamecardFavoriteRow>(
+            database,
+            `SELECT selected.card_id, selected.character_id, agency.code AS agency_code,
+                    character.name_cn, selected.display_order
+             FROM fudaba_card_favorite_characters selected
+             JOIN namecard_characters character ON character.id=selected.character_id
+             JOIN agencies agency ON agency.id=character.agency_id
+             WHERE selected.card_id IN (${placeholders})
+             ORDER BY selected.card_id, selected.display_order`,
+            internalIds
+        );
+        for (const row of rows) {
+            grouped.get(String(row.card_id))?.push({
+                character_id: Number(row.character_id),
+                agency_code: row.agency_code,
+                name_cn: row.name_cn,
+                display_order: Number(row.display_order)
+            });
+        }
+        return grouped;
+    }
+
+    /**
+     * Artwork URLs are derived from the object key when the layout is
+     * reversible. Editor uploads and older imports are not, so those pages are
+     * served through the card media routes instead of failing the whole list.
+     */
+    private namecardMediaUrl(
+        row: NamecardCardRow,
+        key: string | null,
+        side: 'front' | 'back',
+        content: 'live' | 'submission'
+    ): string | null {
+        if (key === null) return null;
+        try {
+            return row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
+                ? exchangeReviewMediaUrl(key, side)
+                : namecardOriginalUrlFromObjectKey(key);
+        } catch {
+            const variant = row.review_status === 'pending' ? 'draft' : 'live';
+            const cardNumber = Number(row.card_number);
+            return content === 'submission'
+                ? adminNamecardMediaPath(cardNumber, variant, side)
+                : namecardMediaPath(cardNumber, side);
+        }
+    }
+
+    private namecardRecordFromRow(
+        row: NamecardCardRow,
+        /** `live` serves the published copy; `submission` serves the queue. */
+        content: 'live' | 'submission' = 'submission'
+    ): NamecardSubmissionRow {
+        // Exchange rows keep the Fudaba object layout until approval copies the
+        // images into the canonical namecard layout, so pending ones are served
+        // through the authenticated moderation media route. Once the canonical
+        // key is written, the regular reversal applies and the row behaves like
+        // any other namecard.
+        const media = (key: string | null, side: 'front' | 'back'): string | null =>
+            this.namecardMediaUrl(row, key, side, content);
+        const staged = content === 'submission' && row.review_status === 'pending';
+        const payload = staged ? pendingNamecardPayload(row.pending_payload) : null;
+        return {
+            id: Number(row.card_number),
+            cardId: row.internal_id,
+            card_number: Number(row.card_number),
+            producer_name: row.producer_name ?? null,
+            producer_reading: row.producer_reading ?? null,
+            group_name: row.group_name ?? null,
+            made_on: row.made_on ?? null,
+            bio: row.bio ?? null,
+            trade_note: row.trade_note ?? null,
+            is_original: row.is_original ?? false,
+            made_with_ai: row.made_with_ai ?? false,
+            exchange_mode: row.exchange_mode === 'auto' || row.exchange_mode === 'manual'
+                ? row.exchange_mode
+                : 'none',
+            accent: row.accent ?? null,
+            owner_account_id: row.owner_account_id ?? null,
+            // The front image is NOT NULL in the schema, so this never degrades
+            // to null the way the optional back image can.
+            image1_url: media(
+                (staged ? row.pending_front_object_key : null) ?? row.front_object_key,
+                'front'
+            ) as string,
+            image2_url: media(
+                (staged ? row.pending_back_object_key : null) ?? row.back_object_key,
+                'back'
+            ),
+            // A pending revision is a queue item even though the live copy is
+            // still published; the wall reads the database directly and is not
+            // affected by how the queue labels the card.
+            status: staged ? 'pending' : toLegacyNamecardStatus(row.publication_status),
+            revision: Number(row.revision),
+            series_code: payload?.series_codes?.[0] ?? null,
+            submission_kind: row.origin === 'guest' ? 'guest' : 'legacy',
+            lockReason: row.lock_reason ?? null,
+            reviewStatus: staged ? 'pending' : toNamecardReviewStatus(row.review_status),
+            reviewReason: row.review_reason ?? null,
+            created_at: row.created_at
+        };
+    }
+
+    /** Series live in their own table now; the queue only needs the first one. */
+    private async listNamecardSeries(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, string[]>> {
+        const grouped = new Map<string, string[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await (database.prepare(
+            `SELECT card_id, series_code FROM public.fudaba_card_series
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{ card_id: string; series_code: string }>());
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push(row.series_code);
+        }
+        return grouped;
+    }
+
+    private async attachNamecardFavorites(
+        database: SqlDatabase,
+        rows: readonly NamecardCardRow[],
+        content: 'live' | 'submission' = 'submission'
+    ): Promise<Array<NamecardSubmissionRow & { favorite_characters: CardFavoriteSelectionRecord[] }>> {
+        const ids = rows.map((row) => row.internal_id);
+        const characters = await this.listNamecardFavorites(database, ids);
+        const series = await this.listNamecardSeries(database, ids);
+        const credits = await this.listNamecardCredits(database, ids);
+        const middle = await this.listNamecardMiddleMedia(database, ids);
+        return rows.map((row) => {
+            const favoriteCharacters = characters.get(row.internal_id) ?? [];
+            const record = this.namecardRecordFromRow(row, content);
+            const payload =
+                content === 'submission' && row.review_status === 'pending'
+                    ? pendingNamecardPayload(row.pending_payload)
+                    : null;
+            const seriesCodes = series.get(row.internal_id) ?? [];
+            return {
+                ...record,
+                origin: row.origin,
+                producer_name: payload?.producer_name ?? row.producer_name ?? null,
+                favorite_characters: favoriteCharacters,
+                seriesCode: seriesCodes[0] ?? record.series_code ?? null,
+                series_codes: seriesCodes,
+                credits: credits.get(row.internal_id) ?? [],
+                middle_image_urls: this.namecardMiddleUrls(
+                    row,
+                    middle.get(row.internal_id) ?? [],
+                    content
+                ),
+                submissionKind: record.submission_kind ?? 'legacy',
+                favoriteCharacters
+            };
+        });
+    }
+
+    /** Ordered middle page object keys of the published copy. */
+    private async listNamecardMiddleMedia(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, string[]>> {
+        const grouped = new Map<string, string[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await database.prepare(
+            `SELECT card_id, object_key FROM public.fudaba_card_media
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{ card_id: string; object_key: string }>();
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push(row.object_key);
+        }
+        return grouped;
+    }
+
+    /**
+     * Middle pages always travel through the card media route: the editor
+     * layout has no reversible public path, and the queue must see the pages of
+     * the revision under review.
+     */
+    private namecardMiddleUrls(
+        row: NamecardCardRow,
+        keys: readonly string[],
+        content: 'live' | 'submission'
+    ): string[] {
+        const staged =
+            content === 'submission' &&
+            row.review_status === 'pending' &&
+            (row.pending_middle_object_keys?.length ?? 0) > 0;
+        const effective = staged ? row.pending_middle_object_keys! : keys;
+        const variant = staged ? 'draft' : 'live';
+        const cardNumber = Number(row.card_number);
+        return effective.map((_key, index) =>
+            content === 'submission'
+                ? adminNamecardMediaPath(cardNumber, variant, `middle-${index + 1}`)
+                : namecardMediaPath(cardNumber, `middle-${index + 1}`)
+        );
+    }
+
+    private async listNamecardCredits(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, FudabaCardCredit[]>> {
+        const grouped = new Map<string, FudabaCardCredit[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await database.prepare(
+            `SELECT card_id, account_id, display_name, url, roles
+             FROM public.fudaba_card_credits
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{
+            card_id: string;
+            account_id: string | null;
+            display_name: string;
+            url: string | null;
+            roles: string[];
+        }>();
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push({
+                accountId: row.account_id,
+                displayName: row.display_name,
+                url: row.url,
+                roles: row.roles as FudabaCardCredit['roles']
+            });
+        }
+        return grouped;
+    }
+
+    private async attachOneNamecard(
+        database: SqlDatabase,
+        row: NamecardCardRow | null
+    ): Promise<NamecardSubmissionRecord | null> {
+        if (!row) return null;
+        return (await this.attachNamecardFavorites(database, [row]))[0] ?? null;
+    }
+
+    async insertPendingCard(input: PendingCardInput): Promise<number> {
+        const submissionKind = input.submissionKind ?? 'guest';
+        const characterIds = input.characterIds ?? [];
+        const idPrefix = submissionKind === 'legacy' ? 'legacy' : 'guest';
+        const frontKey = publicMediaObjectKey(input.image1Url);
+        const backKey =
+            input.image2Url === null || input.image2Url === ''
+                ? null
+                : publicMediaObjectKey(input.image2Url);
+        return this.database.transaction(async (database) => {
+            const characters = await this.validateNamecardSelection(
+                database,
+                input.seriesCode ?? null,
+                characterIds,
+                submissionKind
+            );
+            const created = await queryOne<{ id: string; card_number: number | string }>(
+                database,
+                `WITH allocated AS (
+                     SELECT nextval('public.namecard_number_seq') AS card_number
+                 )
+                 INSERT INTO fudaba_cards
+                    (id, card_number, origin, producer_name,
+                     front_object_key, back_object_key, accent, bio, trade_note,
+                     exchange_mode, publication_status, revision,
+                     created_at, updated_at)
+                 SELECT ? || '-' || allocated.card_number::text, allocated.card_number,
+                        ?, ?, ?, ?, COALESCE(?, '#4f64dd'), ?, NULL,
+                        'none', 'pending', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                 FROM allocated
+                 RETURNING id, card_number`,
+                [
+                    idPrefix,
+                    idPrefix,
+                    input.producerName ?? null,
+                    frontKey,
+                    backKey,
+                    input.accent ?? null,
+                    input.bio ?? null
+                ]
+            );
+            if (!created) throw new Error('Card insert did not return an ID');
+            // Guest cards keep their single series in the shared set table.
+            if (input.seriesCode) {
+                await executeSql(database,
+                    `INSERT INTO public.fudaba_card_series
+                        (card_id, series_code, display_order)
+                     VALUES (?, ?, 1)
+                     ON CONFLICT (card_id, series_code) DO NOTHING`,
+                    [created.id, input.seriesCode]
+                );
+            }
+            if (characters.length) {
+                await database.batch(characters.map((character) => database.prepare(
+                    `INSERT INTO fudaba_card_favorite_characters (card_id, character_id, display_order)
+                     VALUES (?, ?, ?)`
+                ).bind(created.id, character.character_id, character.display_order)));
+            }
+            await executeSql(database,
+                `INSERT INTO namecard_guest_attributes
+                    (card_id, hash1, hash2, submitted_ip, withdrawal_token_hash)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [created.id, input.hash1, input.hash2, input.ip, input.withdrawalTokenHash]
+            );
+            return Number(created.card_number);
+        });
     }
 
     async countApprovedCards(): Promise<number> {
+        // The public wall only serves the two anonymous shapes: the legacy
+        // archive rows and guest uploads. Registered-user cards are listed in
+        // the admin queue and, once approved, reach the exchange wall through
+        // the media publishing pipeline instead of this legacy payload.
         const row = await queryOne<{ total: number }>(this.database,
-            "SELECT CAST(COUNT(*) AS INTEGER) AS total FROM cards WHERE status='approved'"
+            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM fudaba_cards
+             WHERE publication_status='published'
+               AND ${NAMECARD_PUBLIC_ORIGIN}
+               AND deleted_at IS NULL`
         );
         return row?.total ?? 0;
     }
 
-    async countAdminCards(): Promise<number> {
+    async attachCanonicalMedia(cardId: string, frontKey: string, backKey: string): Promise<void> {
+        // Approval copies an upload's images into the canonical namecard layout
+        // so every public reader can reverse the stored key. The origin guard
+        // keeps the writable target to the registered-user row being approved.
+        await executeSql(this.database,
+            `UPDATE fudaba_cards
+             SET front_object_key=CASE WHEN review_status='pending'
+                     THEN front_object_key ELSE ? END,
+                 back_object_key=CASE WHEN review_status='pending'
+                     THEN back_object_key ELSE ? END,
+                 pending_front_object_key=CASE WHEN review_status='pending'
+                     THEN ? ELSE pending_front_object_key END,
+                 pending_back_object_key=CASE WHEN review_status='pending'
+                     THEN ? ELSE pending_back_object_key END,
+                 updated_at=CURRENT_TIMESTAMP
+             WHERE id=? AND origin='exchange' AND deleted_at IS NULL`,
+            [frontKey, backKey, frontKey, backKey, cardId]
+        );
+    }
+
+    async countAdminCards(filter?: NamecardAdminFilter): Promise<number> {
+        const where = namecardAdminWhere(filter);
         const row = await queryOne<{ total: number }>(this.database,
-            "SELECT CAST(COUNT(*) AS INTEGER) AS total FROM cards WHERE status NOT IN ('withdrawn','rejected')"
+            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM fudaba_cards WHERE ${where.sql}`,
+            where.values
         );
         return row?.total ?? 0;
     }
 
-    listApprovedCards(limit: number, offset: number): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database,
-            `SELECT id, image1_url, image2_url, status, created_at FROM cards
-             WHERE status='approved' ORDER BY id DESC LIMIT ? OFFSET ?`,
+    async listApprovedCards(limit: number, offset: number): Promise<NamecardPublicRecord[]> {
+        const rows = await queryAll<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE publication_status='published'
+               AND ${NAMECARD_PUBLIC_ORIGIN}
+               AND deleted_at IS NULL
+             ORDER BY card_number DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
+        // The wall publishes the live copy; a pending revision stays queued.
+        return await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        ) as NamecardPublicRecord[];
     }
 
-    findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
-        return queryOne(this.database,
-            "SELECT id, image1_url, image2_url, status FROM cards WHERE id=? AND status='approved'",
+    async findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=?
+               AND publication_status='published' AND deleted_at IS NULL`,
             [id]
         );
+        return this.attachOneNamecard(this.database, row);
     }
 
-    listAdminCards(limit: number, offset: number): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database,
-            `SELECT id, image1_url, image2_url, status, revision
-             FROM cards WHERE status NOT IN ('withdrawn','rejected') ORDER BY id DESC LIMIT ? OFFSET ?`,
-            [limit, offset]
+    async listAdminCards(limit: number, offset: number, filter?: NamecardAdminFilter): Promise<NamecardSubmissionRecord[]> {
+        const where = namecardAdminWhere(filter);
+        const rows = await queryAll<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE ${where.sql}
+             ORDER BY CASE
+                          WHEN publication_status IN ('pending', 'approving') OR review_status = 'pending' THEN 0
+                          WHEN publication_status = 'published' THEN 1
+                          WHEN publication_status = 'rejected' THEN 2
+                          WHEN publication_status = 'locked' THEN 3
+                          WHEN publication_status = 'hidden' THEN 4
+                          ELSE 5
+                      END,
+                      CASE WHEN publication_status IN ('pending', 'approving') OR review_status = 'pending'
+                           THEN COALESCE(review_submitted_at, created_at) END ASC NULLS LAST,
+                      card_number DESC
+             LIMIT ? OFFSET ?`,
+            [...where.values, limit, offset]
         );
+        return this.attachNamecardFavorites(this.database, rows);
+    }
+
+    /**
+     * Both sides of the review queue: the published copy the wall serves and
+     * the revision waiting for a verdict. The public read path never needs
+     * this, so it stays a separate query instead of widening every list row.
+     */
+    async findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null> {
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND deleted_at IS NULL`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const cardId = row.internal_id;
+        const [favorites, series, credits, middleKeys] = await Promise.all([
+            this.listNamecardFavorites(this.database, [cardId]),
+            this.listNamecardSeries(this.database, [cardId]),
+            this.listNamecardCredits(this.database, [cardId]),
+            this.listMiddleKeys(cardId)
+        ]);
+        const live: NamecardDiffSide = {
+            producerName: row.producer_name ?? null,
+            producerReading: row.producer_reading ?? null,
+            groupName: row.group_name ?? null,
+            madeOn: row.made_on ?? null,
+            bio: row.bio ?? null,
+            tradeNote: row.trade_note ?? null,
+            isOriginal: row.is_original === true,
+            madeWithAi: row.made_with_ai === true,
+            visible: row.visible === true,
+            exchangeMode: this.exchangeMode(row.exchange_mode),
+            seriesCodes: series.get(cardId) ?? [],
+            credits: credits.get(cardId) ?? [],
+            favoriteCharacters: favorites.get(cardId) ?? [],
+            frontImageUrl: this.adminMediaUrl(cardNumber, 'front'),
+            backImageUrl: row.back_object_key
+                ? this.adminMediaUrl(cardNumber, 'back')
+                : null,
+            middleImageUrls: middleKeys.map((_key, index) =>
+                this.adminMediaUrl(cardNumber, `middle-${index + 1}`)
+            )
+        };
+        const payload = row.review_status === 'pending'
+            ? pendingNamecardPayload(row.pending_payload)
+            : null;
+        return {
+            id: Number(row.card_number),
+            status: toLegacyNamecardStatus(row.publication_status),
+            reviewStatus: row.review_status === 'pending' || row.review_status === 'rejected' || row.review_status === 'locked'
+                ? row.review_status
+                : null,
+            live,
+            pending: payload
+                ? await this.pendingDiffSide(row, payload, live, middleKeys)
+                : null
+        };
+    }
+
+    /**
+     * Moderators read artwork through the admin media route: the stored keys of
+     * a submitted revision have no public URL to reverse.
+     */
+    private adminMediaUrl(cardNumber: number, side: string, draft = false): string {
+        return adminNamecardMediaPath(cardNumber, draft ? 'draft' : 'live', side);
+    }
+
+    /** Live middle-page keys in display order. */
+    private async listMiddleKeys(cardId: string): Promise<string[]> {
+        const stored = await queryAll<{ object_key: string }>(this.database,
+            `SELECT object_key FROM public.fudaba_card_media
+             WHERE card_id=? ORDER BY display_order`,
+            [cardId]
+        );
+        return stored.map((row) => row.object_key);
+    }
+
+    /** The object key behind one page of a card's artwork. */
+    findCardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean
+    ): Promise<string | null> {
+        return this.cardMediaKey(cardNumber, side, draft, false);
+    }
+
+    /** The same key, but only for a card the wall may show publicly. */
+    findPublishedCardMediaKey(
+        cardNumber: number,
+        side: string
+    ): Promise<string | null> {
+        return this.cardMediaKey(cardNumber, side, false, true);
+    }
+
+    private async cardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean,
+        publishedOnly: boolean
+    ): Promise<string | null> {
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND deleted_at IS NULL${
+                publishedOnly ? " AND publication_status='published'" : ''
+             }`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const middle = /^middle-(\d{1,2})$/.exec(side);
+        if (side === 'front') {
+            return ((draft ? row.pending_front_object_key : null) ?? row.front_object_key) ?? null;
+        }
+        if (side === 'back') {
+            return ((draft ? row.pending_back_object_key : null) ?? row.back_object_key) ?? null;
+        }
+        if (!middle) return null;
+        if (draft && row.pending_middle_object_keys?.length) {
+            return row.pending_middle_object_keys[Number(middle[1]) - 1] ?? null;
+        }
+        const keys = await this.listMiddleKeys(row.internal_id);
+        return keys[Number(middle[1]) - 1] ?? null;
+    }
+
+    private exchangeMode(value: unknown): 'auto' | 'manual' | 'none' {
+        return value === 'auto' || value === 'manual' ? value : 'none';
+    }
+
+    private async pendingDiffSide(
+        row: NamecardCardRow,
+        payload: NamecardPendingPayload,
+        live: NamecardDiffSide,
+        liveMiddleKeys: string[]
+    ): Promise<NamecardDiffSide> {
+        const ids = payload.favorite_character_ids ?? [];
+        const cardNumber = Number(row.card_number);
+        const frontKey = row.pending_front_object_key ?? row.front_object_key;
+        const backKey = row.pending_back_object_key ?? row.back_object_key;
+        const middleKeys =
+            row.pending_middle_object_keys?.length
+                ? row.pending_middle_object_keys
+                : liveMiddleKeys;
+        // A page that kept its object keeps the live URL, so the diff compares
+        // equal strings and does not report an untouched image as changed.
+        const pageUrl = (
+            key: string | null,
+            liveKey: string | null,
+            liveUrl: string,
+            side: string
+        ) =>
+            key === null
+                ? null
+                : key === liveKey
+                  ? liveUrl
+                  : this.adminMediaUrl(cardNumber, side, true);
+        return {
+            producerName: payload.producer_name ?? row.producer_name ?? null,
+            producerReading: this.payloadText(payload, 'producer_reading', row.producer_reading),
+            groupName: this.payloadText(payload, 'group_name', row.group_name),
+            madeOn: this.payloadText(payload, 'made_on', row.made_on),
+            bio: this.payloadText(payload, 'bio', row.bio),
+            tradeNote: this.payloadText(payload, 'trade_note', row.trade_note),
+            isOriginal: payload.is_original ?? row.is_original === true,
+            madeWithAi: payload.made_with_ai ?? row.made_with_ai === true,
+            visible: payload.visible ?? row.visible === true,
+            exchangeMode: this.exchangeMode(payload.exchange_mode ?? row.exchange_mode),
+            seriesCodes: payload.series_codes ?? [],
+            credits: payload.credits ?? [],
+            favoriteCharacters: await this.listCharacterSelections(this.database, ids),
+            frontImageUrl:
+                pageUrl(frontKey, row.front_object_key, live.frontImageUrl, 'front') ??
+                live.frontImageUrl,
+            backImageUrl: pageUrl(backKey, row.back_object_key, live.backImageUrl ?? '', 'back'),
+            middleImageUrls: middleKeys.map((key, index) =>
+                pageUrl(
+                    key,
+                    liveMiddleKeys[index] ?? null,
+                    live.middleImageUrls[index] ?? '',
+                    `middle-${index + 1}`
+                ) ?? live.middleImageUrls[index] ?? ''
+            )
+        };
+    }
+
+    /** A submitted revision is authoritative, including when it clears a field. */
+    private payloadText(
+        payload: NamecardPendingPayload,
+        key: 'producer_reading' | 'group_name' | 'made_on' | 'bio' | 'trade_note',
+        fallback: string | null | undefined
+    ): string | null {
+        if (key in payload) return payload[key] ?? null;
+        return fallback ?? null;
+    }
+
+    /** Character names for a submitted selection, kept in submission order. */
+    private async listCharacterSelections(
+        database: SqlDatabase,
+        ids: readonly number[]
+    ): Promise<CardFavoriteSelectionRecord[]> {
+        if (!ids.length) return [];
+        const placeholders = ids.map(() => '?').join(', ');
+        const rows = await queryAll<NamecardFavoriteRow>(database,
+            `SELECT character.id AS character_id, agency.code AS agency_code,
+                    character.name_cn
+             FROM namecard_characters character
+             JOIN agencies agency ON agency.id=character.agency_id
+             WHERE character.id IN (${placeholders})`,
+            [...ids]
+        );
+        const byId = new Map(rows.map((row) => [Number(row.character_id), row]));
+        return ids.flatMap((id, index) => {
+            const row = byId.get(id);
+            return row
+                ? [{
+                    character_id: id,
+                    agency_code: row.agency_code,
+                    name_cn: row.name_cn,
+                    display_order: index
+                }]
+                : [];
+        });
     }
 
     async beginCardApproval(
         id: number,
         expectedRevision: number
     ): Promise<NamecardApprovalClaim> {
-        const claimed = await queryOne<NamecardSubmissionRecord>(this.database,
-            `UPDATE cards SET status='approving', revision=revision+1
-             WHERE id=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+        const claimedRow = await queryOne<NamecardCardRow>(this.database,
+            `UPDATE fudaba_cards
+             SET publication_status=CASE WHEN publication_status='pending'
+                     THEN 'approving' ELSE publication_status END,
+                 revision=revision+1, updated_at=CURRENT_TIMESTAMP
+             WHERE card_number=? AND revision=? AND deleted_at IS NULL
+               AND (publication_status='pending' OR review_status='pending')
+             RETURNING ${NAMECARD_COLUMNS}`,
             [id, expectedRevision]
         );
+        const claimed = await this.attachOneNamecard(this.database, claimedRow);
         if (claimed) return { status: 'claimed', card: claimed };
-        const current = await queryOne<NamecardSubmissionRecord>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, created_at
-             FROM cards WHERE id=?`,
-            [id]
-        );
+        const current = await this.findSubmission(id);
         if (!current) return { status: 'not-found' };
         if (current.status === 'withdrawn') {
             return { status: 'withdrawn', revision: current.revision };
         }
         if (
-            current.status === 'approving' &&
+            (current.status === 'approving' || current.status === 'pending') &&
             (current.revision === expectedRevision || current.revision === expectedRevision + 1)
         ) {
             return { status: 'resumed', card: current };
@@ -500,98 +952,472 @@ export class SqlCoreRepository implements
         id: number,
         approvingRevision: number
     ): Promise<NamecardMutationResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
-            `UPDATE cards SET status='approved', revision=revision+1
-             WHERE id=? AND status='approving' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
-            [id, approvingRevision]
+        return this.database.transaction(async (database) => {
+            const claimedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                `SELECT ${NAMECARD_COLUMNS}, owner_account_id FROM fudaba_cards
+                 WHERE card_number=? AND revision=? AND deleted_at IS NULL
+                   AND (publication_status='approving'
+                        OR (review_status='pending' AND publication_status='published'))
+                 FOR UPDATE`,
+                [id, approvingRevision]
+            );
+            let updatedRow: (NamecardCardRow & { owner_account_id?: string | null }) | null = null;
+            if (claimedRow) {
+                if (claimedRow.review_status === 'pending') {
+                    await this.publishNamecardRevision(
+                        database,
+                        claimedRow,
+                        pendingNamecardPayload(claimedRow.pending_payload)
+                    );
+                } else {
+                    await executeSql(database,
+                        `UPDATE fudaba_cards
+                         SET publication_status='published', rejection_reason=NULL,
+                             revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                         WHERE id=?`,
+                        [claimedRow.internal_id]
+                    );
+                }
+                updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                    `SELECT ${NAMECARD_COLUMNS}, owner_account_id FROM fudaba_cards WHERE id=?`,
+                    [claimedRow.internal_id]
+                );
+            }
+            const updated = await this.attachOneNamecard(database, updatedRow);
+            if (updated) {
+                if (updatedRow?.owner_account_id) {
+                    await insertNamecardNotification(database, {
+                        recipientAccountId: String(updatedRow.owner_account_id),
+                        cardNumber: id,
+                        ...cardApprovedCopy(id)
+                    });
+                }
+                return { status: 'updated', card: updated };
+            }
+            const current = await this.findSubmission(id, database);
+            if (!current) return { status: 'not-found' };
+            if (current.status === 'approved' && current.revision === approvingRevision + 1) {
+                return { status: 'updated', card: current };
+            }
+            return { status: 'conflict', revision: current.revision };
+        });
+    }
+
+    /**
+     * Promotes the submitted revision into the live columns. Favourites are
+     * rewritten from the submitted ids; a character deleted in the meantime
+     * drops out instead of blocking the publication.
+     */
+    private async publishNamecardRevision(
+        database: SqlDatabase,
+        row: NamecardCardRow,
+        payload: NamecardPendingPayload | null
+    ): Promise<void> {
+        // Text columns that the author may clear need a flag instead of
+        // COALESCE: a submitted revision is authoritative even when it is empty.
+        const hasPayload = payload !== null
+        await executeSql(database,
+            `UPDATE fudaba_cards
+             SET producer_name=?,
+                 producer_reading=CASE WHEN ? THEN ? ELSE producer_reading END,
+                 bio=CASE WHEN ? THEN ? ELSE bio END,
+                 trade_note=CASE WHEN ? THEN ? ELSE trade_note END,
+                 made_on=COALESCE(?, made_on), group_name=COALESCE(?, group_name),
+                 is_original=COALESCE(?, is_original),
+                 made_with_ai=COALESCE(?, made_with_ai),
+                 visible=COALESCE(?, visible),
+                 exchange_mode=COALESCE(?, exchange_mode),
+                 front_object_key=COALESCE(pending_front_object_key, front_object_key),
+                 back_object_key=COALESCE(pending_back_object_key, back_object_key),
+                 publication_status='published', rejection_reason=NULL,
+                 review_status=NULL, review_reason=NULL, review_submitted_at=NULL,
+                 pending_payload=NULL, pending_front_object_key=NULL,
+                 pending_back_object_key=NULL,
+                 revision=revision+1, updated_at=CURRENT_TIMESTAMP
+             WHERE id=?`,
+            [
+                payload?.producer_name ?? row.producer_name ?? null,
+                hasPayload,
+                payload?.producer_reading ?? null,
+                hasPayload,
+                payload?.bio ?? null,
+                hasPayload,
+                payload?.trade_note ?? null,
+                payload?.made_on ?? null,
+                payload?.group_name ?? null,
+                payload?.is_original ?? null,
+                payload?.made_with_ai ?? null,
+                payload?.visible ?? null,
+                payload?.exchange_mode ?? null,
+                row.internal_id
+            ]
         );
-        if (updated) return { status: 'updated', card: updated };
-        const current = await queryOne<NamecardSubmissionRecord>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, created_at
-             FROM cards WHERE id=?`,
-            [id]
-        );
-        if (!current) return { status: 'not-found' };
-        if (current.status === 'approved' && current.revision === approvingRevision + 1) {
-            return { status: 'updated', card: current };
+        if (payload) {
+            await this.replaceNamecardCredits(
+                database,
+                row.internal_id,
+                payload.credits ?? []
+            )
         }
-        return { status: 'conflict', revision: current.revision };
+        const seriesCodes = (payload?.series_codes ?? []).filter(
+            (code) => typeof code === 'string' && code.length > 0
+        );
+        if (seriesCodes.length) {
+            await executeSql(database,
+                'DELETE FROM fudaba_card_series WHERE card_id=?',
+                [row.internal_id]
+            );
+            for (const [index, seriesCode] of seriesCodes.entries()) {
+                await executeSql(database,
+                    `INSERT INTO fudaba_card_series (card_id, series_code, display_order)
+                     VALUES (?, ?, ?)
+                     ON CONFLICT (card_id, series_code) DO NOTHING`,
+                    [row.internal_id, seriesCode, index + 1]
+                );
+            }
+            // A sampled colour always wins; otherwise one series lends its
+            // agency colour and a set stays neutral.
+            const singleSeries = seriesCodes.length === 1;
+            await executeSql(database,
+                `UPDATE fudaba_cards SET
+                     accent=CASE WHEN ? THEN COALESCE(
+                         (SELECT color FROM agencies WHERE code=?),
+                         CAST(? AS text), accent)
+                     ELSE CAST(? AS text) END,
+                     accent_source=CASE WHEN ? THEN 'series' ELSE 'fallback' END
+                 WHERE id=? AND (accent_source IS NULL OR accent_source<>'image')`,
+                [
+                    singleSeries,
+                    seriesCodes[0],
+                    NAMECARD_ACCENT_FALLBACK,
+                    NAMECARD_ACCENT_FALLBACK,
+                    singleSeries,
+                    row.internal_id,
+                ]
+            );
+        }
+        const characterIds = (payload?.favorite_character_ids ?? []).filter(
+            (characterId) => Number.isSafeInteger(characterId) && characterId > 0
+        );
+        if (!characterIds.length) return;
+        await executeSql(database,
+            'DELETE FROM fudaba_card_favorite_characters WHERE card_id=?',
+            [row.internal_id]
+        );
+        await executeSql(database,
+            `INSERT INTO fudaba_card_favorite_characters (card_id, character_id, display_order)
+             SELECT ?, character.id, ? FROM namecard_characters character
+             WHERE character.id=? AND character.deleted_at IS NULL`,
+            [row.internal_id, 0, characterIds[0]]
+        ).catch(() => undefined);
+        for (let index = 1; index < characterIds.length; index += 1) {
+            await executeSql(database,
+                `INSERT INTO fudaba_card_favorite_characters (card_id, character_id, display_order)
+                 SELECT ?, character.id, ? FROM namecard_characters character
+                 WHERE character.id=? AND character.deleted_at IS NULL`,
+                [row.internal_id, index, characterIds[index]]
+            ).catch(() => undefined);
+        }
     }
 
-    findCardMedia(id: number): Promise<CardMediaRecord | null> {
-        return queryOne(this.database,
-            'SELECT id, image1_url, image2_url, status, revision FROM cards WHERE id=?',
-            [id]
+    private async replaceNamecardCredits(
+        database: SqlDatabase,
+        cardId: string,
+        credits: readonly FudabaCardCredit[]
+    ): Promise<void> {
+        await executeSql(database,
+            'DELETE FROM fudaba_card_credits WHERE card_id=?',
+            [cardId]
         );
+        for (const [index, credit] of credits.entries()) {
+            if (!credit.displayName.trim()) continue;
+            await executeSql(database,
+                `INSERT INTO fudaba_card_credits
+                 (card_id, display_order, account_id, display_name, url, roles)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    cardId,
+                    index + 1,
+                    credit.accountId ?? null,
+                    credit.displayName,
+                    credit.url ?? null,
+                    credit.roles
+                ]
+            );
+        }
     }
 
-    async deleteCard(id: number, expectedRevision: number): Promise<NamecardMutationResult> {
-        const deleted = await queryOne<NamecardSubmissionRecord>(this.database,
-            `DELETE FROM cards WHERE id=? AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
-            [id, expectedRevision]
-        );
-        if (deleted) return { status: 'updated', card: deleted };
-        const current = await queryOne<{ revision: number }>(this.database,
-            'SELECT revision FROM cards WHERE id=?', [id]);
-        return current
-            ? { status: 'conflict', revision: current.revision }
-            : { status: 'not-found' };
+    async findCardMedia(id: number): Promise<CardMediaRecord | null> {
+        return this.findSubmission(id);
+    }
+
+
+    async lockCard(
+        id: number,
+        expectedRevision: number,
+        reason: string
+    ): Promise<NamecardMutationResult> {
+        return this.database.transaction(async (database) => {
+            const currentRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                `SELECT ${NAMECARD_COLUMNS}, owner_account_id FROM fudaba_cards
+                 WHERE card_number=? AND deleted_at IS NULL
+                 FOR UPDATE`,
+                [id]
+            );
+            const current = await this.attachOneNamecard(database, currentRow);
+            if (!current) return { status: 'not-found' };
+            if (current.revision !== expectedRevision) {
+                return { status: 'conflict', revision: current.revision };
+            }
+            // Locking is a review decision, so it never applies to a card that
+            // is already locked or that its owner withdrew from the queue.
+            if (current.status === 'withdrawn') {
+                return { status: 'withdrawn', revision: current.revision };
+            }
+            if (current.status === 'locked') {
+                return { status: 'conflict', revision: current.revision };
+            }
+            const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                `UPDATE fudaba_cards
+                 SET publication_status='locked', lock_reason=?,
+                     review_status=NULL, review_reason=NULL,
+                     review_submitted_at=NULL, pending_payload=NULL,
+                     pending_front_object_key=NULL, pending_back_object_key=NULL,
+                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 WHERE card_number=? AND revision=? AND deleted_at IS NULL
+                 RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
+                [reason, id, expectedRevision]
+            );
+            if (!updatedRow) return { status: 'conflict', revision: current.revision };
+            // A card its owner already deleted is not news to them: locking a
+            // `hidden` card stays silent.
+            if (updatedRow.owner_account_id && current.status !== 'hidden') {
+                await insertNamecardNotification(database, {
+                    recipientAccountId: String(updatedRow.owner_account_id),
+                    cardNumber: id,
+                    ...cardLockedCopy(id, reason)
+                });
+            }
+            const updated = await this.attachOneNamecard(database, updatedRow);
+            return { status: 'updated', card: updated! };
+        });
+    }
+
+    async unlockCard(
+        id: number,
+        expectedRevision: number
+    ): Promise<NamecardMutationResult> {
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                `UPDATE fudaba_cards
+                 SET publication_status='pending', lock_reason=NULL,
+                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 WHERE card_number=?
+                   AND publication_status='locked' AND revision=? AND deleted_at IS NULL
+                 RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
+                [id, expectedRevision]
+            );
+            if (updatedRow) {
+                if (updatedRow.owner_account_id) {
+                    await insertNamecardNotification(database, {
+                        recipientAccountId: String(updatedRow.owner_account_id),
+                        cardNumber: id,
+                        ...cardUnlockedCopy(id)
+                    });
+                }
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmission(id, database);
+            if (!current) return { status: 'not-found' };
+            if (current.status === 'withdrawn') {
+                return { status: 'withdrawn', revision: current.revision };
+            }
+            return { status: 'conflict', revision: current.revision };
+        });
     }
 
     async rejectSubmission(
         id: number,
-        expectedRevision: number
+        expectedRevision: number,
+        reason: string | null = null
     ): Promise<NamecardMutationResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
-            `UPDATE cards SET status='rejected', rejected_at=CURRENT_TIMESTAMP, revision=revision+1
-             WHERE id=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
-            [id, expectedRevision]
-        );
-        if (updated) return { status: 'updated', card: updated };
-        const current = await queryOne<{ status: string; revision: number }>(this.database,
-            'SELECT status, revision FROM cards WHERE id=?', [id]);
-        if (!current) return { status: 'not-found' };
-        if (current.status === 'withdrawn') {
-            return { status: 'withdrawn', revision: current.revision };
-        }
-        return { status: 'conflict', revision: current.revision };
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                `UPDATE fudaba_cards SET
+                     publication_status=CASE WHEN review_status='pending'
+                         THEN publication_status ELSE 'rejected' END,
+                     review_status=CASE WHEN review_status='pending'
+                         THEN 'rejected' ELSE review_status END,
+                     review_reason=CASE WHEN review_status='pending'
+                         THEN ? ELSE review_reason END,
+                     rejection_reason=?, revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 WHERE card_number=? AND revision=? AND deleted_at IS NULL
+                   AND (publication_status='pending'
+                        OR (review_status='pending' AND publication_status='published'))
+                 RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
+                [reason, reason, id, expectedRevision]
+            );
+            if (updatedRow) {
+                await executeSql(database,
+                    'UPDATE namecard_guest_attributes SET rejected_at=CURRENT_TIMESTAMP WHERE card_id=?',
+                    [updatedRow.internal_id]
+                );
+                if (updatedRow.owner_account_id) {
+                    await insertNamecardNotification(database, {
+                        recipientAccountId: String(updatedRow.owner_account_id),
+                        cardNumber: id,
+                        ...(updatedRow.publication_status === 'published'
+                            ? cardRevisionRejectedCopy(id, reason)
+                            : cardRejectedCopy(id, reason))
+                    });
+                }
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmission(id, database);
+            if (!current) return { status: 'not-found' };
+            if (current.status === 'withdrawn') {
+                return { status: 'withdrawn', revision: current.revision };
+            }
+            return { status: 'conflict', revision: current.revision };
+        });
+    }
+
+    /**
+     * Marks a submission as breaking the rules: a revision of a published card
+     * only loses its own verdict, a first submission is locked outright.
+     */
+    async flagSubmission(
+        id: number,
+        expectedRevision: number,
+        reason: string
+    ): Promise<NamecardMutationResult> {
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                `UPDATE fudaba_cards SET
+                     publication_status=CASE WHEN review_status='pending'
+                         AND publication_status='published'
+                         THEN publication_status ELSE 'locked' END,
+                     lock_reason=CASE WHEN review_status='pending'
+                         AND publication_status='published'
+                         THEN lock_reason ELSE ? END,
+                     review_status=CASE WHEN review_status='pending'
+                         THEN 'locked' ELSE review_status END,
+                     review_reason=CASE WHEN review_status='pending'
+                         THEN ? ELSE review_reason END,
+                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 WHERE card_number=? AND revision=? AND deleted_at IS NULL
+                   AND (publication_status='pending'
+                        OR (review_status='pending' AND publication_status='published'))
+                 RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
+                [reason, reason, id, expectedRevision]
+            );
+            if (updatedRow) {
+                if (updatedRow.owner_account_id) {
+                    await insertNamecardNotification(database, {
+                        recipientAccountId: String(updatedRow.owner_account_id),
+                        cardNumber: id,
+                        ...(updatedRow.publication_status === 'published'
+                            ? cardRevisionFlaggedCopy(id, reason)
+                            : cardLockedCopy(id, reason))
+                    });
+                }
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmission(id, database);
+            if (!current) return { status: 'not-found' };
+            if (current.status === 'withdrawn') {
+                return { status: 'withdrawn', revision: current.revision };
+            }
+            return { status: 'conflict', revision: current.revision };
+        });
+    }
+
+    async listNamecardNotifications(recipientAccountId: string, limit: number) {
+        return new SqlNamecardNotificationRepository(this.database).list(recipientAccountId, limit);
+    }
+
+    async markNamecardNotificationsRead(
+        recipientAccountId: string,
+        ids: readonly string[] | null
+    ): Promise<number> {
+        return new SqlNamecardNotificationRepository(this.database).markRead(recipientAccountId, ids);
     }
 
     async purgeTerminalCards(
         cutoff: Date
-    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>> {
-        return queryAll(this.database,
-            `DELETE FROM cards
-             WHERE status IN ('withdrawn','rejected')
-               AND COALESCE(withdrawn_at, rejected_at, created_at) <= ?
-             RETURNING id, image1_url, image2_url`,
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string | null }>> {
+        const rows = await queryAll<{
+            card_number: number | string;
+            front_object_key: string;
+            back_object_key: string | null;
+        }>(this.database,
+            `DELETE FROM fudaba_cards
+             WHERE id IN (
+                 SELECT card.id FROM fudaba_cards card
+                 JOIN namecard_guest_attributes guest ON guest.card_id=card.id
+                 WHERE card.publication_status IN ('withdrawn','rejected')
+                   AND COALESCE(guest.withdrawn_at, guest.rejected_at, card.created_at) <= ?
+             )
+             RETURNING card_number, front_object_key, back_object_key`,
             [cutoff]
         );
+        return rows.map((row) => ({
+            id: Number(row.card_number),
+            image1_url: namecardOriginalUrlFromObjectKey(row.front_object_key),
+            image2_url:
+                row.back_object_key === null
+                    ? null
+                    : namecardOriginalUrlFromObjectKey(row.back_object_key)
+        }));
     }
 
-    findSubmissionByTokenHash(
+    private async findSubmission(
         id: number,
-        tokenHash: string
+        database: SqlDatabase = this.database
     ): Promise<NamecardSubmissionRecord | null> {
-        return queryOne(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, created_at
-             FROM cards WHERE id=? AND withdrawal_token_hash=?`,
+        const row = await queryOne<NamecardCardRow>(database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND deleted_at IS NULL`,
+            [id]
+        );
+        return this.attachOneNamecard(database, row);
+    }
+
+    async findSubmissionByTokenHash(
+        id: number,
+        tokenHash: string,
+        database: SqlDatabase = this.database
+    ): Promise<NamecardSubmissionRecord | null> {
+        const row = await queryOne<NamecardCardRow>(database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards card
+             JOIN namecard_guest_attributes guest ON guest.card_id=card.id
+             WHERE card.card_number=? AND card.${NAMECARD_COMPAT_ORIGIN}
+               AND card.deleted_at IS NULL AND guest.withdrawal_token_hash=?`,
             [id, tokenHash]
         );
+        return this.attachOneNamecard(database, row);
     }
 
-    findSubmissionWithHashesByTokenHash(
+    async findSubmissionWithHashesByTokenHash(
         id: number,
         tokenHash: string
     ): Promise<NamecardSubmissionWithHashesRecord | null> {
-        return queryOne(this.database,
-            `SELECT id, image1_url, image2_url, hash1, hash2, status, revision, created_at
-             FROM cards WHERE id=? AND withdrawal_token_hash=?`,
+        const row = await queryOne<NamecardCardRow & { hash1: string; hash2: string }>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS}, guest.hash1, guest.hash2
+             FROM fudaba_cards card
+             JOIN namecard_guest_attributes guest ON guest.card_id=card.id
+             WHERE card.card_number=? AND card.${NAMECARD_COMPAT_ORIGIN}
+               AND card.deleted_at IS NULL AND guest.withdrawal_token_hash=?`,
             [id, tokenHash]
         );
+        if (!row) return null;
+        const attached = await this.attachOneNamecard(this.database, row);
+        if (!attached) return null;
+        return { ...attached, hash1: row.hash1, hash2: row.hash2 };
     }
 
     async withdrawSubmission(
@@ -599,16 +1425,34 @@ export class SqlCoreRepository implements
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardMutationResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
-            `UPDATE cards SET status='withdrawn', withdrawn_at=CURRENT_TIMESTAMP, revision=revision+1
-             WHERE id=? AND withdrawal_token_hash=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
-            [id, tokenHash, expectedRevision]
-        );
-        if (updated) return { status: 'updated', card: updated };
-        const current = await this.findSubmissionByTokenHash(id, tokenHash);
-        if (!current) return { status: 'not-found' };
-        return { status: 'conflict', revision: current.revision };
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow>(database,
+                `UPDATE fudaba_cards card
+                 SET publication_status='withdrawn', revision=revision+1,
+                     updated_at=CURRENT_TIMESTAMP
+                 FROM namecard_guest_attributes guest
+                 WHERE guest.card_id=card.id AND card.card_number=?
+                   AND card.${NAMECARD_COMPAT_ORIGIN}
+                   AND guest.withdrawal_token_hash=? AND card.publication_status='pending'
+                   AND card.revision=? AND card.deleted_at IS NULL
+                 RETURNING card.id AS internal_id, card.card_number,
+                           card.front_object_key, card.back_object_key,
+                           card.publication_status, card.revision,
+                           card.series_code, card.origin, card.created_at`,
+                [id, tokenHash, expectedRevision]
+            );
+            if (updatedRow) {
+                await executeSql(database,
+                    'UPDATE namecard_guest_attributes SET withdrawn_at=CURRENT_TIMESTAMP WHERE card_id=?',
+                    [updatedRow.internal_id]
+                );
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmissionByTokenHash(id, tokenHash, database);
+            if (!current) return { status: 'not-found' };
+            return { status: 'conflict', revision: current.revision };
+        });
     }
 
     async replaceSubmissionImage(
@@ -619,17 +1463,37 @@ export class SqlCoreRepository implements
         imageUrl: string,
         hash: string
     ): Promise<NamecardEditResult> {
-        const column = side === 'front' ? 'image1_url=?, hash1=?' : 'image2_url=?, hash2=?';
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
-            `UPDATE cards SET ${column}, revision=revision+1
-             WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
-            [imageUrl, hash, id, tokenHash, expectedRevision]
-        );
-        if (updated) return { status: 'updated', card: updated };
-        const current = await this.findSubmissionByTokenHash(id, tokenHash);
-        if (!current) return { status: 'not-found' };
-        return { status: 'conflict', revision: current.revision };
+        const objectKeyColumn = side === 'front' ? 'front_object_key' : 'back_object_key';
+        const hashColumn = side === 'front' ? 'hash1' : 'hash2';
+        const key = publicMediaObjectKey(imageUrl);
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow>(database,
+                `UPDATE fudaba_cards card
+                 SET ${objectKeyColumn}=?, revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 FROM namecard_guest_attributes guest
+                 WHERE guest.card_id=card.id AND card.card_number=?
+                   AND card.${NAMECARD_COMPAT_ORIGIN}
+                   AND guest.withdrawal_token_hash=?
+                   AND card.publication_status IN ('withdrawn','rejected')
+                   AND card.revision=? AND card.deleted_at IS NULL
+                 RETURNING card.id AS internal_id, card.card_number,
+                           card.front_object_key, card.back_object_key,
+                           card.publication_status, card.revision,
+                           card.series_code, card.origin, card.created_at`,
+                [key, id, tokenHash, expectedRevision]
+            );
+            if (updatedRow) {
+                await executeSql(database,
+                    `UPDATE namecard_guest_attributes SET ${hashColumn}=? WHERE card_id=?`,
+                    [hash, updatedRow.internal_id]
+                );
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmissionByTokenHash(id, tokenHash, database);
+            if (!current) return { status: 'not-found' };
+            return { status: 'conflict', revision: current.revision };
+        });
     }
 
     async resubmitSubmission(
@@ -637,445 +1501,52 @@ export class SqlCoreRepository implements
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardEditResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
-            `UPDATE cards SET status='pending', withdrawn_at=NULL, rejected_at=NULL, revision=revision+1
-             WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
-            [id, tokenHash, expectedRevision]
-        );
-        if (updated) return { status: 'updated', card: updated };
-        const current = await this.findSubmissionByTokenHash(id, tokenHash);
-        if (!current) return { status: 'not-found' };
-        return { status: 'conflict', revision: current.revision };
-    }
-
-    findCardByMediaUrl(url: string): Promise<CardMediaRecord | null> {
-        return queryOne(this.database,
-            'SELECT id, image1_url, image2_url, status FROM cards WHERE image1_url=? OR image2_url=? LIMIT 1',
-            [url, url]
-        );
-    }
-
-    findApprovedCard(id: number): Promise<{ id: number } | null> {
-        return queryOne(this.database, "SELECT id FROM cards WHERE id=? AND status='approved'", [id]);
-    }
-
-    listReactions(cardId: number): Promise<Array<{ emoji: string; count: number }>> {
-        return queryAll(this.database,
-            'SELECT emoji, count FROM card_emojis WHERE card_id=? ORDER BY count DESC',
-            [cardId]
-        );
-    }
-
-    async incrementReaction(cardId: number, emoji: string): Promise<void> {
-        await executeSql(this.database,
-            `INSERT INTO card_emojis (card_id, emoji, count) VALUES (?, ?, 1)
-             ON CONFLICT(card_id, emoji) DO UPDATE SET count=card_emojis.count+1`,
-            [cardId, emoji]
-        );
-    }
-
-    async decrementAndPruneReaction(cardId: number, emoji: string): Promise<void> {
-        await this.database.batch([
-            sqlStatement(this.database,
-                'UPDATE card_emojis SET count=count-1 WHERE card_id=? AND emoji=?',
-                [cardId, emoji]
-            ),
-            sqlStatement(this.database,
-                'DELETE FROM card_emojis WHERE card_id=? AND emoji=? AND count<=0',
-                [cardId, emoji]
-            )
-        ]);
-    }
-
-    listHomepageLinks(section?: HomepageLinkSection): Promise<HomepageLinkRecord[]> {
-        return section
-            ? queryAll<HomepageLinkRecord>(this.database,
-                `SELECT * FROM homepage_links WHERE section=?
-                 ORDER BY display_order, id`,
-                [section]
-            )
-            : queryAll<HomepageLinkRecord>(this.database,
-                'SELECT * FROM homepage_links ORDER BY section, display_order, id'
-            );
-    }
-
-    findHomepageLinkById(id: string): Promise<HomepageLinkRecord | null> {
-        return queryOne(this.database, 'SELECT * FROM homepage_links WHERE id=?', [id]);
-    }
-
-    async createHomepageLink(input: NewHomepageLinkInput): Promise<HomepageLinkRecord> {
-        const created = await queryOne<HomepageLinkRecord>(this.database,
-            `INSERT INTO homepage_links
-             (id, section, title, description, href, icon, accent, display_order,
-              created_at, updated_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, COALESCE(MAX(display_order) + 1, 0), ?, ?
-             FROM homepage_links WHERE section=?
-             RETURNING *`,
-            [
-                input.id,
-                input.section,
-                input.title,
-                input.description,
-                input.href,
-                input.icon,
-                input.accent,
-                input.createdAt,
-                input.createdAt,
-                input.section
-            ]
-        );
-        if (!created) throw new Error('Homepage link insert failed');
-        return created;
-    }
-
-    updateHomepageLink(
-        id: string,
-        input: HomepageLinkUpdateInput
-    ): Promise<HomepageLinkRecord | null> {
-        return queryOne<HomepageLinkRecord>(this.database,
-            `UPDATE homepage_links
-             SET title=?, description=?, href=?, icon=?, accent=?, updated_at=?
-             WHERE id=? RETURNING *`,
-            [
-                input.title,
-                input.description,
-                input.href,
-                input.icon,
-                input.accent,
-                input.updatedAt,
-                id
-            ]
-        );
-    }
-
-    async deleteHomepageLink(id: string): Promise<boolean> {
-        const result = await executeSql(this.database, 'DELETE FROM homepage_links WHERE id=?', [id]);
-        return result.meta.changes === 1;
-    }
-
-    async reorderHomepageLinks(
-        section: HomepageLinkSection,
-        ids: readonly string[],
-        updatedAt: number
-    ): Promise<boolean> {
-        if (!ids.length) return (await this.listHomepageLinks(section)).length === 0;
-        const positions = ids.map(() => 'WHEN ? THEN ?').join(' ');
-        const placeholders = ids.map(() => '?').join(', ');
-        const values: unknown[] = [];
-        ids.forEach((id, index) => values.push(id, index));
-        values.push(updatedAt, section, ...ids, section, ids.length);
-        const result = await executeSql(this.database,
-            `UPDATE homepage_links
-             SET display_order=CASE id ${positions} ELSE display_order END,
-                 updated_at=?
-             WHERE section=? AND id IN (${placeholders})
-               AND (SELECT COUNT(*) FROM homepage_links WHERE section=?)=?`,
-            values
-        );
-        return result.meta.changes === ids.length;
-    }
-
-    async listSitePackages(): Promise<SitePackageWithRevisions[]> {
-        const packages = await queryAll<SitePackageRecord>(this.database,
-            'SELECT * FROM site_packages ORDER BY updated_at DESC, slug ASC'
-        );
-        if (!packages.length) return [];
-        const revisions = await queryAll<SitePackageRevisionRecord>(this.database,
-            `SELECT * FROM site_package_revisions
-             ORDER BY package_id ASC, revision_number DESC`
-        );
-        const byPackage = new Map<string, SitePackageRevisionRecord[]>();
-        for (const revision of revisions) {
-            const current = byPackage.get(revision.package_id) || [];
-            current.push(revision);
-            byPackage.set(revision.package_id, current);
-        }
-        return packages.map((sitePackage) => ({
-            ...sitePackage,
-            revisions: byPackage.get(sitePackage.id) || []
-        }));
-    }
-
-    findSitePackageById(id: string): Promise<SitePackageRecord | null> {
-        return queryOne(this.database, 'SELECT * FROM site_packages WHERE id=?', [id]);
-    }
-
-    findSitePackageBySlug(slug: string): Promise<SitePackageRecord | null> {
-        return queryOne(this.database, 'SELECT * FROM site_packages WHERE slug=?', [slug]);
-    }
-
-    findSitePackageRevisionById(
-        packageId: string,
-        revisionId: string
-    ): Promise<SitePackageRevisionRecord | null> {
-        return queryOne(this.database,
-            'SELECT * FROM site_package_revisions WHERE package_id=? AND id=?',
-            [packageId, revisionId]
-        );
-    }
-
-    findSitePackageRevisionByPreviewTokenHash(
-        previewTokenHash: string
-    ): Promise<(SitePackageRevisionRecord & { slug: string }) | null> {
-        return queryOne(this.database,
-            `SELECT r.*, p.slug
-             FROM site_package_revisions r
-             INNER JOIN site_packages p ON p.id=r.package_id
-             WHERE r.preview_token_hash=?`,
-            [previewTokenHash]
-        );
-    }
-
-    async createSitePackageWithRevision(
-        sitePackage: NewSitePackageInput,
-        revision: NewSitePackageRevisionInput
-    ): Promise<void> {
-        if (sitePackage.id !== revision.packageId) {
-            throw new Error('Site package revision belongs to another package');
-        }
-        await this.database.batch([
-            sqlStatement(this.database,
-                `INSERT INTO site_packages
-                 (id, slug, title, description, published_revision_id,
-                  created_by, updated_by, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
-                [
-                    sitePackage.id,
-                    sitePackage.slug,
-                    sitePackage.title,
-                    sitePackage.description,
-                    sitePackage.createdBy,
-                    sitePackage.createdBy,
-                    sitePackage.createdAt,
-                    sitePackage.createdAt
-                ]
-            ),
-            this.sitePackageRevisionStatement(revision, 1)
-        ]);
-    }
-
-    async createSitePackageRevision(
-        revision: NewSitePackageRevisionInput
-    ): Promise<SitePackageRevisionRecord> {
-        await this.database.batch([
-            sqlStatement(this.database,
-                'UPDATE site_packages SET updated_by=?, updated_at=? WHERE id=?',
-                [revision.createdBy, revision.createdAt, revision.packageId]
-            ),
-            this.nextSitePackageRevisionStatement(revision)
-        ]);
-        const created = await this.findSitePackageRevisionById(revision.packageId, revision.id);
-        if (!created) throw new Error('Site package revision insert failed');
-        return created;
-    }
-
-    async publishSitePackageRevision(
-        packageId: string,
-        revisionId: string,
-        updatedBy: number,
-        publishedAt: number
-    ): Promise<SitePackagePublicationResult | null> {
-        const results = await this.database.batch([
-            sqlStatement(this.database,
-                `UPDATE site_packages
-                 SET published_revision_id=?, updated_by=?, updated_at=?
-                 WHERE id=? AND EXISTS (
-                     SELECT 1 FROM site_package_revisions AS revision
-                     WHERE revision.package_id=? AND revision.id=? AND revision.state='ready'
-                       AND (
-                           revision.published_at IS NULL
-                           OR site_packages.published_revision_id=?
-                       )
-                 )`,
-                [
-                    revisionId,
-                    updatedBy,
-                    publishedAt,
-                    packageId,
-                    packageId,
-                    revisionId,
-                    revisionId
-                ]
-            ),
-            sqlStatement(this.database,
-                `UPDATE site_packages
-                 SET published_revision_id=?, updated_by=?, updated_at=?
-                 WHERE id=?
-                   AND (published_revision_id IS NULL OR published_revision_id<>?)
-                   AND EXISTS (
-                     SELECT 1 FROM site_package_revisions AS revision
-                     WHERE revision.package_id=? AND revision.id=? AND revision.state='ready'
-                       AND revision.published_at IS NOT NULL
-                 )`,
-                [
-                    revisionId,
-                    updatedBy,
-                    publishedAt,
-                    packageId,
-                    revisionId,
-                    packageId,
-                    revisionId
-                ]
-            ),
-            sqlStatement(this.database,
-                `UPDATE site_package_revisions SET published_at=COALESCE(published_at, ?)
-                 WHERE package_id=? AND id=? AND state='ready'`,
-                [publishedAt, packageId, revisionId]
-            )
-        ]);
-        const operation = (results[0]?.meta.changes ?? 0) > 0
-            ? 'publish'
-            : (results[1]?.meta.changes ?? 0) > 0
-                ? 'rollback'
-                : null;
-        const [revision, currentPackage] = await Promise.all([
-            this.findSitePackageRevisionById(packageId, revisionId),
-            operation ? Promise.resolve(null) : this.findSitePackageById(packageId)
-        ]);
-        if (
-            !operation &&
-            revision?.state === 'ready' &&
-            currentPackage?.published_revision_id === revisionId
-        ) {
-            return { revision, operation: 'noop' };
-        }
-        if (!operation) return null;
-        if (!revision) throw new Error('Published site package revision could not be read');
-        return { revision, operation };
-    }
-
-    deleteSitePackageRevision(
-        input: DeleteSitePackageRevisionInput
-    ): Promise<SitePackageRevisionDeletionResult | null> {
         return this.database.transaction(async (database) => {
-            const sitePackage = await queryOne<SitePackageRecord>(
-                database,
-                'SELECT * FROM site_packages WHERE id=? FOR UPDATE',
-                [input.packageId]
+            const updatedRow = await queryOne<NamecardCardRow>(database,
+                `UPDATE fudaba_cards card
+                 SET publication_status='pending', revision=revision+1,
+                     updated_at=CURRENT_TIMESTAMP
+                 FROM namecard_guest_attributes guest
+                 WHERE guest.card_id=card.id AND card.card_number=?
+                   AND card.${NAMECARD_COMPAT_ORIGIN}
+                   AND guest.withdrawal_token_hash=?
+                   AND card.publication_status IN ('withdrawn','rejected')
+                   AND card.revision=? AND card.deleted_at IS NULL
+                 RETURNING card.id AS internal_id, card.card_number,
+                           card.front_object_key, card.back_object_key,
+                           card.publication_status, card.revision,
+                           card.series_code, card.origin, card.created_at`,
+                [id, tokenHash, expectedRevision]
             );
-            if (!sitePackage) return null;
-            const revision = await queryOne<SitePackageRevisionRecord>(
-                database,
-                'SELECT * FROM site_package_revisions WHERE package_id=? AND id=?',
-                [input.packageId, input.revisionId]
-            );
-            if (!revision) return null;
-            if (sitePackage.published_revision_id === revision.id) {
-                return {
-                    kind: 'published',
-                    revision,
-                    sitePackage,
-                    packageDeleted: false
-                };
+            if (updatedRow) {
+                await executeSql(database,
+                    `UPDATE namecard_guest_attributes
+                     SET withdrawn_at=NULL, rejected_at=NULL WHERE card_id=?`,
+                    [updatedRow.internal_id]
+                );
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
             }
-            const prefix = `site-packages/${input.packageId}/revisions/${input.revisionId}/`;
-            await database.prepare(
-                `INSERT INTO object_deletion_jobs
-                    (id, resource_type, resource_id, target_kind, target, state,
-                     attempts, next_attempt_at, created_at, updated_at)
-                 VALUES (?, 'site-package-revision', ?, 'prefix', ?, 'pending', 0, ?, ?, ?)`
-            ).bind(
-                input.deletionJobId,
-                input.revisionId,
-                prefix,
-                input.deletedAt,
-                input.deletedAt,
-                input.deletedAt
-            ).run();
-            const deleted = await database.prepare(
-                `DELETE FROM site_package_revisions
-                 WHERE package_id=? AND id=?`
-            ).bind(input.packageId, input.revisionId).run();
-            if (deleted.meta.changes !== 1) {
-                throw new Error('Site package revision delete lost its lock');
-            }
-            const removedPackage = await database.prepare(
-                `DELETE FROM site_packages
-                 WHERE id=? AND published_revision_id IS NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM site_package_revisions WHERE package_id=?
-                   )`
-            ).bind(input.packageId, input.packageId).run();
-            const packageDeleted = removedPackage.meta.changes === 1;
-            if (!packageDeleted) {
-                await database.prepare(
-                    `UPDATE site_packages SET updated_by=?, updated_at=? WHERE id=?`
-                ).bind(input.deletedBy, input.deletedAt, input.packageId).run();
-            }
-            return { kind: 'deleted', revision, sitePackage, packageDeleted };
+            const current = await this.findSubmissionByTokenHash(id, tokenHash, database);
+            if (!current) return { status: 'not-found' };
+            return { status: 'conflict', revision: current.revision };
         });
     }
 
-    async rotateSitePackagePreviewToken(
-        packageId: string,
-        revisionId: string,
-        previewTokenHash: string
-    ): Promise<boolean> {
-        const result = await executeSql(this.database,
-            `UPDATE site_package_revisions SET preview_token_hash=?
-             WHERE package_id=? AND id=?`,
-            [previewTokenHash, packageId, revisionId]
+    async findCardByMediaUrl(url: string): Promise<CardMediaRecord | null> {
+        let key: string;
+        try {
+            key = publicMediaObjectKey(url);
+        } catch {
+            return null;
+        }
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE (front_object_key=? OR back_object_key=?) AND ${NAMECARD_COMPAT_ORIGIN}
+               AND deleted_at IS NULL LIMIT 1`,
+            [key, key]
         );
-        return result.meta.changes > 0;
+        return this.attachOneNamecard(this.database, row);
     }
 
-    private sitePackageRevisionStatement(
-        revision: NewSitePackageRevisionInput,
-        revisionNumber: number
-    ) {
-        return sqlStatement(this.database,
-            `INSERT INTO site_package_revisions
-             (id, package_id, revision_number, entry_path, runtime_mode, state,
-              file_count, total_bytes, source_key, source_sha256, manifest_key,
-              manifest_json, preview_token_hash, created_by, created_at, published_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-            [
-                revision.id,
-                revision.packageId,
-                revisionNumber,
-                revision.entryPath,
-                revision.runtimeMode,
-                revision.state,
-                revision.fileCount,
-                revision.totalBytes,
-                revision.sourceKey,
-                revision.sourceSha256,
-                revision.manifestKey,
-                revision.manifestJson,
-                revision.previewTokenHash,
-                revision.createdBy,
-                revision.createdAt
-            ]
-        );
-    }
-
-    private nextSitePackageRevisionStatement(revision: NewSitePackageRevisionInput) {
-        return sqlStatement(this.database,
-            `INSERT INTO site_package_revisions
-             (id, package_id, revision_number, entry_path, runtime_mode, state,
-              file_count, total_bytes, source_key, source_sha256, manifest_key,
-              manifest_json, preview_token_hash, created_by, created_at, published_at)
-             SELECT ?, ?, CAST(COALESCE(MAX(revision_number), 0) + 1 AS INTEGER),
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL
-             FROM site_package_revisions WHERE package_id=?`,
-            [
-                revision.id,
-                revision.packageId,
-                revision.entryPath,
-                revision.runtimeMode,
-                revision.state,
-                revision.fileCount,
-                revision.totalBytes,
-                revision.sourceKey,
-                revision.sourceSha256,
-                revision.manifestKey,
-                revision.manifestJson,
-                revision.previewTokenHash,
-                revision.createdBy,
-                revision.createdAt,
-                revision.packageId
-            ]
-        );
-    }
 }

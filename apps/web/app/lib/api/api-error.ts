@@ -4,6 +4,7 @@ export type ApiErrorKind =
   | "http"
   | "business"
   | "parse"
+  | "contract"
   | "network"
   | "aborted"
   | "csrf"
@@ -45,7 +46,19 @@ export function normalizeRequestError(
   context: ApiRequestContext = {}
 ): ApiError {
   if (isApiError(error)) {
-    return error
+    if (error.url || !context.url) {
+      return error
+    }
+    // Enrich context-free errors (e.g. contract violations thrown from an
+    // alova transform) with the request coordinates known at this boundary.
+    return new ApiError(error.message, {
+      ...context,
+      kind: error.kind,
+      status: error.status,
+      code: error.code,
+      payload: error.payload,
+      cause: error.cause,
+    })
   }
 
   const errorName =

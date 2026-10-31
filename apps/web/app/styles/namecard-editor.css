@@ -1,0 +1,184 @@
+@layer components {
+  /*
+   * 必填项缺失时不去改边框，而是让目标区域闪两下黄光。用 ::after 叠一层
+   * 半透明遮罩：直接改父级背景色在子元素自带不透明背景时是看不见的。
+   */
+  .card-field-flash {
+    position: relative;
+    border-radius: var(--radius-lg);
+  }
+
+  .card-field-flash::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: var(--radius-lg);
+    background-color: var(--warning);
+    opacity: 0;
+    pointer-events: none;
+    animation: card-field-flash 560ms ease-in-out 2;
+  }
+
+  @keyframes card-field-flash {
+    0%,
+    100% {
+      opacity: 0;
+    }
+
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  /* 缩略图选择区：默认滚动条太显眼，换成细轨道；四周留一点空间放角标。 */
+  .card-thumb-strip {
+    padding: 6px 3px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .card-thumb-strip::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .card-thumb-strip::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .card-thumb-strip::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: var(--border);
+  }
+
+  .card-thumb-strip::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
+
+  /* 图片预览的删除按钮：不透明底色，hover 只把颜色压深，不叠描边与透明层。 */
+  /*
+   * Checkbox 基础样式带 group-has-disabled/field:opacity-50，只要同一组里有一
+   * 个禁用项，整组复选框都会被压暗，锁定与未锁定就看不出区别。这里收回到单个
+   * 复选框自身，让「锁定 = 半透明、可改 = 实心」重新可辨。
+   */
+  .series-choice [data-slot="checkbox"] {
+    opacity: 1 !important;
+  }
+
+  .series-choice [data-slot="checkbox"][data-disabled] {
+    opacity: 0.5 !important;
+  }
+
+  .card-artwork-delete {
+    background-color: var(--destructive) !important;
+    color: var(--destructive-foreground) !important;
+  }
+
+  /* destructive 变体自带半透明 hover，这里压回不透明并把颜色压深。 */
+  .card-artwork-delete:hover {
+    background-color: color-mix(in oklab, var(--destructive) 86%, black) !important;
+  }
+
+  /* 交换模式：说明按切换方向滑入，往右切从右侧来，往左切从左侧来。 */
+  .card-mode-swap {
+    animation-duration: 200ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    animation-fill-mode: both;
+  }
+
+  .card-mode-swap-next {
+    animation-name: card-mode-next;
+  }
+
+  .card-mode-swap-previous {
+    animation-name: card-mode-previous;
+  }
+
+  @keyframes card-mode-next {
+    from {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes card-mode-previous {
+    from {
+      opacity: 0;
+      transform: translateX(-14px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* 仍然跑一次动画，好让 animationend 把高亮类摘掉。 */
+    .card-field-flash::after {
+      animation-duration: 900ms;
+      animation-iteration-count: 1;
+    }
+
+    .card-mode-swap {
+      animation: none;
+    }
+  }
+}
+
+/* 长字段在自身框内滚动，边缘用遮罩淡出，不画滚动条。 */
+.card-field-scroll {
+  max-height: 6rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Only the side that still hides content gets the fade, so the reader can
+   tell whether the list continues up, down or both ways. */
+.card-field-scroll[data-fade="top"] {
+  mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 1) 1.5rem);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem
+  );
+}
+
+.card-field-scroll[data-fade="bottom"] {
+  mask-image: linear-gradient(
+    to top,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem
+  );
+  -webkit-mask-image: linear-gradient(
+    to top,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem
+  );
+}
+
+.card-field-scroll[data-fade="both"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem,
+    rgba(0, 0, 0, 1) calc(100% - 1.5rem),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgba(0, 0, 0, 1) 1.5rem,
+    rgba(0, 0, 0, 1) calc(100% - 1.5rem),
+    transparent 100%
+  );
+}
+
+.card-field-scroll::-webkit-scrollbar {
+  display: none;
+}

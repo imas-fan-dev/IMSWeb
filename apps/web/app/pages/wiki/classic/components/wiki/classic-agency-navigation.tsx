@@ -1,11 +1,11 @@
 import { HouseIcon, XIcon } from "lucide-react"
 import { type CSSProperties } from "react"
-import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import type { WikiPublicCatalog } from "~/lib/api"
 import { contrastingWikiText, safeWikiColor } from "~/pages/wiki/wiki-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 interface ClassicAgencyNavigationProps {
   catalog: WikiPublicCatalog | null
@@ -109,17 +109,20 @@ export function ClassicAgencyNavigation({
             )
           })}
         </div>
-        <Link
+        <NavigationLink
           to={modernWikiHref}
           className="wiki-classic-agency-button is-secondary"
         >
           <WikiViewSwitchIcon tone="dark" className="size-4.5" />
           <span>新版视图</span>
-        </Link>
-        <Link to="/" className="wiki-classic-agency-button is-secondary">
+        </NavigationLink>
+        <NavigationLink
+          to="/"
+          className="wiki-classic-agency-button is-secondary"
+        >
           <HouseIcon />
           <span>返回首页</span>
-        </Link>
+        </NavigationLink>
       </aside>
     </>
   )

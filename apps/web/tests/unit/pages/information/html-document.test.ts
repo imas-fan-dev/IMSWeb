@@ -18,6 +18,12 @@ describe("buildInformationHtmlDocument", () => {
     expect(document).toContain('img[data-image-state="loading"]')
     expect(document).toContain("image-loading-shimmer")
     expect(document).toContain("background-size: 220% 100%")
+    expect(document).toContain("overflow-wrap: anywhere")
+    expect(document).toContain(
+      "table { display: block; width: 100%; max-width: 100%; overflow-x: auto;"
+    )
+    expect(document).toContain("pre { max-width: 100%; overflow: auto;")
+    expect(document).toContain("img, video { display: block; max-width: 100%;")
     expect(document).toContain("prefers-reduced-motion: reduce")
   })
 })

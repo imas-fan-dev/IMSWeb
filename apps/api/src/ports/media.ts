@@ -42,6 +42,12 @@ export interface ImageProcessor {
         height: number,
         options?: ImageInputOptions
     ): Promise<Uint8Array>;
+    /**
+     * Mean colour of the artwork's most saturated hue family, as `#rrggbb`.
+     * Optional so that lightweight image stand-ins keep working; callers must
+     * fall back to the series colour when it is missing or returns null.
+     */
+    dominantColor?(body: Uint8Array): Promise<string | null>;
 }
 
 export interface MediaServices {

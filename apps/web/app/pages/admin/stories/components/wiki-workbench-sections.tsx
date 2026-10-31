@@ -1,21 +1,16 @@
-import { PencilIcon } from "lucide-react"
-
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiEntryKindBadge } from "~/components/wiki/wiki-entry-kind"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { WikiAdminAgency, WikiAdminIdol } from "~/lib/api"
 
 export function IdolSummary({
   agency,
   idol,
-  onEdit,
 }: {
   agency: WikiAdminAgency
   idol: WikiAdminIdol
-  onEdit: () => void
 }) {
   const groups = agency.groups.filter(
     (group) =>
@@ -68,12 +63,6 @@ export function IdolSummary({
           ))}
           {!groups.length ? <Badge variant="outline">未归档</Badge> : null}
         </div>
-      </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        <Button type="button" variant="outline" onClick={onEdit}>
-          <PencilIcon data-icon="inline-start" />
-          编辑内容页
-        </Button>
       </div>
     </section>
   )

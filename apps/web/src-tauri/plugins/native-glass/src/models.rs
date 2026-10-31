@@ -1,0 +1,212 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeGlassColor {
+    pub red: f64,
+    pub green: f64,
+    pub blue: f64,
+    pub alpha: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeGlassTabItem {
+    pub route: String,
+    pub lucide_icon: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigureOptions {
+    pub dark: bool,
+    #[serde(default)]
+    pub hidden: bool,
+    #[serde(default)]
+    pub interaction_blocked: bool,
+    pub items: Vec<NativeGlassTabItem>,
+    #[serde(default)]
+    pub selected_color: Option<NativeGlassColor>,
+    pub selected_index: usize,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateOptions {
+    pub dark: bool,
+    #[serde(default)]
+    pub hidden: bool,
+    #[serde(default)]
+    pub interaction_blocked: bool,
+    #[serde(default)]
+    pub selected_color: Option<NativeGlassColor>,
+    pub selected_index: Option<usize>,
+}
+
+/// Admission policy for the App-owned back gesture. Native code never decides
+/// where to navigate; it only admits an edge swipe and reports its lifecycle.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackPolicyArgs {
+    pub generation: u64,
+    pub revision: u64,
+    pub can_back: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeGlassFrame {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeGlassMenuItem {
+    pub id: String,
+    pub icon: String,
+    pub label: String,
+    #[serde(default)]
+    pub active: bool,
+    #[serde(default)]
+    pub badge: bool,
+}
+
+/// One floating map control drawn natively above the WebView. `frame` uses CSS
+/// pixels relative to the WebView viewport; the iOS side maps that to UIKit
+/// points. The tag is `kind` so both variants share one internally tagged union
+/// across the Rust, Swift, and TypeScript boundaries.
+///
+/// `group` joins neighbours into one glass capsule: every control carrying the
+/// same non-empty value renders inside a single pill, so the Web side can
+/// describe a cluster such as locate + map tools without a new variant. It is
+/// optional, so a payload written before grouping existed still decodes.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "kind")]
+pub enum NativeGlassControl {
+    #[serde(rename = "icon-button", rename_all = "camelCase")]
+    IconButton {
+        id: String,
+        icon: String,
+        label: String,
+        frame: NativeGlassFrame,
+        corner_radius: f64,
+        #[serde(default)]
+        group: Option<String>,
+        #[serde(default)]
+        active: bool,
+        #[serde(default)]
+        disabled: bool,
+        #[serde(default)]
+        busy: bool,
+    },
+    #[serde(rename = "menu", rename_all = "camelCase")]
+    Menu {
+        id: String,
+        icon: String,
+        label: String,
+        frame: NativeGlassFrame,
+        corner_radius: f64,
+        #[serde(default)]
+        group: Option<String>,
+        expanded: bool,
+        panel_width: f64,
+        /// The panel is a surface of its own, so it carries its own radius: a
+        /// pill segment reports a square shared edge, which is right for the
+        /// capsule and wrong for the menu it opens. Absent means "use the
+        /// trigger's radius", which is how ungrouped menus already behaved.
+        #[serde(default)]
+        panel_corner_radius: Option<f64>,
+        items: Vec<NativeGlassMenuItem>,
+    },
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetControlsArgs {
+    pub controls: Vec<NativeGlassControl>,
+    pub dark: bool,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeGlassStatus {
+    pub reason: Option<String>,
+    pub supported: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeSearchResult {
+    pub id: String,
+    pub label: String,
+    pub address: String,
+    #[serde(default)]
+    pub disabled: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeSearchStatusKind {
+    Idle,
+    Loading,
+    Empty,
+    Error,
+    Notice,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NativeSearchStatus {
+    pub kind: NativeSearchStatusKind,
+    pub title: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSearchArgs {
+    pub id: String,
+    pub generation: u64,
+    pub revision: u64,
+    #[serde(default)]
+    pub active_tab: Option<String>,
+    #[serde(default)]
+    pub has_more: bool,
+    pub host: NativeGlassFrame,
+    #[serde(default)]
+    pub navigation_frame: Option<NativeGlassFrame>,
+    pub bottom_clearance: f64,
+    pub dark: bool,
+    #[serde(default)]
+    pub tint: Option<NativeGlassColor>,
+    #[serde(default)]
+    pub refreshing: bool,
+    #[serde(default)]
+    pub return_focus_more: bool,
+    pub detent: String,
+    pub editing: bool,
+    pub query: String,
+    pub busy: bool,
+    pub status: Option<NativeSearchStatus>,
+    pub attribution: String,
+    pub selected: String,
+    #[serde(default)]
+    pub selected_label: Option<String>,
+    #[serde(default)]
+    pub selected_address: Option<String>,
+    pub filter_applied: bool,
+    pub point_count: usize,
+    pub has_attribution: bool,
+    pub results: Vec<NativeSearchResult>,
+    pub labels: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveSearchArgs {
+    pub id: String,
+    pub generation: u64,
+}

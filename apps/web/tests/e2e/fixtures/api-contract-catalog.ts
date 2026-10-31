@@ -1,0 +1,1131 @@
+import {
+  communityContentSchema,
+  communityContentErrorResponseSchema,
+  adminCommunityContentSnapshotSchema,
+  adminCommunityContentUpdateSchema,
+  adminCommunityContentUpdateRequestSchema,
+  adminCommunityContentImageUploadSchema,
+} from "@imsweb/contracts/community-content"
+import {
+  aboutAdminSnapshotSchema,
+  aboutAdminUpdateSchema,
+  aboutErrorResponseSchema,
+  aboutImageUploadSchema,
+  aboutPageContentSchema,
+  aboutPageUpdateRequestSchema,
+} from "@imsweb/contracts/about"
+import {
+  adminAccountEndpointErrorResponseSchema,
+  adminAccountListSchema,
+} from "@imsweb/contracts/admin"
+import {
+  backofficeProtectedHttpErrorSchema,
+  successFlagSchema,
+} from "@imsweb/contracts/common"
+import {
+  editorialArticleSchema,
+  editorialChroniclePageSchema,
+  editorialChronicleQuerySchema,
+  editorialErrorResponseSchema,
+  editorialSpotlightSchema,
+} from "@imsweb/contracts/editorial"
+import {
+  adminCardClaimListSchema,
+  claimEnvelopeListSchema,
+  claimMutationSchema,
+  envelopeMutationSchema,
+  fudabaCardReviewRequestSchema,
+  fudabaClaimEnvelopeActionRequestSchema,
+  fudabaLegacyCardClaimRequestSchema,
+  fudabaAdminCardClaimHttpErrorSchema,
+  fudabaCardClaimErrorSchema,
+  registeredCardReviewListSchema,
+  reviewMutationSchema,
+} from "@imsweb/contracts/fudaba/card-claims"
+import {
+  adminOfficeReviewListSchema,
+  adminOfficeReviewDetailSchema,
+  adminOfficeMutationSchema,
+  adminOfficeReviewQuerySchema,
+  adminOfficeReviewRequestSchema,
+  adminOfficeHttpErrorSchema,
+} from "@imsweb/contracts/fudaba/office-review"
+import {
+  fudabaGuestSubmissionErrorSchema,
+  fudabaGuestSubmissionReceiptSchema,
+} from "@imsweb/contracts/fudaba/guest-submissions"
+import {
+  fudabaCardPageSchema,
+  fudabaCardPlacementDeleteRequestSchema,
+  fudabaCardPlacementDeleteResponseSchema,
+  fudabaCardPlacementSaveRequestSchema,
+  fudabaCardPlacementSaveResponseSchema,
+  fudabaCardQuerySchema,
+  fudabaCardReactionsResponseSchema,
+  fudabaCardInteractionResponseSchema,
+  fudabaCardUpdateRequestSchema,
+  fudabaCardMutationResponseSchema,
+  fudabaErrorResponseSchema,
+  fudabaIgnoredQuerySchema,
+  fudabaMapConfigSchema,
+  fudabaMapOfficeListSchema,
+  fudabaMapQuerySchema,
+  fudabaOfficeDetailSchema,
+  fudabaOfficeMutationResponseSchema,
+  fudabaOfficePageSchema,
+  fudabaOfficeQuerySchema,
+  fudabaOfficeUpdateRequestSchema,
+  fudabaOfficeFieldsRequestSchema,
+  fudabaOwnerCardDetailSchema,
+  fudabaOwnerCardListSchema,
+  fudabaOwnerLocationDetailSchema,
+  fudabaOwnerLocationMutationResponseSchema,
+  fudabaOwnerLocationSaveRequestSchema,
+  fudabaOwnerLocationWithdrawalResponseSchema,
+  fudabaOwnerOfficeDetailSchema,
+  fudabaOwnerOfficeListSchema,
+  fudabaPlaceReverseQuerySchema,
+  fudabaPlaceReverseResponseSchema,
+  fudabaPlaceSearchQuerySchema,
+  fudabaPlaceSearchResponseSchema,
+  fudabaRevisionRequestSchema,
+  fudabaSeriesListSchema,
+} from "@imsweb/contracts/fudaba"
+import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
+import {
+  liveScheduleErrorResponseSchema,
+  liveScheduleListSchema,
+  liveScheduleQuerySchema,
+} from "@imsweb/contracts/live"
+import {
+  homepageLinkErrorResponseSchema,
+  homepageLinkOrderRequestSchema,
+  homepageLinksSchema,
+} from "@imsweb/contracts/homepage-links"
+import {
+  adminNamecardHttpErrorSchema,
+  adminNamecardListQuerySchema,
+  adminNamecardDiffSchema,
+  adminNamecardListResponseSchema,
+  namecardErrorResponseSchema,
+  adminNamecardMutationSchema,
+  expectedNamecardRevisionRequestSchema,
+  flaggedNamecardRequestSchema,
+  lockedNamecardRequestSchema,
+  namecardListErrorResponseSchema,
+  namecardListQuerySchema,
+  namecardMutationResponseSchema,
+  rejectedNamecardRequestSchema,
+  namecardPageSchema,
+  namecardReactionListQuerySchema,
+  reactionSchema,
+} from "@imsweb/contracts/namecards"
+import {
+  newsErrorResponseSchema,
+  newsListQuerySchema,
+  recommendationResponseSchema,
+} from "@imsweb/contracts/news"
+import {
+  adminPlatformEmailConfigurationTestRequestSchema,
+  adminPlatformEmailConfigurationWriteRequestSchema,
+  adminPlatformEmailHttpErrorSchema,
+  adminPlatformEmailMutationResponseSchema,
+  adminPlatformEmailSettingsResponseSchema,
+  adminPlatformEmailTestResponseSchema,
+} from "@imsweb/contracts/platform/admin-email"
+import {
+  platformAvatarRemovalRequestSchema,
+  platformHttpErrorSchema,
+  platformLoginRequestSchema,
+  platformOAuthProvidersResponseSchema,
+  platformProfileHttpErrorSchema,
+  platformProfileMutationResponseSchema,
+  platformProfileResponseSchema,
+  platformProfileUpdateRequestSchema,
+  platformRegisterRequestSchema,
+  platformRegistrationVerificationRequestSchema,
+  platformRegistrationVerificationResponseSchema,
+  platformSessionSchema,
+} from "@imsweb/contracts/platform"
+import { producerMapAdminSnapshotSchema } from "@imsweb/contracts/producer-map"
+import {
+  platformOAuthLinkListResponseSchema,
+  platformSessionListResponseSchema,
+} from "@imsweb/contracts/platform/account-security"
+import {
+  sitePackageHttpErrorSchema,
+  sitePackageListSchema,
+} from "@imsweb/contracts/site-packages"
+import {
+  wikiAdminCatalogSchema,
+  wikiErrorResponseSchema,
+  wikiHttpErrorResponseSchema,
+  wikiCatalogQuerySchema,
+  wikiPublicCatalogSchema,
+  wikiPublicStoriesSchema,
+  wikiRandomBackgroundSchema,
+  wikiRandomIdolSchema,
+  wikiStoriesQuerySchema,
+  wikiStoryCoverAssetsSchema,
+} from "@imsweb/contracts/wiki"
+import {
+  eventErrorResponseSchema,
+  eventListQuerySchema,
+  eventPageSchema,
+} from "@imsweb/contracts/events"
+import { z } from "@imsweb/contracts/z"
+import {
+  adminPlatformUserDetailResponseSchema,
+  adminPlatformUserListSchema,
+  adminPlatformUserListQuerySchema,
+  adminPlatformUserHttpErrorSchema,
+} from "@imsweb/contracts/platform/admin-users"
+
+const guestSubmissionMultipartSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (body) =>
+      (body.match(/name="images"/g)?.length ?? 0) === 2 &&
+      body.includes('name="seriesCode"') &&
+      body.includes('name="favoriteCharacterIds"'),
+    "expected two images, seriesCode, and favoriteCharacterIds multipart fields"
+  )
+const aboutAvatarMultipartSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (body) => body.includes('name="image"'),
+    "expected image multipart field"
+  )
+const platformAvatarMultipartSchema = z
+  .string()
+  .min(1)
+  .refine((body) => {
+    const fieldNames = Array.from(
+      body.matchAll(/content-disposition:\s*form-data;\s*name="([^"]+)"/gi),
+      (match) => match[1]
+    )
+    return (
+      fieldNames.length === 2 &&
+      fieldNames.filter((name) => name === "image").length === 1 &&
+      fieldNames.filter((name) => name === "expectedUpdatedAt").length === 1 &&
+      /content-disposition:\s*form-data;\s*name="image";\s*filename="[^"]+"/i.test(
+        body
+      )
+    )
+  }, "expected exactly one image and one expectedUpdatedAt multipart field")
+const multipartFormDataContentTypeSchema = z
+  .string()
+  .regex(/^multipart\/form-data;\s*boundary=\S+$/i)
+
+export type CatalogContract = {
+  query?: z.ZodTypeAny
+  body?: z.ZodTypeAny
+  rawBody?: {
+    name: string
+    reason: string
+    schema: z.ZodTypeAny
+    contentType?: z.ZodTypeAny
+  }
+  responses: Record<number, z.ZodTypeAny | readonly z.ZodTypeAny[]>
+}
+
+const protectedErrors = {
+  400: backofficeProtectedHttpErrorSchema,
+  401: backofficeProtectedHttpErrorSchema,
+  403: backofficeProtectedHttpErrorSchema,
+  404: backofficeProtectedHttpErrorSchema,
+  500: backofficeProtectedHttpErrorSchema,
+}
+const fudabaErrors = {
+  400: fudabaErrorResponseSchema,
+  401: fudabaErrorResponseSchema,
+  403: fudabaErrorResponseSchema,
+  404: fudabaErrorResponseSchema,
+  409: fudabaErrorResponseSchema,
+  503: fudabaErrorResponseSchema,
+}
+const fudabaClaimErrors = {
+  400: fudabaCardClaimErrorSchema,
+  401: fudabaCardClaimErrorSchema,
+  403: fudabaCardClaimErrorSchema,
+  404: fudabaCardClaimErrorSchema,
+  409: fudabaCardClaimErrorSchema,
+}
+const fudabaGuestSubmissionErrors = {
+  400: fudabaGuestSubmissionErrorSchema,
+  404: fudabaGuestSubmissionErrorSchema,
+  409: fudabaGuestSubmissionErrorSchema,
+  413: fudabaGuestSubmissionErrorSchema,
+  429: fudabaGuestSubmissionErrorSchema,
+  500: fudabaGuestSubmissionErrorSchema,
+}
+
+export function resolveApiContract(
+  method: string,
+  path: string
+): CatalogContract {
+  if (method === "GET" && path === "/api/admin/platform/users")
+    return {
+      query: adminPlatformUserListQuerySchema,
+      responses: { ...protectedErrors, 200: adminPlatformUserListSchema },
+    }
+  if (method === "GET" && /^\/api\/admin\/platform\/users\/[^/]+$/.test(path))
+    return {
+      responses: {
+        ...protectedErrors,
+        200: adminPlatformUserDetailResponseSchema,
+        404: adminPlatformUserHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/events")
+    return {
+      query: eventListQuerySchema,
+      responses: { 200: eventPageSchema, 503: eventErrorResponseSchema },
+    }
+  if (method === "GET" && path === "/api/chronicle")
+    return {
+      query: editorialChronicleQuerySchema,
+      responses: {
+        200: editorialChroniclePageSchema,
+        500: editorialErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/live-schedule")
+    return {
+      query: liveScheduleQuerySchema,
+      responses: {
+        200: liveScheduleListSchema,
+        500: liveScheduleErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/about")
+    return {
+      responses: {
+        200: aboutPageContentSchema,
+        500: aboutErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && /^\/api\/events\/[^/]+$/.test(path))
+    return {
+      responses: {
+        200: editorialArticleSchema,
+        404: editorialErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/news")
+    return {
+      query: newsListQuerySchema,
+      responses: {
+        200: recommendationResponseSchema,
+        500: newsErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/community-posts/spotlight")
+    return {
+      responses: {
+        200: editorialSpotlightSchema,
+        500: editorialErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/homepage-links")
+    return {
+      responses: {
+        200: homepageLinksSchema,
+        500: homepageLinkErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/wiki/catalog")
+    return {
+      query: wikiCatalogQuerySchema,
+      responses: {
+        200: [wikiPublicCatalogSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/wiki/random_idol")
+    return {
+      responses: {
+        200: [wikiRandomIdolSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/wiki/random_bg")
+    return {
+      responses: {
+        200: [wikiRandomBackgroundSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/wiki/stories")
+    return {
+      query: wikiStoriesQuerySchema,
+      responses: {
+        200: [wikiPublicStoriesSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/cards")
+    return {
+      query: namecardListQuerySchema,
+      responses: {
+        200: namecardPageSchema,
+        400: namecardErrorResponseSchema,
+        500: namecardErrorResponseSchema,
+        503: namecardListErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/reactions")
+    return {
+      query: namecardReactionListQuerySchema,
+      responses: {
+        200: reactionSchema,
+        400: namecardErrorResponseSchema,
+        500: namecardErrorResponseSchema,
+      },
+    }
+
+  const exchange = "/api/community/exchange"
+  if (method === "GET" && path === `${exchange}/series`)
+    return { responses: { 200: fudabaSeriesListSchema, ...fudabaErrors } }
+  if (method === "GET" && path === `${exchange}/characters`)
+    return {
+      responses: { 200: namecardCharacterCatalogSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/offices`)
+    return {
+      query: fudabaOfficeQuerySchema,
+      responses: { 200: fudabaOfficePageSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/cards`)
+    return {
+      query: fudabaCardQuerySchema,
+      responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/cards\/[^/]+\/reactions$/.test(path)
+  )
+    return {
+      responses: { 200: fudabaCardReactionsResponseSchema, ...fudabaErrors },
+    }
+  if (
+    (method === "PUT" || method === "DELETE") &&
+    /^\/api\/community\/exchange\/cards\/[^/]+\/(like|favorite)$/.test(path)
+  )
+    return {
+      body: z.object({}).strict(),
+      responses: { 200: fudabaCardInteractionResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+$/.test(path)
+  )
+    return { responses: { 200: fudabaOfficeDetailSchema, ...fudabaErrors } }
+  if (method === "GET" && path === `${exchange}/map/config`)
+    return { responses: { 200: fudabaMapConfigSchema, ...fudabaErrors } }
+  if (method === "GET" && path === `${exchange}/map/offices`)
+    return {
+      query: fudabaMapQuerySchema,
+      responses: { 200: fudabaMapOfficeListSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/places/reverse`)
+    return {
+      query: fudabaPlaceReverseQuerySchema,
+      responses: { 200: fudabaPlaceReverseResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/places/search`)
+    return {
+      query: fudabaPlaceSearchQuerySchema,
+      responses: { 200: fudabaPlaceSearchResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/me/series`)
+    return {
+      query: fudabaIgnoredQuerySchema,
+      responses: { 200: fudabaSeriesListSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    (path === `${exchange}/uploads/front` ||
+      path === `${exchange}/uploads/back`)
+  )
+    return {
+      rawBody: {
+        name: "Owner card media multipart request",
+        reason:
+          "One image, owner card ID and expected revision form a non-JSON boundary.",
+        schema: z
+          .string()
+          .min(1)
+          .refine((body) => {
+            const fields = Array.from(
+              body.matchAll(
+                /content-disposition:\s*form-data;\s*name="([^"]+)"/gi
+              ),
+              (match) => match[1]
+            ).sort()
+            return fields.join(",") === "cardId,expectedRevision,image"
+          }, "expected exactly image, cardId and expectedRevision fields"),
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/me/cards`)
+    return {
+      query: fudabaIgnoredQuerySchema,
+      responses: { 200: fudabaOwnerCardListSchema, ...fudabaErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/me\/cards\/[^/]+$/.test(path)
+  )
+    return { responses: { 200: fudabaOwnerCardDetailSchema, ...fudabaErrors } }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/me\/cards\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaCardUpdateRequestSchema,
+      responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/me\/cards\/[^/]+\/media$/.test(path)
+  )
+    return {
+      rawBody: {
+        name: "Ordered card artwork multipart request",
+        reason:
+          "Artwork slots travel as repeated images plus a JSON order, which JSON cannot express.",
+        schema: z
+          .string()
+          .min(1)
+          .refine((body) => {
+            const names = Array.from(
+              body.matchAll(
+                /content-disposition:\s*form-data;\s*name="([^"]+)"/gi
+              ),
+              (match) => match[1]
+            )
+            const images = names.filter((name) => name === "images")
+            const others = names.filter((name) => name !== "images").sort()
+            return (
+              images.length > 0 &&
+              others.join(",") === "expectedRevision,order"
+            )
+          }, "expected images plus expectedRevision and order fields"),
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/me/favorites`)
+    return {
+      query: fudabaCardQuerySchema,
+      responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
+    }
+  if (method === "POST" && path === `${exchange}/offices`)
+    return {
+      body: fudabaOfficeFieldsRequestSchema,
+      responses: { 200: fudabaOfficeMutationResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/me/offices`)
+    return {
+      query: fudabaIgnoredQuerySchema,
+      responses: { 200: fudabaOwnerOfficeListSchema, ...fudabaErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/me\/offices\/[^/]+$/.test(path)
+  )
+    return {
+      responses: { 200: fudabaOwnerOfficeDetailSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/me\/offices\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaOfficeUpdateRequestSchema,
+      responses: { 200: fudabaOfficeMutationResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/me\/offices\/[^/]+\/location$/.test(path)
+  )
+    return {
+      responses: { 200: fudabaOwnerLocationDetailSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/me\/offices\/[^/]+\/location$/.test(path)
+  )
+    return {
+      body: fudabaOwnerLocationSaveRequestSchema,
+      responses: {
+        200: fudabaOwnerLocationMutationResponseSchema,
+        ...fudabaErrors,
+      },
+    }
+  if (
+    method === "DELETE" &&
+    /^\/api\/community\/exchange\/me\/offices\/[^/]+\/location$/.test(path)
+  )
+    return {
+      body: fudabaRevisionRequestSchema,
+      responses: {
+        200: fudabaOwnerLocationWithdrawalResponseSchema,
+        ...fudabaErrors,
+      },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/cards\/[^/]+\/placement$/.test(
+      path
+    )
+  )
+    return {
+      body: fudabaCardPlacementSaveRequestSchema,
+      responses: {
+        200: fudabaCardPlacementSaveResponseSchema,
+        201: fudabaCardPlacementSaveResponseSchema,
+        ...fudabaErrors,
+      },
+    }
+  if (
+    method === "DELETE" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/cards\/[^/]+\/placement$/.test(
+      path
+    )
+  )
+    return {
+      body: fudabaCardPlacementDeleteRequestSchema,
+      responses: {
+        200: fudabaCardPlacementDeleteResponseSchema,
+        ...fudabaErrors,
+      },
+    }
+  if (method === "POST" && path === `${exchange}/guest-submissions`)
+    return {
+      rawBody: {
+        name: "guest namecard multipart request",
+        reason:
+          "FormData is a Web-local non-JSON boundary without a shared request schema",
+        schema: guestSubmissionMultipartSchema,
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        200: fudabaGuestSubmissionReceiptSchema,
+        ...fudabaGuestSubmissionErrors,
+      },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/community\/exchange\/legacy-cards\/[^/]+\/claims$/.test(path)
+  )
+    return {
+      body: fudabaLegacyCardClaimRequestSchema,
+      responses: {
+        200: claimMutationSchema,
+        201: claimMutationSchema,
+        ...fudabaClaimErrors,
+      },
+    }
+  if (method === "GET" && path === `${exchange}/me/claim-envelopes`)
+    return {
+      responses: { 200: claimEnvelopeListSchema, ...fudabaClaimErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/me\/claim-envelopes\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaClaimEnvelopeActionRequestSchema,
+      responses: { 200: envelopeMutationSchema, ...fudabaClaimErrors },
+    }
+
+  if (method === "GET" && path === "/api/platform/auth/oauth/providers")
+    return {
+      responses: {
+        200: platformOAuthProvidersResponseSchema,
+        500: platformHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/platform/auth/session")
+    return {
+      responses: { 200: platformSessionSchema, 401: platformHttpErrorSchema },
+    }
+  if (method === "POST" && path === "/api/platform/auth/refresh")
+    return {
+      responses: { 200: platformSessionSchema, 401: platformHttpErrorSchema },
+    }
+  if (method === "POST" && path === "/api/platform/auth/logout")
+    return {
+      responses: { 200: successFlagSchema, 401: platformHttpErrorSchema },
+    }
+  if (method === "POST" && path === "/api/platform/auth/login")
+    return {
+      body: platformLoginRequestSchema,
+      responses: {
+        200: platformSessionSchema,
+        400: platformHttpErrorSchema,
+        401: platformHttpErrorSchema,
+      },
+    }
+  if (
+    method === "POST" &&
+    path === "/api/platform/auth/register/verification-code"
+  )
+    return {
+      body: platformRegistrationVerificationRequestSchema,
+      responses: {
+        200: platformRegistrationVerificationResponseSchema,
+        202: platformRegistrationVerificationResponseSchema,
+        400: platformHttpErrorSchema,
+        429: platformHttpErrorSchema,
+      },
+    }
+  if (method === "POST" && path === "/api/platform/auth/register")
+    return {
+      body: platformRegisterRequestSchema,
+      responses: {
+        200: platformSessionSchema,
+        201: platformSessionSchema,
+        400: platformHttpErrorSchema,
+        409: platformHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/platform/me")
+    return {
+      responses: {
+        200: platformProfileResponseSchema,
+        401: platformHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/platform/me/sessions")
+    return {
+      responses: { 200: platformSessionListResponseSchema },
+    }
+  if (method === "GET" && path === "/api/platform/me/oauth-links")
+    return {
+      responses: {
+        200: platformOAuthLinkListResponseSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/platform/me/avatar")
+    return {
+      rawBody: {
+        name: "Platform avatar upload multipart body",
+        reason:
+          "Avatar uploads carry one image and the current profile revision.",
+        schema: platformAvatarMultipartSchema,
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        200: platformProfileMutationResponseSchema,
+        400: platformProfileHttpErrorSchema,
+        401: platformProfileHttpErrorSchema,
+        403: platformProfileHttpErrorSchema,
+        409: platformProfileHttpErrorSchema,
+        413: platformProfileHttpErrorSchema,
+        429: platformProfileHttpErrorSchema,
+        500: platformProfileHttpErrorSchema,
+      },
+    }
+  if (method === "DELETE" && path === "/api/platform/me/avatar")
+    return {
+      body: platformAvatarRemovalRequestSchema,
+      responses: {
+        200: platformProfileMutationResponseSchema,
+        400: platformProfileHttpErrorSchema,
+        401: platformProfileHttpErrorSchema,
+        403: platformProfileHttpErrorSchema,
+        409: platformProfileHttpErrorSchema,
+        429: platformProfileHttpErrorSchema,
+        500: platformProfileHttpErrorSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/platform/me")
+    return {
+      body: platformProfileUpdateRequestSchema,
+      responses: {
+        200: platformProfileMutationResponseSchema,
+        400: platformProfileHttpErrorSchema,
+        401: platformProfileHttpErrorSchema,
+        409: platformProfileHttpErrorSchema,
+      },
+    }
+
+  if (method === "GET" && path === "/api/admin/homepage-links")
+    return {
+      responses: { 200: homepageLinksSchema, ...protectedErrors },
+    }
+  if (method === "PUT" && path === "/api/admin/homepage-links/navigation/order")
+    return {
+      body: homepageLinkOrderRequestSchema,
+      responses: { 200: successFlagSchema, ...protectedErrors },
+    }
+  if (method === "GET" && path === "/api/admin/community/exchange/offices")
+    return {
+      query: adminOfficeReviewQuerySchema,
+      responses: {
+        200: [adminOfficeReviewListSchema, adminOfficeHttpErrorSchema],
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/admin\/community\/exchange\/offices\/[^/]+\/review$/.test(path)
+  )
+    return {
+      body: adminOfficeReviewRequestSchema,
+      responses: {
+        200: [adminOfficeMutationSchema, adminOfficeHttpErrorSchema],
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        404: adminOfficeHttpErrorSchema,
+        409: adminOfficeHttpErrorSchema,
+        500: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    /^\/api\/admin\/community\/exchange\/offices\/[^/]+$/.test(path) &&
+    (method === "GET" || method === "PUT")
+  )
+    return {
+      ...(method === "PUT" ? { body: fudabaOfficeUpdateRequestSchema } : {}),
+      responses: {
+        200:
+          method === "GET"
+            ? adminOfficeReviewDetailSchema
+            : adminOfficeMutationSchema,
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        404: adminOfficeHttpErrorSchema,
+        409: adminOfficeHttpErrorSchema,
+        500: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/office-series"
+  )
+    return {
+      responses: {
+        200: fudabaSeriesListSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        500: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/community/exchange/map/config")
+    return {
+      responses: {
+        200: fudabaMapConfigSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        503: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/places/search"
+  )
+    return {
+      query: fudabaPlaceSearchQuerySchema,
+      responses: {
+        200: fudabaPlaceSearchResponseSchema,
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        429: adminOfficeHttpErrorSchema,
+        503: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/places/reverse"
+  )
+    return {
+      query: fudabaPlaceReverseQuerySchema,
+      responses: {
+        200: fudabaPlaceReverseResponseSchema,
+        400: adminOfficeHttpErrorSchema,
+        401: adminOfficeHttpErrorSchema,
+        403: adminOfficeHttpErrorSchema,
+        429: adminOfficeHttpErrorSchema,
+        502: adminOfficeHttpErrorSchema,
+        503: adminOfficeHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/community/exchange/card-reviews")
+    return {
+      responses: {
+        200: [registeredCardReviewListSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/admin\/community\/exchange\/card-reviews\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaCardReviewRequestSchema,
+      responses: {
+        200: [reviewMutationSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/community/exchange/card-claims")
+    return {
+      responses: {
+        200: [adminCardClaimListSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/admin\/community\/exchange\/card-claims\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaCardReviewRequestSchema,
+      responses: {
+        200: [reviewMutationSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards")
+    return {
+      query: adminNamecardListQuerySchema,
+      responses: {
+        200: adminNamecardListResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && /^\/api\/admin\/cards\/[^/]+\/diff$/.test(path))
+    return {
+      responses: {
+        200: adminNamecardDiffSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/approve\/[^/]+$/.test(path))
+    return {
+      body: expectedNamecardRevisionRequestSchema,
+      responses: {
+        200: adminNamecardMutationSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/reject\/[^/]+$/.test(path))
+    return {
+      body: rejectedNamecardRequestSchema,
+      responses: {
+        200: successFlagSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/lock\/[^/]+$/.test(path))
+    return {
+      body: lockedNamecardRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/flag\/[^/]+$/.test(path))
+    return {
+      body: flaggedNamecardRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/unlock\/[^/]+$/.test(path))
+    return {
+      body: expectedNamecardRevisionRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/accounts")
+    return {
+      responses: {
+        200: adminAccountListSchema,
+        401: adminAccountEndpointErrorResponseSchema,
+        403: adminAccountEndpointErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/platform/email")
+    return {
+      responses: {
+        200: adminPlatformEmailSettingsResponseSchema,
+        401: adminPlatformEmailHttpErrorSchema,
+        403: adminPlatformEmailHttpErrorSchema,
+        500: adminPlatformEmailHttpErrorSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/admin/platform/email")
+    return {
+      body: adminPlatformEmailConfigurationWriteRequestSchema,
+      responses: {
+        200: adminPlatformEmailMutationResponseSchema,
+        400: adminPlatformEmailHttpErrorSchema,
+        401: adminPlatformEmailHttpErrorSchema,
+        403: adminPlatformEmailHttpErrorSchema,
+        409: adminPlatformEmailHttpErrorSchema,
+        500: adminPlatformEmailHttpErrorSchema,
+        502: adminPlatformEmailHttpErrorSchema,
+      },
+    }
+  if (method === "POST" && path === "/api/admin/platform/email/test")
+    return {
+      body: adminPlatformEmailConfigurationTestRequestSchema,
+      responses: {
+        200: adminPlatformEmailTestResponseSchema,
+        400: adminPlatformEmailHttpErrorSchema,
+        401: adminPlatformEmailHttpErrorSchema,
+        403: adminPlatformEmailHttpErrorSchema,
+        409: adminPlatformEmailHttpErrorSchema,
+        500: adminPlatformEmailHttpErrorSchema,
+        502: adminPlatformEmailHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/site-packages")
+    return {
+      responses: {
+        200: sitePackageListSchema,
+        401: sitePackageHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/community/content")
+    return {
+      responses: {
+        200: communityContentSchema,
+        500: communityContentErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/community-content")
+    return {
+      responses: {
+        200: adminCommunityContentSnapshotSchema,
+        ...protectedErrors,
+      },
+    }
+  if (method === "PUT" && path === "/api/admin/community-content")
+    return {
+      body: adminCommunityContentUpdateRequestSchema,
+      responses: {
+        200: adminCommunityContentUpdateSchema,
+        ...protectedErrors,
+        409: communityContentErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && path === "/api/admin/community-content/images")
+    return {
+      rawBody: {
+        name: "community image multipart request",
+        reason: "FormData is a Web-local non-JSON boundary",
+        schema: aboutAvatarMultipartSchema,
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        200: adminCommunityContentImageUploadSchema,
+        ...protectedErrors,
+        413: communityContentErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/producer-map")
+    return {
+      responses: { 200: producerMapAdminSnapshotSchema, ...protectedErrors },
+    }
+  if (method === "GET" && path === "/api/admin/about")
+    return {
+      responses: { 200: aboutAdminSnapshotSchema, ...protectedErrors },
+    }
+  if (method === "PUT" && path === "/api/admin/about")
+    return {
+      body: aboutPageUpdateRequestSchema,
+      responses: { 200: aboutAdminUpdateSchema, ...protectedErrors },
+    }
+  if (method === "POST" && path === "/api/admin/about/member-avatar")
+    return {
+      rawBody: {
+        name: "about avatar multipart request",
+        reason:
+          "FormData is a Web-local non-JSON boundary without a shared request schema",
+        schema: aboutAvatarMultipartSchema,
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: { 200: aboutImageUploadSchema, ...protectedErrors },
+    }
+  if (method === "GET" && path === "/api/admin/wiki/catalog")
+    return {
+      responses: {
+        200: [wikiAdminCatalogSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/admin\/wiki\/agencies\/[^/]+\/story-cover-assets$/.test(path)
+  )
+    return {
+      responses: {
+        200: [wikiStoryCoverAssetsSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+
+  throw new Error(`No contracts catalog entry for ${method} ${path}`)
+}

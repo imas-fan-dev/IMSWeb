@@ -1,0 +1,105 @@
+import { fireEvent, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { useState } from "react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+import { I18nTestProvider } from "@/tests/unit/support/harness"
+import { i18n } from "~/i18n/config"
+import { defaultLanguage } from "~/i18n/resources"
+import { ImageCompositionEditor } from "~/components/admin/image-composition-editor"
+import { defaultWikiImageTransform, type WikiImageTransform } from "~/lib/api"
+
+function EditorHarness({
+  initialTransform = defaultWikiImageTransform,
+}: {
+  initialTransform?: WikiImageTransform
+}) {
+  const [transform, setTransform] = useState(initialTransform)
+
+  return (
+    <ImageCompositionEditor
+      id="wiki-image"
+      file={null}
+      currentUrl="/uploads/wiki/image.webp"
+      transform={transform}
+      onFileChange={vi.fn()}
+      onTransformChange={setTransform}
+    />
+  )
+}
+
+describe("ImageCompositionEditor", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage(defaultLanguage)
+  })
+
+  it("updates the existing focal fields from pointer and keyboard input", () => {
+    render(<EditorHarness />, { wrapper: I18nTestProvider })
+
+    // jsdom has no layout; edge-aligned Base UI thumbs stay hidden there.
+    // Browser Axe covers visibility, while this verifies the native input label.
+    expect(screen.getByLabelText("缩放")).toHaveAttribute("type", "range")
+
+    const preview = screen.getByTestId("image-composition-preview")
+    vi.spyOn(preview, "getBoundingClientRect").mockReturnValue({
+      bottom: 400,
+      height: 400,
+      left: 0,
+      right: 400,
+      top: 0,
+      width: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(preview, {
+      button: 0,
+      clientX: 300,
+      clientY: 100,
+      pointerId: 1,
+    })
+    expect(screen.getByText("焦点 75 / 25")).toBeVisible()
+    expect(screen.getByRole("img", { name: "图片构图预览" })).toHaveStyle({
+      objectPosition: "75% 25%",
+    })
+
+    fireEvent.keyDown(preview, { key: "ArrowRight" })
+    expect(screen.getByText("焦点 76 / 25")).toBeVisible()
+  })
+
+  it("keeps precise values optional and preserves rotation and reset behavior", async () => {
+    const user = userEvent.setup()
+    render(
+      <EditorHarness
+        initialTransform={{
+          fit: "contain",
+          focalX: 0.2,
+          focalY: 0.7,
+          rotation: 180,
+          zoom: 1.4,
+        }}
+      />,
+      { wrapper: I18nTestProvider }
+    )
+
+    const preciseButton = screen.getByRole("button", { name: "精细调整" })
+    expect(preciseButton).toHaveAttribute("aria-expanded", "false")
+    await user.click(preciseButton)
+    expect(preciseButton).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByLabelText("水平焦点")).toHaveAttribute("type", "range")
+    expect(screen.getByLabelText("垂直焦点")).toHaveAttribute("type", "range")
+
+    await user.click(screen.getByRole("button", { name: "向右旋转" }))
+    expect(screen.getByRole("img", { name: "图片构图预览" })).toHaveStyle({
+      transform: "rotate(270deg) scale(1.4)",
+    })
+
+    await user.click(screen.getByRole("button", { name: "重置构图" }))
+    expect(screen.getByText("焦点 50 / 50")).toBeVisible()
+    expect(screen.getByRole("button", { name: "裁满" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+  })
+})

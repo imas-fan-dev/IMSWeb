@@ -1,5 +1,5 @@
 import { createHonoApp } from '@/app';
-import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -42,16 +42,7 @@ import type {
     WikiStorySourcePlatformRecord
 } from '@/ports/repositories';
 import type { ParsedUpload, UploadParser } from '@/ports/http';
-
-const AGENCY_BASE = [
-    { id: 1, code: '765', name_cn: '765PRO', color: '#f34f6d' },
-    { id: 2, code: '876', name_cn: '876PRO', color: '#656a75' },
-    { id: 3, code: 'cg', name_cn: '灰姑娘女孩', color: '#2681c8' },
-    { id: 4, code: 'ml', name_cn: '百万现场', color: '#ffc30b' },
-    { id: 5, code: 'sidem', name_cn: 'SideM', color: '#0fbe94' },
-    { id: 6, code: 'sc', name_cn: '闪耀色彩', color: '#8dbbff' },
-    { id: 7, code: 'gk', name_cn: '学园偶像大师', color: '#f39800' }
-] as const;
+import { projectCanonicalFudabaAgencies } from '../fixtures/fudaba-agency-catalog';
 
 const CONTAIN_TRANSFORM: WikiImageTransform = {
     fit: 'contain', focalX: 0.5, focalY: 0.5, zoom: 1, rotation: 0
@@ -60,11 +51,15 @@ const COVER_TRANSFORM: WikiImageTransform = {
     fit: 'cover', focalX: 0.5, focalY: 0.5, zoom: 1, rotation: 0
 };
 
-export const AGENCIES: AgencyRecord[] = AGENCY_BASE.map((agency, index) => ({
-    ...agency,
-    wiki_enabled: true,
-    display_order: index,
-    banner_title: `${agency.name_cn} Banner`,
+export const AGENCIES: AgencyRecord[] = projectCanonicalFudabaAgencies()
+    .map((agency) => ({
+        id: agency.id,
+        code: agency.code,
+        name_cn: agency.name,
+        color: agency.color,
+        wiki_enabled: true,
+        display_order: agency.order,
+        banner_title: `${agency.name} Banner`,
     icon_object_key: null,
     icon_fit: CONTAIN_TRANSFORM.fit,
     icon_focal_x: CONTAIN_TRANSFORM.focalX,
@@ -1472,7 +1467,7 @@ export interface WikiFixture {
     images: FixtureImageProcessor;
     uploads: FixtureUploadParser;
     staticRequests: string[];
-    auditLogs: Array<{ action: string; target: string }>;
+    auditLogs: Array<{ action: string; target: string; ip: string }>;
     setFetch(fetchImpl: typeof globalThis.fetch): void;
     auth(role?: string, csrf?: string): Promise<{ token: string; csrf: string }>;
     authHeaders(role?: string, csrf?: string): Promise<Record<string, string>>;
@@ -1484,18 +1479,22 @@ export function createWikiFixture(): WikiFixture {
     const storage = new MemoryObjectStorage();
     const images = new FixtureImageProcessor();
     const uploads = new FixtureUploadParser();
-    const tokens = new HmacTokenService('wiki-contract-secret-that-is-longer-than-thirty-two-bytes');
+    const tokens = new HmacBackofficeTokenService('wiki-contract-secret-that-is-longer-than-thirty-two-bytes');
     const staticRequests: string[] = [];
-    const auditLogs: Array<{ action: string; target: string }> = [];
+    const auditLogs: Array<{ action: string; target: string; ip: string }> = [];
     const services: RuntimeServices = {
         story,
         storage,
         images,
         uploads,
-        tokens,
+        backofficeTokens: tokens,
         audit: {
             async insertAuditLog(input) {
-                auditLogs.push({ action: input.action, target: input.target });
+                auditLogs.push({
+                    action: input.action,
+                    target: input.target,
+                    ip: input.ip
+                });
             },
             async listRecentAuditLogs() { return []; }
         },

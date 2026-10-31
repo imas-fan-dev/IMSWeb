@@ -1,4 +1,4 @@
-import { LoaderCircleIcon, Trash2Icon, type LucideIcon } from "lucide-react"
+import { LoaderCircleIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import {
@@ -9,7 +9,6 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogMedia,
   AlertDialogTitle,
 } from "~/components/ui/alert-dialog"
 
@@ -23,7 +22,6 @@ export interface ConfirmActionDialogProps {
   confirmLabel?: string
   cancelLabel?: string
   variant?: "destructive" | "default"
-  icon?: LucideIcon
 }
 
 export function ConfirmActionDialog({
@@ -36,15 +34,11 @@ export function ConfirmActionDialog({
   confirmLabel = "确认删除",
   cancelLabel = "取消",
   variant = "destructive",
-  icon: Icon = Trash2Icon,
 }: ConfirmActionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent aria-busy={submitting}>
         <AlertDialogHeader>
-          <AlertDialogMedia>
-            <Icon aria-hidden="true" />
-          </AlertDialogMedia>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
@@ -63,9 +57,7 @@ export function ConfirmActionDialog({
                 data-icon="inline-start"
                 className="animate-spin"
               />
-            ) : (
-              <Icon data-icon="inline-start" />
-            )}
+            ) : null}
             {submitting ? "正在处理" : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

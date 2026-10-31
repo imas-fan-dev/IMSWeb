@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-search"
+description = "Enables the set_search command without any pre-configured scope."
+commands.allow = ["set_search"]
+
+[[permission]]
+identifier = "deny-set-search"
+description = "Denies the set_search command without any pre-configured scope."
+commands.deny = ["set_search"]

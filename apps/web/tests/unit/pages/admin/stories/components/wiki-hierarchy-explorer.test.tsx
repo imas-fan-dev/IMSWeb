@@ -73,9 +73,6 @@ describe("WikiHierarchyExplorer", () => {
         agency={agency}
         selectedIdolId={grouped.id}
         onSelectIdol={onSelectIdol}
-        onCreateGroup={vi.fn()}
-        onEditGroup={vi.fn()}
-        onCreateIdol={vi.fn()}
       />
     )
 
@@ -88,5 +85,8 @@ describe("WikiHierarchyExplorer", () => {
     await user.click(screen.getByRole("button", { name: "浅仓透" }))
     expect(onSelectIdol).toHaveBeenCalledWith(ungrouped)
     expect(screen.getByText("活动")).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "编辑" })
+    ).not.toBeInTheDocument()
   })
 })

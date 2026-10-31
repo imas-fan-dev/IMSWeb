@@ -1,0 +1,534 @@
+import { postgresTest as test } from '../postgres-test-database';
+import assert from 'node:assert/strict';
+import { describe, onTestFinished, vi } from 'vitest';
+import {
+    readSetCookieValues as cookieValues,
+    serializeCookieHeader as cookieHeader,
+    setCookieHeaders as setCookies
+} from '../fixtures/auth-request';
+import { insertBackofficeAccount } from '../fixtures/rows';
+import { sign as signJwt } from 'hono/utils/jwt/jwt';
+import {
+    adminLegacyOperatorLoginErrorResponseSchema,
+    adminLoginErrorResponseSchema,
+    adminLoginSuccessResponseSchema,
+    adminLogoutSuccessResponseSchema,
+    adminRefreshSuccessResponseSchema,
+    adminSessionSchema
+} from '@imsweb/contracts/admin';
+import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
+import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+import type { RuntimeServices } from '@/ports/runtime-services';
+import { createPostgresTestDatabase } from '../postgres-test-database';
+import { createTestApp, testRequest } from './test-app';
+
+const USERNAME = 'backoffice-boundary-op';
+const PASSWORD = 'backoffice-boundary-password';
+const SECRET = 'backoffice-boundary-secret-at-least-thirty-two-bytes';
+const LEGACY_SECRET = 'legacy-backoffice-secret-at-least-thirty-two-bytes';
+const ACCESS_COOKIE = 'ims_admin_access';
+const REFRESH_COOKIE = 'ims_admin_refresh';
+const CSRF_COOKIE = 'ims_admin_csrf';
+const LEGACY_SUCCESSORS = new Map([
+    ['/api/login', '/api/admin/auth/login'],
+    ['/api/admin/login', '/api/admin/auth/login'],
+    ['/api/check', '/api/admin/auth/session'],
+    ['/api/refresh', '/api/admin/auth/refresh'],
+    ['/api/logout', '/api/admin/auth/logout']
+]);
+
+interface Fixture {
+    app: ReturnType<typeof createTestApp>;
+    connection: PostgresConnection;
+    repository: SqlBackofficeAuthRepository;
+    tokens: HmacBackofficeTokenService;
+    close(): Promise<void>;
+}
+
+function jwtPart(token: string, index: number): Record<string, unknown> {
+    const part = token.split('.')[index];
+    if (!part) throw new Error(`JWT part ${index} is missing`);
+    return JSON.parse(Buffer.from(part, 'base64url').toString('utf8')) as Record<string, unknown>;
+}
+
+function assertCanonicalCookies(
+    response: Response,
+    cleared = false,
+    legacyCleared = false
+): Map<string, string> {
+    const cookies = setCookies(response);
+    const byName = new Map(cookies.map((cookie) => [cookie.split('=', 1)[0]!, cookie]));
+    const canonicalNames = [ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE];
+    const legacyNames = ['csrf_token', 'refresh_token', 'token'];
+    assert.deepEqual(
+        [...byName.keys()].sort(),
+        [...canonicalNames, ...(legacyCleared ? legacyNames : [])].sort()
+    );
+    for (const name of [ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE]) {
+        assert.match(byName.get(name)!, /SameSite=Lax/i, `${name} must use SameSite=Lax`);
+        if (cleared) assert.match(byName.get(name)!, /Max-Age=0/i, `${name} must be cleared`);
+    }
+    assert.match(byName.get(ACCESS_COOKIE)!, /; HttpOnly/i);
+    assert.match(byName.get(REFRESH_COOKIE)!, /; HttpOnly/i);
+    assert.doesNotMatch(byName.get(CSRF_COOKIE)!, /; HttpOnly/i);
+    assert.match(byName.get(ACCESS_COOKIE)!, /Path=\//i);
+    assert.match(byName.get(CSRF_COOKIE)!, /Path=\//i);
+    assert.match(byName.get(REFRESH_COOKIE)!, /Path=\/api/i);
+    if (legacyCleared) {
+        for (const name of legacyNames) {
+            assert.match(byName.get(name)!, /Max-Age=0/i, `${name} must be cleared`);
+        }
+    }
+    return new Map(
+        [...cookieValues(response)].filter(([name]) => canonicalNames.includes(name))
+    );
+}
+
+function assertDeprecated(response: Response, pathName: string): void {
+    assert.equal(response.headers.get('Deprecation'), 'true');
+    assert.equal(
+        response.headers.get('Link'),
+        `<${LEGACY_SUCCESSORS.get(pathName)}>; rel="successor-version"`,
+        `${pathName} must identify its canonical successor`
+    );
+}
+
+async function createFixture(
+    legacySecret: string | null = LEGACY_SECRET
+): Promise<Fixture> {
+    const connection = await createPostgresTestDatabase('backoffice-boundary');
+    await new PostgresqlSchemaStrategy().initializeCore(connection);
+    const repository = new SqlBackofficeAuthRepository(connection);
+    const audit = new SqlAuditRepository(connection);
+    await insertBackofficeAccount(connection, USERNAME, {
+        password: 'backoffice-boundary-digest',
+        producername: 'Boundary Producer'
+    });
+    const tokens = new HmacBackofficeTokenService(SECRET, legacySecret ?? undefined);
+    const runtime: RuntimeServices = {
+        backofficeAuth: repository,
+        audit,
+        passwords: {
+            async verify(value, digest) {
+                return value === PASSWORD && digest === 'backoffice-boundary-digest';
+            }
+        },
+        backofficeTokens: tokens,
+        config: { cookieSecure: false }
+    };
+    return {
+        app: createTestApp(() => runtime),
+        connection,
+        repository,
+        tokens,
+        async close() {
+            await connection.close();
+        }
+    };
+}
+
+async function login(fixture: Fixture, route = '/api/admin/auth/login') {
+    return testRequest(fixture.app, route, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: USERNAME, password: PASSWORD })
+    });
+}
+
+describe('Backoffice auth boundary', () => {
+    test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin cookies', async () => {
+        const fixture = await createFixture();
+        onTestFinished(() => fixture.close());
+
+        const loginResponse = await login(fixture);
+        assert.equal(loginResponse.status, 200);
+        assert.equal(loginResponse.headers.get('Deprecation'), null);
+        const loginBody = await loginResponse.clone().json() as { token: string };
+        assert.deepEqual(adminLoginSuccessResponseSchema.parse(loginBody), loginBody);
+        const loginCookies = assertCanonicalCookies(loginResponse);
+
+        assert.equal(jwtPart(loginBody.token, 0).alg, 'HS256');
+        const claims = jwtPart(loginBody.token, 1);
+        assert.equal(claims.iss, 'imsweb');
+        assert.equal(claims.aud, 'ims-backoffice');
+        assert.equal(claims.kind, 'backoffice');
+
+        const session = await testRequest(fixture.app, '/api/admin/auth/session', {
+            headers: { Cookie: cookieHeader(loginCookies) }
+        });
+        assert.equal(session.status, 200);
+        const sessionBody = await session.json();
+        assert.deepEqual(adminSessionSchema.parse(sessionBody), sessionBody);
+        assert.equal((sessionBody as { user: { username: string } }).user.username, USERNAME);
+
+        const csrf = loginCookies.get(CSRF_COOKIE)!;
+        const refreshed = await testRequest(fixture.app, '/api/admin/auth/refresh', {
+            method: 'POST',
+            headers: {
+                Cookie: cookieHeader(loginCookies),
+                'X-CSRFToken': csrf
+            }
+        });
+        assert.equal(refreshed.status, 200);
+        const refreshedBody = await refreshed.clone().json();
+        assert.deepEqual(adminRefreshSuccessResponseSchema.parse(refreshedBody), refreshedBody);
+        const refreshedCookies = assertCanonicalCookies(refreshed);
+        assert.notEqual(refreshedCookies.get(ACCESS_COOKIE), loginCookies.get(ACCESS_COOKIE));
+        assert.notEqual(refreshedCookies.get(REFRESH_COOKIE), loginCookies.get(REFRESH_COOKIE));
+        assert.equal(refreshedCookies.get(CSRF_COOKIE), csrf);
+
+        const logout = await testRequest(fixture.app, '/api/admin/auth/logout', {
+            method: 'POST',
+            headers: {
+                Cookie: cookieHeader(refreshedCookies),
+                'X-CSRFToken': csrf
+            }
+        });
+        assert.equal(logout.status, 200);
+        const logoutBody = await logout.clone().json();
+        assert.deepEqual(adminLogoutSuccessResponseSchema.parse(logoutBody), logoutBody);
+        assertCanonicalCookies(logout, true);
+    });
+
+    test('canonical login accepts editor accounts while the legacy admin login remains op-only', async () => {
+        const fixture = await createFixture();
+        onTestFinished(() => fixture.close());
+        await insertBackofficeAccount(fixture.connection, 'backoffice-boundary-editor', {
+            password: 'backoffice-boundary-digest',
+            dept: 'editor',
+            producername: null,
+            admin_role: null
+        });
+
+        const canonical = await testRequest(fixture.app, '/api/admin/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: 'backoffice-boundary-editor',
+                password: PASSWORD,
+                ignored: 'legacy-project-policy'
+            })
+        });
+        assert.equal(canonical.status, 200);
+        const canonicalBody = await canonical.json();
+        assert.deepEqual(adminLoginSuccessResponseSchema.parse(canonicalBody), canonicalBody);
+        assert.deepEqual(canonicalBody, {
+            success: true,
+            token: (canonicalBody as { token: string }).token,
+            username: 'backoffice-boundary-editor',
+            producername: null,
+            dept: 'editor',
+            adminRole: null
+        });
+
+        const invalidInput = await testRequest(fixture.app, '/api/admin/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: '', password: PASSWORD })
+        });
+        assert.equal(invalidInput.status, 400);
+        const invalidInputBody = await invalidInput.json();
+        assert.deepEqual(adminLoginErrorResponseSchema.parse(invalidInputBody), invalidInputBody);
+
+        const invalidCredentials = await testRequest(
+            fixture.app,
+            '/api/admin/auth/login',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: 'backoffice-boundary-editor',
+                    password: 'incorrect-password'
+                })
+            }
+        );
+        assert.equal(invalidCredentials.status, 401);
+        const invalidCredentialsBody = await invalidCredentials.json();
+        assert.deepEqual(
+            adminLoginErrorResponseSchema.parse(invalidCredentialsBody),
+            invalidCredentialsBody
+        );
+
+        const legacyAdmin = await testRequest(fixture.app, '/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: 'backoffice-boundary-editor',
+                password: PASSWORD
+            })
+        });
+        assert.equal(legacyAdmin.status, 403);
+        assertDeprecated(legacyAdmin, '/api/admin/login');
+        const legacyAdminBody = await legacyAdmin.json();
+        assert.deepEqual(
+            adminLegacyOperatorLoginErrorResponseSchema.parse(legacyAdminBody),
+            legacyAdminBody
+        );
+    });
+
+    test('Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims', async () => {
+        const fixture = await createFixture();
+        onTestFinished(() => fixture.close());
+
+        const valid = await fixture.tokens.sign({
+            id: 1,
+            username: USERNAME,
+            producername: 'Boundary Producer',
+            dept: 'op',
+            adminRole: 'admin',
+            csrfSecret: 'boundary-csrf',
+            jti: 'boundary-jti'
+        }, 600);
+        assert.equal(jwtPart(valid, 0).alg, 'HS256');
+        const claims = jwtPart(valid, 1);
+        assert.equal(claims.iss, 'imsweb');
+        assert.equal(claims.aud, 'ims-backoffice');
+        assert.equal(claims.kind, 'backoffice');
+        await assert.doesNotReject(fixture.tokens.verify(valid));
+
+        const { iss: _issuer, ...withoutIssuer } = claims;
+        const { aud: _audience, ...withoutAudience } = claims;
+        const { kind: _kind, ...withoutKind } = claims;
+        const invalidClaims: Record<string, Record<string, unknown>> = {
+            'missing issuer': withoutIssuer,
+            'wrong issuer': { ...claims, iss: `${String(claims.iss)}-other` },
+            'missing audience': withoutAudience,
+            'platform audience': { ...claims, aud: 'ims-platform' },
+            'missing kind': withoutKind,
+            'platform kind': { ...claims, kind: 'platform' }
+        };
+        for (const [label, payload] of Object.entries(invalidClaims)) {
+            const token = await signJwt(payload, SECRET, 'HS256');
+            await assert.rejects(fixture.tokens.verify(token), label);
+        }
+        const wrongAlgorithm = await signJwt(claims, SECRET, 'HS512');
+        await assert.rejects(fixture.tokens.verify(wrongAlgorithm), 'HS512');
+    });
+
+    test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie', async () => {
+        const fixture = await createFixture();
+        onTestFinished(() => fixture.close());
+
+        const now = Math.floor(Date.now() / 1000);
+        const legacyClaims = {
+            id: 1,
+            username: USERNAME,
+            producername: 'Boundary Producer',
+            dept: 'op',
+            adminRole: 'admin',
+            csrfSecret: 'legacy-boundary-csrf',
+            iat: now,
+            exp: now + 600
+        };
+        const legacyToken = await signJwt(legacyClaims, LEGACY_SECRET, 'HS256');
+
+        for (const [label, headers] of [
+            ['Authorization', { Authorization: `Bearer ${legacyToken}` }],
+            ['canonical cookie', { Cookie: `${ACCESS_COOKIE}=${legacyToken}` }]
+        ] as const) {
+            const response = await testRequest(
+                fixture.app,
+                '/api/admin/auth/session',
+                { headers }
+            );
+            assert.equal(response.status, 401, label);
+        }
+
+        const legacyCookie = await testRequest(
+            fixture.app,
+            '/api/admin/auth/session',
+            { headers: { Cookie: `token=${legacyToken}` } }
+        );
+        assert.equal(legacyCookie.status, 200);
+
+        const platformToken = await signJwt({
+            ...legacyClaims,
+            iss: 'imsweb',
+            aud: 'ims-platform',
+            kind: 'platform'
+        }, LEGACY_SECRET, 'HS256');
+        const platformCookie = await testRequest(
+            fixture.app,
+            '/api/admin/auth/session',
+            { headers: { Cookie: `token=${platformToken}` } }
+        );
+        assert.equal(platformCookie.status, 401);
+
+        const strictOnlyFixture = await createFixture(null);
+        onTestFinished(() => strictOnlyFixture.close());
+        const currentSecretLegacyToken = await signJwt(legacyClaims, SECRET, 'HS256');
+        const disabledBridge = await testRequest(
+            strictOnlyFixture.app,
+            '/api/admin/auth/session',
+            { headers: { Cookie: `token=${currentSecretLegacyToken}` } }
+        );
+        assert.equal(disabledBridge.status, 401);
+    });
+
+    test('logout revokes coexisting canonical and legacy refresh sessions', async () => {
+        for (const route of ['/api/admin/auth/logout', '/api/logout']) {
+            const fixture = await createFixture();
+            try {
+                const canonical = cookieValues(await login(fixture));
+                const legacy = cookieValues(await login(fixture, '/api/login'));
+                const cookies = new Map([...canonical, ...legacy]);
+                const sessions = await Promise.all([
+                    canonical.get(REFRESH_COOKIE)!,
+                    legacy.get('refresh_token')!
+                ].map(async (token) => fixture.repository.findRefreshSessionByTokenHash(
+                    await hashBackofficeAuthSecret(token)
+                )));
+                assert.ok(sessions[0]);
+                assert.ok(sessions[1]);
+                assert.notEqual(sessions[0].id, sessions[1].id);
+
+                const csrf = route === '/api/logout'
+                    ? legacy.get('csrf_token')!
+                    : canonical.get(CSRF_COOKIE)!;
+                const response = await testRequest(fixture.app, route, {
+                    method: 'POST',
+                    headers: {
+                        Cookie: cookieHeader(cookies),
+                        'X-CSRFToken': csrf
+                    }
+                });
+                assert.equal(response.status, 200, route);
+                assert.deepEqual(
+                    setCookies(response).map((cookie) => cookie.split('=', 1)[0]).sort(),
+                    [
+                        ACCESS_COOKIE,
+                        CSRF_COOKIE,
+                        REFRESH_COOKIE,
+                        'csrf_token',
+                        'refresh_token',
+                        'token'
+                    ].sort()
+                );
+                for (const session of sessions) {
+                    assert.ok(session);
+                    const stored = await fixture.connection.prepare(
+                        'SELECT revoked_at FROM backoffice_refresh_sessions WHERE id=?'
+                    ).bind(session.id).first<{ revoked_at: number | null }>();
+                    assert.equal(typeof stored?.revoked_at, 'number', route);
+                }
+                const canonicalReplay = await testRequest(
+                    fixture.app,
+                    '/api/admin/auth/refresh',
+                    {
+                        method: 'POST',
+                        headers: {
+                            Cookie: cookieHeader(canonical),
+                            'X-CSRFToken': canonical.get(CSRF_COOKIE)!
+                        }
+                    }
+                );
+                assert.equal(canonicalReplay.status, 401, route);
+                const legacyReplay = await testRequest(fixture.app, '/api/refresh', {
+                    method: 'POST',
+                    headers: {
+                        Cookie: cookieHeader(legacy),
+                        'X-CSRFToken': legacy.get('csrf_token')!
+                    }
+                });
+                assert.equal(legacyReplay.status, 401, route);
+            } finally {
+                await fixture.close();
+            }
+        }
+    });
+
+    test('legacy Backoffice endpoints are deprecated and old cookies only bridge into Backoffice', async () => {
+        const fixture = await createFixture();
+        onTestFinished(() => fixture.close());
+        // node:test restores a mocked method after every test; Vitest does not, so
+        // the spy is restored explicitly or the call count would accumulate.
+        const logged = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        onTestFinished(() => logged.mockRestore());
+
+        let legacyCookies = new Map<string, string>();
+        for (const legacyLoginPath of ['/api/login', '/api/admin/login']) {
+            const response = await login(fixture, legacyLoginPath);
+            assert.equal(response.status, 200, legacyLoginPath);
+            assertDeprecated(response, legacyLoginPath);
+            const cookies = cookieValues(response);
+            assert.deepEqual([...cookies.keys()].sort(), ['csrf_token', 'refresh_token', 'token']);
+            if (legacyLoginPath === '/api/login') legacyCookies = cookies;
+        }
+
+        const canonicalSessionFromLegacyCookie = await testRequest(
+            fixture.app,
+            '/api/admin/auth/session',
+            { headers: { Cookie: cookieHeader(legacyCookies) } }
+        );
+        assert.equal(canonicalSessionFromLegacyCookie.status, 200);
+
+        const legacySession = await testRequest(fixture.app, '/api/check', {
+            headers: { Cookie: cookieHeader(legacyCookies) }
+        });
+        assert.equal(legacySession.status, 200);
+        assertDeprecated(legacySession, '/api/check');
+
+        const canonicalRefresh = await testRequest(
+            fixture.app,
+            '/api/admin/auth/refresh',
+            {
+                method: 'POST',
+                headers: {
+                    Cookie: cookieHeader(legacyCookies),
+                    'X-CSRFToken': legacyCookies.get('csrf_token')!
+                }
+            }
+        );
+        assert.equal(canonicalRefresh.status, 200);
+        assertCanonicalCookies(canonicalRefresh, false, true);
+
+        const secondLegacyLogin = await login(fixture, '/api/login');
+        const secondLegacyCookies = cookieValues(secondLegacyLogin);
+        const legacyRefresh = await testRequest(fixture.app, '/api/refresh', {
+            method: 'POST',
+            headers: {
+                Cookie: cookieHeader(secondLegacyCookies),
+                'X-CSRFToken': secondLegacyCookies.get('csrf_token')!
+            }
+        });
+        assert.equal(legacyRefresh.status, 200);
+        assertDeprecated(legacyRefresh, '/api/refresh');
+
+        const logoutLogin = await login(fixture, '/api/login');
+        const logoutCookies = cookieValues(logoutLogin);
+        const legacyLogout = await testRequest(fixture.app, '/api/logout', {
+            method: 'POST',
+            headers: {
+                Cookie: cookieHeader(logoutCookies),
+                'X-CSRFToken': logoutCookies.get('csrf_token')!
+            }
+        });
+        assert.equal(legacyLogout.status, 200);
+        assertDeprecated(legacyLogout, '/api/logout');
+
+        assert.deepEqual(
+            logged.mock.calls.map((call) => JSON.parse(String(call[0]))),
+            [
+                { event: 'legacy_backoffice_auth_route_used', method: 'POST', path: '/api/login' },
+                {
+                    event: 'legacy_backoffice_auth_route_used',
+                    method: 'POST',
+                    path: '/api/admin/login'
+                },
+                { event: 'legacy_backoffice_auth_route_used', method: 'GET', path: '/api/check' },
+                { event: 'legacy_backoffice_auth_route_used', method: 'POST', path: '/api/login' },
+                {
+                    event: 'legacy_backoffice_auth_route_used',
+                    method: 'POST',
+                    path: '/api/refresh'
+                },
+                { event: 'legacy_backoffice_auth_route_used', method: 'POST', path: '/api/login' },
+                { event: 'legacy_backoffice_auth_route_used', method: 'POST', path: '/api/logout' }
+            ]
+        );
+    });
+});
