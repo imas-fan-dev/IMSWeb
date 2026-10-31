@@ -580,6 +580,8 @@ export const wallInsightViewerSchema = z
 
 export const wallInsightsSchema = exactJsonResponse({
   /** 名片墙上还没有主人的名片总数（认领进度的分母）。 */
+  /** Every published guest submission, the shared denominator of both bars. */
+  guestTotal: z.number().int().nonnegative(),
   ownerless: z.number().int().nonnegative(),
   /** 这些无主名片里连企划都没有的张数（补充进度的分母）。 */
   ownerlessMissingSeries: z.number().int().nonnegative(),

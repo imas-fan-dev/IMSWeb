@@ -521,25 +521,38 @@ export async function handleListFudabaCardClaimReviews(
     }
 }
 
+/**
+ * Legacy rows either keep the object key the importer wrote or the older
+ * `/uploads/namecard/original/...` public path; both have to resolve to a key
+ * before the artwork can be copied.
+ */
+function legacyMediaObjectKey(value: string | null): string | null {
+    const trimmed = value?.trim();
+    if (!trimmed) return null;
+    if (!trimmed.startsWith('/') && !trimmed.startsWith('http')) return trimmed;
+    return namecardMediaObjectKeys(trimmed)[0];
+}
+
+/** Copies the ownerless row's artwork next to the claimant's card. */
 async function copyLegacyMedia(
     storage: ObjectStorage,
     claim: FudabaAdminCardClaimRecord,
     cardId: string,
     created: CreatedObject[]
-): Promise<void> {
-    const sourceKeys = [
-        namecardMediaObjectKeys(claim.legacy_image1_url)[0],
-        namecardMediaObjectKeys(claim.legacy_image2_url)[0]
+): Promise<{ frontObjectKey: string; backObjectKey: string | null }> {
+    const sources = [
+        legacyMediaObjectKey(claim.legacy_image1_url),
+        legacyMediaObjectKey(claim.legacy_image2_url)
     ];
-    const destinationKeys = [
-        namecardClaimMediaObjectKey(sourceKeys[0]!, cardId, 'front'),
-        namecardClaimMediaObjectKey(sourceKeys[1]!, cardId, 'back')
-    ];
-    for (let index = 0; index < sourceKeys.length; index += 1) {
-        const source = await storage.get(sourceKeys[index]!);
+    if (!sources[0]) throw new Error('Legacy namecard media is unavailable');
+    const keys: string[] = [];
+    for (const [index, sourceKey] of sources.entries()) {
+        if (!sourceKey) continue;
+        const side = index === 0 ? 'front' : 'back';
+        const source = await storage.get(sourceKey);
         if (!source) throw new Error('Legacy namecard media is unavailable');
         const ownerToken = randomHex(32);
-        const key = destinationKeys[index]!;
+        const key = namecardClaimMediaObjectKey(sourceKey, cardId, side);
         created.push({ key, ownerToken });
         await storage.put(key, source.body, {
             contentType: source.contentType,
@@ -547,12 +560,14 @@ async function copyLegacyMedia(
             ownerToken,
             metadata: {
                 kind: 'fudaba-card-image',
-                side: index === 0 ? 'front' : 'back',
+                side,
                 account: claim.claimant_account_id,
                 legacyCardId: String(claim.legacy_card_id)
             }
         });
+        keys.push(key);
     }
+    return { frontObjectKey: keys[0]!, backObjectKey: keys[1] ?? null };
 }
 
 export async function handleReviewFudabaCardClaim(
@@ -629,17 +644,13 @@ export async function handleReviewFudabaCardClaim(
             // to owner-owned objects because the owner media route serves
             // protected keys.
             const boundCardId = `legacy-${context.legacy_card_id}`;
-            await copyLegacyMedia(storage, context, boundCardId, created);
+            const media = await copyLegacyMedia(storage, context, boundCardId, created);
             await Promise.all(created.map(({ key }) => storage.publish!(key)));
             completionAttempted = true;
             result = await repository.completeCardClaimReview({
                 ...base,
                 decision: 'approve',
-                media: {
-                    frontObjectKey: created[0]!.key,
-                    backObjectKey: created[1]?.key ?? null,
-                    accent: null
-                }
+                media: { ...media, accent: null }
             });
         }
         completionAttempted = false;

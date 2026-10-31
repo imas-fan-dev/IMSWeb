@@ -24,6 +24,11 @@ export type MediaSlot =
       kind: "existing"
       index: number
       url: string
+      /**
+       * The wall already hands out public URLs, so a preview of someone else's
+       * card can load them directly instead of going through the owner route.
+       */
+      direct?: boolean
     }
   | { kind: "new"; file: File; url: string }
 
@@ -33,6 +38,25 @@ export function newMediaSlot(file: File): MediaSlot {
 
 export function releaseMediaSlot(slot: MediaSlot) {
   if (slot.kind === "new") URL.revokeObjectURL(slot.url)
+}
+
+/** Preview of a card the viewer does not own: every page is a public URL. */
+export function publicMediaSlotsFromCard(card: {
+  frontImageUrl: string
+  middleImageUrls: readonly string[]
+  backImageUrl: string | null
+}): MediaSlot[] {
+  const urls = [
+    card.frontImageUrl,
+    ...card.middleImageUrls,
+    ...(card.backImageUrl ? [card.backImageUrl] : []),
+  ]
+  return urls.map((url, index) => ({
+    kind: "existing" as const,
+    index,
+    url,
+    direct: true,
+  }))
 }
 
 export function mediaSlotsFromCard(card: {
@@ -176,8 +200,10 @@ function SlotImage({
   draggable?: boolean
   style?: CSSProperties
 }) {
-  const media = useOwnerCardMedia(slot.kind === "existing" ? slot.url : null)
-  const src = slot.kind === "existing" ? media.src : slot.url
+  const signed =
+    slot.kind === "existing" && !slot.direct ? slot.url : null
+  const media = useOwnerCardMedia(signed)
+  const src = slot.kind === "new" || slot.direct ? slot.url : media.src
   if (!src) {
     return (
       <span

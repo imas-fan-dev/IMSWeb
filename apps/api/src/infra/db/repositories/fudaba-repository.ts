@@ -4157,6 +4157,7 @@ export class SqlFudabaRepository implements FudabaRepository {
     async wallInsights(viewerAccountId: string | null): Promise<WallInsightsRecord> {
         const [counts, contributors] = await Promise.all([
             queryOne<{
+                guest_total: number;
                 ownerless: number;
                 ownerless_missing_series: number;
                 claimed: number;
@@ -4165,7 +4166,15 @@ export class SqlFudabaRepository implements FudabaRepository {
                 supplements_pending: number;
             }>(
                 this.database,
-                `SELECT
+                `WITH guest AS (
+                     SELECT card.id, card.owner_account_id
+                       FROM fudaba_cards card
+                      WHERE card.origin='legacy'
+                        AND card.deleted_at IS NULL
+                        AND card.publication_status='published'
+                 )
+                 SELECT
+                    (SELECT COUNT(*)::int FROM guest) AS guest_total,
                     (SELECT COUNT(*)::int FROM fudaba_cards card
                       WHERE card.owner_account_id IS NULL
                         AND card.deleted_at IS NULL
@@ -4177,14 +4186,13 @@ export class SqlFudabaRepository implements FudabaRepository {
                         AND NOT EXISTS (
                             SELECT 1 FROM fudaba_card_series series WHERE series.card_id=card.id
                         )) AS ownerless_missing_series,
-                    (SELECT COUNT(*)::int FROM fudaba_cards card
-                      WHERE card.legacy_card_id IS NOT NULL
-                        AND card.owner_account_id IS NOT NULL
-                        AND card.deleted_at IS NULL) AS claimed,
+                    (SELECT COUNT(*)::int FROM guest
+                      WHERE guest.owner_account_id IS NOT NULL) AS claimed,
                     (SELECT COUNT(*)::int FROM fudaba_card_claims claim
                       WHERE claim.state IN ('pending', 'approving')) AS claims_pending,
                     (SELECT COUNT(DISTINCT event.card_id)::int
-                       FROM namecard_contribution_events event) AS supplemented,
+                       FROM namecard_contribution_events event
+                       JOIN guest ON guest.id=event.card_id) AS supplemented,
                     (SELECT COUNT(*)::int FROM fudaba_card_supplements supplement
                       WHERE supplement.state IN ('pending', 'approving')) AS supplements_pending`,
                 [],
@@ -4217,6 +4225,7 @@ export class SqlFudabaRepository implements FudabaRepository {
               )
             : null;
         return {
+            guest_total: Number(counts?.guest_total ?? 0),
             ownerless: Number(counts?.ownerless ?? 0),
             ownerless_missing_series: Number(counts?.ownerless_missing_series ?? 0),
             claimed: Number(counts?.claimed ?? 0),

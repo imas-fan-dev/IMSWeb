@@ -7,6 +7,7 @@ import { renderPage } from "@/tests/unit/support/harness"
 import { WallInsightsPanel } from "~/pages/community/components/wall-insights-panel"
 
 const insights = {
+  guestTotal: 10,
   ownerless: 10,
   ownerlessMissingSeries: 9,
   claimed: 2,
@@ -32,14 +33,14 @@ describe("WallInsightsPanel", () => {
     )
     renderPage(<WallInsightsPanel onPickCard={vi.fn()} />)
 
-    expect(await screen.findByText(/2 \/ 12（17%）/)).toBeTruthy()
+    expect(await screen.findByText(/2 \/ 10（20%）/)).toBeTruthy()
     expect(screen.getByText(/待审 1/)).toBeTruthy()
     expect(
       screen.getByRole("progressbar", { name: "认领进度" })
-    ).toHaveAttribute("aria-valuenow", "17")
+    ).toHaveAttribute("aria-valuenow", "20")
     expect(
       screen.getByRole("progressbar", { name: "信息补充进度" })
-    ).toHaveAttribute("aria-valuenow", "25")
+    ).toHaveAttribute("aria-valuenow", "30")
     expect(screen.getByText("春香P")).toBeTruthy()
     expect(screen.getByText("5 点 · 3 张")).toBeTruthy()
     expect(screen.getByText("你：2 点 · 第 2 名")).toBeTruthy()

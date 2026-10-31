@@ -404,6 +404,8 @@ export interface WallInsightContributorRecord {
 }
 
 export interface WallInsightsRecord {
+    /** Every published guest submission; both progress bars share it. */
+    guest_total: number;
     ownerless: number;
     ownerless_missing_series: number;
     claimed: number;

@@ -28,13 +28,11 @@ function ProgressRow({
   done,
   total,
   pending,
-  hint,
 }: {
   label: string
   done: number
   total: number
   pending: number
-  hint: string
 }) {
   const percent = ratio(done, total)
   return (
@@ -58,7 +56,6 @@ function ProgressRow({
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
     </div>
   )
 }
@@ -128,9 +125,8 @@ export function WallInsightsPanel({
 
   if (failed) return null
 
-  const claimTotal = (insights?.claimed ?? 0) + (insights?.ownerless ?? 0)
-  const supplementTotal =
-    (insights?.supplemented ?? 0) + (insights?.ownerlessMissingSeries ?? 0)
+  // 两条进度共用同一个分母：已通过的游客投稿总数。
+  const guestTotal = insights?.guestTotal ?? 0
 
   return (
     <section
@@ -161,25 +157,23 @@ export function WallInsightsPanel({
 
       {collapsed ? null : (
         <>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <ProgressRow
-              label="认领进度"
-              done={insights?.claimed ?? 0}
-              total={claimTotal}
-              pending={insights?.claimsPending ?? 0}
-              hint="无主名片被制作人认领后，其余资料就能在名片编辑器里补全。"
-            />
-            <ProgressRow
-              label="信息补充进度"
-              done={insights?.supplemented ?? 0}
-              total={supplementTotal}
-              pending={insights?.supplementsPending ?? 0}
-              hint="企划是唯一通用的判断标准，缺企划的无主名片最需要帮忙。"
-            />
-          </div>
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <div className="min-w-0 space-y-3">
+              <ProgressRow
+                label="认领进度"
+                done={insights?.claimed ?? 0}
+                total={guestTotal}
+                pending={insights?.claimsPending ?? 0}
+              />
+              <ProgressRow
+                label="信息补充进度"
+                done={insights?.supplemented ?? 0}
+                total={guestTotal}
+                pending={insights?.supplementsPending ?? 0}
+              />
+            </div>
 
-          <div className="mt-4 flex flex-wrap items-start gap-4">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0">
               <p className="text-sm font-medium">贡献榜</p>
               {insights?.contributors.length ? (
                 <ol className="mt-1 space-y-1 text-sm">
@@ -213,7 +207,9 @@ export function WallInsightsPanel({
                   : "登录后可以查看自己的贡献值。"}
               </p>
             </div>
+          </div>
 
+          <div className="mt-3 flex">
             <Button
               type="button"
               variant="outline"

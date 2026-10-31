@@ -13,6 +13,7 @@ export async function handleGetWallInsights(
     const repository = services(c).fudaba;
     if (!repository) {
         return c.json({
+            guestTotal: 0,
             ownerless: 0,
             ownerlessMissingSeries: 0,
             claimed: 0,
@@ -27,6 +28,7 @@ export async function handleGetWallInsights(
         c.get("platformUser")?.id ?? null,
     );
     return c.json({
+        guestTotal: insights.guest_total,
         ownerless: insights.ownerless,
         ownerlessMissingSeries: insights.ownerless_missing_series,
         claimed: insights.claimed,
