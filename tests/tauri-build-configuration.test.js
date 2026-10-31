@@ -846,6 +846,7 @@ test.describe('tauri build configuration', () => {
     assert.deepEqual(androidCapability.platforms, ["android"]);
     assert.deepEqual(androidCapability.permissions, [
       "native-glass:allow-update",
+      "native-glass:allow-background-task",
     ]);
 
     // Normalize whitespace so this test protects the native command and its

@@ -4,6 +4,8 @@ const COMMANDS: &[&str] = &[
     "set_controls",
     "set_search",
     "remove_search",
+    "set_back_policy",
+    "background_task",
     "destroy",
 ];
 

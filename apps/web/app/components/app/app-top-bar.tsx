@@ -5,7 +5,6 @@ import { useLocation } from "react-router"
 import {
   APP_TABS,
   appTabIdForPathname,
-  resolveAppBackTarget,
 } from "~/components/app/app-tab-model"
 import { useAppNavigation } from "~/components/app/app-navigation-provider"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
@@ -19,17 +18,17 @@ import {
 export function AppTopBar() {
   const { t } = useTranslation()
   const location = useLocation()
-  const { goBack } = useAppNavigation()
+  const { activeTab: shellTab, canGoBack, goBack } = useAppNavigation()
   const pathname = normalizeAppPathname(location.pathname)
-  const activeId = appTabIdForPathname(pathname)
+  const activeId = shellTab ?? appTabIdForPathname(pathname)
   const activeTab = APP_TABS.find((tab) => tab.id === activeId)
 
   if (isNonScrollingAppRoute(pathname)) return null
 
   const isHome = pathname === "/"
-  // Only a page with a logical parent gets a back control; a tab root is the
-  // end of the tree.
-  const isRootPage = resolveAppBackTarget(pathname).kind === "root"
+  // The active tab stack decides whether a page above the root exists. A URL
+  // prefix alone cannot: a page can be derived inside another tab.
+  const isRootPage = !canGoBack
   const activeLabel = activeTab ? t(activeTab.label) : "IMSWeb"
   const backLabel = t("navigation.back")
 

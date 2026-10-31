@@ -103,4 +103,14 @@ class NativeGlassPlugin(
             invoke.resolve(JSObject().put("supported", true))
         }
     }
+
+    @Command
+    fun backgroundTask(invoke: Invoke) {
+        hostActivity.runOnUiThread {
+            // A tab root ends the App page tree: hand the task to the system
+            // instead of letting Tauri replay WebView history.
+            val moved = hostActivity.moveTaskToBack(true)
+            invoke.resolve(JSObject().put("supported", true).put("applied", moved))
+        }
+    }
 }

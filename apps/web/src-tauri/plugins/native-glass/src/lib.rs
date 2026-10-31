@@ -40,6 +40,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::set_controls,
             commands::set_search,
             commands::remove_search,
+            commands::set_back_policy,
+            commands::background_task,
             commands::destroy
         ])
         .setup(|app, api| {

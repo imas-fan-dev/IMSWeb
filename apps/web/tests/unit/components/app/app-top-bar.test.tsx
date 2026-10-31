@@ -51,7 +51,7 @@ describe("AppTopBar", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("returns a resource detail page to its logical parent", async () => {
+  it("returns a derived detail page to the page that opened it", async () => {
     const user = userEvent.setup()
     renderTopBar(["/apps"])
     await user.click(screen.getByRole("link", { name: "打开详情" }))
@@ -59,7 +59,16 @@ describe("AppTopBar", () => {
     expect(screen.getByText("资料", { selector: "p" })).toBeVisible()
     await user.click(screen.getByRole("button", { name: "返回" }))
 
+    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
+  })
+
+  it("builds the default parent chain when a detail page is entered directly", async () => {
+    const user = userEvent.setup()
+    renderTopBar(["/works/sample"])
+    await user.click(screen.getByRole("button", { name: "返回" }))
     expect(screen.getByTestId("location")).toHaveTextContent("/works")
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
   })
 
   it.each([

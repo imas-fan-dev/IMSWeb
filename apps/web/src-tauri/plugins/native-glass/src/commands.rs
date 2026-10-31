@@ -1,7 +1,8 @@
 use tauri::{command, AppHandle, Runtime};
 
 use crate::{
-    ConfigureOptions, NativeGlassExt, NativeGlassStatus, Result, SetControlsArgs, UpdateOptions,
+    BackPolicyArgs, ConfigureOptions, NativeGlassExt, NativeGlassStatus, Result, SetControlsArgs,
+    UpdateOptions,
 };
 
 #[command]
@@ -42,6 +43,19 @@ pub(crate) async fn set_controls<R: Runtime>(
     args: SetControlsArgs,
 ) -> Result<NativeGlassStatus> {
     app.native_glass().set_controls(args)
+}
+
+#[command]
+pub(crate) async fn set_back_policy<R: Runtime>(
+    app: AppHandle<R>,
+    args: BackPolicyArgs,
+) -> Result<NativeGlassStatus> {
+    app.native_glass().set_back_policy(args)
+}
+
+#[command]
+pub(crate) async fn background_task<R: Runtime>(app: AppHandle<R>) -> Result<NativeGlassStatus> {
+    app.native_glass().background_task()
 }
 
 #[command]
