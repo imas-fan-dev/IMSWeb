@@ -209,7 +209,8 @@ export async function expectGuideGeometry(page: Page, step: number) {
 
 export async function sampleGuideMotion(
   page: Page,
-  action: () => Promise<unknown>
+  action: () => Promise<unknown>,
+  settle: () => Promise<unknown>
 ) {
   const recording = await page.evaluateHandle(() => {
     const element = document.querySelector<HTMLElement>("[data-guide-card]")!
@@ -293,7 +294,7 @@ export async function sampleGuideMotion(
       attributes: true,
       attributeFilter: ["style", "data-guide-step"],
     })
-    const sample = (time: number) => {
+    const sample = (time: number, repeat = true) => {
       const card = element.getBoundingClientRect()
       const hole = spotlight.getBoundingClientRect()
       frames.push({
@@ -305,9 +306,21 @@ export async function sampleGuideMotion(
         motion: element.dataset.guideMotion,
         transition: getComputedStyle(element).transitionDuration,
       })
-      frame = requestAnimationFrame(sample)
+      if (repeat) frame = requestAnimationFrame(sample)
     }
     sample(performance.now())
+    const snapshot = () => {
+      // The inline transform is the authored endpoint, independent of the
+      // rendered rectangle sampled on the final natural animation frame.
+      const target = new DOMMatrix(element.style.transform)
+      return {
+        frames,
+        interpolation,
+        transitions,
+        completedTransitions,
+        endpoint: { x: target.m41, y: target.m42 },
+      }
+    }
     return {
       frames,
       interpolation,
@@ -320,6 +333,15 @@ export async function sampleGuideMotion(
         )
         completedTransitions.push(...results.map((result) => result.status))
       },
+      finish: () =>
+        new Promise<ReturnType<typeof snapshot>>((resolve) => {
+          requestAnimationFrame((time) => {
+            cancelAnimationFrame(frame)
+            sample(time, false)
+            observer.disconnect()
+            resolve(snapshot())
+          })
+        }),
       stop: () => {
         observer.disconnect()
         cancelAnimationFrame(frame)
@@ -329,6 +351,10 @@ export async function sampleGuideMotion(
   try {
     await action()
     await recording.evaluate((value) => value.complete())
+    // Geometry checks may scroll a short card and trigger its ResizeObserver.
+    // Keep recording through those checks instead of comparing an old last
+    // frame with a separate, later layout measurement.
+    await settle()
     await page.evaluate(
       () =>
         new Promise<void>((resolve) => {
@@ -340,14 +366,7 @@ export async function sampleGuideMotion(
           requestAnimationFrame(sample)
         })
     )
-    return await recording.evaluate(
-      ({ frames, interpolation, transitions, completedTransitions }) => ({
-        frames,
-        interpolation,
-        transitions,
-        completedTransitions,
-      })
-    )
+    return await recording.evaluate((value) => value.finish())
   } finally {
     await recording.evaluate((value) => value.stop())
     await recording.dispose()

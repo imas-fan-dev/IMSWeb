@@ -27,10 +27,12 @@ test("App guide follows targets and keeps its actions accessible @app-iphone @ap
   await page.mouse.click(2, 2)
   await page.keyboard.press("Escape")
   await expect(card).toBeVisible()
-  const motion = await sampleGuideMotion(page, () =>
-    card.getByRole("button", { name: "下一步" }).click()
+  const motion = await sampleGuideMotion(
+    page,
+    () => card.getByRole("button", { name: "下一步" }).click(),
+    () => expectGuideGeometry(page, 1)
   )
-  const second = await expectGuideGeometry(page, 1)
+  const second = motion.endpoint
   await testInfo.attach("animation-frames", {
     body: JSON.stringify(motion, null, 2),
     contentType: "application/json",

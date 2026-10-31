@@ -118,10 +118,12 @@ test("moves from the center to each target without accidental dismissal @mobile 
   await card.getByRole("heading").click()
   await page.keyboard.press("Escape")
   await expect(card).toBeVisible()
-  const motion = await sampleGuideMotion(page, () =>
-    card.getByRole("button", { name: "下一步" }).click()
+  const motion = await sampleGuideMotion(
+    page,
+    () => card.getByRole("button", { name: "下一步" }).click(),
+    () => expectGuideGeometry(page, 1)
   )
-  const end = await expectGuideGeometry(page, 1)
+  const end = motion.endpoint
   await testInfo.attach("animation-frames", {
     body: JSON.stringify(motion, null, 2),
     contentType: "application/json",
