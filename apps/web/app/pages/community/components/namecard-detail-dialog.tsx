@@ -668,7 +668,7 @@ export function NamecardDetailDialog({
                   </FieldRow>
                   <FieldRow label="企划">
                     {card?.seriesCodes.length ? (
-                      <span className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-4">
+                      <span className="flex flex-wrap gap-x-4 gap-y-1">
                         {card.seriesCodes.map((code) => (
                           <span
                             key={code}

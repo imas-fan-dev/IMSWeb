@@ -174,7 +174,8 @@ export function parseLegacyCardClaim(value: unknown): LegacyCardClaimInput {
     }
     return {
         targetCardId,
-        payload: claimPayload(body.payload, CLAIM_PAYLOAD_KEYS, targetCardId !== null),
+        // 认领不要求相对 live 有改动（可能已被他人补充完整），必填缺失由仓储拦。
+        payload: claimPayload(body.payload, CLAIM_PAYLOAD_KEYS, true),
         message: text(body.message, 'message', 1000)
     };
 }

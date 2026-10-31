@@ -358,13 +358,13 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 payload: { seriesCodes: ['Not A Series'], favoriteCharacterIds: [] },
                 message: ''
             }), /seriesCodes/);
-            // An empty payload states no change at all, which the claim flow has
-            // nothing to review.
-            assert.throws(() => parseLegacyCardClaim({
+            // An empty payload now means "no change": the card may already have
+            // been completed by someone else, so only the required fields gate it.
+            assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
                 payload: {},
                 message: ''
-            }), /至少要改动一处资料/);
+            }), { targetCardId: null, payload: {}, message: '' });
         });
 
         test('namecard and claim views expose structured character and claim metadata', () => {
@@ -2586,10 +2586,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
              front_object_key, back_object_key, exchange_mode,
              publication_status, revision,
              created_at, updated_at)
-         VALUES (?, ?, 'legacy', NULL, NULL, NULL, ?, ?, 'none', 'published', 0, ?, ?)`
+         VALUES (?, ?, 'legacy', ?, NULL, NULL, ?, ?, 'none', 'published', 0, ?, ?)`
         ).bind(
             `legacy-${row.id}`,
             row.id,
+            `Legacy ${suffix}`,
             `legacy/${suffix}/front.webp`,
             `legacy/${suffix}/back.webp`,
             CREATED_AT,
@@ -2684,7 +2685,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
             const detail = await fudaba.findCardSupplement('supplement-1');
             assert.equal(detail?.supplement.card_number, legacyId);
-            assert.equal(detail?.live.producer_name, null);
+            // The fixture seeds a producer name; the supplement only fills what
+            // it names, so the live value stays until the verdict lands.
+            assert.equal(detail?.live.producer_name, 'Legacy s');
 
             const approved = await fudaba.completeCardSupplementReview({
                 supplementId: 'supplement-1',
@@ -2985,7 +2988,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     legacyCardId: raceLegacyId,
                     claimantAccountId: ownerA,
                     targetCardId: null,
-                    payload: { seriesCodes: ['765'], favoriteCharacterIds: [900_001] },
+                    payload: {
+                        seriesCodes: ['765'],
+                        favoriteCharacterIds: [900_001],
+                        producerName: '竞态 A'
+                    },
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
@@ -2995,7 +3002,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     legacyCardId: raceLegacyId,
                     claimantAccountId: ownerB,
                     targetCardId: null,
-                    payload: { seriesCodes: ['cg'], favoriteCharacterIds: [900_002] },
+                    payload: {
+                        seriesCodes: ['cg'],
+                        favoriteCharacterIds: [900_002],
+                        producerName: '竞态 B'
+                    },
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
@@ -3041,6 +3052,57 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
             }), { status: 'series-required' });
+
+            // 卡可能已被其他用户补充完整，所以认领允许不带任何改动。
+            const settledLegacyId = await insertLegacyCard(database, 'o');
+            await database
+                .prepare(`UPDATE cards SET series_code='765' WHERE id=?`)
+                .bind(settledLegacyId)
+                .run();
+            await database
+                .prepare(
+                    `UPDATE fudaba_cards SET producer_name='既有制作人'
+                      WHERE card_number=?`
+                )
+                .bind(settledLegacyId)
+                .run();
+            const settled = await fudaba.createCardClaimForOwner({
+                id: 'settled-claim',
+                legacyCardId: settledLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: {},
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(settled.status, 'created');
+            if (settled.status !== 'created') return;
+            assert.deepEqual(settled.claim.payload, {});
+
+            // 必填项缺失时仍然拒绝：没有制作人名称就不算可提交的认领。
+            const namelessLegacyId = await insertLegacyCard(database, 'p');
+            await database
+                .prepare(`UPDATE cards SET series_code='765' WHERE id=?`)
+                .bind(namelessLegacyId)
+                .run();
+            await database
+                .prepare(
+                    `UPDATE fudaba_cards SET producer_name=NULL
+                      WHERE card_number=?`
+                )
+                .bind(namelessLegacyId)
+                .run();
+            assert.deepEqual(await fudaba.createCardClaimForOwner({
+                id: 'nameless-claim',
+                legacyCardId: namelessLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: {},
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            }), { status: 'producer-required' });
 
             const characterDerivedLegacyId = await insertLegacyCard(database, 'i');
             const characterDerived = await fudaba.createCardClaimForOwner({

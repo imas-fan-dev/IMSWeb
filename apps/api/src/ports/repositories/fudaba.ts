@@ -496,6 +496,7 @@ export type FudabaClaimCreateResult =
     | { status: "created"; claim: FudabaCardClaimRecord }
     | { status: "conflict"; claimId: string; state: FudabaCardClaimState }
     | { status: "series-required" }
+    | { status: "producer-required" }
     | { status: "unavailable" };
 
 export type FudabaRegisteredCardReviewClaim =

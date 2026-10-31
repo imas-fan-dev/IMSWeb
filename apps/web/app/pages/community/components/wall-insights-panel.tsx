@@ -209,7 +209,7 @@ export function WallInsightsPanel({
             </div>
           </div>
 
-          <div className="mt-3 flex">
+          <div className="mt-3 flex justify-end">
             <Button
               type="button"
               variant="outline"

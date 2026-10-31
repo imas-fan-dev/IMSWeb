@@ -11,13 +11,13 @@ import { toast } from "sonner"
 import {
   NamecardWallFields,
   wallCardDraftFromCard,
-  wallCardChanged,
   wallCardPayload,
   type WallCardDraft,
 } from "~/components/community/namecard-wall-fields"
 import {
   CardMediaGallery,
   publicMediaSlotsFromCard,
+  THUMB_SIZE_COMPACT,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
@@ -103,10 +103,14 @@ export function NamecardClaimDialog({
   const restricted = platform.status === "restricted"
   const ready = Boolean(card && draft && authenticated && catalog)
   const binding = existingTarget !== undefined
-  const changed = Boolean(
-    draft && live && wallCardChanged("claim", draft, live)
+  // 认领不再要求相对 live 有改动（可能已被他人补充完整），只拦必填项缺失。
+  const requiredReady = Boolean(
+    draft && draft.producerName.trim() && draft.seriesCodes.length > 0
   )
-  const canSubmit = ready && !submitting && (binding || changed)
+  const canSubmit = ready && !submitting && (binding || requiredReady)
+  const missingRequired = Boolean(
+    draft && !binding && (!draft.producerName.trim() || !draft.seriesCodes.length)
+  )
 
   async function submit() {
     if (!card || !draft || !live || !canSubmit) return
@@ -115,7 +119,13 @@ export function NamecardClaimDialog({
       const result = await createFudabaLegacyCardClaim(card.id, {
         targetCardId: binding ? existingTarget.id : null,
         // 绑定已有名片时信息以那张卡为准，所以只提交归属关系。
-        payload: binding ? undefined : wallCardPayload("claim", draft, live),
+        payload: binding
+          ? undefined
+          : (() => {
+              const patch = wallCardPayload("claim", draft, live)
+              // 没有任何改动时不带 payload，服务端按 live 资料落认领记录。
+              return Object.keys(patch).length ? patch : undefined
+            })(),
         message: "",
       }).send()
       onSubmitted(result.claim)
@@ -150,6 +160,8 @@ export function NamecardClaimDialog({
               })}
               disabled
               readOnly
+              allowUpload={false}
+              thumbSize={THUMB_SIZE_COMPACT}
               onChange={() => undefined}
               onError={() => undefined}
             />
@@ -211,6 +223,11 @@ export function NamecardClaimDialog({
                 ) : null}
               </fieldset>
 
+              {missingRequired ? (
+                <p className="text-xs text-destructive">
+                  制作人名称与企划是必填项，补齐后才能提交认领。
+                </p>
+              ) : null}
               {existingTarget ? (
                 <Alert>
                   <ShieldCheckIcon aria-hidden="true" />

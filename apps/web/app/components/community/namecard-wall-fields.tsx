@@ -142,7 +142,14 @@ export function NamecardWallFields({
     <FieldGroup>
       <FieldGroup className="grid gap-5 sm:grid-cols-2">
         <Field data-disabled={disabled || undefined}>
-          <FieldLabel htmlFor="wall-card-producer-name">制作人名称</FieldLabel>
+          <FieldLabel htmlFor="wall-card-producer-name">
+            制作人名称
+            {mode === "claim" ? (
+              <span aria-hidden="true" className="ml-1 text-destructive">
+                *
+              </span>
+            ) : null}
+          </FieldLabel>
           <Input
             id="wall-card-producer-name"
             value={draft.producerName}

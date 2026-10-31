@@ -4010,6 +4010,34 @@ export class SqlFudabaRepository implements FudabaRepository {
             characters,
         );
         if (!seriesCode) return { status: "series-required" };
+        // 已经有人在认领时先说冲突，必填校验不该盖过它。
+        const open = await queryOne<{ id: string; state: FudabaCardClaimState }>(
+            database,
+            `SELECT id, state FROM fudaba_card_claims
+              WHERE legacy_card_id=? AND state IN ('pending', 'approving', 'approved')
+              LIMIT 1`,
+            [input.legacyCardId],
+        );
+        if (open) {
+            return { status: "conflict", claimId: open.id, state: open.state };
+        }
+        // 认领可以不带任何改动（卡可能已被他人补充完整），但建卡路径上
+        // 制作人名称不能空着。绑定已有名片时资料以那张卡为准，不检查这里。
+        if (!input.targetCardId) {
+            const live = await queryOne<{ producer_name: string | null }>(
+                database,
+                `SELECT producer_name FROM fudaba_cards
+                  WHERE card_number=? AND deleted_at IS NULL`,
+                [input.legacyCardId],
+            );
+            const producerName =
+                "producerName" in input.payload
+                    ? input.payload.producerName
+                    : live?.producer_name;
+            if (!producerName || !producerName.trim()) {
+                return { status: "producer-required" };
+            }
+        }
         const result = await database
             .prepare(
                 `INSERT INTO fudaba_card_claims
@@ -4190,9 +4218,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                       WHERE guest.owner_account_id IS NOT NULL) AS claimed,
                     (SELECT COUNT(*)::int FROM fudaba_card_claims claim
                       WHERE claim.state IN ('pending', 'approving')) AS claims_pending,
-                    (SELECT COUNT(DISTINCT event.card_id)::int
-                       FROM namecard_contribution_events event
-                       JOIN guest ON guest.id=event.card_id) AS supplemented,
+                    (SELECT COUNT(*)::int FROM guest
+                      WHERE EXISTS (
+                          SELECT 1 FROM fudaba_card_series series WHERE series.card_id=guest.id
+                      )) AS supplemented,
                     (SELECT COUNT(*)::int FROM fudaba_card_supplements supplement
                       WHERE supplement.state IN ('pending', 'approving')) AS supplements_pending`,
                 [],

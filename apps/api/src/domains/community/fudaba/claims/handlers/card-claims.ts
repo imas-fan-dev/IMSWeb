@@ -141,6 +141,13 @@ export async function handleCreateFudabaLegacyCardClaim(
                 message: '请选择主企划后再提交认领'
             }, 409);
         }
+        if (result.status === 'producer-required') {
+            return c.json({
+                success: false,
+                code: 'FUDABA_CLAIM_PRODUCER_REQUIRED',
+                message: '请先填写制作人名称后再提交认领'
+            } satisfies FudabaCardClaimError, 409);
+        }
         if (result.status === 'unavailable') {
             return c.json({ success: false, code: 'FUDABA_LEGACY_CARD_UNAVAILABLE' }, 404);
         }
