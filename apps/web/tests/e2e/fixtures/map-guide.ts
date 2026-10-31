@@ -212,6 +212,11 @@ export async function sampleGuideMotion(
   action: () => Promise<unknown>
 ) {
   const recording = await page.evaluateHandle(() => {
+    const element = document.querySelector<HTMLElement>("[data-guide-card]")!
+    const spotlight = document.querySelector<HTMLElement>(
+      "[data-guide-spotlight]"
+    )!
+    const initialStep = element.dataset.guideStep
     const frames: {
       x: number
       y: number
@@ -221,13 +226,76 @@ export async function sampleGuideMotion(
       motion: string | undefined
       transition: string
     }[] = []
+    const interpolation: {
+      phase: number
+      y: number
+      holeHeight: number
+    }[] = []
+    const transitions: { property: string; duration: number; state: string }[] =
+      []
+    let activeAnimations: CSSTransition[] = []
+    const completedTransitions: string[] = []
+    let started!: () => void
+    const transitionStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
     let frame = 0
+    const observer = new MutationObserver(() => {
+      if (element.dataset.guideStep === initialStep) return
+      const animations = [element, spotlight].flatMap((target) =>
+        target
+          .getAnimations()
+          .filter((animation) => animation instanceof CSSTransition)
+      )
+      if (
+        !animations.some(
+          (animation) =>
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect.target === element &&
+            animation.transitionProperty === "transform"
+        )
+      )
+        return
+      observer.disconnect()
+      activeAnimations = animations
+      const originals = animations.map((animation) => ({
+        animation,
+        time: animation.currentTime,
+        duration: Number(animation.effect!.getTiming().duration),
+      }))
+      for (const { animation, duration } of originals) {
+        transitions.push({
+          property: animation.transitionProperty,
+          duration,
+          state: animation.playState,
+        })
+        animation.pause()
+      }
+      // Check the browser's rendered interpolation without relying on a CI
+      // frame arriving inside the 140ms transition. Resume the normal timeline
+      // before this observer returns; live RAF samples remain separate evidence.
+      for (const phase of [0, 0.25, 0.5, 0.75, 1]) {
+        for (const { animation, duration } of originals)
+          animation.currentTime = duration * phase
+        interpolation.push({
+          phase,
+          y: element.getBoundingClientRect().y,
+          holeHeight: spotlight.getBoundingClientRect().height,
+        })
+      }
+      for (const { animation, time } of originals) {
+        animation.currentTime = time
+        animation.play()
+      }
+      started()
+    })
+    observer.observe(element, {
+      attributes: true,
+      attributeFilter: ["style", "data-guide-step"],
+    })
     const sample = (time: number) => {
-      const element = document.querySelector<HTMLElement>("[data-guide-card]")!
       const card = element.getBoundingClientRect()
-      const hole = document
-        .querySelector("[data-guide-spotlight]")!
-        .getBoundingClientRect()
+      const hole = spotlight.getBoundingClientRect()
       frames.push({
         x: card.x,
         y: card.y,
@@ -240,10 +308,27 @@ export async function sampleGuideMotion(
       frame = requestAnimationFrame(sample)
     }
     sample(performance.now())
-    return { frames, stop: () => cancelAnimationFrame(frame) }
+    return {
+      frames,
+      interpolation,
+      transitions,
+      completedTransitions,
+      complete: async () => {
+        await transitionStarted
+        const results = await Promise.allSettled(
+          activeAnimations.map((animation) => animation.finished)
+        )
+        completedTransitions.push(...results.map((result) => result.status))
+      },
+      stop: () => {
+        observer.disconnect()
+        cancelAnimationFrame(frame)
+      },
+    }
   })
   try {
     await action()
+    await recording.evaluate((value) => value.complete())
     await page.evaluate(
       () =>
         new Promise<void>((resolve) => {
@@ -255,7 +340,14 @@ export async function sampleGuideMotion(
           requestAnimationFrame(sample)
         })
     )
-    return await recording.evaluate((value) => value.frames)
+    return await recording.evaluate(
+      ({ frames, interpolation, transitions, completedTransitions }) => ({
+        frames,
+        interpolation,
+        transitions,
+        completedTransitions,
+      })
+    )
   } finally {
     await recording.evaluate((value) => value.stop())
     await recording.dispose()
