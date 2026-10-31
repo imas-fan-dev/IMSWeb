@@ -589,7 +589,7 @@ test.describe("app navigation", () => {
         reactionReads: 12,
         reactionWrites: 0,
       })
-      installAppResourcesMocks(api)
+      resourcesDirectory(api)
       installSeededPublicApis(api, [
         { path: "/api/community/content", times: { min: 1, max: 4 } },
         { path: "/api/community/exchange/series", times: { min: 1, max: 4 } },
