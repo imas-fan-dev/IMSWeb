@@ -171,10 +171,32 @@ export function registerMapLocationFeedbackTests(test: FixtureTest) {
       await notice.getByRole("button", { name: "关闭定位提示" }).click()
       await expect(notice).toHaveCount(0)
       if (await page.locator("[data-app-search]").count()) {
+        const browsingFrame = await locate.boundingBox()
         await page.getByRole("button", { name: "展开地点查找" }).click()
-        await expect(locate).toBeHidden()
+        await expect(
+          page.locator("[data-exchange-side-controls]")
+        ).toHaveAttribute("inert", "")
+        await expect.poll(() => locate.boundingBox()).toEqual(browsingFrame)
+        await expect
+          .poll(() =>
+            locate.evaluate((node) => {
+              const box = node.getBoundingClientRect()
+              return document
+                .querySelector(".exchange-search-card")!
+                .contains(
+                  document.elementFromPoint(
+                    box.x + box.width / 2,
+                    box.y + box.height / 2
+                  )
+                )
+            })
+          )
+          .toBe(true)
         await page.getByRole("button", { name: "取消", exact: true }).click()
         await expect(locate).toBeVisible()
+        await expect(
+          page.locator("[data-exchange-side-controls]")
+        ).not.toHaveAttribute("inert")
       }
     }
   )

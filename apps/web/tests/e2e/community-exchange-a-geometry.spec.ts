@@ -189,8 +189,13 @@ test.describe("exchange Web search geometry", () => {
               .getByRole("img", { name: "搜索地点：西岸艺术中心" })
               .boundingBox()
             const map = await canvas.boundingBox()
-            return Math.abs(
-              marker!.y + marker!.height / 2 - (map!.y + map!.height / 2)
+            return Math.max(
+              Math.abs(
+                marker!.x + marker!.width / 2 - (map!.x + map!.width / 2)
+              ),
+              Math.abs(
+                marker!.y + marker!.height / 2 - (map!.y + map!.height / 2)
+              )
             )
           })
           .toBeLessThanOrEqual(24)

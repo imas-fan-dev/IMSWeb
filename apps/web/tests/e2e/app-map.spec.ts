@@ -930,8 +930,11 @@ test.describe("app map", () => {
           const map = await page
             .locator("canvas.maplibregl-canvas")
             .boundingBox()
-          return Math.abs(
-            marker!.y + marker!.height / 2 - (map!.y + map!.height / 2)
+          return Math.max(
+            Math.abs(marker!.x + marker!.width / 2 - (map!.x + map!.width / 2)),
+            Math.abs(
+              marker!.y + marker!.height / 2 - (map!.y + map!.height / 2)
+            )
           )
         })
         .toBeLessThanOrEqual(24)
