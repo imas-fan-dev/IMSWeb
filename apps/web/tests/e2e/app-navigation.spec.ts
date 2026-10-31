@@ -584,36 +584,35 @@ test.describe("app navigation", () => {
     "keeps a reselected tab at its root after deeper visits",
     { tag: "@app-webkit" },
     async ({ page, api }) => {
-      await setAccountSessionHint(page)
+      await mockNamecardBrowsing(page, api, 36, undefined, {
+        cards: 1,
+        reactionReads: 12,
+        reactionWrites: 0,
+      })
       installAppResourcesMocks(api)
-      installAccountMocks(api)
-      await page.goto("/account/me")
+      installSeededPublicApis(api, [
+        { path: "/api/community/content", times: { min: 1, max: 4 } },
+        { path: "/api/community/exchange/series", times: { min: 1, max: 4 } },
+      ])
+      await page.goto("/community")
       const entries = await page.evaluate(() => history.length)
-      // Two deeper levels: section, then security. Both belong to My.
-      await page.locator('a[href="/account/me/namecards"]').click()
-      await expect(page).toHaveURL(/\/account\/me\/namecards$/)
-      await page.goto("/account/security")
-      await expect(page).toHaveURL(/\/account\/security$/)
-      await page.getByRole("button", { name: "返回", exact: true }).click()
-      await expect(page).toHaveURL(/\/account\/me$/)
-      // Reselecting the active tab returns to the existing root instead of
-      // appending a second root above the pages that were left.
-      await nav(page).getByRole("link", { name: "我的", exact: true }).click()
-      await expect(page).toHaveURL(/\/account\/me$/)
-      await expect(
-        page.getByRole("heading", { name: "我的", exact: true, level: 1 })
-      ).toBeVisible()
+      await page.locator('a[href="/community/cards"]').first().click()
+      await expect(page).toHaveURL(/\/community\/cards/)
+      // Reselecting the active tab returns to the root that is already in this
+      // tab instead of appending a second root above the detail page.
+      await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+      await expect(page).toHaveURL(/\/community$/)
+      await expect(page.locator("[data-app-shell]")).toBeVisible()
       await expect(
         page.getByRole("button", { name: "返回", exact: true })
       ).toHaveCount(0)
-      // The abandoned levels are gone from history rather than hidden below the
-      // root, so a native traversal cannot resurface them.
-      expect(await page.evaluate(() => history.length)).not.toBeGreaterThan(
-        entries + 1
-      )
-      // Switching tabs keeps the same invariant on the next root.
+      // The abandoned detail page is gone from history, not hidden below the
+      // root: the entry count never grows and no stale level remains.
+      expect(await page.evaluate(() => history.length)).toBe(entries)
+      // Switching tabs reuses the same entry and keeps the next root bounded.
       await nav(page).getByRole("link", { name: "资料", exact: true }).click()
       await expect(page).toHaveURL(/\/apps$/)
+      expect(await page.evaluate(() => history.length)).toBe(entries)
       await expect(page.locator("[data-app-shell]")).toBeVisible()
     }
   )
