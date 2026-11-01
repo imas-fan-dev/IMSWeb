@@ -7,7 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
 
-import { formatCredit } from "~/components/community/namecard-credit-format"
+import { creditParts } from "~/components/community/namecard-credit-format"
 import type { NamecardSide } from "~/components/shared/namecard-preview"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -647,20 +647,28 @@ export function NamecardDetailDialog({
                   <FieldRow label="制作人员">
                     {card?.credits.length ? (
                       <ul className="space-y-1">
-                        {card.credits.map((credit, index) => (
-                          <li key={`${credit.displayName}-${index}`}>
-                            {credit.url ? (
-                              <NavigationLink
-                                href={credit.url}
-                                className="underline underline-offset-2"
-                              >
-                                {formatCredit(credit)}
-                              </NavigationLink>
-                            ) : (
-                              formatCredit(credit)
-                            )}
-                          </li>
-                        ))}
+                        {card.credits.map((credit, index) => {
+                          const parts = creditParts(credit)
+                          return (
+                            <li key={`${credit.displayName}-${index}`}>
+                              {parts.url ? (
+                                <NavigationLink
+                                  href={parts.url}
+                                  className="underline underline-offset-2"
+                                >
+                                  {parts.name}
+                                </NavigationLink>
+                              ) : (
+                                parts.name
+                              )}
+                              {parts.roles ? (
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  {parts.roles}
+                                </span>
+                              ) : null}
+                            </li>
+                          )
+                        })}
                       </ul>
                     ) : (
                       <EmptyDash />
