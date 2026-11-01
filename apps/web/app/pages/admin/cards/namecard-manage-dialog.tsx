@@ -4,6 +4,7 @@ import {
   SaveIcon,
   SearchIcon,
   Trash2Icon,
+  UserRoundIcon,
   XIcon,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -504,6 +505,33 @@ export function NamecardManageDialog({
               <div className="flex flex-col gap-4">
                 <div className="grid gap-1.5">
                   <FieldLabel htmlFor="manage-owner">账号归属</FieldLabel>
+                  {ownerAccountId ? (
+                    <div className="flex items-center justify-between gap-2 rounded-md border border-input bg-muted/40 px-2.5 py-1.5">
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm">
+                        <UserRoundIcon
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">
+                          {ownerName ?? ownerAccountId}
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label="取消归属账号"
+                        disabled={busy}
+                        onClick={() => {
+                          setOwnerAccountId("")
+                          setOwnerName(null)
+                          setOwnerTouched(true)
+                        }}
+                      >
+                        <XIcon aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ) : (
                   <div className="relative">
                     <SearchIcon
                       className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -570,27 +598,12 @@ export function NamecardManageDialog({
                       </ul>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>
-                      当前：{ownerName ?? ownerAccountId ?? "无主名片"}
-                    </span>
-                    {ownerAccountId ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
-                        disabled={busy}
-                        onClick={() => {
-                          setOwnerAccountId("")
-                          setOwnerName(null)
-                          setOwnerTouched(true)
-                        }}
-                      >
-                        移除
-                      </Button>
-                    ) : null}
-                  </div>
+                  )}
+                  {ownerAccountId ? null : (
+                    <p className="text-xs text-muted-foreground">
+                      当前无主。输入昵称检索账号，选中后这张名片会归该账号所有。
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">

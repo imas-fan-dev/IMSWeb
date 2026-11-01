@@ -334,6 +334,7 @@ export function makeFudabaAdminCardClaim(
     id: "claim-1",
     legacyCardId: 42,
     targetCardId: null,
+    targetCardNumber: null,
     seriesCode: "765",
     payload: { producerName: "制作人" },
     favoriteCharacters: [],

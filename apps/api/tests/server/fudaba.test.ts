@@ -2007,6 +2007,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             state: 'pending',
             revision: 0,
             claimant_display_name: 'Claimant',
+            target_card_number: null,
             legacy_image1_url: '/uploads/namecard/original/legacy-front.webp',
             legacy_image2_url: '/uploads/namecard/original/legacy-back.webp'
         };
@@ -2967,8 +2968,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(claimCompleted.status, 'saved');
             if (claimCompleted.status !== 'saved') return;
             assert.equal(claimCompleted.claim.state, 'approved');
-            assert.equal(claimCompleted.card?.legacy_card_id, legacyId);
-            assert.equal((await fudaba.findCardById(matchingCardId))?.legacy_card_id, legacyId);
+            // The linkage lives in fudaba_card_merges; the served card keeps its
+            // own columns untouched so it can absorb further guest uploads.
+            assert.equal(claimCompleted.card?.id, matchingCardId);
+            assert.equal((await fudaba.findCardById(matchingCardId))?.legacy_card_id, null);
             // The ownerless legacy row this claim bound onto must stop showing up
             // twice: it stays in place (guest attributes/reactions history are not
             // lost) but gets soft deleted so it drops off every compat read path.
@@ -3009,11 +3012,62 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 audit
             });
             assert.equal(replay.status, 'conflict');
+            // The merge ledger owns the linkage now, so the same guest upload
+            // cannot be folded into two different served cards.
             await assert.rejects(
                 database.prepare(
-                    'UPDATE fudaba_cards SET legacy_card_id=? WHERE id=?'
-                ).bind(legacyId, `0${legacyId}`).run(),
-                /fudaba_cards_legacy_card_id_key/
+                    `INSERT INTO fudaba_card_merges
+                        (claim_id, target_card_id, legacy_card_id, merged_at)
+                     VALUES (?, ?, ?, ?)`
+                ).bind('duplicate-merge', matchingCardId, legacyId, REVIEWED_AT).run(),
+                /fudaba_card_merges_legacy_card_id_key/
+            );
+
+            // One served card absorbs a second guest upload: the merge ledger
+            // keeps both links while the card's own legacy_card_id stays on the
+            // first one, so the column never gets overwritten.
+            const secondLegacyId = await insertLegacyCard(database, 'second');
+            const secondClaimId = 'claim-second-merge';
+            const secondCreated = await fudaba.createCardClaimForOwner({
+                id: secondClaimId,
+                legacyCardId: secondLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: matchingCardId,
+                payload: {},
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(secondCreated.status, 'created');
+            await fudaba.beginCardClaimReview(secondClaimId, 0);
+            const secondCompleted = await fudaba.completeCardClaimReview({
+                claimId: secondClaimId,
+                approvingRevision: 1,
+                decision: 'approve',
+                media: null,
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '第二张游客投稿',
+                notificationTitle: '名片认领已通过',
+                notificationBody: '历史名片已经绑定。',
+                audit
+            });
+            assert.equal(secondCompleted.status, 'saved');
+            const merges = await database
+                .prepare(
+                    `SELECT legacy_card_id FROM fudaba_card_merges
+                     WHERE target_card_id=? ORDER BY legacy_card_id`
+                )
+                .bind(matchingCardId)
+                .all();
+            assert.deepEqual(
+                merges.results.map((row) => Number(row.legacy_card_id)).sort((a, b) => a - b),
+                [legacyId, secondLegacyId].sort((a, b) => a - b)
+            );
+            assert.equal(
+                (await fudaba.listLegacyNamecardClaimStatuses([secondLegacyId], ownerA))[0]
+                    ?.claim_status,
+                'claimed'
             );
 
             const raceLegacyId = await insertLegacyCard(database, 'r');
@@ -4500,6 +4554,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261101190000_namecard_envelope_notifications',
                 '20261101200000_namecard_match_key',
                 '20261101210000_namecard_match_key_width',
+                '20261101220000_namecard_card_merges',
+                '20261101230000_namecard_claim_card_number',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');

@@ -65,6 +65,7 @@ export function fudabaAdminCardClaimView(
 ): FudabaAdminCardClaim {
     return {
         ...fudabaCardClaimView(claim),
+        targetCardNumber: claim.target_card_number,
         claimant: {
             id: claim.claimant_account_id,
             displayName: claim.claimant_display_name,

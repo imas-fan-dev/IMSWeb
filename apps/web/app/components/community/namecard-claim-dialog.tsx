@@ -116,7 +116,9 @@ export function NamecardClaimDialog({
     if (!card || !draft || !live || !canSubmit) return
     setSubmitting(true)
     try {
-      const result = await createFudabaLegacyCardClaim(card.id, {
+      // 认领接口以「旧名片编号」定位：墙上这张卡的 id 现在是 guest-<编号>，
+      // 直接当编号用在服务端会被判无效。
+      const result = await createFudabaLegacyCardClaim(card.cardNumber, {
         targetCardId: binding ? existingTarget.id : null,
         // 绑定已有名片时信息以那张卡为准，所以只提交归属关系。
         payload: binding

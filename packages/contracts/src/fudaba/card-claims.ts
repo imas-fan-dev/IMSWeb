@@ -107,6 +107,8 @@ export const fudabaRegisteredCardReviewSchema = z
 
 export const fudabaAdminCardClaimSchema = fudabaCardClaimSchema
   .extend({
+    /** The wall number of the card a binding claim merges into. */
+    targetCardNumber: z.number().int().positive().nullable(),
     claimant: z
       .object({
         id: z.string().min(1),

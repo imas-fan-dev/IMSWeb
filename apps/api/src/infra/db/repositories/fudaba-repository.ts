@@ -152,8 +152,10 @@ const ADMIN_CLAIM_COLUMNS = `claim.id, claim.legacy_card_id,
     claim.state, claim.message, claim.payload, claim.review_note, claim.reviewed_by,
     claim.reviewed_at, claim.revision, claim.created_at, claim.updated_at,
     profile.display_name AS claimant_display_name,
-    legacy.image1_url AS legacy_image1_url,
-    legacy.image2_url AS legacy_image2_url`;
+    COALESCE(legacy.image1_url, guest_card.front_object_key) AS legacy_image1_url,
+    COALESCE(legacy.image2_url, guest_card.back_object_key) AS legacy_image2_url,
+    (SELECT target.card_number FROM fudaba_cards target
+      WHERE target.id=claim.target_card_id) AS target_card_number`;
 const SUPPLEMENT_COLUMNS = `supplement.id, supplement.card_id,
     supplement.submitter_account_id, supplement.state, supplement.payload,
     supplement.base_revision, supplement.review_note, supplement.reviewed_by,
@@ -385,6 +387,7 @@ type FudabaAdminCardClaimRow = FudabaCardClaimRow & {
     claimant_display_name: string;
     legacy_image1_url: string;
     legacy_image2_url: string;
+    target_card_number: number | string | null;
 };
 
 type FudabaClaimFavoriteRow = Omit<CardFavoriteSelectionRow, "card_id"> & {
@@ -708,6 +711,10 @@ function adminClaimRecord(
         claimant_display_name: row.claimant_display_name,
         legacy_image1_url: row.legacy_image1_url,
         legacy_image2_url: row.legacy_image2_url,
+        target_card_number:
+            row.target_card_number === null
+                ? null
+                : Number(row.target_card_number),
     };
 }
 
@@ -4044,9 +4051,9 @@ export class SqlFudabaRepository implements FudabaRepository {
                 (id, legacy_card_id, claimant_account_id, target_card_id,
                  series_code, state, message, payload, review_note, reviewed_by,
                  reviewed_at, revision, created_at, updated_at)
-             SELECT ?, legacy.id, account.id, target.id, series.code, 'pending',
-                    ?, CAST(? AS jsonb), '', NULL, NULL, 0, ?, ?
-             FROM cards legacy
+             SELECT ?, guest.card_number, account.id, target.id, series.code,
+                    'pending', ?, CAST(? AS jsonb), '', NULL, NULL, 0, ?, ?
+             FROM fudaba_cards guest
              JOIN platform_accounts account
                ON account.id=? AND account.status='active'
               AND account.deleted_at IS NULL
@@ -4054,14 +4061,15 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON series.code=? AND series.wiki_enabled=?
              LEFT JOIN fudaba_cards target
                ON target.id=? AND target.owner_account_id=account.id
-              AND target.deleted_at IS NULL AND target.legacy_card_id IS NULL
+              AND target.deleted_at IS NULL
               AND target.publication_status<>'approving'
-             WHERE legacy.id=? AND legacy.status='approved'
-               AND legacy.submission_kind='legacy'
+             WHERE guest.card_number=? AND guest.owner_account_id IS NULL
+               AND guest.deleted_at IS NULL
+               AND guest.publication_status='published'
                AND (CAST(? AS TEXT) IS NULL OR target.id IS NOT NULL)
                AND NOT EXISTS (
-                   SELECT 1 FROM fudaba_cards bound
-                   WHERE bound.legacy_card_id=legacy.id
+                   SELECT 1 FROM fudaba_card_merges merged
+                   WHERE merged.legacy_card_id=guest.card_number
                )
              ON CONFLICT DO NOTHING
              RETURNING ${CLAIM_COLUMNS}`,
@@ -4326,18 +4334,21 @@ export class SqlFudabaRepository implements FudabaRepository {
         viewerAccountId: string | null,
     ): Promise<LegacyNamecardClaimStatusRecord[]> {
         if (!legacyCardIds.length) return [];
-        const placeholders = legacyCardIds.map(() => "?").join(", ");
+        const values = legacyCardIds
+            .map(() => "(CAST(? AS BIGINT))")
+            .join(", ");
         return queryAll<LegacyNamecardClaimStatusRecord>(
             this.database,
-            `SELECT legacy.id AS legacy_card_id,
+            `SELECT wanted.card_number AS legacy_card_id,
                     CASE
-                        WHEN EXISTS (
-                            SELECT 1 FROM fudaba_cards card
-                            WHERE card.legacy_card_id=legacy.id
-                        ) THEN 'claimed'
+                        WHEN guest.owner_account_id IS NOT NULL
+                          OR EXISTS (
+                              SELECT 1 FROM fudaba_card_merges merged
+                              WHERE merged.legacy_card_id=wanted.card_number
+                          ) THEN 'claimed'
                         WHEN EXISTS (
                             SELECT 1 FROM fudaba_card_claims claim
-                            WHERE claim.legacy_card_id=legacy.id
+                            WHERE claim.legacy_card_id=wanted.card_number
                               AND claim.state IN ('pending', 'approving')
                         ) THEN 'pending'
                         ELSE 'unclaimed'
@@ -4345,7 +4356,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     (
                         SELECT claim.state
                         FROM fudaba_card_claims claim
-                        WHERE claim.legacy_card_id=legacy.id
+                        WHERE claim.legacy_card_id=wanted.card_number
                           AND claim.claimant_account_id=?
                         ORDER BY claim.created_at DESC, claim.id DESC
                         LIMIT 1
@@ -4353,21 +4364,43 @@ export class SqlFudabaRepository implements FudabaRepository {
                     EXISTS (
                         SELECT 1
                         FROM fudaba_card_supplements supplement
-                        JOIN fudaba_cards supplement_card
-                          ON supplement_card.id=supplement.card_id
-                        WHERE supplement_card.card_number=legacy.id
+                        WHERE supplement.card_id=guest.id
                           AND supplement.state IN ('pending', 'approving')
                     ) AS supplement_pending,
                     COALESCE(
-                        NULLIF(BTRIM(claimed.producer_name), ''),
-                        NULLIF(BTRIM(claimant_profile.display_name), '')
+                        CASE
+                            WHEN guest.owner_account_id IS NOT NULL
+                                THEN NULLIF(BTRIM(guest.producer_name), '')
+                        END,
+                        (
+                            SELECT NULLIF(BTRIM(merged_card.producer_name), '')
+                            FROM fudaba_card_merges merged
+                            JOIN fudaba_cards merged_card
+                              ON merged_card.id=merged.target_card_id
+                            WHERE merged.legacy_card_id=wanted.card_number
+                            LIMIT 1
+                        ),
+                        CASE
+                            WHEN guest.owner_account_id IS NOT NULL
+                                THEN NULLIF(BTRIM(owner_profile.display_name), '')
+                        END,
+                        (
+                            SELECT NULLIF(BTRIM(merged_profile.display_name), '')
+                            FROM fudaba_card_merges merged
+                            JOIN fudaba_cards merged_card
+                              ON merged_card.id=merged.target_card_id
+                            LEFT JOIN platform_profiles merged_profile
+                              ON merged_profile.account_id=merged_card.owner_account_id
+                            WHERE merged.legacy_card_id=wanted.card_number
+                            LIMIT 1
+                        )
                     ) AS claimer_name
-             FROM cards legacy
-             LEFT JOIN fudaba_cards claimed
-                    ON claimed.legacy_card_id=legacy.id
-             LEFT JOIN platform_profiles claimant_profile
-                    ON claimant_profile.account_id=claimed.owner_account_id
-             WHERE legacy.id IN (${placeholders})`,
+             FROM (VALUES ${values}) AS wanted(card_number)
+             LEFT JOIN fudaba_cards guest
+                    ON guest.card_number=wanted.card_number
+                   AND guest.deleted_at IS NULL
+             LEFT JOIN platform_profiles owner_profile
+                    ON owner_profile.account_id=guest.owner_account_id`,
             [viewerAccountId, ...legacyCardIds],
         );
     }
@@ -4422,7 +4455,10 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM fudaba_card_claims claim
              JOIN platform_profiles profile
                ON profile.account_id=claim.claimant_account_id
-             JOIN cards legacy ON legacy.id=claim.legacy_card_id
+             LEFT JOIN cards legacy ON legacy.id=claim.legacy_card_id
+             LEFT JOIN fudaba_cards guest_card
+                    ON guest_card.card_number=claim.legacy_card_id
+                   AND guest_card.deleted_at IS NULL
              WHERE claim.id=?`,
             [claimId],
         );
@@ -4442,7 +4478,10 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM fudaba_card_claims claim
              JOIN platform_profiles profile
                ON profile.account_id=claim.claimant_account_id
-             JOIN cards legacy ON legacy.id=claim.legacy_card_id
+             LEFT JOIN cards legacy ON legacy.id=claim.legacy_card_id
+             LEFT JOIN fudaba_cards guest_card
+                    ON guest_card.card_number=claim.legacy_card_id
+                   AND guest_card.deleted_at IS NULL
              WHERE claim.state IN ('pending', 'approving')
              ORDER BY claim.created_at ASC, claim.id ASC
              LIMIT ?`,
@@ -4874,17 +4913,15 @@ export class SqlFudabaRepository implements FudabaRepository {
                         const updated = await queryOne<FudabaCardRow>(
                             database,
                             `UPDATE fudaba_cards
-                         SET legacy_card_id=?, revision=revision+1, updated_at=?
+                         SET revision=revision+1, updated_at=?
                          WHERE id=? AND owner_account_id=? AND deleted_at IS NULL
-                           AND legacy_card_id IS NULL
                            AND publication_status<>'approving'
                            AND NOT EXISTS (
-                               SELECT 1 FROM fudaba_cards bound
-                               WHERE bound.legacy_card_id=?
+                               SELECT 1 FROM fudaba_card_merges merged
+                               WHERE merged.legacy_card_id=?
                            )
                          RETURNING ${CARD_COLUMNS}`,
                             [
-                                locked.legacy_card_id,
                                 input.reviewedAt,
                                 locked.target_card_id,
                                 locked.claimant_account_id,
@@ -4892,6 +4929,21 @@ export class SqlFudabaRepository implements FudabaRepository {
                             ],
                         );
                         if (!updated) return { status: "unavailable" };
+                        // A served card keeps absorbing guest uploads, so the
+                        // linkage is recorded per merge instead of per card.
+                        await executeSql(
+                            database,
+                            `INSERT INTO fudaba_card_merges
+                                 (claim_id, target_card_id, legacy_card_id, merged_at)
+                             VALUES (?, ?, ?, ?)
+                             ON CONFLICT (legacy_card_id) DO NOTHING`,
+                            [
+                                locked.id,
+                                locked.target_card_id,
+                                locked.legacy_card_id,
+                                input.reviewedAt,
+                            ],
+                        );
                         const ownerless = await queryOne<{ id: string }>(
                             database,
                             `SELECT id FROM fudaba_cards

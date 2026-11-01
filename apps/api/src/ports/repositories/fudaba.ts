@@ -384,6 +384,8 @@ export interface FudabaAdminCardClaimRecord extends FudabaCardClaimRecord {
     claimant_display_name: string;
     legacy_image1_url: string;
     legacy_image2_url: string;
+    /** The owner card this claim binds to; null when it creates a new card. */
+    target_card_number: number | null;
 }
 
 export interface LegacyNamecardClaimStatusRecord {

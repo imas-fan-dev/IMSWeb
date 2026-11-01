@@ -23,7 +23,7 @@ export async function handleListNamecards(
         const claimRepository = services(c).fudaba;
         const statuses = claimRepository
             ? await claimRepository.listLegacyNamecardClaimStatuses(
-                rows.map((card) => Number(card.id)),
+                rows.map((card) => Number(card.card_number ?? card.id)),
                 c.get('platformUser')?.id ?? null
             )
             : [];

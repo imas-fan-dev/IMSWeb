@@ -33,8 +33,50 @@ type LiveSide = AdminNamecardDiff["live"]
 function claimRows(
   claim: FudabaAdminCardClaim,
   live: LiveSide | null,
-  labels: ReturnType<typeof useReviewLabels>
+  labels: ReturnType<typeof useReviewLabels>,
+  target: LiveSide | null = null
 ): ReviewRow[] {
+  // 绑定型认领丢弃游客投稿的资料：右侧整列取自目标卡片。
+  if (target) {
+    return [
+      {
+        label: "制作人名称",
+        live: live?.producerName ?? null,
+        pending: target.producerName ?? null,
+      },
+      {
+        label: "制作人读音",
+        live: live?.producerReading ?? null,
+        pending: target.producerReading ?? null,
+      },
+      {
+        label: "团体名称",
+        live: live?.groupName ?? null,
+        pending: target.groupName ?? null,
+      },
+      {
+        label: "制作时间",
+        live: live?.madeOn ?? null,
+        pending: target.madeOn ?? null,
+      },
+      {
+        label: "企划",
+        live: live?.seriesCodes.length ? labels.seriesList(live.seriesCodes) : null,
+        pending: target.seriesCodes.length
+          ? labels.seriesList(target.seriesCodes)
+          : null,
+      },
+      {
+        label: "担当角色",
+        live: live?.favoriteCharacters.length
+          ? labels.characterList(live.favoriteCharacters.map((item) => item.id))
+          : null,
+        pending: target.favoriteCharacters.length
+          ? labels.characterList(target.favoriteCharacters.map((item) => item.id))
+          : null,
+      },
+    ]
+  }
   const payload = claim.payload
   const liveSeries = live?.seriesCodes ?? []
   const liveCharacters = (live?.favoriteCharacters ?? []).map(
@@ -96,15 +138,24 @@ export function ClaimReviewDialog({
 }) {
   const labels = useReviewLabels()
   const [live, setLive] = useState<LiveSide | null>(null)
+  // 绑定型认领会把游客投稿并进用户投稿，所以右侧是目标卡片的 live。
+  const [target, setTarget] = useState<LiveSide | null>(null)
   const [failed, setFailed] = useState(false)
+  const targetCardNumber = claim?.targetCardNumber ?? null
+  const binding = targetCardNumber !== null
 
   useEffect(() => {
     if (!claim) return
     let active = true
-    getAdminNamecardDiff(claim.legacyCardId)
-      .send()
-      .then((detail) => {
-        if (active) setLive(detail.live)
+    const guest = getAdminNamecardDiff(claim.legacyCardId).send()
+    const owner = targetCardNumber
+      ? getAdminNamecardDiff(targetCardNumber).send()
+      : Promise.resolve(null)
+    void Promise.all([guest, owner])
+      .then(([guestDetail, ownerDetail]) => {
+        if (!active) return
+        setLive(guestDetail.live)
+        setTarget(ownerDetail?.live ?? null)
       })
       .catch(() => {
         if (active) setFailed(true)
@@ -112,9 +163,13 @@ export function ClaimReviewDialog({
     return () => {
       active = false
     }
-  }, [claim])
+  }, [claim, targetCardNumber])
 
-  const rows = claim ? claimRows(claim, live, labels) : []
+  const rows = claim
+    ? binding
+      ? claimRows({ ...claim, payload: {} }, live, labels, target)
+      : claimRows(claim, live, labels)
+    : []
 
   return (
     <Dialog
