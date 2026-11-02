@@ -39,7 +39,10 @@ export async function handleListProfileCards(
     const storage = services(c).storage;
     const list = await Promise.all(
         rows.map(async (card) => {
-            const response = toPublicNamecardResponse(card, null);
+            const response = toPublicNamecardResponse(
+                card,
+                c.get("platformUser")?.id ?? null,
+            );
             const image1Url = storage
                 ? await resolvePublicMediaUrl(storage, response.image1_url)
                 : response.image1_url;

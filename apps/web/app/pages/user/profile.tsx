@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router"
 import {
   ArrowLeftRightIcon,
+  ShareIcon,
   MapPinIcon,
   PencilLineIcon,
   SparklesIcon,
@@ -85,9 +86,11 @@ export default function UserProfilePage() {
   }, [accountId])
 
   const owned = useMemo(() => cards?.list ?? [], [cards])
+  // 路由参数可能是 uid 或 slug，只有接口回来的 accountId 才可靠。
   const isSelf =
     platform.status === "authenticated" &&
-    platform.session?.account.id === accountId
+    profile !== null &&
+    platform.session?.account.id === profile.accountId
 
   useEffect(() => {
     if (!openCard || reactions[openCard.id]) return
@@ -236,18 +239,23 @@ export default function UserProfilePage() {
                   </span>
                   <Button
                     type="button"
-                    variant="secondary"
                     size="sm"
                     className="ml-auto"
                     disabled
                     title={
-                      card.exchangeMode === "none"
-                        ? "这张名片不接受交换"
-                        : "暂未开放"
+                      isSelf
+                        ? "分享功能暂未开放"
+                        : card.exchangeMode === "none"
+                          ? "这张名片不接受交换"
+                          : "暂未开放"
                     }
                   >
-                    <ArrowLeftRightIcon aria-hidden="true" />
-                    交换
+                    {isSelf ? (
+                      <ShareIcon aria-hidden="true" />
+                    ) : (
+                      <ArrowLeftRightIcon aria-hidden="true" />
+                    )}
+                    {isSelf ? "分享" : "交换"}
                   </Button>
                 </div>
               </li>
