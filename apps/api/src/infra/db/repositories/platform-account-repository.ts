@@ -58,7 +58,7 @@ import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/que
 
 const ACCOUNT_COLUMNS = `id, status, token_version, created_at, updated_at,
     deleted_at`;
-const PROFILE_COLUMNS = `account_id, display_name, avatar_object_key,
+const PROFILE_COLUMNS = `account_id, display_name, avatar_object_key, uid, page_slug,
     avatar_external_url, home_city, bio, updated_at`;
 const REFRESH_SESSION_COLUMNS = `id, account_id, token_hash, previous_token_hash,
     csrf_hash, expires_at, created_at, updated_at, revoked_at, user_agent,
@@ -96,6 +96,8 @@ const ADMIN_ACCOUNT_SELECT = `SELECT accounts.id, accounts.status,
 interface PlatformAccountProfileRow extends PlatformAccountRecord {
     profile_account_id: string;
     profile_display_name: string;
+    profile_uid: number | string;
+    profile_page_slug: string | null;
     profile_avatar_object_key: string | null;
     profile_avatar_external_url: string | null;
     profile_home_city: string | null;
@@ -184,6 +186,8 @@ function accountWithProfile(row: PlatformAccountProfileRow): PlatformAccountWith
     const profile: PlatformProfileRecord = {
         account_id: row.profile_account_id,
         display_name: row.profile_display_name,
+        uid: Number(row.profile_uid),
+        page_slug: row.profile_page_slug,
         avatar_object_key: row.profile_avatar_object_key,
         avatar_external_url: row.profile_avatar_external_url,
         home_city: row.profile_home_city,
@@ -654,6 +658,8 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
                     accounts.created_at, accounts.updated_at, accounts.deleted_at,
                     profiles.account_id AS profile_account_id,
                     profiles.display_name AS profile_display_name,
+                    profiles.uid AS profile_uid,
+                    profiles.page_slug AS profile_page_slug,
                     profiles.avatar_object_key AS profile_avatar_object_key,
                     profiles.avatar_external_url AS profile_avatar_external_url,
                     profiles.home_city AS profile_home_city,
@@ -1842,9 +1848,9 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
             if (!current || current.updated_at !== input.expectedUpdatedAt) {
                 return this.profileWriteFailure(current, input.expectedUpdatedAt);
             }
-            const result = await this.database.prepare(
+            const statement = this.database.prepare(
                 `UPDATE platform_profiles
-                 SET display_name=?, home_city=?, bio=?, updated_at=?
+                 SET display_name=?, home_city=?, bio=?, page_slug=?, updated_at=?
                  WHERE account_id=? AND updated_at=? AND EXISTS (
                      SELECT 1 FROM platform_accounts account
                      WHERE account.id=platform_profiles.account_id
@@ -1855,10 +1861,21 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
                 input.displayName,
                 input.homeCity,
                 input.bio,
+                input.pageSlug,
                 input.updatedAt,
                 input.accountId,
                 input.expectedUpdatedAt
-            ).run<PlatformProfileRecord>();
+            );
+            let result: { results: PlatformProfileRecord[] };
+            try {
+                result = await statement.run<PlatformProfileRecord>();
+            } catch (error) {
+                // A taken vanity slug is the only unique column here.
+                if ((error as { code?: string }).code === '23505') {
+                    return { status: 'slug-taken' };
+                }
+                throw error;
+            }
             const saved = result.results[0];
             if (saved) {
                 return {

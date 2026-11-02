@@ -26,6 +26,8 @@ export async function platformProfileView(
             : null),
         homeCity: profile.home_city,
         bio: profile.bio,
-        updatedAt: profile.updated_at
+        updatedAt: profile.updated_at,
+        uid: Number(profile.uid),
+        pageSlug: profile.page_slug
     };
 }

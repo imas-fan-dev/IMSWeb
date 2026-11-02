@@ -61,6 +61,8 @@ const profile: PlatformProfile = {
   bio: "周末交换",
   displayName: "春香P",
   homeCity: "上海",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 10,
 }
 

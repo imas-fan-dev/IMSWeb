@@ -119,6 +119,8 @@ const profile: PlatformProfile = {
   avatarUrl: null,
   homeCity: "上海",
   bio: "周末交换",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 10,
 }
 
@@ -500,6 +502,7 @@ describe("AccountMeWorkspace", () => {
         displayName: "更新后的制作人",
         homeCity: "上海",
         bio: "周末交换",
+        pageSlug: null,
         expectedUpdatedAt: 10,
       })
     })

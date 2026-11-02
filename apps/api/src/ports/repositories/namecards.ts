@@ -280,9 +280,9 @@ export interface NamecardFeedbackAuditPage {
 }
 
 export interface PublicProfileRecord {
-    account_id: string;
     uid: number;
     page_slug: string | null;
+    account_id: string;
     display_name: string;
     avatar_object_key: string | null;
     avatar_external_url: string | null;

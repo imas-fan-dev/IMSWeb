@@ -24,6 +24,8 @@ export async function handleGetPublicProfile(
     const view = await platformProfileView(
         {
             account_id: profile.account_id,
+            uid: profile.uid,
+            page_slug: profile.page_slug,
             display_name: profile.display_name,
             avatar_object_key: profile.avatar_object_key,
             avatar_external_url: profile.avatar_external_url,

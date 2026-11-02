@@ -34,6 +34,8 @@ const profile = {
   avatarUrl: "https://public-media.example.test/platform/avatars/1000.webp",
   homeCity: "上海",
   bio: "Profile bio",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 1000,
 }
 
@@ -325,12 +327,14 @@ describe("Platform profile API contracts", () => {
         displayName: "  Updated Owner  ",
         homeCity: "   ",
         bio: "  Updated bio  ",
+        pageSlug: null,
         expectedUpdatedAt: 1000,
       })
     ).toEqual({
       displayName: "Updated Owner",
       homeCity: null,
       bio: "Updated bio",
+      pageSlug: null,
       expectedUpdatedAt: 1000,
     })
   })

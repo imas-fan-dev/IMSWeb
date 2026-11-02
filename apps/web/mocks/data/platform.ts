@@ -27,6 +27,8 @@ export function makePlatformProfile(
 ): PlatformProfile {
   return {
     ...makePlatformSessionProfile(),
+    uid: 1,
+    pageSlug: null,
     updatedAt: 1767200000,
     ...overrides,
   }

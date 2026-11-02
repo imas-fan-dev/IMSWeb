@@ -21,6 +21,8 @@ const profile = {
   avatarUrl: null,
   homeCity: "上海",
   bio: "周末参加线下交换",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 10,
 }
 const directAvatarUrl =
