@@ -17,6 +17,7 @@ import {
   type AdminNamecardDiff,
   type FudabaAdminCardClaim,
 } from "~/lib/api"
+import { DiffArtwork, diffImageSlots } from "./diff-artwork"
 import { ReviewCardPreview } from "./review-card-preview"
 import {
   ReviewFieldRows,
@@ -119,32 +120,6 @@ function claimRows(
 }
 
 
-/** 图片按页序列出，用来提示绑定型认领是否换了图或换了顺序。 */
-function artworkOrder(side: LiveSide | null): string {
-  if (!side) return ""
-  const pages = [
-    "正面",
-    ...side.middleImageUrls.map((_, index) => `中间页 ${index + 1}`),
-    ...(side.backImageUrl ? ["背面"] : []),
-  ]
-  return pages.join(" / ")
-}
-
-function artworkSignature(side: LiveSide | null): string {
-  if (!side) return ""
-  return [side.frontImageUrl, ...side.middleImageUrls, side.backImageUrl ?? ""].join("|")
-}
-
-/** 左列的一张只读预览。 */
-function PreviewBlock({ label, cardNumber }: { label: string; cardNumber: number }) {
-  return (
-    <div className="min-w-0 space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <ReviewCardPreview cardNumber={cardNumber} />
-    </div>
-  )
-}
-
 /**
  * 认领审核窗：左侧是名片墙上的原始名片，右侧是申请值与 live 的对照。
  * 裁决按钮与列表行上的 √ / × 走同一套二次确认窗。
@@ -215,23 +190,8 @@ export function ClaimReviewDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-5 md:grid-cols-2">
-          {claim && binding ? (
-            <div className="flex min-w-0 flex-col gap-4">
-              <PreviewBlock
-                label={`旧 · 游客投稿 #${claim.legacyCardId}`}
-                cardNumber={claim.legacyCardId}
-              />
-              <PreviewBlock
-                label={`新 · 用户投稿 #${targetCardNumber}`}
-                cardNumber={targetCardNumber}
-              />
-              <p className="text-xs text-muted-foreground">
-                图片：
-                {artworkSignature(live) === artworkSignature(target)
-                  ? `没有变动（${artworkOrder(live)}）`
-                  : `有变动（旧 ${artworkOrder(live)} → 新 ${artworkOrder(target)}）`}
-              </p>
-            </div>
+          {claim && binding && live && target ? (
+            <DiffArtwork slots={diffImageSlots(live, target)} />
           ) : claim ? (
             <ReviewCardPreview cardNumber={claim.legacyCardId} />
           ) : null}

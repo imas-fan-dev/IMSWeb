@@ -1,5 +1,8 @@
 import type { AppEnvironment } from "@/app";
-import type { RandomOwnerlessCard } from "@imsweb/contracts/namecards";
+import type {
+    RandomOwnerlessCardErrorResponse,
+    RandomOwnerlessCardResponse,
+} from "@/domains/community/namecards/response";
 import { services } from "@/middleware/hono-context";
 import type { Context } from "hono";
 
@@ -18,9 +21,9 @@ export async function handleGetRandomOwnerlessCard(
         : null;
     if (cardNumber === null) {
         return c.json(
-            { success: false, code: "FUDABA_NO_OWNERLESS_CARD" },
+            { success: false, code: "FUDABA_NO_OWNERLESS_CARD" } satisfies RandomOwnerlessCardErrorResponse,
             404,
         );
     }
-    return c.json({ cardNumber } satisfies RandomOwnerlessCard);
+    return c.json({ cardNumber } satisfies RandomOwnerlessCardResponse);
 }

@@ -328,7 +328,11 @@ export const namecardAuditUserSchema = exactJsonResponse({
   pageCount: z.number().int().nonnegative(),
 })
 
-export const namecardLockAuditActionSchema = z.enum(["locked", "unlocked"])
+export const namecardLockAuditActionSchema = z.enum([
+  "locked",
+  "unlocked",
+  "flagged",
+])
 
 export const namecardLockAuditRowSchema = exactJsonResponse({
   id: z.number().int().positive(),

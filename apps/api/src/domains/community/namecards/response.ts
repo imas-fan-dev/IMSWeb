@@ -20,6 +20,8 @@ import type {
     NamecardMutationResponse,
     NamecardPage,
     NamecardDetailResponse,
+    RandomOwnerlessCard as RandomOwnerlessCardContract,
+    WallInsights as WallInsightsContract,
 } from '@imsweb/contracts/namecards';
 
 export type NamecardResponseId = number;
@@ -41,6 +43,13 @@ export type NamecardFeedbackResponse = NamecardFeedbackReplyContract;
 export type AdminNamecardLockAuditListResponse = AdminNamecardLockAuditContractResponse;
 export type AdminNamecardFeedbackAuditListResponse =
     AdminNamecardFeedbackAuditContractResponse;
+/** 墙顶面板与「随机补充一张」两条公开只读接口。 */
+export type WallInsightsResponse = WallInsightsContract;
+export type RandomOwnerlessCardResponse = RandomOwnerlessCardContract;
+export type RandomOwnerlessCardErrorResponse = {
+    success: false;
+    code: "FUDABA_NO_OWNERLESS_CARD";
+};
 
 interface NamecardRow {
     id?: unknown;

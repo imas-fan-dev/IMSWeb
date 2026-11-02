@@ -117,7 +117,12 @@ function namecardAdminWhere(
     // enter the queue; rejected ones stay visible so they can be inspected.
     const clauses = [
         "publication_status <> 'withdrawn'",
-        'deleted_at IS NULL'
+        'deleted_at IS NULL',
+        // A guest upload folded into a served card is no longer its own entry.
+        `NOT EXISTS (
+            SELECT 1 FROM fudaba_card_merges merged
+            WHERE merged.legacy_card_id = fudaba_cards.card_number
+        )`
     ];
     const values: unknown[] = [];
     if (filter?.status === 'pending') {
@@ -2056,7 +2061,8 @@ export class SqlCoreRepository implements NamecardRepository {
     async flagSubmission(
         id: number,
         expectedRevision: number,
-        reason: string
+        reason: string,
+        actor: string | null = null
     ): Promise<NamecardMutationResult> {
         return this.database.transaction(async (database) => {
             const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
@@ -2079,6 +2085,14 @@ export class SqlCoreRepository implements NamecardRepository {
                 [reason, reason, id, expectedRevision]
             );
             if (updatedRow) {
+                // The verdict belongs in the same trail as locks and unlocks.
+                await this.appendNamecardLockRecord(
+                    database,
+                    String(id),
+                    'flagged',
+                    reason,
+                    actor
+                );
                 if (updatedRow.owner_account_id) {
                     await insertNamecardNotification(database, {
                         recipientAccountId: String(updatedRow.owner_account_id),

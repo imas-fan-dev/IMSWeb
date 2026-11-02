@@ -1,5 +1,5 @@
 import type { AppEnvironment } from "@/app";
-import type { WallInsights } from "@imsweb/contracts/namecards";
+import type { WallInsightsResponse } from "@/domains/community/namecards/response";
 import { services } from "@/middleware/hono-context";
 import type { Context } from "hono";
 
@@ -22,7 +22,7 @@ export async function handleGetWallInsights(
             supplementsPending: 0,
             contributors: [],
             viewer: null,
-        } satisfies WallInsights);
+        } satisfies WallInsightsResponse);
     }
     const insights = await repository.wallInsights(
         c.get("platformUser")?.id ?? null,
@@ -49,5 +49,5 @@ export async function handleGetWallInsights(
                   rank: insights.viewer.rank,
               }
             : null,
-    } satisfies WallInsights);
+    } satisfies WallInsightsResponse);
 }

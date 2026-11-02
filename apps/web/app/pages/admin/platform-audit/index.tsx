@@ -75,7 +75,14 @@ const ACTION_ITEMS = [
   { value: "all", label: "全部操作" },
   { value: "locked", label: "已锁定" },
   { value: "unlocked", label: "已解锁" },
+  { value: "flagged", label: "已标记违规" },
 ]
+
+const ACTION_LABELS: Record<string, string> = {
+  locked: "已锁定",
+  unlocked: "已解锁",
+  flagged: "已标记违规",
+}
 
 /** Typing settles before the table refetches, so every keystroke is one wait. */
 const FILTER_DEBOUNCE_MS = 260
@@ -417,7 +424,7 @@ export default function AdminNamecardAuditPage() {
                         producerName={row.producerName}
                       />
                       <TableCell className="whitespace-nowrap">
-                        {row.action === "locked" ? "已锁定" : "已解锁"}
+                        {ACTION_LABELS[row.action] ?? row.action}
                       </TableCell>
                       <TableCell>
                         {row.owner ? (

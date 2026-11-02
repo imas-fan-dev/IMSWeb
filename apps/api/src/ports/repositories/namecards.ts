@@ -225,7 +225,7 @@ export interface NamecardAuditFilter {
 }
 
 /** Every lock decision is kept, so the table filters by the action too. */
-export type NamecardLockAuditAction = 'locked' | 'unlocked';
+export type NamecardLockAuditAction = 'locked' | 'unlocked' | 'flagged';
 
 export interface NamecardLockAuditFilter extends NamecardAuditFilter {
     reason: string | null;

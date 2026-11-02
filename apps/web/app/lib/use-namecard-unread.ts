@@ -58,7 +58,9 @@ export function refreshNamecardUnread(): Promise<void> {
  * focus, because a badge that only loads once lies after the first message.
  */
 export function useNamecardUnread(): number {
-  const { pathname } = useLocation()
+  // `key` changes on every navigation, including a repeat visit or a query
+  // edit that leaves the pathname alone.
+  const { key } = useLocation()
   const [unread, setUnread] = useState(cachedUnread ?? 0)
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export function useNamecardUnread(): number {
       return
     }
     void loadUnread()
-  }, [pathname])
+  }, [key])
 
   useEffect(() => {
     const refresh = () => {

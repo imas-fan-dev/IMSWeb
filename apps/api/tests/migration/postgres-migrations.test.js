@@ -147,7 +147,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261101200000_namecard_match_key', phase: 'pre-data' },
                 { version: '20261101210000_namecard_match_key_width', phase: 'pre-data' },
                 { version: '20261101220000_namecard_card_merges', phase: 'post-data' },
-                { version: '20261101230000_namecard_claim_card_number', phase: 'post-data' }
+                { version: '20261101230000_namecard_claim_card_number', phase: 'post-data' },
+                { version: '20261102090000_namecard_flag_audit', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -676,12 +677,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 80);
+        assert.equal(catalog.count, 81);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261101230000_namecard_claim_card_number',
-            '20261101230000_namecard_claim_card_number'
+            '20261102090000_namecard_flag_audit'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1041,7 +1041,8 @@ test.describe('PostgreSQL migration', () => {
                 '20261101200000_namecard_match_key',
                 '20261101210000_namecard_match_key_width',
                 '20261101220000_namecard_card_merges',
-                '20261101230000_namecard_claim_card_number'
+                '20261101230000_namecard_claim_card_number',
+                '20261102090000_namecard_flag_audit'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

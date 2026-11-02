@@ -205,6 +205,7 @@ describe("Fudaba card claim API", () => {
           items: [
             {
               ...claim,
+              targetCardNumber: null,
               claimant: { id: "owner-1", displayName: "春香P" },
               legacyCard: {
                 id: 42,
