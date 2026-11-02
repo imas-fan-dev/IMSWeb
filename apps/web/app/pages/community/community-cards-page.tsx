@@ -189,13 +189,26 @@ function NamecardItem({
           )}
         </CardDescription>
         {card.claimStatus === "claimed" ? (
-          <Badge
-            variant="outline"
-            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
-          >
-            <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
-            {card.claimerName ?? "已由注册用户认领"}
-          </Badge>
+          card.claimerAccountId ? (
+            <Badge
+              variant="outline"
+              className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
+              render={
+                <NavigationLink to={`/user/${card.claimerAccountId}`} />
+              }
+            >
+              <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+              {card.claimerName ?? "已由注册用户认领"}
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
+            >
+              <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+              {card.claimerName ?? "已由注册用户认领"}
+            </Badge>
+          )
         ) : card.claimStatus === "pending" ? (
           <Badge
             variant="outline"

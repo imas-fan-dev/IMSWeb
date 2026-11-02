@@ -4396,13 +4396,21 @@ export class SqlFudabaRepository implements FudabaRepository {
                         )
                     ) AS claimer_name,
                     COALESCE(
-                        guest.owner_account_id,
+                        CASE
+                            WHEN claimer_account.status IN ('active', 'restricted')
+                                AND claimer_account.deleted_at IS NULL
+                                THEN guest.owner_account_id
+                        END,
                         (
                             SELECT merged_card.owner_account_id
                             FROM fudaba_card_merges merged
                             JOIN fudaba_cards merged_card
                               ON merged_card.id=merged.target_card_id
+                            JOIN platform_accounts merged_account
+                              ON merged_account.id=merged_card.owner_account_id
                             WHERE merged.legacy_card_id=wanted.card_number
+                              AND merged_account.status IN ('active', 'restricted')
+                              AND merged_account.deleted_at IS NULL
                             LIMIT 1
                         )
                     ) AS claimer_account_id
@@ -4411,7 +4419,9 @@ export class SqlFudabaRepository implements FudabaRepository {
                     ON guest.card_number=wanted.card_number
                    AND guest.deleted_at IS NULL
              LEFT JOIN platform_profiles owner_profile
-                    ON owner_profile.account_id=guest.owner_account_id`,
+                    ON owner_profile.account_id=guest.owner_account_id
+             LEFT JOIN platform_accounts claimer_account
+                    ON claimer_account.id=guest.owner_account_id`,
             [viewerAccountId, ...legacyCardIds],
         );
     }
