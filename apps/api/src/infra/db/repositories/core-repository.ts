@@ -22,6 +22,7 @@ import {
     cardTransferredOutCopy,
     cardUnlockedCopy,
 } from '@/infra/db/repositories/namecard-notification-copy';
+import type { PlatformAccountLinkRecord } from "@/ports/repositories/namecards";
 import type {
     CardFavoriteSelectionRecord,
     CardMediaRecord,
@@ -750,6 +751,21 @@ export class SqlCoreRepository implements NamecardRepository {
                AND account.status IN ('active', 'restricted')
                AND account.deleted_at IS NULL`,
             [handle, handle, handle]
+        );
+    }
+
+    async listPlatformAccountLinks(
+        accountId: string
+    ): Promise<PlatformAccountLinkRecord[]> {
+        return queryAll<PlatformAccountLinkRecord>(
+            this.database,
+            `SELECT entry.kind_id, kind.name, kind.group_key, entry.value,
+                    kind.base_url, kind.color, kind.icon
+             FROM platform_account_entries entry
+             JOIN platform_account_kinds kind ON kind.id = entry.kind_id
+             WHERE entry.account_id = ? AND kind.enabled
+             ORDER BY kind.display_order, kind.id`,
+            [accountId]
         );
     }
 

@@ -5,6 +5,7 @@ import {
   exactJsonResponse,
   legacyStripRequestObject,
   numberedPageInfoSchema,
+  strictRequestObject,
   successEnvelope,
 } from "./common.js"
 import {
@@ -166,6 +167,20 @@ export const namecardPageSchema = exactJsonResponse({
   totalPage: z.number().int().nonnegative(),
 })
 
+/** One platform handle as the profile page renders it. */
+export const platformAccountLinkSchema = exactJsonResponse({
+  kindId: z.string().min(1),
+  name: z.string().min(1),
+  group: z.enum(["game", "social", "link"]),
+  value: z.string().min(1),
+  /** Null for id-only platforms, which show a copy button instead of a link. */
+  url: z.string().min(1).nullable(),
+  color: z.string().min(1).nullable(),
+  icon: z.string().min(1).nullable(),
+})
+
+export type PlatformAccountLink = z.infer<typeof platformAccountLinkSchema>
+
 /** Someone's public page: the profile half, then their own wall cards. */
 export const publicProfileSchema = exactJsonResponse({
   accountId: z.string().min(1),
@@ -177,6 +192,7 @@ export const publicProfileSchema = exactJsonResponse({
   avatarUrl: z.string().min(1).nullable(),
   homeCity: z.string().min(1).nullable(),
   bio: z.string(),
+  accounts: z.array(platformAccountLinkSchema),
 })
 
 export const reactionSchema = z.record(z.string(), z.number().int().nonnegative())
@@ -629,3 +645,35 @@ export const randomOwnerlessCardErrorSchema = exactJsonError({
 export type WallInsightContributor = z.infer<typeof wallInsightContributorSchema>
 export type WallInsights = z.infer<typeof wallInsightsSchema>
 export type RandomOwnerlessCard = z.infer<typeof randomOwnerlessCardSchema>
+
+/** The catalogue the backoffice edits; the profile page renders it as-is. */
+export const platformAccountKindSchema = exactJsonResponse({
+  id: z.string().min(1).max(32),
+  name: z.string().min(1).max(40),
+  group: z.enum(["game", "social", "link"]),
+  pattern: z.string().min(1).max(200),
+  baseUrl: z.string().min(1).nullable(),
+  color: z.string().min(4).max(9).nullable(),
+  icon: z.string().min(1).max(40).nullable(),
+  displayOrder: z.number().int().nonnegative(),
+  enabled: z.boolean(),
+})
+
+/** One account the visitor filled in, normalized to the bare identifier. */
+export const platformAccountEntrySchema = exactJsonResponse({
+  kindId: z.string().min(1).max(32),
+  value: z.string().min(1).max(200),
+})
+
+export const myPlatformAccountsSchema = exactJsonResponse({
+  catalog: z.array(platformAccountKindSchema),
+  entries: z.array(platformAccountEntrySchema),
+})
+
+export const platformAccountValueRequestSchema = strictRequestObject({
+  value: z.string().trim().min(1).max(200),
+})
+
+export type PlatformAccountKind = z.infer<typeof platformAccountKindSchema>
+export type PlatformAccountEntry = z.infer<typeof platformAccountEntrySchema>
+export type MyPlatformAccounts = z.infer<typeof myPlatformAccountsSchema>

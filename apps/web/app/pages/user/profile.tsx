@@ -19,6 +19,7 @@ import { Skeleton } from "~/components/ui/skeleton"
 import { NamecardDetailDialog } from "~/pages/community/components/namecard-detail-dialog"
 import { getNamecardReactions, getProfileCards, getPublicProfile } from "~/lib/api"
 import { withThumbnail } from "~/lib/media-urls"
+import { PlatformAccountList } from "~/components/profile/platform-account-list"
 import type { Namecard as NamecardRecord, NamecardPage } from "~/lib/api"
 
 export function meta() {
@@ -192,6 +193,10 @@ export default function UserProfilePage() {
           </div>
         </div>
       </section>
+
+      {profile?.accounts.length ? (
+        <PlatformAccountList accounts={profile.accounts} />
+      ) : null}
 
       <section className="space-y-4">
         <header className="flex items-end justify-between gap-3">

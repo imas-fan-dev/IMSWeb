@@ -35,6 +35,7 @@ export async function handleGetPublicProfile(
         },
         services(c).storage,
     );
+    const links = await repository.listPlatformAccountLinks(profile.account_id);
     const body: PublicProfileResponse = {
         accountId: profile.account_id,
         uid: profile.uid,
@@ -43,6 +44,17 @@ export async function handleGetPublicProfile(
         avatarUrl: view.avatarUrl,
         homeCity: profile.home_city,
         bio: profile.bio,
+        accounts: links.map((link) => ({
+            kindId: link.kind_id,
+            name: link.name,
+            group: link.group_key,
+            value: link.value,
+            url: link.base_url
+                ? link.base_url.replace("{value}", encodeURIComponent(link.value))
+                : null,
+            color: link.color,
+            icon: link.icon,
+        })),
     };
     return c.json(body);
 }

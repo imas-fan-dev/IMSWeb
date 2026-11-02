@@ -291,6 +291,16 @@ export interface PublicProfileRecord {
     updated_at: number;
 }
 
+export interface PlatformAccountLinkRecord {
+    kind_id: string;
+    name: string;
+    group_key: "game" | "social" | "link";
+    value: string;
+    base_url: string | null;
+    color: string | null;
+    icon: string | null;
+}
+
 export interface NamecardAdminFilter {
     query: string | null;
     status: string | null;
@@ -307,6 +317,8 @@ export interface NamecardRepository {
     /** Someone's public page: their profile row, or null when they are gone. */
     /** Resolves by uid, vanity slug, or the account id older links carry. */
     findPublicProfile(handle: string): Promise<PublicProfileRecord | null>;
+    /** Enabled platform handles this account published, in catalogue order. */
+    listPlatformAccountLinks(accountId: string): Promise<PlatformAccountLinkRecord[]>;
     countOwnedPublishedCards(accountId: string): Promise<number>;
     listOwnedPublishedCards(
         accountId: string,

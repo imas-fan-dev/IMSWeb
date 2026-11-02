@@ -1,3 +1,4 @@
+import type { PlatformAccountLink } from "@imsweb/contracts/namecards"
 import { apiPath } from "@imsweb/contracts/paths"
 import {
   namecardErrorResponseSchema,
@@ -122,3 +123,5 @@ export function addNamecardReaction(cardId: number, emoji: string) {
     parsed(reactionMutationSchema, { errorSchema: namecardErrorResponseSchema })
   )
 }
+
+export type { PlatformAccountLink }
