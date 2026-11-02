@@ -9,8 +9,11 @@ import {
 } from "./common.js"
 import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
+  namecardCreditSchema,
   namecardReactionEmojiSchema,
+  type NamecardCredit,
 } from "./fudaba/index.js"
+import { NAMECARD_CREDIT_LIMIT } from "./fudaba/namecard-runtime.js"
 
 export const cardIdSchema = z.number().int().positive()
 
@@ -34,13 +37,83 @@ export const namecardMetadataSchema = {
   claimerName: z.string().min(1).nullable(),
 }
 
+/**
+ * The public wall reads the same `fudaba_cards` rows the editor writes, so the
+ * detail view can show the lifecycle fields without a second request. Every
+ * optional text field is null when the producer left it empty.
+ */
+export const namecardPublicDetailSchema = {
+  /** Fudaba row id, used to deep-link the owner editor. */
+  cardId: z.string().min(1),
+  cardNumber: z.number().int().positive(),
+  revision: z.number().int().nonnegative(),
+  producerName: z.string().min(1).nullable(),
+  /** Sorting aid only, rendered in parentheses after the producer name. */
+  producerReading: z.string().min(1).nullable(),
+  groupName: z.string().min(1).nullable(),
+  /** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; empty parts are dropped. */
+  madeOn: z.string().min(1).nullable(),
+  isOriginal: z.boolean(),
+  madeWithAi: z.boolean(),
+  bio: z.string().min(1).nullable(),
+  tradeNote: z.string().min(1).nullable(),
+  exchangeMode: z.enum(["auto", "manual", "none"]),
+  accent: z.string().min(1).nullable(),
+  seriesCodes: z.array(z.string().min(1)).max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
+  credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
+  /** Ordered middle pages; the wall renders them after the back image. */
+  middleImageUrls: z.array(z.string().min(1)),
+  /** True when the signed-in viewer owns the row; drives the edit action. */
+  canEdit: z.boolean(),
+  /** False keeps the claim/complete actions visible on the detail dialog. */
+  hasOwner: z.boolean(),
+}
+
+/**
+ * One side of the review diff: the published copy next to the submitted one.
+ * Images are ordered front, back, then the middle pages.
+ */
+export const namecardDiffSideSchema = z
+  .object({
+    producerName: z.string().min(1).nullable(),
+    producerReading: z.string().min(1).nullable(),
+    groupName: z.string().min(1).nullable(),
+    madeOn: z.string().min(1).nullable(),
+    bio: z.string().min(1).nullable(),
+    tradeNote: z.string().min(1).nullable(),
+    isOriginal: z.boolean(),
+    madeWithAi: z.boolean(),
+    visible: z.boolean(),
+    exchangeMode: z.enum(["auto", "manual", "none"]),
+    seriesCodes: z.array(z.string().min(1)),
+    credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
+    favoriteCharacters: z
+      .array(namecardFavoriteCharacterSchema)
+      .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
+    frontImageUrl: z.string().min(1),
+    backImageUrl: z.string().min(1).nullable(),
+    middleImageUrls: z.array(z.string().min(1)),
+  })
+  .strict()
+
+export const adminNamecardDiffSchema = exactJsonResponse({
+  id: cardIdSchema,
+  status: z.string(),
+  reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
+  live: namecardDiffSideSchema,
+  /** The revision waiting for review; null when nothing is queued. */
+  pending: namecardDiffSideSchema.nullable(),
+})
+
 export const namecardSchema = exactJsonResponse({
   id: cardIdSchema,
   ...namecardMetadataSchema,
+  ...namecardPublicDetailSchema,
   image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
+  /** A single-sided card has no back image. */
+  image2_url: z.string().min(1).nullable(),
   image1_thumbnail_url: z.string().min(1),
-  image2_thumbnail_url: z.string().min(1),
+  image2_thumbnail_url: z.string().min(1).nullable(),
   status: z.string().optional(),
   created_at: z.string().nullable().optional(),
 })
@@ -60,11 +133,13 @@ export type NamecardReactions = z.infer<typeof reactionSchema>
 export const adminNamecardSchema = exactJsonResponse({
   id: z.number().int().positive(),
   image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
+  /** A single-sided card has no back image. */
+  image2_url: z.string().min(1).nullable(),
   status: z.string(),
   revision: z.number().int().nonnegative(),
-  displayName: z.string().min(1).nullable(),
   producerName: z.string().min(1).nullable(),
+  /** 制作人名读法：排序辅助，只有填写过的名片才带值。 */
+  producerReading: z.string().min(1).nullable(),
   origin: z.string().min(1),
   /** 锁定理由；只有 `locked` 状态的名片会带值。 */
   lockReason: z.string().min(1).nullable(),
@@ -74,7 +149,12 @@ export const adminNamecardSchema = exactJsonResponse({
    */
   reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
   reviewReason: z.string().min(1).nullable(),
+  /** Front, back and every middle page; drives the multi-page badge. */
+  pageCount: z.number().int().positive(),
 })
+
+export type AdminNamecardDiff = z.infer<typeof adminNamecardDiffSchema>
+export type NamecardDiffSide = z.infer<typeof namecardDiffSideSchema>
 
 export const adminNamecardListSchema = successEnvelope({
   data: z.array(adminNamecardSchema),
@@ -110,7 +190,7 @@ export const adminNamecardMutationSchema = successEnvelope({
 })
 export const namecardDetailResponseSchema = exactJsonResponse({
   image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
+  image2_url: z.string().min(1).nullable(),
 }).strict()
 export const namecardEmptyResponseSchema = exactJsonResponse({})
 export const namecardListErrorResponseSchema = exactJsonError({ msg: z.string() })
@@ -139,6 +219,12 @@ export const namecardReactionRequestSchema = legacyStripRequestObject({
 })
 export const namecardReactionListQuerySchema = legacyStripRequestObject({ id: z.unknown() })
 export const compatibleNamecardIdParamsSchema = legacyStripRequestObject({ id: z.unknown() })
+/** Artwork routes carry the page handle (and the live/draft variant) in the path. */
+export const namecardMediaParamsSchema = legacyStripRequestObject({
+  id: z.unknown(),
+  side: z.unknown(),
+  variant: z.unknown().optional(),
+})
 export const namecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
   size: z.unknown().optional(),

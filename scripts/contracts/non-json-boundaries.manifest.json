@@ -7,8 +7,14 @@
       "symbol": "handleServeAdminFudabaOfficeMedia",
       "responseKind": "binary",
       "reason": "Backoffice office cover and pending-cover GET/HEAD use private authenticated media delivery.",
-      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/fudaba/location-review.ts", "symbol": "fudabaAdminLocationReviewHttpErrorSchema" },
-      "test": { "file": "apps/api/tests/server/fudaba-office-review.test.ts", "symbol": "admin office media GET and HEAD require Backoffice op and preserve private delivery" }
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/fudaba/location-review.ts",
+        "symbol": "fudabaAdminLocationReviewHttpErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba-office-review.test.ts",
+        "symbol": "admin office media GET and HEAD require Backoffice op and preserve private delivery"
+      }
     },
     {
       "id": "APP-SENSITIVE-PATH-01",
@@ -16,8 +22,16 @@
       "symbol": "handleSensitiveRequestPath",
       "responseKind": "compatibility-text-error",
       "reason": "Sensitive filesystem-shaped paths fail before static serving with a compatibility text response.",
-      "compatibilityTextError": { "body": "Forbidden", "status": 403, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves sensitive-path text/plain 403 behavior." },
-      "test": { "file": "apps/api/tests/node-security/compiled-listener-static-adapter.owner.js", "symbol": "sensitive files and virtual environments are blocked before static serving" }
+      "compatibilityTextError": {
+        "body": "Forbidden",
+        "status": 403,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves sensitive-path text/plain 403 behavior."
+      },
+      "test": {
+        "file": "apps/api/tests/node-security/compiled-listener-static-adapter.owner.js",
+        "symbol": "sensitive files and virtual environments are blocked before static serving"
+      }
     },
     {
       "id": "APP-NOT-FOUND-01",
@@ -25,8 +39,16 @@
       "symbol": "handleApplicationNotFound",
       "responseKind": "compatibility-text-error",
       "reason": "The application fallback delegates to static assets and otherwise retains its text not-found response.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the application-level text/plain 404 fallback." },
-      "test": { "file": "apps/api/tests/assets/frontend-routing.contract.test.ts", "symbol": "[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the application-level text/plain 404 fallback."
+      },
+      "test": {
+        "file": "apps/api/tests/assets/frontend-routing.contract.test.ts",
+        "symbol": "[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks"
+      }
     },
     {
       "id": "DELIVERY-MEDIA-01",
@@ -34,8 +56,14 @@
       "symbol": "handleServeNamecard",
       "responseKind": "binary",
       "reason": "Approved and private namecard files support binary, range, and HEAD delivery.",
-      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/media.ts", "symbol": "mediaHttpErrorSchema" },
-      "test": { "file": "apps/api/tests/node-security/fudaba.owner.js", "symbol": "namecard originals and stored thumbnails enforce approval or op access" }
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/media.ts",
+        "symbol": "mediaHttpErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/node-security/fudaba.owner.js",
+        "symbol": "namecard originals and stored thumbnails enforce approval or op access"
+      }
     },
     {
       "id": "DELIVERY-MEDIA-02",
@@ -43,8 +71,16 @@
       "symbol": "handleServePublicUpload",
       "responseKind": "binary",
       "reason": "Public upload delivery serves About, Producer Map, Event, Information, News, and Editorial media as stored bytes.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves public upload text failures and existing cache behavior." },
-      "test": { "file": "apps/api/tests/server/media-article-assets.test.ts", "symbol": "are served from their public upload URLs" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves public upload text failures and existing cache behavior."
+      },
+      "test": {
+        "file": "apps/api/tests/server/media-article-assets.test.ts",
+        "symbol": "are served from their public upload URLs"
+      }
     },
     {
       "id": "DELIVERY-BRAND-ASSET-01",
@@ -52,8 +88,16 @@
       "symbol": "handleServeBrandAsset",
       "responseKind": "binary",
       "reason": "Brand fonts and images are fetched from object storage with range and redirect support.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the existing plain-text static-asset miss." },
-      "test": { "file": "apps/api/tests/server/brand-assets.test.ts", "symbol": "legacy series images and font resolve through canonical object storage" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the existing plain-text static-asset miss."
+      },
+      "test": {
+        "file": "apps/api/tests/server/brand-assets.test.ts",
+        "symbol": "legacy series images and font resolve through canonical object storage"
+      }
     },
     {
       "id": "DELIVERY-SITE-01",
@@ -61,8 +105,16 @@
       "symbol": "handleServePublishedSitePackageShell",
       "responseKind": "html",
       "reason": "Published site package shells are HTML documents and retain HEAD behavior.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves plain-text not-found responses for missing site shells." },
-      "test": { "file": "apps/api/tests/server/site.test.ts", "symbol": "site-package routes share the main origin and enforce manifests, CSP, and revisions" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves plain-text not-found responses for missing site shells."
+      },
+      "test": {
+        "file": "apps/api/tests/server/site.test.ts",
+        "symbol": "site-package routes share the main origin and enforce manifests, CSP, and revisions"
+      }
     },
     {
       "id": "DELIVERY-SITE-02",
@@ -70,8 +122,16 @@
       "symbol": "handleServePublishedSitePackage",
       "responseKind": "binary",
       "reason": "Published revision content can be HTML, assets, redirects, ranges, and HEAD responses.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the static text failure for missing published content." },
-      "test": { "file": "apps/api/tests/server/site.test.ts", "symbol": "site-package routes share the main origin and enforce manifests, CSP, and revisions" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the static text failure for missing published content."
+      },
+      "test": {
+        "file": "apps/api/tests/server/site.test.ts",
+        "symbol": "site-package routes share the main origin and enforce manifests, CSP, and revisions"
+      }
     },
     {
       "id": "DELIVERY-SITE-03",
@@ -79,8 +139,16 @@
       "symbol": "handleServePreviewSitePackage",
       "responseKind": "binary",
       "reason": "Preview content is token-scoped stored content with redirect, range, and HEAD variants.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the static text failure for missing preview content." },
-      "test": { "file": "apps/api/tests/server/site.test.ts", "symbol": "site-package routes share the main origin and enforce manifests, CSP, and revisions" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the static text failure for missing preview content."
+      },
+      "test": {
+        "file": "apps/api/tests/server/site.test.ts",
+        "symbol": "site-package routes share the main origin and enforce manifests, CSP, and revisions"
+      }
     },
     {
       "id": "DELIVERY-SITE-INDEX-01",
@@ -88,8 +156,16 @@
       "symbol": "handleServeSiteIndex",
       "responseKind": "redirect",
       "reason": "The root site index delegates to the static-asset binding and supports GET and HEAD.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the root static fallback text response." },
-      "test": { "file": "apps/api/tests/assets/frontend-routing.contract.test.ts", "symbol": "[FRT-01] root and index.html use the React document" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the root static fallback text response."
+      },
+      "test": {
+        "file": "apps/api/tests/assets/frontend-routing.contract.test.ts",
+        "symbol": "[FRT-01] root and index.html use the React document"
+      }
     },
     {
       "id": "FUDABA-GUEST-MEDIA-01",
@@ -97,8 +173,16 @@
       "symbol": "handleServeFudabaGuestSubmissionMedia",
       "responseKind": "binary",
       "reason": "Receipt-token protected guest media has private cache and Vary headers.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 requires the existing text/plain 404 for invalid, missing, or unauthorized receipt media." },
-      "test": { "file": "apps/api/tests/server/handler.test.ts", "symbol": "Fudaba guest submission media requires the private receipt token" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 requires the existing text/plain 404 for invalid, missing, or unauthorized receipt media."
+      },
+      "test": {
+        "file": "apps/api/tests/server/handler.test.ts",
+        "symbol": "Fudaba guest submission media requires the private receipt token"
+      }
     },
     {
       "id": "FUDABA-OWNER-CARD-MEDIA-01",
@@ -106,8 +190,16 @@
       "symbol": "handleServeFudabaOwnerCardMedia",
       "responseKind": "binary",
       "reason": "Owner card media is private object delivery.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 retains the anti-enumeration plain-text 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "owner media is protected, private, and inaccessible through another account card" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 retains the anti-enumeration plain-text 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "owner media is protected, private, and inaccessible through another account card"
+      }
     },
     {
       "id": "FUDABA-OWNER-OFFICE-COVER-01",
@@ -115,8 +207,16 @@
       "symbol": "handleServeFudabaOwnerOfficeCover",
       "responseKind": "binary",
       "reason": "Owner office cover delivery reads protected object storage.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 retains the private-media plain-text 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "cover upload is active-only, reserves before put, and serves private previews" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 retains the private-media plain-text 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "cover upload is active-only, reserves before put, and serves private previews"
+      }
     },
     {
       "id": "FUDABA-OWNER-OFFICE-PENDING-COVER-01",
@@ -124,8 +224,16 @@
       "symbol": "handleServeFudabaOwnerOfficePendingCover",
       "responseKind": "binary",
       "reason": "Pending office cover delivery reads protected object storage.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 retains the private-media plain-text 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "cover upload is active-only, reserves before put, and serves private previews" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 retains the private-media plain-text 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "cover upload is active-only, reserves before put, and serves private previews"
+      }
     },
     {
       "id": "FUDABA-REVIEW-MEDIA-01",
@@ -133,8 +241,16 @@
       "symbol": "handleServeFudabaRegisteredCardReviewMedia",
       "responseKind": "binary",
       "reason": "Backoffice registered-card review media remains private object delivery.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 retains the anti-enumeration plain-text 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "registered-card publish failure re-protects both objects before rollback" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 retains the anti-enumeration plain-text 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "registered-card publish failure re-protects both objects before rollback"
+      }
     },
     {
       "id": "CONTENT-CHRONICLE-PENDING-MEDIA-01",
@@ -142,8 +258,16 @@
       "symbol": "handleServePendingChronicleMedia",
       "responseKind": "binary",
       "reason": "Pending Chronicle media is private binary delivery with GET and HEAD routes.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the Chronicle plain-text missing-media response." },
-      "test": { "file": "apps/api/tests/node-security/chronicle-event.owner.js", "symbol": "pending chronicle media requires op authentication" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the Chronicle plain-text missing-media response."
+      },
+      "test": {
+        "file": "apps/api/tests/node-security/chronicle-event.owner.js",
+        "symbol": "pending chronicle media requires op authentication"
+      }
     },
     {
       "id": "CONTENT-CHRONICLE-APPROVED-MEDIA-01",
@@ -151,8 +275,16 @@
       "symbol": "handleServeApprovedChronicleMedia",
       "responseKind": "binary",
       "reason": "Approved Chronicle media is public binary delivery with GET and HEAD routes.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the Chronicle plain-text missing-media response." },
-      "test": { "file": "apps/api/tests/server/chronicle-idempotency.contract.test.ts", "symbol": "used-media queries isolate activity directory prefixes" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the Chronicle plain-text missing-media response."
+      },
+      "test": {
+        "file": "apps/api/tests/server/chronicle-idempotency.contract.test.ts",
+        "symbol": "used-media queries isolate activity directory prefixes"
+      }
     },
     {
       "id": "CONTENT-CHRONICLE-ADMIN-01",
@@ -160,8 +292,14 @@
       "symbol": "handleServeChronicleAdmin",
       "responseKind": "redirect",
       "reason": "The legacy Chronicle admin route redirects to the current Backoffice page.",
-      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/chronicle.ts", "symbol": "chronicleErrorResponseSchema" },
-      "test": { "file": "apps/api/tests/node-security/chronicle-event.owner.js", "symbol": "pending chronicle media requires op authentication" }
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/chronicle.ts",
+        "symbol": "chronicleErrorResponseSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/node-security/chronicle-event.owner.js",
+        "symbol": "pending chronicle media requires op authentication"
+      }
     },
     {
       "id": "CONTENT-INFORMATION-HTML-01",
@@ -169,8 +307,16 @@
       "symbol": "handleServeInformationContent",
       "responseKind": "html",
       "reason": "Published Information content remains a rendered HTML document.",
-      "compatibilityTextError": { "body": "活动内容不存在", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the existing localized text/plain missing-content response." },
-      "test": { "file": "apps/api/tests/server/handler.test.ts", "symbol": "legacy Information reads remain available while the retired admin write API is gone" }
+      "compatibilityTextError": {
+        "body": "活动内容不存在",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the existing localized text/plain missing-content response."
+      },
+      "test": {
+        "file": "apps/api/tests/server/handler.test.ts",
+        "symbol": "legacy Information reads remain available while the retired admin write API is gone"
+      }
     },
     {
       "id": "PLATFORM-AVATAR-MEDIA-01",
@@ -178,8 +324,16 @@
       "symbol": "handleServePlatformAvatar",
       "responseKind": "binary",
       "reason": "Authenticated platform avatars are private object delivery.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 retains the existing plain-text avatar miss." },
-      "test": { "file": "apps/api/tests/server/platform-profile.contract.test.ts", "symbol": "Platform avatar reads stay 404 until the account stores an avatar object" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 retains the existing plain-text avatar miss."
+      },
+      "test": {
+        "file": "apps/api/tests/server/platform-profile.contract.test.ts",
+        "symbol": "Platform avatar reads stay 404 until the account stores an avatar object"
+      }
     },
     {
       "id": "PLATFORM-OAUTH-START-01",
@@ -187,8 +341,14 @@
       "symbol": "handlePlatformOAuthStart",
       "responseKind": "redirect",
       "reason": "OAuth start redirects to the configured identity provider or the login fallback.",
-      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/platform/index.ts", "symbol": "platformHttpErrorSchema" },
-      "test": { "file": "apps/api/tests/server/platform-oauth.test.ts", "symbol": "mounted OAuth discovery, start, and callback preserve their wire contracts" }
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/platform/index.ts",
+        "symbol": "platformHttpErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/server/platform-oauth.test.ts",
+        "symbol": "mounted OAuth discovery, start, and callback preserve their wire contracts"
+      }
     },
     {
       "id": "PLATFORM-OAUTH-LINK-START-01",
@@ -196,8 +356,14 @@
       "symbol": "handleStartPlatformOAuthLink",
       "responseKind": "redirect",
       "reason": "OAuth link start redirects to the configured provider or back to account security with a reason.",
-      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/platform/account-security.ts", "symbol": "platformAccountSecurityErrorSchema" },
-      "test": { "file": "apps/api/tests/server/platform-email.test.ts", "symbol": "OAuth link start writes an intent=link state and redirects to the provider" }
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/platform/account-security.ts",
+        "symbol": "platformAccountSecurityErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/server/platform-email.test.ts",
+        "symbol": "OAuth link start writes an intent=link state and redirects to the provider"
+      }
     },
     {
       "id": "PLATFORM-OAUTH-CALLBACK-01",
@@ -205,8 +371,14 @@
       "symbol": "handlePlatformOAuthCallback",
       "responseKind": "redirect",
       "reason": "OAuth callback redirects to login or the validated return path.",
-      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/platform/index.ts", "symbol": "platformHttpErrorSchema" },
-      "test": { "file": "apps/api/tests/server/platform-oauth.test.ts", "symbol": "mounted OAuth discovery, start, and callback preserve their wire contracts" }
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/platform/index.ts",
+        "symbol": "platformHttpErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/server/platform-oauth.test.ts",
+        "symbol": "mounted OAuth discovery, start, and callback preserve their wire contracts"
+      }
     },
     {
       "id": "FUDABA-ACCESS-PUBLIC-READ-01",
@@ -214,8 +386,16 @@
       "symbol": "requireFudabaPublicRead",
       "responseKind": "compatibility-text-error",
       "reason": "The public-read feature gate conceals disabled Fudaba routes with the established text response.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the disabled public-read text/plain 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "Fudaba public read feature gate hides every route by default" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the disabled public-read text/plain 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "Fudaba public read feature gate hides every route by default"
+      }
     },
     {
       "id": "FUDABA-ACCESS-MAP-01",
@@ -223,8 +403,16 @@
       "symbol": "requireFudabaMap",
       "responseKind": "compatibility-text-error",
       "reason": "The map feature gate conceals disabled Fudaba map routes with the established text response.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the disabled map text/plain 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "map config and offices require both flags and expose strict exact DTOs" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the disabled map text/plain 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "map config and offices require both flags and expose strict exact DTOs"
+      }
     },
     {
       "id": "FUDABA-ACCESS-WRITE-01",
@@ -232,8 +420,16 @@
       "symbol": "requireFudabaWrite",
       "responseKind": "compatibility-text-error",
       "reason": "The write feature gate conceals disabled Fudaba mutations with the established text response.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the disabled write text/plain 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "Fudaba public-read and owner-write flags remain independent" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the disabled write text/plain 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "Fudaba public-read and owner-write flags remain independent"
+      }
     },
     {
       "id": "FUDABA-PLACE-SEARCH-POLICY-01",
@@ -241,8 +437,16 @@
       "symbol": "requireFudabaPlaceSearch",
       "responseKind": "compatibility-text-error",
       "reason": "Place search preserves the existing concealed disabled write response when public map reading is unavailable.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the existing place-search text/plain 404 when no search access branch is enabled." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "public map place search is read-only, requires both rollout flags, and shares provider cache and limits" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the existing place-search text/plain 404 when no search access branch is enabled."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "public map place search is read-only, requires both rollout flags, and shares provider cache and limits"
+      }
     },
     {
       "id": "FUDABA-OWNER-UPLOAD-SIDE-01",
@@ -250,8 +454,16 @@
       "symbol": "handleUploadFudabaOwnedMedia",
       "responseKind": "compatibility-text-error",
       "reason": "The multipart upload has contracts-owned JSON success and errors, while an invalid side remains a compatibility text 404.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the invalid upload-side text/plain 404." },
-      "test": { "file": "apps/api/tests/server/fudaba.test.ts", "symbol": "owner card upload rejects an unknown side with compatibility text" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the invalid upload-side text/plain 404."
+      },
+      "test": {
+        "file": "apps/api/tests/server/fudaba.test.ts",
+        "symbol": "owner card upload rejects an unknown side with compatibility text"
+      }
     },
     {
       "id": "WIKI-ENTITY-ICON-MEDIA-01",
@@ -259,8 +471,16 @@
       "symbol": "createHandleServeWikiEntityIcon",
       "responseKind": "binary",
       "reason": "Agency and group icon factories serve object-storage bytes through GET and HEAD routes.",
-      "compatibilityTextError": { "body": "Not found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the current Wiki icon text/plain 404." },
-      "test": { "file": "apps/api/tests/wiki/dom.contract.test.ts", "symbol": "entity icon routes use database keys while retired static routes and traversal are rejected" }
+      "compatibilityTextError": {
+        "body": "Not found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the current Wiki icon text/plain 404."
+      },
+      "test": {
+        "file": "apps/api/tests/wiki/dom.contract.test.ts",
+        "symbol": "entity icon routes use database keys while retired static routes and traversal are rejected"
+      }
     },
     {
       "id": "WIKI-STORY-COVER-MEDIA-01",
@@ -268,8 +488,16 @@
       "symbol": "createHandleServeWikiStoryCoverAsset",
       "responseKind": "binary",
       "reason": "The story-cover factory serves object-storage bytes through GET and HEAD routes.",
-      "compatibilityTextError": { "body": "Not found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the current Wiki story-cover text/plain 404." },
-      "test": { "file": "apps/api/tests/wiki/dom.contract.test.ts", "symbol": "entity icon routes use database keys while retired static routes and traversal are rejected" }
+      "compatibilityTextError": {
+        "body": "Not found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the current Wiki story-cover text/plain 404."
+      },
+      "test": {
+        "file": "apps/api/tests/wiki/dom.contract.test.ts",
+        "symbol": "entity icon routes use database keys while retired static routes and traversal are rejected"
+      }
     },
     {
       "id": "WIKI-IDOL-IMAGE-MEDIA-01",
@@ -278,10 +506,23 @@
       "responseKind": "binary",
       "reason": "The idol-image factory serves object-storage bytes and preserves traversal concealment.",
       "compatibilityTextErrors": [
-        { "body": "Not found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the current Wiki idol-image text/plain 404." },
-        { "body": "Forbidden", "status": 403, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the current Wiki idol-image traversal text/plain 403." }
+        {
+          "body": "Not found",
+          "status": 404,
+          "contentType": "text/plain; charset=UTF-8",
+          "justification": "C5 preserves the current Wiki idol-image text/plain 404."
+        },
+        {
+          "body": "Forbidden",
+          "status": 403,
+          "contentType": "text/plain; charset=UTF-8",
+          "justification": "C5 preserves the current Wiki idol-image traversal text/plain 403."
+        }
       ],
-      "test": { "file": "apps/api/tests/wiki/dom.contract.test.ts", "symbol": "image GET/HEAD preserve body and metadata while unknown targets remain 404" }
+      "test": {
+        "file": "apps/api/tests/wiki/dom.contract.test.ts",
+        "symbol": "image GET/HEAD preserve body and metadata while unknown targets remain 404"
+      }
     },
     {
       "id": "WIKI-RETIRED-STATIC-01",
@@ -289,8 +530,16 @@
       "symbol": "handleRejectRetiredWikiStaticAsset",
       "responseKind": "compatibility-text-error",
       "reason": "Retired Wiki CSS and icon static paths remain unavailable with the established text response.",
-      "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the retired Wiki static text/plain 404." },
-      "test": { "file": "apps/api/tests/wiki/dom.contract.test.ts", "symbol": "entity icon routes use database keys while retired static routes and traversal are rejected" }
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the retired Wiki static text/plain 404."
+      },
+      "test": {
+        "file": "apps/api/tests/wiki/dom.contract.test.ts",
+        "symbol": "entity icon routes use database keys while retired static routes and traversal are rejected"
+      }
     },
     {
       "id": "WEB-FUDABA-CHINA-BOUNDARY-DASH-01",
@@ -298,8 +547,43 @@
       "symbol": "getFudabaChinaBoundaryDashSource",
       "responseKind": "static",
       "reason": "The Web bundle fetches a versioned static geometry asset rather than an API response boundary.",
-      "nonApiStaticAsset": { "path": "/maps/china-boundary-dashes.json" },
-      "test": { "file": "apps/web/tests/unit/lib/api/bundle-client.test.ts", "symbol": "keeps the exchange boundary source in the bundle" }
+      "nonApiStaticAsset": {
+        "path": "/maps/china-boundary-dashes.json"
+      },
+      "test": {
+        "file": "apps/web/tests/unit/lib/api/bundle-client.test.ts",
+        "symbol": "keeps the exchange boundary source in the bundle"
+      }
+    },
+    {
+      "id": "NAMECARD-CARD-MEDIA-01",
+      "sourceFile": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
+      "symbol": "handleServePublicCardMedia",
+      "responseKind": "binary",
+      "reason": "Published artwork pages stream as binary; the editor object layout has no reversible public path.",
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/media.ts",
+        "symbol": "mediaHttpErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/server/handler.test.ts",
+        "symbol": "the public artwork route answers a missing page with the compatibility text"
+      }
+    },
+    {
+      "id": "NAMECARD-ADMIN-MEDIA-01",
+      "sourceFile": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
+      "symbol": "handleServeAdminNamecardMedia",
+      "responseKind": "binary",
+      "reason": "Moderators read the live and submitted artwork of one card through authenticated binary delivery.",
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/media.ts",
+        "symbol": "mediaHttpErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/server/handler.test.ts",
+        "symbol": "the moderator artwork route reads both variants through the repository"
+      }
     }
   ]
 }

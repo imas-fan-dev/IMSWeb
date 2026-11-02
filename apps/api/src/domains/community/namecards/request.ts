@@ -78,6 +78,28 @@ function legacyPaginationValue(value: unknown, fallback: number): number {
     return Number.parseInt((value || "") as string, 10) || fallback;
 }
 
+export interface NamecardMediaParams extends CompatibleNamecardIdParams {
+    side: string;
+    /** `draft` asks for the submitted revision; the live copy is the default. */
+    variant: 'live' | 'draft';
+}
+
+/** Artwork page handles: front, back, or `middle-<index>`. */
+export function validateNamecardMediaParams(
+    value: unknown,
+): NamecardMediaParams {
+    const params = requestRecord(value, "名片 ID 无效");
+    const side = typeof params.side === "string" ? params.side : "";
+    if (side !== "front" && side !== "back" && !/^middle-\d{1,2}$/.test(side)) {
+        throw invalidRequest("名片图页无效");
+    }
+    return {
+        id: positiveInteger(params.id) || 0,
+        side,
+        variant: params.variant === "draft" ? "draft" : "live",
+    };
+}
+
 export function validateCompatibleNamecardIdParams(
     value: unknown,
 ): CompatibleNamecardIdParams {

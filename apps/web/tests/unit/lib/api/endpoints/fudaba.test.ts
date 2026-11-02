@@ -52,7 +52,7 @@ import {
   getFudabaOfficePage,
   updateFudabaCard,
   updateFudabaOwnerOffice,
-  uploadFudabaCardMedia,
+  replaceFudabaCardMedia,
   saveFudabaOwnerLocation,
   saveFudabaCardPlacement,
   searchFudabaPlaces,
@@ -113,13 +113,18 @@ const ownerLocation = makeFudabaOwnerLocation({
 
 const cardFields = {
   producerName: "春香P",
-  displayName: "交换会用名片",
-  seriesCode: "765",
+  seriesCodes: ["765"],
   favoriteCharacterIds: [1],
-  accent: "#f34e6c",
   bio: "周末参加线下活动",
   tradeNote: "希望交换同系列名片",
-  available: true,
+  exchangeMode: "manual" as const,
+  madeOn: null,
+  groupName: null,
+  producerReading: null,
+  isOriginal: false,
+  madeWithAi: false,
+  visible: true,
+  credits: [],
 }
 
 afterEach(() => {
@@ -697,24 +702,34 @@ describe("Fudaba Web API contracts", () => {
       return Response.json({ success: true, card: ownerCard })
     })
     const front = new File(["front"], "front.png", { type: "image/png" })
+    const middle = new File(["middle"], "middle.png", { type: "image/png" })
     const back = new File(["back"], "back.png", { type: "image/png" })
     const replacement = new File(["next"], "next.png", {
       type: "image/png",
     })
 
-    await createFudabaCard({ ...cardFields, front, back }).send()
+    await createFudabaCard({ ...cardFields, front, back, images: [middle] }).send()
     await updateFudabaCard("owner card?#", {
       ...cardFields,
-      displayName: "  Updated card  ",
+      producerName: "  Updated card  ",
       expectedRevision: 1,
     }).send()
-    await uploadFudabaCardMedia("owner card?#", "front", replacement, 1).send()
+    await replaceFudabaCardMedia(
+      "owner card?#",
+      {
+        images: [replacement, middle],
+        // Existing pages keep their slot index, fresh uploads use their own
+        // ordinal, and slots always read front, middles, back.
+        order: ["#0", "@0", "#1", "@1"],
+      },
+      1
+    ).send()
     await deleteFudabaCard("owner card?#", 1).send()
 
     expect(requests.map(({ url, init }) => [url, init?.method])).toEqual([
       ["/api/community/exchange/cards", "POST"],
       ["/api/community/exchange/me/cards/owner%20card%3F%23", "PUT"],
-      ["/api/community/exchange/uploads/front", "PUT"],
+      ["/api/community/exchange/me/cards/owner%20card%3F%23/media", "PUT"],
       ["/api/community/exchange/me/cards/owner%20card%3F%23", "DELETE"],
     ])
     for (const request of requests) {
@@ -727,20 +742,21 @@ describe("Fudaba Web API contracts", () => {
     const create = requests[0]?.init?.body as FormData
     expect(create.get("front")).toBe(front)
     expect(create.get("back")).toBe(back)
-    expect(create.get("available")).toBe("true")
-    expect(create.get("displayName")).toBe(cardFields.displayName)
+    expect(create.getAll("images")).toEqual([middle])
+    expect(create.get("exchangeMode")).toBe("manual")
+    expect(create.get("producerName")).toBe(cardFields.producerName)
     expect(create.get("favoriteCharacterIds")).toBe("[1]")
 
     expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
       ...cardFields,
-      displayName: "Updated card",
+      producerName: "Updated card",
       expectedRevision: 1,
     })
 
     expect(requests[2]?.init?.body).toBeInstanceOf(FormData)
     const media = requests[2]?.init?.body as FormData
-    expect(media.get("image")).toBe(replacement)
-    expect(media.get("cardId")).toBe("owner card?#")
+    expect(media.getAll("images")).toEqual([replacement, middle])
+    expect(media.get("order")).toBe(JSON.stringify(["#0", "@0", "#1", "@1"]))
     expect(media.get("expectedRevision")).toBe("1")
 
     expect(JSON.parse(String(requests[3]?.init?.body))).toEqual({

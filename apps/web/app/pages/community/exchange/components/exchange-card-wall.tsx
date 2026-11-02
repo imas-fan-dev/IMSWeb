@@ -41,6 +41,7 @@ import type { FudabaCardPlacement, FudabaPlacedCard } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { WallViewport, type WallBounds, type WallFocus } from "../wall-viewport"
 import { ExchangeCardPreviewActions } from "./exchange-card-preview-actions"
+import { cardLabel } from "./card-label"
 
 export type WallPlacement = Pick<
   FudabaCardPlacement,
@@ -175,7 +176,8 @@ function WallCard({
         onPlacementCommit?.(card.id, previous, placement),
     })
 
-  const originalImageSource = flipped ? card.backImageUrl : card.frontImageUrl
+  const originalImageSource =
+    (flipped ? card.backImageUrl : card.frontImageUrl) ?? card.frontImageUrl
   const imageSource = (() => {
     if (!layout?.assetVersion || /^(data:|blob:)/.test(originalImageSource))
       return originalImageSource
@@ -207,7 +209,7 @@ function WallCard({
     >
       <CoverImagePreview
         src={imageSource}
-        alt={`${card.displayName}${side}`}
+        alt={`${cardLabel(card)}${side}`}
         previewLabel="名片"
         className={cn(
           "aspect-3/2 w-full border bg-card shadow-sm",
@@ -234,7 +236,7 @@ function WallCard({
             item={{
               kind: "card",
               id: card.id,
-              displayName: card.displayName,
+              displayName: cardLabel(card),
               viewerOwned: card.viewerOwned,
               width: 240,
               height: 160,
@@ -269,7 +271,7 @@ function WallCard({
           variant="secondary"
           size="icon-xs"
           className="absolute right-1.5 bottom-1.5 shadow-sm"
-          aria-label={`${card.displayName}${flipped ? "翻到正面" : "翻到背面"}`}
+          aria-label={`${cardLabel(card)}${flipped ? "翻到正面" : "翻到背面"}`}
           onClick={onFlip}
         >
           <Repeat2Icon aria-hidden="true" />
@@ -277,7 +279,7 @@ function WallCard({
       </IconTooltip>
       {editing && (card.viewerOwned || canArrangeWall) ? (
         <WallMoveHandle
-          label={`移动${card.displayName}`}
+          label={`移动${cardLabel(card)}`}
           selected={selected}
           pending={pending}
           scale={scale}
@@ -439,8 +441,7 @@ export function PlacedCardWall({
           >
             <span className="max-w-28 truncate px-1 text-xs font-medium sm:max-w-48">
               {selectedMessage?.authorName ??
-                selectedCard?.displayName ??
-                "选择名片或留言"}
+                (selectedCard ? cardLabel(selectedCard) : "选择名片或留言")}
             </span>
             <IconTooltip label="向左旋转">
               <Button
@@ -669,7 +670,7 @@ export function PlacedCardWall({
             <AlertDialogTitle>从名片墙移除？</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedCard
-                ? `“${selectedCard.displayName}”会从当前事务所移除，名片本身仍会保留。`
+                ? `“${cardLabel(selectedCard)}”会从当前事务所移除，名片本身仍会保留。`
                 : "名片会从当前事务所移除，名片本身仍会保留。"}
             </AlertDialogDescription>
           </AlertDialogHeader>

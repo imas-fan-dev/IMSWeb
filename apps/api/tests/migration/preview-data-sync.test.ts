@@ -108,13 +108,13 @@ test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflict
             INSERT INTO public.s3_object_index(logical_key,object_id,state,incarnation,updated_at)
             VALUES ('front','front','ready',1,1),('back','back','ready',1,1)`);
         await source.query(`INSERT INTO public.fudaba_cards
-            (id,card_number,origin,front_object_key,back_object_key,available,trade_note,publication_status,revision,created_at,updated_at)
-            VALUES ('legacy-import',9000,'legacy','front','back',false,NULL,'published',0,'2026-01-01','2026-01-02')`);
+            (id,card_number,origin,front_object_key,back_object_key,exchange_mode,trade_note,publication_status,revision,created_at,updated_at)
+            VALUES ('legacy-import',9000,'legacy','front','back','none',NULL,'published',0,'2026-01-01','2026-01-02')`);
         await target.query('BEGIN');
         assert.equal((await mergeTable(source, target, 'fudaba_cards', options)).insert, 1);
         await target.query('COMMIT');
-        const card = (await target.query("SELECT available,created_at,updated_at FROM public.fudaba_cards WHERE id='legacy-import'")).rows[0];
-        assert.equal(card.available, false);
+        const card = (await target.query("SELECT exchange_mode,created_at,updated_at FROM public.fudaba_cards WHERE id='legacy-import'")).rows[0];
+        assert.equal(card.exchange_mode, 'none');
         assert.equal(card.created_at.toISOString(), '2026-01-01T00:00:00.000Z');
         assert.equal(card.updated_at.toISOString(), '2026-01-02T00:00:00.000Z');
         await target.query('BEGIN');

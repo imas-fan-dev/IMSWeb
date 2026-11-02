@@ -139,13 +139,12 @@ import { afterAll, onTestFinished, test } from 'vitest';
         };
         await client.query(
             `INSERT INTO public.fudaba_cards
-            (id, card_number, origin, producer_name, display_name,
-             series_code, favorite_character, accent, bio, trade_note,
-             front_object_key, back_object_key, available,
+            (id, card_number, origin, producer_name, exchange_mode, trade_note,
+             front_object_key, back_object_key,
              publication_status, legacy_card_id,
              revision, created_at, updated_at, deleted_at)
-         VALUES ($1, $2, $3, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                 $4, $5, FALSE, $6, $7, 0,
+         VALUES ($1, $2, $3, NULL, 'none', NULL,
+                 $4, $5, $6, $7, 0,
                  COALESCE($8::timestamptz, CURRENT_TIMESTAMP),
                  COALESCE($8::timestamptz, CURRENT_TIMESTAMP), $8)`,
             [
@@ -342,6 +341,42 @@ import { afterAll, onTestFinished, test } from 'vitest';
             // Orphaned rows do not gate cleanliness -- they are a pre-existing,
             // independent anomaly the unification work did not create.
             assert.equal(summary.orphanedLegacyReactionRows, 1);
+        });
+
+        // The deferred "every card keeps a series" trigger also saw the cascade
+        // of a card delete and refused it, which made any real purge of a card
+        // impossible. Deleting the card must take its series rows with it.
+        test('deletes a card together with its series', {
+            skip: !postgresIntegrationEnabled()
+        }, async () => {
+            const harness = await createPostgresTestHarness();
+            const client = poolClient(harness);
+            await client.connect();
+            onTestFinished(async () => {
+                await client.end();
+                await harness.close();
+            });
+
+            await insertUnifiedCompatCard(client, 'legacy-delete', 41);
+            await client.query(
+                `INSERT INTO public.fudaba_card_series (card_id, series_code, display_order)
+         VALUES ('legacy-delete', '765', 1)`
+            );
+
+            await client.query(`DELETE FROM public.fudaba_cards WHERE id = 'legacy-delete'`);
+
+            const remaining = await client.query(
+                `SELECT
+             (SELECT count(*) FROM public.fudaba_cards WHERE id = 'legacy-delete') AS cards,
+             (SELECT count(*) FROM public.fudaba_card_series WHERE card_id = 'legacy-delete') AS series`
+            );
+            assert.deepEqual(
+                {
+                    cards: Number(remaining.rows[0].cards),
+                    series: Number(remaining.rows[0].series)
+                },
+                { cards: 0, series: 0 }
+            );
         });
     });
 }

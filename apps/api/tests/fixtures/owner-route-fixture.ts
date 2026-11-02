@@ -37,6 +37,7 @@ import type {
     PlatformAccountStatus,
     PlatformProfileRecord,
     SoftDeleteOwnedFudabaCardInput,
+    ReplaceOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMetadataInput,
     UpdatePlatformProfileAvatarInput,
@@ -66,22 +67,27 @@ export function ownerCard(
 ): FudabaCardRecord {
     return {
         id: 'owner-card',
+        card_number: 1,
         owner_account_id: ACCOUNT_ID,
         producer_name: 'Owner Producer',
-        display_name: 'Owner Card',
-        series_code: '765',
-        favorite_character: 'Haruka',
+        producer_reading: null,
+        series_codes: ['765'],
         favorite_characters: [],
+        middle_object_keys: [],
+        pending_middle_object_keys: [],
+        credits: [],
+        exchange_mode: 'manual',
+        made_on: null,
+        group_name: null,
+        is_original: false,
+        made_with_ai: false,
+        visible: true,
         legacy_card_id: null,
         front_object_key: 'protected/fudaba/cards/owner-card/front.webp',
         back_object_key: 'protected/fudaba/cards/owner-card/back.webp',
         accent: '#4f64dd',
         bio: 'Owner bio',
         trade_note: 'Owner trade note',
-        available: true,
-        source_url: null,
-        source_label: null,
-        source_credit: null,
         publication_status: 'pending',
         review_status: null,
         review_reason: null,
@@ -101,13 +107,14 @@ export function ownerCard(
 export function cardFields(): Record<string, string> {
     return {
         producerName: 'New Producer',
-        displayName: 'New Card',
-        seriesCode: '765',
+        seriesCodes: '["765"]',
         favoriteCharacterIds: '[900001]',
-        accent: '#336699',
         bio: 'New bio',
         tradeNote: 'New trade note',
-        available: 'true',
+        exchangeMode: 'manual',
+        isOriginal: 'false',
+        madeWithAi: 'false',
+        visible: 'true'
     };
 }
 
@@ -406,6 +413,7 @@ export class OwnerRouteFixture {
     readonly createInputs: CreateOwnedFudabaCardInput[] = [];
     readonly metadataInputs: UpdateOwnedFudabaCardMetadataInput[] = [];
     readonly mediaInputs: UpdateOwnedFudabaCardMediaInput[] = [];
+    readonly mediaSetInputs: ReplaceOwnedFudabaCardMediaInput[] = [];
     readonly deleteInputs: SoftDeleteOwnedFudabaCardInput[] = [];
     readonly profileTextInputs: UpdatePlatformProfileTextInput[] = [];
     readonly profileAvatarInputs: UpdatePlatformProfileAvatarInput[] = [];
@@ -425,9 +433,9 @@ export class OwnerRouteFixture {
         this.cards.set(card.id, card);
         this.cards.set(other.id, other);
         this.storage.seed(card.front_object_key);
-        this.storage.seed(card.back_object_key);
+        if (card.back_object_key) this.storage.seed(card.back_object_key);
         this.storage.seed(other.front_object_key);
-        this.storage.seed(other.back_object_key);
+        if (other.back_object_key) this.storage.seed(other.back_object_key);
         this.app = createHonoApp(() => this.runtime());
     }
 
@@ -519,6 +527,7 @@ export class OwnerRouteFixture {
         { hash: string; preview: string | null }
     >();
     readonly fudaba = {
+        listOwnerSeries: () => this.fudaba.listPublicSeries(),
         messages: {
             saveMediaPreview: async (
                 key: string,
@@ -582,15 +591,19 @@ export class OwnerRouteFixture {
                 id: input.id,
                 owner_account_id: input.ownerAccountId,
                 producer_name: input.producerName,
-                display_name: input.displayName,
-                series_code: input.seriesCode,
-                favorite_character: input.favoriteCharacter,
+                producer_reading: input.producerReading,
+                series_codes: [...input.seriesCodes],
                 front_object_key: input.frontObjectKey,
                 back_object_key: input.backObjectKey,
-                accent: input.accent,
                 bio: input.bio,
                 trade_note: input.tradeNote,
-                available: input.available,
+                exchange_mode: input.exchangeMode,
+                made_on: input.madeOn,
+                group_name: input.groupName,
+                is_original: input.isOriginal,
+                made_with_ai: input.madeWithAi,
+                visible: input.visible,
+                credits: input.credits,
                 revision: 0,
                 created_at: input.createdAt,
                 updated_at: input.updatedAt,
@@ -625,13 +638,17 @@ export class OwnerRouteFixture {
             const card = {
                 ...current,
                 producer_name: input.producerName,
-                display_name: input.displayName,
-                series_code: input.seriesCode,
-                favorite_character: input.favoriteCharacter,
-                accent: input.accent,
+                producer_reading: input.producerReading,
+                series_codes: [...input.seriesCodes],
                 bio: input.bio,
                 trade_note: input.tradeNote,
-                available: input.available,
+                exchange_mode: input.exchangeMode,
+                made_on: input.madeOn,
+                group_name: input.groupName,
+                is_original: input.isOriginal,
+                made_with_ai: input.madeWithAi,
+                visible: input.visible,
+                credits: input.credits as FudabaCardRecord['credits'],
                 publication_status: 'pending' as const,
                 revision: current.revision + 1,
                 updated_at: input.updatedAt,
@@ -683,6 +700,73 @@ export class OwnerRouteFixture {
                 throw new Error('media connection lost after commit');
             }
             return { status: 'saved', card: { ...card }, previousObjectKey };
+        },
+        replaceCardMediaForOwner: async (
+            input: ReplaceOwnedFudabaCardMediaInput
+        ): Promise<FudabaCardMutationResult> => {
+            this.mediaSetInputs.push(input);
+            if (this.updateMediaMode === 'throw') throw new Error('media repository failed');
+            const current = this.cards.get(input.cardId);
+            if (
+                this.updateMediaMode === 'unavailable' || !current ||
+                current.owner_account_id !== input.ownerAccountId ||
+                current.deleted_at !== null || this.accountStatus !== 'active'
+            ) {
+                return { status: 'unavailable' };
+            }
+            if (
+                this.updateMediaMode === 'conflict' ||
+                current.revision !== input.expectedRevision
+            ) {
+                return { status: 'conflict', revision: current.revision };
+            }
+            const published = current.publication_status === 'published';
+            // Slots 2.. are the middle pages, so the same ordered submit covers
+            // every role and a page can move between them.
+            const card: FudabaCardRecord = published
+                ? {
+                      ...current,
+                      pending_front_object_key: input.frontObjectKey,
+                      pending_back_object_key: input.backObjectKey,
+                      pending_middle_object_keys: [...input.middleObjectKeys],
+                      review_status: 'pending' as const,
+                      review_reason: null,
+                      revision: current.revision + 1,
+                      updated_at: input.updatedAt
+                  }
+                : {
+                      ...current,
+                      front_object_key: input.frontObjectKey,
+                      back_object_key: input.backObjectKey,
+                      middle_object_keys: [...input.middleObjectKeys],
+                      accent: input.accent ?? current.accent,
+                      revision: current.revision + 1,
+                      updated_at: input.updatedAt
+                  };
+            this.cards.set(card.id, card);
+            if (this.updateMediaMode === 'mutate-then-throw') {
+                this.cardMutationCommitted = true;
+                throw new Error('media connection lost after commit');
+            }
+            const previousObjectKeys = published
+                ? [
+                      current.pending_front_object_key ?? current.front_object_key,
+                      current.pending_back_object_key ?? current.back_object_key,
+                      ...(current.pending_middle_object_keys.length > 0
+                          ? current.pending_middle_object_keys
+                          : current.middle_object_keys)
+                  ].filter((key): key is string => key !== null)
+                : [
+                      current.front_object_key,
+                      current.back_object_key,
+                      ...current.middle_object_keys
+                  ].filter((key): key is string => key !== null);
+            return {
+                status: 'saved',
+                card: { ...card },
+                previousObjectKey: null,
+                previousObjectKeys
+            };
         },
         softDeleteCardForOwner: async (
             input: SoftDeleteOwnedFudabaCardInput
@@ -810,14 +894,19 @@ export function metadataBody(
 ): Record<string, unknown> {
     return {
         producerName: 'Updated Producer',
-        displayName: 'Updated Card',
-        seriesCode: '765',
+        seriesCodes: ['765'],
         favoriteCharacterIds: [900001],
-        accent: '#112233',
         bio: 'Updated card bio',
         tradeNote: 'Updated card trade note',
-        available: false,
-        expectedRevision,
+        exchangeMode: 'manual',
+        madeOn: null,
+        groupName: null,
+        producerReading: null,
+        isOriginal: false,
+        madeWithAi: false,
+        visible: true,
+        credits: [],
+        expectedRevision
     };
 }
 

@@ -62,14 +62,19 @@ async function seed(
     await database
         .prepare(
             `INSERT INTO fudaba_cards
-        (id,owner_account_id,producer_name,display_name,series_code,
+        (id,owner_account_id,producer_name,${legacySchema ? 'display_name,series_code,' : ''}
         front_object_key,back_object_key,${legacySchema ? 'media_rights_status,' : ''}publication_status,created_at,updated_at)
-        SELECT 'wall-card-' || lpad(n::text,4,'0'), 'wall-owner','Producer','Card ' || n,'765',
+        SELECT 'wall-card-' || lpad(n::text,4,'0'), 'wall-owner','Producer',${legacySchema ? "'Card ' || n,'765'," : ''}
         'community/fudaba/' || n || '/front.webp','community/fudaba/' || n || '/back.webp',
         ${legacySchema ? "'approved'," : ''}'published',?::timestamptz,?::timestamptz FROM generate_series(1,?) n`,
         )
         .bind(time, time, count)
         .run();
+    if (!legacySchema) {
+        await database.prepare(
+            "INSERT INTO fudaba_card_series(card_id,series_code,display_order) SELECT id,'765',1 FROM fudaba_cards WHERE id LIKE 'wall-card-%'"
+        ).run();
+    }
 }
 
 test('world wall uses bounded stable pages, atomic expansion, ownership and CAS with 1000 cards', async () => {

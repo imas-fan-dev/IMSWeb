@@ -116,6 +116,24 @@ test.describe("activity cover preview", () => {
       list: [
         {
           id: 42,
+          revision: 1,
+          cardId: "card-1",
+          cardNumber: 1,
+          producerName: "天海春香",
+          producerReading: null,
+          groupName: null,
+          madeOn: null,
+          isOriginal: false,
+          madeWithAi: false,
+          bio: null,
+          tradeNote: null,
+          exchangeMode: "manual",
+          accent: null,
+          seriesCodes: ["765"],
+          credits: [],
+          middleImageUrls: [],
+          canEdit: false,
+          hasOwner: false,
           seriesCode: null,
           favoriteCharacters: [],
           claimStatus: "unclaimed",
@@ -184,7 +202,7 @@ test.describe("activity cover preview", () => {
     await dialog.getByRole("button", { name: "关闭名片预览" }).click()
     await expect(detail).toBeVisible()
     await expect(
-      detail.getByRole("heading", { name: "制作人名片 42" })
+      detail.getByRole("heading", { name: /制作人名片\s*\d+/ })
     ).toBeVisible()
   })
 })

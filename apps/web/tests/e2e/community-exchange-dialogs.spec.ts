@@ -1,11 +1,13 @@
 import { expect, test, type ApiDispatcher } from "./fixtures/test"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import type {
   FudabaOwnerCard,
   FudabaPlacedCard,
   FudabaOwnerOffice,
 } from "@imsweb/contracts/fudaba"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
+import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
 import { settleToasts } from "./fixtures/toast"
 
 const office = {
@@ -221,15 +223,24 @@ test("keeps map state through office dialogs and opens personal pages separately
   )
   expect(await canvas.boundingBox()).toEqual(frame)
   expect(viewportReads).toBe(committedReads)
+  if (!isMobile) installPlatformOAuthProvidersMock(api)
   await more.click()
   await page.getByRole("menuitem", { name: "我的交换账号" }).click()
-  await expect(page).toHaveURL(/\/account\/me$/)
+  await expect(page).toHaveURL(
+    isMobile ? /\/account\/me$/ : /\/account\/login\?returnTo=%2Faccount%2Fme$/
+  )
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
-  await expect(
-    page.getByRole("main").getByText("未登录", { exact: true })
-  ).toBeVisible()
-  await expect(page.locator('a[href="/account/login"]')).toContainText("登录")
+  if (isMobile) {
+    await expect(
+      page.getByRole("main").getByText("未登录", { exact: true })
+    ).toBeVisible()
+    await expect(page.locator('a[href="/account/login"]')).toContainText("登录")
+  } else {
+    await expect(
+      page.getByRole("heading", { name: "登录站点帐号", exact: true })
+    ).toBeVisible()
+  }
 })
 
 test("opens direct office links over the map and safely closes after refresh @mobile", async ({
@@ -293,17 +304,24 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   })
   const ownedCard: FudabaOwnerCard = {
     id: "managed-card",
+    cardNumber: 2,
     producerName: "地图制作人",
-    displayName: "地图管理名片",
-    seriesCode: "765",
-    favoriteCharacter: "天海春香",
+    seriesCodes: ["765"],
     favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
     frontImageUrl: "/brand/series/wall/765pro.webp",
+    middleImageUrls: [],
     backImageUrl: "/brand/series/wall/cinderella-girls.webp",
     accent: "#f34e6c",
     bio: "",
     tradeNote: "周末交换",
-    available: true,
+    exchangeMode: "manual",
+    madeOn: null,
+    groupName: null,
+    producerReading: null,
+    isOriginal: false,
+    madeWithAi: false,
+    visible: true,
+    credits: [],
     publicationStatus: "published",
     reviewStatus: null,
     reviewReason: null,
@@ -316,18 +334,23 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   const placedCard: FudabaPlacedCard = {
     id: ownedCard.id,
     producerName: ownedCard.producerName,
-    displayName: ownedCard.displayName,
-    seriesCode: ownedCard.seriesCode,
-    favoriteCharacter: ownedCard.favoriteCharacter,
+    seriesCodes: ownedCard.seriesCodes,
     favoriteCharacters: ownedCard.favoriteCharacters,
     frontImageUrl: ownedCard.frontImageUrl,
+    middleImageUrls: ownedCard.middleImageUrls,
     backImageUrl: ownedCard.backImageUrl,
     accent: ownedCard.accent,
     bio: ownedCard.bio,
     tradeNote: ownedCard.tradeNote,
-    available: ownedCard.available,
+    exchangeMode: ownedCard.exchangeMode,
+    madeOn: ownedCard.madeOn,
+    groupName: ownedCard.groupName,
+    producerReading: ownedCard.producerReading,
+    isOriginal: ownedCard.isOriginal,
+    madeWithAi: ownedCard.madeWithAi,
+    visible: ownedCard.visible,
+    credits: ownedCard.credits,
     createdAt: ownedCard.createdAt,
-    source: null,
     viewerOwned: true,
     interactions: {
       likes: 0,
@@ -531,12 +554,12 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   ).toBeVisible()
   await detail
     .getByRole("button", {
-      name: `查看${ownedCard.displayName}正面`,
+      name: `查看${cardLabel(ownedCard)}正面`,
       exact: true,
     })
     .click()
   const preview = page.getByRole("dialog", {
-    name: `${ownedCard.displayName}正面`,
+    name: `${cardLabel(ownedCard)}正面`,
     exact: true,
   })
   await preview.getByRole("button", { name: "收藏（0）", exact: true }).click()
@@ -551,7 +574,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     .click()
   await detail
     .getByRole("button", {
-      name: `查看${ownedCard.displayName}正面`,
+      name: `查看${cardLabel(ownedCard)}正面`,
       exact: true,
     })
     .click()
@@ -564,14 +587,14 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     exact: true,
   })
   await expect(
-    cardManagement.getByRole("textbox", { name: "名片标题" })
-  ).toHaveValue(ownedCard.displayName)
-  const title = cardManagement.getByRole("textbox", { name: "名片标题" })
+    cardManagement.getByRole("textbox", { name: "制作人名称" })
+  ).toHaveValue(ownedCard.producerName)
+  const title = cardManagement.getByRole("textbox", { name: "制作人名称" })
   await title.fill("")
   await title.pressSequentially("P-01+=")
   await expect(title).toHaveValue("P-01+=")
   await expect(
-    cardManagement.getByRole("button", { name: "保存名片资料" })
+    cardManagement.getByRole("button", { name: "保存并提交" })
   ).toBeEnabled()
   await page.screenshot({
     path: testInfo.outputPath("map-card-management.png"),

@@ -163,17 +163,17 @@ test.describe('route inventory compiler', () => {
 
     // The combined office-wall and directory APIs retain every request and response.
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 377,
-      mountedMethodPaths: 286,
+      mountedRegistrations: 381,
+      mountedMethodPaths: 290,
       noInputRoutes: 91,
-      requestCarriers: 380,
+      requestCarriers: 384,
       policies: {
         reject: 81,
-        "accept-and-project": 189,
+        "accept-and-project": 192,
         passthrough: 17,
-        "non-object-applicable": 93,
+        "non-object-applicable": 94,
       },
-      responses: { total: 753, json: 689, nonJson: 64 },
+      responses: { total: 773, json: 699, nonJson: 74 },
       unresolved: 0,
     });
     const wallRead = current.routes.find((route) => route.method === "GET"

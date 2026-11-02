@@ -126,7 +126,11 @@ function NamecardItem({
   card: Namecard
   reactions: NamecardReactionState
   busy: boolean
-  onOpenDetail: (card: Namecard, trigger: HTMLButtonElement) => void
+  onOpenDetail: (
+    card: Namecard,
+    trigger: HTMLButtonElement,
+    side?: NamecardSide
+  ) => void
   onReact: (cardId: number, emoji: string) => Promise<boolean>
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
@@ -136,28 +140,32 @@ function NamecardItem({
       className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:h-full md:gap-0 md:self-stretch md:rounded-xl md:bg-muted/50"
     >
       <div className="grid gap-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
-        {(["front", "back"] as const).map((side) => {
-          const thumbnail =
-            side === "front"
-              ? card.image1_thumbnail_url
-              : card.image2_thumbnail_url
+        {(["front", "back"] as const).flatMap((side) => {
           const original = side === "front" ? card.image1_url : card.image2_url
-          return (
+          // 单面名片没有背面：不渲染空格子，让正面占满整行。
+          if (!original) return []
+          const thumbnail =
+            (side === "front"
+              ? card.image1_thumbnail_url
+              : card.image2_thumbnail_url) ?? original
+          return [
             <button
               key={side}
               type="button"
               className="relative aspect-3/2 min-h-11 w-full overflow-hidden rounded-none bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               aria-label={`查看制作人名片 ${card.id} ${side === "front" ? "正面" : "背面"}`}
               title="查看名片详情"
-              onClick={(event) => onOpenDetail(card, event.currentTarget)}
+              onClick={(event) =>
+                onOpenDetail(card, event.currentTarget, side)
+              }
             >
               <NamecardThumbnail
                 key={`${thumbnail}:${original}`}
                 thumbnail={thumbnail}
                 original={original}
               />
-            </button>
-          )
+            </button>,
+          ]
         })}
       </div>
       <CardHeader className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 md:min-h-8 md:px-4">
@@ -219,6 +227,7 @@ export default function CommunityCardsPage() {
   const [error, setError] = useState(false)
   const [claimCard, setClaimCard] = useState<Namecard | null>(null)
   const [previewSide, setPreviewSide] = useState<NamecardSide | null>(null)
+  const [detailSide, setDetailSide] = useState<NamecardSide | null>(null)
   const [previewReturnTarget, setPreviewReturnTarget] =
     useState<HTMLButtonElement | null>(null)
   const [reactionsByCard, setReactionsByCard] = useState<
@@ -343,9 +352,14 @@ export default function CommunityCardsPage() {
     setSearchParams(next)
   }
 
-  function openDetail(card: Namecard, trigger: HTMLButtonElement) {
+  function openDetail(
+    card: Namecard,
+    trigger: HTMLButtonElement,
+    side?: NamecardSide
+  ) {
     if (!result) return
     remember(trigger)
+    setDetailSide(side ?? null)
     detail.open(card)
   }
 
@@ -439,6 +453,7 @@ export default function CommunityCardsPage() {
       <NamecardDetailDialog
         card={detail.card}
         canClaim={canClaim}
+        initialSide={detailSide}
         busy={detail.card ? busyReactionCards.has(detail.card.id) : false}
         reactions={
           detail.card

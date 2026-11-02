@@ -455,10 +455,33 @@ test.describe("community exchange map attribution", () => {
       ).toBeLessThanOrEqual(0)
       const more = card.getByRole("button", { name: "更多地图工具" })
       await more.click()
-      await expect(
-        page.getByRole("menuitem", { name: "我的交换账号" })
-      ).toBeInViewport()
-      await expect(attributionTrigger(page)).toBeInViewport()
+      const menu = page.getByRole("menu", { name: "更多地图工具内容" })
+      await expect(menu).toBeInViewport()
+      for (const entry of [
+        page.getByRole("menuitem", { name: "我的交换账号" }),
+        attributionTrigger(page),
+      ]) {
+        await entry.scrollIntoViewIfNeeded()
+        await expect(entry).toBeInViewport()
+        expect(
+          await entry.evaluate((node) => {
+            const item = node.getBoundingClientRect()
+            const popup = node.closest('[role="menu"]')!.getBoundingClientRect()
+            return (
+              popup.top >= 0 &&
+              popup.bottom <= innerHeight &&
+              item.top >= popup.top &&
+              item.bottom <= popup.bottom &&
+              node.contains(
+                document.elementFromPoint(
+                  item.x + item.width / 2,
+                  item.y + item.height / 2
+                )
+              )
+            )
+          })
+        ).toBe(true)
+      }
       await page.screenshot({
         path: `/tmp/exchange-search-menu-web-${width}x${height}.png`,
       })

@@ -8,6 +8,7 @@ import { createEventResponseSchema } from "@imsweb/contracts/events"
 import {
   adminNamecardHttpErrorSchema,
   adminNamecardListBusinessErrorSchema,
+  adminNamecardDiffSchema,
   adminNamecardListSchema,
   adminNamecardMutationSchema,
   namecardErrorResponseSchema,
@@ -423,6 +424,18 @@ export function getAdminNamecards(
       errorSchema: adminNamecardHttpErrorSchema,
       meta: withBackofficeAuth(),
       params,
+    })
+  )
+}
+
+/** Both sides of a queued revision, for the review diff dialog. */
+export function getAdminNamecardDiff(id: number) {
+  return adminApiClient.Get(
+    adminApiPath(`/cards/${id}/diff`),
+    parsed(adminNamecardDiffSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
     })
   )
 }

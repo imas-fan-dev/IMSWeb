@@ -1185,9 +1185,7 @@ function CommunityOfficePageContent() {
                 >
                   {office.isOpen ? "开放交换" : "暂未开放"}
                 </Badge>
-                {office.seriesCodes.map((code) => (
-                  <SeriesBadge key={code} code={code} series={seriesMap} />
-                ))}
+                <SeriesBadge codes={office.seriesCodes} series={seriesMap} />
               </div>
               <h1 className="mt-4 text-3xl font-semibold text-balance">
                 {office.name}
@@ -1368,14 +1366,14 @@ function CommunityOfficePageContent() {
                     <SelectValue placeholder="没有可放置的名片">
                       {unplacedOwnerCards.find(
                         (card) => card.id === selectedOwnerCardId
-                      )?.displayName ?? "没有可放置的名片"}
+                      )?.producerName ?? "没有可放置的名片"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start">
                     <SelectGroup>
                       {unplacedOwnerCards.map((card) => (
                         <SelectItem key={card.id} value={card.id}>
-                          {card.displayName}
+                          {card.producerName}
                         </SelectItem>
                       ))}
                     </SelectGroup>

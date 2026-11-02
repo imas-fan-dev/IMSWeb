@@ -5,7 +5,7 @@
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex, fixtureSha256Hex as hash } from '../fixtures/auth-request';
 import { CANONICAL_FUDABA_AGENCIES, projectCanonicalFudabaAgencies } from '../fixtures/fudaba-agency-catalog';
-import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, uploadedFile } from '../fixtures/owner-route-fixture';
+import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, PNG_BYTES, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, uploadedFile } from '../fixtures/owner-route-fixture';
 import { insertBackofficeAccount, insertFudabaOfficePublicLocation, insertPlatformAccount } from '../fixtures/rows';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createMigrationCatalogBefore } from '../integration/migration-catalog';
@@ -35,7 +35,7 @@ import type { CacheStore, RateLimiter } from '@/ports/cache';
 import type { ParsedUpload, UploadedFile, UploadParser } from '@/ports/http';
 import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
-import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
+import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaCardMetadataInput, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { FUDABA_MAP_DELIVERY_OBJECT_KEY, namecardOriginalUrlFromObjectKey } from '@/utils/storage/business-object-keys';
 import { fudabaCardDeleteResponseSchema, fudabaCardInteractionResponseSchema, fudabaCardMutationResponseSchema, fudabaCardPageSchema, fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema, fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOfficeDetailSchema, fudabaOfficeMutationResponseSchema, fudabaOfficePageSchema, fudabaOwnerCardDetailSchema, fudabaOwnerCardListSchema, fudabaOwnerLocationDetailSchema, fudabaOwnerLocationMutationResponseSchema, fudabaOwnerLocationWithdrawalResponseSchema, fudabaOwnerOfficeListSchema, fudabaPlaceSearchResponseSchema, fudabaSeriesListSchema } from '@imsweb/contracts/fudaba';
@@ -189,8 +189,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             ).all<{ series_code: string }>();
             const cardCodes = await harness.connection.prepare(
                 `SELECT series_code
-         FROM fudaba_cards
-         WHERE owner_account_id='agency-migration-owner'
+         FROM fudaba_card_series
+         WHERE card_id IN (
+             SELECT id FROM fudaba_cards
+             WHERE owner_account_id='agency-migration-owner'
+         )
          ORDER BY series_code`
             ).all<{ series_code: string }>();
             assert.deepEqual(
@@ -214,12 +217,15 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
          WHERE constraint_record.contype='f'
            AND constraint_record.conname IN (
                'fudaba_office_series_tags_series_code_fkey',
-               'fudaba_cards_series_code_fkey'
+               'fudaba_card_series_series_code_fkey'
            )
          ORDER BY source.relname`
             ).all<{ source_table: string; target_table: string }>();
             assert.deepEqual(foreignKeys.results, [
-                { source_table: 'fudaba_cards', target_table: 'agencies' },
+                {
+                    source_table: 'fudaba_card_series',
+                    target_table: 'agencies'
+                },
                 {
                     source_table: 'fudaba_office_series_tags',
                     target_table: 'agencies'
@@ -256,13 +262,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     function registeredFields(favoriteCharacterIds: string) {
         return {
             producerName: 'Producer',
-            displayName: 'My card',
-            seriesCode: '765',
+            seriesCodes: '["765"]',
             favoriteCharacterIds,
-            accent: '#dc2626',
             bio: '',
             tradeNote: '',
-            available: 'true'
+            exchangeMode: 'manual'
         };
     }
 
@@ -272,7 +276,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 parseFudabaCardCreateFields(registeredFields('[3,1,2]')).favoriteCharacterIds,
                 [3, 1, 2]
             );
-            for (const favoriteCharacterIds of ['[]', '[1,1]', '[0]', 'not-json']) {
+            // 担当角色是可选项，空集合与缺省一样合法。
+            assert.deepEqual(
+                parseFudabaCardCreateFields(registeredFields('[]')).favoriteCharacterIds,
+                []
+            );
+            for (const favoriteCharacterIds of ['[1,1]', '[0]', 'not-json']) {
                 assert.throws(
                     () => parseFudabaCardCreateFields(registeredFields(favoriteCharacterIds)),
                     /favoriteCharacterIds/
@@ -485,19 +494,22 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         return {
             id: CARD_ID,
             producer_name: 'Producer A',
-            display_name: 'Card A',
-            series_code: '765',
-            favorite_character: 'Haruka',
+            series_codes: ['765'],
             favorite_characters: [],
             front_object_key: 'public/cards/card-a/front.webp',
+            middle_object_keys: [],
             back_object_key: 'public/cards/card-a/back.webp',
             accent: '#4f64dd',
             bio: 'Public bio',
             trade_note: 'Trade note',
-            available: true,
-            source_url: null,
-            source_label: null,
-            source_credit: null,
+            exchange_mode: 'manual',
+            made_on: null,
+            group_name: null,
+            producer_reading: null,
+            is_original: false,
+            made_with_ai: false,
+            visible: true,
+            credits: [],
             created_at: CREATED_AT,
             like_count: 2,
             favorite_count: 1,
@@ -910,19 +922,19 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             id,
             ownerAccountId,
             producerName: `Producer ${ownerAccountId}`,
-            displayName: `Card ${id}`,
-            seriesCode: '765',
-            favoriteCharacter: 'Haruka',
+            seriesCodes: ['765'],
             favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
-            accent: '#4f64dd',
             bio: '',
             tradeNote: '',
-            available: true,
-            sourceUrl: null,
-            sourceLabel: null,
-            sourceCredit: null,
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             publicationStatus: 'published',
             revision: 0,
             createdAt: CREATED_AT,
@@ -999,7 +1011,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             deletedAt: UPDATED_AT
         }));
         await fixture.repository.createCard(card(`${dialect}-disabled-card`, ownerId, {
-            seriesCode: 'sidem'
+            seriesCodes: ['sidem']
         }));
 
         const created = await fixture.repository.saveCardPlacementForOwner(
@@ -1212,7 +1224,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     describe('Fudaba card placement repository', () => {
         postgresTest('real PostgreSQL enforces the same Fudaba card placement contract', async () => {
             await assertCardPlacementRepository('postgresql');
-        });
+        }, 30_000);
     });
 }
 
@@ -1929,12 +1941,14 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     function registeredCard(): FudabaRegisteredCardReviewRecord {
         return {
             id: 'registered-review',
+            card_number: 1,
             owner_account_id: 'owner-1',
             producer_name: 'Owner',
-            display_name: 'Registered card',
-            series_code: '765',
-            favorite_character: '天海春香',
+            producer_reading: null,
+            series_codes: ['765'],
             favorite_characters: [character()],
+            middle_object_keys: [],
+            credits: [],
             legacy_card_id: null,
             origin: 'exchange',
             front_object_key: 'community/fudaba/cards/registered-review/front.webp',
@@ -1942,16 +1956,19 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             accent: '#f34e6c',
             bio: '',
             trade_note: '',
-            available: true,
-            source_url: null,
-            source_label: null,
-            source_credit: null,
+            exchange_mode: 'manual',
+            made_on: null,
+            group_name: null,
+            is_original: false,
+            made_with_ai: false,
+            visible: true,
             publication_status: 'approving',
             review_status: null,
             review_reason: null,
             review_submitted_at: null,
             pending_payload: null,
             pending_front_object_key: null,
+            pending_middle_object_keys: [],
             pending_back_object_key: null,
             revision: 1,
             created_at: CREATED_AT,
@@ -2467,19 +2484,19 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             id,
             ownerAccountId,
             producerName: `Producer ${ownerAccountId}`,
-            displayName: `Card ${id}`,
-            seriesCode: '765',
-            favoriteCharacter: 'ignored compatibility input',
+            seriesCodes: ['765'],
             favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
-            accent: '#4f64dd',
             bio: '',
             tradeNote: '',
-            available: true,
-            sourceUrl: null,
-            sourceLabel: null,
-            sourceCredit: null,
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             publicationStatus,
             revision: 0,
             createdAt: CREATED_AT,
@@ -2494,16 +2511,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             id: card.id,
             ownerAccountId: card.ownerAccountId,
             producerName: card.producerName,
-            displayName: card.displayName,
-            seriesCode: card.seriesCode,
-            favoriteCharacter: card.favoriteCharacter,
+            seriesCodes: card.seriesCodes,
             favoriteCharacterIds: card.favoriteCharacterIds,
             frontObjectKey: card.frontObjectKey,
             backObjectKey: card.backObjectKey,
-            accent: card.accent,
             bio: card.bio,
             tradeNote: card.tradeNote,
-            available: card.available,
+            exchangeMode: card.exchangeMode,
+            madeOn: card.madeOn,
+            groupName: card.groupName,
+            producerReading: card.producerReading,
+            isOriginal: card.isOriginal,
+            madeWithAi: card.madeWithAi,
+            visible: card.visible,
+            credits: card.credits,
             createdAt: card.createdAt,
             updatedAt: card.updatedAt
         };
@@ -2557,13 +2578,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         // ran has to mirror it by hand instead of relying on a fresh backfill.
         await database.prepare(
             `INSERT INTO fudaba_cards
-            (id, card_number, origin, producer_name, display_name,
-             series_code, favorite_character, accent, bio, trade_note,
-             front_object_key, back_object_key, available,
+            (id, card_number, origin, producer_name, bio, trade_note,
+             front_object_key, back_object_key, exchange_mode,
              publication_status, revision,
              created_at, updated_at)
-         VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                 ?, ?, FALSE, 'published', 0, ?, ?)`
+         VALUES (?, ?, 'legacy', NULL, NULL, NULL, ?, ?, 'none', 'published', 0, ?, ?)`
         ).bind(
             `legacy-${row.id}`,
             row.id,
@@ -2635,8 +2654,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const matchingCardId = String(legacyId);
             await fudaba.createCard(registeredCard(matchingCardId, ownerA));
             await database.prepare(
-                'UPDATE fudaba_cards SET producer_name=?, display_name=? WHERE id=?'
-            ).bind('P Name A', 'Card title A', matchingCardId).run();
+                'UPDATE fudaba_cards SET producer_name=? WHERE id=?'
+            ).bind('P Name A', matchingCardId).run();
             await fudaba.createCard(registeredCard(`0${legacyId}`, ownerA));
 
             const createdEnvelopes = await fudaba.ensureSameIdLegacyCardEnvelopes({
@@ -2951,13 +2970,19 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     card: {
                         id: boundCreateCardId,
                         producerName: 'Claimed Producer',
-                        displayName: 'Claimed Card',
+                        producerReading: null,
+                        seriesCode: 'cg',
                         frontObjectKey: `community/fudaba/cards/${boundCreateCardId}/front.webp`,
                         backObjectKey: `community/fudaba/cards/${boundCreateCardId}/back.webp`,
-                        accent: '#4f64dd',
                         bio: '',
                         tradeNote: '',
-                        available: true
+                        accent: '#4f64dd',
+                        exchangeMode: 'manual',
+                        madeOn: null,
+                        groupName: null,
+                        isOriginal: false,
+                        madeWithAi: false,
+                        visible: true
                     }
                 },
                 reviewedBy,
@@ -2980,9 +3005,14 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(boundCreateCardRow?.origin, 'legacy');
             assert.equal(boundCreateCardRow?.card_number, createLegacyId);
             assert.equal(createdCardResult.card?.owner_account_id, ownerB);
-            assert.equal(createdCardResult.card?.series_code, 'cg');
+            assert.deepEqual(createdCardResult.card?.series_codes, ['cg']);
             assert.equal(createdCardResult.card?.publication_status, 'published');
-            assert.equal(createdCardResult.card?.favorite_character, '测试春香、测试卯月');
+            assert.deepEqual(
+                createdCardResult.card?.favorite_characters.map(
+                    (character) => character.character_id
+                ),
+                [900_001, 900_002]
+            );
             assert.equal(
                 createdCardResult.card?.front_object_key,
                 `community/fudaba/cards/${boundCreateCardId}/front.webp`
@@ -3085,14 +3115,17 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 cardId: reviewCardId,
                 ownerAccountId: ownerC,
                 producerName: 'Blocked while reviewing',
-                displayName: 'Blocked',
-                seriesCode: '765',
-                favoriteCharacter: '',
+                seriesCodes: ['765'],
                 favoriteCharacterIds: [900_001],
-                accent: '#4f64dd',
                 bio: '',
                 tradeNote: '',
-                available: true,
+                exchangeMode: 'manual',
+                madeOn: null,
+                groupName: null,
+                producerReading: null,
+                isOriginal: false,
+                madeWithAi: false,
+                visible: true,
                 expectedRevision: 1,
                 updatedAt: REVIEWED_AT
             }), { status: 'unavailable' });
@@ -3230,19 +3263,19 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             id,
             ownerAccountId,
             producerName: `Producer ${ownerAccountId}`,
-            displayName: `Card ${id}`,
-            seriesCode: '765',
-            favoriteCharacter: '',
+            seriesCodes: ['765'],
             favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
-            accent: '#4f64dd',
             bio: '',
             tradeNote: '',
-            available: true,
-            sourceUrl: null,
-            sourceLabel: null,
-            sourceCredit: null,
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             publicationStatus: 'published',
             revision: 0,
             createdAt: CREATED_AT,
@@ -4251,6 +4284,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261026230000_fudaba_office_review',
                 '20261027120000_namecard_lock_status',
                 '20261027180000_namecard_pending_versions',
+                '20261028120000_namecard_editor_fields',
+                '20261029120000_namecard_series_set',
+                '20261030120000_namecard_accent_source',
+                '20261030130000_namecard_series_require_one_skip_missing',
+                '20261030140000_namecard_reading_marks',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
@@ -8006,7 +8044,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 assert.equal(serialized.includes('object_key'), false);
                 assert.equal(serialized.includes('protected/fudaba'), false);
                 assert.equal(fixture.uploads.calls.length, 1);
-                assert.deepEqual(fixture.uploads.calls[0]?.fileFields, ['front', 'back']);
+                assert.deepEqual(fixture.uploads.calls[0]?.fileFields, [
+                    'front',
+                    'back',
+                    'images',
+                ]);
                 assert.equal(fixture.images.conversions.length, 2);
                 assert.equal(fixture.storage.puts.length, 2);
                 assert.equal(fixture.createInputs[0]?.ownerAccountId, ACCOUNT_ID);
@@ -8024,7 +8066,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 );
             });
 
-            test('rejects empty character selections before object writes', async () => {
+            test('accepts a card without selected characters', async () => {
                 const fixture = new OwnerRouteFixture();
                 fixture.uploads.next = {
                     ...cardUpload(),
@@ -8032,13 +8074,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 };
 
                 const response = await postCard(fixture);
-                assert.equal(response.status, 400);
-                assert.equal(
-                    (await contractJson(response, fudabaErrorResponseSchema) as { code: string }).code,
-                    'FUDABA_CARD_INVALID'
+                assert.equal(response.status, 201, await response.text());
+                assert.deepEqual(
+                    fixture.createInputs.at(-1)?.favoriteCharacterIds,
+                    []
                 );
-                assert.equal(fixture.storage.puts.length, 0);
-                assert.equal(fixture.createInputs.length, 0);
             });
 
             test('rejects decoded image type mismatches before object writes', async () => {
@@ -8086,6 +8126,173 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
         // Avatar upload is Platform identity, not Fudaba content; its CAS and
         // object-sweep assertions live in `platform-profile.contract.test.ts`.
+        test('one ordered submit replaces an image and moves another across roles', async () => {
+            const fixture = new OwnerRouteFixture();
+            fixture.images.resizeJpeg = async () => new Uint8Array([0xff, 0xd8]);
+            const base = 'protected/fudaba/cards/owner-card/versions';
+            const live = ownerCard({
+                publication_status: 'published',
+                review_status: null,
+                middle_object_keys: [`${base}/a/middle-1.webp`, `${base}/b/middle-2.webp`]
+            });
+            fixture.cards.set('owner-card', live);
+            fixture.storage.seed(live.middle_object_keys[0]!);
+            fixture.storage.seed(live.middle_object_keys[1]!);
+            fixture.uploads.next = {
+                // The slots are front, middle pages, then the back: keeping the
+                // front, uploading one image, keeping both middle pages and
+                // promoting the second middle page to the back therefore all
+                // happen in this single revision.
+                fields: {
+                    order: JSON.stringify(['#0', '@0', '#1', '#2']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {
+                    images: [uploadedFile('new.png', 'image/png', PNG_BYTES)]
+                }
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            const body = await response.json();
+            assert.equal(response.status, 200, JSON.stringify(body));
+            const uploadedKey = fixture.storage.puts.at(-1)!.key;
+            assert.match(uploadedKey, /\/versions\/[^/]+\/media\.webp$/);
+            const input = fixture.mediaSetInputs.at(-1)!;
+            assert.equal(input.frontObjectKey, live.front_object_key);
+            assert.equal(input.backObjectKey, live.middle_object_keys[1]);
+            assert.deepEqual(input.middleObjectKeys, [
+                uploadedKey,
+                live.middle_object_keys[0]
+            ]);
+            assert.equal(input.accent, null);
+            // The live artwork of a published card is still on display, so
+            // nothing is deleted until a review approves the new set.
+            assert.deepEqual(fixture.storage.deletes, []);
+            assert.equal(fixture.cards.get('owner-card')?.revision,
+                live.revision + 1);
+            assert.equal(JSON.stringify(body).includes('object_key'), false);
+            // Public previews continue to describe the approved live artwork.
+            assert.deepEqual(new Set(fixture.mediaPreviews.keys()), new Set([
+                live.front_object_key,
+                live.back_object_key
+            ]));
+            for (const entry of fixture.mediaPreviews.values()) {
+                assert.match(entry.preview ?? '', /^data:image\/webp;base64,/);
+            }
+            assert.equal(fixture.mediaPreviews.has(uploadedKey), false);
+            assert.equal(
+                fixture.mediaPreviews.has(live.middle_object_keys[1]!),
+                false
+            );
+        });
+
+        test('the ordered submit drops unused artwork and restores previews after reordering retained artwork', async () => {
+            const fixture = new OwnerRouteFixture();
+            fixture.images.resizeJpeg = async () => new Uint8Array([0xff, 0xd8]);
+            const live = fixture.cards.get('owner-card')!;
+            const unrelated = 'protected/fudaba/cards/owner-card/versions/draft/middle-2.webp';
+            fixture.cards.set('owner-card', {
+                ...live,
+                publication_status: 'pending',
+                review_status: null,
+                middle_object_keys: [
+                    'protected/fudaba/cards/owner-card/versions/draft/middle-1.webp',
+                    unrelated
+                ]
+            });
+            fixture.storage.seed(unrelated);
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '@0', '#1', '#2']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {
+                    images: [uploadedFile('new.png', 'image/png', PNG_BYTES)]
+                }
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 200);
+            // Only the old back drops out: the two middle pages stay referenced
+            // and the second one now closes the list as the back.
+            assert.deepEqual(fixture.storage.deletes, [live.back_object_key]);
+            assert.deepEqual(new Set(fixture.mediaPreviews.keys()), new Set([
+                live.front_object_key,
+                unrelated
+            ]));
+
+            // Start with no cached preview, as after database invalidation.
+            // This submit only reorders retained artwork and uploads nothing.
+            fixture.mediaPreviews.clear();
+            const putsBeforeReorder = fixture.storage.puts.length;
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#3', '#2', '#1', '#0']),
+                    expectedRevision: String(live.revision + 1)
+                },
+                files: {}
+            };
+            const reordered = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(reordered.status, 200);
+            assert.equal(fixture.storage.puts.length, putsBeforeReorder);
+            assert.equal(fixture.cards.get('owner-card')?.front_object_key, unrelated);
+            assert.equal(
+                fixture.cards.get('owner-card')?.back_object_key,
+                live.front_object_key
+            );
+            assert.deepEqual(new Set(fixture.mediaPreviews.keys()), new Set([
+                unrelated,
+                live.front_object_key
+            ]));
+            for (const entry of fixture.mediaPreviews.values()) {
+                assert.match(entry.preview ?? '', /^data:image\/webp;base64,/);
+            }
+        });
+
+        test('the ordered submit refuses slots the card does not have', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = fixture.cards.get('owner-card')!;
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '#7']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 400);
+            assert.equal(fixture.mediaSetInputs.length, 0);
+            assert.equal(fixture.storage.puts.length, 0);
+        });
+
+        test('the ordered submit keeps the revision fence', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = fixture.cards.get('owner-card')!;
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '#1']),
+                    expectedRevision: String(live.revision + 5)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 409);
+            assert.equal(fixture.mediaSetInputs.length, 0);
+        });
+
         test('owner card upload rejects an unknown side with compatibility text', async () => {
             const fixture = new OwnerRouteFixture();
             const response = await fixture.app.request(
@@ -8201,7 +8408,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(fixture.cards.get('owner-card')?.publication_status, 'hidden');
             assert.equal(fixture.cards.get('owner-card')?.deleted_at, null);
             assert.equal(fixture.storage.objects.has(current.front_object_key), true);
-            assert.equal(fixture.storage.objects.has(current.back_object_key), true);
+            assert.equal(fixture.storage.objects.has(current.back_object_key!), true);
             assert.equal(fixture.storage.ownedDeletes.length, 0);
             assert.equal((await fixture.app.request(
                 'http://ims.test/api/community/exchange/me/cards/owner-card',
@@ -8297,7 +8504,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
             );
             assert.equal(sideResponse.status, 500);
-            const sideKey = side.mediaInputs[0]!.objectKey;
+            const sideKey = side.mediaInputs[0]!.objectKey!;
             assert.equal(side.cards.get('owner-card')?.back_object_key, sideKey);
             assert.equal(side.storage.objects.has(sideKey), true);
             assert.equal(side.storage.ownedDeletes.length, 0);
@@ -8348,7 +8555,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
             assert.equal(failed.status, 500);
             assert.equal(repositoryFailure.storage.ownedDeletes.length, 0);
-            const uncertainKey = repositoryFailure.mediaInputs[0]!.objectKey;
+            const uncertainKey = repositoryFailure.mediaInputs[0]!.objectKey!;
             assert.equal(repositoryFailure.storage.objects.has(uncertainKey), true);
         });
 
@@ -8607,16 +8814,19 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             id,
             ownerAccountId,
             producerName: `Producer ${ownerAccountId}`,
-            displayName: `Card ${id}`,
-            seriesCode,
-            favoriteCharacter: 'Haruka',
+            seriesCodes: [seriesCode],
             favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
-            accent: '#4f64dd',
             bio: 'Profile',
             tradeNote: 'Available for trade',
-            available: true,
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             createdAt: CREATED_AT,
             updatedAt: CREATED_AT
         };
@@ -8628,9 +8838,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     ): NewFudabaCardInput {
         return {
             ...ownedCard(id, ownerAccountId),
-            sourceUrl: 'https://example.test/source',
-            sourceLabel: 'Imported source',
-            sourceCredit: 'Migration',
             publicationStatus: 'published',
             revision: 0,
             deletedAt: null
@@ -8712,10 +8919,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         await fixture.platform.createAccountWithProfile(account(otherId));
         await fixture.platform.createAccountWithProfile(account(restrictedId, 'restricted'));
 
-        assert.deepEqual(await fixture.fudaba.createCardForOwner({
+        // 担当角色可以留空：建出来的名片不挂任何角色，随后删掉以免影响
+        // 后面的列表断言。
+        const withoutCharacters = await fixture.fudaba.createCardForOwner({
             ...ownedCard(`${fixture.dialect}-empty-characters-card`, ownerId),
             favoriteCharacterIds: []
-        }), { status: 'unavailable' });
+        });
+        assert.equal(withoutCharacters.status, 'saved');
+        if (withoutCharacters.status === 'saved') {
+            assert.deepEqual(withoutCharacters.card.favorite_characters, []);
+        }
+        await fixture.database
+            .prepare('DELETE FROM fudaba_cards WHERE id=?')
+            .bind(`${fixture.dialect}-empty-characters-card`)
+            .run();
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
             ...ownedCard(`${fixture.dialect}-duplicate-characters-card`, ownerId),
             favoriteCharacterIds: [900_001, 900_001]
@@ -8729,13 +8946,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             `${fixture.dialect}-restricted-card`,
             restrictedId
         )), { status: 'unavailable' });
-        await fixture.database.prepare(
-            "UPDATE agencies SET wiki_enabled=FALSE WHERE code='876'"
-        ).run();
+        // Every catalog series is selectable, so only an unknown code is fenced
+        // off; the owner picker and this write path read the same catalog.
         assert.deepEqual(await fixture.fudaba.createCardForOwner(ownedCard(
-            `${fixture.dialect}-disabled-series-card`,
+            `${fixture.dialect}-unknown-series-card`,
             ownerId,
-            '876'
+            'no-such-series'
         )), { status: 'unavailable' });
 
         const cardId = `${fixture.dialect}-owned-card`;
@@ -8745,8 +8961,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         assert.equal(created.card.owner_account_id, ownerId);
         assert.equal(created.card.publication_status, 'pending');
         assert.equal(created.card.revision, 0);
-        assert.equal(created.card.source_url, null);
-        assert.equal(created.card.favorite_character, '测试春香');
         assert.deepEqual(
             created.card.favorite_characters.map((character) => character.character_id),
             [900_001]
@@ -8764,14 +8978,17 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             cardId,
             ownerAccountId: otherId,
             producerName: 'Intruder',
-            displayName: 'Intruder',
-            seriesCode: '765',
-            favoriteCharacter: '',
+            seriesCodes: ['765'],
             favoriteCharacterIds: [900_001],
-            accent: '#ffffff',
             bio: '',
             tradeNote: '',
-            available: false,
+            exchangeMode: 'none',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             expectedRevision: 0,
             updatedAt: UPDATED_AT
         }), { status: 'unavailable' });
@@ -8783,31 +9000,33 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
          SET publication_status='pending'
          WHERE id=?`
         ).bind(cardId).run();
-        await fixture.database.prepare(
-            "UPDATE agencies SET wiki_enabled=FALSE WHERE code='cg'"
-        ).run();
-        const metadataInput = {
+        const metadataInput: UpdateOwnedFudabaCardMetadataInput = {
             cardId,
             ownerAccountId: ownerId,
             producerName: 'Updated Producer',
-            displayName: 'Updated Card',
-            seriesCode: 'cg',
-            favoriteCharacter: 'Uzuki',
+            seriesCodes: ['cg'],
             favoriteCharacterIds: [900_001, 900_002] as number[],
-            accent: '#ef5b6c',
             bio: 'Updated bio',
             tradeNote: 'Updated note',
-            available: false,
+            exchangeMode: 'none',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             expectedRevision: 0,
             updatedAt: UPDATED_AT
-        } as const;
+        };
+        // Series membership is the catalog row itself: only an unknown code is
+        // fenced off, matching what the owner picker offers.
         assert.deepEqual(
-            await fixture.fudaba.updateCardMetadataForOwner(metadataInput),
+            await fixture.fudaba.updateCardMetadataForOwner({
+                ...metadataInput,
+                seriesCodes: ['no-such-series']
+            }),
             { status: 'unavailable' }
         );
-        await fixture.database.prepare(
-            "UPDATE agencies SET wiki_enabled=TRUE WHERE code='cg'"
-        ).run();
 
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
@@ -8822,8 +9041,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         assert.equal(metadataSaved.status, 'saved');
         if (metadataSaved.status !== 'saved') return;
         assert.equal(metadataSaved.card.revision, 1);
-        assert.equal(metadataSaved.card.series_code, 'cg');
-        assert.equal(metadataSaved.card.favorite_character, '测试春香、测试卯月');
+        assert.deepEqual(metadataSaved.card.series_codes, ['cg']);
         assert.deepEqual(
             metadataSaved.card.favorite_characters.map((character) => ({
                 id: character.character_id,
@@ -8837,7 +9055,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         assert.equal(metadataSaved.card.publication_status, 'pending');
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
-            displayName: 'Stale update',
+            bio: 'Stale update',
             updatedAt: MEDIA_UPDATED_AT
         }), { status: 'conflict', revision: 1 });
 
@@ -8947,28 +9165,32 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         const cardId = `${fixture.dialect}-cas-card`;
         const created = await fixture.fudaba.createCardForOwner(ownedCard(cardId, accountId));
         assert.equal(created.status, 'saved');
-        const baseUpdate = {
+        const baseUpdate: UpdateOwnedFudabaCardMetadataInput = {
             cardId,
             ownerAccountId: accountId,
             producerName: 'CAS Producer',
-            seriesCode: '765',
-            favoriteCharacter: '',
-            favoriteCharacterIds: [900_001] as number[],
-            accent: '#4f64dd',
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001],
             bio: '',
             tradeNote: '',
-            available: true,
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             expectedRevision: 0,
             updatedAt: UPDATED_AT
-        } as const;
+        };
         const cardResults = await Promise.all([
             fixture.fudaba.updateCardMetadataForOwner({
                 ...baseUpdate,
-                displayName: 'First card writer'
+                producerName: 'First card writer'
             }),
             siblingFudaba.updateCardMetadataForOwner({
                 ...baseUpdate,
-                displayName: 'Second card writer'
+                producerName: 'Second card writer'
             })
         ]);
         assert.deepEqual(
@@ -8986,6 +9208,238 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             await assertProfileWrites(fixture);
             await assertCardWrites(fixture);
             await assertCrossInstanceCas(fixture);
+        });
+
+        postgresTest('real PostgreSQL commits one ordered media set per submit', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-media-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-media-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+
+            const media = (name: string): string => `community/fudaba/cards/${cardId}/${name}.webp`;
+            const postgres = fixture.database as PostgresConnection;
+
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('a'),
+                backObjectKey: null,
+                middleObjectKeys: [],
+                accent: '#112233',
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            assert.equal(first.card.front_object_key, media('a'));
+            assert.equal(first.card.back_object_key, null);
+            assert.equal(first.card.accent, '#112233');
+            assert.deepEqual(first.previousObjectKeys, [
+                created.card.front_object_key,
+                created.card.back_object_key
+            ]);
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT accent_source FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { accent_source: 'image' }
+            );
+
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            const staged = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('b'),
+                backObjectKey: media('c'),
+                middleObjectKeys: [media('d')],
+                accent: null,
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            // A published card only stages the new set: the public surface keeps
+            // the live images until a review approves the submission.
+            assert.equal(staged.card.front_object_key, media('a'));
+            assert.equal(staged.card.back_object_key, null);
+            assert.equal(staged.card.pending_front_object_key, media('b'));
+            assert.equal(staged.card.pending_back_object_key, media('c'));
+            assert.deepEqual(staged.card.pending_middle_object_keys, [media('d')]);
+            assert.equal(staged.card.review_status, 'pending');
+            assert.equal(staged.card.accent, '#112233');
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT pending_payload IS NOT NULL AS seeded FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { seeded: true }
+            );
+
+            const stale = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: media('e'),
+                backObjectKey: null,
+                middleObjectKeys: [],
+                accent: null,
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(stale.status, 'conflict');
+        });
+
+        postgresTest(
+            'real PostgreSQL publishes the exempt edits without a review',
+            async () => {
+                const fixture = await createFixture('postgresql');
+                const ownerId = 'postgresql-exempt-owner';
+                await fixture.platform.createAccountWithProfile(account(ownerId));
+                const cardId = 'postgresql-exempt-card';
+                const created = await fixture.fudaba.createCardForOwner(
+                    ownedCard(cardId, ownerId)
+                );
+                assert.equal(created.status, 'saved');
+                if (created.status !== 'saved') return;
+                const postgres = fixture.database as PostgresConnection;
+                await postgres.pool.query(
+                    "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                    [cardId]
+                );
+                const draft = ownedCard(cardId, ownerId);
+                // Reading, series, credits, dates and flags publish immediately.
+                const exempt = await fixture.fudaba.updateCardMetadataForOwner({
+                    cardId,
+                    ownerAccountId: ownerId,
+                    producerName: draft.producerName,
+                    seriesCodes: ['765', 'cg'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    bio: draft.bio,
+                    tradeNote: draft.tradeNote,
+                    exchangeMode: 'auto',
+                    madeOn: '2024-05',
+                    groupName: 'Group',
+                    producerReading: 'ぷろでゅーさー',
+                    isOriginal: false,
+                    madeWithAi: true,
+                    visible: true,
+                    credits: [
+                        {
+                            accountId: null,
+                            displayName: 'Illustrator',
+                            url: null,
+                            roles: ['illustration']
+                        }
+                    ],
+                    expectedRevision: created.card.revision,
+                    updatedAt: MEDIA_UPDATED_AT
+                });
+                assert.equal(exempt.status, 'saved');
+                if (exempt.status !== 'saved') return;
+                assert.equal(exempt.card.publication_status, 'published');
+                assert.equal(exempt.card.review_status ?? null, null);
+                assert.equal(exempt.card.producer_reading, 'ぷろでゅーさー');
+                assert.equal(exempt.card.made_on, '2024-05');
+                assert.deepEqual(exempt.card.series_codes, ['765', 'cg']);
+                assert.deepEqual(
+                    exempt.card.credits.map((credit) => credit.displayName),
+                    ['Illustrator']
+                );
+                // A bio edit is content, so it parks in the review queue instead.
+                const staged = await fixture.fudaba.updateCardMetadataForOwner({
+                    ...draft,
+                    cardId,
+                    ownerAccountId: ownerId,
+                    seriesCodes: ['765', 'cg'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    exchangeMode: 'auto',
+                    madeOn: '2024-05',
+                    groupName: 'Group',
+                    producerReading: 'ぷろでゅーさー',
+                    madeWithAi: true,
+                    bio: 'Rewritten profile',
+                    expectedRevision: exempt.card.revision,
+                    updatedAt: MEDIA_UPDATED_AT
+                });
+                assert.equal(staged.status, 'saved');
+                if (staged.status !== 'saved') return;
+                assert.equal(staged.card.review_status, 'pending');
+                assert.equal(staged.card.bio, draft.bio);
+            }
+        );
+
+        postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-staged-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-staged-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const middleKeys = [
+                `community/fudaba/cards/${cardId}/middle-1.webp`,
+                `community/fudaba/cards/${cardId}/middle-2.webp`
+            ];
+            const media = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: created.card.front_object_key,
+                backObjectKey: created.card.back_object_key,
+                middleObjectKeys: middleKeys,
+                accent: null,
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(media.status, 'saved');
+            if (media.status !== 'saved') return;
+
+            const postgres = fixture.database as PostgresConnection;
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            const draft = ownedCard(cardId, ownerId);
+            const staged = await fixture.fudaba.updateCardMetadataForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                producerName: 'Renamed producer',
+                seriesCodes: draft.seriesCodes,
+                favoriteCharacterIds: draft.favoriteCharacterIds,
+                bio: draft.bio,
+                tradeNote: draft.tradeNote,
+                exchangeMode: draft.exchangeMode,
+                madeOn: draft.madeOn,
+                groupName: draft.groupName,
+                producerReading: draft.producerReading,
+                isOriginal: draft.isOriginal,
+                madeWithAi: draft.madeWithAi,
+                visible: draft.visible,
+                credits: draft.credits,
+                expectedRevision: media.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            assert.equal(staged.card.review_status, 'pending');
+            // A metadata-only revision still carries the reviewed middle pages,
+            // so approving it cannot silently drop them.
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT pending_middle_object_keys AS keys FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { keys: middleKeys }
+            );
         });
     });
 }
@@ -9062,19 +9516,19 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             id,
             ownerAccountId: "owner",
             producerName: `Producer ${id}`,
-            displayName: `Card ${id}`,
-            seriesCode: "765",
-            favoriteCharacter: "Haruka",
+            seriesCodes: ["765"],
             favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
-            accent: "#4f64dd",
             bio: `Bio ${id}`,
             tradeNote: `Trade ${id}`,
-            available: true,
-            sourceUrl: "https://example.test/source",
-            sourceLabel: "Source",
-            sourceCredit: "Creator",
+            exchangeMode: "manual",
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
             publicationStatus: "published",
             revision: 0,
             createdAt: CARD_OLD_AT,
@@ -9349,12 +9803,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             card("card-z-new", { createdAt: CARD_NEW_AT, updatedAt: CARD_NEW_AT }),
             card("card-y-new", { createdAt: CARD_NEW_AT, updatedAt: CARD_NEW_AT }),
             card("card-unavailable", {
-                available: false,
+                exchangeMode: "none",
                 createdAt: CARD_OLD_AT,
                 updatedAt: CARD_OLD_AT,
             }),
             card("card-cinderella-old", {
-                seriesCode: "cg",
+                seriesCodes: ["cg"],
                 createdAt: CARD_OLDEST_AT,
                 updatedAt: CARD_OLDEST_AT,
             }),
@@ -9378,7 +9832,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 updatedAt: CARD_OLDEST_AT,
             }),
             card("card-disabled-series", {
-                seriesCode: "sidem",
+                seriesCodes: ["sidem"],
                 createdAt: CARD_OLDEST_AT,
                 updatedAt: CARD_OLDEST_AT,
             }),
@@ -9587,7 +10041,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             await fixture.repository
                 .listPublicCards({
                     seriesCodes: ["765"],
-                    available: true,
+                    exchangeable: true,
                     officeSlug: "office-b-open",
                     viewerAccountId: "viewer",
                     limit: 10,
@@ -9634,7 +10088,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         assert.deepEqual(
             await fixture.repository
                 .listPublicCards({
-                    available: false,
+                    exchangeable: false,
                     viewerAccountId: null,
                     limit: 10,
                 })
@@ -9824,19 +10278,22 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         return {
             id: "card-a",
             producer_name: "Producer A",
-            display_name: "Card A",
-            series_code: "765",
-            favorite_character: "Haruka",
+            series_codes: ["765"],
             favorite_characters: [],
             front_object_key: "public/cards/card-a/front.webp",
+            middle_object_keys: [],
             back_object_key: "public/cards/card-a/back.webp",
             accent: "#4f64dd",
             bio: "Public bio",
             trade_note: "Trade note",
-            available: true,
-            source_url: null,
-            source_label: null,
-            source_credit: null,
+            exchange_mode: "manual",
+            made_on: null,
+            group_name: null,
+            producer_reading: null,
+            is_original: false,
+            made_with_ai: false,
+            visible: true,
+            credits: [],
             created_at: CREATED_AT,
             like_count: 2,
             favorite_count: 1,

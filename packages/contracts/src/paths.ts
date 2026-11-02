@@ -42,6 +42,22 @@ export const iconPath = (suffix = ""): string =>
 export const cssPath = (suffix = ""): string =>
   appendPath(CSS_PATH_PREFIX, suffix)
 
+/** Artwork routes: the public wall reads published pages, moderators read both. */
+export function namecardMediaPath(
+  cardNumber: string | number,
+  side: string,
+): string {
+  return apiPath(`cards/${cardNumber}/media/${side}`)
+}
+
+export function adminNamecardMediaPath(
+  cardNumber: string | number,
+  variant: "live" | "draft",
+  side: string,
+): string {
+  return adminApiPath(`cards/${cardNumber}/media/${variant}/${side}`)
+}
+
 export function apiPath(suffix = ""): string {
   return appendPath(API_PATH_PREFIX, suffix)
 }

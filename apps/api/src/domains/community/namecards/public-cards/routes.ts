@@ -1,12 +1,15 @@
 import { handleGetNamecard } from "@/domains/community/namecards/public-cards/handlers/get-namecard";
 import { handleListNamecards } from "@/domains/community/namecards/public-cards/handlers/list-namecards";
+import { handleServePublicCardMedia } from "@/domains/community/namecards/public-cards/handlers/serve-card-media";
 import {
     validateCompatibleNamecardIdParams,
     validateNamecardListQuery,
+    validateNamecardMediaParams,
 } from "@/domains/community/namecards/request";
 import {
     compatibleNamecardIdParamsSchema,
     namecardListQuerySchema,
+    namecardMediaParamsSchema,
 } from "@imsweb/contracts/namecards";
 import { optionalPlatformAuth } from "@/middleware/hono-auth";
 import { paramSchemaValidator, querySchemaValidator } from "@/middleware/request-validation";
@@ -22,6 +25,13 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         querySchemaValidator(namecardListQuerySchema, { invalidMessage: "名片分页参数无效" }, validateNamecardListQuery),
         handleListNamecards,
+    );
+    // Wall artwork addresses middle pages by card number: the editor's object
+    // layout has no reversible public path.
+    routes.get(
+        "/cards/:id/media/:side",
+        paramSchemaValidator(namecardMediaParamsSchema, { invalidMessage: "名片 ID 无效" }, validateNamecardMediaParams),
+        handleServePublicCardMedia,
     );
     routes.get(
         "/card/:id",

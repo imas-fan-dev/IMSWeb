@@ -1,5 +1,12 @@
-import { adminExchangePath } from '@imsweb/contracts/paths';
-import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba/runtime';
+import {
+    adminExchangePath,
+    adminNamecardMediaPath,
+    namecardMediaPath
+} from '@imsweb/contracts/paths';
+import {
+    NAMECARD_ACCENT_FALLBACK,
+    NAMECARD_FAVORITE_CHARACTER_LIMIT,
+} from '@imsweb/contracts/fudaba/runtime';
 import {
     insertNamecardNotification,
     SqlNamecardNotificationRepository
@@ -15,11 +22,14 @@ import {
 import type {
     CardFavoriteSelectionRecord,
     CardMediaRecord,
+    FudabaCardCredit,
     NamecardRepository,
     NamecardApprovalClaim,
     NamecardEditResult,
     NamecardMutationResult,
     NamecardAdminFilter,
+    NamecardDiffRecord,
+    NamecardDiffSide,
     NamecardPublicRecord,
     NamecardSubmissionKind,
     NamecardSubmissionRecord,
@@ -36,6 +46,10 @@ import {
     namecardOriginalUrlFromObjectKey,
     publicMediaObjectKey
 } from '@/utils/storage/business-object-keys';
+import {
+    NAMECARD_COMPAT_ORIGIN,
+    NAMECARD_PUBLIC_ORIGIN
+} from '@/infra/db/repositories/namecard-origins';
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
 
@@ -47,22 +61,14 @@ type NamecardFavoriteRow = {
     display_order: number | string;
 };
 
-// The legacy/guest compatibility surface (numeric card_number ids) only ever
-// covers rows unified from the anonymous namecard flow; exchange-owned cards
-// keep their own TEXT-id routes through the Fudaba domain.
-const NAMECARD_COMPAT_ORIGIN = "origin IN ('guest', 'legacy')";
-// The public wall serves anonymous submissions plus any card whose media has
-// been copied into the canonical namecard layout -- which approval does for
-// registered-user uploads. Rows that still point at the Fudaba layout are kept
-// out so the public thumbnail reversal never sees a key it cannot read.
-const NAMECARD_PUBLIC_ORIGIN =
-    "(origin IN ('guest', 'legacy') OR front_object_key LIKE 'community/namecards/assets/%')";
 
 const NAMECARD_COLUMNS = `id AS internal_id, card_number, front_object_key,
-    back_object_key, publication_status, revision, series_code, origin,
-    display_name, producer_name, lock_reason, created_at, review_status,
-    review_reason, pending_payload, pending_front_object_key,
-    pending_back_object_key`;
+    back_object_key, publication_status, revision, origin,
+    producer_name, producer_reading, group_name, made_on, lock_reason, created_at,
+    review_status, review_reason, pending_payload, pending_front_object_key,
+    pending_middle_object_keys, pending_back_object_key,
+    bio, trade_note, is_original, made_with_ai, exchange_mode, accent,
+    owner_account_id`;
 
 function namecardAdminWhere(
     filter?: NamecardAdminFilter
@@ -98,7 +104,7 @@ function namecardAdminWhere(
     if (filter !== undefined && filter.query !== null && filter.query !== '') {
         const pattern = `%${filter.query.replace(/[\\%_]/g, '\\$&')}%`;
         clauses.push(
-            "(COALESCE(display_name, '') ILIKE ? ESCAPE '\\' OR COALESCE(producer_name, '') ILIKE ? ESCAPE '\\')"
+            "(COALESCE(producer_name, '') ILIKE ? ESCAPE '\\' OR COALESCE(producer_reading, '') ILIKE ? ESCAPE '\\')"
         );
         values.push(pattern, pattern);
     }
@@ -109,18 +115,29 @@ type NamecardCardRow = {
     internal_id: string;
     card_number: number | string;
     front_object_key: string;
-    back_object_key: string;
+    back_object_key: string | null;
     publication_status: string;
     revision: number | string;
     series_code: string | null;
     origin: string;
-    display_name?: string | null;
     producer_name?: string | null;
+    producer_reading?: string | null;
+    group_name?: string | null;
+    made_on?: string | null;
     lock_reason?: string | null;
     review_status?: string | null;
     review_reason?: string | null;
     pending_payload?: unknown;
     pending_front_object_key?: string | null;
+    pending_middle_object_keys?: string[] | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    is_original?: boolean | null;
+    made_with_ai?: boolean | null;
+    visible?: boolean | null;
+    exchange_mode?: string | null;
+    accent?: string | null;
+    owner_account_id?: string | null;
     pending_back_object_key?: string | null;
     created_at: string | Date | null;
 };
@@ -128,9 +145,18 @@ type NamecardCardRow = {
 // A revision waiting for review keeps the live columns untouched; reviewers and
 // the owner both read the submitted copy through this projection instead.
 type NamecardPendingPayload = {
-    display_name?: string | null;
     producer_name?: string | null;
-    series_code?: string | null;
+    producer_reading?: string | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    credits?: FudabaCardCredit[];
+    series_codes?: string[];
+    group_name?: string | null;
+    made_on?: string | null;
+    is_original?: boolean;
+    made_with_ai?: boolean;
+    visible?: boolean;
+    exchange_mode?: string;
     favorite_character_ids?: number[];
 };
 
@@ -292,24 +318,68 @@ export class SqlCoreRepository implements NamecardRepository {
         return grouped;
     }
 
-    private namecardRecordFromRow(row: NamecardCardRow): NamecardSubmissionRow {
+    /**
+     * Artwork URLs are derived from the object key when the layout is
+     * reversible. Editor uploads and older imports are not, so those pages are
+     * served through the card media routes instead of failing the whole list.
+     */
+    private namecardMediaUrl(
+        row: NamecardCardRow,
+        key: string | null,
+        side: 'front' | 'back',
+        content: 'live' | 'submission'
+    ): string | null {
+        if (key === null) return null;
+        try {
+            return row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
+                ? exchangeReviewMediaUrl(key, side)
+                : namecardOriginalUrlFromObjectKey(key);
+        } catch {
+            const variant = row.review_status === 'pending' ? 'draft' : 'live';
+            const cardNumber = Number(row.card_number);
+            return content === 'submission'
+                ? adminNamecardMediaPath(cardNumber, variant, side)
+                : namecardMediaPath(cardNumber, side);
+        }
+    }
+
+    private namecardRecordFromRow(
+        row: NamecardCardRow,
+        /** `live` serves the published copy; `submission` serves the queue. */
+        content: 'live' | 'submission' = 'submission'
+    ): NamecardSubmissionRow {
         // Exchange rows keep the Fudaba object layout until approval copies the
         // images into the canonical namecard layout, so pending ones are served
         // through the authenticated moderation media route. Once the canonical
         // key is written, the regular reversal applies and the row behaves like
         // any other namecard.
-        const media = (key: string, side: 'front' | 'back'): string =>
-            row.origin === 'exchange' && !key.startsWith('community/namecards/assets/')
-                ? exchangeReviewMediaUrl(key, side)
-                : namecardOriginalUrlFromObjectKey(key);
-        const staged = row.review_status === 'pending';
+        const media = (key: string | null, side: 'front' | 'back'): string | null =>
+            this.namecardMediaUrl(row, key, side, content);
+        const staged = content === 'submission' && row.review_status === 'pending';
         const payload = staged ? pendingNamecardPayload(row.pending_payload) : null;
         return {
             id: Number(row.card_number),
+            cardId: row.internal_id,
+            card_number: Number(row.card_number),
+            producer_name: row.producer_name ?? null,
+            producer_reading: row.producer_reading ?? null,
+            group_name: row.group_name ?? null,
+            made_on: row.made_on ?? null,
+            bio: row.bio ?? null,
+            trade_note: row.trade_note ?? null,
+            is_original: row.is_original ?? false,
+            made_with_ai: row.made_with_ai ?? false,
+            exchange_mode: row.exchange_mode === 'auto' || row.exchange_mode === 'manual'
+                ? row.exchange_mode
+                : 'none',
+            accent: row.accent ?? null,
+            owner_account_id: row.owner_account_id ?? null,
+            // The front image is NOT NULL in the schema, so this never degrades
+            // to null the way the optional back image can.
             image1_url: media(
                 (staged ? row.pending_front_object_key : null) ?? row.front_object_key,
                 'front'
-            ),
+            ) as string,
             image2_url: media(
                 (staged ? row.pending_back_object_key : null) ?? row.back_object_key,
                 'back'
@@ -319,7 +389,7 @@ export class SqlCoreRepository implements NamecardRepository {
             // affected by how the queue labels the card.
             status: staged ? 'pending' : toLegacyNamecardStatus(row.publication_status),
             revision: Number(row.revision),
-            series_code: payload?.series_code ?? row.series_code,
+            series_code: payload?.series_codes?.[0] ?? null,
             submission_kind: row.origin === 'guest' ? 'guest' : 'legacy',
             lockReason: row.lock_reason ?? null,
             reviewStatus: staged ? 'pending' : toNamecardReviewStatus(row.review_status),
@@ -328,29 +398,136 @@ export class SqlCoreRepository implements NamecardRepository {
         };
     }
 
+    /** Series live in their own table now; the queue only needs the first one. */
+    private async listNamecardSeries(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, string[]>> {
+        const grouped = new Map<string, string[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await (database.prepare(
+            `SELECT card_id, series_code FROM public.fudaba_card_series
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{ card_id: string; series_code: string }>());
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push(row.series_code);
+        }
+        return grouped;
+    }
+
     private async attachNamecardFavorites(
         database: SqlDatabase,
-        rows: readonly NamecardCardRow[]
+        rows: readonly NamecardCardRow[],
+        content: 'live' | 'submission' = 'submission'
     ): Promise<Array<NamecardSubmissionRow & { favorite_characters: CardFavoriteSelectionRecord[] }>> {
-        const characters = await this.listNamecardFavorites(database, rows.map((row) => row.internal_id));
+        const ids = rows.map((row) => row.internal_id);
+        const characters = await this.listNamecardFavorites(database, ids);
+        const series = await this.listNamecardSeries(database, ids);
+        const credits = await this.listNamecardCredits(database, ids);
+        const middle = await this.listNamecardMiddleMedia(database, ids);
         return rows.map((row) => {
             const favoriteCharacters = characters.get(row.internal_id) ?? [];
-            const record = this.namecardRecordFromRow(row);
+            const record = this.namecardRecordFromRow(row, content);
             const payload =
-                row.review_status === 'pending'
+                content === 'submission' && row.review_status === 'pending'
                     ? pendingNamecardPayload(row.pending_payload)
                     : null;
+            const seriesCodes = series.get(row.internal_id) ?? [];
             return {
                 ...record,
                 origin: row.origin,
-                display_name: payload?.display_name ?? row.display_name ?? null,
                 producer_name: payload?.producer_name ?? row.producer_name ?? null,
                 favorite_characters: favoriteCharacters,
-                seriesCode: record.series_code ?? null,
+                seriesCode: seriesCodes[0] ?? record.series_code ?? null,
+                series_codes: seriesCodes,
+                credits: credits.get(row.internal_id) ?? [],
+                middle_image_urls: this.namecardMiddleUrls(
+                    row,
+                    middle.get(row.internal_id) ?? [],
+                    content
+                ),
                 submissionKind: record.submission_kind ?? 'legacy',
                 favoriteCharacters
             };
         });
+    }
+
+    /** Ordered middle page object keys of the published copy. */
+    private async listNamecardMiddleMedia(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, string[]>> {
+        const grouped = new Map<string, string[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await database.prepare(
+            `SELECT card_id, object_key FROM public.fudaba_card_media
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{ card_id: string; object_key: string }>();
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push(row.object_key);
+        }
+        return grouped;
+    }
+
+    /**
+     * Middle pages always travel through the card media route: the editor
+     * layout has no reversible public path, and the queue must see the pages of
+     * the revision under review.
+     */
+    private namecardMiddleUrls(
+        row: NamecardCardRow,
+        keys: readonly string[],
+        content: 'live' | 'submission'
+    ): string[] {
+        const staged =
+            content === 'submission' &&
+            row.review_status === 'pending' &&
+            (row.pending_middle_object_keys?.length ?? 0) > 0;
+        const effective = staged ? row.pending_middle_object_keys! : keys;
+        const variant = staged ? 'draft' : 'live';
+        const cardNumber = Number(row.card_number);
+        return effective.map((_key, index) =>
+            content === 'submission'
+                ? adminNamecardMediaPath(cardNumber, variant, `middle-${index + 1}`)
+                : namecardMediaPath(cardNumber, `middle-${index + 1}`)
+        );
+    }
+
+    private async listNamecardCredits(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, FudabaCardCredit[]>> {
+        const grouped = new Map<string, FudabaCardCredit[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const result = await database.prepare(
+            `SELECT card_id, account_id, display_name, url, roles
+             FROM public.fudaba_card_credits
+             WHERE card_id IN (${placeholders})
+             ORDER BY card_id, display_order`
+        ).bind(...cardIds).all<{
+            card_id: string;
+            account_id: string | null;
+            display_name: string;
+            url: string | null;
+            roles: string[];
+        }>();
+        for (const row of result.results) {
+            grouped.get(row.card_id)?.push({
+                accountId: row.account_id,
+                displayName: row.display_name,
+                url: row.url,
+                roles: row.roles as FudabaCardCredit['roles']
+            });
+        }
+        return grouped;
     }
 
     private async attachOneNamecard(
@@ -366,7 +543,10 @@ export class SqlCoreRepository implements NamecardRepository {
         const characterIds = input.characterIds ?? [];
         const idPrefix = submissionKind === 'legacy' ? 'legacy' : 'guest';
         const frontKey = publicMediaObjectKey(input.image1Url);
-        const backKey = publicMediaObjectKey(input.image2Url);
+        const backKey =
+            input.image2Url === null || input.image2Url === ''
+                ? null
+                : publicMediaObjectKey(input.image2Url);
         return this.database.transaction(async (database) => {
             const characters = await this.validateNamecardSelection(
                 database,
@@ -380,21 +560,19 @@ export class SqlCoreRepository implements NamecardRepository {
                      SELECT nextval('public.namecard_number_seq') AS card_number
                  )
                  INSERT INTO fudaba_cards
-                    (id, card_number, origin, series_code, producer_name,
-                     display_name, front_object_key, back_object_key, accent,
-                     bio, trade_note, available,
-                     publication_status, revision, created_at, updated_at)
+                    (id, card_number, origin, producer_name,
+                     front_object_key, back_object_key, accent, bio, trade_note,
+                     exchange_mode, publication_status, revision,
+                     created_at, updated_at)
                  SELECT ? || '-' || allocated.card_number::text, allocated.card_number,
-                        ?, ?, ?, ?, ?, ?, ?, ?, NULL, FALSE, 'pending',
-                        0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        ?, ?, ?, ?, COALESCE(?, '#4f64dd'), ?, NULL,
+                        'none', 'pending', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                  FROM allocated
                  RETURNING id, card_number`,
                 [
                     idPrefix,
                     idPrefix,
-                    input.seriesCode ?? null,
                     input.producerName ?? null,
-                    input.displayName ?? null,
                     frontKey,
                     backKey,
                     input.accent ?? null,
@@ -402,6 +580,16 @@ export class SqlCoreRepository implements NamecardRepository {
                 ]
             );
             if (!created) throw new Error('Card insert did not return an ID');
+            // Guest cards keep their single series in the shared set table.
+            if (input.seriesCode) {
+                await executeSql(database,
+                    `INSERT INTO public.fudaba_card_series
+                        (card_id, series_code, display_order)
+                     VALUES (?, ?, 1)
+                     ON CONFLICT (card_id, series_code) DO NOTHING`,
+                    [created.id, input.seriesCode]
+                );
+            }
             if (characters.length) {
                 await database.batch(characters.map((character) => database.prepare(
                     `INSERT INTO fudaba_card_favorite_characters (card_id, character_id, display_order)
@@ -470,7 +658,12 @@ export class SqlCoreRepository implements NamecardRepository {
              ORDER BY card_number DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
-        return await this.attachNamecardFavorites(this.database, rows) as NamecardPublicRecord[];
+        // The wall publishes the live copy; a pending revision stays queued.
+        return await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        ) as NamecardPublicRecord[];
     }
 
     async findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
@@ -503,6 +696,226 @@ export class SqlCoreRepository implements NamecardRepository {
             [...where.values, limit, offset]
         );
         return this.attachNamecardFavorites(this.database, rows);
+    }
+
+    /**
+     * Both sides of the review queue: the published copy the wall serves and
+     * the revision waiting for a verdict. The public read path never needs
+     * this, so it stays a separate query instead of widening every list row.
+     */
+    async findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null> {
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND deleted_at IS NULL`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const cardId = row.internal_id;
+        const [favorites, series, credits, middleKeys] = await Promise.all([
+            this.listNamecardFavorites(this.database, [cardId]),
+            this.listNamecardSeries(this.database, [cardId]),
+            this.listNamecardCredits(this.database, [cardId]),
+            this.listMiddleKeys(cardId)
+        ]);
+        const live: NamecardDiffSide = {
+            producerName: row.producer_name ?? null,
+            producerReading: row.producer_reading ?? null,
+            groupName: row.group_name ?? null,
+            madeOn: row.made_on ?? null,
+            bio: row.bio ?? null,
+            tradeNote: row.trade_note ?? null,
+            isOriginal: row.is_original === true,
+            madeWithAi: row.made_with_ai === true,
+            visible: row.visible === true,
+            exchangeMode: this.exchangeMode(row.exchange_mode),
+            seriesCodes: series.get(cardId) ?? [],
+            credits: credits.get(cardId) ?? [],
+            favoriteCharacters: favorites.get(cardId) ?? [],
+            frontImageUrl: this.adminMediaUrl(cardNumber, 'front'),
+            backImageUrl: row.back_object_key
+                ? this.adminMediaUrl(cardNumber, 'back')
+                : null,
+            middleImageUrls: middleKeys.map((_key, index) =>
+                this.adminMediaUrl(cardNumber, `middle-${index + 1}`)
+            )
+        };
+        const payload = row.review_status === 'pending'
+            ? pendingNamecardPayload(row.pending_payload)
+            : null;
+        return {
+            id: Number(row.card_number),
+            status: toLegacyNamecardStatus(row.publication_status),
+            reviewStatus: row.review_status === 'pending' || row.review_status === 'rejected' || row.review_status === 'locked'
+                ? row.review_status
+                : null,
+            live,
+            pending: payload
+                ? await this.pendingDiffSide(row, payload, live, middleKeys)
+                : null
+        };
+    }
+
+    /**
+     * Moderators read artwork through the admin media route: the stored keys of
+     * a submitted revision have no public URL to reverse.
+     */
+    private adminMediaUrl(cardNumber: number, side: string, draft = false): string {
+        return adminNamecardMediaPath(cardNumber, draft ? 'draft' : 'live', side);
+    }
+
+    /** Live middle-page keys in display order. */
+    private async listMiddleKeys(cardId: string): Promise<string[]> {
+        const stored = await queryAll<{ object_key: string }>(this.database,
+            `SELECT object_key FROM public.fudaba_card_media
+             WHERE card_id=? ORDER BY display_order`,
+            [cardId]
+        );
+        return stored.map((row) => row.object_key);
+    }
+
+    /** The object key behind one page of a card's artwork. */
+    findCardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean
+    ): Promise<string | null> {
+        return this.cardMediaKey(cardNumber, side, draft, false);
+    }
+
+    /** The same key, but only for a card the wall may show publicly. */
+    findPublishedCardMediaKey(
+        cardNumber: number,
+        side: string
+    ): Promise<string | null> {
+        return this.cardMediaKey(cardNumber, side, false, true);
+    }
+
+    private async cardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean,
+        publishedOnly: boolean
+    ): Promise<string | null> {
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND deleted_at IS NULL${
+                publishedOnly ? " AND publication_status='published'" : ''
+             }`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const middle = /^middle-(\d{1,2})$/.exec(side);
+        if (side === 'front') {
+            return ((draft ? row.pending_front_object_key : null) ?? row.front_object_key) ?? null;
+        }
+        if (side === 'back') {
+            return ((draft ? row.pending_back_object_key : null) ?? row.back_object_key) ?? null;
+        }
+        if (!middle) return null;
+        if (draft && row.pending_middle_object_keys?.length) {
+            return row.pending_middle_object_keys[Number(middle[1]) - 1] ?? null;
+        }
+        const keys = await this.listMiddleKeys(row.internal_id);
+        return keys[Number(middle[1]) - 1] ?? null;
+    }
+
+    private exchangeMode(value: unknown): 'auto' | 'manual' | 'none' {
+        return value === 'auto' || value === 'manual' ? value : 'none';
+    }
+
+    private async pendingDiffSide(
+        row: NamecardCardRow,
+        payload: NamecardPendingPayload,
+        live: NamecardDiffSide,
+        liveMiddleKeys: string[]
+    ): Promise<NamecardDiffSide> {
+        const ids = payload.favorite_character_ids ?? [];
+        const cardNumber = Number(row.card_number);
+        const frontKey = row.pending_front_object_key ?? row.front_object_key;
+        const backKey = row.pending_back_object_key ?? row.back_object_key;
+        const middleKeys =
+            row.pending_middle_object_keys?.length
+                ? row.pending_middle_object_keys
+                : liveMiddleKeys;
+        // A page that kept its object keeps the live URL, so the diff compares
+        // equal strings and does not report an untouched image as changed.
+        const pageUrl = (
+            key: string | null,
+            liveKey: string | null,
+            liveUrl: string,
+            side: string
+        ) =>
+            key === null
+                ? null
+                : key === liveKey
+                  ? liveUrl
+                  : this.adminMediaUrl(cardNumber, side, true);
+        return {
+            producerName: payload.producer_name ?? row.producer_name ?? null,
+            producerReading: this.payloadText(payload, 'producer_reading', row.producer_reading),
+            groupName: this.payloadText(payload, 'group_name', row.group_name),
+            madeOn: this.payloadText(payload, 'made_on', row.made_on),
+            bio: this.payloadText(payload, 'bio', row.bio),
+            tradeNote: this.payloadText(payload, 'trade_note', row.trade_note),
+            isOriginal: payload.is_original ?? row.is_original === true,
+            madeWithAi: payload.made_with_ai ?? row.made_with_ai === true,
+            visible: payload.visible ?? row.visible === true,
+            exchangeMode: this.exchangeMode(payload.exchange_mode ?? row.exchange_mode),
+            seriesCodes: payload.series_codes ?? [],
+            credits: payload.credits ?? [],
+            favoriteCharacters: await this.listCharacterSelections(this.database, ids),
+            frontImageUrl:
+                pageUrl(frontKey, row.front_object_key, live.frontImageUrl, 'front') ??
+                live.frontImageUrl,
+            backImageUrl: pageUrl(backKey, row.back_object_key, live.backImageUrl ?? '', 'back'),
+            middleImageUrls: middleKeys.map((key, index) =>
+                pageUrl(
+                    key,
+                    liveMiddleKeys[index] ?? null,
+                    live.middleImageUrls[index] ?? '',
+                    `middle-${index + 1}`
+                ) ?? live.middleImageUrls[index] ?? ''
+            )
+        };
+    }
+
+    /** A submitted revision is authoritative, including when it clears a field. */
+    private payloadText(
+        payload: NamecardPendingPayload,
+        key: 'producer_reading' | 'group_name' | 'made_on' | 'bio' | 'trade_note',
+        fallback: string | null | undefined
+    ): string | null {
+        if (key in payload) return payload[key] ?? null;
+        return fallback ?? null;
+    }
+
+    /** Character names for a submitted selection, kept in submission order. */
+    private async listCharacterSelections(
+        database: SqlDatabase,
+        ids: readonly number[]
+    ): Promise<CardFavoriteSelectionRecord[]> {
+        if (!ids.length) return [];
+        const placeholders = ids.map(() => '?').join(', ');
+        const rows = await queryAll<NamecardFavoriteRow>(database,
+            `SELECT character.id AS character_id, agency.code AS agency_code,
+                    character.name_cn
+             FROM namecard_characters character
+             JOIN agencies agency ON agency.id=character.agency_id
+             WHERE character.id IN (${placeholders})`,
+            [...ids]
+        );
+        const byId = new Map(rows.map((row) => [Number(row.character_id), row]));
+        return ids.flatMap((id, index) => {
+            const row = byId.get(id);
+            return row
+                ? [{
+                    character_id: id,
+                    agency_code: row.agency_code,
+                    name_cn: row.name_cn,
+                    display_order: index
+                }]
+                : [];
+        });
     }
 
     async beginCardApproval(
@@ -600,9 +1013,20 @@ export class SqlCoreRepository implements NamecardRepository {
         row: NamecardCardRow,
         payload: NamecardPendingPayload | null
     ): Promise<void> {
+        // Text columns that the author may clear need a flag instead of
+        // COALESCE: a submitted revision is authoritative even when it is empty.
+        const hasPayload = payload !== null
         await executeSql(database,
             `UPDATE fudaba_cards
-             SET display_name=?, producer_name=?, series_code=?,
+             SET producer_name=?,
+                 producer_reading=CASE WHEN ? THEN ? ELSE producer_reading END,
+                 bio=CASE WHEN ? THEN ? ELSE bio END,
+                 trade_note=CASE WHEN ? THEN ? ELSE trade_note END,
+                 made_on=COALESCE(?, made_on), group_name=COALESCE(?, group_name),
+                 is_original=COALESCE(?, is_original),
+                 made_with_ai=COALESCE(?, made_with_ai),
+                 visible=COALESCE(?, visible),
+                 exchange_mode=COALESCE(?, exchange_mode),
                  front_object_key=COALESCE(pending_front_object_key, front_object_key),
                  back_object_key=COALESCE(pending_back_object_key, back_object_key),
                  publication_status='published', rejection_reason=NULL,
@@ -612,12 +1036,66 @@ export class SqlCoreRepository implements NamecardRepository {
                  revision=revision+1, updated_at=CURRENT_TIMESTAMP
              WHERE id=?`,
             [
-                payload?.display_name ?? row.display_name ?? null,
                 payload?.producer_name ?? row.producer_name ?? null,
-                payload?.series_code ?? row.series_code ?? null,
+                hasPayload,
+                payload?.producer_reading ?? null,
+                hasPayload,
+                payload?.bio ?? null,
+                hasPayload,
+                payload?.trade_note ?? null,
+                payload?.made_on ?? null,
+                payload?.group_name ?? null,
+                payload?.is_original ?? null,
+                payload?.made_with_ai ?? null,
+                payload?.visible ?? null,
+                payload?.exchange_mode ?? null,
                 row.internal_id
             ]
         );
+        if (payload) {
+            await this.replaceNamecardCredits(
+                database,
+                row.internal_id,
+                payload.credits ?? []
+            )
+        }
+        const seriesCodes = (payload?.series_codes ?? []).filter(
+            (code) => typeof code === 'string' && code.length > 0
+        );
+        if (seriesCodes.length) {
+            await executeSql(database,
+                'DELETE FROM fudaba_card_series WHERE card_id=?',
+                [row.internal_id]
+            );
+            for (const [index, seriesCode] of seriesCodes.entries()) {
+                await executeSql(database,
+                    `INSERT INTO fudaba_card_series (card_id, series_code, display_order)
+                     VALUES (?, ?, ?)
+                     ON CONFLICT (card_id, series_code) DO NOTHING`,
+                    [row.internal_id, seriesCode, index + 1]
+                );
+            }
+            // A sampled colour always wins; otherwise one series lends its
+            // agency colour and a set stays neutral.
+            const singleSeries = seriesCodes.length === 1;
+            await executeSql(database,
+                `UPDATE fudaba_cards SET
+                     accent=CASE WHEN ? THEN COALESCE(
+                         (SELECT color FROM agencies WHERE code=?),
+                         CAST(? AS text), accent)
+                     ELSE CAST(? AS text) END,
+                     accent_source=CASE WHEN ? THEN 'series' ELSE 'fallback' END
+                 WHERE id=? AND (accent_source IS NULL OR accent_source<>'image')`,
+                [
+                    singleSeries,
+                    seriesCodes[0],
+                    NAMECARD_ACCENT_FALLBACK,
+                    NAMECARD_ACCENT_FALLBACK,
+                    singleSeries,
+                    row.internal_id,
+                ]
+            );
+        }
         const characterIds = (payload?.favorite_character_ids ?? []).filter(
             (characterId) => Number.isSafeInteger(characterId) && characterId > 0
         );
@@ -639,6 +1117,33 @@ export class SqlCoreRepository implements NamecardRepository {
                  WHERE character.id=? AND character.deleted_at IS NULL`,
                 [row.internal_id, index, characterIds[index]]
             ).catch(() => undefined);
+        }
+    }
+
+    private async replaceNamecardCredits(
+        database: SqlDatabase,
+        cardId: string,
+        credits: readonly FudabaCardCredit[]
+    ): Promise<void> {
+        await executeSql(database,
+            'DELETE FROM fudaba_card_credits WHERE card_id=?',
+            [cardId]
+        );
+        for (const [index, credit] of credits.entries()) {
+            if (!credit.displayName.trim()) continue;
+            await executeSql(database,
+                `INSERT INTO fudaba_card_credits
+                 (card_id, display_order, account_id, display_name, url, roles)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    cardId,
+                    index + 1,
+                    credit.accountId ?? null,
+                    credit.displayName,
+                    credit.url ?? null,
+                    credit.roles
+                ]
+            );
         }
     }
 
@@ -843,11 +1348,11 @@ export class SqlCoreRepository implements NamecardRepository {
 
     async purgeTerminalCards(
         cutoff: Date
-    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>> {
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string | null }>> {
         const rows = await queryAll<{
             card_number: number | string;
             front_object_key: string;
-            back_object_key: string;
+            back_object_key: string | null;
         }>(this.database,
             `DELETE FROM fudaba_cards
              WHERE id IN (
@@ -862,7 +1367,10 @@ export class SqlCoreRepository implements NamecardRepository {
         return rows.map((row) => ({
             id: Number(row.card_number),
             image1_url: namecardOriginalUrlFromObjectKey(row.front_object_key),
-            image2_url: namecardOriginalUrlFromObjectKey(row.back_object_key)
+            image2_url:
+                row.back_object_key === null
+                    ? null
+                    : namecardOriginalUrlFromObjectKey(row.back_object_key)
         }));
     }
 

@@ -1,8 +1,7 @@
 import type { ReactionRepository } from '@/ports/repositories/namecards';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
+import { NAMECARD_PUBLIC_ORIGIN } from '@/infra/db/repositories/namecard-origins';
 import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/query';
-
-const NAMECARD_COMPAT_ORIGIN = "origin IN ('guest', 'legacy')";
 
 export class SqlReactionRepository implements ReactionRepository {
     constructor(private readonly database: ManagedSqlDatabase) {}
@@ -11,7 +10,7 @@ export class SqlReactionRepository implements ReactionRepository {
         return queryOne(
             this.database,
             `SELECT card_number AS id FROM fudaba_cards
-             WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN}
+             WHERE card_number=? AND ${NAMECARD_PUBLIC_ORIGIN}
                AND publication_status='published' AND deleted_at IS NULL`,
             [id],
         );

@@ -275,7 +275,8 @@ function fudabaCard<T extends FudabaCard>(card: T): T {
   return {
     ...card,
     frontImageUrl: apiMediaUrl(card.frontImageUrl),
-    backImageUrl: apiMediaUrl(card.backImageUrl),
+    // A single-sided card has no back face at all.
+    backImageUrl: card.backImageUrl ? apiMediaUrl(card.backImageUrl) : null,
   }
 }
 
@@ -287,7 +288,7 @@ function fudabaOwnerCard(card: FudabaOwnerCard): FudabaOwnerCard {
   return {
     ...card,
     frontImageUrl: apiMediaUrl(card.frontImageUrl),
-    backImageUrl: apiMediaUrl(card.backImageUrl),
+    backImageUrl: card.backImageUrl ? apiMediaUrl(card.backImageUrl) : null,
   }
 }
 
@@ -431,9 +432,12 @@ function namecard(card: Namecard): Namecard {
   return {
     ...card,
     image1_url: apiMediaUrl(card.image1_url),
-    image2_url: apiMediaUrl(card.image2_url),
+    image2_url: card.image2_url ? apiMediaUrl(card.image2_url) : null,
     image1_thumbnail_url: apiMediaUrl(card.image1_thumbnail_url),
-    image2_thumbnail_url: apiMediaUrl(card.image2_thumbnail_url),
+    image2_thumbnail_url: card.image2_thumbnail_url
+      ? apiMediaUrl(card.image2_thumbnail_url)
+      : null,
+    middleImageUrls: card.middleImageUrls.map(apiMediaUrl),
   }
 }
 
@@ -449,7 +453,9 @@ export function normalizeFudabaGuestSubmissionEnvelope<
     submission: {
       ...response.submission,
       frontImageUrl: apiMediaUrl(response.submission.frontImageUrl),
-      backImageUrl: apiMediaUrl(response.submission.backImageUrl),
+      backImageUrl: response.submission.backImageUrl
+        ? apiMediaUrl(response.submission.backImageUrl)
+        : null,
     },
   }
 }

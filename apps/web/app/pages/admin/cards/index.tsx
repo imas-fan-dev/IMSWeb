@@ -2,6 +2,7 @@ import { MessagesPanel } from "~/pages/community/exchange/messages-panel"
 import {
   CheckIcon,
   ContactRoundIcon,
+  ImagesIcon,
   LoaderCircleIcon,
   LockIcon,
   LockOpenIcon,
@@ -33,10 +34,7 @@ import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Badge } from "~/components/ui/badge"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
-import {
-  CardClaimReviewPanel,
-  RegisteredCardReviewPanel,
-} from "~/pages/admin/cards/fudaba-card-moderation-panels"
+import { CardClaimReviewPanel } from "~/pages/admin/cards/fudaba-card-moderation-panels"
 import { useDebouncedValue } from "~/lib/use-debounced-value"
 import {
   approveAdminNamecard,
@@ -50,7 +48,8 @@ import {
   type AdminNamecardList,
 } from "~/lib/api"
 import { NamecardMediaPreview } from "./namecard-media-preview"
-import { NamecardStatusBadge } from "./namecard-status-badge"
+import { NamecardReviewDialog } from "./namecard-review-dialog"
+import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 
 export function meta() {
   return [{ title: "名片与留言管理 | IMSWeb" }]
@@ -218,6 +217,7 @@ export default function AdminCardsPage() {
   })
 
   const [lockReason, setLockReason] = useState("")
+  const [reviewCard, setReviewCard] = useState<AdminNamecard | null>(null)
 
   const LOCK_REASON_PRESETS = [
     "用户主动删除",
@@ -404,6 +404,13 @@ export default function AdminCardsPage() {
     getFallbackFocus,
   })
 
+  // Approving or locking drops the row from the queue, so the review window
+  // closes with it instead of showing a revision that no longer exists.
+  const activeReviewCard =
+    reviewCard && cards.some((card) => card.id === reviewCard.id)
+      ? reviewCard
+      : null
+
   const submitting =
     approveConfirm.submitting ||
     rejectConfirm.submitting ||
@@ -432,7 +439,6 @@ export default function AdminCardsPage() {
       <Tabs defaultValue="guest">
         <TabsList aria-label="名片审核类型">
           <TabsTrigger value="guest">投稿审核</TabsTrigger>
-          <TabsTrigger value="registered">注册用户投稿</TabsTrigger>
           <TabsTrigger value="messages">留言管理</TabsTrigger>
           <TabsTrigger value="claims">旧名片认领</TabsTrigger>
         </TabsList>
@@ -529,17 +535,33 @@ export default function AdminCardsPage() {
                             新版本
                           </Badge>
                         ) : null}
-                        <NamecardMediaPreview
-                          frontImageUrl={card.image1_url}
-                          backImageUrl={card.image2_url}
-                          altBase={`名片 #${card.id}`}
-                        />
+                        <button
+                          type="button"
+                          className="relative block w-full cursor-zoom-in text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                          aria-label={`查看名片 #${card.id} 的审核详情`}
+                          onClick={() => setReviewCard(card)}
+                        >
+                          {card.pageCount > 2 ? (
+                            <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
+                              <ImagesIcon aria-hidden="true" />
+                              {card.pageCount}
+                            </Badge>
+                          ) : null}
+                          <NamecardMediaPreview
+                            frontImageUrl={card.image1_url}
+                            backImageUrl={card.image2_url}
+                            altBase={`名片 #${card.id}`}
+                          />
+                        </button>
                         <div className="flex flex-wrap items-center gap-3 p-4">
                           <div className="mr-auto">
                             <p className="font-medium">
                               {card.producerName ?? `名片 #${card.id}`}
                             </p>
-                            <NamecardStatusBadge status={card.status} />
+                            <NamecardStatusBadge
+                              status={card.status}
+                              reviewStatus={card.reviewStatus}
+                            />
                           </div>
                           {card.status === "pending" ? (
                             <Button
@@ -660,10 +682,6 @@ export default function AdminCardsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="registered" className="pt-5">
-          <RegisteredCardReviewPanel />
-        </TabsContent>
-
         <TabsContent value="messages" className="pt-5">
           <MessagesPanel mode="admin" />
         </TabsContent>
@@ -671,6 +689,17 @@ export default function AdminCardsPage() {
           <CardClaimReviewPanel />
         </TabsContent>
       </Tabs>
+
+      <NamecardReviewDialog
+        key={reviewCard?.id ?? "none"}
+        card={activeReviewCard}
+        onOpenChange={(open) => {
+          if (!open) setReviewCard(null)
+        }}
+        onApprove={(card) => approveConfirm.requestAction(card)}
+        onReject={(card) => rejectConfirm.requestAction(card)}
+        onLock={(card) => lockConfirm.requestAction(card)}
+      />
 
       <ConfirmActionDialog
         open={approveConfirm.open}

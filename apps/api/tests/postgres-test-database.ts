@@ -22,9 +22,10 @@ const allocations = new WeakMap<PostgresConnection, PostgresTestDatabase>();
  */
 export function postgresTest(
     name: string,
-    body: () => void | Promise<void>
+    body: () => void | Promise<void>,
+    timeout?: number
 ): void {
-    test(name, async (context) => {
+    test(name, { timeout }, async (context) => {
         if (!postgresIntegrationEnabled()) {
             context.skip(postgresIntegrationSkipReason() || DISABLED_REASON);
             return;

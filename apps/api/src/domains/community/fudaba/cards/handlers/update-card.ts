@@ -21,7 +21,6 @@ export async function handleUpdateFudabaCard(
             cardId,
             ownerAccountId: c.get('platformUser')!.id,
             ...update,
-            favoriteCharacter: '',
             updatedAt: new Date().toISOString()
         });
         if (result.status === 'unavailable') {

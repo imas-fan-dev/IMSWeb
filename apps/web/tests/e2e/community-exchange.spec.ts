@@ -58,17 +58,22 @@ const office = {
 const card = {
   id: "card-1",
   producerName: "春香P",
-  displayName: "周末交换会名片",
-  seriesCode: "765",
-  favoriteCharacter: "天海春香",
+  seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
+  middleImageUrls: [],
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
   bio: "上海地区制作人",
   tradeNote: "现场交换同系列名片",
-  available: true,
-  source: null,
+  exchangeMode: "manual",
+  madeOn: null,
+  groupName: null,
+  producerReading: null,
+  isOriginal: false,
+  madeWithAi: false,
+  visible: true,
+  credits: [],
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 12,
@@ -342,7 +347,7 @@ test.describe("community exchange", () => {
       page.getByRole("link", { name: "上海周末交换事务所" })
     ).toBeVisible()
     await page.getByRole("tab", { name: "名片" }).click()
-    await expect(page.getByText("周末交换会名片")).toBeVisible()
+    await expect(page.getByText("春香P", { exact: true })).toBeVisible()
     await page.getByRole("tab", { name: "事务所" }).click()
     const mainOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth
@@ -369,7 +374,7 @@ test.describe("community exchange", () => {
       "true"
     )
     await expect(
-      page.getByRole("button", { name: "查看周末交换会名片正面" })
+      page.getByRole("button", { name: "查看春香P的名片正面" })
     ).toBeVisible()
     if (process.env.CAPTURE_FUDABA_QA === "1") {
       await focusCardWallForScreenshot(page)
@@ -379,7 +384,7 @@ test.describe("community exchange", () => {
     }
     await page.getByRole("tab", { name: "列表" }).click()
     await expect(
-      page.getByRole("button", { name: "查看周末交换会名片背面" })
+      page.getByRole("button", { name: "查看春香P的名片背面" })
     ).toBeVisible()
     const detailOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth
@@ -426,7 +431,7 @@ test.describe("community exchange", () => {
                 {
                   ...card,
                   id: "card-north-west",
-                  displayName: "左上边界名片",
+                  producerName: "左上边界制作人",
                   viewerOwned: false,
                   placement: {
                     pinnedAt: "2026-08-02T09:00:00.000Z",
@@ -441,7 +446,7 @@ test.describe("community exchange", () => {
                 {
                   ...card,
                   id: "card-south-east",
-                  displayName: "右下边界名片",
+                  producerName: "右下边界制作人",
                   viewerOwned: false,
                   placement: {
                     pinnedAt: "2026-08-02T09:01:00.000Z",
@@ -484,7 +489,7 @@ test.describe("community exchange", () => {
               {
                 ...card,
                 id: "card-north-west",
-                displayName: "左上边界名片",
+                producerName: "左上边界制作人",
                 viewerOwned: false,
                 placement: {
                   pinnedAt: "2026-08-02T09:00:00.000Z",
@@ -499,7 +504,7 @@ test.describe("community exchange", () => {
               {
                 ...card,
                 id: "card-south-east",
-                displayName: "右下边界名片",
+                producerName: "右下边界制作人",
                 viewerOwned: false,
                 placement: {
                   pinnedAt: "2026-08-02T09:01:00.000Z",
@@ -539,14 +544,14 @@ test.describe("community exchange", () => {
     await page.goto("/community/exchange/offices/shanghai-weekend")
     const wall = page.getByRole("region", { name: "名片墙放置区域" })
     await expect(wall).toBeVisible()
-    for (const name of ["左上边界名片", "右下边界名片"]) {
+    for (const name of ["左上边界制作人", "右下边界制作人"]) {
       await page.getByRole("tab", { name: "列表" }).click()
       const item = page
         .locator('[data-slot="tabs-content"]')
         .filter({ has: page.getByRole("button", { name: "在墙上定位" }) })
       await item
         .getByRole("button", { name: "在墙上定位" })
-        .nth(name === "左上边界名片" ? 0 : 1)
+        .nth(name === "左上边界制作人" ? 0 : 1)
         .click()
       await expect(page.getByRole("tab", { name: "墙面" })).toHaveAttribute(
         "aria-selected",
@@ -555,7 +560,7 @@ test.describe("community exchange", () => {
       const wallBox = await wall.boundingBox()
       expect(wallBox).not.toBeNull()
       const wallCard = wall.getByRole("button", {
-        name: `查看${name}正面`,
+        name: `查看${name}的名片正面`,
         exact: true,
       })
       await expect(wallCard).toHaveCount(1)
@@ -589,17 +594,24 @@ test.describe("community exchange", () => {
     const ownerCards = [
       {
         id: "card-1",
+        cardNumber: 11,
         producerName: "春香P",
-        displayName: "周末交换会名片",
-        seriesCode: "765",
-        favoriteCharacter: "天海春香",
+        seriesCodes: ["765"],
         favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
         frontImageUrl: "/brand/series/wall/765pro.webp",
+        middleImageUrls: [],
         backImageUrl: "/brand/series/wall/cinderella-girls.webp",
         accent: "#f34e6c",
         bio: "上海地区制作人",
         tradeNote: "现场交换同系列名片",
-        available: true,
+        exchangeMode: "manual",
+        madeOn: null,
+        groupName: null,
+        producerReading: null,
+        isOriginal: false,
+        madeWithAi: false,
+        visible: true,
+        credits: [],
         publicationStatus: "published",
         reviewStatus: null,
         reviewReason: null,
@@ -611,17 +623,24 @@ test.describe("community exchange", () => {
       },
       {
         id: "card-2",
-        producerName: "春香P",
-        displayName: "第二张公开名片",
-        seriesCode: "765",
-        favoriteCharacter: "天海春香",
+        cardNumber: 12,
+        producerName: "千早P",
+        seriesCodes: ["765"],
         favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
         frontImageUrl: "/brand/series/wall/cinderella-girls.webp",
+        middleImageUrls: [],
         backImageUrl: "/brand/series/wall/765pro.webp",
         accent: "#2581c7",
         bio: "自由摆放测试",
         tradeNote: "也欢迎交换",
-        available: true,
+        exchangeMode: "manual",
+        madeOn: null,
+        groupName: null,
+        producerReading: null,
+        isOriginal: false,
+        madeWithAi: false,
+        visible: true,
+        credits: [],
         publicationStatus: "published",
         reviewStatus: null,
         reviewReason: null,
@@ -655,17 +674,22 @@ test.describe("community exchange", () => {
       return {
         id: ownerCard.id,
         producerName: ownerCard.producerName,
-        displayName: ownerCard.displayName,
-        seriesCode: ownerCard.seriesCode,
-        favoriteCharacter: ownerCard.favoriteCharacter,
+        seriesCodes: ownerCard.seriesCodes,
         favoriteCharacters: ownerCard.favoriteCharacters,
         frontImageUrl: ownerCard.frontImageUrl,
+        middleImageUrls: ownerCard.middleImageUrls,
         backImageUrl: ownerCard.backImageUrl,
         accent: ownerCard.accent,
         bio: ownerCard.bio,
         tradeNote: ownerCard.tradeNote,
-        available: ownerCard.available,
-        source: null,
+        exchangeMode: ownerCard.exchangeMode,
+        madeOn: ownerCard.madeOn,
+        groupName: ownerCard.groupName,
+        producerReading: ownerCard.producerReading,
+        isOriginal: ownerCard.isOriginal,
+        madeWithAi: ownerCard.madeWithAi,
+        visible: ownerCard.visible,
+        credits: ownerCard.credits,
         createdAt: ownerCard.createdAt,
         interactions: {
           likes: 0,
@@ -843,7 +867,7 @@ test.describe("community exchange", () => {
     await expect(page.getByRole("button", { name: "布置名片墙" })).toBeVisible()
     const firstCard = page.locator('[data-card-id="card-1"] button').first()
     const cardPreview = page.getByRole("dialog", {
-      name: /^(?:周末交换会名片|第二张公开名片)(?:正面|背面)$/,
+      name: /^(?:春香P|千早P)的名片(?:正面|背面)$/,
     })
     const activateCard = async (target: typeof firstCard) => {
       if (isMobile) await target.tap()
@@ -871,7 +895,7 @@ test.describe("community exchange", () => {
       .click()
     await page.getByRole("button", { name: "放到墙上" }).click()
     await expect(
-      page.getByRole("button", { name: "移动第二张公开名片" })
+      page.getByRole("button", { name: "移动千早P的名片" })
     ).toBeVisible()
     expect(placementWrites[0]).toMatchObject({
       cardId: "card-2",
@@ -885,7 +909,7 @@ test.describe("community exchange", () => {
       },
     })
     const moveHandle = page.getByRole("button", {
-      name: "查看第二张公开名片正面",
+      name: "查看千早P的名片正面",
     })
     await activateCard(moveHandle)
     await expect(page.locator('[data-card-id="card-2"]')).toHaveClass(/ring-2/)
@@ -988,7 +1012,7 @@ test.describe("community exchange", () => {
     )
     await page.getByRole("button", { name: "布置名片墙" }).click()
     await focusCardWallForScreenshot(page)
-    await page.getByRole("button", { name: "移动第二张公开名片" }).focus()
+    await page.getByRole("button", { name: "移动千早P的名片" }).focus()
     await page.getByRole("button", { name: "向右旋转名片" }).click()
     await expect.poll(() => placementWrites.length).toBe(3)
     expect(placementWrites[2]).toMatchObject({
@@ -998,7 +1022,7 @@ test.describe("community exchange", () => {
     })
     await page.getByRole("button", { name: "翻转选中名片" }).click()
     await expect(
-      page.getByRole("button", { name: "查看第二张公开名片背面" })
+      page.getByRole("button", { name: "查看千早P的名片背面" })
     ).toBeVisible()
     await page.getByRole("tab", { name: "墙面" }).focus()
     await page.mouse.move(0, 0)
@@ -1067,7 +1091,7 @@ test.describe("community exchange", () => {
       body: { expectedRevision: 2 },
     })
     await expect(
-      page.getByRole("button", { name: "查看第二张公开名片背面" })
+      page.getByRole("button", { name: "查看千早P的名片背面" })
     ).toHaveCount(0)
     await page.reload()
     await expect(page.locator('[data-card-id="card-2"]')).toHaveCount(0)

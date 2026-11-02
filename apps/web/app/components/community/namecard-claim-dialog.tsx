@@ -94,7 +94,7 @@ export function NamecardClaimDialog({
     color: agency.color,
   }))
   const existingTarget = ownerCards.find((item) => item.id === targetCardId)
-  const effectiveSeriesCode = existingTarget?.seriesCode ?? seriesCode
+  const effectiveSeriesCode = existingTarget?.seriesCodes[0] ?? seriesCode
   const effectiveCharacterIds = existingTarget
     ? existingTarget.favoriteCharacters.map((character) => character.id)
     : favoriteCharacterIds
@@ -186,7 +186,7 @@ export function NamecardClaimDialog({
                     <SelectTrigger id="claim-target-card" className="w-full">
                       <SelectValue>
                         {existingTarget
-                          ? `绑定到 ${existingTarget.displayName}`
+                          ? `绑定到 ${existingTarget.producerName}`
                           : "创建一张可管理的注册名片"}
                       </SelectValue>
                     </SelectTrigger>
@@ -197,7 +197,7 @@ export function NamecardClaimDialog({
                         </SelectItem>
                         {ownerCards.map((ownerCard) => (
                           <SelectItem key={ownerCard.id} value={ownerCard.id}>
-                            绑定到 {ownerCard.displayName}
+                            绑定到 {ownerCard.producerName}
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -210,8 +210,10 @@ export function NamecardClaimDialog({
                     <ShieldCheckIcon aria-hidden="true" />
                     <AlertTitle>将绑定现有注册名片</AlertTitle>
                     <AlertDescription>
-                      {existingTarget.displayName} ·{" "}
-                      {existingTarget.favoriteCharacter}
+                      {existingTarget.producerName} ·{" "}
+                      {existingTarget.favoriteCharacters
+                        .map((character) => character.name)
+                        .join("、")}
                     </AlertDescription>
                   </Alert>
                 ) : (

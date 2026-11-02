@@ -195,24 +195,24 @@ async function createFixture(): Promise<NodeFixture> {
     await executeSql(connection,
         `INSERT INTO fudaba_cards
             (id, card_number, origin, front_object_key, back_object_key,
-             trade_note, available, publication_status,
+             trade_note, exchange_mode, publication_status,
              revision, created_at, updated_at)
          VALUES (?, ?, 'legacy',
                  'community/namecards/assets/contract-seed-front/image.webp',
                  'community/namecards/assets/contract-seed-back/image.webp',
-                 NULL, FALSE, 'published', 0,
+                 NULL, 'none', 'published', 0,
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [`legacy-${APPROVED_CARD_ID}`, APPROVED_CARD_ID]
     );
     await executeSql(connection,
         `INSERT INTO fudaba_cards
             (id, card_number, origin, front_object_key, back_object_key,
-             trade_note, available, publication_status,
+             trade_note, exchange_mode, publication_status,
              revision, created_at, updated_at)
          VALUES (?, ?, 'legacy',
                  'community/namecards/assets/contract-seed-pending-front/image.webp',
                  'community/namecards/assets/contract-seed-pending-back/image.webp',
-                 NULL, FALSE, 'pending', 0,
+                 NULL, 'none', 'pending', 0,
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [`legacy-${PENDING_CARD_ID}`, PENDING_CARD_ID]
     );

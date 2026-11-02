@@ -142,12 +142,15 @@ import { test } from 'vitest';
             'createHandleDeleteReaction',
             'handleApproveNamecard',
             'handleFlagNamecard',
+            'handleGetAdminNamecardDiff',
             'handleGetNamecard',
             'handleListAdminNamecards',
             'handleListNamecards',
             'handleListReactions',
             'handleLockNamecard',
             'handleRejectNamecard',
+            'handleServeAdminNamecardMedia',
+            'handleServePublicCardMedia',
             'handleUnlockNamecard'
         ],
         news: [
@@ -489,7 +492,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 142);
+            assert.equal(Object.values(actual).flat().length, 145);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -712,6 +715,9 @@ import { test } from 'vitest';
         namecardFindApproved: number[];
         namecardFindMedia: number[];
         namecardListAdmin: Array<[number, number]>;
+        namecardDiff: number[];
+        namecardMediaKey: Array<[number, string, boolean]>;
+        namecardPublishedMediaKey: [number, string][];
         namecardListApproved: Array<[number, number]>;
         newsDelete: number[];
         newsFindMedia: number[];
@@ -738,6 +744,9 @@ import { test } from 'vitest';
             namecardFindApproved: [],
             namecardFindMedia: [],
             namecardListAdmin: [],
+            namecardDiff: [],
+            namecardMediaKey: [],
+            namecardPublishedMediaKey: [],
             namecardListApproved: [],
             newsDelete: [],
             newsFindMedia: [],
@@ -784,6 +793,18 @@ import { test } from 'vitest';
             async listAdminCards(limit, offset) {
                 calls.namecardListAdmin.push([limit, offset]);
                 return [];
+            },
+            async findCardMediaKey(cardNumber, side, draft) {
+                calls.namecardMediaKey.push([cardNumber, side, draft]);
+                return null;
+            },
+            async findPublishedCardMediaKey(cardNumber, side) {
+                calls.namecardPublishedMediaKey.push([cardNumber, side]);
+                return null;
+            },
+            async findCardDiff(id) {
+                calls.namecardDiff.push(id);
+                return null;
             },
             async beginCardApproval(id) {
                 calls.namecardApprove.push(id);
@@ -966,6 +987,26 @@ import { test } from 'vitest';
     async function responseJson(response: Response): Promise<unknown> {
         return response.json();
     }
+
+    test.describe('namecard artwork boundaries', () => {
+        test('the public artwork route answers a missing page with the compatibility text', async () => {
+            const fixture = createCompatibilityFixture();
+            const response = await fixture.request('/api/cards/19/media/middle-1');
+            assert.equal(response.status, 404);
+            assert.equal(await response.text(), 'Not Found');
+            assert.deepEqual(fixture.calls.namecardPublishedMediaKey, [[19, 'middle-1']]);
+        });
+
+        test('the moderator artwork route reads both variants through the repository', async () => {
+            const fixture = createCompatibilityFixture();
+            const response = await fixture.request('/api/admin/cards/19/media/draft/front', {
+                headers: { Authorization: 'Bearer op-token' }
+            });
+            assert.equal(response.status, 404);
+            assert.equal(await response.text(), 'Not Found');
+            assert.deepEqual(fixture.calls.namecardMediaKey, [[19, 'front', true]]);
+        });
+    });
 
     test.describe('handler validation compatibility', () => {
         test('invalid event IDs preserve legacy 404 bodies without repository side effects', async () => {

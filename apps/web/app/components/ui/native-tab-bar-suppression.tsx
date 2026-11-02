@@ -1,8 +1,21 @@
 import { useEffect } from "react"
 
-import { suppressNativeTabBar } from "~/lib/native-tab-bar-suppression"
+import {
+  blockNativeTabBarInteraction,
+  suppressNativeTabBar,
+} from "~/lib/native-tab-bar-suppression"
 
-export function NativeTabBarSuppression() {
-  useEffect(() => suppressNativeTabBar(), [])
+export function NativeTabBarSuppression({
+  behavior = "hide",
+}: {
+  behavior?: "hide" | "block-interaction"
+}) {
+  useEffect(
+    () =>
+      behavior === "hide"
+        ? suppressNativeTabBar()
+        : blockNativeTabBarInteraction(),
+    [behavior]
+  )
   return null
 }

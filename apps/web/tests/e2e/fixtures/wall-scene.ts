@@ -1,4 +1,5 @@
 import type { Route } from "@playwright/test"
+import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import type {
   FudabaMixedWallResponse,
   FudabaWallLayoutItem,
@@ -18,7 +19,7 @@ export function sceneFixture(
           width: 240,
           height: 160,
           layoutVersion: 1,
-          displayName: item.card.displayName,
+          displayName: cardLabel(item.card),
           viewerOwned: item.card.viewerOwned,
           preview: null,
           assetVersion: item.card.frontImageUrl,

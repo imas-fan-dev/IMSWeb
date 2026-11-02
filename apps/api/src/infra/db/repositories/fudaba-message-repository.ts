@@ -20,6 +20,11 @@ import type {
 import type { ManagedSqlDatabase, SqlDatabase } from '@/infra/db/sql/database';
 import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 
+function cardLabel(card: { producer_name: string }): string {
+    const name = card.producer_name.trim();
+    return name ? name + '的名片' : '名片';
+}
+
 interface MessageRow {
     display_height: number;
     paper_layout_version: number;
@@ -788,7 +793,12 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
         const active =
             actorId !== null && (await this.active(this.database, actorId));
         const owner = active && office!.owner_account_id === actorId;
-        const cardSql = `SELECT card.id,'card' AS kind,placement.pinned_at,placement.world_x AS x,placement.world_y AS y,placement.rotation,120.0 AS rx,80.0 AS ry FROM fudaba_office_cards placement JOIN fudaba_cards card ON card.id=placement.card_id JOIN platform_accounts account ON account.id=card.owner_account_id JOIN agencies series ON series.code=card.series_code WHERE placement.office_id=? AND card.publication_status='published'  AND card.deleted_at IS NULL AND account.status IN ('active','restricted') AND account.deleted_at IS NULL AND series.wiki_enabled`;
+        const cardSql = `SELECT card.id,'card' AS kind,placement.pinned_at,placement.world_x AS x,placement.world_y AS y,placement.rotation,120.0 AS rx,80.0 AS ry FROM fudaba_office_cards placement JOIN fudaba_cards card ON card.id=placement.card_id JOIN platform_accounts account ON account.id=card.owner_account_id WHERE placement.office_id=? AND card.publication_status='published'  AND card.deleted_at IS NULL AND account.status IN ('active','restricted') AND account.deleted_at IS NULL AND EXISTS (
+            SELECT 1 FROM fudaba_card_series entry
+            JOIN agencies series ON series.code=entry.series_code
+            WHERE entry.card_id=card.id
+              AND (series.wiki_enabled OR series.code='namecard-other')
+        )`;
         const messageSql = `SELECT message.id,'message' AS kind,placement.pinned_at,placement.world_x AS x,placement.world_y AS y,placement.rotation,121.0 AS rx,message.display_height / 2.0 AS ry FROM fudaba_messages message JOIN fudaba_message_placements placement ON placement.message_id=message.id JOIN fudaba_offices office ON office.id=message.office_id JOIN platform_accounts author ON author.id=message.author_account_id JOIN platform_accounts owner ON owner.id=office.owner_account_id WHERE message.office_id=? AND ${publicMessage}`;
         const clauses: string[] = [];
         const values: unknown[] = [base.office.id, base.office.id];
@@ -927,7 +937,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             item.kind === 'card'
                 ? [
                       item.card.front_object_key,
-                      ...(includeBack ? [item.card.back_object_key] : []),
+                      ...(includeBack && item.card.back_object_key ? [item.card.back_object_key] : []),
                   ]
                 : []
         );
@@ -960,7 +970,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             return {
                 kind: 'card' as const,
                 id: card.id,
-                displayName: card.display_name,
+                displayName: cardLabel(card),
                 viewerOwned: card.viewer_owned,
                 width: 240,
                 height: 160,
@@ -978,8 +988,9 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
                 ...(includeBack
                     ? {
                           backPreview:
-                              byKey.get(card.back_object_key)
-                                  ?.preview_data_url ?? null,
+                              (card.back_object_key
+                                  ? byKey.get(card.back_object_key)?.preview_data_url
+                                  : null) ?? null,
                       }
                     : {}),
                 assetVersion: String(mediaVersionById.get(card.id) ?? 0),
@@ -997,7 +1008,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             const card = await queryOne<{
                 revision: number;
                 front_object_key: string;
-                back_object_key: string;
+                back_object_key: string | null;
                 deleted_at: string | null;
             }>(
                 database,

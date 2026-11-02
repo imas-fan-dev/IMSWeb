@@ -1,11 +1,11 @@
 import { useState } from "react"
 
-import { NavigationLink } from "~/components/navigation/navigation-link"
 import { cn } from "~/lib/utils"
 
 interface NamecardMediaPreviewProps {
   frontImageUrl: string
-  backImageUrl: string
+  /** 单面名片没有背面，此时只画一张并占满容器。 */
+  backImageUrl?: string | null
   /** 用作 alt 前缀，例如「名片 #792」。 */
   altBase: string
 }
@@ -30,21 +30,19 @@ export function NamecardMediaPreview({
   altBase,
 }: NamecardMediaPreviewProps) {
   const [portrait, setPortrait] = useState(false)
+  const images = backImageUrl ? [frontImageUrl, backImageUrl] : [frontImageUrl]
 
   return (
     <div
       className={cn(
         "grid aspect-13/10 gap-px border border-border bg-border",
-        portrait ? "grid-cols-2" : "grid-rows-2",
+        images.length === 1 ? "grid-rows-1" : portrait ? "grid-cols-2" : "grid-rows-2",
       )}
       data-namecard-orientation={portrait ? "portrait" : "landscape"}
     >
-      {[frontImageUrl, backImageUrl].map((image, index) => (
-        <NavigationLink
+      {[...images].map((image, index) => (
+        <div
           key={`${image}-${index}`}
-          href={image}
-          target="_blank"
-          rel="noreferrer"
           className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden"
         >
           <img
@@ -61,7 +59,7 @@ export function NamecardMediaPreview({
               }
             }}
           />
-        </NavigationLink>
+        </div>
       ))}
     </div>
   )

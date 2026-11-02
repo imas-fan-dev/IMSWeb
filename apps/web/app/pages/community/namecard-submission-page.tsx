@@ -361,18 +361,20 @@ export default function NamecardSubmissionPage() {
                     [mediaUrls.front, "正面", "front"],
                     [mediaUrls.back, "背面", "back"],
                   ] as const
-                ).map(([src, label, side]) => (
-                  <figure key={side} className="bg-muted">
-                    <img
-                      src={src}
-                      alt={`投稿名片${label}`}
-                      className="aspect-3/2 size-full object-contain"
-                    />
-                    <figcaption className="p-2 text-center text-xs text-muted-foreground">
-                      <span>{label}</span>
-                    </figcaption>
-                  </figure>
-                ))}
+                ).map(([src, label, side]) =>
+                  src ? (
+                    <figure key={side} className="bg-muted">
+                      <img
+                        src={src}
+                        alt={`投稿名片${label}`}
+                        className="aspect-3/2 size-full object-contain"
+                      />
+                      <figcaption className="p-2 text-center text-xs text-muted-foreground">
+                        <span>{label}</span>
+                      </figcaption>
+                    </figure>
+                  ) : null
+                )}
               </div>
             ) : null}
 

@@ -10,7 +10,7 @@ const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 // Combined office-wall and upstream directory routes retain explicit request policies.
-const BASELINE = { mountedMethodPaths: 278, carriers: 356, reject: 80, acceptAndProject: 166, passthrough: 17, nonObjectApplicable: 93 };
+const BASELINE = { mountedMethodPaths: 282, carriers: 360, reject: 80, acceptAndProject: 169, passthrough: 17, nonObjectApplicable: 94 };
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },

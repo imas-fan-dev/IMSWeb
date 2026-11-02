@@ -347,10 +347,13 @@ test(
         const { database, repo } = await fixture();
         await database
             .prepare(
-                `INSERT INTO fudaba_cards(id,owner_account_id,producer_name,display_name,series_code,front_object_key,back_object_key,publication_status,created_at,updated_at) SELECT 'card-'||lpad(n::text,4,'0'),'owner','Producer','Card '||n,'765','community/fudaba/'||n||'/front.webp','community/fudaba/'||n||'/back.webp','published',?::timestamptz,?::timestamptz FROM generate_series(1,500)n`
+                `INSERT INTO fudaba_cards(id,owner_account_id,producer_name,front_object_key,back_object_key,publication_status,created_at,updated_at) SELECT 'card-'||lpad(n::text,4,'0'),'owner','Producer','community/fudaba/'||n||'/front.webp','community/fudaba/'||n||'/back.webp','published',?::timestamptz,?::timestamptz FROM generate_series(1,500)n`
             )
             .bind(now, now)
             .run();
+        await database.prepare(
+            "INSERT INTO fudaba_card_series(card_id,series_code,display_order) SELECT id,'765',1 FROM fudaba_cards WHERE id LIKE 'card-%'"
+        ).run();
         await database
             .prepare(
                 `INSERT INTO fudaba_office_cards(office_id,card_id,pinned_at,world_x,world_y,z_index,updated_at) SELECT 'office','card-'||lpad(n::text,4,'0'),?::timestamptz,800,450,n,?::timestamptz FROM generate_series(1,500)n`
@@ -882,10 +885,13 @@ test(
         const { database, repo } = await fixture();
         await database
             .prepare(
-                "INSERT INTO fudaba_cards(id,owner_account_id,producer_name,display_name,series_code,front_object_key,back_object_key,publication_status,created_at,updated_at) VALUES('visitor-card','author','Author','Visitor','765','community/fudaba/visitor/front.webp','community/fudaba/visitor/back.webp','published',?,?)"
+                "INSERT INTO fudaba_cards(id,owner_account_id,producer_name,front_object_key,back_object_key,publication_status,created_at,updated_at) VALUES('visitor-card','author','Author','community/fudaba/visitor/front.webp','community/fudaba/visitor/back.webp','published',?,?)"
             )
             .bind(now, now)
             .run();
+        await database.prepare(
+            "INSERT INTO fudaba_card_series(card_id,series_code,display_order) VALUES('visitor-card','765',1)"
+        ).run();
         const input = {
             officeId: 'office',
             cardId: 'visitor-card',
@@ -1228,11 +1234,14 @@ test('late previews cannot restore stale media after a concurrent replacement', 
     await database
         .prepare(
             `INSERT INTO fudaba_cards
-        (id, owner_account_id, producer_name, display_name, series_code, front_object_key, back_object_key, publication_status, created_at, updated_at)
-        VALUES ('race-card', 'owner', 'Producer', 'Race', '765', ?, 'community/fudaba/race/back.webp', 'published', ?, ?)`
+        (id, owner_account_id, producer_name, front_object_key, back_object_key, publication_status, created_at, updated_at)
+        VALUES ('race-card', 'owner', 'Producer', ?, 'community/fudaba/race/back.webp', 'published', ?, ?)`
         )
         .bind(objectKey, now, now)
         .run();
+    await database.prepare(
+        "INSERT INTO fudaba_card_series(card_id,series_code,display_order) VALUES('race-card','765',1)"
+    ).run();
     const preview = 'data:image/webp;base64,UklGRg==';
     const guard = { cardId: 'race-card', revision: 0, side: 'front' as const };
     assert.equal(

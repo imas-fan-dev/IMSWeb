@@ -123,6 +123,11 @@ export function createMapboxDriver(config: MapboxConfig): MapDriver {
         map.touchZoomRotate.disableRotation()
         map.keyboard.disableRotation()
         const view: MapView = {
+          unproject(point) {
+            lifecycle.assertActive()
+            const position = map.unproject([point.x, point.y])
+            return { kind: "wgs84", position: [position.lng, position.lat] }
+          },
           readCamera() {
             lifecycle.assertActive()
             const center = map.getCenter()

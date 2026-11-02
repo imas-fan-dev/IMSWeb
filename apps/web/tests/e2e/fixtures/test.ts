@@ -1,4 +1,5 @@
 import { test as base } from "@playwright/test"
+import { fudabaSeriesListSchema } from "@imsweb/contracts/fudaba"
 import { namecardNotificationListResponseSchema } from "@imsweb/contracts/fudaba/card-claims"
 import { exchangePath } from "@imsweb/contracts/paths"
 
@@ -22,11 +23,27 @@ function installInboxProbe(dispatcher: ApiDispatcher) {
   })
 }
 
+/**
+ * The wall detail dialog resolves series names and colours for the cards it
+ * shows, so any spec that opens it would otherwise fail on this request.
+ */
+function installSeriesProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangePath("/series"),
+    responses: { 200: fudabaSeriesListSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({ status: 200, json: { items: [] } }),
+  })
+}
+
 export { expect } from "@playwright/test"
 export type { ApiDispatcher } from "./api-dispatcher"
 
 export type ApiTestOptions = {
   apiOrigins: string[]
+  mapGuide: "seen" | "new"
 }
 
 let activeApi: ApiDispatcher | undefined
@@ -41,8 +58,21 @@ export const api = new Proxy({} as ApiDispatcher, {
   },
 })
 
-export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
+export const test = base.extend<
+  { api: ApiDispatcher; mapGuideSetup: void } & ApiTestOptions
+>({
   apiOrigins: [[], { option: true }],
+  mapGuide: ["seen", { option: true }],
+  mapGuideSetup: [
+    async ({ context, mapGuide }, run) => {
+      if (mapGuide === "seen")
+        await context.addInitScript(() => {
+          localStorage.setItem("ims:exchange-map-guide:v1", "done")
+        })
+      await run()
+    },
+    { auto: true },
+  ],
   api: [
     async ({ apiOrigins, baseURL, context }, run) => {
       if (!baseURL)
@@ -50,6 +80,7 @@ export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
       const dispatcher = new ApiDispatcher(baseURL, apiOrigins)
       await dispatcher.install(context)
       installInboxProbe(dispatcher)
+      installSeriesProbe(dispatcher)
       if (activeApi) {
         await dispatcher.dispose()
         throw new Error(

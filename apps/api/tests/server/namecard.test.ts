@@ -222,6 +222,82 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     describe('PostgreSQL guest namecards', () => {
+        postgresTest('serves editor artwork through the card media route', async () => {
+            const database = await createPostgresTestDatabase('namecard-editor-media');
+            await seedCanonicalFudabaAgencies(database);
+            const repository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await repository.initialize();
+
+            const id = await repository.insertPendingCard(guestInput('editor'));
+            // Editor uploads sit outside the reversible namecard layout, so the
+            // row has to fall back to the card media route instead of throwing
+            // and taking the whole queue listing down with it.
+            await executeSql(
+                database,
+                `UPDATE public.fudaba_cards
+                 SET front_object_key='community/fudaba/cards/card-id/versions/v1/media.webp',
+                     back_object_key=NULL
+                 WHERE card_number=?`,
+                [id]
+            );
+
+            const [row] = await repository.listAdminCards(20, 0);
+            assert.equal(row?.id, id);
+            // A first submission has no published copy, so the queue shows the
+            // live slot; the draft variant only exists for staged revisions.
+            assert.equal(row?.image1_url, `/api/admin/cards/${id}/media/live/front`);
+            assert.equal(row?.image2_url, null);
+
+            // The media routes read the stored page instead of reverse
+            // engineering a public URL out of the editor object key.
+            assert.equal(
+                await repository.findCardMediaKey(id, 'front', false),
+                'community/fudaba/cards/card-id/versions/v1/media.webp'
+            );
+            assert.equal(await repository.findCardMediaKey(id, 'middle-1', false), null);
+
+            // Middle pages live in their own ordered table, so the queue has to
+            // resolve them through the media route as well.
+            await executeSql(
+                database,
+                `INSERT INTO public.fudaba_card_media (card_id, display_order, object_key)
+                 SELECT id, 1, 'community/fudaba/cards/card-id/versions/v1/middle-1.webp'
+                 FROM public.fudaba_cards WHERE card_number=?
+                 UNION ALL
+                 SELECT id, 2, 'community/fudaba/cards/card-id/versions/v1/middle-2.webp'
+                 FROM public.fudaba_cards WHERE card_number=?`,
+                [id, id]
+            );
+            const [withPages] = await repository.listAdminCards(20, 0);
+            assert.deepEqual(withPages?.middle_image_urls, [
+                `/api/admin/cards/${id}/media/live/middle-1`,
+                `/api/admin/cards/${id}/media/live/middle-2`,
+            ]);
+            assert.equal(
+                await repository.findCardMediaKey(id, 'middle-2', false),
+                'community/fudaba/cards/card-id/versions/v1/middle-2.webp'
+            );
+            assert.equal(await repository.findPublishedCardMediaKey(id, 'front'), null);
+
+            await executeSql(
+                database,
+                `UPDATE public.fudaba_cards SET publication_status='published' WHERE card_number=?`,
+                [id]
+            );
+            assert.equal(
+                await repository.findPublishedCardMediaKey(id, 'front'),
+                'community/fudaba/cards/card-id/versions/v1/media.webp'
+            );
+            assert.equal(await repository.findPublishedCardMediaKey(id, 'back'), null);
+            assert.equal(
+                await repository.findPublishedCardMediaKey(id, 'middle-1'),
+                'community/fudaba/cards/card-id/versions/v1/middle-1.webp'
+            );
+        });
+
         postgresTest('persist ordered cross-series character metadata atomically', async () => {
             const database = await createPostgresTestDatabase('namecard-metadata');
             await seedCanonicalFudabaAgencies(database);
@@ -328,6 +404,96 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.deepEqual(legacy?.favoriteCharacters, []);
         });
 
+        postgresTest('moderation approval publishes the editor text and credits', async () => {
+            const database = await createPostgresTestDatabase('namecard-approve');
+            await seedCanonicalFudabaAgencies(database);
+            const repository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await repository.initialize();
+
+            const ownerId = 'approve-owner';
+            await executeSql(database,
+                `INSERT INTO platform_accounts (id, status, created_at, updated_at)
+                 VALUES (?, 'active', 1, 1)`,
+                [ownerId]
+            );
+            await executeSql(database,
+                `INSERT INTO platform_profiles (account_id, display_name, updated_at)
+                 VALUES (?, '调试用户', 1)`,
+                [ownerId]
+            );
+            const id = await repository.insertPendingCard(guestInput('approve'));
+            // An ownerless card may not carry a trade note, so publish as an
+            // owned card; the moderation queue treats both the same way.
+            // Owned cards must always carry a trade note, so seed it empty
+            // here and let the approval write the submitted text over it.
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                 SET owner_account_id=?, producer_name=?, trade_note=''
+                 WHERE card_number=?`,
+                [ownerId, '待审名称', id]
+            );
+            const payload = {
+                producer_name: '调试用户',
+                producer_reading: 'かとう-せんぱい',
+                bio: '审核页通过验证简介',
+                trade_note: '审核页通过验证说明',
+                credits: [
+                    {
+                        accountId: null,
+                        displayName: '验证创作人员',
+                        url: null,
+                        roles: ['design']
+                    }
+                ],
+                series_codes: ['cg'],
+                favorite_character_ids: [900_002, 900_001],
+                exchange_mode: 'manual',
+                made_on: null,
+                group_name: null,
+                is_original: true,
+                made_with_ai: false,
+                visible: true
+            };
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                 SET publication_status='published', review_status='pending',
+                     pending_payload=CAST(? AS jsonb)
+                 WHERE card_number=?`,
+                [JSON.stringify(payload), id]
+            );
+            const current = await database
+                .prepare('SELECT revision, review_status, publication_status, producer_name, trade_note, pending_payload FROM fudaba_cards WHERE card_number=?')
+                .bind(id)
+                .first<Record<string, unknown>>();
+            assert.ok(current);
+
+            const claim = await repository.beginCardApproval(id, Number(current.revision));
+            assert.equal(claim.status, 'claimed');
+            const completed = await repository.completeCardApproval(
+                id,
+                claim.status === 'claimed' ? claim.card.revision : 0
+            );
+            assert.equal(completed.status, 'updated');
+
+            // The moderation queue must promote every editable field, not just
+            // the ones the legacy submission form used to carry.
+            const [publicCard] = await repository.listApprovedCards(20, 0);
+            assert.ok(publicCard);
+            assert.equal(publicCard.producer_reading, 'かとう-せんぱい');
+            assert.equal(publicCard.bio, '审核页通过验证简介');
+            assert.equal(publicCard.trade_note, '审核页通过验证说明');
+            assert.deepEqual(
+                publicCard.credits?.map((credit) => ({
+                    name: credit.displayName,
+                    roles: credit.roles
+                })),
+                [{ name: '验证创作人员', roles: ['design'] }]
+            );
+        });
+
         postgresTest('may carry optional profile text', async () => {
             const database = await createPostgresTestDatabase('namecard-metadata-profile');
             await seedCanonicalFudabaAgencies(database);
@@ -351,21 +517,20 @@ import { describe, onTestFinished, test } from 'vitest';
                 accent: string | null;
                 owner_account_id: string | null;
                 trade_note: string | null;
-                available: boolean;
+                exchange_mode: string;
             }>(database,
-                `SELECT producer_name, display_name, bio, accent, owner_account_id,
-                trade_note, available
+                `SELECT producer_name, bio, accent, owner_account_id,
+                trade_note, exchange_mode
          FROM fudaba_cards WHERE card_number=?`,
                 [id]
             );
             assert.deepEqual(row, {
                 producer_name: 'Producer Name',
-                display_name: 'Display Name',
                 bio: 'A short bio',
                 accent: '#ABCDEF',
                 owner_account_id: null,
                 trade_note: null,
-                available: false
+                exchange_mode: 'none'
             });
         });
     });
@@ -641,33 +806,38 @@ import { describe, onTestFinished, test } from 'vitest';
             await migratePostgres({ connectionString: harness.databaseUrl });
 
             const migratedApproved = await harness.connection.prepare(
-                `SELECT card_number, origin, series_code, publication_status,
-                front_object_key, back_object_key, available, revision,
+                `SELECT card_number, origin, publication_status,
+                front_object_key, back_object_key, revision,
                 owner_account_id, producer_name
          FROM fudaba_cards WHERE id=?`
             ).bind(`legacy-${approved.id}`).first<Record<string, unknown>>();
             assert.deepEqual(migratedApproved, {
                 card_number: approved.id,
                 origin: 'legacy',
-                series_code: null,
                 publication_status: 'published',
                 front_object_key: 'community/namecards/assets/card-7-front/image.png',
                 back_object_key: 'community/namecards/assets/card-7-back/image.jpg',
-                available: false,
                 revision: 3,
                 owner_account_id: null,
                 producer_name: null,
             });
 
             const migratedGuest = await harness.connection.prepare(
-                `SELECT origin, series_code, publication_status
+                `SELECT origin, publication_status
          FROM fudaba_cards WHERE id=?`
             ).bind(`legacy-${guest.id}`).first<Record<string, unknown>>();
             assert.deepEqual(migratedGuest, {
                 origin: 'guest',
-                series_code: '765',
                 publication_status: 'pending'
             });
+
+            const guestSeries = await harness.connection.prepare(
+                `SELECT series_code FROM fudaba_card_series WHERE card_id=?`
+            ).bind(`legacy-${guest.id}`).all<{ series_code: string }>();
+            assert.deepEqual(
+                guestSeries.results.map((entry) => entry.series_code),
+                ['765']
+            );
 
             const guestAttributes = await harness.connection.prepare(
                 `SELECT hash1, hash2, submitted_ip, withdrawal_token_hash

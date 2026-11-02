@@ -8,8 +8,10 @@ export async function handleListFudabaPublicCards(
     c: Context<AppEnvironment>
 ): Promise<Response> {
     const query = parseFudabaCardQuery(c.req.url);
+    const { available, ...filters } = query.filters;
     const rows = await fudabaRepository(c).listPublicCards({
-        ...query.filters,
+        ...filters,
+        ...(available === undefined ? {} : { exchangeable: available }),
         viewerAccountId: c.get('platformUser')?.id ?? null,
         limit: query.limit + 1,
         ...(query.after ? { after: query.after } : {})

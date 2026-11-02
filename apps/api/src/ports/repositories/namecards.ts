@@ -1,5 +1,6 @@
 import type {
-    CardFavoriteSelectionRecord
+    CardFavoriteSelectionRecord,
+    FudabaCardCredit
 } from '@/ports/repositories/fudaba';
 
 export type NamecardSubmissionKind = 'guest' | 'legacy';
@@ -23,7 +24,7 @@ export interface PendingCardInput {
 export interface CardMediaRecord {
     id?: number;
     image1_url: string;
-    image2_url: string;
+    image2_url: string | null;
     status?: string;
     revision?: number;
     series_code?: string | null;
@@ -32,6 +33,50 @@ export interface CardMediaRecord {
     seriesCode?: string | null;
     submissionKind?: NamecardSubmissionKind;
     favoriteCharacters?: CardFavoriteSelectionRecord[];
+    /** Fudaba row id; the public detail deep-links the owner editor with it. */
+    cardId?: string;
+    card_number?: number;
+    producer_name?: string | null;
+    producer_reading?: string | null;
+    group_name?: string | null;
+    made_on?: string | null;
+    bio?: string | null;
+    trade_note?: string | null;
+    is_original?: boolean;
+    made_with_ai?: boolean;
+    exchange_mode?: 'auto' | 'manual' | 'none';
+    accent?: string | null;
+    owner_account_id?: string | null;
+    series_codes?: string[];
+    middle_image_urls?: string[];
+    credits?: FudabaCardCredit[];
+}
+
+export interface NamecardDiffSide {
+    producerName: string | null;
+    producerReading: string | null;
+    groupName: string | null;
+    madeOn: string | null;
+    bio: string | null;
+    tradeNote: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    exchangeMode: 'auto' | 'manual' | 'none';
+    seriesCodes: string[];
+    credits: FudabaCardCredit[];
+    favoriteCharacters: CardFavoriteSelectionRecord[];
+    frontImageUrl: string;
+    backImageUrl: string | null;
+    middleImageUrls: string[];
+}
+
+export interface NamecardDiffRecord {
+    id: number;
+    status: NamecardSubmissionStatus;
+    reviewStatus: 'pending' | 'rejected' | 'locked' | null;
+    live: NamecardDiffSide;
+    pending: NamecardDiffSide | null;
 }
 
 export type NamecardSubmissionStatus =
@@ -107,6 +152,21 @@ export interface NamecardRepository {
         offset: number,
     ): Promise<NamecardPublicRecord[]>;
     findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
+    findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null>;
+    /**
+     * Object key backing one artwork page, for the moderator preview. `draft`
+     * prefers the submitted revision and falls back to the live object.
+     */
+    findCardMediaKey(
+        cardNumber: number,
+        side: string,
+        draft: boolean
+    ): Promise<string | null>;
+    /** The key of a page the public wall is allowed to serve. */
+    findPublishedCardMediaKey(
+        cardNumber: number,
+        side: string
+    ): Promise<string | null>;
     listAdminCards(
         limit: number,
         offset: number,
@@ -174,7 +234,7 @@ export interface NamecardRepository {
     ): Promise<number>;
     purgeTerminalCards(
         cutoff: Date,
-    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string | null }>>;
     findSubmissionByTokenHash(
         id: number,
         tokenHash: string,

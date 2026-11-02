@@ -23,10 +23,13 @@ const IGNORED = {
     articles: ['created_at', 'updated_at', 'revision', 'created_by', 'updated_by', 'published_by'],
     site_packages: ['published_revision_id', 'created_by', 'updated_by'],
     site_package_revisions: ['created_by', 'preview_token_hash'],
-    fudaba_cards: ['legacy_card_id', 'owner_account_id', 'producer_name', 'display_name',
-        'favorite_idol', 'accent', 'bio', 'trade_note', 'available', 'revision',
-        'created_at', 'updated_at', 'pending_payload', 'pending_front_object_key',
-        'pending_back_object_key'],
+    // Preview owns the editable card text, the moderation state and the staged
+    // uploads, so production only contributes the artwork keys and identity.
+    fudaba_cards: ['legacy_card_id', 'owner_account_id', 'producer_name', 'producer_reading',
+        'accent', 'bio', 'trade_note', 'group_name', 'made_on', 'is_original', 'made_with_ai',
+        'visible', 'exchange_mode', 'revision', 'created_at', 'updated_at', 'pending_payload',
+        'pending_front_object_key', 'pending_back_object_key', 'pending_middle_object_keys',
+        'review_status', 'review_reason', 'review_submitted_at'],
     namecard_guest_attributes: ['submitted_ip', 'withdrawal_token_hash'],
     s3_object_versions: ['owner_token'],
     s3_object_index: ['operation_id']
@@ -196,7 +199,7 @@ async function mergeTable(source, target, table, options) {
     const filter = table === 's3_object_versions' ? " WHERE t.storage_scope='public' AND EXISTS (SELECT 1 FROM public.s3_object_index i WHERE i.object_id=t.object_id AND i.state='ready' AND NOT(i.logical_key=ANY($2::text[])))" :
         table === 's3_object_index' ? " WHERE t.state='ready' AND NOT(t.logical_key=ANY($2::text[])) AND EXISTS (SELECT 1 FROM public.s3_object_versions v WHERE v.object_id=t.object_id AND v.storage_scope='public')" : '';
     const initialValues = table === 'fudaba_cards'
-        ? "jsonb_build_object('created_at',t.created_at,'updated_at',t.updated_at,'available',false,'trade_note',NULL)::text" : "'{}'::text";
+        ? "jsonb_build_object('created_at',t.created_at,'updated_at',t.updated_at,'exchange_mode','none','trade_note',NULL)::text" : "'{}'::text";
     const rows = await source.query(`SELECT (${projection})::text AS payload, ${references} AS parent_refs,
         ${initialValues} AS insert_values,
         (${keyExpression})::text AS key FROM ${relation(table)} t${filter}`, mediaTable ? [ignored, preservedKeys] : [ignored]);

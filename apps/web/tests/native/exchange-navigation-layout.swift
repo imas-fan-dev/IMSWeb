@@ -68,8 +68,16 @@ enum ExchangeNavigationLayoutTests {
     check(ExchangeSearchLayout.collapsedBottom(host: map, viewport: viewport, collapsed: true, portrait: true, clearance: 36, keyboardTop: 840, navigation: CGRect(x: 20, y: 810, width: 362, height: 64)) == 780, "host boundary caps downward docking")
     check(ExchangeSearchLayout.collapsedBottom(host: map, viewport: viewport, collapsed: true, portrait: true, clearance: 36, keyboardTop: 840, navigation: CGRect(x: 20, y: CGFloat.nan, width: 362, height: 64)) == 744, "nonfinite docking retains fallback")
     check(ExchangeSearchLayout.expandedMinimumHeight(handle: 44, input: 48, submit: 44) == 260, "normal expanded budget")
-    check(ExchangeSearchLayout.expandedMinimumHeight(handle: 44, input: 120, submit: 106) == 346, "live essential rows retain 44pt reading space and 12pt submit gap")
-    check(ExchangeSearchLayout.expandedMinimumHeight(handle: 0, input: 120, submit: 106) == 298, "compact host removes only handle space")
+    check(ExchangeSearchLayout.expandedMinimumHeight(handle: 44, input: 120, submit: 106) == 354, "live essential rows retain 44pt reading space and 12pt section gaps")
+    check(ExchangeSearchLayout.expandedMinimumHeight(handle: 0, input: 120, submit: 106) == 306, "compact host removes only handle space")
+    for pill in [CGRect(x: 20, y: 735, width: 362, height: 44), CGRect(x: 8, y: 300, width: 420, height: 44)] {
+      let controls = ExchangeSearchLayout.sideControlsFrame(collapsedFrame: pill, hasLocate: true)
+      check(controls.maxX == pill.maxX, "controls align with browsing search edge")
+      check(pill.minY - controls.maxY == 12, "controls retain twelve-point browsing clearance")
+      check(controls.height == 96, "both controls retain full hit targets")
+      let refreshOnly = ExchangeSearchLayout.sideControlsFrame(collapsedFrame: pill, hasLocate: false)
+      check(refreshOnly.maxY == controls.maxY && refreshOnly.height == 48, "refresh-only anchor retains browsing clearance")
+    }
     print("Passed \(count) production exchange navigation geometry cases")
   }
 }

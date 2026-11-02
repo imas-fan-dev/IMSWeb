@@ -3,6 +3,7 @@ import type {
   FudabaWallLayoutItem,
 } from "@imsweb/contracts/fudaba/messages"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import { sceneImageBase64, sceneTinyPreview } from "./fixtures/scene-image"
 import { expect, test } from "./fixtures/test"
 
@@ -107,18 +108,23 @@ test("全墙1000占位、远处逐物件加载、定位选择与动态便签 @mo
       canMove: true,
       card: {
         id: `card-${index}`,
-        producerName: "制作人",
-        displayName: ["最老的名片", "第二张名片", "最新的名片"][index],
-        seriesCode: "765",
-        favoriteCharacter: "天海春香",
+        producerName: ["最老的名片", "第二张名片", "最新的名片"][index],
+        seriesCodes: ["765"],
         favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
         frontImageUrl: `/__scene_media__/card-${index}.webp`,
+        middleImageUrls: [],
         backImageUrl: `/__scene_media__/back-${index}.webp`,
         accent: "#ef92ac",
         bio: "渐进加载",
         tradeNote: "交换",
-        available: true,
-        source: null,
+        exchangeMode: "manual",
+        madeOn: null,
+        groupName: null,
+        producerReading: null,
+        isOriginal: false,
+        madeWithAi: false,
+        visible: true,
+        credits: [],
         createdAt: timestamp,
         interactions: {
           likes: 0,
@@ -167,7 +173,7 @@ test("全墙1000占位、远处逐物件加载、定位选择与动态便签 @mo
         ? {
             kind: "card",
             id: item.card.id,
-            displayName: item.card.displayName,
+            displayName: cardLabel(item.card),
             viewerOwned: true,
             placement: item.card.placement,
             width: 240,

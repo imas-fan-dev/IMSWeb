@@ -43,6 +43,7 @@ struct NativeGlassControlPayload: Decodable {
   let panelCornerRadius: Double?
   let active: Bool?
   let disabled: Bool?
+  let busy: Bool?
   let expanded: Bool?
   let panelWidth: Double?
   let items: [NativeGlassControlMenuItem]?
@@ -109,6 +110,7 @@ private final class GlassControlButton: UIControl {
   private let titleLabel = UILabel()
   private let badgeView = UIView()
   private var isActive = false
+  private var isBusy = false
 
   var cornerRadius: CGFloat = 8 {
     didSet { setNeedsLayout() }
@@ -156,6 +158,7 @@ private final class GlassControlButton: UIControl {
     accessibilityTraits = .button
     addTarget(self, action: #selector(handleActivate), for: .touchUpInside)
     NotificationCenter.default.addObserver(self, selector: #selector(updatePress), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(updateBusyMotion), name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
   }
 
   required init?(coder: NSCoder) {
@@ -175,9 +178,11 @@ private final class GlassControlButton: UIControl {
     title: String?,
     active: Bool,
     disabled: Bool,
-    badge: Bool
+    badge: Bool,
+    busy: Bool = false
   ) {
     isActive = active
+    isBusy = busy
     iconView.image = UIImage(named: icon)?.withRenderingMode(.alwaysTemplate)
     titleLabel.text = title
     iconView.tintColor = active ? imsTabBarSelectedColor : .label
@@ -185,6 +190,8 @@ private final class GlassControlButton: UIControl {
     badgeView.isHidden = !badge
     isEnabled = !disabled
     alpha = disabled ? 0.4 : 1
+    accessibilityValue = busy ? "正在处理" : nil
+    updateBusyMotion()
     updateSelection()
     updateTraits(disabled: disabled)
     setNeedsLayout()
@@ -195,6 +202,10 @@ private final class GlassControlButton: UIControl {
       updateSelection()
       updatePress()
     }
+  }
+
+  @objc private func updateBusyMotion() {
+    synchronizeBusyGlyphMotion(iconView, busy: isBusy)
   }
 
   @objc private func updatePress() {
@@ -295,6 +306,7 @@ private final class GlassControlRenderer {
   private var iconButtons: [String: GlassControlButton] = [:]
   var onEvent: ((String, String, String?) -> Void)?
   var searchLocateFrame: CGRect?
+  var searchLocateCovered = false
 
   init(overlay: GlassControlOverlayView) {
     self.overlay = overlay
@@ -385,6 +397,7 @@ private final class GlassControlRenderer {
     button.center = CGPoint(x: frame.midX, y: frame.midY)
     button.cornerRadius = CGFloat(control.cornerRadius)
     button.usesExternalSurface = grouped
+    button.isHidden = grouped && searchLocateCovered
     // This button owns the lower half of the search skin, not a separate circle.
     button.externalHitBounds = grouped ? CGRect(x: 0, y: -48, width: 48, height: 96) : nil
     button.accessibilityLabel = control.label
@@ -394,7 +407,8 @@ private final class GlassControlRenderer {
       title: nil,
       active: control.active ?? false,
       disabled: control.disabled ?? false,
-      badge: false
+      badge: false,
+      busy: control.busy ?? false
     )
     button.onActivate = { [weak self] in
       self?.onEvent?(control.id, "press", nil)
@@ -452,7 +466,8 @@ private final class GlassControlRenderer {
         title: nil,
         active: member.control.active ?? false,
         disabled: member.control.disabled ?? false,
-        badge: false
+        badge: false,
+        busy: member.control.busy ?? false
       )
       segment.onActivate = { [weak self] in
         self?.onEvent?(member.control.id, "press", nil)
@@ -645,9 +660,10 @@ final class NativeGlassControlHostViewController: UIViewController {
 
   var hasLocate: Bool { currentControls.contains { $0.id == "locate" && $0.kind == "icon-button" } }
 
-  func setSearchLocateFrame(_ frame: CGRect?) {
-    guard renderer.searchLocateFrame != frame else { return }
+  func setSearchLocateFrame(_ frame: CGRect?, covered: Bool = false) {
+    guard renderer.searchLocateFrame != frame || renderer.searchLocateCovered != covered else { return }
     renderer.searchLocateFrame = frame
+    renderer.searchLocateCovered = covered
     if !currentControls.isEmpty {
       _ = renderer.render(currentControls, dark: currentDark, offset: currentOffset)
     }
@@ -685,6 +701,7 @@ final class NativeGlassControlHostViewController: UIViewController {
   func clear() {
     currentControls = []
     renderer.searchLocateFrame = nil
+    renderer.searchLocateCovered = false
     renderer.clear()
   }
 }

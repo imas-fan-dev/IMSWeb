@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import type { FudabaPendingCardPayload } from '@/ports/repositories/fudaba';
+import type {
+    FudabaCardCredit,
+    FudabaPendingCardPayload
+} from '@/ports/repositories/fudaba';
 import {
     CARD_REVIEW_EXEMPT_FIELDS,
     type CardReviewSnapshot,
@@ -11,27 +14,29 @@ import {
 const { requiresCardReview } = fudabaReviewPolicy;
 
 const live: CardReviewSnapshot = {
-    displayName: 'NEI',
     producerName: 'P',
-    seriesCode: 'series',
-    favoriteCharacter: 'Mika',
-    favoriteCharacterIds: [3, 1],
-    accent: '#fff',
     bio: 'bio',
-    tradeNote: 'note'
+    tradeNote: 'note',
+    isOriginal: false
 };
 
-function submission(overrides: Partial<FudabaPendingCardPayload> = {}): FudabaPendingCardPayload {
+function submission(
+    overrides: Partial<FudabaPendingCardPayload> = {}
+): FudabaPendingCardPayload {
     return {
-        display_name: 'NEI',
         producer_name: 'P',
-        series_code: 'series',
-        favorite_character: 'Mika',
-        favorite_character_ids: [...live.favoriteCharacterIds],
-        accent: '#fff',
+        producer_reading: 'ぴー',
+        series_codes: ['series'],
+        favorite_character_ids: [1, 3],
         bio: 'bio',
         trade_note: 'note',
-        available: true,
+        exchange_mode: 'manual',
+        made_on: null,
+        group_name: null,
+        is_original: false,
+        made_with_ai: false,
+        visible: true,
+        credits: [],
         ...overrides
     };
 }
@@ -40,37 +45,77 @@ test('identical content needs no review', () => {
     assert.equal(requiresCardReview(live, submission()), false);
 });
 
-test('exempt fields alone do not trigger review', () => {
-    for (const field of CARD_REVIEW_EXEMPT_FIELDS) {
-        assert.equal(field, 'available');
-        assert.equal(requiresCardReview(live, submission({ available: false })), false);
+test('only artwork, name, bio, originality and the exchange note are reviewed', () => {
+    assert.deepEqual([...CARD_REVIEW_EXEMPT_FIELDS].sort(), [
+        'credits',
+        'exchange_mode',
+        'favorite_character_ids',
+        'group_name',
+        'made_on',
+        'made_with_ai',
+        'producer_reading',
+        'series_codes',
+        'visible'
+    ]);
+});
+
+test('the exempt fields publish without a review', () => {
+    const credit: FudabaCardCredit = {
+        accountId: null,
+        displayName: 'illustrator',
+        url: 'https://example.com',
+        roles: ['illustration']
+    };
+    const changes: Partial<FudabaPendingCardPayload>[] = [
+        { producer_reading: 'ぴー2' },
+        { series_codes: ['series2'] },
+        { favorite_character_ids: [1] },
+        { favorite_character_ids: [1, 3, 4] },
+        { credits: [credit] },
+        { exchange_mode: 'none' },
+        { group_name: 'group' },
+        { made_on: '2016-03' },
+        { made_with_ai: true },
+        { visible: false }
+    ];
+    for (const change of changes) {
+        assert.equal(
+            requiresCardReview(live, submission(change)),
+            false,
+            JSON.stringify(change)
+        );
     }
+});
+
+test('the reviewed fields always need a review', () => {
+    const changes: Partial<FudabaPendingCardPayload>[] = [
+        { producer_name: 'P2' },
+        { bio: 'bio2' },
+        { trade_note: 'note2' },
+        { is_original: true }
+    ];
+    for (const change of changes) {
+        assert.equal(
+            requiresCardReview(live, submission(change)),
+            true,
+            JSON.stringify(change)
+        );
+    }
+    assert.equal(
+        requiresCardReview({ ...live, isOriginal: true }, submission({ is_original: false })),
+        true
+    );
 });
 
 test('trailing whitespace is not a content change', () => {
-    assert.equal(requiresCardReview(live, submission({ display_name: '  NEI  ' })), false);
-});
-
-test('reordered favourite characters are the same selection', () => {
-    assert.equal(requiresCardReview(live, submission({ favorite_character_ids: [1, 3] })), false);
-});
-
-test('adding or dropping a favourite character needs review', () => {
-    assert.equal(requiresCardReview(live, submission({ favorite_character_ids: [1] })), true);
-    assert.equal(requiresCardReview(live, submission({ favorite_character_ids: [1, 3, 4] })), true);
-});
-
-test('any content field change needs review', () => {
-    const changes: Partial<FudabaPendingCardPayload>[] = [
-        { display_name: 'NEI 2' },
-        { producer_name: 'P2' },
-        { series_code: 'series2' },
-        { favorite_character: 'Shizuka' },
-        { accent: '#000' },
-        { bio: 'bio2' },
-        { trade_note: 'note2' }
-    ];
-    for (const change of changes) {
-        assert.equal(requiresCardReview(live, submission(change)), true, JSON.stringify(change));
-    }
+    assert.equal(
+        requiresCardReview(live, submission({ producer_name: '  P  ' })),
+        false
+    );
+    assert.equal(
+        requiresCardReview(live, submission({ bio: ' bio ', trade_note: '\tnote' })),
+        false
+    );
+    // Blanking a reviewed field is still a content change.
+    assert.equal(requiresCardReview(live, submission({ bio: '   ' })), true);
 });

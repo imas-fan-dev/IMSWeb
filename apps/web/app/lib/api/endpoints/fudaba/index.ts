@@ -12,6 +12,7 @@ import {
   exchangePath,
   mapsPath,
 } from "@imsweb/contracts/paths"
+export { createMapboxNearbySearch } from "./mapbox-place-search"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"
@@ -184,7 +185,10 @@ export {
 export const fudabaCardCreateSchema = fudabaCardFieldsRequestSchema
   .extend({
     front: fileSchema,
-    back: fileSchema,
+    /** Single-sided cards have no back page. */
+    back: fileSchema.optional(),
+    /** Ordered middle pages, submitted after the first and last image. */
+    images: z.array(fileSchema).optional(),
   })
   .strict()
 
@@ -206,7 +210,14 @@ const fudabaCardPlacementPathSchema = z
 
 export type FudabaCardFields = z.input<typeof fudabaCardFieldsRequestSchema>
 
-export type CreateFudabaCardInput = z.input<typeof fudabaCardCreateSchema>
+export type CreateFudabaCardInput = z.input<typeof fudabaCardCreateSchema> & {
+  /** First page of the ordered artwork list. */
+  front: File
+  /** Last page; single-sided cards have none. */
+  back?: File | undefined
+  /** Everything between the front and the back, in display order. */
+  images?: readonly File[] | undefined
+}
 
 export type UpdateFudabaCardInput = z.input<
   typeof fudabaCardUpdateRequestSchema
@@ -768,24 +779,35 @@ export function withdrawFudabaOwnerLocation(
 
 function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("producerName", fields.producerName)
-  form.append("displayName", fields.displayName)
-  form.append("seriesCode", fields.seriesCode)
+  form.append("producerReading", fields.producerReading ?? "")
+  form.append("seriesCodes", JSON.stringify(fields.seriesCodes))
   form.append(
     "favoriteCharacterIds",
     JSON.stringify(fields.favoriteCharacterIds)
   )
-  form.append("accent", fields.accent)
   form.append("bio", fields.bio)
   form.append("tradeNote", fields.tradeNote)
-  form.append("available", String(fields.available))
+  form.append("exchangeMode", fields.exchangeMode)
+  form.append("madeOn", fields.madeOn ?? "")
+  form.append("groupName", fields.groupName ?? "")
+  form.append("isOriginal", String(fields.isOriginal))
+  form.append("madeWithAi", String(fields.madeWithAi))
+  form.append("visible", String(fields.visible))
+  form.append("credits", JSON.stringify(fields.credits))
 }
 
 export function createFudabaCard(input: CreateFudabaCardInput) {
-  const { front, back, ...fields } = fudabaCardCreateSchema.parse(input)
+  const {
+    front,
+    back,
+    images = [],
+    ...fields
+  } = fudabaCardCreateSchema.parse(input)
   const form = new FormData()
   appendCardFields(form, fields)
   form.append("front", front)
-  form.append("back", back)
+  if (back) form.append("back", back)
+  for (const image of images) form.append("images", image)
   return platformApiClient.Post(
     exchangePath("/cards"),
     form,
@@ -830,6 +852,37 @@ export function uploadFudabaCardMedia(
   form.append("expectedRevision", String(upload.expectedRevision))
   return platformApiClient.Put(
     exchangePath(`/uploads/${upload.side}`),
+    form,
+    parsed(fudabaCardMutationResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+      select: normalizeFudabaCardMutation,
+    })
+  )
+}
+
+/**
+ * Replaces the whole ordered artwork set of one card in a single request. Slot 0
+ * is the front, slot 1 the back and the rest are the middle pages, so a submit
+ * can replace an image, reorder the set and move a page across roles at once —
+ * the editor keeps every local change until the owner presses save.
+ *
+ * `order` never carries object keys: `#i` keeps the image the card already has
+ * at slot i (in the order the API returned them), `@n` is the n-th uploaded file.
+ */
+export function replaceFudabaCardMedia(
+  cardId: string,
+  input: { images: readonly File[]; order: readonly string[] },
+  expectedRevision: number
+) {
+  const revision = fudabaRevisionSchema.parse(expectedRevision)
+  const form = new FormData()
+  for (const image of input.images) form.append("images", image)
+  form.append("order", JSON.stringify(input.order))
+  form.append("expectedRevision", String(revision))
+  return platformApiClient.Put(
+    exchangePath(`/me/cards/${encodeURIComponent(cardId)}/media`),
     form,
     parsed(fudabaCardMutationResponseSchema, {
       errorSchema: fudabaErrorResponseSchema,

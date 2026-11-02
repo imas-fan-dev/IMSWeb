@@ -1,3 +1,4 @@
+import { emptyCredit } from "./card-credits-editor"
 import {
   isApiError,
   type FudabaCardFields,
@@ -25,18 +26,30 @@ export const publicationLabels: Record<
   locked: "已锁定",
 }
 
+/**
+ * A published card keeps serving its approved copy while the submitted revision
+ * waits in `pendingContent`, so the editor has to seed from that revision —
+ * otherwise a just-saved edit snaps back to the live values.
+ */
 export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
+  const pending = card.pendingContent
+  const content = pending ?? card
   return {
-    producerName: card.producerName,
-    displayName: card.displayName,
-    seriesCode: card.seriesCode,
-    favoriteCharacterIds: card.favoriteCharacters.map(
-      (character) => character.id
-    ),
-    accent: card.accent,
-    bio: card.bio,
-    tradeNote: card.tradeNote,
-    available: card.available,
+    producerName: content.producerName,
+    producerReading: content.producerReading,
+    seriesCodes: content.seriesCodes,
+    favoriteCharacterIds: pending
+      ? pending.favoriteCharacterIds
+      : card.favoriteCharacters.map((character) => character.id),
+    bio: content.bio,
+    tradeNote: content.tradeNote,
+    exchangeMode: content.exchangeMode,
+    madeOn: content.madeOn,
+    groupName: content.groupName,
+    isOriginal: content.isOriginal,
+    madeWithAi: content.madeWithAi,
+    visible: content.visible,
+    credits: content.credits.length ? content.credits : [emptyCredit()],
   }
 }
 
@@ -46,13 +59,20 @@ export function emptyCardFields(
 ): FudabaCardFields {
   return {
     producerName: profile.displayName,
-    displayName: "",
-    seriesCode: series[0]?.code ?? "",
+    producerReading: null,
+    // A new card starts on the first published series; the editor lets the
+    // author move it or add more.
+    seriesCodes: series[0] ? [series[0].code] : [],
     favoriteCharacterIds: [],
-    accent: "#f34e6c",
     bio: profile.bio,
     tradeNote: "",
-    available: true,
+    exchangeMode: "auto",
+    madeOn: null,
+    groupName: null,
+    isOriginal: false,
+    madeWithAi: false,
+    visible: true,
+    credits: [emptyCredit()],
   }
 }
 

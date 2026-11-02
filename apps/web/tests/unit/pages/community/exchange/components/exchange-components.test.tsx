@@ -3,22 +3,28 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import type { FudabaPlacedCard } from "~/lib/api"
+import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import { PlacedCardWall } from "~/pages/community/exchange/components/exchange-components"
 
 const baseCard: FudabaPlacedCard = {
   id: "card-start",
   producerName: "春香P",
-  displayName: "边界名片",
-  seriesCode: "765",
-  favoriteCharacter: "天海春香",
+  seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
+  middleImageUrls: [],
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
   bio: "",
   tradeNote: "现场交换",
-  available: true,
-  source: null,
+  exchangeMode: "manual",
+  madeOn: null,
+  groupName: null,
+  producerReading: null,
+  isOriginal: false,
+  madeWithAi: false,
+  visible: true,
+  credits: [],
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 0,
@@ -47,7 +53,7 @@ describe("PlacedCardWall", () => {
           {
             ...baseCard,
             id: "card-end",
-            displayName: "另一侧边界名片",
+            producerName: "另一侧P",
             placement: {
               ...baseCard.placement,
               x: 10000,
@@ -61,10 +67,10 @@ describe("PlacedCardWall", () => {
     )
 
     const start = screen.getByRole("button", {
-      name: "查看边界名片正面",
+      name: `查看${cardLabel(baseCard)}正面`,
     }).parentElement
     const end = screen.getByRole("button", {
-      name: "查看另一侧边界名片正面",
+      name: `查看${cardLabel({ producerName: "另一侧P" })}正面`,
     }).parentElement
 
     expect(start?.style.left).toBe("0px")
@@ -87,7 +93,9 @@ describe("PlacedCardWall", () => {
       />
     )
 
-    const handle = await screen.findByRole("button", { name: "移动边界名片" })
+    const handle = await screen.findByRole("button", {
+      name: `移动${cardLabel(baseCard)}`,
+    })
     handle.focus()
     await user.keyboard("{ArrowRight}")
 
@@ -109,11 +117,13 @@ describe("PlacedCardWall", () => {
     )
 
     expect(
-      screen.queryByRole("button", { name: "移动边界名片" })
+      screen.queryByRole("button", { name: `移动${cardLabel(baseCard)}` })
     ).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "边界名片翻到背面" }))
+    await user.click(
+      screen.getByRole("button", { name: `${cardLabel(baseCard)}翻到背面` })
+    )
     expect(
-      screen.getByRole("button", { name: "查看边界名片背面" })
+      screen.getByRole("button", { name: `查看${cardLabel(baseCard)}背面` })
     ).toBeVisible()
   })
 
@@ -128,7 +138,7 @@ describe("PlacedCardWall", () => {
           {
             ...baseCard,
             id: "other",
-            displayName: "他人名片",
+            producerName: "他人名片",
             viewerOwned: false,
           },
         ]}
@@ -138,7 +148,7 @@ describe("PlacedCardWall", () => {
       />
     )
     fireEvent.focus(screen.getByRole("region", { name: "名片墙放置区域" }))
-    const other = screen.getByRole("button", { name: "查看他人名片正面" })
+    const other = screen.getByRole("button", { name: "查看他人名片的名片正面" })
     await user.click(other)
     expect(other.closest("[data-card-id]")).toHaveClass("ring-2")
     expect(screen.getByRole("button", { name: "向右旋转名片" })).toBeDisabled()
@@ -172,7 +182,6 @@ describe("PlacedCardWall", () => {
           {
             ...baseCard,
             id: "card-front",
-            displayName: "前层名片",
             viewerOwned: false,
             placement: { ...baseCard.placement, zIndex: 4 },
           },
@@ -184,7 +193,7 @@ describe("PlacedCardWall", () => {
       />
     )
 
-    await screen.findByRole("button", { name: "移动边界名片" })
+    await screen.findByRole("button", { name: `移动${cardLabel(baseCard)}` })
     await user.click(screen.getByRole("button", { name: "向右旋转名片" }))
     expect(commit).toHaveBeenCalledWith(
       "card-start",
@@ -223,7 +232,6 @@ describe("PlacedCardWall", () => {
     const currentFrontCard = {
       ...baseCard,
       id: "card-front",
-      displayName: "当前最前名片",
       viewerOwned: false,
       placement: {
         ...baseCard.placement,

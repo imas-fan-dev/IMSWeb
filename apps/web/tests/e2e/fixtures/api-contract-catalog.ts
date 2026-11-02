@@ -128,10 +128,17 @@ import {
 import {
   adminNamecardHttpErrorSchema,
   adminNamecardListQuerySchema,
+  adminNamecardDiffSchema,
   adminNamecardListResponseSchema,
   namecardErrorResponseSchema,
+  adminNamecardMutationSchema,
+  expectedNamecardRevisionRequestSchema,
+  flaggedNamecardRequestSchema,
+  lockedNamecardRequestSchema,
   namecardListErrorResponseSchema,
   namecardListQuerySchema,
+  namecardMutationResponseSchema,
+  rejectedNamecardRequestSchema,
   namecardPageSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
@@ -627,6 +634,36 @@ export function resolveApiContract(
       body: fudabaCardUpdateRequestSchema,
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/me\/cards\/[^/]+\/media$/.test(path)
+  )
+    return {
+      rawBody: {
+        name: "Ordered card artwork multipart request",
+        reason:
+          "Artwork slots travel as repeated images plus a JSON order, which JSON cannot express.",
+        schema: z
+          .string()
+          .min(1)
+          .refine((body) => {
+            const names = Array.from(
+              body.matchAll(
+                /content-disposition:\s*form-data;\s*name="([^"]+)"/gi
+              ),
+              (match) => match[1]
+            )
+            const images = names.filter((name) => name === "images")
+            const others = names.filter((name) => name !== "images").sort()
+            return (
+              images.length > 0 &&
+              others.join(",") === "expectedRevision,order"
+            )
+          }, "expected images plus expectedRevision and order fields"),
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
+    }
   if (method === "GET" && path === `${exchange}/me/favorites`)
     return {
       query: fudabaCardQuerySchema,
@@ -1020,6 +1057,80 @@ export function resolveApiContract(
       responses: {
         200: adminNamecardListResponseSchema,
         401: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && /^\/api\/admin\/cards\/[^/]+\/diff$/.test(path))
+    return {
+      responses: {
+        200: adminNamecardDiffSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/approve\/[^/]+$/.test(path))
+    return {
+      body: expectedNamecardRevisionRequestSchema,
+      responses: {
+        200: adminNamecardMutationSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/reject\/[^/]+$/.test(path))
+    return {
+      body: rejectedNamecardRequestSchema,
+      responses: {
+        200: successFlagSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/lock\/[^/]+$/.test(path))
+    return {
+      body: lockedNamecardRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/flag\/[^/]+$/.test(path))
+    return {
+      body: flaggedNamecardRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "POST" && /^\/api\/admin\/cards\/unlock\/[^/]+$/.test(path))
+    return {
+      body: expectedNamecardRevisionRequestSchema,
+      responses: {
+        200: namecardMutationResponseSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+        410: namecardErrorResponseSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/accounts")

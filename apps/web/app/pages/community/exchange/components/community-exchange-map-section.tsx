@@ -1,4 +1,10 @@
 import { useContext } from "react"
+import { useNavigation } from "~/lib/navigation/use-navigation"
+import { canonicalCameraPosition } from "~/lib/maps/map-camera-change"
+import { startOfficeCreateIntent } from "~/lib/maps/office-create-intent"
+import { useMapOnboarding } from "../hooks/use-map-onboarding"
+import { ExchangeMapActions } from "./exchange-map-actions"
+import { ExchangeMapOnboarding, mapGuideSteps } from "./exchange-map-onboarding"
 import { ExchangeDataRevision } from "./exchange-page-surface"
 import {
   Building2Icon,
@@ -57,6 +63,7 @@ import {
   MapSearchError,
   type MapPlaceSearcher,
   type MapSearchPlace,
+  type MapSearchTarget,
 } from "~/lib/maps/map-search"
 import {
   ExchangeSearchCard,
@@ -225,6 +232,11 @@ export function CommunityExchangeMapSection({
   webDiscovery?: ExchangeDiscoveryRailProps
 }) {
   const dataRevision = useContext(ExchangeDataRevision)
+  const navigate = useNavigation()
+  const [mapReady, setMapReady] = useState(false)
+  const [createPoint, setCreatePoint] = useState<MapSearchTarget | null>(null)
+  const [choosingPoint, setChoosingPoint] = useState(false)
+  const guide = useMapOnboarding(mapReady, Boolean(searchTools?.modalOpen))
   const [config, setConfig] = useState<ConfigState>(initialConfigState)
   const [MapComponent, setMapComponent] = useState<ExchangeMapRenderer | null>(
     null
@@ -254,12 +266,39 @@ export function CommunityExchangeMapSection({
     claimed: false,
     controller: new AbortController(),
   })
+  const guideSeen = useRef(guide.seen)
+  useLayoutEffect(() => {
+    guideSeen.current = guide.seen
+  })
   const claimInitialLocation = useCallback(() => {
+    if (!guideSeen.current) return null
     const attempt = initialLocation.current
     if (attempt.claimed || attempt.controller.signal.aborted) return null
     attempt.claimed = true
     return attempt.controller.signal
   }, [])
+  const chooseCreatePoint = useCallback(
+    (target: MapSearchTarget) => {
+      const position = canonicalCameraPosition(target.position)
+      if (!position) return
+      initialLocation.current.controller.abort()
+      setSelectedPlace(null)
+      clearOfficeSelection()
+      setCreatePoint({ ...target, position })
+      setChoosingPoint(false)
+    },
+    [clearOfficeSelection]
+  )
+  useEffect(() => {
+    if (!createPoint && !choosingPoint) return
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      setCreatePoint(null)
+      setChoosingPoint(false)
+    }
+    document.addEventListener("keydown", close)
+    return () => document.removeEventListener("keydown", close)
+  }, [createPoint, choosingPoint])
   useLayoutEffect(() => {
     if (selectedPlace) initialLocation.current.controller.abort()
   }, [selectedPlace])
@@ -514,343 +553,461 @@ export function CommunityExchangeMapSection({
   }
 
   return (
-    <section
-      ref={mapSurface}
-      className="relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]"
-      aria-label="区域地图"
-      data-exchange-web-map={IS_APP_TARGET ? undefined : ""}
-      data-exchange-web-workspace={webWorkspace ? "" : undefined}
-      data-office-list-open={webWorkspace && officeListOpen ? "" : undefined}
-      data-map-results-state={data.phase}
+    <ExchangeMapActions
+      value={{
+        startCreate: () => {
+          setCreatePoint(null)
+          setChoosingPoint(true)
+        },
+        showHelp: guide.replay,
+        tourTarget:
+          guide.step === null ? null : mapGuideSteps[guide.step]!.target,
+      }}
     >
-      {config.phase === "loading" ||
-      (config.phase === "ready" && !MapComponent && !moduleError) ? (
-        <div
-          className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground"
-          aria-live="polite"
-        >
-          <LoaderCircleIcon
-            className="animate-spin motion-reduce:animate-none"
-            aria-hidden="true"
-          />
-          正在准备区域地图
-        </div>
-      ) : null}
-
-      {config.phase === "ready" && MapComponent ? (
-        <MapComponent
-          groups={groups}
-          selectedGroupKey={selectedGroupKey}
-          groupFocus={webWorkspace ? groupFocus : undefined}
-          selectedPlace={selectedPlace}
-          occlusion={occlusion}
-          attributionPlacement={
-            webWorkspace ? (isNarrow ? "above-overlay" : "corner") : undefined
+      <section
+        ref={mapSurface}
+        data-map-guide="map"
+        onKeyDown={(event) => {
+          if (
+            choosingPoint &&
+            event.key === "Enter" &&
+            event.target instanceof HTMLCanvasElement &&
+            searchViewport.current
+          ) {
+            event.preventDefault()
+            chooseCreatePoint({
+              kind: "wgs84",
+              position: [...searchViewport.current],
+            })
           }
-          claimInitialLocation={claimInitialLocation}
-          onDevicePosition={reportDevicePosition}
-          onSearchViewportCenter={reportSearchViewport}
-          onSelectGroup={selectGroup}
-          onViewportChange={onViewportChange}
-          onFatalError={handleFatalError}
-          onRetry={retryMap}
-          onClearSearchSelection={clearSearchSelection}
-          onAttributionChange={onAttributionChange}
-        />
-      ) : null}
-
-      {mapFailure && !searchExpanded ? (
-        <MapUnavailable
-          message={mapFailure}
-          onRetry={retryMap}
-          onSwitchDirectory={onSwitchDirectory}
-        />
-      ) : null}
-
-      {!mapFailure &&
-      !webWorkspace &&
-      !searchExpanded &&
-      data.phase !== "error" &&
-      ((!data.hasResult && data.phase !== "ready") ||
-        !groups.length ||
-        data.truncated) ? (
-        <div
-          className={cn(
-            "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
-            IS_APP_TARGET && "exchange-map-app-surface",
-            IS_APP_TARGET
-              ? "top-[calc(var(--app-header-inset)+0.75rem)]"
-              : "top-3 lg:top-20 lg:left-4 lg:max-w-72 xl:max-w-80",
-            !IS_APP_TARGET && selectedPlace && "lg:hidden"
-          )}
-          data-map-point-count
-          aria-live="polite"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            {data.phase === "loading" && !data.hasResult ? (
-              <LoaderCircleIcon
-                className="size-3.5 animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-            ) : (
-              <MapIcon className="size-3.5 text-primary" aria-hidden="true" />
-            )}
-            {data.phase === "idle"
-              ? "等待地图范围"
-              : data.phase === "loading" && !data.hasResult
-                ? "正在更新地图结果"
-                : groups.length
-                  ? `${groups.length} 个区域点`
-                  : "当前范围内没有公开事务所"}
-          </span>
-          {data.truncated ? (
-            <span className="mt-1 block text-warning-foreground">
-              当前范围结果较多，请放大地图或收窄筛选。
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
-      {webWorkspace ? (
-        <ExchangeWebMapOffices
-          open={officeListOpen}
-          onOpenChange={setOfficeListOpen}
-          items={data.items}
-          series={seriesCatalog}
-          hasResult={data.hasResult}
-          truncated={data.truncated}
-          error={data.phase === "error" ? data.error : null}
-          onSelect={selectDirectoryOffice}
-          onOpenDirectory={onSwitchDirectory}
-          onRetry={refreshMapOffices}
-        />
-      ) : null}
-
-      {webWorkspace && searchTools ? (
-        <Button
-          type="button"
-          size="icon-lg"
-          variant="secondary"
-          className="exchange-web-refresh"
-          aria-label="刷新地图结果"
-          disabled={searchTools.refreshing}
-          onClick={() => {
-            refreshMapOffices()
-            searchTools.onRefresh()
-          }}
-        >
-          <RefreshCwIcon
-            className={cn(
-              searchTools.refreshing &&
-                "animate-spin motion-reduce:animate-none"
-            )}
-            aria-hidden="true"
-          />
-        </Button>
-      ) : null}
-
-      {data.phase === "error" &&
-      !mapFailure &&
-      !searchExpanded &&
-      !(webWorkspace && officeListOpen) ? (
-        <Alert
-          className={cn(
-            "absolute inset-x-3 z-10 bg-background/95 shadow-sm sm:left-auto sm:w-96",
-            webWorkspace && "exchange-web-map-warning",
-            IS_APP_TARGET
-              ? APP_FLOATING_CONTROL_OFFSET
-              : "bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
-          )}
-        >
-          <RefreshCwIcon aria-hidden="true" />
-          <AlertTitle>地图数据更新失败</AlertTitle>
-          <AlertDescription>
-            {data.error}。已保留上次成功结果。
-          </AlertDescription>
-          <div className="col-start-2 mt-2 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={refreshMapOffices}
-            >
-              重试
-            </Button>
-            <Button type="button" size="sm" onClick={onSwitchDirectory}>
-              查看名录
-            </Button>
+        }}
+        onPointerDown={(event) => {
+          if (
+            createPoint &&
+            event.target instanceof Element &&
+            !event.target.closest("[data-create-point-menu]")
+          )
+            setCreatePoint(null)
+        }}
+        className="relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]"
+        aria-label="区域地图"
+        data-exchange-web-map={IS_APP_TARGET ? undefined : ""}
+        data-exchange-web-workspace={webWorkspace ? "" : undefined}
+        data-app-search-expanded={
+          IS_APP_TARGET && searchExpanded ? "" : undefined
+        }
+        data-office-list-open={webWorkspace && officeListOpen ? "" : undefined}
+        data-map-results-state={data.phase}
+      >
+        {config.phase === "loading" ||
+        (config.phase === "ready" && !MapComponent && !moduleError) ? (
+          <div
+            className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground"
+            aria-live="polite"
+          >
+            <LoaderCircleIcon
+              className="animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+            正在准备区域地图
           </div>
-        </Alert>
-      ) : null}
+        ) : null}
 
-      {selectedGroup && !webWorkspace ? (
-        <aside
-          className={cn(
-            "absolute top-3 right-3 z-10 hidden w-80 overflow-y-auto rounded-lg border bg-background/97 p-4 shadow-md backdrop-blur-sm lg:block",
-            IS_APP_TARGET
-              ? "max-h-[calc(var(--app-content-height)-1.5rem)]"
-              : "top-4 right-4 max-h-[calc(100%-2rem)]"
-          )}
-        >
+        {config.phase === "ready" && MapComponent ? (
+          <MapComponent
+            groups={groups}
+            onReadyChange={setMapReady}
+            onContextPoint={chooseCreatePoint}
+            onCameraChange={(position, change) => {
+              reportSearchViewport(position)
+              if (change?.origin === "user") setCreatePoint(null)
+            }}
+            pointPicker={
+              choosingPoint || createPoint
+                ? {
+                    target: createPoint,
+                    disabled: !choosingPoint,
+                    onPick: chooseCreatePoint,
+                  }
+                : undefined
+            }
+            selectedGroupKey={selectedGroupKey}
+            groupFocus={webWorkspace ? groupFocus : undefined}
+            selectedPlace={selectedPlace}
+            occlusion={occlusion}
+            attributionPlacement={
+              webWorkspace ? (isNarrow ? "above-overlay" : "corner") : undefined
+            }
+            claimInitialLocation={claimInitialLocation}
+            onDevicePosition={reportDevicePosition}
+            onSearchViewportCenter={reportSearchViewport}
+            onSelectGroup={selectGroup}
+            onViewportChange={onViewportChange}
+            onFatalError={handleFatalError}
+            onRetry={retryMap}
+            onClearSearchSelection={clearSearchSelection}
+            onAttributionChange={onAttributionChange}
+          />
+        ) : null}
+
+        {choosingPoint || createPoint ? (
+          <div
+            data-create-point-menu
+            role="region"
+            aria-label="在地图上创建事务所"
+            className="absolute inset-x-4 top-[max(1rem,var(--app-header-inset,0px))] z-30 mx-auto flex max-w-sm flex-wrap items-center justify-between gap-3 rounded-xl border bg-popover p-4 text-sm shadow-lg"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setCreatePoint(null)
+                setChoosingPoint(false)
+              }
+            }}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">
+                {createPoint ? "所选位置" : "点击地图选择事务所位置"}
+              </p>
+              {createPoint ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {createPoint.position[1].toFixed(5)},{" "}
+                  {createPoint.position[0].toFixed(5)}
+                  {createPoint.kind === "native" ? "（地图预览坐标）" : ""}
+                </p>
+              ) : null}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              aria-label="取消创建选点"
+              onClick={() => {
+                setCreatePoint(null)
+                setChoosingPoint(false)
+              }}
+            >
+              <XIcon />
+            </Button>
+            {createPoint ? (
+              <Button
+                className="min-h-11 w-full"
+                onClick={() => {
+                  const href = startOfficeCreateIntent(createPoint)
+                  setCreatePoint(null)
+                  void navigate(href)
+                }}
+              >
+                在此创建事务所
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {searchTools && !searchTools.modalOpen ? (
+          <ExchangeMapOnboarding
+            step={guide.step}
+            onStep={guide.setStep}
+            onFinish={guide.finish}
+          />
+        ) : null}
+
+        {mapFailure && !searchExpanded ? (
+          <MapUnavailable
+            message={mapFailure}
+            onRetry={retryMap}
+            onSwitchDirectory={onSwitchDirectory}
+          />
+        ) : null}
+
+        {!mapFailure &&
+        !webWorkspace &&
+        !searchExpanded &&
+        data.phase !== "error" &&
+        ((!data.hasResult && data.phase !== "ready") ||
+          !groups.length ||
+          data.truncated) ? (
+          <div
+            className={cn(
+              "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
+              IS_APP_TARGET && "exchange-map-app-surface",
+              IS_APP_TARGET
+                ? "top-[calc(var(--app-header-inset)+0.75rem)]"
+                : "top-3 lg:top-20 lg:left-4 lg:max-w-72 xl:max-w-80",
+              !IS_APP_TARGET && selectedPlace && "lg:hidden"
+            )}
+            data-map-point-count
+            aria-live="polite"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {data.phase === "loading" && !data.hasResult ? (
+                <LoaderCircleIcon
+                  className="size-3.5 animate-spin motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+              ) : (
+                <MapIcon className="size-3.5 text-primary" aria-hidden="true" />
+              )}
+              {data.phase === "idle"
+                ? "等待地图范围"
+                : data.phase === "loading" && !data.hasResult
+                  ? "正在更新地图结果"
+                  : groups.length
+                    ? `${groups.length} 个区域点`
+                    : "当前范围内没有公开事务所"}
+            </span>
+            {data.truncated ? (
+              <span className="mt-1 block text-warning-foreground">
+                当前范围结果较多，请放大地图或收窄筛选。
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {webWorkspace ? (
+          <ExchangeWebMapOffices
+            open={officeListOpen}
+            onOpenChange={setOfficeListOpen}
+            items={data.items}
+            series={seriesCatalog}
+            hasResult={data.hasResult}
+            truncated={data.truncated}
+            error={data.phase === "error" ? data.error : null}
+            onSelect={selectDirectoryOffice}
+            onOpenDirectory={onSwitchDirectory}
+            onRetry={refreshMapOffices}
+          />
+        ) : null}
+
+        {webWorkspace && searchTools ? (
           <Button
             type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="absolute top-2 right-2"
-            aria-label="关闭区域详情"
-            onClick={() => setSelectedGroupKey(null)}
-          >
-            <XIcon aria-hidden="true" />
-          </Button>
-          <div className="pr-8">
-            <OfficeGroupDetails group={selectedGroup} />
-          </div>
-        </aside>
-      ) : null}
-
-      {searchTools && !webWorkspace ? (
-        <ExchangeSearchCard
-          tabs={workspaceSearch.tabs}
-          {...searchTools}
-          onExpandedChange={setSearchExpanded}
-          modalOpen={
-            searchTools.modalOpen || (mobileSheetOpen && Boolean(selectedGroup))
-          }
-          model={{
-            ...searchModel,
-            attribution: searchModel.attribution || selectedAttribution,
-          }}
-          selectedPlace={selectedPlace}
-          onSelect={selectSearchResult}
-          onClear={() => {
-            setSelectedPlace(null)
-            setSelectedAttribution("")
-          }}
-          pointCount={groups.length}
-          feedbackKind={
-            mapFailure || data.phase === "error"
-              ? "error"
-              : data.truncated
-                ? "notice"
-                : data.phase === "loading" && !data.hasResult
-                  ? "loading"
-                  : "empty"
-          }
-          feedbackMessage={
-            mapFailure
-              ? mapFailureDescription(mapFailure)
-              : data.phase === "error"
-                ? `地图数据更新失败：${data.error}。已保留上次成功结果。`
-                : data.truncated
-                  ? "当前范围结果较多，请放大地图或收窄筛选。"
-                  : data.phase === "loading" && !data.hasResult
-                    ? "正在更新地图结果"
-                    : data.phase === "ready" && !groups.length
-                      ? "当前范围内没有公开事务所"
-                      : undefined
-          }
-          onRetry={
-            mapFailure
-              ? retryMap
-              : data.phase === "error"
-                ? refreshMapOffices
-                : undefined
-          }
-          onOcclusion={updateOcclusion}
-        />
-      ) : null}
-
-      {webWorkspace && webDiscovery && searchTools ? (
-        <>
-          <ExchangeWebMapWorkspace
-            tabs={workspaceSearch.tabs}
-            covered={isNarrow && officeListOpen}
-            onActivate={() => {
-              if (isNarrow) setOfficeListOpen(false)
-              clearOfficeSelection()
+            size="icon-lg"
+            variant="secondary"
+            className="exchange-web-refresh"
+            aria-label="刷新地图结果"
+            aria-busy={Boolean(searchTools.refreshing)}
+            disabled={searchTools.refreshing}
+            onClick={() => {
+              refreshMapOffices()
+              searchTools.onRefresh()
             }}
-            model={searchModel}
-            searchOwner={workspaceSearch.owner}
-            available={
-              workspaceSearch.available &&
-              (workspaceSearch.tabs.active === "offices" || !mapFailure)
+          >
+            <RefreshCwIcon
+              className={cn(
+                searchTools.refreshing &&
+                  "animate-spin motion-reduce:animate-none"
+              )}
+              aria-hidden="true"
+            />
+          </Button>
+        ) : null}
+
+        {data.phase === "error" &&
+        !mapFailure &&
+        !searchExpanded &&
+        !(webWorkspace && officeListOpen) ? (
+          <Alert
+            className={cn(
+              "absolute inset-x-3 z-10 bg-background/95 shadow-sm sm:left-auto sm:w-96",
+              webWorkspace && "exchange-web-map-warning",
+              IS_APP_TARGET
+                ? APP_FLOATING_CONTROL_OFFSET
+                : "bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
+            )}
+          >
+            <RefreshCwIcon aria-hidden="true" />
+            <AlertTitle>地图数据更新失败</AlertTitle>
+            <AlertDescription>
+              {data.error}。已保留上次成功结果。
+            </AlertDescription>
+            <div className="col-start-2 mt-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={refreshMapOffices}
+              >
+                重试
+              </Button>
+              <Button type="button" size="sm" onClick={onSwitchDirectory}>
+                查看名录
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
+
+        {selectedGroup && !webWorkspace ? (
+          <aside
+            className={cn(
+              "absolute top-3 right-3 z-10 hidden w-80 overflow-y-auto rounded-lg border bg-background/97 p-4 shadow-md backdrop-blur-sm lg:block",
+              IS_APP_TARGET
+                ? "max-h-[calc(var(--app-content-height)-1.5rem)]"
+                : "top-4 right-4 max-h-[calc(100%-2rem)]"
+            )}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-2 right-2"
+              aria-label="关闭区域详情"
+              onClick={() => setSelectedGroupKey(null)}
+            >
+              <XIcon aria-hidden="true" />
+            </Button>
+            <div className="pr-8">
+              <OfficeGroupDetails group={selectedGroup} />
+            </div>
+          </aside>
+        ) : null}
+
+        {searchTools && !webWorkspace ? (
+          <ExchangeSearchCard
+            tabs={workspaceSearch.tabs}
+            {...searchTools}
+            onExpandedChange={setSearchExpanded}
+            modalOpen={
+              searchTools.modalOpen ||
+              (mobileSheetOpen && Boolean(selectedGroup))
             }
-            automatic={
-              workspaceSearch.tabs.active === "offices" ||
-              (config.phase === "ready" &&
-                config.value.search.provider !== "nominatim")
-            }
-            tools={searchTools}
-            selectionKey={selectedGroupKey}
+            model={{
+              ...searchModel,
+              attribution: searchModel.attribution || selectedAttribution,
+            }}
             selectedPlace={selectedPlace}
-            selectedAttribution={selectedAttribution}
             onSelect={selectSearchResult}
-            onClear={clearSearchSelection}
+            onClear={() => {
+              setSelectedPlace(null)
+              setSelectedAttribution("")
+            }}
+            pointCount={groups.length}
+            feedbackKind={
+              mapFailure || data.phase === "error"
+                ? "error"
+                : data.truncated
+                  ? "notice"
+                  : data.phase === "loading" && !data.hasResult
+                    ? "loading"
+                    : "empty"
+            }
+            feedbackMessage={
+              mapFailure
+                ? mapFailureDescription(mapFailure)
+                : data.phase === "error"
+                  ? `地图数据更新失败：${data.error}。已保留上次成功结果。`
+                  : data.truncated
+                    ? "当前范围结果较多，请放大地图或收窄筛选。"
+                    : data.phase === "loading" && !data.hasResult
+                      ? "正在更新地图结果"
+                      : data.phase === "ready" && !groups.length
+                        ? "当前范围内没有公开事务所"
+                        : undefined
+            }
+            onRetry={
+              mapFailure
+                ? retryMap
+                : data.phase === "error"
+                  ? refreshMapOffices
+                  : undefined
+            }
             onOcclusion={updateOcclusion}
           />
-          <ExchangeMapPointPopup
-            map={mapSurface}
-            groupKey={selectedGroup?.key ?? null}
-            focusRequest={groupFocus?.sequence}
-            covered={Boolean(searchTools.modalOpen) || officeListOpen}
-            onClose={clearOfficeSelection}
-          >
-            {popupOffice ? (
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="min-w-0 text-base/7 font-semibold wrap-break-word">
-                    {popupOffice.name}
-                  </h3>
-                  <OfficeStatus open={popupOffice.isOpen} />
-                </div>
-                <p className="text-sm/6 wrap-break-word text-muted-foreground">
-                  {popupOffice.address}
-                </p>
-                {"intro" in popupOffice && popupOffice.intro ? (
-                  <p className="text-sm/6 wrap-break-word">
-                    {popupOffice.intro}
-                  </p>
-                ) : null}
-                <NavigationLink
-                  to={`/community/exchange/offices/${encodeURIComponent(popupOffice.slug)}`}
-                  className={cn(
-                    buttonVariants({ variant: "default" }),
-                    "w-full"
-                  )}
-                >
-                  查看事务所
-                </NavigationLink>
-              </div>
-            ) : selectedGroup ? (
-              <OfficeGroupDetails group={selectedGroup} />
-            ) : null}
-          </ExchangeMapPointPopup>
-        </>
-      ) : null}
+        ) : null}
 
-      <Sheet
-        open={
-          !webWorkspace && isNarrow && mobileSheetOpen && Boolean(selectedGroup)
-        }
-        onOpenChange={setMobileSheetOpen}
-      >
-        <SheetContent
-          side="bottom"
-          className="exchange-map-detail-sheet overflow-y-auto"
+        {webWorkspace && webDiscovery && searchTools ? (
+          <>
+            <ExchangeWebMapWorkspace
+              tabs={workspaceSearch.tabs}
+              covered={isNarrow && officeListOpen}
+              onActivate={() => {
+                if (isNarrow) setOfficeListOpen(false)
+                clearOfficeSelection()
+              }}
+              model={searchModel}
+              searchOwner={workspaceSearch.owner}
+              available={
+                workspaceSearch.available &&
+                (workspaceSearch.tabs.active === "offices" || !mapFailure)
+              }
+              automatic={
+                workspaceSearch.tabs.active === "offices" ||
+                (config.phase === "ready" &&
+                  config.value.search.provider !== "nominatim")
+              }
+              tools={searchTools}
+              selectionKey={selectedGroupKey}
+              selectedPlace={selectedPlace}
+              selectedAttribution={selectedAttribution}
+              onSelect={selectSearchResult}
+              onClear={clearSearchSelection}
+              onOcclusion={updateOcclusion}
+            />
+            <ExchangeMapPointPopup
+              map={mapSurface}
+              groupKey={selectedGroup?.key ?? null}
+              focusRequest={groupFocus?.sequence}
+              covered={Boolean(searchTools.modalOpen) || officeListOpen}
+              onClose={clearOfficeSelection}
+            >
+              {popupOffice ? (
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="min-w-0 text-base/7 font-semibold wrap-break-word">
+                      {popupOffice.name}
+                    </h3>
+                    <OfficeStatus open={popupOffice.isOpen} />
+                  </div>
+                  <p className="text-sm/6 wrap-break-word text-muted-foreground">
+                    {popupOffice.address}
+                  </p>
+                  {"intro" in popupOffice && popupOffice.intro ? (
+                    <p className="text-sm/6 wrap-break-word">
+                      {popupOffice.intro}
+                    </p>
+                  ) : null}
+                  <NavigationLink
+                    to={`/community/exchange/offices/${encodeURIComponent(popupOffice.slug)}`}
+                    className={cn(
+                      buttonVariants({ variant: "default" }),
+                      "w-full"
+                    )}
+                  >
+                    查看事务所
+                  </NavigationLink>
+                </div>
+              ) : selectedGroup ? (
+                <OfficeGroupDetails group={selectedGroup} />
+              ) : null}
+            </ExchangeMapPointPopup>
+          </>
+        ) : null}
+
+        <Sheet
+          open={
+            !webWorkspace &&
+            isNarrow &&
+            mobileSheetOpen &&
+            Boolean(selectedGroup)
+          }
+          onOpenChange={setMobileSheetOpen}
         >
-          <SheetHeader className="border-b pr-14">
-            <SheetTitle>区域交换事务所</SheetTitle>
-            <SheetDescription>
-              地图使用区域化位置，并展示事务所公开地址。
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-2">
-            {selectedGroup ? (
-              <OfficeGroupDetails group={selectedGroup} />
-            ) : null}
-          </div>
-        </SheetContent>
-      </Sheet>
-    </section>
+          <SheetContent
+            side="bottom"
+            className="exchange-map-detail-sheet overflow-y-auto"
+          >
+            <SheetHeader className="border-b pr-14">
+              <SheetTitle>区域交换事务所</SheetTitle>
+              <SheetDescription>
+                地图使用区域化位置，并展示事务所公开地址。
+              </SheetDescription>
+            </SheetHeader>
+            <div className="px-4 pb-2">
+              {selectedGroup ? (
+                <OfficeGroupDetails group={selectedGroup} />
+              ) : null}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </section>
+    </ExchangeMapActions>
   )
 }

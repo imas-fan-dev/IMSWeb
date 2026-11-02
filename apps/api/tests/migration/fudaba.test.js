@@ -1349,7 +1349,15 @@ END;
             for (const table of Object.values(plan.sourceTables)) {
                 assert.equal(table.source, table.included + table.excluded + table.failed);
             }
-            assert.equal(plan.operations.length, 21);
+            assert.equal(plan.operations.length, 23);
+            const seriesOperations = plan.operations.filter(
+                ({ table }) => table === 'fudaba_card_series'
+            );
+            assert.equal(seriesOperations.length, 2);
+            for (const operation of seriesOperations) {
+                assert.equal(operation.row.display_order, 1);
+                assert.ok(operation.row.series_code);
+            }
             assert.equal(plan.operations.some(({ table }) =>
                 ['platform_oauth_states', 'platform_refresh_sessions'].includes(table)), false);
             const office = plan.rows.find(({ sourceTable }) => sourceTable === 'offices');
@@ -1665,7 +1673,7 @@ END;
                     targetBucket: TARGET_BUCKET
                 });
                 assert.equal(dryRun.committed, false);
-                assert.equal(dryRun.summary.missing, 15);
+                assert.equal(dryRun.summary.missing, 17);
                 assert.equal(dryRun.summary.unchanged, 6);
                 assert.deepEqual(dryRun.artifactSha256, {
                     source: sha256File(path.join(snapshot.directory, 'source.json')),
@@ -1694,7 +1702,7 @@ END;
                     ...confirmations
                 });
                 assert.equal(applied.committed, true);
-                assert.equal(applied.summary.inserted, 15);
+                assert.equal(applied.summary.inserted, 17);
                 const repeated = await importSnapshot({
                     snapshotDirectory: snapshot.directory,
                     connectionString: harness.databaseUrl,
@@ -1703,7 +1711,7 @@ END;
                     ...confirmations
                 });
                 assert.equal(repeated.summary.inserted, 0);
-                assert.equal(repeated.summary.unchanged, 21);
+                assert.equal(repeated.summary.unchanged, 23);
                 const reconciled = await reconcileSnapshot({
                     snapshotDirectory: snapshot.directory,
                     connectionString: harness.databaseUrl,
@@ -1942,7 +1950,7 @@ END;
                     apply: true,
                     ...snapshotConfirmations(snapshot.directory)
                 });
-                assert.equal(repeated.summary.unchanged, 21);
+                assert.equal(repeated.summary.unchanged, 23);
                 assert.equal(repeated.summary.inserted, 0);
                 const reconciliation = await reconcileSnapshot({
                     snapshotDirectory: snapshot.directory,
@@ -2008,7 +2016,7 @@ END;
                 ]);
                 assert.deepEqual(
                     reports.map(({ summary }) => summary.inserted).sort((a, b) => a - b),
-                    [0, 15]
+                    [0, 17]
                 );
                 assert.equal(reports.every(({ committed }) => committed), true);
 

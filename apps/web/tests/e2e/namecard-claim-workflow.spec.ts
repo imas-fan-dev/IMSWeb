@@ -142,6 +142,24 @@ test.describe("namecard claim workflow", () => {
             list: [
               {
                 id: 42,
+                cardId: "card-42",
+                cardNumber: 42,
+                revision: 1,
+                producerName: "天海春香",
+                producerReading: null,
+                groupName: null,
+                madeOn: null,
+                isOriginal: false,
+                madeWithAi: false,
+                bio: null,
+                tradeNote: null,
+                exchangeMode: "manual",
+                accent: null,
+                seriesCodes: [],
+                credits: [],
+                middleImageUrls: [],
+                canEdit: false,
+                hasOwner: false,
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
@@ -175,7 +193,7 @@ test.describe("namecard claim workflow", () => {
       page.getByRole("button", { name: "查看制作人名片 42 正面" })
     ).toBeVisible()
     await expect(
-      page.getByRole("button", { name: "认领这张名片" })
+      page.getByRole("button", { name: "认领" })
     ).toHaveCount(0)
   })
 
@@ -218,6 +236,24 @@ test.describe("namecard claim workflow", () => {
             list: [
               {
                 id: 42,
+                cardId: "card-42",
+                cardNumber: 42,
+                revision: 1,
+                producerName: "天海春香",
+                producerReading: null,
+                groupName: null,
+                madeOn: null,
+                isOriginal: false,
+                madeWithAi: false,
+                bio: null,
+                tradeNote: null,
+                exchangeMode: "manual",
+                accent: null,
+                seriesCodes: [],
+                credits: [],
+                middleImageUrls: [],
+                canEdit: false,
+                hasOwner: false,
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
@@ -282,8 +318,8 @@ test.describe("namecard claim workflow", () => {
 
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
-    await detail.getByRole("button", { name: "认领这张名片" }).click()
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()
     await expect(
@@ -409,6 +445,24 @@ test.describe("namecard claim workflow", () => {
             list: [
               {
                 id: 42,
+                cardId: "card-42",
+                cardNumber: 42,
+                revision: 1,
+                producerName: "天海春香",
+                producerReading: null,
+                groupName: null,
+                madeOn: null,
+                isOriginal: false,
+                madeWithAi: false,
+                bio: null,
+                tradeNote: null,
+                exchangeMode: "manual",
+                accent: null,
+                seriesCodes: [],
+                credits: [],
+                middleImageUrls: [],
+                canEdit: false,
+                hasOwner: false,
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
@@ -441,8 +495,8 @@ test.describe("namecard claim workflow", () => {
   async function openClaimDialog(page: Page) {
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: "制作人名片 42" })
-    await detail.getByRole("button", { name: "认领这张名片" }).click()
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
     await expect(dialog).toBeVisible()
     await settleDialog(dialog)
@@ -560,17 +614,24 @@ test.describe("namecard claim workflow", () => {
 
   const registeredCard = {
     id: "registered-card-e2e",
+    cardNumber: 42,
     producerName: "注册制作人",
-    displayName: "待审核注册名片",
-    seriesCode: "765",
-    favoriteCharacter: "天海春香",
+    seriesCodes: ["765"],
     favoriteCharacters: [favoriteCharacter],
     frontImageUrl: FRONT_IMAGE,
+    middleImageUrls: [],
     backImageUrl: BACK_IMAGE,
     accent: "#f34e6c",
     bio: "",
     tradeNote: "",
-    available: true,
+    exchangeMode: "manual",
+    madeOn: null,
+    groupName: null,
+    producerReading: null,
+    isOriginal: false,
+    madeWithAi: false,
+    visible: true,
+    credits: [],
     publicationStatus: "pending",
     reviewStatus: null,
     reviewReason: null,
@@ -753,6 +814,21 @@ test.describe("namecard claim workflow", () => {
     expect(csrf).toBe("claim-workflow-csrf")
   })
 
+  const registeredAdminRow = {
+    id: 41,
+    image1_url: FRONT_IMAGE,
+    image2_url: BACK_IMAGE,
+    status: "pending",
+    revision: 1,
+    producerName: "注册制作人",
+    producerReading: null,
+    origin: "exchange",
+    lockReason: null,
+    reviewStatus: null,
+    reviewReason: null,
+    pageCount: 2,
+  }
+
   const pendingClaim = {
     id: "claim-admin-e2e",
     legacyCardId: 42,
@@ -786,38 +862,12 @@ test.describe("namecard claim workflow", () => {
         producername: "认领审核员",
       },
     })
-    await api.mockRoute(
-      "**/api/admin/cards**",
-      async (route) => {
-        await route.fulfill({
-          json: {
-            success: true,
-            data: [],
-            pageInfo: {
-              page: 1,
-              pageSize: 10,
-              total: 0,
-              totalPages: 0,
-              hasNextPage: false,
-            },
-          },
-        })
-      },
-      "GET"
-    )
-
-    let registeredPending = true
-    let claimPending = true
-    const reviews: Array<{
-      kind: "registered" | "claim"
-      body: Record<string, unknown>
-      csrf: string | undefined
-    }> = []
-    const handleRegisteredReviews = async (
+    // The merged review queue lists every submission, registered owners included.
+    const handleAdminCards = async (
       route: import("@playwright/test").Route
     ) => {
       const request = route.request()
-      if (request.method() === "PUT") {
+      if (request.method() === "POST") {
         reviews.push({
           kind: "registered",
           body: request.postDataJSON() as Record<string, unknown>,
@@ -829,30 +879,36 @@ test.describe("namecard claim workflow", () => {
       }
       await route.fulfill({
         json: {
-          items: registeredPending
-            ? [
-                {
-                  card: registeredCard,
-                  owner: {
-                    id: "registered-owner-e2e",
-                    displayName: "注册制作人",
-                  },
-                },
-              ]
-            : [],
+          success: true,
+          data: registeredPending ? [registeredAdminRow] : [],
+          pageInfo: {
+            page: 1,
+            pageSize: 12,
+            total: registeredPending ? 1 : 0,
+            totalPages: registeredPending ? 1 : 0,
+            hasNextPage: false,
+          },
         },
       })
     }
+    // The queue refetches once the verdict lands, so the list may load twice.
+    await api.mockRoute("/api/admin/cards", handleAdminCards, "GET", {
+      min: 1,
+      max: 10,
+    })
     await api.mockRoute(
-      "/api/admin/community/exchange/card-reviews",
-      handleRegisteredReviews,
-      "GET"
+      `/api/admin/cards/approve/${registeredAdminRow.id}`,
+      handleAdminCards,
+      "POST"
     )
-    await api.mockRoute(
-      "/api/admin/community/exchange/card-reviews/registered-card-e2e",
-      handleRegisteredReviews,
-      "PUT"
-    )
+
+    let registeredPending = true
+    let claimPending = true
+    const reviews: Array<{
+      kind: "registered" | "claim"
+      body: Record<string, unknown>
+      csrf: string | undefined
+    }> = []
     const handleClaimReviews = async (
       route: import("@playwright/test").Route
     ) => {
@@ -883,11 +939,11 @@ test.describe("namecard claim workflow", () => {
     )
 
     await page.goto("/admin/cards")
-    await page.getByRole("tab", { name: "注册用户投稿" }).click()
-    await expect(page.getByText("待审核注册名片")).toBeVisible()
-    await page.getByRole("button", { name: "通过" }).click()
+    // The queue is one list: registered submissions show up beside guest ones.
+    await expect(page.getByText("注册制作人")).toBeVisible()
+    await page.getByRole("button", { name: "通过", exact: true }).click()
     await page.getByRole("button", { name: "确认通过" }).click()
-    await expect(page.getByText("没有待审核注册名片")).toBeVisible()
+    await expect(page.getByText("注册制作人")).toHaveCount(0)
 
     await page.getByRole("tab", { name: "旧名片认领" }).click()
     await expect(page.getByText("历史名片 #42")).toBeVisible()
@@ -898,7 +954,7 @@ test.describe("namecard claim workflow", () => {
     expect(reviews).toEqual([
       {
         kind: "registered",
-        body: { decision: "approve", expectedRevision: 1, note: "" },
+        body: { expected_revision: 1 },
         csrf: "claim-admin-csrf",
       },
       {

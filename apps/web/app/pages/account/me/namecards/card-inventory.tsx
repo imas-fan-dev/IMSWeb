@@ -16,15 +16,28 @@ import { OwnerCardImage } from "./owner-card-image"
 
 export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
   const status = card.publicationStatus
+  // A published card keeps serving the old copy while a revision is decided, so
+  // the badge reports the revision instead of the card-level status.
+  const review = status === "published" ? card.reviewStatus : null
   return (
     <Badge
-      variant={status === "rejected" ? "destructive" : "secondary"}
+      variant={
+        status === "rejected" || review === "rejected" || review === "locked"
+          ? "destructive"
+          : "secondary"
+      }
       className={cn(
-        status === "published" && "bg-success/20 text-success-foreground",
-        status === "pending" && "bg-pending/20 text-pending-foreground"
+        status === "published" && !review && "bg-success/20 text-success-foreground",
+        review === "pending" && "bg-pending/20 text-pending-foreground"
       )}
     >
-      {publicationLabels[status]}
+      {review === "pending"
+        ? "复审中"
+        : review === "rejected"
+          ? "复审驳回"
+          : review === "locked"
+            ? "复审违规"
+            : publicationLabels[status]}
     </Badge>
   )
 }
@@ -80,12 +93,16 @@ export function CardInventory({
               </span>
               <span className="min-w-0 self-center">
                 <span className="block truncate text-sm font-medium">
-                  {card.displayName}
+                  {card.producerName}
                 </span>
                 <span className="mt-1 flex min-w-0 flex-wrap gap-1">
                   <PublicationBadge card={card} />
-                  <Badge variant={card.available ? "default" : "outline"}>
-                    {card.available ? "可交换" : "仅展示"}
+                  <Badge
+                    variant={
+                      card.exchangeMode === "none" ? "outline" : "default"
+                    }
+                  >
+                    {card.exchangeMode === "none" ? "仅展示" : "可交换"}
                   </Badge>
                 </span>
               </span>

@@ -313,6 +313,39 @@ describe("ExchangeOfficeMap App viewport memory", () => {
     expect(marker?.remove).toHaveBeenCalled()
   })
 
+  it.each([390, 844])(
+    "centers a mobile search selection without retaining expanded-panel padding at %d px",
+    (width) => {
+      const props = {
+        ...mapProps,
+        occlusion: { x: 8, y: 60, width: width - 16, height: 700 },
+      }
+      const view = render(<ExchangeOfficeMap {...props} />)
+      Object.defineProperty(
+        screen.getByLabelText("区域事务所地图工作面"),
+        "clientWidth",
+        { value: width }
+      )
+      view.rerender(
+        <ExchangeOfficeMap
+          {...props}
+          selectedPlace={{
+            id: "place",
+            label: "西岸艺术中心",
+            address: "上海西岸",
+            target: { kind: "wgs84", position: [121.4665, 31.1842] },
+          }}
+        />
+      )
+      expect(maplibreMocks.instances[0]?.easeTo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          center: [121.4665, 31.1842],
+          padding: { left: 0, right: 0, top: 0, bottom: 0 },
+        })
+      )
+    }
+  )
+
   it("applies the portal palette before MapLibre receives the first style", () => {
     render(<ExchangeOfficeMap {...mapProps} />)
     const map = maplibreMocks.instances[0]
@@ -415,6 +448,37 @@ describe("ExchangeOfficeMap App viewport memory", () => {
 
     expect(await screen.findByText(message)).toBeVisible()
     expect(maplibreMocks.instances[0]?.easeTo).not.toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: "重试定位" }) !== null).toBe(
+      kind !== "unsupported"
+    )
+    await user.click(screen.getByRole("button", { name: "关闭定位提示" }))
+    expect(screen.queryByText(message)).not.toBeInTheDocument()
+  })
+
+  it("retries a failure with a real busy phase and clears feedback after success", async () => {
+    const user = userEvent.setup()
+    let resolvePosition!: (value: {
+      longitude: number
+      latitude: number
+    }) => void
+    geolocationMocks.getCurrentCoordinates
+      .mockRejectedValueOnce(new GeolocationFailure("timeout"))
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolvePosition = resolve
+        })
+      )
+    render(<ExchangeOfficeMap {...mapProps} />)
+    await user.click(screen.getByRole("button", { name: "回到我的位置" }))
+    await user.click(screen.getByRole("button", { name: "重试定位" }))
+    const locate = screen.getByRole("button", { name: "回到我的位置" })
+    expect(locate).toBeDisabled()
+    expect(locate).toHaveAttribute("aria-busy", "true")
+    expect(screen.queryByText("获取位置超时，请重试")).not.toBeInTheDocument()
+    await act(async () => resolvePosition({ longitude: 121.4, latitude: 31.2 }))
+    expect(locate).toBeEnabled()
+    expect(locate).toHaveAttribute("aria-busy", "false")
+    expect(maplibreMocks.instances[0]?.easeTo).toHaveBeenCalledOnce()
   })
 
   it("ignores a location result after the map is unmounted", async () => {

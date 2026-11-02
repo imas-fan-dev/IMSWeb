@@ -23,6 +23,7 @@ import {
   makePlatformSession,
 } from "@/mocks/data/platform"
 import { ApiError } from "~/lib/api"
+import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import CommunityOfficePage from "~/pages/community/exchange/community-office-page"
 
 const apiMocks = vi.hoisted(() => ({
@@ -98,7 +99,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
 })
 
 const placedCard = {
-  ...makeFudabaCard({ displayName: "交换会用名片" }),
+  ...makeFudabaCard({ producerName: "交换会用名片" }),
   viewerOwned: true,
   placement: {
     pinnedAt: "2026-08-02T09:00:00.000Z",
@@ -113,13 +114,13 @@ const placedCard = {
 
 const ownerCard = {
   ...makeFudabaOwnerCard(),
-  displayName: placedCard.displayName,
+  producerName: placedCard.producerName,
 }
 
 const unplacedOwnerCard = {
   ...ownerCard,
   id: "card-2",
-  displayName: "第二张公开名片",
+  producerName: "第二张公开名片",
 }
 
 function makeCardLayout(card: typeof placedCard) {
@@ -130,7 +131,7 @@ function makeCardLayout(card: typeof placedCard) {
     width: 240,
     height: 160,
     layoutVersion: 1 as const,
-    displayName: card.displayName,
+    displayName: cardLabel(card),
     viewerOwned: card.viewerOwned,
     preview: null,
     assetVersion: "fixture-front-v1",
@@ -283,16 +284,22 @@ describe("CommunityOfficePage", () => {
       await screen.findByRole("heading", { name: "上海周末交换事务所" })
     ).toBeVisible()
     expect(
-      screen.getByRole("button", { name: "查看交换会用名片正面" })
+      screen.getByRole("button", {
+        name: `查看${cardLabel(placedCard)}正面`,
+      })
     ).toBeVisible()
 
     await user.click(screen.getByRole("tab", { name: "列表" }))
 
     expect(
-      screen.getByRole("button", { name: "查看交换会用名片正面" })
+      screen.getByRole("button", {
+        name: `查看${cardLabel(placedCard)}正面`,
+      })
     ).toBeVisible()
     expect(
-      screen.getByRole("button", { name: "查看交换会用名片背面" })
+      screen.getByRole("button", {
+        name: `查看${cardLabel(placedCard)}背面`,
+      })
     ).toBeVisible()
   })
 
@@ -300,14 +307,14 @@ describe("CommunityOfficePage", () => {
     const cards = Array.from({ length: 60 }, (_, index) => ({
       ...placedCard,
       id: "near-" + index,
-      displayName: "区域名片 " + index,
+      producerName: "区域名片 " + index,
       viewerOwned: false,
       placement: { ...placedCard.placement, x: 800, y: 450 },
     }))
     const farCard = {
       ...cards[0],
       id: "far-card",
-      displayName: "远处名片",
+      producerName: "远处名片",
       placement: { ...placedCard.placement, x: 3300, y: 450 },
     }
     apiMocks.getFudabaWall.mockImplementation((_slug, input) => ({
@@ -435,7 +442,9 @@ describe("CommunityOfficePage", () => {
     mockAuthenticatedPlatformSession()
     renderPage()
     await screen.findByRole("button", { name: "布置名片墙" })
-    const card = screen.getByRole("button", { name: "查看交换会用名片正面" })
+    const card = screen.getByRole("button", {
+      name: `查看${cardLabel(placedCard)}正面`,
+    })
     await user.click(card)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "完成布置" })).toBeVisible()
@@ -490,7 +499,7 @@ describe("CommunityOfficePage", () => {
       "/account/me/namecards"
     )
     const handle = await screen.findByRole("button", {
-      name: "移动交换会用名片",
+      name: `移动${cardLabel(placedCard)}`,
     })
     handle.focus()
     await user.keyboard("{ArrowRight}")
@@ -520,7 +529,7 @@ describe("CommunityOfficePage", () => {
     const newCard = {
       ...placedCard,
       id: unplacedOwnerCard.id,
-      displayName: unplacedOwnerCard.displayName,
+      producerName: unplacedOwnerCard.producerName,
       placement: { ...placedCard.placement, revision: 0, zIndex: 3 },
     }
     apiMocks.sendPlacement.mockResolvedValueOnce({
@@ -691,7 +700,7 @@ describe("CommunityOfficePage", () => {
 
     await user.click(editButton)
     const handle = screen.getByRole("button", {
-      name: "移动交换会用名片",
+      name: `移动${cardLabel(placedCard)}`,
     })
     handle.focus()
     await user.keyboard("{ArrowRight}")

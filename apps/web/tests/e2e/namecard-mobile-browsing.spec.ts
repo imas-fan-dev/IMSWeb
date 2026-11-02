@@ -38,7 +38,7 @@ test.describe("namecard mobile browsing", () => {
       await expectNamecardGalleryGeometry(page)
       await attachNamecardScreenshot(page, testInfo, "gallery-dual-face")
       await back.click()
-      const detail = page.getByRole("dialog", { name: "制作人名片 1" })
+      const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
       await expect(detail).toBeVisible()
       await expect(
         detail.getByRole("button", { name: "放大制作人名片 1 背面" })
@@ -418,7 +418,7 @@ test.describe("namecard mobile browsing", () => {
     await original.scrollIntoViewIfNeeded()
     const scrollY = await page.evaluate(() => window.scrollY)
     await original.click()
-    const detail = page.getByRole("dialog", { name: "制作人名片 12" })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
     await expect(detail).toBeVisible()
     await expect(
       detail.getByRole("button", { name: /[上下]一张名片/ })
@@ -428,18 +428,18 @@ test.describe("namecard mobile browsing", () => {
     expect(browsing.requests).toEqual([1])
 
     const previewTrigger = detail.getByRole("button", {
-      name: "放大制作人名片 12 正面",
+      name: "放大制作人名片 12 背面",
     })
     await previewTrigger.click()
     const preview = page.getByRole("dialog", {
-      name: "制作人名片 12 · 正面",
+      name: "制作人名片 12 · 背面",
     })
     await expect(
       preview.getByRole("button", { name: /[上下]一张名片/ })
     ).toHaveCount(0)
     await expect(preview.getByText(/第 \d+ \/ \d+ 张/)).toHaveCount(0)
     await expect(
-      preview.getByRole("img", { name: "制作人名片 12 正面" })
+      preview.getByRole("img", { name: "制作人名片 12 背面" })
     ).toBeVisible()
     await preview.getByRole("button", { name: "放大名片" }).click()
     await expect(preview.getByRole("img")).not.toHaveCSS(

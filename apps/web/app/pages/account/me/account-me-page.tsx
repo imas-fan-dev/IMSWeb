@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { Navigate, useLocation } from "react-router"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
@@ -24,6 +25,7 @@ import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
 import { useNamecardUnread } from "~/lib/use-namecard-unread"
 import { AccountMeWorkspace } from "~/pages/account/me/account-me-workspace"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { accountAuthPath } from "../account-auth-return"
 import {
   type ProfileWorkspaceSection,
   profileWorkspaceSections,
@@ -72,6 +74,7 @@ export function AccountMePage({
   const { t } = useTranslation()
   const platform = usePlatformSession()
   const desktop = useDesktopAccountWorkspace()
+  const location = useLocation()
   const avatarSource = platform.session?.profile.avatarUrl
   const unread = useNamecardUnread()
   const [logoutAttempt, setLogoutAttempt] =
@@ -86,6 +89,18 @@ export function AccountMePage({
   function logout() {
     setLogoutAttempt("pending")
     void platform.logout().catch(() => setLogoutAttempt("error"))
+  }
+
+  if (desktop && platform.status === "anonymous" && logoutFeedback === "idle") {
+    return (
+      <Navigate
+        to={accountAuthPath(
+          "login",
+          location.pathname + location.search + location.hash
+        )}
+        replace
+      />
+    )
   }
 
   if (

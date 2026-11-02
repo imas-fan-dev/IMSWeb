@@ -45,16 +45,18 @@ function DialogContent({
   overlayClassName,
   safeArea = "inset",
   layout = "scroll",
+  tabBarBehavior = "hide",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   overlayClassName?: string
   safeArea?: "custom" | "inset" | "viewport"
   layout?: "scroll" | "pinned"
+  tabBarBehavior?: "hide" | "block-interaction"
 }) {
   return (
     <DialogPortal>
-      <NativeTabBarSuppression />
+      <NativeTabBarSuppression behavior={tabBarBehavior} />
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
@@ -121,7 +123,7 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-body"
       className={cn(
-        "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+        "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
         className
       )}
       {...props}
