@@ -4394,7 +4394,18 @@ export class SqlFudabaRepository implements FudabaRepository {
                             WHERE merged.legacy_card_id=wanted.card_number
                             LIMIT 1
                         )
-                    ) AS claimer_name
+                    ) AS claimer_name,
+                    COALESCE(
+                        guest.owner_account_id,
+                        (
+                            SELECT merged_card.owner_account_id
+                            FROM fudaba_card_merges merged
+                            JOIN fudaba_cards merged_card
+                              ON merged_card.id=merged.target_card_id
+                            WHERE merged.legacy_card_id=wanted.card_number
+                            LIMIT 1
+                        )
+                    ) AS claimer_account_id
              FROM (VALUES ${values}) AS wanted(card_number)
              LEFT JOIN fudaba_cards guest
                     ON guest.card_number=wanted.card_number

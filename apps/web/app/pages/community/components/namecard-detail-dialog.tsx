@@ -1,5 +1,6 @@
 import {
   ArrowLeftRightIcon,
+  ShareIcon,
   PlusIcon,
   ShieldCheckIcon,
   SquarePenIcon,
@@ -774,7 +775,18 @@ export function NamecardDetailDialog({
                 认领
               </Button>
             ) : null}
-            {unclaimed ? null : (
+            {unclaimed ? null : card?.canEdit ? (
+              // 拥有者看自己的名片时，这里给的是分享入口（暂不可用）。
+              <Button
+                type="button"
+                className={FOOTER_BUTTON}
+                disabled
+                title="暂未开放"
+              >
+                <ShareIcon aria-hidden="true" />
+                分享
+              </Button>
+            ) : (
               <Button
                 type="button"
                 className={FOOTER_BUTTON}

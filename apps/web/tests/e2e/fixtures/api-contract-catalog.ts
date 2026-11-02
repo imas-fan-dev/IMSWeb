@@ -134,6 +134,7 @@ import {
   namecardMutationResponseSchema,
   rejectedNamecardRequestSchema,
   namecardPageSchema,
+  publicProfileSchema,
   randomOwnerlessCardErrorSchema,
   randomOwnerlessCardSchema,
   wallInsightsSchema,
@@ -1011,6 +1012,14 @@ export function resolveApiContract(
         404: fudabaCardClaimErrorSchema,
         409: fudabaCardClaimErrorSchema,
       },
+    }
+  if (method === "GET" && /^\/api\/users\/[^/]+$/.test(path))
+    return {
+      responses: { 200: publicProfileSchema, 404: namecardErrorResponseSchema },
+    }
+  if (method === "GET" && /^\/api\/users\/[^/]+\/cards$/.test(path))
+    return {
+      responses: { 200: namecardPageSchema, 404: namecardErrorResponseSchema },
     }
   if (method === "GET" && path === "/api/admin/cards")
     return {

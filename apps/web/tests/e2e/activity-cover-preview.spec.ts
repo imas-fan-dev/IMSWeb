@@ -140,6 +140,7 @@ test.describe("activity cover preview", () => {
           supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
+          claimerAccountId: null,
           image1_url: coverUrl,
           image2_url: "/brand/series/wall/shiny-colors.webp",
           image1_thumbnail_url: coverUrl,

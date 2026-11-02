@@ -393,6 +393,8 @@ export interface LegacyNamecardClaimStatusRecord {
     claim_status: "unclaimed" | "pending" | "claimed";
     viewer_claim_state: FudabaCardClaimState | null;
     claimer_name: string | null;
+    /** Links the wall badge to the claimant's public page. */
+    claimer_account_id: string | null;
     /** A visitor's supplement is waiting for review on this wall card. */
     supplement_pending: boolean;
 }

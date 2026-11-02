@@ -167,6 +167,13 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "spa"
   ),
   route(
+    "user/:accountId",
+    "pages/user/profile.tsx",
+    "public",
+    SHARED_TARGETS,
+    "spa",
+  ),
+  route(
     "community/cards",
     "pages/community/community-cards-page.tsx",
     "public",

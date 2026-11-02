@@ -160,6 +160,15 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
     };
 }
 
+/** 主页列表路由只校验了路径参数，分页从这里按线上同一套规则取。 */
+export function parseNamecardPage(url: string): NamecardListQuery {
+    const params = new URL(`http://local${url}`).searchParams;
+    return validateNamecardListQuery({
+        page: params.get('page'),
+        size: params.get('size'),
+    });
+}
+
 export type AdminNamecardFeedbackListQuery = {
     page: number;
 };

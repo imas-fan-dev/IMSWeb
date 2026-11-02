@@ -45,6 +45,7 @@ import type {
     NamecardLockAuditPage,
     NamecardDiffSide,
     NamecardPublicRecord,
+    PublicProfileRecord,
     NamecardSubmissionKind,
     NamecardSubmissionRecord,
     NamecardSubmissionWithHashesRecord,
@@ -729,6 +730,53 @@ export class SqlCoreRepository implements NamecardRepository {
             [limit, offset]
         );
         // The wall publishes the live copy; a pending revision stays queued.
+        return await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        ) as NamecardPublicRecord[];
+    }
+
+    async findPublicProfile(accountId: string): Promise<PublicProfileRecord | null> {
+        return queryOne<PublicProfileRecord>(
+            this.database,
+            `SELECT profile.account_id, profile.display_name,
+                    profile.avatar_object_key, profile.avatar_external_url,
+                    profile.home_city, profile.bio, profile.updated_at
+             FROM platform_profiles profile
+             JOIN platform_accounts account ON account.id = profile.account_id
+             WHERE profile.account_id = ?
+               AND account.status IN ('active', 'restricted')
+               AND account.deleted_at IS NULL`,
+            [accountId]
+        );
+    }
+
+    async countOwnedPublishedCards(accountId: string): Promise<number> {
+        const row = await queryOne<{ total: number }>(
+            this.database,
+            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM fudaba_cards
+             WHERE owner_account_id=? AND deleted_at IS NULL
+               AND publication_status='published' AND visible`,
+            [accountId]
+        );
+        return row?.total ?? 0;
+    }
+
+    async listOwnedPublishedCards(
+        accountId: string,
+        limit: number,
+        offset: number
+    ): Promise<NamecardPublicRecord[]> {
+        const rows = await queryAll<NamecardCardRow>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE owner_account_id=? AND deleted_at IS NULL
+               AND publication_status='published' AND visible
+             ORDER BY card_number DESC
+             LIMIT ? OFFSET ?`,
+            [accountId, limit, offset]
+        );
         return await this.attachNamecardFavorites(
             this.database,
             rows,

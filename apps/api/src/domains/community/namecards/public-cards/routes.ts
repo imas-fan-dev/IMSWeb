@@ -1,4 +1,6 @@
 import { handleGetNamecard } from "@/domains/community/namecards/public-cards/handlers/get-namecard";
+import { handleGetPublicProfile } from "@/domains/community/namecards/public-profiles/handlers/get-public-profile";
+import { handleListProfileCards } from "@/domains/community/namecards/public-profiles/handlers/list-profile-cards";
 import { handleGetRandomOwnerlessCard } from "@/domains/community/namecards/public-cards/handlers/get-random-ownerless-card";
 import { handleGetWallInsights } from "@/domains/community/namecards/public-cards/handlers/get-wall-insights";
 import { handleListNamecards } from "@/domains/community/namecards/public-cards/handlers/list-namecards";
@@ -10,6 +12,7 @@ import {
 } from "@/domains/community/namecards/request";
 import {
     compatibleNamecardIdParamsSchema,
+    publicProfileParamsSchema,
     namecardListQuerySchema,
     namecardMediaParamsSchema,
 } from "@imsweb/contracts/namecards";
@@ -45,6 +48,19 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
         "/cards/:id/media/:side",
         paramSchemaValidator(namecardMediaParamsSchema, { invalidMessage: "名片 ID 无效" }, validateNamecardMediaParams),
         handleServePublicCardMedia,
+    );
+    // 用户主页：资料与本人名片分开取，资料变化不影响列表缓存。
+    routes.get(
+        "/users/:accountId",
+        optionalPlatformAuth,
+        paramSchemaValidator(publicProfileParamsSchema),
+        handleGetPublicProfile,
+    );
+    routes.get(
+        "/users/:accountId/cards",
+        optionalPlatformAuth,
+        paramSchemaValidator(publicProfileParamsSchema),
+        handleListProfileCards,
     );
     routes.get(
         "/card/:id",

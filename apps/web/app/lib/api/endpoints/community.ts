@@ -19,7 +19,11 @@ import { normalizeNamecardPage } from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
-import { namecardPageSchema, reactionSchema } from "@imsweb/contracts/namecards"
+import {
+  namecardPageSchema,
+  publicProfileSchema,
+  reactionSchema,
+} from "@imsweb/contracts/namecards"
 
 export {
   cardIdSchema,
@@ -27,6 +31,7 @@ export {
   namecardMetadataSchema,
   namecardSchema,
   namecardPageSchema,
+  publicProfileSchema,
   reactionSchema,
   adminNamecardSchema,
   adminNamecardListSchema,
@@ -57,6 +62,29 @@ export function getRandomOwnerlessCard() {
       errorSchema: randomOwnerlessCardErrorSchema,
       cacheFor: NO_CLIENT_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
+
+/** 用户主页：公开资料与本人名片分开取。 */
+export function getPublicProfile(accountId: string) {
+  return apiClient.Get(
+    apiPath(`/users/${encodeURIComponent(accountId)}`),
+    parsed(publicProfileSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+    })
+  )
+}
+
+export function getProfileCards(accountId: string, page = 1, size = 24) {
+  return apiClient.Get(
+    apiPath(`/users/${encodeURIComponent(accountId)}/cards`),
+    parsed(namecardPageSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      params: { page, size },
+      select: normalizeNamecardPage,
     })
   )
 }

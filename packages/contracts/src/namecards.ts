@@ -39,7 +39,10 @@ export const namecardMetadataSchema = {
   viewerClaimState: z
     .enum(["pending", "approving", "approved", "rejected", "cancelled"])
     .nullable(),
+  /** The claimant's account name, shown on the wall badge. */
   claimerName: z.string().min(1).nullable(),
+  /** Where that name links to; null for the legacy rows with no account. */
+  claimerAccountId: z.string().min(1).nullable(),
   /** Someone's supplement is waiting for review, so nobody else may submit. */
   supplementPending: z.boolean(),
 }
@@ -163,10 +166,20 @@ export const namecardPageSchema = exactJsonResponse({
   totalPage: z.number().int().nonnegative(),
 })
 
+/** Someone's public page: the profile half, then their own wall cards. */
+export const publicProfileSchema = exactJsonResponse({
+  accountId: z.string().min(1),
+  displayName: z.string().min(1),
+  avatarUrl: z.string().min(1).nullable(),
+  homeCity: z.string().min(1).nullable(),
+  bio: z.string(),
+})
+
 export const reactionSchema = z.record(z.string(), z.number().int().nonnegative())
 
 export type Namecard = z.infer<typeof namecardSchema>
 export type NamecardPage = z.infer<typeof namecardPageSchema>
+export type PublicProfile = z.infer<typeof publicProfileSchema>
 export type NamecardReactions = z.infer<typeof reactionSchema>
 
 export const adminNamecardSchema = exactJsonResponse({
@@ -490,6 +503,9 @@ export const namecardMediaParamsSchema = legacyStripRequestObject({
   id: z.unknown(),
   side: z.unknown(),
   variant: z.unknown().optional(),
+})
+export const publicProfileParamsSchema = legacyStripRequestObject({
+  accountId: z.string().min(1),
 })
 export const namecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),

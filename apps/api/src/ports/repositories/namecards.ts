@@ -279,6 +279,16 @@ export interface NamecardFeedbackAuditPage {
     reporterTotals: Record<string, number>;
 }
 
+export interface PublicProfileRecord {
+    account_id: string;
+    display_name: string;
+    avatar_object_key: string | null;
+    avatar_external_url: string | null;
+    home_city: string | null;
+    bio: string;
+    updated_at: number;
+}
+
 export interface NamecardAdminFilter {
     query: string | null;
     status: string | null;
@@ -292,6 +302,14 @@ export interface NamecardRepository {
     ): Promise<{ id: number } | null>;
     insertPendingCard(input: PendingCardInput): Promise<number>;
     countApprovedCards(): Promise<number>;
+    /** Someone's public page: their profile row, or null when they are gone. */
+    findPublicProfile(accountId: string): Promise<PublicProfileRecord | null>;
+    countOwnedPublishedCards(accountId: string): Promise<number>;
+    listOwnedPublishedCards(
+        accountId: string,
+        limit: number,
+        offset: number,
+    ): Promise<NamecardPublicRecord[]>;
     countAdminCards(filter?: NamecardAdminFilter): Promise<number>;
     listApprovedCards(
         limit: number,

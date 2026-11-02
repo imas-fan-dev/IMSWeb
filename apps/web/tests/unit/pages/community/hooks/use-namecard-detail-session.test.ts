@@ -31,6 +31,7 @@ function card(id: number): Namecard {
     supplementPending: false,
     viewerClaimState: null,
     claimerName: null,
+    claimerAccountId: null,
     image1_url: `/front-${id}.jpg`,
     image2_url: `/back-${id}.jpg`,
     image1_thumbnail_url: `/front-${id}-thumbnail.jpg`,

@@ -20,6 +20,7 @@ import type {
     NamecardMutationResponse,
     NamecardPage,
     NamecardDetailResponse,
+    PublicProfile as PublicProfileContract,
     RandomOwnerlessCard as RandomOwnerlessCardContract,
     WallInsights as WallInsightsContract,
 } from '@imsweb/contracts/namecards';
@@ -45,6 +46,7 @@ export type AdminNamecardFeedbackAuditListResponse =
     AdminNamecardFeedbackAuditContractResponse;
 /** 墙顶面板与「随机补充一张」两条公开只读接口。 */
 export type WallInsightsResponse = WallInsightsContract;
+export type PublicProfileResponse = PublicProfileContract;
 export type RandomOwnerlessCardResponse = RandomOwnerlessCardContract;
 export type RandomOwnerlessCardErrorResponse = {
     success: false;
@@ -69,6 +71,7 @@ interface NamecardRow {
     claim_status?: unknown;
     viewer_claim_state?: unknown;
     claimer_name?: unknown;
+    claimer_account_id?: unknown;
     supplement_pending?: unknown;
     cardId?: unknown;
     card_number?: unknown;
@@ -233,7 +236,11 @@ export function toPublicNamecardResponse(
         created_at: responseTimestamp(row.created_at)
     };
     return Object.assign(response, {
-        claimerName: responseClaimerName(row.claimer_name)
+        claimerName: responseClaimerName(row.claimer_name),
+        claimerAccountId:
+            typeof row.claimer_account_id === 'string' && row.claimer_account_id
+                ? row.claimer_account_id
+                : null
     });
 }
 
