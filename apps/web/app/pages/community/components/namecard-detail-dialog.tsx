@@ -513,9 +513,23 @@ export function NamecardDetailDialog({
               {card?.revision ?? 0}
             </span>
             {card?.claimStatus === "claimed" ? (
-              <Badge variant="secondary">
-                {card.claimerName ?? "已由注册用户认领"}
-              </Badge>
+              card.claimerAccountId ? (
+                <Badge
+                  variant="outline"
+                  className="text-muted-foreground"
+                  render={
+                    <NavigationLink to={`/user/${card.claimerAccountId}`} />
+                  }
+                >
+                  <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+                  {card.claimerName ?? "已由注册用户认领"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground">
+                  <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+                  {card.claimerName ?? "已由注册用户认领"}
+                </Badge>
+              )
             ) : card?.claimStatus === "pending" ? (
               <Badge variant="outline">认领审核中</Badge>
             ) : null}

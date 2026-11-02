@@ -4370,18 +4370,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                     COALESCE(
                         CASE
                             WHEN guest.owner_account_id IS NOT NULL
-                                THEN NULLIF(BTRIM(guest.producer_name), '')
-                        END,
-                        (
-                            SELECT NULLIF(BTRIM(merged_card.producer_name), '')
-                            FROM fudaba_card_merges merged
-                            JOIN fudaba_cards merged_card
-                              ON merged_card.id=merged.target_card_id
-                            WHERE merged.legacy_card_id=wanted.card_number
-                            LIMIT 1
-                        ),
-                        CASE
-                            WHEN guest.owner_account_id IS NOT NULL
                                 THEN NULLIF(BTRIM(owner_profile.display_name), '')
                         END,
                         (

@@ -2988,7 +2988,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 legacy_card_id: legacyId,
                 claim_status: 'claimed',
                 viewer_claim_state: 'approved',
-                claimer_name: 'P Name A',
+                claimer_name: 'Producer claim-owner-a',
                 claimer_account_id: ownerA,
                 supplement_pending: false
             }]);
