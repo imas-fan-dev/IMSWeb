@@ -6,6 +6,7 @@ import {
   SquarePenIcon,
   LoaderCircleIcon,
   MailIcon,
+  RefreshCwIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -43,6 +44,8 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
   const [notificationsLoading, setNotificationsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [markingRead, setMarkingRead] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [reloadToken, setReloadToken] = useState(0)
   const [readingId, setReadingId] = useState<string | null>(null)
   const [detail, setDetail] = useState<InboxDetail | null>(null)
 
@@ -55,18 +58,28 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
         setNotifications(result.items)
         setUnreadNotifications(result.unread)
         setNamecardUnread(result.unread)
+        setLoadFailed(false)
       })
       .catch(() => {
         // Signed out or offline: keep the message panel usable.
         if (active) setLoadFailed(true)
       })
       .finally(() => {
-        if (active) setNotificationsLoading(false)
+        if (!active) return
+        setNotificationsLoading(false)
+        setRefreshing(false)
       })
     return () => {
       active = false
     }
-  }, [])
+  }, [reloadToken])
+
+  /** 站内信不会主动推过来，这里给用户一个手动取数的入口。 */
+  function refreshInbox() {
+    if (refreshing) return
+    setRefreshing(true)
+    setReloadToken((current) => current + 1)
+  }
 
   const markAllRead = useCallback(async () => {
     setMarkingRead(true)
@@ -154,17 +167,34 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
               名片审核结果、同名历史名片的认领询问与站长通知都会出现在这里。
             </p>
           </div>
-          {unreadNotifications ? (
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={markingRead}
-              onClick={() => void markAllRead()}
+              disabled={refreshing}
+              aria-label="刷新消息"
+              onClick={() => void refreshInbox()}
             >
-              {markingRead ? "标记中…" : "全部已读"}
+              <RefreshCwIcon
+                data-icon="inline-start"
+                className={refreshing ? "animate-spin" : undefined}
+                aria-hidden="true"
+              />
+              {refreshing ? "刷新中…" : "刷新"}
             </Button>
-          ) : null}
+            {unreadNotifications ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={markingRead}
+                onClick={() => void markAllRead()}
+              >
+                {markingRead ? "标记中…" : "全部已读"}
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         {loadFailed && !notificationsLoading ? (
