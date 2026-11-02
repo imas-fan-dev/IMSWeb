@@ -1,5 +1,7 @@
 # 结果、截图总览与可放大图册
 
+全量 App 页面验收另按 [全量页面指南](full-app-acceptance.md) 建立 `app.inventory / runs` 及页面/场景关联；以下原始专项协议与 CLI 保持兼容。全量报告默认常规手机竖屏，小屏和短横屏仅作为明确专项的补测。
+
 ## 原始证据与清单
 
 每轮使用新的 `data/verification/<run>/`。先冻结原始日志、trace/JUnit、截图/录像、hierarchy、来源/设备设置与 source/build/install 绑定，再生成呈现版本。原始失败、后续重试、审查结论和子代理超时/恢复分别保留；生成器不执行测试，也不判定图片正确。
@@ -73,10 +75,12 @@ node .agents/skills/imsweb-ui-testing-and-evidence/scripts/build-ui-report.mjs \
 - `originals/` / `receipts/`：字节一致副本。
 - `overview.png`：仅 `--overview` 且已有选图时生成；这是排版后的总览，不是新的运行证据。
 
+带 `app` 或 `web` 的清单额外输出 `inventory.json`、`coverage.json`、`evidence.html` 与 `bindings/`；此时 `index.html` 是页面验收工作台。联合模式按 [脚本流水线](scripted-pipeline.md#app-与-web-同页交付) 通过 Tab 显示移动端和 Web。全部图片仍在 `evidence.html` 保留，页面覆盖按必需场景计算。
+
 `--overview` 复用 Web workspace 的 Playwright/Chromium，不自动下载浏览器。若不可用，保留已生成的 HTML/Markdown 和失败回执；报告缺少总览，不把生成失败改称产品测试失败。
 
 ## 交付检查
 
 顺序 decode 每张图片并校验自然尺寸；检查每个 renderer/状态组、筛选数量、放大/Escape、窄屏无横向溢出、无意外网络请求和控制台错误。既测试实际文件打开，也测试无文件系统 base 的内嵌展示。快速连续下载可能触发 Chromium 限速；校验脚本限速至约每秒一张，再比较下载字节 hash，不在产品测试里加固定等待。
 
-保留原始图册、日志内的路径和冻结 source/index/evidence manifests。后续呈现使用新的目录与 closing manifest。最终直接给总览图片、全尺寸图册、Markdown 报告和明确限制；只有实际运行、视觉检查和独立验收各自支持的范围才标通过。
+保留原始图册、日志内的路径和冻结 source/index/evidence manifests。后续呈现使用新的目录与 closing manifest。最终按 [页面与交付约定](../SKILL.md#报告页面与交付) 直接返回最新工作台；总览图片、完整图册、Markdown 和原始证据作为补充。只有实际运行、视觉检查和独立验收各自支持的范围才标通过。
