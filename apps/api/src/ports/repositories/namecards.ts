@@ -378,6 +378,7 @@ export interface NamecardRepository {
         id: number,
         expectedRevision: number,
         reason: string,
+        actor?: string | null,
     ): Promise<NamecardMutationResult>;
     listNamecardNotifications(
         recipientAccountId: string,

@@ -284,7 +284,7 @@ export default function AdminNamecardAuditPage() {
         title={tab === "locks" ? "锁定记录" : "反馈记录"}
         description={
           tab === "locks"
-            ? "每次锁定与解锁都会留下一条记录，按时间倒序排列。"
+            ? "锁定、解锁与违规标记都会留下一条记录，按时间倒序排列。"
             : "已经处理过的反馈；待处理的反馈留在反馈队列里。"
         }
       >

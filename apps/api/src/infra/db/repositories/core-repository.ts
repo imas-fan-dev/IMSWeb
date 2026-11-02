@@ -2088,7 +2088,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 // The verdict belongs in the same trail as locks and unlocks.
                 await this.appendNamecardLockRecord(
                     database,
-                    String(id),
+                    String(updatedRow.internal_id),
                     'flagged',
                     reason,
                     actor
