@@ -224,7 +224,7 @@ export default function UserProfilePage() {
                   }}
                 >
                   <img
-                    src={card.image1_url}
+                    src={card.image1_thumbnail_url ?? card.image1_url}
                     alt={`制作人名片 ${card.cardNumber} 正面`}
                     className="block h-auto w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
                   />
