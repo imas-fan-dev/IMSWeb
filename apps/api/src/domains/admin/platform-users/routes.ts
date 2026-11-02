@@ -6,9 +6,15 @@ import {
     adminPlatformUserStatusRequestSchema
 } from '@imsweb/contracts/platform/admin-users';
 import { adminApiPath } from '@imsweb/contracts/paths';
+import { platformAccountKindRequestSchema } from '@imsweb/contracts/namecards';
 import type { ImsHonoApp } from '@/app';
 import { handleGetAdminPlatformUser } from '@/domains/admin/platform-users/handlers/get-platform-user';
 import { handleListAdminPlatformUsers } from '@/domains/admin/platform-users/handlers/list-platform-users';
+import {
+    handleDeletePlatformAccountKind,
+    handleListPlatformAccountKinds,
+    handleUpsertPlatformAccountKind
+} from '@/domains/admin/platform-users/handlers/platform-account-kinds';
 import { handleRevokeAdminPlatformUserSessions } from '@/domains/admin/platform-users/handlers/revoke-platform-user-sessions';
 import { handleTriggerAdminPlatformUserPasswordReset } from '@/domains/admin/platform-users/handlers/trigger-platform-user-password-reset';
 import { handleUnlinkAdminPlatformUserOAuth } from '@/domains/admin/platform-users/handlers/unlink-platform-user-oauth';
@@ -93,5 +99,33 @@ export function registerAdminPlatformUserRoutes(app: ImsHonoApp): void {
             invalidMessage: '平台用户 OAuth 解绑参数无效'
         }),
         handleUnlinkAdminPlatformUserOAuth
+    );
+
+    const ACCOUNT_KINDS = adminApiPath('/platform/account-kinds');
+    app.get(
+        ACCOUNT_KINDS,
+        backofficeAuth,
+        opOnly,
+        superAdminOnly,
+        handleListPlatformAccountKinds
+    );
+    app.put(
+        adminApiPath('/platform/account-kinds/:id'),
+        backofficeAuth,
+        opOnly,
+        superAdminOnly,
+        backofficeCsrf,
+        jsonSchemaValidator(platformAccountKindRequestSchema, {
+            invalidMessage: '平台配置无效'
+        }),
+        handleUpsertPlatformAccountKind
+    );
+    app.delete(
+        adminApiPath('/platform/account-kinds/:id'),
+        backofficeAuth,
+        opOnly,
+        superAdminOnly,
+        backofficeCsrf,
+        handleDeletePlatformAccountKind
     );
 }

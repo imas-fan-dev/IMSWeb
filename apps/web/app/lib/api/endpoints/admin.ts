@@ -59,6 +59,8 @@ import {
   newsMutationSuccessSchema,
 } from "@imsweb/contracts/news"
 
+import { platformAccountKindListSchema, platformAccountKindRequestSchema } from "@imsweb/contracts/namecards"
+import type { z } from "@imsweb/contracts/z"
 import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
 import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
@@ -678,6 +680,43 @@ export function deleteAdminEvent(id: string) {
       errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
+    })
+  )
+}
+
+/** 后台维护平台目录：标识符、正则、色值、图标与排序都由这里改。 */
+export function getAdminPlatformAccountKinds() {
+  return adminApiClient.Get(
+    adminApiPath("/platform/account-kinds"),
+    parsed(platformAccountKindListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+export function saveAdminPlatformAccountKind(
+  id: string,
+  input: z.input<typeof platformAccountKindRequestSchema>
+) {
+  const submission = platformAccountKindRequestSchema.parse(input)
+  return adminApiClient.Put(
+    adminApiPath(`/platform/account-kinds/${encodeURIComponent(id)}`),
+    submission,
+    parsed(platformAccountKindListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function deleteAdminPlatformAccountKind(id: string) {
+  return adminApiClient.Delete(
+    adminApiPath(`/platform/account-kinds/${encodeURIComponent(id)}`),
+    undefined,
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
     })
   )
 }

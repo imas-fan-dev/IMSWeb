@@ -229,6 +229,7 @@ const navigation: Array<{
     superOnly: true,
     children: [
       { to: "/admin/platform/users", label: "用户管理" },
+      { to: "/admin/platform/account-kinds", label: "平台账号" },
       { to: "/admin/platform/audit", label: "名片审计" },
     ],
   },

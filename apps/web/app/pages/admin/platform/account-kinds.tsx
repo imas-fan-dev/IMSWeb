@@ -1,0 +1,471 @@
+import {
+  LoaderCircleIcon,
+  PencilIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  TrashIcon,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
+
+import {
+  AdminEmptyState,
+  AdminPageHeader,
+  AdminPanel,
+} from "~/components/admin/admin-ui"
+import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { Badge } from "~/components/ui/badge"
+import { Button } from "~/components/ui/button"
+import { Checkbox } from "~/components/ui/checkbox"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
+import { Field, FieldLabel } from "~/components/ui/field"
+import { Input } from "~/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select"
+import {
+  deleteAdminPlatformAccountKind,
+  getAdminPlatformAccountKinds,
+  isApiError,
+  saveAdminPlatformAccountKind,
+  type PlatformAccountKind,
+} from "~/lib/api"
+
+export function meta() {
+  return [{ title: "平台账号 | IMSWeb" }]
+}
+
+const GROUP_ITEMS = [
+  { value: "game", label: "游戏 ID" },
+  { value: "social", label: "平台账号" },
+  { value: "link", label: "链接" },
+]
+
+interface Draft {
+  id: string
+  name: string
+  group: "game" | "social" | "link"
+  pattern: string
+  baseUrl: string
+  color: string
+  icon: string
+  displayOrder: string
+  enabled: boolean
+}
+
+function emptyDraft(): Draft {
+  return {
+    id: "",
+    name: "",
+    group: "social",
+    pattern: "^[A-Za-z0-9_-]{1,32}$",
+    baseUrl: "",
+    color: "",
+    icon: "",
+    displayOrder: "100",
+    enabled: true,
+  }
+}
+
+function draftFrom(kind: PlatformAccountKind): Draft {
+  return {
+    id: kind.id,
+    name: kind.name,
+    group: kind.group,
+    pattern: kind.pattern,
+    baseUrl: kind.baseUrl ?? "",
+    color: kind.color ?? "",
+    icon: kind.icon ?? "",
+    displayOrder: String(kind.displayOrder),
+    enabled: kind.enabled,
+  }
+}
+
+export default function AdminPlatformAccountKindsPage() {
+  const [kinds, setKinds] = useState<PlatformAccountKind[]>([])
+  const [loadedToken, setLoadedToken] = useState(-1)
+  const [reloadToken, setReloadToken] = useState(0)
+  // 载入状态由 token 派生，effect 里不再同步 setState。
+  const loading = loadedToken !== reloadToken
+  const [error, setError] = useState(false)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState<PlatformAccountKind | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void getAdminPlatformAccountKinds()
+      .send()
+      .then((next) => {
+        if (!active) return
+        setKinds(next.kinds)
+        setError(false)
+      })
+      .catch(() => {
+        if (active) setError(true)
+      })
+      .finally(() => {
+        if (active) setLoadedToken(reloadToken)
+      })
+    return () => {
+      active = false
+    }
+  }, [reloadToken])
+
+  async function save() {
+    if (!draft || saving) return
+    setSaving(true)
+    try {
+      const next = await saveAdminPlatformAccountKind(draft.id.trim(), {
+        name: draft.name.trim(),
+        group: draft.group,
+        pattern: draft.pattern.trim(),
+        baseUrl: draft.baseUrl.trim() || null,
+        color: draft.color.trim() || null,
+        icon: draft.icon.trim() || null,
+        displayOrder: Number(draft.displayOrder) || 0,
+        enabled: draft.enabled,
+      }).send()
+      setKinds(next.kinds)
+      setDraft(null)
+      toast.success(creating ? "平台已添加" : "平台已更新")
+    } catch (saveError) {
+      toast.error(
+        isApiError(saveError) ? saveError.message : "保存失败，请检查填写内容"
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function remove() {
+    if (!removing) return
+    try {
+      await deleteAdminPlatformAccountKind(removing.id).send()
+      setKinds((current) => current.filter((item) => item.id !== removing.id))
+      toast.success("平台已删除")
+    } catch (deleteError) {
+      toast.error(isApiError(deleteError) ? deleteError.message : "删除失败")
+    } finally {
+      setRemoving(null)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-7">
+      <AdminPageHeader
+        eyebrow="PLATFORM ACCOUNTS"
+        title="平台账号"
+        description="维护可用于个人主页的平台：标识符、校验正则、品牌色与图标键。用户填报的内容按这里的规则校验。"
+        actions={
+          <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={loading}
+            onClick={() => setReloadToken((token) => token + 1)}
+          >
+            <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+            刷新
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              setCreating(true)
+              setDraft(emptyDraft())
+            }}
+          >
+            <PlusIcon data-icon="inline-start" aria-hidden="true" />
+            新增平台
+          </Button>
+          </div>
+        }
+      />
+
+      <AdminPanel
+        title="平台目录"
+        description={`共 ${kinds.length} 个平台，按排序值升序`}
+        icon={PencilIcon}
+      >
+        {loading ? (
+          <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+            <LoaderCircleIcon className="mr-2 size-4 animate-spin" aria-hidden="true" />
+            正在载入
+          </div>
+        ) : error ? (
+          <AdminEmptyState
+            icon={PencilIcon}
+            title="无法读取平台目录"
+            description="请确认管理会话有效，然后刷新页面重试。"
+          />
+        ) : kinds.length === 0 ? (
+          <AdminEmptyState
+            icon={PencilIcon}
+            title="还没有平台"
+            description="点击右上角【新增平台】开始配置。"
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3">标识符</th>
+                  <th className="py-2 pr-3">名称</th>
+                  <th className="py-2 pr-3">分组</th>
+                  <th className="py-2 pr-3">校验正则</th>
+                  <th className="py-2 pr-3">链接模板</th>
+                  <th className="py-2 pr-3">色值</th>
+                  <th className="py-2 pr-3">图标</th>
+                  <th className="py-2 pr-3">排序</th>
+                  <th className="py-2 pr-3">状态</th>
+                  <th className="py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {kinds.map((kind) => (
+                  <tr key={kind.id} className="border-t">
+                    <td className="py-2 pr-3 font-mono text-xs">{kind.id}</td>
+                    <td className="py-2 pr-3">{kind.name}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {GROUP_ITEMS.find((item) => item.value === kind.group)?.label}
+                    </td>
+                    <td className="max-w-56 truncate py-2 pr-3 font-mono text-xs">
+                      {kind.pattern}
+                    </td>
+                    <td className="max-w-56 truncate py-2 pr-3 font-mono text-xs">
+                      {kind.baseUrl ?? "—"}
+                    </td>
+                    <td className="py-2 pr-3">
+                      {kind.color ? (
+                        <span className="inline-flex items-center gap-1.5 font-mono text-xs">
+                          <span
+                            aria-hidden="true"
+                            className="inline-block size-3 rounded-full border"
+                            style={{ backgroundColor: kind.color }}
+                          />
+                          {kind.color}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 font-mono text-xs">{kind.icon ?? "—"}</td>
+                    <td className="py-2 pr-3 font-mono text-xs">{kind.displayOrder}</td>
+                    <td className="py-2 pr-3">
+                      <Badge variant={kind.enabled ? "secondary" : "outline"}>
+                        {kind.enabled ? "启用" : "停用"}
+                      </Badge>
+                    </td>
+                    <td className="py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="outline"
+                          aria-label={`编辑 ${kind.name}`}
+                          onClick={() => {
+                            setCreating(false)
+                            setDraft(draftFrom(kind))
+                          }}
+                        >
+                          <PencilIcon />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="destructive"
+                          aria-label={`删除 ${kind.name}`}
+                          onClick={() => setRemoving(kind)}
+                        >
+                          <TrashIcon />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AdminPanel>
+
+      <Dialog open={draft !== null} onOpenChange={(open) => !open && setDraft(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{creating ? "新增平台" : `编辑 ${draft?.name ?? ""}`}</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="kind-id">标识符</FieldLabel>
+              <Input
+                id="kind-id"
+                value={draft?.id ?? ""}
+                disabled={!creating}
+                maxLength={32}
+                className="font-mono"
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current ? { ...current, id: event.currentTarget.value } : current
+                  )
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="kind-name">名称</FieldLabel>
+              <Input
+                id="kind-name"
+                value={draft?.name ?? ""}
+                maxLength={40}
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current ? { ...current, name: event.currentTarget.value } : current
+                  )
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="kind-group">分组</FieldLabel>
+              <Select
+                value={draft?.group ?? "social"}
+                items={GROUP_ITEMS}
+                onValueChange={(value) =>
+                  setDraft((current) =>
+                    current
+                      ? { ...current, group: String(value) as Draft["group"] }
+                      : current
+                  )
+                }
+              >
+                <SelectTrigger id="kind-group" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GROUP_ITEMS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="kind-order">排序</FieldLabel>
+              <Input
+                id="kind-order"
+                value={draft?.displayOrder ?? ""}
+                inputMode="numeric"
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current
+                      ? { ...current, displayOrder: event.currentTarget.value }
+                      : current
+                  )
+                }
+              />
+            </Field>
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="kind-pattern">校验正则</FieldLabel>
+              <Input
+                id="kind-pattern"
+                value={draft?.pattern ?? ""}
+                maxLength={200}
+                className="font-mono"
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current ? { ...current, pattern: event.currentTarget.value } : current
+                  )
+                }
+              />
+            </Field>
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="kind-base">链接模板</FieldLabel>
+              <Input
+                id="kind-base"
+                value={draft?.baseUrl ?? ""}
+                maxLength={200}
+                placeholder="https://example.com/{value}"
+                className="font-mono"
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current ? { ...current, baseUrl: event.currentTarget.value } : current
+                  )
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="kind-color">品牌色</FieldLabel>
+              <Input
+                id="kind-color"
+                value={draft?.color ?? ""}
+                maxLength={7}
+                placeholder="#ff6699"
+                className="font-mono"
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current ? { ...current, color: event.currentTarget.value } : current
+                  )
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="kind-icon">图标键</FieldLabel>
+              <Input
+                id="kind-icon"
+                value={draft?.icon ?? ""}
+                maxLength={40}
+                className="font-mono"
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current ? { ...current, icon: event.currentTarget.value } : current
+                  )
+                }
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={draft?.enabled ?? true}
+                onCheckedChange={(checked) =>
+                  setDraft((current) =>
+                    current ? { ...current, enabled: checked === true } : current
+                  )
+                }
+              />
+              启用
+            </label>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDraft(null)}>
+              取消
+            </Button>
+            <Button type="button" disabled={saving} onClick={() => void save()}>
+              {saving ? "正在保存" : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmActionDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={`删除平台「${removing?.name ?? ""}」？`}
+        description="该平台下用户已填写的值会一并删除，且无法恢复。"
+        confirmLabel="确认删除"
+        variant="destructive"
+        submitting={false}
+        onConfirm={() => void remove()}
+      />
+    </div>
+  )
+}

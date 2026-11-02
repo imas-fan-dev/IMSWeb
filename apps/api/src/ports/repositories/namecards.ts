@@ -338,6 +338,9 @@ export interface NamecardRepository {
     /** Enabled platform handles this account published, in catalogue order. */
     listPlatformAccountLinks(accountId: string): Promise<PlatformAccountLinkRecord[]>;
     listPlatformAccountKinds(): Promise<PlatformAccountKindRecord[]>;
+    /** The backoffice owns the catalogue; creating and editing share one call. */
+    upsertPlatformAccountKind(input: PlatformAccountKindRecord): Promise<void>;
+    deletePlatformAccountKind(id: string): Promise<boolean>;
     listPlatformAccountEntries(accountId: string): Promise<PlatformAccountEntryRecord[]>;
     upsertPlatformAccountEntry(input: {
         accountId: string;

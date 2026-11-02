@@ -773,6 +773,47 @@ export class SqlCoreRepository implements NamecardRepository {
         );
     }
 
+    async upsertPlatformAccountKind(input: PlatformAccountKindRecord): Promise<void> {
+        await executeSql(
+            this.database,
+            `INSERT INTO platform_account_kinds
+                (id, name, group_key, pattern, base_url, color, icon,
+                 display_order, enabled, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now()::text, now()::text)
+             ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                group_key = EXCLUDED.group_key,
+                pattern = EXCLUDED.pattern,
+                base_url = EXCLUDED.base_url,
+                color = EXCLUDED.color,
+                icon = EXCLUDED.icon,
+                display_order = EXCLUDED.display_order,
+                enabled = EXCLUDED.enabled,
+                updated_at = now()::text`,
+            [
+                input.id,
+                input.name,
+                input.group_key,
+                input.pattern,
+                input.base_url,
+                input.color,
+                input.icon,
+                input.display_order,
+                input.enabled,
+            ]
+        );
+    }
+
+    async deletePlatformAccountKind(id: string): Promise<boolean> {
+        const row = await queryOne<{ removed: number }>(
+            this.database,
+            `WITH gone AS (DELETE FROM platform_account_kinds WHERE id = ? RETURNING 1)
+             SELECT CAST(COUNT(*) AS INTEGER) AS removed FROM gone`,
+            [id]
+        );
+        return Number(row?.removed ?? 0) > 0;
+    }
+
     async listPlatformAccountKinds(): Promise<PlatformAccountKindRecord[]> {
         return queryAll<PlatformAccountKindRecord>(
             this.database,

@@ -680,6 +680,27 @@ export const platformAccountRemovalSchema = exactJsonResponse({
   removed: z.number().int().nonnegative(),
 })
 
+/** The backoffice edits the catalogue itself, so every field is writable. */
+export const platformAccountKindRequestSchema = strictRequestObject({
+  name: z.string().trim().min(1).max(40),
+  group: z.enum(["game", "social", "link"]),
+  pattern: z.string().trim().min(1).max(200),
+  baseUrl: z.string().trim().min(1).max(200).nullable(),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
+  icon: z.string().trim().min(1).max(40).nullable(),
+  displayOrder: z.number().int().min(0).max(9999),
+  enabled: z.boolean(),
+})
+
+export const platformAccountKindListSchema = exactJsonResponse({
+  kinds: z.array(platformAccountKindSchema),
+})
+
 export type PlatformAccountKind = z.infer<typeof platformAccountKindSchema>
+export type PlatformAccountKindList = z.infer<typeof platformAccountKindListSchema>
 export type PlatformAccountEntry = z.infer<typeof platformAccountEntrySchema>
 export type MyPlatformAccounts = z.infer<typeof myPlatformAccountsSchema>
