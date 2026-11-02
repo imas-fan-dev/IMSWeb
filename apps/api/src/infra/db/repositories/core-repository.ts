@@ -22,7 +22,11 @@ import {
     cardTransferredOutCopy,
     cardUnlockedCopy,
 } from '@/infra/db/repositories/namecard-notification-copy';
-import type { PlatformAccountLinkRecord } from "@/ports/repositories/namecards";
+import type {
+    PlatformAccountEntryRecord,
+    PlatformAccountKindRecord,
+    PlatformAccountLinkRecord,
+} from "@/ports/repositories/namecards";
 import type {
     CardFavoriteSelectionRecord,
     CardMediaRecord,
@@ -767,6 +771,61 @@ export class SqlCoreRepository implements NamecardRepository {
              ORDER BY kind.display_order, kind.id`,
             [accountId]
         );
+    }
+
+    async listPlatformAccountKinds(): Promise<PlatformAccountKindRecord[]> {
+        return queryAll<PlatformAccountKindRecord>(
+            this.database,
+            `SELECT id, name, group_key, pattern, base_url, color, icon,
+                    display_order, enabled
+             FROM platform_account_kinds
+             ORDER BY display_order, id`
+        );
+    }
+
+    async listPlatformAccountEntries(
+        accountId: string
+    ): Promise<PlatformAccountEntryRecord[]> {
+        return queryAll<PlatformAccountEntryRecord>(
+            this.database,
+            `SELECT kind_id, value FROM platform_account_entries
+             WHERE account_id=? ORDER BY kind_id`,
+            [accountId]
+        );
+    }
+
+    async upsertPlatformAccountEntry(input: {
+        accountId: string;
+        kindId: string;
+        value: string;
+        at: string;
+    }): Promise<void> {
+        await executeSql(
+            this.database,
+            `INSERT INTO platform_account_entries
+                 (account_id, kind_id, value, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (account_id, kind_id)
+             DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
+            [input.accountId, input.kindId, input.value, input.at, input.at]
+        );
+    }
+
+    async deletePlatformAccountEntry(
+        accountId: string,
+        kindId: string
+    ): Promise<number> {
+        const row = await queryOne<{ removed: number }>(
+            this.database,
+            `WITH gone AS (
+                 DELETE FROM platform_account_entries
+                 WHERE account_id=? AND kind_id=?
+                 RETURNING 1
+             )
+             SELECT CAST(COUNT(*) AS INTEGER) AS removed FROM gone`,
+            [accountId, kindId]
+        );
+        return row?.removed ?? 0;
     }
 
     async countOwnedPublishedCards(accountId: string): Promise<number> {

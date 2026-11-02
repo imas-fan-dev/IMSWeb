@@ -1,3 +1,4 @@
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { CopyIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -73,14 +74,12 @@ export function PlatformAccountList({
     >
       <h2 className="text-sm font-medium">平台账号</h2>
       {homepage ? (
-        <a
+        <NavigationLink
           href={homepage.url ?? homepage.value}
-          target="_blank"
-          rel="noreferrer noopener"
           className="block truncate text-sm text-primary underline-offset-4 hover:underline"
         >
           {homepage.value}
-        </a>
+        </NavigationLink>
       ) : null}
       {groups.map((group) => {
         const rows = accounts.filter((account) => account.group === group)
@@ -96,15 +95,13 @@ export function PlatformAccountList({
                 >
                   <PlatformIcon account={account} />
                   {account.url ? (
-                    <a
+                    <NavigationLink
                       href={account.url}
-                      target="_blank"
-                      rel="noreferrer noopener"
                       title={account.name}
                       className="max-w-40 truncate font-mono text-xs text-primary underline-offset-4 hover:underline"
                     >
                       {account.value}
-                    </a>
+                    </NavigationLink>
                   ) : (
                     <>
                       <span

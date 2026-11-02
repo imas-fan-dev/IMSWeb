@@ -674,6 +674,12 @@ export const platformAccountValueRequestSchema = strictRequestObject({
   value: z.string().trim().min(1).max(200),
 })
 
+/** Removing a value reports how many rows the delete touched. */
+export const platformAccountRemovalSchema = exactJsonResponse({
+  success: z.literal(true),
+  removed: z.number().int().nonnegative(),
+})
+
 export type PlatformAccountKind = z.infer<typeof platformAccountKindSchema>
 export type PlatformAccountEntry = z.infer<typeof platformAccountEntrySchema>
 export type MyPlatformAccounts = z.infer<typeof myPlatformAccountsSchema>

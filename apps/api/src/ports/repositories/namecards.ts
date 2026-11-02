@@ -301,6 +301,24 @@ export interface PlatformAccountLinkRecord {
     icon: string | null;
 }
 
+/** The catalogue row the backoffice edits. */
+export interface PlatformAccountKindRecord {
+    id: string;
+    name: string;
+    group_key: "game" | "social" | "link";
+    pattern: string;
+    base_url: string | null;
+    color: string | null;
+    icon: string | null;
+    display_order: number;
+    enabled: boolean;
+}
+
+export interface PlatformAccountEntryRecord {
+    kind_id: string;
+    value: string;
+}
+
 export interface NamecardAdminFilter {
     query: string | null;
     status: string | null;
@@ -319,6 +337,15 @@ export interface NamecardRepository {
     findPublicProfile(handle: string): Promise<PublicProfileRecord | null>;
     /** Enabled platform handles this account published, in catalogue order. */
     listPlatformAccountLinks(accountId: string): Promise<PlatformAccountLinkRecord[]>;
+    listPlatformAccountKinds(): Promise<PlatformAccountKindRecord[]>;
+    listPlatformAccountEntries(accountId: string): Promise<PlatformAccountEntryRecord[]>;
+    upsertPlatformAccountEntry(input: {
+        accountId: string;
+        kindId: string;
+        value: string;
+        at: string;
+    }): Promise<void>;
+    deletePlatformAccountEntry(accountId: string, kindId: string): Promise<number>;
     countOwnedPublishedCards(accountId: string): Promise<number>;
     listOwnedPublishedCards(
         accountId: string,

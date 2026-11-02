@@ -35,6 +35,12 @@ import {
 import { z } from "@imsweb/contracts/z"
 
 import {
+  myPlatformAccountsSchema,
+  platformAccountEntrySchema,
+  platformAccountRemovalSchema,
+  platformAccountValueRequestSchema,
+} from "@imsweb/contracts/namecards"
+import {
   normalizePlatformProfileMutation,
   normalizePlatformProfileResponse,
   normalizePlatformSession,
@@ -368,6 +374,39 @@ export function logoutPlatform() {
     parsed(successFlagSchema, {
       errorSchema: platformHttpErrorSchema,
       meta: withPlatformCsrf({ authRole: "logout" }),
+    })
+  )
+}
+
+export function getMyPlatformAccounts() {
+  return platformApiClient.Get(
+    platformApiPath("/me/accounts"),
+    parsed(myPlatformAccountsSchema, {
+      errorSchema: platformHttpErrorSchema,
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function saveMyPlatformAccount(kindId: string, value: string) {
+  const submission = platformAccountValueRequestSchema.parse({ value })
+  return platformApiClient.Put(
+    platformApiPath(`/me/accounts/${encodeURIComponent(kindId)}`),
+    submission,
+    parsed(platformAccountEntrySchema, {
+      errorSchema: platformProfileHttpErrorSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+export function deleteMyPlatformAccount(kindId: string) {
+  return platformApiClient.Delete(
+    platformApiPath(`/me/accounts/${encodeURIComponent(kindId)}`),
+    undefined,
+    parsed(platformAccountRemovalSchema, {
+      errorSchema: platformProfileHttpErrorSchema,
+      meta: withPlatformCsrf(),
     })
   )
 }

@@ -35,6 +35,7 @@ import { cn } from "~/lib/utils"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { CardWorkspace } from "./namecards/card-workspace"
 import { NamecardInboxPanel } from "./claims/namecard-inbox-panel"
+import { PlatformAccountsEditor } from "./platform-accounts-editor"
 import { FavoriteCollection } from "./favorites/favorite-collection"
 import { apiMessage, isFeatureClosed } from "./account-me-model"
 import { OfficeLocationWorkspace } from "./offices/office-location-workspace"
@@ -568,6 +569,15 @@ function ProfileWorkspace({
               isOperationCurrent={isProfileOperationCurrent}
               onWriteClosed={closeWrites}
             />
+            <div className="mt-8 border-t pt-6">
+              <h2 className="text-xl font-semibold">平台账号</h2>
+              <p className="mt-2 text-sm/6 text-muted-foreground">
+                游戏 ID 与社交平台账号会显示在你的个人主页上；粘贴完整链接或只填标识符都可以，每个平台一条。
+              </p>
+              <div className="mt-6">
+                <PlatformAccountsEditor />
+              </div>
+            </div>
           </div>
 
           <section
