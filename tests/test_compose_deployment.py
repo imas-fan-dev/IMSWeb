@@ -18,7 +18,7 @@ class ComposeDeploymentTests(unittest.TestCase):
 
         self.assertEqual(
             services,
-            ["postgres", "valkey", "rustfs", "rustfs-init", "email-worker", "api"],
+            ["postgres", "postgres-test", "valkey", "rustfs", "rustfs-init", "email-worker", "api"],
         )
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
         self.assertIn(

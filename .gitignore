@@ -138,3 +138,9 @@ reports/
 !.crew/graphs/
 !.crew/artifacts/.gitkeep
 !.crew/graphs/.gitkeep
+# Local developer overrides (per machine, never committed)
+*.override.yml
+*.override.yaml
+.vscode/
+.idea/
+.claude/settings.local.json
