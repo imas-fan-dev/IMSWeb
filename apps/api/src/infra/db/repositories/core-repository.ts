@@ -778,8 +778,8 @@ export class SqlCoreRepository implements NamecardRepository {
             this.database,
             `INSERT INTO platform_account_kinds
                 (id, name, group_key, pattern, base_url, color, icon,
-                 display_order, enabled, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now()::text, now()::text)
+                 display_order, enabled, uppercase, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now()::text, now()::text)
              ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 group_key = EXCLUDED.group_key,
@@ -789,6 +789,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 icon = EXCLUDED.icon,
                 display_order = EXCLUDED.display_order,
                 enabled = EXCLUDED.enabled,
+                uppercase = EXCLUDED.uppercase,
                 updated_at = now()::text`,
             [
                 input.id,
@@ -800,6 +801,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 input.icon,
                 input.display_order,
                 input.enabled,
+                input.uppercase,
             ]
         );
     }
@@ -818,7 +820,7 @@ export class SqlCoreRepository implements NamecardRepository {
         return queryAll<PlatformAccountKindRecord>(
             this.database,
             `SELECT id, name, group_key, pattern, base_url, color, icon,
-                    display_order, enabled
+                    display_order, enabled, uppercase
              FROM platform_account_kinds
              ORDER BY display_order, id`
         );

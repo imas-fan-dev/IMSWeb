@@ -1,6 +1,8 @@
-import type {
-    MyPlatformAccounts,
-    PlatformAccountEntry,
+import {
+    formatPlatformValue,
+    platformValueError,
+    type MyPlatformAccounts,
+    type PlatformAccountEntry,
 } from "@imsweb/contracts/namecards";
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
@@ -12,37 +14,6 @@ const VALUE_INVALID = {
     success: false as const,
     code: "PLATFORM_ACCOUNT_INVALID" as const,
 };
-
-/**
- * The editor accepts what people paste: a full profile URL or the bare
- * identifier. Every catalogue URL ends with the identifier, so the last path
- * segment is the value; anything else is taken as typed.
- */
-export function normalizePlatformValue(raw: string): string {
-    const trimmed = raw.trim();
-    if (!/^https?:\/\//i.test(trimmed)) return trimmed;
-    let path = "";
-    try {
-        path = new URL(trimmed).pathname;
-    } catch {
-        return trimmed;
-    }
-    const segments = path.split("/").filter(Boolean);
-    const last = segments[segments.length - 1] ?? "";
-    try {
-        return decodeURIComponent(last);
-    } catch {
-        return last;
-    }
-}
-
-function accepts(kind: PlatformAccountKindRecord, value: string): boolean {
-    try {
-        return new RegExp(kind.pattern, "u").test(value);
-    } catch {
-        return false;
-    }
-}
 
 export async function handleListMyPlatformAccounts(
     c: Context<AppEnvironment>
@@ -65,6 +36,7 @@ export async function handleListMyPlatformAccounts(
             icon: kind.icon,
             displayOrder: kind.display_order,
             enabled: kind.enabled,
+            uppercase: kind.uppercase,
         })),
         entries: entries.map((entry) => ({
             kindId: entry.kind_id,
@@ -92,8 +64,15 @@ export async function handleSaveMyPlatformAccount(
             value?: unknown;
         } | null;
         if (!body || typeof body.value !== "string") return c.json(VALUE_INVALID, 400);
-        const value = normalizePlatformValue(body.value);
-        if (!value || value.length > 200 || !accepts(kind, value)) {
+        const format = {
+            id: kind.id,
+            group: kind.group_key,
+            pattern: kind.pattern,
+            baseUrl: kind.base_url,
+            uppercase: kind.uppercase,
+        };
+        const value = formatPlatformValue(format, body.value);
+        if (!value || value.length > 200 || platformValueError(format, value) !== null) {
             return c.json(VALUE_INVALID, 400);
         }
         await repository.upsertPlatformAccountEntry({

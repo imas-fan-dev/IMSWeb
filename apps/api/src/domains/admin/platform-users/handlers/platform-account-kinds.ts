@@ -15,6 +15,7 @@ export interface PlatformAccountKindBody {
     icon: string | null;
     displayOrder: number;
     enabled: boolean;
+    uppercase?: boolean;
 }
 
 function toKindView(record: PlatformAccountKindRecord) {
@@ -27,7 +28,8 @@ function toKindView(record: PlatformAccountKindRecord) {
         color: record.color,
         icon: record.icon,
         displayOrder: record.display_order,
-        enabled: record.enabled
+        enabled: record.enabled,
+        uppercase: record.uppercase
     };
 }
 
@@ -47,6 +49,10 @@ export async function handleUpsertPlatformAccountKind(
         return c.json({ success: false, message: '标识符只能是小写字母、数字与连字符' }, 400);
     }
     const body = c.req.valid('json');
+    // The admin form has no case switch, so an edit keeps the stored flag.
+    const existing = (
+        await services(c).namecards!.listPlatformAccountKinds()
+    ).find((row) => row.id === id);
     await services(c).namecards!.upsertPlatformAccountKind({
         id,
         name: body.name,
@@ -56,7 +62,8 @@ export async function handleUpsertPlatformAccountKind(
         color: body.color,
         icon: body.icon,
         display_order: body.displayOrder,
-        enabled: body.enabled
+        enabled: body.enabled,
+        uppercase: body.uppercase ?? existing?.uppercase ?? false
     });
     const kinds = await services(c).namecards!.listPlatformAccountKinds();
     return c.json({ kinds: kinds.map(toKindView) } satisfies PlatformAccountKindList);

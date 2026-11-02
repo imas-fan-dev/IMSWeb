@@ -312,6 +312,8 @@ export interface PlatformAccountKindRecord {
     icon: string | null;
     display_order: number;
     enabled: boolean;
+    /** Game handles are stored in capitals. */
+    uppercase: boolean;
 }
 
 export interface PlatformAccountEntryRecord {

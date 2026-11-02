@@ -657,7 +657,72 @@ export const platformAccountKindSchema = exactJsonResponse({
   icon: z.string().min(1).max(40).nullable(),
   displayOrder: z.number().int().nonnegative(),
   enabled: z.boolean(),
+  uppercase: z.boolean(),
 })
+
+/** The fields the editor needs to turn raw input into the stored value. */
+export interface PlatformAccountFormat {
+  id: string
+  group: "game" | "social" | "link"
+  pattern: string
+  baseUrl: string | null
+  uppercase: boolean
+}
+
+function decodeOnce(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Turns whatever the visitor typed into the identifier we store: query and
+ * fragment dropped, the platform's prefix removed, percent escapes decoded,
+ * and the case the platform itself uses.
+ */
+export function formatPlatformValue(
+  kind: PlatformAccountFormat,
+  raw: string
+): string {
+  let value = raw.trim()
+  if (!value) return ""
+  const cut = value.search(/[?#]/)
+  if (cut >= 0) value = value.slice(0, cut)
+  if (/^https?:\/\//i.test(value)) {
+    value = value.replace(/\/+$/, "")
+    if (kind.baseUrl) {
+      const prefix = kind.baseUrl.replace("{value}", "")
+      value = value.toLowerCase().startsWith(prefix.toLowerCase())
+        ? value.slice(prefix.length)
+        : value.slice(value.lastIndexOf("/") + 1)
+    }
+  }
+  value = decodeOnce(value)
+  if (kind.id === "youtube" && value.startsWith("@")) {
+    value = `@${encodeURIComponent(value.slice(1))}`
+  }
+  return kind.uppercase ? value.toUpperCase() : value
+}
+
+/** Null when the value fits the platform, otherwise the message to show. */
+export function platformValueError(
+  kind: PlatformAccountFormat,
+  value: string
+): string | null {
+  if (!value) return null
+  if (kind.group === "link" && !/^https?:\/\//i.test(value)) {
+    return "请填写完整的链接（以 https:// 开头）"
+  }
+  try {
+    return new RegExp(kind.pattern, "u").test(value)
+      ? null
+      : "格式不符合该平台的要求"
+  } catch {
+    return "格式不符合该平台的要求"
+  }
+}
 
 /** One account the visitor filled in, normalized to the bare identifier. */
 export const platformAccountEntrySchema = exactJsonResponse({
@@ -694,8 +759,11 @@ export const platformAccountKindRequestSchema = strictRequestObject({
   icon: z.string().trim().min(1).max(40).nullable(),
   displayOrder: z.number().int().min(0).max(9999),
   enabled: z.boolean(),
+  /** Game handles are stored in capitals; the editor upper-cases as you type. */
+  uppercase: z.boolean().optional(),
 })
 
+/** What the editor needs to turn raw input into the stored identifier. */
 export const platformAccountKindListSchema = exactJsonResponse({
   kinds: z.array(platformAccountKindSchema),
 })

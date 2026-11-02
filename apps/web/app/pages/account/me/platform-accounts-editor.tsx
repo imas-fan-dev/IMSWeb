@@ -2,6 +2,11 @@ import { HomeIcon, LoaderCircleIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import {
+  formatPlatformValue,
+  platformValueError,
+} from "@imsweb/contracts/namecards"
+
 import { PLATFORM_ICON_URLS } from "~/components/profile/platform-account-icons"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -17,6 +22,12 @@ const GROUP_LABELS: Record<string, string> = {
   game: "游戏 ID",
   link: "个人主页",
   social: "平台账号",
+}
+
+/** 输入框里提示的是链接模板，而不是正则。 */
+function placeholderFor(kind: PlatformAccountKind): string {
+  if (kind.baseUrl) return kind.baseUrl.replace("{value}", "")
+  return kind.group === "link" ? "https://" : ""
 }
 
 function errorMessage(error: unknown) {
@@ -78,6 +89,12 @@ export function PlatformAccountsEditor() {
       active = false
     }
   }, [])
+
+  const localErrors: Record<string, string> = {}
+  for (const kind of kinds) {
+    const message = platformValueError(kind, (draft[kind.id] ?? "").trim())
+    if (message) localErrors[kind.id] = message
+  }
 
   const dirty = kinds.filter(
     (kind) => (draft[kind.id] ?? "").trim() !== (original[kind.id] ?? "")
@@ -145,17 +162,22 @@ export function PlatformAccountsEditor() {
                   </span>
                   <Input
                     value={draft[kind.id] ?? ""}
-                    placeholder={kind.pattern}
+                    placeholder={placeholderFor(kind)}
                     aria-label={kind.name}
-                    aria-invalid={errors[kind.id] ? true : undefined}
+                    aria-invalid={
+                      errors[kind.id] || localErrors[kind.id] ? true : undefined
+                    }
                     maxLength={200}
                     onChange={(event) => {
-                      const next = event.currentTarget.value
+                      // 粘贴整条链接也在这里归一：平台前缀、query、大小写。
+                      const next = formatPlatformValue(kind, event.currentTarget.value)
                       setDraft((current) => ({ ...current, [kind.id]: next }))
                     }}
                   />
-                  {errors[kind.id] ? (
-                    <span className="text-xs text-destructive">{errors[kind.id]}</span>
+                  {errors[kind.id] || localErrors[kind.id] ? (
+                    <span className="text-xs text-destructive">
+                      {errors[kind.id] ?? localErrors[kind.id]}
+                    </span>
                   ) : null}
                 </label>
               ))}

@@ -1,14 +1,9 @@
-import { HomeIcon } from "lucide-react"
+import { CopyIcon, HomeIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
-import { Badge } from "~/components/ui/badge"
 import type { PlatformAccountLink } from "~/lib/api"
 import { PLATFORM_ICON_URLS } from "./platform-account-icons"
-
-const GROUP_LABELS: Record<string, string> = {
-  game: "游戏 ID",
-  social: "平台账号",
-}
 
 /** 单色图标用遮罩上色，品牌色才会真正生效。 */
 function PlatformMark({ account }: { account: PlatformAccountLink }) {
@@ -46,70 +41,77 @@ function PlatformMark({ account }: { account: PlatformAccountLink }) {
   )
 }
 
-/** 一条账号：ID 类可复制，链接类点开新页；统一用 Badge 承载。 */
-function AccountBadge({ account }: { account: PlatformAccountLink }) {
-  const content = (
-    <>
-      <PlatformMark account={account} />
-      <span className="truncate">{account.value}</span>
-    </>
-  )
-  const className = "max-w-full gap-1.5 font-normal"
-  if (account.url) {
-    return (
-      <Badge variant="secondary" className={className} render={
-        <NavigationLink href={account.url} />
-      }>
-        {content}
-      </Badge>
-    )
+const BADGE =
+  "inline-flex items-center gap-1.5 rounded-full border bg-transparent px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-muted/50"
+
+function borderStyle(account: PlatformAccountLink) {
+  return account.color ? { borderColor: account.color } : undefined
+}
+
+async function copyValue(account: PlatformAccountLink) {
+  try {
+    await navigator.clipboard.writeText(account.value)
+    toast.success(`已复制 ${account.name}`)
+  } catch {
+    toast.error("复制失败，请手动选择复制")
   }
-  return (
-    <Badge variant="secondary" className={className}>
-      {content}
-    </Badge>
-  )
 }
 
 /**
- * 平台账号：先游戏 ID，再个人主页（独占一行完整链接），最后其余平台。
- * 名片的复制按钮不在这里：ID 直接显示在 Badge 上，方便手动选取。
+ * 平台账号：个人主页单独一行完整链接，其余是纯描边的品牌色 badge。
+ * 纯 ID 的直接显示 ID 并可点击复制；有链接的整块跳转、只显示平台名。
  */
-export function PlatformAccountList({ accounts }: { accounts: PlatformAccountLink[] }) {
+export function PlatformAccountList({
+  accounts,
+}: {
+  accounts: readonly PlatformAccountLink[]
+}) {
   if (accounts.length === 0) return null
-  const homepage = accounts.find((account) => account.kindId === "homepage")
-  const rest = accounts.filter((account) => account.kindId !== "homepage")
-
+  const homepage = accounts.find((account) => account.group === "link")
+  const marks = accounts.filter((account) => account.group !== "link")
   return (
-    <section className="space-y-3" aria-label="平台账号">
-      <h2 className="text-sm font-medium text-muted-foreground">平台账号</h2>
-
-      {(["game", "social"] as const).map((group) => {
-        const rows = rest.filter((account) => account.group === group)
-        if (rows.length === 0) return null
-        return (
-          <div key={group} className="space-y-1.5">
-            <h3 className="text-xs text-muted-foreground">{GROUP_LABELS[group]}</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {rows.map((account) => (
-                <AccountBadge key={account.kindId} account={account} />
-              ))}
-            </div>
-          </div>
-        )
-      })}
-
+    <div className="space-y-2">
       {homepage ? (
-        <div className="flex min-w-0 items-center gap-1.5 text-sm">
-          <HomeIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <NavigationLink
-            href={homepage.value}
-            className="truncate underline decoration-border decoration-dotted underline-offset-2 hover:decoration-foreground"
-          >
-            {homepage.value}
-          </NavigationLink>
+        <NavigationLink
+          href={homepage.value}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <HomeIcon className="size-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">{homepage.value}</span>
+        </NavigationLink>
+      ) : null}
+      {marks.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {marks.map((account) =>
+            account.url ? (
+              <NavigationLink
+                key={account.kindId}
+                href={account.url}
+                className={BADGE}
+                style={borderStyle(account)}
+                title={`${account.name} · ${account.value}`}
+              >
+                <PlatformMark account={account} />
+                {account.name}
+              </NavigationLink>
+            ) : (
+              <button
+                key={account.kindId}
+                type="button"
+                className={BADGE}
+                style={borderStyle(account)}
+                title={`${account.name} · ${account.value}`}
+                aria-label={`复制 ${account.name} ${account.value}`}
+                onClick={() => void copyValue(account)}
+              >
+                <PlatformMark account={account} />
+                <span className="font-mono">{account.value}</span>
+                <CopyIcon className="size-3 opacity-60" aria-hidden="true" />
+              </button>
+            )
+          )}
         </div>
       ) : null}
-    </section>
+    </div>
   )
 }
