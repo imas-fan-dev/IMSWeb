@@ -383,7 +383,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 }],
                 claim_status: 'pending',
                 viewer_claim_state: 'pending',
-                claimer_name: null
+                claimer_name: null,
+                claimer_account_id: null
             });
             assert.equal(publicCard.seriesCode, '765');
             assert.deepEqual(publicCard.favoriteCharacters, [{
@@ -414,7 +415,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 status: 'approved',
                 created_at: null,
                 claim_status: 'claimed',
-                claimer_name: '  Producer primary  '
+                claimer_name: '  Producer primary  ',
+                claimer_account_id: 'account-1'
             });
             assert.equal(claimedCard.claimerName, 'Producer primary');
 
@@ -2939,6 +2941,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 claim_status: 'pending',
                 viewer_claim_state: 'pending',
                 claimer_name: null,
+                claimer_account_id: null,
                 supplement_pending: false
             }]);
             const adminClaim = await fudaba.findAdminCardClaim(claimId);
@@ -2986,6 +2989,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 claim_status: 'claimed',
                 viewer_claim_state: 'approved',
                 claimer_name: 'P Name A',
+                claimer_account_id: ownerA,
                 supplement_pending: false
             }]);
             // The review result reaches the claimant through the shared
