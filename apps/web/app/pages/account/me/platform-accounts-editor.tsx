@@ -1,4 +1,4 @@
-import { CheckIcon, LoaderCircleIcon, Trash2Icon } from "lucide-react"
+import { HomeIcon, LoaderCircleIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -10,149 +10,50 @@ import {
   getMyPlatformAccounts,
   isApiError,
   saveMyPlatformAccount,
-  type PlatformAccountEntry,
   type PlatformAccountKind,
 } from "~/lib/api"
 
-/** 个人主页地址与游戏 ID 都是「填一次就好」的值，所以逐行保存。 */
-type RowState = {
-  value: string
-  saving: boolean
-  error: string | null
+const GROUP_LABELS: Record<string, string> = {
+  game: "游戏 ID",
+  link: "个人主页",
+  social: "平台账号",
 }
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "保存失败，请重试"
 }
 
-function KindRow({
-  kind,
-  entry,
-  onSaved,
-  onCleared,
-}: {
-  kind: PlatformAccountKind
-  entry: PlatformAccountEntry | undefined
-  onSaved: (kindId: string, value: string) => void
-  onCleared: (kindId: string) => void
-}) {
-  const [row, setRow] = useState<RowState>({
-    value: entry?.value ?? "",
-    saving: false,
-    error: null,
-  })
-
-  async function save() {
-    const value = row.value.trim()
-    if (!value || row.saving) return
-    setRow((current) => ({ ...current, saving: true, error: null }))
-    try {
-      await saveMyPlatformAccount(kind.id, value).send()
-      onSaved(kind.id, value)
-      toast.success(`${kind.name} 已保存`)
-    } catch (error) {
-      setRow((current) => ({ ...current, error: errorMessage(error) }))
-    } finally {
-      setRow((current) => ({ ...current, saving: false }))
-    }
-  }
-
-  async function clear() {
-    if (row.saving) return
-    setRow((current) => ({ ...current, saving: true, error: null }))
-    try {
-      await deleteMyPlatformAccount(kind.id).send()
-      setRow({ value: "", saving: false, error: null })
-      onCleared(kind.id)
-    } catch (error) {
-      setRow((current) => ({ ...current, error: errorMessage(error) }))
-    } finally {
-      setRow((current) => ({ ...current, saving: false }))
-    }
-  }
-
-  const icon = PLATFORM_ICON_URLS[kind.icon ?? ""] ?? null
-  const dirty = row.value.trim() !== (entry?.value ?? "")
-
+function KindIcon({ kind }: { kind: PlatformAccountKind }) {
+  const url = PLATFORM_ICON_URLS[kind.icon ?? ""]
+  if (kind.group === "link")
+    return <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+  if (url)
+    return (
+      <img
+        src={url}
+        alt=""
+        className="size-4"
+        style={kind.color ? { color: kind.color } : undefined}
+      />
+    )
   return (
-    <div className="flex items-start gap-3" data-platform-row={kind.id}>
-      <span className="mt-2 flex size-5 shrink-0 items-center justify-center">
-        {icon ? (
-          <img src={icon} alt="" className="size-5" aria-hidden="true" />
-        ) : (
-          <span className="text-xs text-muted-foreground" aria-hidden="true">
-            ●
-          </span>
-        )}
-      </span>
-      <div className="min-w-0 flex-1 space-y-1">
-        <label
-          className="text-xs text-muted-foreground"
-          htmlFor={`platform-account-${kind.id}`}
-        >
-          {kind.name}
-        </label>
-        <div className="flex items-center gap-2">
-          <Input
-            id={`platform-account-${kind.id}`}
-            value={row.value}
-            placeholder={kind.baseUrl ?? undefined}
-            className="h-8"
-            aria-invalid={row.error ? true : undefined}
-            onChange={(event) =>
-              setRow((current) => ({
-                ...current,
-                value: event.currentTarget.value,
-                error: null,
-              }))
-            }
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void save()
-            }}
-          />
-          <Button
-            type="button"
-            size="icon-sm"
-            aria-label={`保存 ${kind.name}`}
-            disabled={!dirty || row.saving}
-            onClick={() => void save()}
-          >
-            {row.saving ? (
-              <LoaderCircleIcon className="animate-spin" />
-            ) : (
-              <CheckIcon />
-            )}
-          </Button>
-          {entry ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              aria-label={`清除 ${kind.name}`}
-              disabled={row.saving}
-              onClick={() => void clear()}
-            >
-              <Trash2Icon />
-            </Button>
-          ) : null}
-        </div>
-        {row.error ? (
-          <p className="text-xs text-destructive">{row.error}</p>
-        ) : null}
-      </div>
-    </div>
+    <span className="flex size-4 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
+      {kind.name.slice(0, 1)}
+    </span>
   )
 }
 
 /**
- * 账号资料里的平台账号区：每个平台一行，填完即存。
- * 输入既可以是完整地址，也可以只给标识符，服务端会统一解析。
+ * 所有平台一起编辑、一次保存：值变了才发请求，清空即删除。
  */
 export function PlatformAccountsEditor() {
   const [kinds, setKinds] = useState<PlatformAccountKind[]>([])
-  const [entries, setEntries] = useState<Record<string, string>>({})
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [original, setOriginal] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let active = true
@@ -160,10 +61,11 @@ export function PlatformAccountsEditor() {
       .send()
       .then((result) => {
         if (!active) return
+        const entries: Record<string, string> = {}
+        for (const entry of result.entries) entries[entry.kindId] = entry.value
         setKinds(result.catalog)
-        setEntries(
-          Object.fromEntries(result.entries.map((entry) => [entry.kindId, entry.value]))
-        )
+        setOriginal(entries)
+        setDraft(entries)
         setFailed(false)
       })
       .catch(() => {
@@ -177,59 +79,102 @@ export function PlatformAccountsEditor() {
     }
   }, [])
 
-  const games = kinds.filter((kind) => kind.group === "game")
-  const socials = kinds.filter((kind) => kind.group === "social")
-  const links = kinds.filter((kind) => kind.group === "link")
+  const dirty = kinds.filter(
+    (kind) => (draft[kind.id] ?? "").trim() !== (original[kind.id] ?? "")
+  )
+
+  async function save() {
+    if (saving || dirty.length === 0) return
+    setSaving(true)
+    setErrors({})
+    const nextErrors: Record<string, string> = {}
+    const nextOriginal = { ...original }
+    for (const kind of dirty) {
+      const value = (draft[kind.id] ?? "").trim()
+      try {
+        if (value) {
+          await saveMyPlatformAccount(kind.id, value).send()
+          nextOriginal[kind.id] = value
+        } else {
+          await deleteMyPlatformAccount(kind.id).send()
+          delete nextOriginal[kind.id]
+        }
+      } catch (error) {
+        nextErrors[kind.id] = errorMessage(error)
+      }
+    }
+    setOriginal(nextOriginal)
+    setErrors(nextErrors)
+    setSaving(false)
+    if (Object.keys(nextErrors).length === 0) toast.success("平台账号已保存")
+  }
 
   if (loading) {
     return (
-      <p className="text-sm text-muted-foreground" aria-label="正在载入平台账号">
-        正在载入…
-      </p>
+      <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+        <LoaderCircleIcon className="mr-2 size-4 animate-spin" aria-hidden="true" />
+        正在载入
+      </div>
     )
   }
+
   if (failed) {
     return (
-      <p className="text-sm text-destructive">平台账号载入失败，请刷新页面重试。</p>
+      <p className="text-sm text-destructive">
+        平台账号暂时无法加载，请刷新页面重试。
+      </p>
     )
   }
 
   return (
-    <div className="space-y-5">
-      {[
-        { key: "game", title: "游戏 ID", items: games },
-        { key: "social", title: "社交平台", items: socials },
-        { key: "link", title: "个人主页", items: links },
-      ].map((group) =>
-        group.items.length ? (
-          <div key={group.key} className="space-y-3">
-            <p className="text-xs font-medium text-muted-foreground">
-              {group.title}
-            </p>
-            {group.items.map((kind) => (
-              <KindRow
-                key={kind.id}
-                kind={kind}
-                entry={
-                  entries[kind.id]
-                    ? { kindId: kind.id, value: entries[kind.id]! }
-                    : undefined
-                }
-                onSaved={(kindId, value) =>
-                  setEntries((current) => ({ ...current, [kindId]: value }))
-                }
-                onCleared={(kindId) =>
-                  setEntries((current) => {
-                    const next = { ...current }
-                    delete next[kindId]
-                    return next
-                  })
-                }
-              />
-            ))}
+    <div className="space-y-6">
+      {(["game", "link", "social"] as const).map((group) => {
+        const rows = kinds.filter((kind) => kind.group === group)
+        if (rows.length === 0) return null
+        return (
+          <div key={group} className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              {GROUP_LABELS[group]}
+            </h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              {rows.map((kind) => (
+                <label key={kind.id} className="flex flex-col gap-1.5">
+                  <span className="flex items-center gap-2 text-sm">
+                    <KindIcon kind={kind} />
+                    {kind.name}
+                  </span>
+                  <Input
+                    value={draft[kind.id] ?? ""}
+                    placeholder={kind.pattern}
+                    aria-label={kind.name}
+                    aria-invalid={errors[kind.id] ? true : undefined}
+                    maxLength={200}
+                    onChange={(event) => {
+                      const next = event.currentTarget.value
+                      setDraft((current) => ({ ...current, [kind.id]: next }))
+                    }}
+                  />
+                  {errors[kind.id] ? (
+                    <span className="text-xs text-destructive">{errors[kind.id]}</span>
+                  ) : null}
+                </label>
+              ))}
+            </div>
           </div>
-        ) : null
-      )}
+        )
+      })}
+
+      <div className="flex items-center gap-3">
+        <Button type="button" disabled={saving || dirty.length === 0} onClick={() => void save()}>
+          {saving ? (
+            <LoaderCircleIcon data-icon="inline-start" className="animate-spin" aria-hidden="true" />
+          ) : null}
+          {saving ? "正在保存" : "保存"}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          粘贴完整链接或只填标识符都可以；留空即从主页移除。
+        </span>
+      </div>
     </div>
   )
 }
