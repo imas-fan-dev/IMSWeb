@@ -169,6 +169,10 @@ export const namecardPageSchema = exactJsonResponse({
 /** Someone's public page: the profile half, then their own wall cards. */
 export const publicProfileSchema = exactJsonResponse({
   accountId: z.string().min(1),
+  /** Short, permanent handle: /user/<uid>. */
+  uid: z.number().int().positive(),
+  /** Vanity path segment the owner picked, when they picked one. */
+  pageSlug: z.string().min(1).nullable(),
   displayName: z.string().min(1),
   avatarUrl: z.string().min(1).nullable(),
   homeCity: z.string().min(1).nullable(),

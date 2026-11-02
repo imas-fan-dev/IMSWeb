@@ -737,18 +737,19 @@ export class SqlCoreRepository implements NamecardRepository {
         ) as NamecardPublicRecord[];
     }
 
-    async findPublicProfile(accountId: string): Promise<PublicProfileRecord | null> {
+    async findPublicProfile(handle: string): Promise<PublicProfileRecord | null> {
         return queryOne<PublicProfileRecord>(
             this.database,
-            `SELECT profile.account_id, profile.display_name,
+            `SELECT profile.account_id, profile.uid, profile.page_slug,
+                    profile.display_name,
                     profile.avatar_object_key, profile.avatar_external_url,
                     profile.home_city, profile.bio, profile.updated_at
              FROM platform_profiles profile
              JOIN platform_accounts account ON account.id = profile.account_id
-             WHERE profile.account_id = ?
+             WHERE (profile.uid::text = ? OR profile.page_slug = ? OR profile.account_id = ?)
                AND account.status IN ('active', 'restricted')
                AND account.deleted_at IS NULL`,
-            [accountId]
+            [handle, handle, handle]
         );
     }
 

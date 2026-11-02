@@ -35,6 +35,8 @@ export async function handleGetPublicProfile(
     );
     const body: PublicProfileResponse = {
         accountId: profile.account_id,
+        uid: profile.uid,
+        pageSlug: profile.page_slug,
         displayName: profile.display_name,
         avatarUrl: view.avatarUrl,
         homeCity: profile.home_city,

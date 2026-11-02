@@ -17,12 +17,19 @@ export async function handleListProfileCards(
         { accountId: string }
     >,
 ): Promise<Response> {
-    const { accountId } = c.req.valid("param");
+    const { accountId: handle } = c.req.valid("param");
     const { page, size } = parseNamecardPage(c.req.url);
     const repository = services(c).namecards;
     if (!repository) {
         return c.json({ list: [], total: 0, totalPage: 0 });
     }
+    // The path segment may be a uid or a vanity slug, so the wall card query
+    // needs the account id it resolves to.
+    const profile = await repository.findPublicProfile(handle);
+    if (!profile) {
+        return c.json({ list: [], total: 0, totalPage: 0 }, 404);
+    }
+    const accountId = profile.account_id;
     const total = await repository.countOwnedPublishedCards(accountId);
     const rows = await repository.listOwnedPublishedCards(
         accountId,
