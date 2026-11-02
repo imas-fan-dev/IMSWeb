@@ -17,6 +17,7 @@ import {
     deleteOwnedObjectWithCompensation
 } from '@/utils/storage/delete-object';
 import { fudabaCardMediaVersionObjectKey } from '@/utils/storage/business-object-keys';
+import { storeArtworkThumbnail } from '@/domains/community/fudaba/cards/artwork-thumbnail';
 
 const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
 // Twenty 8 MiB originals would be a 160 MiB body; the editor downscales and the
@@ -210,6 +211,14 @@ export async function handleReplaceFudabaOwnedMedia(
                 }
             });
             created.push({ key, token: ownerToken });
+            const thumbnail = await storeArtworkThumbnail(runtime, {
+                key,
+                body: converted.body,
+                ownerToken,
+                accountId,
+                side: `slot-${index}`
+            });
+            if (thumbnail) created.push({ key: thumbnail.key, token: thumbnail.ownerToken });
             uploadedKeys.push(key);
         }
         const slots = order.map((item) =>

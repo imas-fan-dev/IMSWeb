@@ -37,6 +37,7 @@ import { IS_APP_TARGET } from "~/lib/app-target"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
+import { withThumbnail } from "~/lib/media-urls"
 import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
 import { NamecardFeedbackDialog } from "~/pages/community/exchange/components/namecard-feedback-dialog"
 
@@ -440,7 +441,7 @@ export function NamecardDetailDialog({
         {
           key: "front",
           url: card.image1_url,
-          thumb: card.image1_thumbnail_url ?? card.image1_url,
+          thumb: withThumbnail(card.image1_url),
           side: "front" as const,
         },
         ...(card.image2_url
@@ -448,7 +449,7 @@ export function NamecardDetailDialog({
               {
                 key: "back",
                 url: card.image2_url,
-                thumb: card.image2_thumbnail_url ?? card.image2_url,
+                thumb: withThumbnail(card.image2_url),
                 side: "back" as const,
               },
             ]

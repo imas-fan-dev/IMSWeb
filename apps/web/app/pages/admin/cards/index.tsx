@@ -32,6 +32,7 @@ import {
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Badge } from "~/components/ui/badge"
+import { withThumbnail } from "~/lib/media-urls"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
 import { ClaimReviewTab } from "./claim-review-tab"
 import { useDebouncedValue } from "~/lib/use-debounced-value"
@@ -532,7 +533,7 @@ export default function AdminCardsPage() {
                             </Badge>
                           ) : null}
                           <NamecardMediaPreview
-                            frontImageUrl={card.image1_url}
+                            frontImageUrl={withThumbnail(card.image1_url)}
                             backImageUrl={card.image2_url}
                             altBase={`名片 #${card.id}`}
                           />

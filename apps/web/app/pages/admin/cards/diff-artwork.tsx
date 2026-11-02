@@ -1,6 +1,7 @@
 import { useState } from "react"
 
 import { cn } from "~/lib/utils"
+import { withThumbnail } from "~/lib/media-urls"
 
 type DiffSide = {
   frontImageUrl: string
@@ -118,7 +119,7 @@ export function DiffArtwork({ slots }: { slots: readonly ImageSlot[] }) {
                 index === activeSlot && "ring-2 ring-primary"
               )}
             >
-              <img src={slot.url} alt="" className="size-full object-cover" />
+              <img src={withThumbnail(slot.url)} alt="" className="size-full object-cover" />
               <span className="absolute inset-x-0 bottom-0 bg-background/85 text-[10px]/4">
                 {slot.label}
               </span>

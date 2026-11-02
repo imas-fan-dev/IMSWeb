@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router"
 import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { Badge } from "~/components/ui/badge"
+import { withThumbnail } from "~/lib/media-urls"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   getAdminNamecardFeedback,
@@ -128,7 +129,7 @@ export function NamecardFeedbackQueue({
                     </Badge>
                   ) : null}
                   <NamecardMediaPreview
-                    frontImageUrl={item.image1_url}
+                    frontImageUrl={withThumbnail(item.image1_url)}
                     backImageUrl={item.image2_url}
                     altBase={`名片 #${item.cardNumber}`}
                   />

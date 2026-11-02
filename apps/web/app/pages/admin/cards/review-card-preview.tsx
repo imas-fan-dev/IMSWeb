@@ -6,6 +6,7 @@ import {
   type MediaSlot,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { getAdminNamecardDiff, type AdminNamecardDiff } from "~/lib/api"
+import { withThumbnail } from "~/lib/media-urls"
 import { slotsFromSide } from "./namecard-manage-dialog"
 
 /**
@@ -22,7 +23,14 @@ export function ReviewCardPreview({ cardNumber }: { cardNumber: number }) {
       .send()
       .then((detail: AdminNamecardDiff) => {
         if (!active) return
-        setSlots(slotsFromSide(detail.pending ?? detail.live))
+        // 审核只看版式与差异，600px 副本足够，省掉原图的传输。
+        setSlots(
+          slotsFromSide(detail.pending ?? detail.live).map((slot) =>
+            slot.kind === "existing"
+              ? { ...slot, url: withThumbnail(slot.url) }
+              : slot
+          )
+        )
       })
       .catch(() => {
         if (active) setFailed(true)

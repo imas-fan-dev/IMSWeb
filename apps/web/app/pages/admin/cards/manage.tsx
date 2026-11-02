@@ -16,6 +16,7 @@ import { AdminPagination } from "~/components/admin/admin-pagination"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Badge } from "~/components/ui/badge"
+import { withThumbnail } from "~/lib/media-urls"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Input } from "~/components/ui/input"
@@ -479,7 +480,7 @@ export default function AdminNamecardManagePage() {
                             </Badge>
                           ) : null}
                           <NamecardMediaPreview
-                            frontImageUrl={card.image1_url}
+                            frontImageUrl={withThumbnail(card.image1_url)}
                             backImageUrl={card.image2_url}
                             altBase={`名片 #${card.id}`}
                           />

@@ -17,6 +17,7 @@ import { Button, buttonVariants } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import { NamecardDetailDialog } from "~/pages/community/components/namecard-detail-dialog"
 import { getNamecardReactions, getProfileCards, getPublicProfile } from "~/lib/api"
+import { withThumbnail } from "~/lib/media-urls"
 import type { Namecard as NamecardRecord, NamecardPage } from "~/lib/api"
 
 export function meta() {
@@ -224,7 +225,7 @@ export default function UserProfilePage() {
                   }}
                 >
                   <img
-                    src={card.image1_thumbnail_url ?? card.image1_url}
+                    src={withThumbnail(card.image1_url)}
                     alt={`制作人名片 ${card.cardNumber} 正面`}
                     className="block h-auto w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
                   />

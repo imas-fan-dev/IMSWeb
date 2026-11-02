@@ -8,6 +8,7 @@ import { handleListAdminNamecardFeedbackAudit } from "@/domains/community/nameca
 import { handleListAdminNamecardLockAudit } from "@/domains/community/namecards/moderation/handlers/list-admin-lock-audit";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
+import { fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
 import { handleServeAdminNamecardMedia } from "@/domains/community/namecards/moderation/handlers/serve-admin-namecard-media";
 import { handleResolveAdminNamecardFeedback } from "@/domains/community/namecards/moderation/handlers/resolve-admin-feedback";
 import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/handlers/unlock-namecard";
@@ -124,6 +125,7 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
             { invalidMessage: "名片 ID 无效" },
             validateNamecardMediaParams,
         ),
+        querySchemaValidator(fudabaMediaQuerySchema),
         handleServeAdminNamecardMedia,
     );
     routes.post(

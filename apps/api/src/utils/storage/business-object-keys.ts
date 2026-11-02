@@ -236,6 +236,19 @@ export function fudabaCardMediaVersionObjectKey(
         `versions/${fudabaEntitySegment(version)}/media.webp`;
 }
 
+/**
+ * Editor artwork keeps its 600px copy beside the original, so a list can ask
+ * for the small file with the same key it already holds.
+ */
+export function fudabaCardMediaThumbnailKey(objectKey: string): string {
+    const segments = objectKey.split('/');
+    const filename = segments.at(-1) ?? '';
+    // Every artwork slot owns its version folder, so the small copy always
+    // sits next to the original as `thumbnail.jpg`.
+    if (!filename.endsWith('.webp')) return objectKey;
+    return [...segments.slice(0, -1), 'thumbnail.jpg'].join('/');
+}
+
 export function fudabaCardMiddleVersionObjectKey(
     cardId: string,
     index: number,

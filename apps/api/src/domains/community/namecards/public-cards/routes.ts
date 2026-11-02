@@ -4,6 +4,7 @@ import { handleListProfileCards } from "@/domains/community/namecards/public-pro
 import { handleGetRandomOwnerlessCard } from "@/domains/community/namecards/public-cards/handlers/get-random-ownerless-card";
 import { handleGetWallInsights } from "@/domains/community/namecards/public-cards/handlers/get-wall-insights";
 import { handleListNamecards } from "@/domains/community/namecards/public-cards/handlers/list-namecards";
+import { fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
 import { handleServePublicCardMedia } from "@/domains/community/namecards/public-cards/handlers/serve-card-media";
 import {
     validateCompatibleNamecardIdParams,
@@ -47,6 +48,7 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
     routes.get(
         "/cards/:id/media/:side",
         paramSchemaValidator(namecardMediaParamsSchema, { invalidMessage: "名片 ID 无效" }, validateNamecardMediaParams),
+        querySchemaValidator(fudabaMediaQuerySchema),
         handleServePublicCardMedia,
     );
     // 用户主页：资料与本人名片分开取，资料变化不影响列表缓存。

@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView } from '@/domains/community/fudaba/contracts/card';
 import { parseFudabaCardCreateFields } from '@/domains/community/fudaba/cards/request';
+import { storeArtworkThumbnail } from '@/domains/community/fudaba/cards/artwork-thumbnail';
 import { fudabaRepository, services } from '@/middleware/hono-context';
 import type { UploadedFile } from '@/ports/http';
 import type { FudabaCardMutationResult, FudabaCardRecord } from '@/ports/repositories';
@@ -121,6 +122,14 @@ export async function handleCreateFudabaCard(
                 }
             });
             created.push({ key: image.key, ownerToken });
+            const thumbnail = await storeArtworkThumbnail(runtime, {
+                key: image.key,
+                body: image.body,
+                ownerToken,
+                accountId: c.get('platformUser')!.id,
+                side: image.side
+            });
+            if (thumbnail) created.push(thumbnail);
         }
         const now = new Date().toISOString();
         const ownerAccountId = c.get('platformUser')!.id;

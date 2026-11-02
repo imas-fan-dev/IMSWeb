@@ -664,6 +664,8 @@ export const fudabaMediaQuerySchema = legacyStripRequestObject({
   v: z.string().optional(),
   /** `1` serves the media of the revision still under review. */
   draft: z.enum(["1"]).optional(),
+  /** `1` serves the 600px copy; readers fall back to the original. */
+  thumb: z.enum(["1"]).optional(),
 });
 export const fudabaPlaceSearchQuerySchema = legacyStripRequestObject({
   q: z.string().trim().min(2).max(120).refine((value) => !hasAsciiControl(value)),
