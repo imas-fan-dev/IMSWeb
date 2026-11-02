@@ -51,6 +51,8 @@ export const adminPlatformUserSchema = z
     id: z.string().min(1),
     status: adminPlatformUserAccountStatusSchema,
     displayName: z.string(),
+    uid: z.number().int().positive(),
+    pageSlug: z.string().min(3).nullable(),
     email: z.string().min(3).max(320).nullable(),
     hasPassword: z.boolean(),
     activeSessionCount: z.number().int().safe().nonnegative(),

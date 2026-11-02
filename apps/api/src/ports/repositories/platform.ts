@@ -321,6 +321,8 @@ export interface PlatformAccountAdminRecord {
     id: string;
     status: PlatformAccountStatus;
     display_name: string;
+    uid: number;
+    page_slug: string | null;
     normalized_email: string | null;
     has_password: boolean;
     active_session_count: number;

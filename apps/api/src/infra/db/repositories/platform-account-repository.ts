@@ -74,7 +74,8 @@ const OAUTH_LINK_LIST_LIMIT = 64;
 // the count subquery answers "are they signed in" on its own. `?` is the
 // caller's `activeAt` clock.
 const ADMIN_ACCOUNT_SELECT = `SELECT accounts.id, accounts.status,
-        profiles.display_name, credential.normalized_email,
+        profiles.display_name, profiles.uid, profiles.page_slug,
+        credential.normalized_email,
         (credential.account_id IS NOT NULL) AS has_password,
         (
             SELECT COUNT(*) FROM platform_refresh_sessions session
@@ -155,6 +156,8 @@ interface PlatformAccountAdminRow {
     id: string;
     status: PlatformAccountAdminRecord['status'];
     display_name: string;
+    uid: number | string;
+    page_slug: string | null;
     normalized_email: string | null;
     has_password: boolean | number | string;
     active_session_count: number | string;
@@ -1470,6 +1473,8 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
                     profiles.display_name AS profile_display_name,
                     profiles.avatar_object_key AS profile_avatar_object_key,
                     profiles.avatar_external_url AS profile_avatar_external_url,
+                    profiles.uid AS profile_uid,
+                    profiles.page_slug AS profile_page_slug,
                     profiles.home_city AS profile_home_city,
                     profiles.bio AS profile_bio,
                     profiles.updated_at AS profile_updated_at
@@ -1632,6 +1637,8 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
                     profiles.display_name AS profile_display_name,
                     profiles.avatar_object_key AS profile_avatar_object_key,
                     profiles.avatar_external_url AS profile_avatar_external_url,
+                    profiles.uid AS profile_uid,
+                    profiles.page_slug AS profile_page_slug,
                     profiles.home_city AS profile_home_city,
                     profiles.bio AS profile_bio,
                     profiles.updated_at AS profile_updated_at,
@@ -2211,6 +2218,8 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
             id: row.id,
             status: row.status,
             display_name: row.display_name,
+            uid: Number(row.uid),
+            page_slug: row.page_slug,
             normalized_email: row.normalized_email,
             has_password: sqlBoolean(row.has_password),
             active_session_count: Number(row.active_session_count),
