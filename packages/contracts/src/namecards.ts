@@ -703,7 +703,10 @@ export function formatPlatformValue(
     }
   }
   value = decodeOnce(value)
-  return kind.uppercase ? value.toUpperCase() : value
+  if (kind.uppercase) return value.toUpperCase()
+  // A pattern that never allows capitals names a lower-case-only namespace
+  // (GitHub handles), so the editor folds the input for the visitor.
+  return /A-Z/.test(kind.pattern) ? value : value.toLowerCase()
 }
 
 /** Canonical storage form: YouTube handles are stored percent-encoded. */
