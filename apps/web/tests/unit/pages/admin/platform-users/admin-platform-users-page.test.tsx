@@ -43,6 +43,8 @@ function user(overrides: Record<string, unknown> = {}) {
     id: "account-1",
     status: "active",
     displayName: "Producer One",
+    uid: 1,
+    pageSlug: "producer-one",
     email: "one@ims.test",
     hasPassword: true,
     activeSessionCount: 2,

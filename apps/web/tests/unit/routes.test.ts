@@ -65,7 +65,7 @@ describe("Web route metadata", () => {
     )
 
     expect(manifest).toEqual(descriptors)
-    expect(manifest).toHaveLength(65)
+    expect(manifest).toHaveLength(67)
   })
 
   it("registers every Web prerender and preserves the 30-document set", () => {

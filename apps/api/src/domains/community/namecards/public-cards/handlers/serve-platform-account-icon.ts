@@ -1,6 +1,7 @@
 import type { AppEnvironment } from '@/app';
 import { services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
+import { PLATFORM_ICON_NOT_FOUND } from '@/domains/community/namecards/response';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 
 /**
@@ -14,10 +15,10 @@ export async function handleServePlatformAccountIcon(
     const { id } = c.req.valid('param');
     const storage = services(c).storage;
     const repository = services(c).namecards;
-    if (!storage || !repository) return c.text('图标不可用', 404);
+    if (!storage || !repository) return c.text(PLATFORM_ICON_NOT_FOUND, 404);
     const kinds = await repository.listPlatformAccountKinds();
     const key = kinds.find((kind) => kind.id === id)?.icon_object_key;
-    if (!key) return c.text('图标不可用', 404);
+    if (!key) return c.text(PLATFORM_ICON_NOT_FOUND, 404);
     const response = await objectReadResponse(
         c.req.raw,
         storage,
@@ -25,5 +26,5 @@ export async function handleServePlatformAccountIcon(
         { 'Cache-Control': 'public, max-age=300' },
         { mode: 'proxy' }
     );
-    return response ?? c.text('图标不可用', 404);
+    return response ?? c.text(PLATFORM_ICON_NOT_FOUND, 404);
 }

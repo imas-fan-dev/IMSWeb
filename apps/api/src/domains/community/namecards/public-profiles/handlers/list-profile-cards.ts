@@ -1,7 +1,10 @@
 import type { AppEnvironment } from "@/app";
 import { resolveNamecardThumbnailUrl } from "@/domains/community/fudaba/card-media-assets";
 import { parseNamecardPage } from "@/domains/community/namecards/request";
-import { toPublicNamecardResponse } from "@/domains/community/namecards/response";
+import {
+    toPublicNamecardResponse,
+    type NamecardPageResponse,
+} from "@/domains/community/namecards/response";
 import { services } from "@/middleware/hono-context";
 import type { ValidatedRequestContext } from "@/middleware/request-validation";
 import { resolvePublicMediaUrl } from "@/utils/storage/public-object-url";
@@ -21,13 +24,16 @@ export async function handleListProfileCards(
     const { page, size } = parseNamecardPage(c.req.url);
     const repository = services(c).namecards;
     if (!repository) {
-        return c.json({ list: [], total: 0, totalPage: 0 });
+        return c.json({ list: [], total: 0, totalPage: 0 } satisfies NamecardPageResponse);
     }
     // The path segment may be a uid or a vanity slug, so the wall card query
     // needs the account id it resolves to.
     const profile = await repository.findPublicProfile(handle);
     if (!profile) {
-        return c.json({ list: [], total: 0, totalPage: 0 }, 404);
+        return c.json(
+            { list: [], total: 0, totalPage: 0 } satisfies NamecardPageResponse,
+            404,
+        );
     }
     const accountId = profile.account_id;
     const total = await repository.countOwnedPublishedCards(accountId);
@@ -78,5 +84,5 @@ export async function handleListProfileCards(
         list,
         total,
         totalPage: size > 0 ? Math.ceil(total / size) : 0,
-    });
+    } satisfies NamecardPageResponse);
 }

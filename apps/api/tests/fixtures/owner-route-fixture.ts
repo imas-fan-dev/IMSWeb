@@ -366,6 +366,8 @@ export class OwnerRouteFixture {
     writeEnabled: boolean;
     profile: PlatformProfileRecord = {
         account_id: ACCOUNT_ID,
+        uid: 7,
+        page_slug: 'owner-display',
         display_name: 'Owner Display',
         avatar_object_key: null,
         avatar_external_url: null,

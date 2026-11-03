@@ -5,7 +5,10 @@ import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
 import type { ValidatedRequestContext } from "@/middleware/request-validation";
 import { platformAccountIconPath } from "@imsweb/contracts/paths";
 import type { Context } from "hono";
-import type { PublicProfileResponse } from "@/domains/community/namecards/response";
+import type {
+    PublicProfileErrorResponse,
+    PublicProfileResponse,
+} from "@/domains/community/namecards/response";
 
 /**
  * 某人公开的主页资料：昵称、头像、常驻城市与简介。
@@ -17,11 +20,17 @@ export async function handleGetPublicProfile(
     const { accountId } = c.req.valid("param");
     const repository = services(c).namecards;
     if (!repository) {
-        return c.json({ success: false, code: "PUBLIC_PROFILE_UNAVAILABLE" }, 404);
+        return c.json(
+            { success: false, code: "PUBLIC_PROFILE_UNAVAILABLE" } satisfies PublicProfileErrorResponse,
+            404,
+        );
     }
     const profile = await repository.findPublicProfile(accountId);
     if (!profile) {
-        return c.json({ success: false, code: "PUBLIC_PROFILE_UNAVAILABLE" }, 404);
+        return c.json(
+            { success: false, code: "PUBLIC_PROFILE_UNAVAILABLE" } satisfies PublicProfileErrorResponse,
+            404,
+        );
     }
     const view = await platformProfileView(
         {
@@ -64,5 +73,5 @@ export async function handleGetPublicProfile(
             iconUrl: iconUrls[index] ?? null,
         })),
     };
-    return c.json(body);
+    return c.json(body satisfies PublicProfileResponse);
 }

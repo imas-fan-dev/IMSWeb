@@ -33,6 +33,8 @@ export type AdminNamecardResponse = AdminNamecard;
 export type AdminNamecardDiffResponse = AdminNamecardDiff;
 /** Artwork routes answer with a bare 404: the page either exists or it does not. */
 export const NAMECARD_MEDIA_NOT_FOUND = 'Not Found';
+/** 平台图标读取路由与媒体路由一样，只有「有图」和「没有图」两种结果。 */
+export const PLATFORM_ICON_NOT_FOUND = '图标不可用';
 
 export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
 export type NamecardPageResponse = NamecardPage;
@@ -47,6 +49,10 @@ export type AdminNamecardFeedbackAuditListResponse =
 /** 墙顶面板与「随机补充一张」两条公开只读接口。 */
 export type WallInsightsResponse = WallInsightsContract;
 export type PublicProfileResponse = PublicProfileContract;
+export type PublicProfileErrorResponse = {
+    success: false;
+    code: "PUBLIC_PROFILE_UNAVAILABLE";
+};
 export type RandomOwnerlessCardResponse = RandomOwnerlessCardContract;
 export type RandomOwnerlessCardErrorResponse = {
     success: false;

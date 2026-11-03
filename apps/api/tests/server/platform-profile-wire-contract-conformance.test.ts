@@ -34,6 +34,8 @@ function platformProfileRecord(
 ): PlatformProfileRecord {
     return {
         account_id: PLATFORM_ACCOUNT_ID,
+        uid: 12,
+        page_slug: 'guardian-producer',
         display_name: '守护制作人',
         avatar_object_key: null,
         avatar_external_url: null,
