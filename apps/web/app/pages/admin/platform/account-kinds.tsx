@@ -8,6 +8,9 @@ import {
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { platformIconUrl } from "~/components/profile/platform-account-icons"
+
 import {
   AdminEmptyState,
   AdminPageHeader,
@@ -66,6 +69,15 @@ interface Draft {
   displayOrder: string
   enabled: boolean
   iconUrl: string
+}
+
+/** 预览取图顺序：已上传 → 图标键对应的站内图 / CDN → 大写首字母。 */
+function iconPreview(draft: Draft): { src: string | null; letter: string } {
+  const letter = (draft.icon || draft.name || "?").charAt(0).toUpperCase()
+  if (draft.iconUrl) return { src: draft.iconUrl, letter }
+  const key = draft.icon.trim()
+  if (!key) return { src: null, letter }
+  return { src: platformIconUrl(key, null), letter }
 }
 
 function emptyDraft(): Draft {
@@ -129,6 +141,12 @@ export default function AdminPlatformAccountKindsPage() {
       active = false
     }
   }, [reloadToken])
+
+  // 记录「哪一组图标键 + 上传图」加载失败，换输入自然失效，无需 effect。
+  const [failedPreview, setFailedPreview] = useState("")
+  const preview = draft ? iconPreview(draft) : null
+  const previewKey = `${draft?.icon ?? ""}|${draft?.iconUrl ?? ""}`
+  const previewFailed = failedPreview === previewKey
 
   function patch(next: Partial<Draft>) {
     setDraft((current) => (current ? { ...current, ...next } : current))
@@ -389,14 +407,42 @@ export default function AdminPlatformAccountKindsPage() {
               />
             </Field>
             <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="kind-pattern">校验正则</FieldLabel>
-              <Input
-                id="kind-pattern"
-                value={draft?.pattern ?? ""}
-                maxLength={200}
-                className="font-mono"
-                onChange={(event) => patch({ pattern: event.currentTarget.value })}
-              />
+              <FieldLabel htmlFor="kind-icon-file">图标文件</FieldLabel>
+              <div className="flex items-center gap-3">
+                {preview?.src && !previewFailed ? (
+                  <img
+                    src={preview.src}
+                    alt=""
+                    className="size-10 rounded-md border object-contain"
+                    onError={() => setFailedPreview(previewKey)}
+                  />
+                ) : (
+                  <span className="flex size-10 items-center justify-center rounded-md border text-sm font-medium text-muted-foreground">
+                    {preview?.letter ?? "—"}
+                  </span>
+                )}
+                <Input
+                  id="kind-icon-file"
+                  type="file"
+                  accept="image/png,image/webp,image/avif,image/gif,image/svg+xml"
+                  disabled={creating || saving}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0]
+                    event.currentTarget.value = ""
+                    void uploadIcon(file ?? null)
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                只收带透明通道的 PNG、WebP、AVIF、GIF 或 SVG；重传会直接替换现有文件。没有上传时按图标键取
+                <NavigationLink
+                  href="https://simpleicons.org/"
+                  className="mx-0.5 underline underline-offset-2"
+                >
+                  simple-icons
+                </NavigationLink>
+                的同名图标，再没有就显示大写首字母。
+              </p>
             </Field>
             <Field className="sm:col-span-2">
               <FieldLabel htmlFor="kind-base">链接模板</FieldLabel>

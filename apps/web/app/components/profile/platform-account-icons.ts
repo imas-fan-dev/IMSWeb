@@ -1,5 +1,5 @@
 /**
- * 平台图标：随站发布的 SVG 放在 `public/brand/platforms/`（静态资源，不参与打包），
+ * 平台图标只有两个来源：后台按平台上传的图标，以及 simple-icons 的 CDN；
  * 其余走 simple-icons 的 CDN（键名即 slug）；两者都没有时调用方回退首字母圆点。
  * 后台按平台上传的图标优先级最高，见 `platformIconUrl`。
  */
@@ -17,12 +17,6 @@ function simpleIcon(slug: string): string {
 }
 
 export const PLATFORM_ICON_URLS: Record<string, string> = {
-  million: "/brand/platforms/million.svg",
-  deremas: "/brand/platforms/deremas.svg",
-  shanimas: "/brand/platforms/shanimas.svg",
-  gakumas: "/brand/platforms/gakumas.svg",
-  switch: "/brand/platforms/switch.svg",
-  xbox: "/brand/platforms/xbox.svg",
   bilibili: simpleIcon("bilibili"),
   sinaweibo: simpleIcon("sinaweibo"),
   xiaohongshu: simpleIcon("xiaohongshu"),
