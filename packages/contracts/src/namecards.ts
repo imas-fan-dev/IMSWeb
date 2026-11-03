@@ -794,6 +794,12 @@ export const platformAccountKindRequestSchema = strictRequestObject({
 })
 
 /** What the editor needs to turn raw input into the stored identifier. */
+/** What the upload route answers: the object key it just stored. */
+export const platformAccountIconUploadSchema = exactJsonResponse({
+  success: z.literal(true),
+  iconObjectKey: z.string().min(1),
+})
+
 export const platformAccountKindListSchema = exactJsonResponse({
   kinds: z.array(platformAccountKindSchema),
 })

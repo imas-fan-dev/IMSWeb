@@ -21,6 +21,7 @@ import {
   namecardMutationResponseSchema,
   resolveNamecardFeedbackRequestSchema,
 } from "@imsweb/contracts/namecards"
+import { platformProfileHttpErrorSchema } from "@imsweb/contracts/platform"
 import {
   idolMediaCatalogSchema,
   wikiErrorResponseSchema,
@@ -59,7 +60,11 @@ import {
   newsMutationSuccessSchema,
 } from "@imsweb/contracts/news"
 
-import { platformAccountKindListSchema, platformAccountKindRequestSchema } from "@imsweb/contracts/namecards"
+import {
+  platformAccountIconUploadSchema,
+  platformAccountKindListSchema,
+  platformAccountKindRequestSchema,
+} from "@imsweb/contracts/namecards"
 import type { z } from "@imsweb/contracts/z"
 import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
@@ -716,6 +721,19 @@ export function deleteAdminPlatformAccountKind(id: string) {
     undefined,
     parsed(successFlagSchema, {
       errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function uploadAdminPlatformAccountKindIcon(kindId: string, file: File) {
+  const form = new FormData()
+  form.append("icon", file)
+  return adminApiClient.Put(
+    adminApiPath(`/platform/account-kinds/${encodeURIComponent(kindId)}/icon`),
+    form,
+    parsed(platformAccountIconUploadSchema, {
+      errorSchema: platformProfileHttpErrorSchema,
       meta: withBackofficeCsrf(),
     })
   )

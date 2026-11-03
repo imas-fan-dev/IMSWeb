@@ -39,6 +39,7 @@ import {
   getAdminPlatformAccountKinds,
   isApiError,
   saveAdminPlatformAccountKind,
+  uploadAdminPlatformAccountKindIcon,
   type PlatformAccountKind,
 } from "~/lib/api"
 
@@ -64,6 +65,7 @@ interface Draft {
   icon: string
   displayOrder: string
   enabled: boolean
+  iconUrl: string
 }
 
 function emptyDraft(): Draft {
@@ -77,6 +79,7 @@ function emptyDraft(): Draft {
     icon: "",
     displayOrder: "100",
     enabled: true,
+    iconUrl: "",
   }
 }
 
@@ -91,6 +94,7 @@ function draftFrom(kind: PlatformAccountKind): Draft {
     icon: kind.icon ?? "",
     displayOrder: String(kind.displayOrder),
     enabled: kind.enabled,
+    iconUrl: kind.iconUrl ?? "",
   }
 }
 
@@ -128,6 +132,21 @@ export default function AdminPlatformAccountKindsPage() {
 
   function patch(next: Partial<Draft>) {
     setDraft((current) => (current ? { ...current, ...next } : current))
+  }
+
+  async function uploadIcon(file: File | null) {
+    if (!file || !draft || creating) return
+    setSaving(true)
+    try {
+      await uploadAdminPlatformAccountKindIcon(draft.id, file).send()
+      toast.success("图标已更新")
+      setDraft(null)
+      setReloadToken((token) => token + 1)
+    } catch (error) {
+      toast.error(isApiError(error) ? error.message : "图标上传失败，请重试")
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function save() {
@@ -410,6 +429,37 @@ export default function AdminPlatformAccountKindsPage() {
                 className="font-mono"
                 onChange={(event) => patch({ icon: event.currentTarget.value })}
               />
+            </Field>
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="kind-icon-file">图标文件</FieldLabel>
+              <div className="flex items-center gap-3">
+                {draft?.iconUrl ? (
+                  <img
+                    src={draft.iconUrl}
+                    alt=""
+                    className="size-10 rounded-md border object-contain"
+                  />
+                ) : (
+                  <span className="flex size-10 items-center justify-center rounded-md border text-xs text-muted-foreground">
+                    {draft?.icon ?? "—"}
+                  </span>
+                )}
+                <Input
+                  id="kind-icon-file"
+                  type="file"
+                  accept="image/png,image/webp,image/avif,image/gif,image/svg+xml"
+                  disabled={creating || saving}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0]
+                    event.currentTarget.value = ""
+                    void uploadIcon(file ?? null)
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                只收带透明通道的 PNG、WebP、AVIF、GIF 或 SVG；重传会覆盖旧图标。未上传时按图标键回退到站内
+                /brand/platforms 或 simple-icons 的同名图标。
+              </p>
             </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
