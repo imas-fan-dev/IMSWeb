@@ -571,6 +571,23 @@
       }
     },
     {
+      "id": "NAMECARD-PLATFORM-ICON-01",
+      "sourceFile": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-platform-account-icon.ts",
+      "symbol": "handleServePlatformAccountIcon",
+      "responseKind": "binary",
+      "reason": "Platform marks stream from object storage because the store exposes no public read path.",
+      "compatibilityTextError": {
+        "body": "图标不可用",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 keeps the same text/plain 404 as the media routes when a platform has no uploaded mark."
+      },
+      "test": {
+        "file": "apps/api/tests/server/handler.test.ts",
+        "symbol": "the platform icon route streams the stored mark and answers a text 404 without one"
+      }
+    },
+    {
       "id": "NAMECARD-ADMIN-MEDIA-01",
       "sourceFile": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
       "symbol": "handleServeAdminNamecardMedia",

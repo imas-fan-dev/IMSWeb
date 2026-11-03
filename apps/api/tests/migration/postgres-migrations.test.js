@@ -148,7 +148,14 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261101210000_namecard_match_key_width', phase: 'pre-data' },
                 { version: '20261101220000_namecard_card_merges', phase: 'post-data' },
                 { version: '20261101230000_namecard_claim_card_number', phase: 'post-data' },
-                { version: '20261102090000_namecard_flag_audit', phase: 'post-data' }
+                { version: '20261102090000_namecard_flag_audit', phase: 'post-data' },
+                { version: '20261102120000_platform_profile_handle', phase: 'pre-data' },
+                { version: '20261103100000_platform_accounts', phase: 'post-data' },
+                { version: '20261103110000_platform_account_kinds_order', phase: 'post-data' },
+                { version: '20261103120000_platform_account_uppercase', phase: 'post-data' },
+                { version: '20261103130000_platform_account_groups', phase: 'post-data' },
+                { version: '20261103140000_platform_account_five_groups', phase: 'post-data' },
+                { version: '20261103150000_platform_account_icon', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -677,11 +684,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 81);
+        assert.equal(catalog.count, 88);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261102090000_namecard_flag_audit'
+            '20261103150000_platform_account_icon'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1042,7 +1049,14 @@ test.describe('PostgreSQL migration', () => {
                 '20261101210000_namecard_match_key_width',
                 '20261101220000_namecard_card_merges',
                 '20261101230000_namecard_claim_card_number',
-                '20261102090000_namecard_flag_audit'
+                '20261102090000_namecard_flag_audit',
+                '20261102120000_platform_profile_handle',
+                '20261103100000_platform_accounts',
+                '20261103110000_platform_account_kinds_order',
+                '20261103120000_platform_account_uppercase',
+                '20261103130000_platform_account_groups',
+                '20261103140000_platform_account_five_groups',
+                '20261103150000_platform_account_icon'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

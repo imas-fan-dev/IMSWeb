@@ -8,6 +8,8 @@ import { objectReadResponse } from '@/utils/http/object-read-response';
  * 平台图标是后台按平台上传的单张图，键名固定为
  * `platform/account-kinds/<id>/icon.<ext>`，对象存储的公开路径不可靠，
  * 这里直接按标识符流式返回。
+ *
+ * 没有上传过图标时回 404「图标不可用」，与媒体路由一样只有有图和无图两种结果。
  */
 export async function handleServePlatformAccountIcon(
     c: ValidatedRequestContext<AppEnvironment, 'param', { id: string }>

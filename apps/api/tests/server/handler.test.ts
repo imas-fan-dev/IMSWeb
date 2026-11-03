@@ -1024,6 +1024,60 @@ import { test } from 'vitest';
         return response.json();
     }
 
+    test.describe('platform icon boundary', () => {
+        test('the platform icon route streams the stored mark and answers a text 404 without one', async () => {
+            const body = new Uint8Array([1, 2, 3]);
+            const storage: ObjectStorage = {
+                async get() {
+                    return {
+                        body,
+                        size: body.length,
+                        contentType: 'image/svg+xml',
+                        etag: '"gakumas"'
+                    };
+                },
+                async put() { throw new Error('unexpected storage write'); },
+                async delete() {},
+                async publish() {},
+                async exists() { return true; },
+                async copy() {},
+                async move() {},
+                async list() { return []; },
+                async deletePrefix() {}
+            };
+            const fixture = createCompatibilityFixture(
+                {
+                    listPlatformAccountKinds: async () => [
+                        {
+                            id: 'gakumas',
+                            name: '学园偶像大师',
+                            group_key: 'game',
+                            pattern: '^[A-Z0-9]{8}$',
+                            base_url: null,
+                            color: '#f39800',
+                            icon: 'gakumas',
+                            display_order: 40,
+                            enabled: true,
+                            uppercase: true,
+                            icon_object_key: 'platform/account-kinds/gakumas/icon.svg',
+                            updated_at: '2026-11-03T00:00:00.000Z'
+                        }
+                    ]
+                },
+                { storage }
+            );
+
+            const stored = await fixture.request('/api/platform/account-kinds/gakumas/icon');
+            assert.equal(stored.status, 200);
+            assert.equal(stored.headers.get('content-type'), 'image/svg+xml');
+            assert.deepEqual([...new Uint8Array(await stored.arrayBuffer())], [1, 2, 3]);
+
+            const missing = await fixture.request('/api/platform/account-kinds/xbox/icon');
+            assert.equal(missing.status, 404);
+            assert.equal(await missing.text(), '图标不可用');
+        });
+    });
+
     test.describe('namecard artwork boundaries', () => {
         test('the public artwork route answers a missing page with the compatibility text', async () => {
             const fixture = createCompatibilityFixture();
