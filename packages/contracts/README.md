@@ -109,6 +109,7 @@ the committed map).
 | `@imsweb/contracts/wiki` | `wiki` | schema |
 | `@imsweb/contracts/platform` | `platform` | schema |
 | `@imsweb/contracts/namecards` | `namecards` | schema |
+| `@imsweb/contracts/namecards/runtime` | `namecardsRuntime` | zod-free |
 | `@imsweb/contracts/fudaba` | `fudaba` | schema |
 | `@imsweb/contracts/fudaba/guest-submissions` | `fudabaGuestSubmissions` | schema |
 | `@imsweb/contracts/fudaba/map-delivery` | `fudabaMapDelivery` | schema |

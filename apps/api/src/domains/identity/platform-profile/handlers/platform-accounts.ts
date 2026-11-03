@@ -1,14 +1,18 @@
 import {
+    type MyPlatformAccounts,
+    type PlatformAccountEntry
+} from "@imsweb/contracts/namecards";
+import {
     encodePlatformValue,
     formatPlatformValue,
-    platformValueError,
-    type MyPlatformAccounts,
-    type PlatformAccountEntry,
-} from "@imsweb/contracts/namecards";
+    platformValueError
+} from "@imsweb/contracts/namecards/runtime";
+
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
 import type { PlatformAccountKindRecord } from "@/ports/repositories/namecards";
 import { platformAccountIconUrls } from "@/utils/http/platform-icon-url";
+import type { PlatformAccountRemoval } from "@imsweb/contracts/namecards";
 import { services } from "@/middleware/hono-context";
 import { messageFromError, statusFromError } from "@/utils/http/error-response";
 
@@ -115,5 +119,5 @@ export async function handleDeleteMyPlatformAccount(
     const repository = services(c).namecards;
     if (!repository) return c.json(VALUE_INVALID, 404);
     const removed = await repository.deletePlatformAccountEntry(accountId, kindId);
-    return c.json({ success: true, removed });
+    return c.json({ success: true, removed } satisfies PlatformAccountRemoval);
 }

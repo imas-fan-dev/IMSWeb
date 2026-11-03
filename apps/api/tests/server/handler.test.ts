@@ -865,6 +865,17 @@ import { test } from 'vitest';
                 calls.namecardFeedbackAudit.push(filter);
                 return { rows: [], total: 0, ownerTotals: {}, reporterTotals: {} };
             },
+            async findPublicProfile() { return null; },
+            async listPlatformAccountLinks() { return []; },
+            async listPlatformAccountKinds() { return []; },
+            async upsertPlatformAccountKind() {},
+            async deletePlatformAccountKind() { return false; },
+            async setPlatformAccountKindIcon() { return false; },
+            async listPlatformAccountEntries() { return []; },
+            async upsertPlatformAccountEntry() {},
+            async deletePlatformAccountEntry() { return 0; },
+            async listOwnedPublishedCards() { return []; },
+            async countOwnedPublishedCards() { return 0; },
             ...namecardOverrides
         };
         const reactions: ReactionRepository = {

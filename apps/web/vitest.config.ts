@@ -60,7 +60,7 @@ export default defineConfig({
       // under it. They carry no statements, so they only add 0-statement
       // entries to the report; the other domains exclude their non-source
       // extensions for the same reason.
-      exclude: ["**/*.d.ts", "**/*.css", "**/*.json", "**/*.svg"],
+      exclude: ["**/*.d.ts", "**/*.css", "**/*.json", "**/*.svg", "**/*.md"],
       // Floored from the 2026-09-19 baseline (statements 70.5, branches 67.85,
       // functions 67.32, lines 73.43); the gate may only move up.
       thresholds: { lines: 73, branches: 67, functions: 67, statements: 70 },

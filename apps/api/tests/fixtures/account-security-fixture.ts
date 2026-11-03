@@ -309,6 +309,8 @@ export class AccountSecurityFixture {
             },
             profile: {
                 account_id: ACCOUNT_ID,
+                uid: 3,
+                page_slug: null,
                 display_name: 'Secure Owner',
                 avatar_object_key: null,
                 avatar_external_url: null,

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { storeArtworkThumbnail } from '@/domains/community/fudaba/cards/artwork-thumbnail';
+import {
+    storeArtworkThumbnail,
+    type ArtworkThumbnailRuntime
+} from '@/domains/community/fudaba/cards/artwork-thumbnail';
 
 const body = new Uint8Array([1, 2, 3]);
 
@@ -16,7 +19,7 @@ function runtime(options: { resized?: boolean } = {}) {
         services: {
             images: { resizeJpeg },
             storage: { put }
-        }
+        } as unknown as ArtworkThumbnailRuntime
     };
 }
 

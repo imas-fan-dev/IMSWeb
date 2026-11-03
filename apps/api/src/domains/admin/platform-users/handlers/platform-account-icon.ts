@@ -1,3 +1,4 @@
+import type { PlatformAccountIconUpload } from "@imsweb/contracts/namecards";
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
 import { services } from "@/middleware/hono-context";
@@ -88,5 +89,5 @@ export async function handleUploadPlatformAccountIcon(
             console.error("Failed to schedule replaced platform icon cleanup", error);
         });
     }
-    return c.json({ success: true, iconObjectKey: key });
+    return c.json({ success: true, iconObjectKey: key } satisfies PlatformAccountIconUpload);
 }

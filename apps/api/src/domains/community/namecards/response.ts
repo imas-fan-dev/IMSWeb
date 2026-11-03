@@ -22,6 +22,8 @@ import type {
     NamecardDetailResponse,
     PublicProfile as PublicProfileContract,
     RandomOwnerlessCard as RandomOwnerlessCardContract,
+    RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
+    PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
 } from '@imsweb/contracts/namecards';
 
@@ -49,15 +51,9 @@ export type AdminNamecardFeedbackAuditListResponse =
 /** 墙顶面板与「随机补充一张」两条公开只读接口。 */
 export type WallInsightsResponse = WallInsightsContract;
 export type PublicProfileResponse = PublicProfileContract;
-export type PublicProfileErrorResponse = {
-    success: false;
-    code: "PUBLIC_PROFILE_UNAVAILABLE";
-};
+export type PublicProfileErrorResponse = PublicProfileErrorContract;
 export type RandomOwnerlessCardResponse = RandomOwnerlessCardContract;
-export type RandomOwnerlessCardErrorResponse = {
-    success: false;
-    code: "FUDABA_NO_OWNERLESS_CARD";
-};
+export type RandomOwnerlessCardErrorResponse = RandomOwnerlessCardErrorContract;
 
 interface NamecardRow {
     id?: unknown;

@@ -204,6 +204,14 @@ export const reactionSchema = z.record(z.string(), z.number().int().nonnegative(
 export type Namecard = z.infer<typeof namecardSchema>
 export type NamecardPage = z.infer<typeof namecardPageSchema>
 export type PublicProfile = z.infer<typeof publicProfileSchema>
+
+/** 公开主页只有「有」和「没有」两种结果，没有更多错误码。 */
+export const publicProfileErrorSchema = exactJsonError({
+  success: z.literal(false),
+  code: z.literal("PUBLIC_PROFILE_UNAVAILABLE"),
+})
+
+export type PublicProfileError = z.infer<typeof publicProfileErrorSchema>
 export type NamecardReactions = z.infer<typeof reactionSchema>
 
 export const adminNamecardSchema = exactJsonResponse({
@@ -649,6 +657,9 @@ export const randomOwnerlessCardErrorSchema = exactJsonError({
 export type WallInsightContributor = z.infer<typeof wallInsightContributorSchema>
 export type WallInsights = z.infer<typeof wallInsightsSchema>
 export type RandomOwnerlessCard = z.infer<typeof randomOwnerlessCardSchema>
+export type RandomOwnerlessCardError = z.infer<
+  typeof randomOwnerlessCardErrorSchema
+>
 
 /** The catalogue the backoffice edits; the profile page renders it as-is. */
 export const platformAccountKindSchema = exactJsonResponse({
@@ -666,114 +677,14 @@ export const platformAccountKindSchema = exactJsonResponse({
   uppercase: z.boolean(),
 })
 
-/** The fields the editor needs to turn raw input into the stored value. */
-export interface PlatformAccountFormat {
-  id: string
-  group: "game" | "social" | "showcase" | "game-platform" | "link"
-  pattern: string
-  baseUrl: string | null
-  uppercase: boolean
-}
-
-function decodeOnce(value: string): string {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return value
-  }
-}
-
-/**
- * Turns whatever the visitor typed into the identifier we store.
- *
- * One rule: match the platform's link template first. No match means the input
- * is not a link for this platform, so it is handed back untouched and the
- * pattern rejects it. A match drops the template's literal parts, then removes
- * the first `?`, `#` or `&` in what is left together with everything after it.
- */
-export function formatPlatformValue(
-  kind: PlatformAccountFormat,
-  raw: string
-): string {
-  const input = raw.trim();
-  if (!input) return "";
-  const marker = kind.baseUrl?.indexOf("{value}") ?? -1;
-  if (marker < 0) {
-    // No template (game handles, the homepage link): the input is the value.
-    return finishValue(kind, stripTrailingSlash(input));
-  }
-  const prefix = kind.baseUrl!.slice(0, marker);
-  const suffix = kind.baseUrl!.slice(marker + "{value}".length);
-  const bare = stripScheme(input);
-  const barePrefix = stripScheme(prefix);
-  if (!bare.toLowerCase().startsWith(barePrefix.toLowerCase())) return input;
-  let value = bare.slice(barePrefix.length);
-  if (suffix) {
-    const end = value.toLowerCase().lastIndexOf(stripScheme(suffix).toLowerCase());
-    if (end < 0) return input;
-    value = value.slice(0, end);
-  }
-  const cut = value.search(/[?#&]/);
-  if (cut >= 0) value = value.slice(0, cut);
-  value = stripTrailingSlash(value);
-  // 还在打模板前缀（或只剩模板本身）时不能把输入清空。
-  return value ? finishValue(kind, value) : input;
-}
-
-/** 比较模板时忽略协议，`https://x.com/u` 与 `x.com/u` 等价。 */
-function stripScheme(value: string): string {
-  return value.replace(/^https?:\/\//i, "");
-}
-
-function stripTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
-function finishValue(kind: PlatformAccountFormat, value: string): string {
-  const decoded = decodeOnce(value);
-  if (kind.uppercase) return decoded.toUpperCase();
-  // A pattern that never allows capitals names a lower-case-only namespace
-  // (GitHub handles), so the editor folds the input for the visitor.
-  return /A-Z/.test(kind.pattern) ? decoded : decoded.toLowerCase();
-}
-
-/** Canonical storage form: YouTube handles are stored percent-encoded. */
-export function encodePlatformValue(
-  kind: PlatformAccountFormat,
-  value: string
-): string {
-  return kind.id === "youtube" && value.startsWith("@")
-    ? `@${encodeURIComponent(value.slice(1))}`
-    : value
-}
-
-/** Readable form for the editor, which prefers the real handle on screen. */
-export function decodePlatformValue(
-  kind: PlatformAccountFormat,
-  value: string
-): string {
-  return kind.id === "youtube" && value.startsWith("@")
-    ? `@${decodeOnce(value.slice(1))}`
-    : value
-}
-
-/** Null when the value fits the platform, otherwise the message to show. */
-export function platformValueError(
-  kind: PlatformAccountFormat,
-  value: string
-): string | null {
-  if (!value) return null
-  if (kind.group === "link" && !/^https?:\/\//i.test(value)) {
-    return "请填写完整的链接（以 https:// 开头）"
-  }
-  try {
-    return new RegExp(kind.pattern, "u").test(value)
-      ? null
-      : "格式不符合该平台的要求"
-  } catch {
-    return "格式不符合该平台的要求"
-  }
-}
+/** 值的格式化与校验是纯运行时逻辑，住在 Zod-free 入口里，见 `./namecards-runtime`. */
+export {
+  decodePlatformValue,
+  encodePlatformValue,
+  formatPlatformValue,
+  platformValueError,
+  type PlatformAccountFormat,
+} from "./namecards-runtime.js";
 
 /** One account the visitor filled in, normalized to the bare identifier. */
 export const platformAccountEntrySchema = exactJsonResponse({
@@ -799,7 +710,10 @@ export const platformAccountRemovalSchema = exactJsonResponse({
   removed: z.number().int().nonnegative(),
 })
 
-/** The backoffice edits the catalogue itself, so every field is writable. */
+export type PlatformAccountRemoval = z.infer<
+  typeof platformAccountRemovalSchema
+>
+
 /** 后台填的正则要能直接编译，否则名片编辑器永远判定格式不符。 */
 function isUsableRegExp(pattern: string): boolean {
   try {
@@ -852,6 +766,10 @@ export const platformAccountIconUploadSchema = exactJsonResponse({
   success: z.literal(true),
   iconObjectKey: z.string().min(1),
 })
+
+export type PlatformAccountIconUpload = z.infer<
+  typeof platformAccountIconUploadSchema
+>
 
 export const platformAccountKindListSchema = exactJsonResponse({
   kinds: z.array(platformAccountKindSchema),

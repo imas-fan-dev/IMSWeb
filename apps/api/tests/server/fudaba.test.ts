@@ -4941,6 +4941,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 },
                 profile: {
                     account_id: ACCOUNT_ID,
+                    uid: 4,
+                    page_slug: null,
                     display_name: "Location Owner",
                     avatar_object_key: null,
                     avatar_external_url: null,
@@ -9224,6 +9226,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             accountId: ownerId,
             displayName: 'Updated Producer',
             homeCity: 'Shanghai',
+            pageSlug: null,
             bio: 'Updated profile',
             expectedUpdatedAt: PROFILE_CREATED_AT,
             updatedAt: PROFILE_CREATED_AT + 1
@@ -9264,6 +9267,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             accountId: ownerId,
             displayName: 'Restricted update',
             homeCity: null,
+            pageSlug: null,
             bio: '',
             expectedUpdatedAt: PROFILE_CREATED_AT + 2,
             updatedAt: PROFILE_CREATED_AT + 3
@@ -9508,7 +9512,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 accountId,
                 displayName: 'First writer',
                 homeCity: null,
-                bio: '',
+                pageSlug: null,
+            bio: '',
                 expectedUpdatedAt: PROFILE_CREATED_AT,
                 updatedAt: PROFILE_CREATED_AT + 10
             }),
@@ -9516,7 +9521,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 accountId,
                 displayName: 'Second writer',
                 homeCity: null,
-                bio: '',
+                pageSlug: null,
+            bio: '',
                 expectedUpdatedAt: PROFILE_CREATED_AT,
                 updatedAt: PROFILE_CREATED_AT + 20
             })

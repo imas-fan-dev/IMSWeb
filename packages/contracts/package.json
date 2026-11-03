@@ -47,6 +47,16 @@
         "default": "./dist/cjs/namecards.js"
       }
     },
+    "./namecards/runtime": {
+      "import": {
+        "types": "./dist/esm/namecards-runtime.d.ts",
+        "default": "./dist/esm/namecards-runtime.js"
+      },
+      "require": {
+        "types": "./dist/cjs/namecards-runtime.d.ts",
+        "default": "./dist/cjs/namecards-runtime.js"
+      }
+    },
     "./fudaba": {
       "import": {
         "types": "./dist/esm/fudaba/index.d.ts",
