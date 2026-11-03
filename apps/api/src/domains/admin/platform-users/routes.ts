@@ -15,6 +15,7 @@ import {
     handleListPlatformAccountKinds,
     handleUpsertPlatformAccountKind
 } from '@/domains/admin/platform-users/handlers/platform-account-kinds';
+import { handleUploadPlatformAccountIcon } from '@/domains/admin/platform-users/handlers/platform-account-icon';
 import { handleRevokeAdminPlatformUserSessions } from '@/domains/admin/platform-users/handlers/revoke-platform-user-sessions';
 import { handleTriggerAdminPlatformUserPasswordReset } from '@/domains/admin/platform-users/handlers/trigger-platform-user-password-reset';
 import { handleUnlinkAdminPlatformUserOAuth } from '@/domains/admin/platform-users/handlers/unlink-platform-user-oauth';
@@ -127,5 +128,13 @@ export function registerAdminPlatformUserRoutes(app: ImsHonoApp): void {
         superAdminOnly,
         backofficeCsrf,
         handleDeletePlatformAccountKind
+    );
+    app.put(
+        adminApiPath('/platform/account-kinds/:id/icon'),
+        backofficeAuth,
+        opOnly,
+        superAdminOnly,
+        backofficeCsrf,
+        handleUploadPlatformAccountIcon
     );
 }
