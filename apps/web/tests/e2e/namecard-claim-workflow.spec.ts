@@ -155,7 +155,7 @@ test.describe("namecard claim workflow", () => {
                 tradeNote: null,
                 exchangeMode: "manual",
                 accent: null,
-                seriesCodes: [],
+                seriesCodes: ["765"],
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
@@ -166,6 +166,7 @@ test.describe("namecard claim workflow", () => {
                 supplementPending: false,
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -250,7 +251,7 @@ test.describe("namecard claim workflow", () => {
                 tradeNote: null,
                 exchangeMode: "manual",
                 accent: null,
-                seriesCodes: [],
+                seriesCodes: ["765"],
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
@@ -261,6 +262,7 @@ test.describe("namecard claim workflow", () => {
                 supplementPending: false,
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -331,10 +333,7 @@ test.describe("namecard claim workflow", () => {
         .getByRole("radiogroup", { name: "绑定方式" })
         .getByRole("radio", { name: /创建一张可管理的注册名片/ })
     ).toHaveAttribute("aria-checked", "true")
-    // 六个基础字段先填好墙上的值，改过一处才允许提交。
-    await expect(
-      dialog.getByRole("button", { name: "提交认领审核" })
-    ).toBeDisabled()
+    // 认领不再要求相对墙上名片有改动，只拦必填项缺失。
     await dialog.getByLabel("制作人名称").fill("天海春香（认领）")
     await dialog.getByRole("button", { name: "提交认领审核" }).click()
 
@@ -402,9 +401,6 @@ test.describe("namecard claim workflow", () => {
     )
 
     const dialog = await openClaimDialog(page)
-    await expect(
-      dialog.getByRole("button", { name: "提交认领审核" })
-    ).toBeDisabled()
     // 企划 and 担当角色 are left alone: the server derives a series for the
     // claim record from the bound card, the idols, or the legacy card itself.
     await dialog.getByLabel("团体名称").fill("765PRO")
@@ -464,7 +460,7 @@ test.describe("namecard claim workflow", () => {
                 tradeNote: null,
                 exchangeMode: "manual",
                 accent: null,
-                seriesCodes: [],
+                seriesCodes: ["765"],
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
@@ -475,6 +471,7 @@ test.describe("namecard claim workflow", () => {
                 supplementPending: false,
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -638,6 +635,7 @@ test.describe("namecard claim workflow", () => {
     id: "claim-admin-e2e",
     legacyCardId: 42,
     targetCardId: null,
+    targetCardNumber: null,
     seriesCode: "765",
     payload: { producerName: "认领测试制作人" },
     favoriteCharacters: [favoriteCharacter],
@@ -690,6 +688,8 @@ test.describe("namecard claim workflow", () => {
               homeCity: "上海",
               bio: "",
               updatedAt: 1,
+              uid: 1,
+              pageSlug: null,
             },
             capabilities: { fudabaWrite: true },
           },
@@ -752,7 +752,7 @@ test.describe("namecard claim workflow", () => {
                 tradeNote: null,
                 exchangeMode: "manual",
                 accent: null,
-                seriesCodes: [],
+                seriesCodes: ["765"],
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
@@ -763,6 +763,7 @@ test.describe("namecard claim workflow", () => {
                 supplementPending: false,
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -857,6 +858,14 @@ test.describe("namecard claim workflow", () => {
       "POST"
     )
 
+    await api.mockRoute(
+      "**/api/community/exchange/characters",
+      async (route) => {
+        await route.fulfill({ json: makeCharacterCatalog() })
+      },
+      "GET",
+      { min: 0, max: 12 }
+    )
     // 旧名片认领页签按审核类型取数，结构与投稿审核一致。
     await api.mockRoute(
       "**/api/admin/community/exchange/review-queue",

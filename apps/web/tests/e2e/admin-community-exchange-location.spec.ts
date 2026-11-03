@@ -189,6 +189,8 @@ test.describe("admin whole-office review", () => {
     )
     const user = {
       id: current.owner.id,
+      uid: 1,
+      pageSlug: null,
       displayName: current.owner.displayName!,
       email: current.owner.email,
       status: "active",

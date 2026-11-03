@@ -317,14 +317,6 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
     "GET"
   )
   await api.mockRoute(
-    "**/api/community/exchange/me/claim-envelopes",
-    async (route) => {
-      await route.fulfill({ json: { items: [] } })
-    },
-    "GET",
-    { min: 1, max: workspaceReads }
-  )
-  await api.mockRoute(
     "**/api/community/exchange/me/favorites?**",
     async (route) => {
       const response = {

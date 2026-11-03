@@ -138,6 +138,7 @@ import {
   randomOwnerlessCardErrorSchema,
   randomOwnerlessCardSchema,
   wallInsightsSchema,
+  myPlatformAccountsSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
 } from "@imsweb/contracts/namecards"
@@ -754,6 +755,13 @@ export function resolveApiContract(
     return {
       responses: {
         200: platformProfileResponseSchema,
+        401: platformHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/platform/me/accounts")
+    return {
+      responses: {
+        200: myPlatformAccountsSchema,
         401: platformHttpErrorSchema,
       },
     }

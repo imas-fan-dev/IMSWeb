@@ -4,7 +4,11 @@ import {
   namecardNotificationListResponseSchema,
   type NamecardNotification,
 } from "@imsweb/contracts/fudaba/card-claims"
-import { exchangePath } from "@imsweb/contracts/paths"
+import {
+  myPlatformAccountsSchema,
+  wallInsightsSchema,
+} from "@imsweb/contracts/namecards"
+import { apiPath, exchangePath, platformApiPath } from "@imsweb/contracts/paths"
 
 import { ApiDispatcher } from "./api-dispatcher"
 
@@ -29,6 +33,46 @@ function installInboxProbe(
         unread: inbox.filter((item) => item.readAt === null).length,
       },
     }),
+  })
+}
+
+/**
+ * 名片墙顶部的进度面板是独立请求，页面一打开就会发；给它一个中性兜底，
+ * 免得每个只关心墙体的 spec 都要自己登记。
+ */
+function installWallInsightsProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: apiPath("/cards/wall-insights"),
+    responses: { 200: wallInsightsSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({
+      status: 200,
+      json: {
+        guestTotal: 0,
+        ownerless: 0,
+        ownerlessMissingSeries: 0,
+        claimed: 0,
+        claimsPending: 0,
+        supplemented: 0,
+        supplementsPending: 0,
+        contributors: [],
+        viewer: null,
+      },
+    }),
+  })
+}
+
+/** 个人资料页的平台账号编辑器会单独取目录；默认给空目录。 */
+function installPlatformAccountsProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: platformApiPath("/me/accounts"),
+    responses: { 200: myPlatformAccountsSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({ status: 200, json: { catalog: [], entries: [] } }),
   })
 }
 
@@ -79,6 +123,8 @@ export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
       await dispatcher.install(context)
       installInboxProbe(dispatcher, inboxNotifications)
       installSeriesProbe(dispatcher)
+      installWallInsightsProbe(dispatcher)
+      installPlatformAccountsProbe(dispatcher)
       if (activeApi) {
         await dispatcher.dispose()
         throw new Error(

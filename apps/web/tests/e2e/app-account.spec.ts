@@ -142,7 +142,6 @@ async function installAccountMocks(
     (route) => route.fulfill({ json: makeCharacterCatalog() })
   )
   for (const path of [
-    "/api/community/exchange/me/claim-envelopes",
     "/api/community/exchange/me/offices",
   ]) {
     await api.mock(

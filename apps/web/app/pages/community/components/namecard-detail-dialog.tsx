@@ -441,7 +441,7 @@ export function NamecardDetailDialog({
         {
           key: "front",
           url: card.image1_url,
-          thumb: withThumbnail(card.image1_url),
+          thumb: card.image1_thumbnail_url || withThumbnail(card.image1_url),
           side: "front" as const,
         },
         ...(card.image2_url
@@ -449,7 +449,7 @@ export function NamecardDetailDialog({
               {
                 key: "back",
                 url: card.image2_url,
-                thumb: withThumbnail(card.image2_url),
+                thumb: card.image2_thumbnail_url || withThumbnail(card.image2_url),
                 side: "back" as const,
               },
             ]

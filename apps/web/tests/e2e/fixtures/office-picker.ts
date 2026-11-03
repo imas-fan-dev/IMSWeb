@@ -37,11 +37,11 @@ export function officePickerScenario() {
           "/api/platform/me",
           {
             ...session,
-            profile: { ...session.profile, updatedAt: 1 },
+            profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
             capabilities: { fudabaWrite: true },
           },
         ],
-        ...["series", "cards", "claim-envelopes"].map((name) => [
+        ...["series", "cards"].map((name) => [
           `/api/community/exchange/me/${name}`,
           { items: [] },
         ]),
