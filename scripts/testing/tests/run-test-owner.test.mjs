@@ -11,6 +11,7 @@ import {
   parseOwnerArguments,
   repositoryRoot,
   runCommand,
+  selectTestTmpdir,
 } from "../run-test-owner.mjs";
 
 // The workspace scripts a plan runs: `pnpm --filter <workspace> run <script>`.
@@ -343,6 +344,46 @@ test.describe("run-test-owner plan", () => {
       /Unknown test owner/,
     );
   });
+
+  test("temporary files prefer a large shared-memory filesystem", () => {
+    assert.equal(
+      selectTestTmpdir({ TMPDIR: "/custom" }, () => true),
+      undefined,
+      "an explicit TMPDIR always wins",
+    );
+    assert.equal(selectTestTmpdir({}, () => true), "/dev/shm");
+    assert.equal(
+      selectTestTmpdir({}, (candidate) => candidate === "/run/shm"),
+      "/run/shm",
+    );
+    assert.equal(selectTestTmpdir({}, () => false), undefined);
+  });
+
+  test(
+    "spawned commands receive the selected TMPDIR when the caller sets none",
+    {
+      skip: process.platform !== "linux" || selectTestTmpdir({}) === undefined,
+    },
+    async () => {
+      const expected = selectTestTmpdir({});
+      const previous = process.env.TMPDIR;
+      delete process.env.TMPDIR;
+      try {
+        await runCommand({
+          label: "inspect tmpdir contract",
+          executable: process.execPath,
+          args: [
+            "-e",
+            `if (process.env.TMPDIR !== ${JSON.stringify(expected)}) process.exit(29)`,
+          ],
+          cwd: repositoryRoot,
+        });
+      } finally {
+        if (previous === undefined) delete process.env.TMPDIR;
+        else process.env.TMPDIR = previous;
+      }
+    },
+  );
 
   test("spawned commands preserve cwd, environment, and failure status", async () => {
     const variable = "IMS_TEST_OWNER_ENV_PROBE";

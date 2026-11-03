@@ -288,6 +288,12 @@ docker compose -f deploy/compose.yaml --profile test stop postgres-test
 - 端口默认 `15434`，可通过 `IMS_POSTGRES_TEST_PORT` 修改，修改后同步调整
   `IMS_TEST_DATABASE_URL`。
 - 容器不设 `restart` 自动拉起；需要时手动启动。
+- 测试的临时文件（Vitest 夹具、迁移套件的 SQLite/JSON 快照）默认写到 `TMPDIR`。
+  `run-test-owner.mjs` 在 `TMPDIR` 未设置、`/dev/shm` 是可写 tmpfs、且剩余空间不小于
+  1 GiB 时，会自动把子进程的 `TMPDIR` 指过去；显式设置的 `TMPDIR` 永远优先。把 `/tmp`
+  放在机械盘或 USB 盘上会让单次 fsync 变成几十毫秒，测试随即以 30 秒超时失败。
+  直接运行 `pnpm --filter @imsweb/api run test:migration` 这类脚本不经过这层兜底，
+  需要时自行 `export TMPDIR=/dev/shm`。
 - 不要为启动测试库新增 `package.json` 别名或可独立调用的跳过参数（见上文规则）。
 
 ### pre-commit 覆盖边界
