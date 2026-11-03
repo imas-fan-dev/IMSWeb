@@ -63,7 +63,8 @@ export async function handleUpsertPlatformAccountKind(
         icon: body.icon,
         display_order: body.displayOrder,
         enabled: body.enabled,
-        uppercase: body.uppercase ?? existing?.uppercase ?? false
+        uppercase: body.uppercase ?? existing?.uppercase ?? false,
+        icon_object_key: existing?.icon_object_key ?? null
     });
     const kinds = await services(c).namecards!.listPlatformAccountKinds();
     return c.json({ kinds: kinds.map(toKindView) } satisfies PlatformAccountKindList);

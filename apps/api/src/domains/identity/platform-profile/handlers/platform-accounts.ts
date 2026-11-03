@@ -92,7 +92,7 @@ export async function handleSaveMyPlatformAccount(
             username,
             at: new Date().toISOString(),
         });
-        const entry: PlatformAccountEntry = { kindId, value };
+        const entry: PlatformAccountEntry = { kindId, value, username };
         return c.json(entry);
     } catch (error) {
         const status = statusFromError(error);

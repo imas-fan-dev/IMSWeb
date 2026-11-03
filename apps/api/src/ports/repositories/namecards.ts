@@ -300,6 +300,7 @@ export interface PlatformAccountLinkRecord {
     base_url: string | null;
     color: string | null;
     icon: string | null;
+    icon_object_key: string | null;
 }
 
 /** The catalogue row the backoffice edits. */
@@ -315,6 +316,8 @@ export interface PlatformAccountKindRecord {
     enabled: boolean;
     /** Game handles are stored in capitals. */
     uppercase: boolean;
+    /** Uploaded mark; null means fall back to the bundled/CDN icon. */
+    icon_object_key: string | null;
 }
 
 export interface PlatformAccountEntryRecord {
@@ -345,6 +348,8 @@ export interface NamecardRepository {
     /** The backoffice owns the catalogue; creating and editing share one call. */
     upsertPlatformAccountKind(input: PlatformAccountKindRecord): Promise<void>;
     deletePlatformAccountKind(id: string): Promise<boolean>;
+    /** Replaces the uploaded mark; null clears it. */
+    setPlatformAccountKindIcon(id: string, key: string | null): Promise<boolean>;
     listPlatformAccountEntries(accountId: string): Promise<PlatformAccountEntryRecord[]>;
     upsertPlatformAccountEntry(input: {
         accountId: string;

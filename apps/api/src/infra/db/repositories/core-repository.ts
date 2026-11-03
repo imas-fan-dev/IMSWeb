@@ -806,6 +806,21 @@ export class SqlCoreRepository implements NamecardRepository {
         );
     }
 
+    async setPlatformAccountKindIcon(id: string, key: string | null): Promise<boolean> {
+        const row = await queryOne<{ updated: number }>(
+            this.database,
+            `WITH gone AS (
+                UPDATE platform_account_kinds
+                SET icon_object_key = ?, updated_at = now()::text
+                WHERE id = ?
+                RETURNING 1
+             )
+             SELECT CAST(COUNT(*) AS INTEGER) AS updated FROM gone`,
+            [key, id]
+        );
+        return Number(row?.updated ?? 0) > 0;
+    }
+
     async deletePlatformAccountKind(id: string): Promise<boolean> {
         const row = await queryOne<{ removed: number }>(
             this.database,
@@ -820,7 +835,7 @@ export class SqlCoreRepository implements NamecardRepository {
         return queryAll<PlatformAccountKindRecord>(
             this.database,
             `SELECT id, name, group_key, pattern, base_url, color, icon,
-                    display_order, enabled, uppercase
+                    display_order, enabled, uppercase, icon_object_key
              FROM platform_account_kinds
              ORDER BY display_order, id`
         );
