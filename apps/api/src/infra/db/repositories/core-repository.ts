@@ -846,7 +846,7 @@ export class SqlCoreRepository implements NamecardRepository {
     ): Promise<PlatformAccountEntryRecord[]> {
         return queryAll<PlatformAccountEntryRecord>(
             this.database,
-            `SELECT kind_id, value FROM platform_account_entries
+            `SELECT kind_id, value, username FROM platform_account_entries
              WHERE account_id=? ORDER BY kind_id`,
             [accountId]
         );
