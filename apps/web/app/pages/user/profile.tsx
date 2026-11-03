@@ -181,6 +181,10 @@ export default function UserProfilePage() {
               )}
             </p>
 
+            {profile?.accounts.length ? (
+              <PlatformAccountList accounts={profile.accounts} />
+            ) : null}
+
             {profile?.bio ? (
               <p className="max-w-2xl text-sm/relaxed whitespace-pre-wrap text-foreground/90">
                 {profile.bio}
@@ -193,10 +197,6 @@ export default function UserProfilePage() {
           </div>
         </div>
       </section>
-
-      {profile?.accounts.length ? (
-        <PlatformAccountList accounts={profile.accounts} />
-      ) : null}
 
       <section className="space-y-4">
         <header className="flex items-end justify-between gap-3">

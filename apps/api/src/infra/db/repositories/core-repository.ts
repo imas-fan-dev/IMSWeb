@@ -764,7 +764,7 @@ export class SqlCoreRepository implements NamecardRepository {
         return queryAll<PlatformAccountLinkRecord>(
             this.database,
             `SELECT entry.kind_id, kind.name, kind.group_key, entry.value,
-                    kind.base_url, kind.color, kind.icon
+                    entry.username, kind.base_url, kind.color, kind.icon
              FROM platform_account_entries entry
              JOIN platform_account_kinds kind ON kind.id = entry.kind_id
              WHERE entry.account_id = ? AND kind.enabled
@@ -841,16 +841,25 @@ export class SqlCoreRepository implements NamecardRepository {
         accountId: string;
         kindId: string;
         value: string;
+        username?: string | null;
         at: string;
     }): Promise<void> {
         await executeSql(
             this.database,
             `INSERT INTO platform_account_entries
-                 (account_id, kind_id, value, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?)
+                 (account_id, kind_id, value, username, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT (account_id, kind_id)
-             DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
-            [input.accountId, input.kindId, input.value, input.at, input.at]
+             DO UPDATE SET value=excluded.value, username=excluded.username,
+                           updated_at=excluded.updated_at`,
+            [
+                input.accountId,
+                input.kindId,
+                input.value,
+                input.username ?? null,
+                input.at,
+                input.at,
+            ]
         );
     }
 

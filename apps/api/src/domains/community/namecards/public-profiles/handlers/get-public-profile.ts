@@ -49,6 +49,7 @@ export async function handleGetPublicProfile(
             name: link.name,
             group: link.group_key,
             value: link.value,
+            username: link.username,
             url: link.base_url
                 ? link.base_url.replace("{value}", encodeURIComponent(link.value))
                 : null,

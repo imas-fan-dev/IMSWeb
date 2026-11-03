@@ -47,15 +47,17 @@ export function meta() {
 }
 
 const GROUP_ITEMS = [
-  { value: "game", label: "游戏 ID" },
-  { value: "social", label: "平台账号" },
   { value: "link", label: "链接" },
+  { value: "game", label: "游戏 ID" },
+  { value: "social", label: "社交平台" },
+  { value: "showcase", label: "展示平台" },
+  { value: "game-platform", label: "游戏平台" },
 ]
 
 interface Draft {
   id: string
   name: string
-  group: "game" | "social" | "link"
+  group: "game" | "social" | "showcase" | "game-platform" | "link"
   pattern: string
   baseUrl: string
   color: string
@@ -123,6 +125,10 @@ export default function AdminPlatformAccountKindsPage() {
       active = false
     }
   }, [reloadToken])
+
+  function patch(next: Partial<Draft>) {
+    setDraft((current) => (current ? { ...current, ...next } : current))
+  }
 
   async function save() {
     if (!draft || saving) return
@@ -315,11 +321,7 @@ export default function AdminPlatformAccountKindsPage() {
                 disabled={!creating}
                 maxLength={32}
                 className="font-mono"
-                onChange={(event) =>
-                  setDraft((current) =>
-                    current ? { ...current, id: event.currentTarget.value } : current
-                  )
-                }
+                onChange={(event) => patch({ id: event.currentTarget.value })}
               />
             </Field>
             <Field>
@@ -328,11 +330,7 @@ export default function AdminPlatformAccountKindsPage() {
                 id="kind-name"
                 value={draft?.name ?? ""}
                 maxLength={40}
-                onChange={(event) =>
-                  setDraft((current) =>
-                    current ? { ...current, name: event.currentTarget.value } : current
-                  )
-                }
+                onChange={(event) => patch({ name: event.currentTarget.value })}
               />
             </Field>
             <Field>
@@ -367,11 +365,7 @@ export default function AdminPlatformAccountKindsPage() {
                 value={draft?.displayOrder ?? ""}
                 inputMode="numeric"
                 onChange={(event) =>
-                  setDraft((current) =>
-                    current
-                      ? { ...current, displayOrder: event.currentTarget.value }
-                      : current
-                  )
+                  patch({ displayOrder: event.currentTarget.value })
                 }
               />
             </Field>
@@ -382,11 +376,7 @@ export default function AdminPlatformAccountKindsPage() {
                 value={draft?.pattern ?? ""}
                 maxLength={200}
                 className="font-mono"
-                onChange={(event) =>
-                  setDraft((current) =>
-                    current ? { ...current, pattern: event.currentTarget.value } : current
-                  )
-                }
+                onChange={(event) => patch({ pattern: event.currentTarget.value })}
               />
             </Field>
             <Field className="sm:col-span-2">
@@ -397,11 +387,7 @@ export default function AdminPlatformAccountKindsPage() {
                 maxLength={200}
                 placeholder="https://example.com/{value}"
                 className="font-mono"
-                onChange={(event) =>
-                  setDraft((current) =>
-                    current ? { ...current, baseUrl: event.currentTarget.value } : current
-                  )
-                }
+                onChange={(event) => patch({ baseUrl: event.currentTarget.value })}
               />
             </Field>
             <Field>
@@ -412,11 +398,7 @@ export default function AdminPlatformAccountKindsPage() {
                 maxLength={7}
                 placeholder="#ff6699"
                 className="font-mono"
-                onChange={(event) =>
-                  setDraft((current) =>
-                    current ? { ...current, color: event.currentTarget.value } : current
-                  )
-                }
+                onChange={(event) => patch({ color: event.currentTarget.value })}
               />
             </Field>
             <Field>
@@ -426,11 +408,7 @@ export default function AdminPlatformAccountKindsPage() {
                 value={draft?.icon ?? ""}
                 maxLength={40}
                 className="font-mono"
-                onChange={(event) =>
-                  setDraft((current) =>
-                    current ? { ...current, icon: event.currentTarget.value } : current
-                  )
-                }
+                onChange={(event) => patch({ icon: event.currentTarget.value })}
               />
             </Field>
             <label className="flex items-center gap-2 text-sm">

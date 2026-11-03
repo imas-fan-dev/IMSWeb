@@ -1,4 +1,5 @@
 import {
+    encodePlatformValue,
     formatPlatformValue,
     platformValueError,
     type MyPlatformAccounts,
@@ -41,6 +42,7 @@ export async function handleListMyPlatformAccounts(
         entries: entries.map((entry) => ({
             kindId: entry.kind_id,
             value: entry.value,
+            username: entry.username,
         })),
     };
     return c.json(body);
@@ -62,8 +64,13 @@ export async function handleSaveMyPlatformAccount(
         }
         const body = (await c.req.json().catch(() => null)) as {
             value?: unknown;
+            username?: unknown;
         } | null;
         if (!body || typeof body.value !== "string") return c.json(VALUE_INVALID, 400);
+        const username =
+            typeof body.username === "string" && body.username.trim()
+                ? body.username.trim().slice(0, 60)
+                : null;
         const format = {
             id: kind.id,
             group: kind.group_key,
@@ -71,7 +78,10 @@ export async function handleSaveMyPlatformAccount(
             baseUrl: kind.base_url,
             uppercase: kind.uppercase,
         };
-        const value = formatPlatformValue(format, body.value);
+        const value = encodePlatformValue(
+            format,
+            formatPlatformValue(format, body.value)
+        );
         if (!value || value.length > 200 || platformValueError(format, value) !== null) {
             return c.json(VALUE_INVALID, 400);
         }
@@ -79,6 +89,7 @@ export async function handleSaveMyPlatformAccount(
             accountId,
             kindId,
             value,
+            username,
             at: new Date().toISOString(),
         });
         const entry: PlatformAccountEntry = { kindId, value };

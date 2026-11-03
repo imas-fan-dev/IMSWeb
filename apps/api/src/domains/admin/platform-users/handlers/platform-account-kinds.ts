@@ -45,7 +45,7 @@ export async function handleUpsertPlatformAccountKind(
     c: ValidatedRequestContext<AppEnvironment, 'json', PlatformAccountKindBody>
 ): Promise<Response> {
     const id = c.req.param('id') ?? '';
-    if (!/^[a-z0-9-]{2,32}$/.test(id)) {
+    if (!/^[a-z0-9-]{1,32}$/.test(id)) {
         return c.json({ success: false, message: '标识符只能是小写字母、数字与连字符' }, 400);
     }
     const body = c.req.valid('json');

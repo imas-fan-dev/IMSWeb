@@ -294,8 +294,9 @@ export interface PublicProfileRecord {
 export interface PlatformAccountLinkRecord {
     kind_id: string;
     name: string;
-    group_key: "game" | "social" | "link";
+    group_key: "game" | "social" | "showcase" | "link";
     value: string;
+    username: string | null;
     base_url: string | null;
     color: string | null;
     icon: string | null;
@@ -319,6 +320,7 @@ export interface PlatformAccountKindRecord {
 export interface PlatformAccountEntryRecord {
     kind_id: string;
     value: string;
+    username: string | null;
 }
 
 export interface NamecardAdminFilter {
@@ -348,6 +350,7 @@ export interface NamecardRepository {
         accountId: string;
         kindId: string;
         value: string;
+        username?: string | null;
         at: string;
     }): Promise<void>;
     deletePlatformAccountEntry(accountId: string, kindId: string): Promise<number>;

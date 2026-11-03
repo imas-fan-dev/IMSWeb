@@ -388,8 +388,15 @@ export function getMyPlatformAccounts() {
   )
 }
 
-export function saveMyPlatformAccount(kindId: string, value: string) {
-  const submission = platformAccountValueRequestSchema.parse({ value })
+export function saveMyPlatformAccount(
+  kindId: string,
+  value: string,
+  username?: string | null
+) {
+  const submission = platformAccountValueRequestSchema.parse({
+    value,
+    ...(username === undefined ? {} : { username }),
+  })
   return platformApiClient.Put(
     platformApiPath(`/me/accounts/${encodeURIComponent(kindId)}`),
     submission,

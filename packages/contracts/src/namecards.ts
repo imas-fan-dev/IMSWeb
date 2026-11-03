@@ -171,8 +171,10 @@ export const namecardPageSchema = exactJsonResponse({
 export const platformAccountLinkSchema = exactJsonResponse({
   kindId: z.string().min(1),
   name: z.string().min(1),
-  group: z.enum(["game", "social", "link"]),
+  group: z.enum(["game", "social", "showcase", "game-platform", "link"]),
   value: z.string().min(1),
+  /** An optional display name that replaces the platform name on the badge. */
+  username: z.string().min(1).nullable(),
   /** Null for id-only platforms, which show a copy button instead of a link. */
   url: z.string().min(1).nullable(),
   color: z.string().min(1).nullable(),
@@ -650,7 +652,7 @@ export type RandomOwnerlessCard = z.infer<typeof randomOwnerlessCardSchema>
 export const platformAccountKindSchema = exactJsonResponse({
   id: z.string().min(1).max(32),
   name: z.string().min(1).max(40),
-  group: z.enum(["game", "social", "link"]),
+  group: z.enum(["game", "social", "showcase", "game-platform", "link"]),
   pattern: z.string().min(1).max(200),
   baseUrl: z.string().min(1).nullable(),
   color: z.string().min(4).max(9).nullable(),
@@ -663,7 +665,7 @@ export const platformAccountKindSchema = exactJsonResponse({
 /** The fields the editor needs to turn raw input into the stored value. */
 export interface PlatformAccountFormat {
   id: string
-  group: "game" | "social" | "link"
+  group: "game" | "social" | "showcase" | "game-platform" | "link"
   pattern: string
   baseUrl: string | null
   uppercase: boolean
@@ -688,7 +690,8 @@ export function formatPlatformValue(
 ): string {
   let value = raw.trim()
   if (!value) return ""
-  const cut = value.search(/[?#]/)
+  // A template may carry its own `?user=`; then only `&` and `#` end the id.
+  const cut = value.search(kind.baseUrl?.includes("?") ? /[&#]/ : /[?#]/)
   if (cut >= 0) value = value.slice(0, cut)
   if (/^https?:\/\//i.test(value)) {
     value = value.replace(/\/+$/, "")
@@ -700,10 +703,27 @@ export function formatPlatformValue(
     }
   }
   value = decodeOnce(value)
-  if (kind.id === "youtube" && value.startsWith("@")) {
-    value = `@${encodeURIComponent(value.slice(1))}`
-  }
   return kind.uppercase ? value.toUpperCase() : value
+}
+
+/** Canonical storage form: YouTube handles are stored percent-encoded. */
+export function encodePlatformValue(
+  kind: PlatformAccountFormat,
+  value: string
+): string {
+  return kind.id === "youtube" && value.startsWith("@")
+    ? `@${encodeURIComponent(value.slice(1))}`
+    : value
+}
+
+/** Readable form for the editor, which prefers the real handle on screen. */
+export function decodePlatformValue(
+  kind: PlatformAccountFormat,
+  value: string
+): string {
+  return kind.id === "youtube" && value.startsWith("@")
+    ? `@${decodeOnce(value.slice(1))}`
+    : value
 }
 
 /** Null when the value fits the platform, otherwise the message to show. */
@@ -728,6 +748,8 @@ export function platformValueError(
 export const platformAccountEntrySchema = exactJsonResponse({
   kindId: z.string().min(1).max(32),
   value: z.string().min(1).max(200),
+  /** Link accounts may carry the display name they are known by. */
+  username: z.string().min(1).max(60).nullable(),
 })
 
 export const myPlatformAccountsSchema = exactJsonResponse({
@@ -737,6 +759,7 @@ export const myPlatformAccountsSchema = exactJsonResponse({
 
 export const platformAccountValueRequestSchema = strictRequestObject({
   value: z.string().trim().min(1).max(200),
+  username: z.string().trim().min(1).max(60).nullable().optional(),
 })
 
 /** Removing a value reports how many rows the delete touched. */
@@ -748,7 +771,7 @@ export const platformAccountRemovalSchema = exactJsonResponse({
 /** The backoffice edits the catalogue itself, so every field is writable. */
 export const platformAccountKindRequestSchema = strictRequestObject({
   name: z.string().trim().min(1).max(40),
-  group: z.enum(["game", "social", "link"]),
+  group: z.enum(["game", "social", "showcase", "game-platform", "link"]),
   pattern: z.string().trim().min(1).max(200),
   baseUrl: z.string().trim().min(1).max(200).nullable(),
   color: z

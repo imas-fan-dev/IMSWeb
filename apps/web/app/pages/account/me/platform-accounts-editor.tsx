@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import {
+  decodePlatformValue,
   formatPlatformValue,
   platformValueError,
 } from "@imsweb/contracts/namecards"
@@ -18,17 +19,22 @@ import {
   type PlatformAccountKind,
 } from "~/lib/api"
 
-const GROUP_LABELS: Record<string, string> = {
-  game: "游戏 ID",
-  link: "个人主页",
-  social: "平台账号",
-}
-
 /** 输入框里提示的是链接模板，而不是正则。 */
 function placeholderFor(kind: PlatformAccountKind): string {
   if (kind.baseUrl) return kind.baseUrl.replace("{value}", "")
   return kind.group === "link" ? "https://" : ""
 }
+
+/** 前端只分三块：游戏 ID、平台账号（社交/展示/游戏平台合并）、个人主页。 */
+const EDITOR_GROUPS = [
+  { key: "game", title: "游戏 ID", match: ["game"] },
+  {
+    key: "platform",
+    title: "平台账号",
+    match: ["social", "showcase", "game-platform"],
+  },
+  { key: "link", title: "个人主页", match: ["link"] },
+] as const
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "保存失败，请重试"
@@ -40,11 +46,20 @@ function KindIcon({ kind }: { kind: PlatformAccountKind }) {
     return <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
   if (url)
     return (
-      <img
-        src={url}
-        alt=""
-        className="size-4"
-        style={kind.color ? { color: kind.color } : undefined}
+      <span
+        aria-hidden="true"
+        className="size-4 shrink-0"
+        style={{
+          backgroundColor: kind.color ?? "currentColor",
+          maskImage: `url("${url}")`,
+          WebkitMaskImage: `url("${url}")`,
+          maskSize: "contain",
+          WebkitMaskSize: "contain",
+          maskRepeat: "no-repeat",
+          WebkitMaskRepeat: "no-repeat",
+          maskPosition: "center",
+          WebkitMaskPosition: "center",
+        }}
       />
     )
   return (
@@ -61,6 +76,10 @@ export function PlatformAccountsEditor() {
   const [kinds, setKinds] = useState<PlatformAccountKind[]>([])
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [original, setOriginal] = useState<Record<string, string>>({})
+  const [usernames, setUsernames] = useState<Record<string, string>>({})
+  const [originalUsernames, setOriginalUsernames] = useState<
+    Record<string, string>
+  >({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -73,10 +92,20 @@ export function PlatformAccountsEditor() {
       .then((result) => {
         if (!active) return
         const entries: Record<string, string> = {}
-        for (const entry of result.entries) entries[entry.kindId] = entry.value
+        const names: Record<string, string> = {}
+        const catalogById = new Map(result.catalog.map((kind) => [kind.id, kind]))
+        for (const entry of result.entries) {
+          const kind = catalogById.get(entry.kindId)
+          entries[entry.kindId] = kind
+            ? decodePlatformValue(kind, entry.value)
+            : entry.value
+          names[entry.kindId] = entry.username ?? ""
+        }
         setKinds(result.catalog)
         setOriginal(entries)
         setDraft(entries)
+        setOriginalUsernames(names)
+        setUsernames(names)
         setFailed(false)
       })
       .catch(() => {
@@ -97,7 +126,9 @@ export function PlatformAccountsEditor() {
   }
 
   const dirty = kinds.filter(
-    (kind) => (draft[kind.id] ?? "").trim() !== (original[kind.id] ?? "")
+    (kind) =>
+      (draft[kind.id] ?? "").trim() !== (original[kind.id] ?? "") ||
+      (usernames[kind.id] ?? "").trim() !== (originalUsernames[kind.id] ?? "")
   )
 
   async function save() {
@@ -106,12 +137,18 @@ export function PlatformAccountsEditor() {
     setErrors({})
     const nextErrors: Record<string, string> = {}
     const nextOriginal = { ...original }
+    const nextUsernames = { ...originalUsernames }
     for (const kind of dirty) {
       const value = (draft[kind.id] ?? "").trim()
       try {
         if (value) {
-          await saveMyPlatformAccount(kind.id, value).send()
+          // 只有外链形式的账号才有用户名。
+          const username = kind.baseUrl
+            ? (usernames[kind.id] ?? "").trim() || null
+            : null
+          await saveMyPlatformAccount(kind.id, value, username).send()
           nextOriginal[kind.id] = value
+          nextUsernames[kind.id] = username ?? ""
         } else {
           await deleteMyPlatformAccount(kind.id).send()
           delete nextOriginal[kind.id]
@@ -121,6 +158,7 @@ export function PlatformAccountsEditor() {
       }
     }
     setOriginal(nextOriginal)
+    setOriginalUsernames(nextUsernames)
     setErrors(nextErrors)
     setSaving(false)
     if (Object.keys(nextErrors).length === 0) toast.success("平台账号已保存")
@@ -145,17 +183,20 @@ export function PlatformAccountsEditor() {
 
   return (
     <div className="space-y-6">
-      {(["game", "link", "social"] as const).map((group) => {
-        const rows = kinds.filter((kind) => kind.group === group)
+      {EDITOR_GROUPS.map((group) => {
+        const rows = kinds.filter((kind) =>
+          (group.match as readonly string[]).includes(kind.group)
+        )
         if (rows.length === 0) return null
         return (
-          <div key={group} className="space-y-2">
+          <div key={group.key} className="space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground">
-              {GROUP_LABELS[group]}
+              {group.title}
             </h3>
             <div className="grid gap-3 md:grid-cols-2">
               {rows.map((kind) => (
-                <label key={kind.id} className="flex flex-col gap-1.5">
+                <div key={kind.id} className="flex flex-col gap-1.5">
+                  <label className="flex flex-col gap-1.5">
                   <span className="flex items-center gap-2 text-sm">
                     <KindIcon kind={kind} />
                     {kind.name}
@@ -179,7 +220,20 @@ export function PlatformAccountsEditor() {
                       {errors[kind.id] ?? localErrors[kind.id]}
                     </span>
                   ) : null}
-                </label>
+                  </label>
+                  {kind.baseUrl ? (
+                    <Input
+                      value={usernames[kind.id] ?? ""}
+                      placeholder="用户名"
+                      aria-label={`${kind.name} 用户名`}
+                      maxLength={60}
+                      onChange={(event) => {
+                        const next = event.currentTarget.value
+                        setUsernames((current) => ({ ...current, [kind.id]: next }))
+                      }}
+                    />
+                  ) : null}
+                </div>
               ))}
             </div>
           </div>
