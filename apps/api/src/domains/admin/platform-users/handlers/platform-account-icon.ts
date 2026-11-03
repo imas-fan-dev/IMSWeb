@@ -67,6 +67,7 @@ export async function handleUploadPlatformAccountIcon(
         );
     }
     const key = platformAccountIconKey(kindId, extension);
+    const previousKey = kind.icon_object_key ?? null;
     const ownerToken = randomHex(32);
     await runtime.storage.put(key, file.body, {
         contentType: file.contentType,
@@ -75,11 +76,17 @@ export async function handleUploadPlatformAccountIcon(
     });
     const saved = await services(c).namecards!.setPlatformAccountKindIcon(kindId, key);
     if (!saved) {
+        // The row vanished between the lookup and the write; drop the orphan.
+        await deleteObjectWithCompensation(runtime, key).catch((error) => {
+            console.error("Failed to drop an orphaned platform icon", error);
+        });
         return c.json({ success: false, message: "平台不存在" }, 404);
-        }
-    // The key is fixed per platform, so the previous object is this same key.
-    await deleteObjectWithCompensation(runtime, key).catch((error) => {
-        console.error("Failed to schedule replaced platform icon cleanup", error);
-    });
+    }
+    // 键名带扩展名，换了格式才会留下旧图；同格式覆盖写入时旧键就是新键。
+    if (previousKey && previousKey !== key) {
+        await deleteObjectWithCompensation(runtime, previousKey).catch((error) => {
+            console.error("Failed to schedule replaced platform icon cleanup", error);
+        });
+    }
     return c.json({ success: true, iconObjectKey: key });
 }

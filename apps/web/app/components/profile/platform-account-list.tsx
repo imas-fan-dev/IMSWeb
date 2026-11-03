@@ -15,10 +15,21 @@ const GROUPS = [
   },
 ] as const
 
-/** 单色图标用遮罩上色，白色由 background-color 提供。 */
+/**
+ * 后台为平台上传的图标是完整图片，直接铺上去保留它自己的颜色；
+ * 只有单色 CDN 图标才用遮罩，白色由 background-color 提供。
+ */
 function PlatformMark({ account }: { account: PlatformAccountLink }) {
-  // 后台为平台上传的图标优先于图标键的默认图。
-  const url = platformIconUrl(account.icon, account.iconUrl) ?? undefined
+  if (account.iconUrl)
+    return (
+      <img
+        src={account.iconUrl}
+        alt=""
+        aria-hidden="true"
+        className="size-3.5 shrink-0 object-contain"
+      />
+    )
+  const url = platformIconUrl(account.icon, null) ?? undefined
   if (!url) return null
   return (
     <span

@@ -8,6 +8,7 @@ import {
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
 import type { PlatformAccountKindRecord } from "@/ports/repositories/namecards";
+import { platformAccountIconUrls } from "@/utils/http/platform-icon-url";
 import { services } from "@/middleware/hono-context";
 import { messageFromError, statusFromError } from "@/utils/http/error-response";
 
@@ -26,8 +27,9 @@ export async function handleListMyPlatformAccounts(
         repository.listPlatformAccountKinds(),
         repository.listPlatformAccountEntries(accountId),
     ]);
+    const iconUrls = platformAccountIconUrls(catalog);
     const body: MyPlatformAccounts = {
-        catalog: catalog.map((kind) => ({
+        catalog: catalog.map((kind, index) => ({
             id: kind.id,
             name: kind.name,
             group: kind.group_key,
@@ -35,7 +37,7 @@ export async function handleListMyPlatformAccounts(
             baseUrl: kind.base_url,
             color: kind.color,
             icon: kind.icon,
-            iconUrl: null,
+            iconUrl: iconUrls[index] ?? null,
             displayOrder: kind.display_order,
             enabled: kind.enabled,
             uppercase: kind.uppercase,

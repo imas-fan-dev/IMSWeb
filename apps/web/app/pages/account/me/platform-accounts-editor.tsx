@@ -9,7 +9,7 @@ import {
   platformValueError,
 } from "@imsweb/contracts/namecards"
 
-import { PLATFORM_ICON_URLS } from "~/components/profile/platform-account-icons"
+import { platformIconUrl } from "~/components/profile/platform-account-icons"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import {
@@ -43,9 +43,19 @@ function errorMessage(error: unknown) {
 }
 
 function KindIcon({ kind }: { kind: PlatformAccountKind }) {
-  const url = PLATFORM_ICON_URLS[kind.icon ?? ""]
   if (kind.group === "link")
     return <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+  // 上传的图标自带颜色，按图片显示；单色 CDN 图标才用遮罩。
+  if (kind.iconUrl)
+    return (
+      <img
+        src={kind.iconUrl}
+        alt=""
+        aria-hidden="true"
+        className="size-4 shrink-0 object-contain"
+      />
+    )
+  const url = platformIconUrl(kind.icon, null)
   if (url)
     return (
       <span

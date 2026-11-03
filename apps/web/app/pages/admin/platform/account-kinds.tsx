@@ -6,7 +6,7 @@ import {
   TrashIcon,
   UploadIcon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
@@ -77,8 +77,13 @@ interface Draft {
  * 预览取图顺序：已上传 → 图标键对应的 simple-icons 图 → 大写首字母。
  * 图标键直接当作 slug 请求，不必等后台收录，所以输入新平台名立刻能看到效果。
  */
-function iconPreview(draft: Draft, key: string): { src: string | null; letter: string } {
+function iconPreview(
+  draft: Draft,
+  key: string,
+  pending: string | null
+): { src: string | null; letter: string } {
   const letter = (draft.icon || draft.name || "?").charAt(0).toUpperCase()
+  if (pending) return { src: pending, letter }
   if (draft.iconUrl) return { src: draft.iconUrl, letter }
   const slug = key.trim()
   if (!slug) return { src: null, letter }
@@ -150,9 +155,20 @@ export default function AdminPlatformAccountKindsPage() {
   // 记录「哪一组图标键 + 上传图」加载失败，换输入自然失效，无需 effect。
   const [failedPreview, setFailedPreview] = useState("")
   const [pendingIcon, setPendingIcon] = useState<File | null>(null)
+  // 选中但未保存的文件用本地对象地址预览，保存成功后由上传结果接管。
+  const pendingIconUrl = useMemo(
+    () => (pendingIcon ? URL.createObjectURL(pendingIcon) : null),
+    [pendingIcon]
+  )
+  useEffect(
+    () => () => {
+      if (pendingIconUrl) URL.revokeObjectURL(pendingIconUrl)
+    },
+    [pendingIconUrl]
+  )
   const debouncedIcon = useDebouncedValue(draft?.icon ?? "", 400)
-  const preview = draft ? iconPreview(draft, debouncedIcon) : null
-  const previewKey = `${debouncedIcon}|${draft?.iconUrl ?? ""}`
+  const preview = draft ? iconPreview(draft, debouncedIcon, pendingIconUrl) : null
+  const previewKey = `${pendingIconUrl ?? ""}|${debouncedIcon}|${draft?.iconUrl ?? ""}`
   const previewFailed = failedPreview === previewKey
 
   function patch(next: Partial<Draft>) {

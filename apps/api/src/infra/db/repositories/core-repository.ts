@@ -836,7 +836,7 @@ export class SqlCoreRepository implements NamecardRepository {
         return queryAll<PlatformAccountKindRecord>(
             this.database,
             `SELECT id, name, group_key, pattern, base_url, color, icon,
-                    display_order, enabled, uppercase, icon_object_key
+                    display_order, enabled, uppercase, icon_object_key, updated_at
              FROM platform_account_kinds
              ORDER BY display_order, id`
         );
