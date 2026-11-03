@@ -694,23 +694,30 @@ export function formatPlatformValue(
 ): string {
   const input = raw.trim()
   if (!input) return ""
-  // 先在整条输入里定位模板的 `{value}`，再收尾：模板自带 `?user=` 时只有
-  // `&`、`#` 能结束标识符，否则 `?`、`#` 都算参数起点。
+  // 先在整条输入里定位模板：前缀和后缀一起给出值的边界，中间那段就是值，
+  // 不必猜哪些符号是参数。模板对不上时才退回按终结符切。
   const marker = kind.baseUrl?.indexOf("{value}") ?? -1;
   const prefix = marker >= 0 ? kind.baseUrl!.slice(0, marker) : "";
+  const suffix = marker >= 0 ? kind.baseUrl!.slice(marker + "{value}".length) : "";
   const isUrl = /^https?:\/\//i.test(input);
   const bare = stripScheme(input);
   const barePrefix = stripScheme(prefix);
+  const bareSuffix = stripScheme(suffix);
   let value: string;
   if (
     marker >= 0 &&
     barePrefix.length > 0 &&
     bare.toLowerCase().startsWith(barePrefix.toLowerCase())
   ) {
-    value = cutParams(
-      bare.slice(barePrefix.length),
-      prefix.includes("?") ? /[&#]/ : /[?#&]/
-    );
+    const rest = bare.slice(barePrefix.length);
+    const end = bareSuffix
+      ? rest.toLowerCase().lastIndexOf(bareSuffix.toLowerCase())
+      : -1;
+    // 后缀在就算出精确边界；没有后缀（或对不上）才按终结符收尾。
+    value =
+      end >= 0
+        ? rest.slice(0, end)
+        : cutParams(rest, prefix.includes("?") ? /[&#]/ : /[?#&]/);
   } else if (isUrl && barePrefix.length > 0) {
     // 模板对不上时退回最后一段路径，别把 host 也存进去。
     value = cutParams(bare, /[?#]/);

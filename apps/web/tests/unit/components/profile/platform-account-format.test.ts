@@ -51,6 +51,27 @@ describe("platform account values", () => {
     ).toBe("abc")
   })
 
+  it("uses a template suffix as the closing boundary", () => {
+    const bluesky = kind({
+      id: "bluesky",
+      pattern: "^[A-Za-z0-9.-]{1,64}$",
+      baseUrl: "https://bsky.app/profile/{value}.bsky.social",
+    })
+    expect(
+      formatPlatformValue(bluesky, "https://bsky.app/profile/alice.bsky.social")
+    ).toBe("alice")
+    expect(
+      formatPlatformValue(
+        bluesky,
+        "https://bsky.app/profile/alice.bsky.social?ref=feed"
+      )
+    ).toBe("alice")
+    // A custom domain never carries the suffix, so the whole handle survives.
+    expect(
+      formatPlatformValue(bluesky, "https://bsky.app/profile/alice.example.com")
+    ).toBe("alice.example.com")
+  })
+
   it("reads the identifier out of a query-parameter template", () => {
     const example = kind({
       id: "example",

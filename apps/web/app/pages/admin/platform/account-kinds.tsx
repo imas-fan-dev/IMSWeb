@@ -438,25 +438,6 @@ export default function AdminPlatformAccountKindsPage() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="kind-pattern">校验正则</FieldLabel>
-              <Input
-                id="kind-pattern"
-                value={draft?.pattern ?? ""}
-                maxLength={200}
-                placeholder="^[A-Za-z0-9_-]{1,32}$"
-                className="font-mono"
-                aria-invalid={patternIssue ? true : undefined}
-                onChange={(event) => patch({ pattern: event.currentTarget.value })}
-              />
-              {patternIssue ? (
-                <span className="text-xs text-destructive">{patternIssue}</span>
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  用户填写的内容要整段匹配这条正则，例如 ^[A-Z0-9]{8}$
-                </span>
-              )}
-            </Field>
             <Field>
               <FieldLabel htmlFor="kind-order">排序</FieldLabel>
               <Input
@@ -482,6 +463,25 @@ export default function AdminPlatformAccountKindsPage() {
               {templateIssue ? (
                 <span className="text-xs text-destructive">{templateIssue}</span>
               ) : null}
+            </Field>
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="kind-pattern">校验正则</FieldLabel>
+              <Input
+                id="kind-pattern"
+                value={draft?.pattern ?? ""}
+                maxLength={200}
+                placeholder="^[A-Za-z0-9_-]{1,32}$"
+                className="font-mono"
+                aria-invalid={patternIssue ? true : undefined}
+                onChange={(event) => patch({ pattern: event.currentTarget.value })}
+              />
+              {patternIssue ? (
+                <span className="text-xs text-destructive">{patternIssue}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  用户填写的内容要整段匹配这条正则，例如 ^[A-Z0-9]{8}$
+                </span>
+              )}
             </Field>
             <Field>
               <FieldLabel htmlFor="kind-color">品牌色</FieldLabel>
