@@ -9,7 +9,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
-import { platformIconUrl } from "~/components/profile/platform-account-icons"
+import { useDebouncedValue } from "~/lib/use-debounced-value"
 
 import {
   AdminEmptyState,
@@ -71,13 +71,16 @@ interface Draft {
   iconUrl: string
 }
 
-/** 预览取图顺序：已上传 → 图标键对应的站内图 / CDN → 大写首字母。 */
-function iconPreview(draft: Draft): { src: string | null; letter: string } {
+/**
+ * 预览取图顺序：已上传 → 图标键对应的 simple-icons 图 → 大写首字母。
+ * 图标键直接当作 slug 请求，不必等后台收录，所以输入新平台名立刻能看到效果。
+ */
+function iconPreview(draft: Draft, key: string): { src: string | null; letter: string } {
   const letter = (draft.icon || draft.name || "?").charAt(0).toUpperCase()
   if (draft.iconUrl) return { src: draft.iconUrl, letter }
-  const key = draft.icon.trim()
-  if (!key) return { src: null, letter }
-  return { src: platformIconUrl(key, null), letter }
+  const slug = key.trim()
+  if (!slug) return { src: null, letter }
+  return { src: `https://cdn.simpleicons.org/${encodeURIComponent(slug)}`, letter }
 }
 
 function emptyDraft(): Draft {
@@ -144,7 +147,9 @@ export default function AdminPlatformAccountKindsPage() {
 
   // 记录「哪一组图标键 + 上传图」加载失败，换输入自然失效，无需 effect。
   const [failedPreview, setFailedPreview] = useState("")
-  const preview = draft ? iconPreview(draft) : null
+  const [pendingIcon, setPendingIcon] = useState<File | null>(null)
+  const debouncedIcon = useDebouncedValue(draft?.icon ?? "", 400)
+  const preview = draft ? iconPreview(draft, debouncedIcon) : null
   const previewKey = `${draft?.icon ?? ""}|${draft?.iconUrl ?? ""}`
   const previewFailed = failedPreview === previewKey
 
@@ -182,8 +187,20 @@ export default function AdminPlatformAccountKindsPage() {
         enabled: draft.enabled,
       }).send()
       setKinds(next.kinds)
+      const icon = pendingIcon
+      const createdId = draft.id.trim()
+      setPendingIcon(null)
       setDraft(null)
       toast.success(creating ? "平台已添加" : "平台已更新")
+      if (creating && icon) {
+        try {
+          await uploadAdminPlatformAccountKindIcon(createdId, icon).send()
+          toast.success("图标已上传")
+          setReloadToken((token) => token + 1)
+        } catch (error) {
+          toast.error(isApiError(error) ? error.message : "图标上传失败，请重试")
+        }
+      }
     } catch (saveError) {
       toast.error(
         isApiError(saveError) ? saveError.message : "保存失败，请检查填写内容"
@@ -407,44 +424,6 @@ export default function AdminPlatformAccountKindsPage() {
               />
             </Field>
             <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="kind-icon-file">图标文件</FieldLabel>
-              <div className="flex items-center gap-3">
-                {preview?.src && !previewFailed ? (
-                  <img
-                    src={preview.src}
-                    alt=""
-                    className="size-10 rounded-md border object-contain"
-                    onError={() => setFailedPreview(previewKey)}
-                  />
-                ) : (
-                  <span className="flex size-10 items-center justify-center rounded-md border text-sm font-medium text-muted-foreground">
-                    {preview?.letter ?? "—"}
-                  </span>
-                )}
-                <Input
-                  id="kind-icon-file"
-                  type="file"
-                  accept="image/png,image/webp,image/avif,image/gif,image/svg+xml"
-                  disabled={creating || saving}
-                  onChange={(event) => {
-                    const file = event.currentTarget.files?.[0]
-                    event.currentTarget.value = ""
-                    void uploadIcon(file ?? null)
-                  }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                只收带透明通道的 PNG、WebP、AVIF、GIF 或 SVG；重传会直接替换现有文件。没有上传时按图标键取
-                <NavigationLink
-                  href="https://simpleicons.org/"
-                  className="mx-0.5 underline underline-offset-2"
-                >
-                  simple-icons
-                </NavigationLink>
-                的同名图标，再没有就显示大写首字母。
-              </p>
-            </Field>
-            <Field className="sm:col-span-2">
               <FieldLabel htmlFor="kind-base">链接模板</FieldLabel>
               <Input
                 id="kind-base"
@@ -479,32 +458,45 @@ export default function AdminPlatformAccountKindsPage() {
             <Field className="sm:col-span-2">
               <FieldLabel htmlFor="kind-icon-file">图标文件</FieldLabel>
               <div className="flex items-center gap-3">
-                {draft?.iconUrl ? (
+                {preview?.src && !previewFailed ? (
                   <img
-                    src={draft.iconUrl}
+                    src={preview.src}
                     alt=""
                     className="size-10 rounded-md border object-contain"
+                    onError={() => setFailedPreview(previewKey)}
                   />
                 ) : (
-                  <span className="flex size-10 items-center justify-center rounded-md border text-xs text-muted-foreground">
-                    {draft?.icon ?? "—"}
+                  <span className="flex size-10 items-center justify-center rounded-md border text-sm font-medium text-muted-foreground">
+                    {preview?.letter ?? "—"}
                   </span>
                 )}
                 <Input
                   id="kind-icon-file"
                   type="file"
                   accept="image/png,image/webp,image/avif,image/gif,image/svg+xml"
-                  disabled={creating || saving}
+                  disabled={saving}
                   onChange={(event) => {
                     const file = event.currentTarget.files?.[0]
                     event.currentTarget.value = ""
-                    void uploadIcon(file ?? null)
+                    if (!file) return
+                    // 新建时平台行还不存在，先把文件留住，保存成功后再上传。
+                    if (creating) {
+                      setPendingIcon(file)
+                      return
+                    }
+                    void uploadIcon(file)
                   }}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                只收带透明通道的 PNG、WebP、AVIF、GIF 或 SVG；重传会覆盖旧图标。未上传时按图标键回退到站内
-                /brand/platforms 或 simple-icons 的同名图标。
+                只收带透明通道的 PNG、WebP、AVIF、GIF 或 SVG；重传会直接替换现有文件。没有上传时按图标键取
+                <NavigationLink
+                  href="https://simpleicons.org/"
+                  className="mx-0.5 underline underline-offset-2"
+                >
+                  simple-icons
+                </NavigationLink>
+                的同名图标，再没有就显示大写首字母。
               </p>
             </Field>
             <label className="flex items-center gap-2 text-sm">
