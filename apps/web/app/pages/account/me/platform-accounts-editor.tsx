@@ -21,8 +21,9 @@ import {
 } from "~/lib/api"
 
 /** 输入框里提示的是链接模板，而不是正则。 */
+/** 占位符直接给出后台配置的模板，`{value}` 留在原地当提示。 */
 function placeholderFor(kind: PlatformAccountKind): string {
-  if (kind.baseUrl) return kind.baseUrl.replace("{value}", "")
+  if (kind.baseUrl) return kind.baseUrl
   return kind.group === "link" ? "https://" : ""
 }
 
@@ -45,17 +46,8 @@ function errorMessage(error: unknown) {
 function KindIcon({ kind }: { kind: PlatformAccountKind }) {
   if (kind.group === "link")
     return <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-  // 上传的图标自带颜色，按图片显示；单色 CDN 图标才用遮罩。
-  if (kind.iconUrl)
-    return (
-      <img
-        src={kind.iconUrl}
-        alt=""
-        aria-hidden="true"
-        className="size-4 shrink-0 object-contain"
-      />
-    )
-  const url = platformIconUrl(kind.icon, null)
+  // 图标只收带透明通道的文件，所以一律当单色遮罩用，颜色由品牌色提供。
+  const url = platformIconUrl(kind.icon, kind.iconUrl)
   if (url)
     return (
       <span

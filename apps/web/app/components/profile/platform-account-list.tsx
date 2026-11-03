@@ -16,20 +16,11 @@ const GROUPS = [
 ] as const
 
 /**
- * 后台为平台上传的图标是完整图片，直接铺上去保留它自己的颜色；
- * 只有单色 CDN 图标才用遮罩，白色由 background-color 提供。
+ * 图标只收带透明通道的文件，所以一律当单色遮罩用，白色由 background-color
+ * 提供；上传的图与 CDN 的图走同一条渲染路径。
  */
 function PlatformMark({ account }: { account: PlatformAccountLink }) {
-  if (account.iconUrl)
-    return (
-      <img
-        src={account.iconUrl}
-        alt=""
-        aria-hidden="true"
-        className="size-3.5 shrink-0 object-contain"
-      />
-    )
-  const url = platformIconUrl(account.icon, null) ?? undefined
+  const url = platformIconUrl(account.icon, account.iconUrl) ?? undefined
   if (!url) return null
   return (
     <span

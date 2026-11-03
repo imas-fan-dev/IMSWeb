@@ -692,25 +692,50 @@ export function formatPlatformValue(
   kind: PlatformAccountFormat,
   raw: string
 ): string {
-  let value = raw.trim()
-  if (!value) return ""
-  // A template may carry its own `?user=`; then only `&` and `#` end the id.
-  const cut = value.search(kind.baseUrl?.includes("?") ? /[&#]/ : /[?#]/)
-  if (cut >= 0) value = value.slice(0, cut)
-  if (/^https?:\/\//i.test(value)) {
-    value = value.replace(/\/+$/, "")
-    if (kind.baseUrl) {
-      const prefix = kind.baseUrl.replace("{value}", "")
-      value = value.toLowerCase().startsWith(prefix.toLowerCase())
-        ? value.slice(prefix.length)
-        : value.slice(value.lastIndexOf("/") + 1)
-    }
+  const input = raw.trim()
+  if (!input) return ""
+  // 先在整条输入里定位模板的 `{value}`，再收尾：模板自带 `?user=` 时只有
+  // `&`、`#` 能结束标识符，否则 `?`、`#` 都算参数起点。
+  const marker = kind.baseUrl?.indexOf("{value}") ?? -1;
+  const prefix = marker >= 0 ? kind.baseUrl!.slice(0, marker) : "";
+  const isUrl = /^https?:\/\//i.test(input);
+  const bare = stripScheme(input);
+  const barePrefix = stripScheme(prefix);
+  let value: string;
+  if (
+    marker >= 0 &&
+    barePrefix.length > 0 &&
+    bare.toLowerCase().startsWith(barePrefix.toLowerCase())
+  ) {
+    value = cutParams(
+      bare.slice(barePrefix.length),
+      prefix.includes("?") ? /[&#]/ : /[?#&]/
+    );
+  } else if (isUrl && barePrefix.length > 0) {
+    // 模板对不上时退回最后一段路径，别把 host 也存进去。
+    value = cutParams(bare, /[?#]/);
+    value = value.slice(value.lastIndexOf("/") + 1);
+  } else {
+    // 没有模板（外链类）时整条输入就是值，协议要留着。
+    value = cutParams(input, /[?#]/);
   }
-  value = decodeOnce(value)
-  if (kind.uppercase) return value.toUpperCase()
+  if (isUrl) value = value.replace(/\/+$/, "");
+  value = decodeOnce(value);
+  if (kind.uppercase) return value.toUpperCase();
   // A pattern that never allows capitals names a lower-case-only namespace
   // (GitHub handles), so the editor folds the input for the visitor.
-  return /A-Z/.test(kind.pattern) ? value : value.toLowerCase()
+  return /A-Z/.test(kind.pattern) ? value : value.toLowerCase();
+}
+
+/** 比较模板时忽略协议与末尾斜杠，`https://x.com/u` 与 `x.com/u` 等价。 */
+function stripScheme(value: string): string {
+  return value.replace(/^https?:\/\//i, "");
+}
+
+/** 参数在哪里结束取决于位置：`{value}` 落在 query 里时只有 `&`、`#` 能结束它。 */
+function cutParams(value: string, terminator: RegExp): string {
+  const cut = value.search(terminator);
+  return cut >= 0 ? value.slice(0, cut) : value;
 }
 
 /** Canonical storage form: YouTube handles are stored percent-encoded. */
@@ -776,11 +801,35 @@ export const platformAccountRemovalSchema = exactJsonResponse({
 })
 
 /** The backoffice edits the catalogue itself, so every field is writable. */
+/** 后台填的正则要能直接编译，否则名片编辑器永远判定格式不符。 */
+function isUsableRegExp(pattern: string): boolean {
+  try {
+    new RegExp(pattern, "u");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const platformAccountKindRequestSchema = strictRequestObject({
   name: z.string().trim().min(1).max(40),
   group: z.enum(["game", "social", "showcase", "game-platform", "link"]),
-  pattern: z.string().trim().min(1).max(200),
-  baseUrl: z.string().trim().min(1).max(200).nullable(),
+  pattern: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .refine(isUsableRegExp, "校验正则无效"),
+  baseUrl: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .nullable()
+    .refine(
+      (value) => value === null || value.includes("{value}"),
+      "链接模板必须包含 {value}"
+    ),
   color: z
     .string()
     .trim()

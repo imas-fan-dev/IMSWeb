@@ -37,6 +37,30 @@ describe("platform account values", () => {
     ).toBe("abc")
   })
 
+  it("matches the template path before cutting what follows it", () => {
+    const namemc = kind({
+      id: "namemc",
+      baseUrl: "https://namemc.com/profile/{value}?tab=skin",
+    })
+    // The pasted link repeats the template's own query; it must not leak in.
+    expect(
+      formatPlatformValue(namemc, "https://namemc.com/profile/abc?tab=skin")
+    ).toBe("abc")
+    expect(
+      formatPlatformValue(namemc, "https://namemc.com/profile/abc&extra=1")
+    ).toBe("abc")
+  })
+
+  it("reads the identifier out of a query-parameter template", () => {
+    const example = kind({
+      id: "example",
+      baseUrl: "https://example.com/?user={value}",
+    })
+    expect(
+      formatPlatformValue(example, "https://example.com/?user=bob&ref=1")
+    ).toBe("bob")
+  })
+
   it("upper-cases the game handles that are stored in capitals", () => {
     expect(
       formatPlatformValue(

@@ -90,6 +90,25 @@ function iconPreview(
   return { src: `https://cdn.simpleicons.org/${encodeURIComponent(slug)}`, letter }
 }
 
+/** 后台填的正则要能编译，否则名片编辑器会把它当成永远不匹配。 */
+function patternError(pattern: string): string | null {
+  const trimmed = pattern.trim()
+  if (!trimmed) return "请填写校验正则"
+  try {
+    new RegExp(trimmed, "u")
+    return null
+  } catch {
+    return "正则表达式无效"
+  }
+}
+
+/** 链接模板必须留一个 `{value}`，否则拼不出可点的地址。 */
+function templateError(baseUrl: string): string | null {
+  const trimmed = baseUrl.trim()
+  if (!trimmed) return null
+  return trimmed.includes("{value}") ? null : "链接模板必须包含 {value}"
+}
+
 function emptyDraft(): Draft {
   return {
     id: "",
@@ -170,13 +189,16 @@ export default function AdminPlatformAccountKindsPage() {
   const preview = draft ? iconPreview(draft, debouncedIcon, pendingIconUrl) : null
   const previewKey = `${pendingIconUrl ?? ""}|${debouncedIcon}|${draft?.iconUrl ?? ""}`
   const previewFailed = failedPreview === previewKey
+  const patternIssue = draft ? patternError(draft.pattern) : null
+  const templateIssue = draft ? templateError(draft.baseUrl) : null
+  const blocked = Boolean(patternIssue || templateIssue)
 
   function patch(next: Partial<Draft>) {
     setDraft((current) => (current ? { ...current, ...next } : current))
   }
 
   async function save() {
-    if (!draft || saving) return
+    if (!draft || saving || blocked) return
     setSaving(true)
     try {
       const next = await saveAdminPlatformAccountKind(draft.id.trim(), {
@@ -416,6 +438,25 @@ export default function AdminPlatformAccountKindsPage() {
                 </SelectContent>
               </Select>
             </Field>
+            <Field className="sm:col-span-2">
+              <FieldLabel htmlFor="kind-pattern">校验正则</FieldLabel>
+              <Input
+                id="kind-pattern"
+                value={draft?.pattern ?? ""}
+                maxLength={200}
+                placeholder="^[A-Za-z0-9_-]{1,32}$"
+                className="font-mono"
+                aria-invalid={patternIssue ? true : undefined}
+                onChange={(event) => patch({ pattern: event.currentTarget.value })}
+              />
+              {patternIssue ? (
+                <span className="text-xs text-destructive">{patternIssue}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  用户填写的内容要整段匹配这条正则，例如 ^[A-Z0-9]{8}$
+                </span>
+              )}
+            </Field>
             <Field>
               <FieldLabel htmlFor="kind-order">排序</FieldLabel>
               <Input
@@ -435,8 +476,12 @@ export default function AdminPlatformAccountKindsPage() {
                 maxLength={200}
                 placeholder="https://example.com/{value}"
                 className="font-mono"
+                aria-invalid={templateIssue ? true : undefined}
                 onChange={(event) => patch({ baseUrl: event.currentTarget.value })}
               />
+              {templateIssue ? (
+                <span className="text-xs text-destructive">{templateIssue}</span>
+              ) : null}
             </Field>
             <Field>
               <FieldLabel htmlFor="kind-color">品牌色</FieldLabel>
@@ -532,7 +577,11 @@ export default function AdminPlatformAccountKindsPage() {
             <Button type="button" variant="outline" onClick={() => setDraft(null)}>
               取消
             </Button>
-            <Button type="button" disabled={saving} onClick={() => void save()}>
+            <Button
+              type="button"
+              disabled={saving || blocked}
+              onClick={() => void save()}
+            >
               {saving ? "正在保存" : "保存"}
             </Button>
           </DialogFooter>
