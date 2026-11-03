@@ -1,5 +1,6 @@
 import { mockWallScene } from "./fixtures/wall-scene"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installSeededPublicApis } from "./fixtures/public-content"
 import { expect, test } from "./fixtures/test"
 test("loads the complete wall observation area and replaces distant content without paging @mobile", async ({
   page,
@@ -7,6 +8,13 @@ test("loads the complete wall observation area and replaces distant content with
   isMobile,
 }, testInfo) => {
   installEmptyWikiCatalogMock(api)
+  const backgroundTimes = testInfo.project.name.startsWith("app-")
+    ? 0
+    : { min: 1, max: 8 }
+  installSeededPublicApis(api, [
+    { path: "/api/community/exchange/offices", times: backgroundTimes },
+    { path: "/api/community/exchange/cards", times: backgroundTimes },
+  ])
   await page.addInitScript(() =>
     localStorage.setItem("imsweb.language", "zh-CN")
   )

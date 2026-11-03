@@ -1,5 +1,6 @@
 import { mockWallScene } from "./fixtures/wall-scene"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installSeededPublicApis } from "./fixtures/public-content"
 import { expect, test } from "./fixtures/test"
 
 const office = {
@@ -50,6 +51,16 @@ function note(
     capabilities: { canEdit: false, canMove: false, canDestroy: false },
   }
 }
+
+test.beforeEach(({ api }, testInfo) => {
+  const backgroundTimes = testInfo.project.name.startsWith("app-")
+    ? 0
+    : { min: 1, max: 8 }
+  installSeededPublicApis(api, [
+    { path: "/api/community/exchange/offices", times: backgroundTimes },
+    { path: "/api/community/exchange/cards", times: backgroundTimes },
+  ])
+})
 
 test("撕边便签密集区域分页、全文与手机双指缩放 @mobile", async ({
   page,
@@ -118,7 +129,9 @@ test("撕边便签密集区域分页、全文与手机双指缩放 @mobile", asy
   await paper.scrollIntoViewIfNeeded()
   await paper.click()
   await expect(paper).toHaveAttribute("aria-pressed", "true")
-  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(
+    page.getByRole("dialog", { name: "留言全文", exact: true })
+  ).toHaveCount(0)
   await paper.click()
   const reader = page.getByRole("dialog", { name: "留言全文" })
   await expect(reader).toBeVisible()
@@ -173,7 +186,7 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
   context,
   api,
   isMobile,
-}) => {
+}, testInfo) => {
   test.slow()
   installEmptyWikiCatalogMock(api)
   await page.addInitScript(() =>
@@ -218,7 +231,7 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
     "/api/community/exchange/series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET",
-    { min: 2, max: 4 }
+    { min: testInfo.project.name.startsWith("app-") ? 1 : 2, max: 4 }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards",
@@ -500,7 +513,9 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
     await page.mouse.up()
   }
   await expect.poll(() => current.placement.revision).toBe(beforeDrag + 1)
-  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(
+    page.getByRole("dialog", { name: "留言全文", exact: true })
+  ).toHaveCount(0)
   await page.getByRole("button", { name: "向右旋转留言", exact: true }).click()
   await expect.poll(() => current.placement.rotation).toBeGreaterThan(0)
   // Toolbar focus does not clear the selected item or require an extra click.

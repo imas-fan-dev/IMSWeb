@@ -408,8 +408,7 @@ test.describe("community exchange", () => {
   })
   test("keeps boundary card placements inside the visible wall @mobile", async ({
     page,
-  }, testInfo) => {
-    const isApp = testInfo.project.name.startsWith("app-")
+  }) => {
     await api.mockRoute(
       "**/api/community/exchange/offices/shanghai-weekend/wall?*",
       async (route) => {
@@ -530,7 +529,7 @@ test.describe("community exchange", () => {
         })
       },
       "GET",
-      isApp ? 1 : { min: 2, max: 12 }
+      { min: 2, max: 12 }
     )
     for (const cardId of ["card-north-west", "card-south-east"]) {
       await api.mockRoute(

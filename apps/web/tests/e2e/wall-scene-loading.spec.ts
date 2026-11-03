@@ -3,6 +3,7 @@ import type {
   FudabaWallLayoutItem,
 } from "@imsweb/contracts/fudaba/messages"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installSeededPublicApis } from "./fixtures/public-content"
 import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import { sceneImageBase64, sceneTinyPreview } from "./fixtures/scene-image"
 import { expect, test } from "./fixtures/test"
@@ -48,9 +49,16 @@ test("全墙1000占位、远处逐物件加载、定位选择与动态便签 @mo
   context,
   api,
   isMobile,
-}) => {
+}, testInfo) => {
   test.setTimeout(60000)
   installEmptyWikiCatalogMock(api)
+  const backgroundTimes = testInfo.project.name.startsWith("app-")
+    ? 0
+    : { min: 1, max: 8 }
+  installSeededPublicApis(api, [
+    { path: "/api/community/exchange/offices", times: backgroundTimes },
+    { path: "/api/community/exchange/cards", times: backgroundTimes },
+  ])
   await page.addInitScript(() =>
     localStorage.setItem("imsweb.language", "zh-CN")
   )
