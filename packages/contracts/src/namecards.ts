@@ -179,6 +179,8 @@ export const platformAccountLinkSchema = exactJsonResponse({
   url: z.string().min(1).nullable(),
   color: z.string().min(1).nullable(),
   icon: z.string().min(1).nullable(),
+  /** The mark uploaded in the backoffice, when there is one. */
+  iconUrl: z.string().min(1).nullable(),
 })
 
 export type PlatformAccountLink = z.infer<typeof platformAccountLinkSchema>
@@ -657,6 +659,8 @@ export const platformAccountKindSchema = exactJsonResponse({
   baseUrl: z.string().min(1).nullable(),
   color: z.string().min(4).max(9).nullable(),
   icon: z.string().min(1).max(40).nullable(),
+  /** An uploaded mark wins over the icon key's default. */
+  iconUrl: z.string().min(1).nullable(),
   displayOrder: z.number().int().nonnegative(),
   enabled: z.boolean(),
   uppercase: z.boolean(),

@@ -764,7 +764,8 @@ export class SqlCoreRepository implements NamecardRepository {
         return queryAll<PlatformAccountLinkRecord>(
             this.database,
             `SELECT entry.kind_id, kind.name, kind.group_key, entry.value,
-                    entry.username, kind.base_url, kind.color, kind.icon
+                    entry.username, kind.base_url, kind.color, kind.icon,
+                    kind.icon_object_key
              FROM platform_account_entries entry
              JOIN platform_account_kinds kind ON kind.id = entry.kind_id
              WHERE entry.account_id = ? AND kind.enabled

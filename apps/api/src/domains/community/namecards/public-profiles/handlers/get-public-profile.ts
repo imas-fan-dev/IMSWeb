@@ -1,6 +1,7 @@
 import type { AppEnvironment } from "@/app";
 import { platformProfileView } from "@/domains/identity/platform-profile/profile-view";
 import { services } from "@/middleware/hono-context";
+import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
 import type { ValidatedRequestContext } from "@/middleware/request-validation";
 import type { Context } from "hono";
 import type { PublicProfileResponse } from "@/domains/community/namecards/response";
@@ -35,7 +36,15 @@ export async function handleGetPublicProfile(
         },
         services(c).storage,
     );
+    const storage = services(c).storage;
     const links = await repository.listPlatformAccountLinks(profile.account_id);
+    const iconUrls = await Promise.all(
+        links.map((link) =>
+            link.icon_object_key && storage
+                ? resolvePublicObjectUrl(storage, link.icon_object_key, "")
+                : Promise.resolve(null)
+        )
+    );
     const body: PublicProfileResponse = {
         accountId: profile.account_id,
         uid: profile.uid,
@@ -44,7 +53,7 @@ export async function handleGetPublicProfile(
         avatarUrl: view.avatarUrl,
         homeCity: profile.home_city,
         bio: profile.bio,
-        accounts: links.map((link) => ({
+        accounts: links.map((link, index) => ({
             kindId: link.kind_id,
             name: link.name,
             group: link.group_key,
@@ -55,6 +64,7 @@ export async function handleGetPublicProfile(
                 : null,
             color: link.color,
             icon: link.icon,
+            iconUrl: iconUrls[index] ?? null,
         })),
     };
     return c.json(body);

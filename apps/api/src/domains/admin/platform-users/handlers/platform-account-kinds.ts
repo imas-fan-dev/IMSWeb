@@ -2,6 +2,7 @@ import type { PlatformAccountKindList } from '@imsweb/contracts/namecards';
 import type { AppEnvironment } from '@/app';
 import type { PlatformAccountKindRecord } from '@/ports/repositories/namecards';
 import { services } from '@/middleware/hono-context';
+import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import type { Context } from 'hono';
 
@@ -18,7 +19,10 @@ export interface PlatformAccountKindBody {
     uppercase?: boolean;
 }
 
-function toKindView(record: PlatformAccountKindRecord) {
+function toKindView(
+    record: PlatformAccountKindRecord,
+    iconUrl: string | null
+) {
     return {
         id: record.id,
         name: record.name,
@@ -27,10 +31,26 @@ function toKindView(record: PlatformAccountKindRecord) {
         baseUrl: record.base_url,
         color: record.color,
         icon: record.icon,
+        iconUrl,
         displayOrder: record.display_order,
         enabled: record.enabled,
         uppercase: record.uppercase
     };
+}
+
+/** 上传的图标优先于图标键，缺图时由前端回退到站内或 CDN。 */
+async function kindIconUrls(
+    c: Context<AppEnvironment>,
+    kinds: PlatformAccountKindRecord[]
+): Promise<(string | null)[]> {
+    const storage = services(c).storage;
+    return await Promise.all(
+        kinds.map((kind) =>
+            kind.icon_object_key && storage
+                ? resolvePublicObjectUrl(storage, kind.icon_object_key, '')
+                : Promise.resolve(null)
+        )
+    );
 }
 
 /** The catalogue every producer form is generated from. */
@@ -38,7 +58,10 @@ export async function handleListPlatformAccountKinds(
     c: Context<AppEnvironment>
 ): Promise<Response> {
     const kinds = await services(c).namecards!.listPlatformAccountKinds();
-    return c.json({ kinds: kinds.map(toKindView) } satisfies PlatformAccountKindList);
+    const urls = await kindIconUrls(c, kinds);
+    return c.json({
+        kinds: kinds.map((kind, index) => toKindView(kind, urls[index] ?? null))
+    } satisfies PlatformAccountKindList);
 }
 
 export async function handleUpsertPlatformAccountKind(
@@ -67,7 +90,10 @@ export async function handleUpsertPlatformAccountKind(
         icon_object_key: existing?.icon_object_key ?? null
     });
     const kinds = await services(c).namecards!.listPlatformAccountKinds();
-    return c.json({ kinds: kinds.map(toKindView) } satisfies PlatformAccountKindList);
+    const urls = await kindIconUrls(c, kinds);
+    return c.json({
+        kinds: kinds.map((kind, index) => toKindView(kind, urls[index] ?? null))
+    } satisfies PlatformAccountKindList);
 }
 
 export async function handleDeletePlatformAccountKind(

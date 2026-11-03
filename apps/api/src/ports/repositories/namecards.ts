@@ -294,7 +294,7 @@ export interface PublicProfileRecord {
 export interface PlatformAccountLinkRecord {
     kind_id: string;
     name: string;
-    group_key: "game" | "social" | "showcase" | "link";
+    group_key: "game" | "social" | "showcase" | "link" | "game-platform";
     value: string;
     username: string | null;
     base_url: string | null;

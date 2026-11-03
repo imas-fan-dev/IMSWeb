@@ -3,7 +3,7 @@ import { toast } from "sonner"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import type { PlatformAccountLink } from "~/lib/api"
-import { PLATFORM_ICON_URLS } from "./platform-account-icons"
+import { platformIconUrl } from "./platform-account-icons"
 
 /** 后端区分五类，公开页只把它们并成「游戏 ID」与「平台账号」两块。 */
 const GROUPS = [
@@ -17,7 +17,8 @@ const GROUPS = [
 
 /** 单色图标用遮罩上色，白色由 background-color 提供。 */
 function PlatformMark({ account }: { account: PlatformAccountLink }) {
-  const url = account.icon ? PLATFORM_ICON_URLS[account.icon] : undefined
+  // 后台为平台上传的图标优先于图标键的默认图。
+  const url = platformIconUrl(account.icon, account.iconUrl) ?? undefined
   if (!url) return null
   return (
     <span

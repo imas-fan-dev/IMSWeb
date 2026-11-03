@@ -35,6 +35,7 @@ export async function handleListMyPlatformAccounts(
             baseUrl: kind.base_url,
             color: kind.color,
             icon: kind.icon,
+            iconUrl: null,
             displayOrder: kind.display_order,
             enabled: kind.enabled,
             uppercase: kind.uppercase,
