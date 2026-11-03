@@ -79,6 +79,10 @@ const SPA_ROUTE_CASES = {
         positive: ['/account/me/profile', '/account/me/namecards/', '/account/me/offices'],
         negative: ['/account/me/namecards/extra', '/account/me/one%2Ftwo']
     },
+    'user/:accountId': {
+        positive: ['/user/1', '/user/zheizhei/', '/user/34c6de2a-95a4-4c2f-8a9d-278a8a960df4'],
+        negative: ['/user/one/two', '/user/one%2Ftwo']
+    },
     'community/exchange/offices/:officeSlug': {
         positive: [
             '/community/exchange/offices/shanghai-weekend',

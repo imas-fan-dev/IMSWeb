@@ -1,5 +1,4 @@
 import { screen, waitFor, within } from "@testing-library/react"
-import { useParams } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type {
