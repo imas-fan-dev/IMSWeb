@@ -4,7 +4,9 @@ use tauri::{
     AppHandle, Runtime,
 };
 
-use crate::models::{ConfigureOptions, NativeGlassStatus, SetControlsArgs, UpdateOptions};
+use crate::models::{
+    BackPolicyArgs, ConfigureOptions, NativeGlassStatus, SetControlsArgs, UpdateOptions,
+};
 
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_native_glass);
@@ -71,6 +73,39 @@ impl<R: Runtime> NativeGlass<R> {
         self.0
             .run_mobile_plugin("setControls", args)
             .map_err(Into::into)
+    }
+
+    pub fn set_back_policy(&self, args: BackPolicyArgs) -> crate::Result<NativeGlassStatus> {
+        #[cfg(target_os = "android")]
+        {
+            let _ = args;
+            Ok(NativeGlassStatus {
+                reason: Some("ios-only".into()),
+                supported: false,
+            })
+        }
+        #[cfg(target_os = "ios")]
+        {
+            self.0
+                .run_mobile_plugin("setBackPolicy", args)
+                .map_err(Into::into)
+        }
+    }
+
+    pub fn background_task(&self) -> crate::Result<NativeGlassStatus> {
+        #[cfg(target_os = "ios")]
+        {
+            Ok(NativeGlassStatus {
+                reason: Some("android-only".into()),
+                supported: false,
+            })
+        }
+        #[cfg(target_os = "android")]
+        {
+            self.0
+                .run_mobile_plugin("backgroundTask", ())
+                .map_err(Into::into)
+        }
     }
 
     pub fn destroy(&self) -> crate::Result<()> {

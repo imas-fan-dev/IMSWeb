@@ -106,8 +106,8 @@ test.describe("app navigation", () => {
         reactionWrites: 0,
       })
       installSeededPublicApis(api, [
-        { path: "/api/community/content", times: 1 },
-        { path: "/api/community/exchange/series", times: 1 },
+        { path: "/api/community/content", times: { min: 1, max: 4 } },
+        { path: "/api/community/exchange/series", times: { min: 1, max: 4 } },
       ])
       await page.goto(cardsUrl)
       const top = await readCards(page)
@@ -564,16 +564,57 @@ test.describe("app navigation", () => {
     async ({ page, api }) => {
       installAppResourcesMocks(api)
       await page.goto("/apps")
+      const entries = await page.evaluate(() => history.length)
       await nav(page).getByRole("link", { name: "我的", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
       // A tab root ends the page tree, so the header renders no back control.
       await expect(
         page.getByRole("button", { name: "返回", exact: true })
       ).toHaveCount(0)
-      // The browser/native POP is not corrected on a root, so it still replays
-      // session history to the previous tab.
-      await page.goBack()
-      await expect(page).toHaveURL(/\/apps$/)
+      // The root is a hard boundary. Tab activation projects the stack top into
+      // the existing entry, so it never appends the abandoned page.
+      expect(await page.evaluate(() => history.length)).toBe(entries)
+      await expect(
+        page.getByRole("heading", { name: "我的", exact: true, level: 1 })
+      ).toBeVisible()
+    }
+  )
+
+  test(
+    "keeps a reselected tab at its root after deeper visits",
+    { tag: "@app-webkit" },
+    async ({ page, api }) => {
+      await mockNamecardBrowsing(page, api, 36, undefined, {
+        cards: 1,
+        reactionReads: 12,
+        reactionWrites: 0,
+      })
+      installSeededPublicApis(api, [
+        { path: "/api/community/content", times: { min: 1, max: 4 } },
+        { path: "/api/community/exchange/series", times: { min: 1, max: 4 } },
+      ])
+      await page.goto("/community")
+      await page.locator('a[href="/community/cards"]').first().click()
+      await expect(page).toHaveURL(/\/community\/cards/)
+      const afterDetail = await page.evaluate(() => history.length)
+      // Reselecting the active tab returns to the root that is already in this
+      // tab instead of appending a second root above the detail page.
+      await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+      await expect(page).toHaveURL(/\/community$/)
+      await expect(page.locator("[data-app-shell]")).toBeVisible()
+      await expect(
+        page.getByRole("button", { name: "返回", exact: true })
+      ).toHaveCount(0)
+      // The abandoned detail page is gone from history, not hidden below the
+      // root: the entry count stays where the detail page left it.
+      expect(await page.evaluate(() => history.length)).toBe(afterDetail)
+      // A second reselect is a plain scroll reset and adds nothing either.
+      await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+      expect(await page.evaluate(() => history.length)).toBe(afterDetail)
+      await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+      expect(await page.evaluate(() => history.length)).toBe(afterDetail)
+      await expect(page.locator("[data-app-shell]")).toBeVisible()
     }
   )
 
@@ -593,12 +634,18 @@ test.describe("app navigation", () => {
       await expect(page).toHaveURL(/\/apps$/)
       await nav(page).getByRole("link", { name: "我的", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me\/namecards$/)
-      await page.goBack()
+      // The restored section is still one level above the account root, so the
+      // header control returns there without using WebView history.
+      await page.getByRole("button", { name: "返回", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
-      // The correction is a push, so the next native pop still reaches the tab
-      // below instead of bouncing back to the section.
-      await page.goBack()
-      await expect(page).toHaveURL(/\/apps$/)
+      // At the root the control disappears and the browser entry is the only
+      // one, so nothing can traverse back into the restored section.
+      await expect(
+        page.getByRole("button", { name: "返回", exact: true })
+      ).toHaveCount(0)
+      await expect(
+        page.getByRole("heading", { name: "我的", exact: true, level: 1 })
+      ).toBeVisible()
     }
   )
 })

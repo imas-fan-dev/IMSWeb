@@ -3,13 +3,18 @@ import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateApp, buildAppCoverage, appMarkdown } from "./app-report-model.mjs";
+import { appReportHtml } from "./app-report-html.mjs";
+import { evidenceGallery } from "./evidence-gallery.mjs";
+import { validateWeb, buildWebCoverage, webMarkdown } from "./web-report-model.mjs";
+import { parseJSON } from './native-capture.mjs';
 
-const renderers = ["web", "app-dom", "ios-native", "android-native"];
+const renderers = ["web", "web-desktop", "web-mobile", "app-dom", "ios-native", "android-native"];
 const verdicts = ["PASS", "REWORK", "BLOCKED", "UNRUN"];
 const reviews = ["PASS", "REWORK", "NOT_REVIEWED"];
 const kinds = ["runtime", "diagnostic", "reference"];
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const escape = (value) =>
+const escapeHtml = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
     (char) =>
@@ -67,37 +72,37 @@ function summarize(cases) {
   };
 }
 
-function gallery(title, cases, images, summary) {
-  const filters = ["renderer", "state", "kind", "review"];
-  const select = filters
-    .map(
-      (field) =>
-        `<label>${field} <select data-filter="${field}"><option value="">全部</option>${[...new Set(images.map((image) => image[field]))].map((value) => `<option>${escape(value)}</option>`).join("")}</select></label>`,
-    )
-    .join("");
-  const figures = images
-    .map(
-      (
-        image,
-      ) => `<figure ${filters.map((field) => `data-${field}="${escape(image[field])}"`).join(" ")}>
-    <button class="enlarge" aria-label="放大 ${escape(image.title)}"><img loading="lazy" src="data:image/png;base64,${image.base64}" alt="${escape(image.title)}"></button>
-    <figcaption><strong>${escape(image.title)}</strong><p>${escape(image.renderer)} · ${escape(image.state)} · ${escape(image.kind)} · 审图 ${escape(image.review)}</p><p>${escape(image.note)}</p><small>${image.width} × ${image.height} · ${image.sha256}</small><p><a download="${image.id}.png" href="data:image/png;base64,${image.base64}">下载原图</a></p></figcaption></figure>`,
-    )
-    .join("");
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)}</title>
-    <style>*{box-sizing:border-box}body{margin:0;padding:24px;background:#edf1f5;color:#243142;font:15px system-ui,sans-serif}h1{font-size:26px}p{line-height:1.5;overflow-wrap:anywhere}header,section{max-width:1480px;margin:auto}fieldset{display:flex;flex-wrap:wrap;gap:16px;border:0;padding:16px 0}select{max-width:100%;padding:8px}table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px solid #ccd5df;padding:10px;text-align:left;overflow-wrap:anywhere}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:20px;margin-top:24px}figure{margin:0;padding:14px;border-radius:12px;background:white;min-width:0}figure[hidden]{display:none}.enlarge{display:block;border:0;background:#f4f8fa;width:100%;cursor:zoom-in;padding:0}.enlarge img{display:block;width:100%;height:500px;object-fit:contain}figcaption{padding-top:14px}small{display:block;overflow-wrap:anywhere;color:#536578}dialog{border:0;padding:10px;max-width:96vw;max-height:96vh;border-radius:12px}dialog::backdrop{background:#101c2de0}dialog img{display:block;max-width:90vw;max-height:85vh}#close{margin-bottom:8px}a{color:#285775}@media(max-width:500px){body{padding:14px}h1{font-size:22px}td,th{padding:6px;font-size:11px}}</style>
-    <header><h1>${escape(title)}</h1><p>清单内必需用例：${summary.declaredRequiredVerdict}。仅汇总声明的范围；图片数量不代表测试覆盖，命令通过不代表已审图。</p><p>必需 ${escape(JSON.stringify(summary.required))}；补测 ${escape(JSON.stringify(summary.supplemental))}</p><table><thead><tr><th>用例 / renderer</th><th>验收 / 退出码</th><th>范围 / 回执</th></tr></thead><tbody>${cases.map((item) => `<tr><td>${escape(item.title)}<br>${escape(item.renderer)}</td><td>${escape(item.verdict)} / ${escape(item.exitCode ?? "未知")}<br>${item.required === false ? "补测" : "必需"}</td><td>${escape(item.reason)}<br>${escape(item.command)}${item.receiptCopy ? `<br><a href="${item.receiptCopy}">命令回执</a>` : ""}</td></tr>`).join("")}</tbody></table><fieldset>${select}</fieldset><p id="count" aria-live="polite"></p></header>
-    <section>${figures}</section><dialog><button id="close">关闭</button><img alt=""></dialog>
-    <script>const figures=[...document.querySelectorAll('figure')],filters=[...document.querySelectorAll('[data-filter]')],count=document.querySelector('#count');function filter(){let visible=0;for(const figure of figures){figure.hidden=filters.some(input=>input.value&&figure.dataset[input.dataset.filter]!==input.value);if(!figure.hidden)visible++}count.textContent='显示 '+visible+' / '+figures.length+' 张原图'}filters.forEach(input=>input.addEventListener('change',filter));filter();const dialog=document.querySelector('dialog'),large=dialog.querySelector('img');document.querySelectorAll('.enlarge').forEach(button=>button.addEventListener('click',()=>{large.src=button.querySelector('img').src;large.alt=button.querySelector('img').alt;dialog.showModal()}));document.querySelector('#close').addEventListener('click',()=>dialog.close());</script></html>`;
+async function reportInput(manifestPath) {
+  if (!Array.isArray(manifestPath)) {
+    const input = await fs.readFile(manifestPath);
+    return { input, manifest: parseJSON(input, 'Report manifest'), directory: path.dirname(path.resolve(manifestPath)), inputs: [] };
+  }
+  check(manifestPath.length === 2, 'Combined report requires one App and one Web manifest');
+  const manifest = { title: 'IMSWeb 页面验收', cases: [], screenshots: [], inputs: [] }, inputs = [];
+  for (const file of manifestPath) {
+    const bytes = await fs.readFile(file), source = parseJSON(bytes, 'Report manifest');
+    check(Boolean(source.app) !== Boolean(source.web), 'Each input must contain exactly one App or Web inventory');
+    check(Array.isArray(source.cases) && Array.isArray(source.screenshots), 'cases and screenshots arrays required');
+    const scope = source.app ? 'app' : 'web', base = path.dirname(path.resolve(file));
+    check(!manifest[scope], `Duplicate ${scope} manifest`);
+    manifest[scope] = structuredClone(source[scope]);
+    for (const run of manifest[scope].runs) if (run.binding) run.binding = path.resolve(base, run.binding);
+    for (const item of source.cases) manifest.cases.push({ ...item, scope, ...(item.receipt ? { receipt: path.resolve(base, item.receipt) } : {}) });
+    for (const image of source.screenshots) manifest.screenshots.push({ ...image, scope, path: path.resolve(base, image.path) });
+    manifest.inputs.push({ scope, source: path.resolve(file), sha256: sha(bytes), copy: `receipts/input-${scope}.json` });
+    inputs.push({ source: path.resolve(file), copy: `receipts/input-${scope}.json`, bytes, sha256: sha(bytes) });
+  }
+  return { input: Buffer.from(JSON.stringify(manifest, null, 2) + '\n'), manifest, directory: process.cwd(), inputs };
 }
 
 export async function buildReport({
   manifestPath,
   outputDir,
   overview = false,
+  assetMode = "embedded",
 }) {
-  const input = await fs.readFile(manifestPath);
-  const manifest = JSON.parse(input.toString("utf8"));
+  check(["embedded", "directory"].includes(assetMode), "assetMode must be embedded or directory");
+  const { input, manifest, directory, inputs } = await reportInput(manifestPath);
   check(
     manifest &&
       Array.isArray(manifest.cases) &&
@@ -111,9 +116,15 @@ export async function buildReport({
   identify(manifest.cases, "cases");
   identify(manifest.screenshots, "screenshots");
   const cases = manifest.cases.map((item) => ({ ...item }));
-  const directory = path.dirname(path.resolve(manifestPath));
-  const receipts = [];
+  const receipts = [...inputs];
+  const combined = Boolean(manifest.app && manifest.web);
+  const scopeFor = item => item.scope || (['web-desktop', 'web-mobile'].includes(item.renderer) ? 'web' : 'app');
+  if (combined) for (const item of cases) {
+    item.scope = scopeFor(item);
+    check(['app', 'web'].includes(item.scope), `${item.id}: invalid report scope`);
+  }
   for (const item of cases) {
+    delete item.receiptCopy;
     check(verdicts.includes(item.verdict), `${item.id}: invalid verdict`);
     check(
       item.exitCode == null || Number.isInteger(item.exitCode),
@@ -151,6 +162,11 @@ export async function buildReport({
       `${item.id}: state required`,
     );
     const owner = cases.find((candidate) => candidate.id === image.caseId);
+    if (combined) {
+      check(!image.scope || !owner || image.scope === owner.scope, `${image.id}: case/scope mismatch`);
+      image.scope = owner?.scope || scopeFor(image);
+      check(['app', 'web'].includes(image.scope), `${image.id}: invalid report scope`);
+    }
     check(
       !image.caseId || owner?.renderer === image.renderer,
       `${item.id}: caseId/renderer mismatch`,
@@ -174,7 +190,8 @@ export async function buildReport({
       width,
       height,
       sha256: sha(bytes),
-      base64: bytes.toString("base64"),
+      base64: assetMode === "embedded" || image.overview === true ? bytes.toString("base64") : undefined,
+      asset: assetMode === "directory" ? `originals/${image.id}.png` : `data:image/png;base64,${bytes.toString("base64")}`,
       copy: `originals/${image.id}.png`,
     });
   }
@@ -183,23 +200,50 @@ export async function buildReport({
     selected.length <= 12,
     "Select at most 12 overview images; all images remain in the gallery",
   );
+  const scoped = (items, scope) => combined ? items.filter(item => item.scope === scope) : items;
+  const app = manifest.app || !manifest.web ? validateApp(manifest.app, scoped(cases, 'app'), scoped(images, 'app')) : null;
+  const web = manifest.web ? validateWeb(manifest.web, scoped(cases, 'web'), scoped(images, 'web')) : null;
+  const surfaces = Object.entries({ app, web }).filter(([, surface]) => surface);
+  const hasInventory = surfaces.length > 0;
+  for (const [scope, surface] of surfaces) for (const run of surface.runs) {
+    // bindingCopy is computed from an actual read, never accepted from JSON.
+    delete run.bindingCopy;
+    if (!run.binding) continue;
+    check(typeof run.binding === "string", `${run.id}: binding receipt path required`);
+    const bytes = await fs.readFile(path.resolve(directory, run.binding));
+    run.bindingCopy = `bindings/${combined ? scope + '/' : ''}${run.id}.log`;
+    receipts.push({ source: run.binding, copy: run.bindingCopy, bytes, sha256: sha(bytes) });
+  }
+  const appCoverage = app ? buildAppCoverage(app, scoped(cases, 'app'), scoped(images, 'app')) : null;
+  const webCoverage = web ? buildWebCoverage(web, scoped(cases, 'web'), scoped(images, 'web')) : null;
+  const coverage = combined ? { version: 2, app: appCoverage, web: webCoverage } : appCoverage || webCoverage;
+  const inventory = combined ? { version: 2, app: app.inventory, web: web.inventory } : (app || web)?.inventory;
+  const coverageSummary = result => Object.fromEntries(Object.entries(result).map(([platform, value]) => [platform, { verdict: value.verdict, pages: value.pages.length, counts: value.counts }]));
   const summary = {
+    assetMode,
     ...summarize(cases),
     screenshots: images.length,
     reviews: count(images, "review", reviews),
+    ...(appCoverage ? { appCoverage: coverageSummary(appCoverage) } : {}),
+    ...(webCoverage ? { webCoverage: coverageSummary(webCoverage) } : {}),
   };
+  const evidenceHtml = await evidenceGallery(manifest.title, cases, images, summary);
+  const html = hasInventory ? await appReportHtml({ ...manifest, cases }, images, coverage) : evidenceHtml;
   // No recursive mkdir here: an existing output must never be overwritten.
   const destination = path.resolve(outputDir);
   await fs.mkdir(path.dirname(destination), { recursive: true });
   await fs.mkdir(destination);
   await fs.mkdir(path.join(destination, "originals"));
   await fs.mkdir(path.join(destination, "receipts"));
-  for (const asset of [...images, ...receipts])
+  if (hasInventory) await fs.mkdir(path.join(destination, "bindings"));
+  for (const asset of [...images, ...receipts]) {
+    await fs.mkdir(path.dirname(path.join(destination, asset.copy)), { recursive: true });
     await fs.writeFile(path.join(destination, asset.copy), asset.bytes);
+  }
   await fs.writeFile(path.join(destination, "manifest.json"), input);
   await fs.writeFile(
     path.join(destination, "index.html"),
-    gallery(manifest.title, cases, images, summary),
+    html,
   );
   const rows = cases.map(
     (item) =>
@@ -207,9 +251,15 @@ export async function buildReport({
   );
   await fs.writeFile(
     path.join(destination, "results.md"),
-    `# ${md(manifest.title)}\n\n清单内必需用例：${summary.declaredRequiredVerdict}。只汇总已声明范围，不推断全产品验收。\n\n必需：${JSON.stringify(summary.required)}\n\n补测：${JSON.stringify(summary.supplemental)}\n\n图片：${images.length}；审图：${JSON.stringify(summary.reviews)}\n\n| 用例 | Renderer | 范围 | 验收 | 退出码 | 原因 | 命令 | 回执 |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n[完整图册](index.html) · [输入与来源](manifest.json) · [文件摘要](hashes.json)\n`,
+    `# ${md(manifest.title)}\n\n清单内必需用例：${summary.declaredRequiredVerdict}。只汇总已声明范围，不推断全产品验收。\n\n必需：${JSON.stringify(summary.required)}\n\n补测：${JSON.stringify(summary.supplemental)}\n\n图片：${images.length}；审图：${JSON.stringify(summary.reviews)}\n${app ? appMarkdown(app, appCoverage) : ""}${web ? webMarkdown(web, webCoverage) : ""}\n| 用例 | Renderer | 范围 | 验收 | 退出码 | 原因 | 命令 | 回执 |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n[页面验收报告](index.html) · [输入与来源](manifest.json) · [文件摘要](hashes.json)${hasInventory ? " · [全部证据](evidence.html) · [页面覆盖](coverage.json) · [页面目录](inventory.json)" : ""}\n`,
   );
   const artifacts = ["manifest.json", "index.html", "results.md"];
+  if (hasInventory) {
+    for (const [name, content] of [["evidence.html", evidenceHtml], ["coverage.json", JSON.stringify(coverage, null, 2)], ["inventory.json", JSON.stringify(inventory, null, 2)]]) {
+      await fs.writeFile(path.join(destination, name), content);
+      artifacts.push(name);
+    }
+  }
   if (overview && selected.length) {
     // Use the owning workspace's installed package; never auto-install tooling.
     const root = path.resolve(
@@ -226,7 +276,7 @@ export async function buildReport({
         deviceScaleFactor: 1,
       });
       await page.setContent(
-        `<html lang="zh-CN"><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;background:#edf1f5;font:20px system-ui,sans-serif;color:#243142}main{padding:28px}h1{margin:0 0 12px;font-size:32px}p{margin:0 0 20px}section{display:grid;grid-template-columns:repeat(${Math.min(4, selected.length)},1fr);gap:20px}figure{margin:0;background:white;padding:16px;border-radius:16px;min-width:0}h2{font-size:22px;overflow-wrap:anywhere}small{display:block;font-size:16px;overflow-wrap:anywhere;margin-bottom:12px}img{width:100%;height:850px;object-fit:contain;display:block}</style><main><h1>${escape(manifest.title)}</h1><p>选图 ${selected.length} / ${images.length}；全部原图与用例状态见图册。此图是证据排版。</p><section>${selected.map((item) => `<figure><h2>${escape(item.title)}</h2><small>${escape(item.renderer)} · ${escape(item.kind)} · ${escape(item.state)} · 审图 ${escape(item.review)}</small><img src="data:image/png;base64,${item.base64}" alt="${escape(item.title)}"></figure>`).join("")}</section></main></html>`,
+        `<html lang="zh-CN"><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;background:#edf1f5;font:20px system-ui,sans-serif;color:#243142}main{padding:28px}h1{margin:0 0 12px;font-size:32px}p{margin:0 0 20px}section{display:grid;grid-template-columns:repeat(${Math.min(4, selected.length)},1fr);gap:20px}figure{margin:0;background:white;padding:16px;border-radius:16px;min-width:0}h2{font-size:22px;overflow-wrap:anywhere}small{display:block;font-size:16px;overflow-wrap:anywhere;margin-bottom:12px}img{width:100%;height:850px;object-fit:contain;display:block}</style><main><h1>${escapeHtml(manifest.title)}</h1><p>选图 ${selected.length} / ${images.length}；全部原图与用例状态见图册。此图是证据排版。</p><section>${selected.map((item) => `<figure><h2>${escapeHtml(item.title)}</h2><small>${escapeHtml(item.renderer)} · ${escapeHtml(item.kind)} · ${escapeHtml(item.state)} · 审图 ${escapeHtml(item.review)}</small><img src="data:image/png;base64,${item.base64}" alt="${escapeHtml(item.title)}"></figure>`).join("")}</section></main></html>`,
       );
       await page.evaluate(async () => {
         await document.fonts.ready;
@@ -276,17 +326,18 @@ if (
     const args = process.argv.slice(2);
     if (args.includes("--help")) {
       console.log(
-        "build-ui-report.mjs --manifest <JSON> --output <new-directory> [--overview]",
+        "build-ui-report.mjs --manifest <JSON> [--manifest <Web-or-App-JSON>] --output <new-directory> [--overview] [--asset-mode embedded|directory]",
       );
     } else {
       const options = {};
       for (let index = 0; index < args.length; index++) {
         if (args[index] === "--overview") options.overview = true;
-        else if (["--manifest", "--output"].includes(args[index])) {
+        else if (["--manifest", "--output", "--asset-mode"].includes(args[index])) {
           const flag = args[index],
             value = args[++index];
           check(value && !value.startsWith("--"), `${flag} requires a value`);
-          options[flag === "--manifest" ? "manifestPath" : "outputDir"] = value;
+          if (flag === '--manifest' && options.manifestPath) options.manifestPath = [...[options.manifestPath].flat(), value];
+          else options[flag === "--manifest" ? "manifestPath" : flag === "--output" ? "outputDir" : "assetMode"] = value;
         } else throw new Error(`Unknown argument: ${args[index]}`);
       }
       check(

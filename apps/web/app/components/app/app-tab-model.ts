@@ -1,4 +1,5 @@
 import { normalizeAppPathname } from "~/lib/app-shell-scroll"
+import { routeDescriptorsForTarget } from "~/route-metadata"
 
 export type AppTabId = "home" | "community" | "map" | "resources" | "account"
 
@@ -204,4 +205,106 @@ export function resolveAppBackTarget(pathname: string): AppBackTarget {
     if (matched) return rule.target
   }
   return { kind: "unknown" }
+}
+
+export interface AppAncestry {
+  readonly tabId: AppTabId
+  /** Root first, current page last. Queries and hashes are not included. */
+  readonly hrefs: readonly string[]
+}
+
+function registeredPattern(path: string): RegExp {
+  const body = path
+    .split("/")
+    .map((segment) => {
+      if (!segment) return ""
+      if (segment.startsWith(":")) return "[^/]+"
+      return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    })
+    .join("/")
+  return new RegExp(`^/${body}/?$`)
+}
+
+interface RegisteredNavigation {
+  readonly parent?: string
+  readonly tab: AppTabId
+  readonly derived: boolean
+}
+
+let registeredNavigation:
+  | readonly {
+      pattern: RegExp
+      path: string
+      parent?: string
+      tab: AppTabId
+      derived: boolean
+    }[]
+  | null = null
+
+function navigationForRegisteredRoute(
+  pathname: string
+): RegisteredNavigation | null {
+  registeredNavigation ??= routeDescriptorsForTarget("app")
+    .filter(
+      (descriptor) =>
+        descriptor.appNavigation && descriptor.path && descriptor.path !== "*"
+    )
+    .map((descriptor) => ({
+      pattern: registeredPattern(descriptor.path!),
+      path: `/${descriptor.path}`,
+      parent: descriptor.appNavigation?.parent,
+      tab: descriptor.appNavigation!.tab,
+      derived: descriptor.appNavigation?.derived === true,
+    }))
+    // A literal route wins over a parameterised sibling; `/works` must not be
+    // claimed by `/works/:workSlug`.
+    .sort((left, right) => {
+      const literal = (path: string) => !path.includes(":")
+      return Number(literal(right.path)) - Number(literal(left.path))
+    })
+  for (const entry of registeredNavigation)
+    if (entry.pattern.test(pathname))
+      return { parent: entry.parent, tab: entry.tab, derived: entry.derived }
+  return null
+}
+
+export function appRouteOwnership(
+  pathname: string
+): { tab: AppTabId; derived: boolean } | null {
+  const normalized = normalizeAppPathname(pathname.split(/[?#]/, 1)[0] ?? "/")
+  const registered = navigationForRegisteredRoute(normalized)
+  if (registered) return { tab: registered.tab, derived: registered.derived }
+  const tab = appTabIdForPathname(normalized)
+  return tab ? { tab, derived: false } : null
+}
+
+/**
+ * The smallest legal page chain for a direct entry. Registered routes derive it
+ * from `route-metadata`; unregistered subpaths of a known prefix keep the
+ * legacy prefix tree so an outdated bookmark still has a reachable root.
+ */
+export function appAncestryForPathname(pathname: string): AppAncestry | null {
+  const normalized = normalizeAppPathname(pathname.split(/[?#]/, 1)[0] ?? "/")
+  const tabId = appTabIdForPathname(normalized)
+  if (!tabId) return null
+  const root = appTabRoot(tabId)
+  const parents: string[] = []
+  const seen = new Set<string>([normalized])
+  let current = normalized
+  while (current !== root) {
+    const registered = navigationForRegisteredRoute(current)
+    const next = registered
+      ? registered.parent
+      : resolveAppBackTarget(current).kind === "parent"
+        ? (resolveAppBackTarget(current) as { href: string }).href
+        : undefined
+    if (!next || seen.has(next)) break
+    parents.unshift(next)
+    seen.add(next)
+    current = next
+  }
+  const hrefs = [root, ...parents, normalized].filter(
+    (href, index, list) => index === 0 || href !== list[index - 1]
+  )
+  return { tabId, hrefs: hrefs.length ? hrefs : [normalized] }
 }

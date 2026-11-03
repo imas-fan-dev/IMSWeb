@@ -18,7 +18,6 @@ import {
   APP_TABS,
   type AppTabId,
   appTabIdForPathname,
-  appTabIndexForPathname,
 } from "~/components/app/app-tab-model"
 import { useAndroidTabDrag } from "~/components/app/use-android-tab-drag"
 import { IS_APP_TARGET } from "~/lib/app-target"
@@ -109,12 +108,15 @@ export function AppTabBar() {
   )
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
-  const { activateTab } = useAppNavigation()
+  const { activateTab, activeTab } = useAppNavigation()
   const { pathname, key: routeKey } = useLocation()
   const normalizedPathname = normalizeAppPathname(pathname)
-  const activeId = appTabIdForPathname(normalizedPathname)
+  // An unowned address keeps no selection; a page derived inside another tab
+  // is owned by that tab instead of its URL prefix.
+  const urlTab = appTabIdForPathname(normalizedPathname)
+  const activeId = urlTab ? activeTab : null
   const unread = useNamecardUnread()
-  const activeIndex = appTabIndexForPathname(normalizedPathname)
+  const activeIndex = APP_TABS.findIndex((tab) => tab.id === activeId)
   const slot = Math.max(activeIndex, 0)
   const useLightMapGlass = isNonScrollingAppRoute(normalizedPathname)
   const nativeGlassDark =

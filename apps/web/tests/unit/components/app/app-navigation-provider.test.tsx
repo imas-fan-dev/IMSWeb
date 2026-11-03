@@ -124,6 +124,17 @@ describe("App navigation coordination", () => {
     window.scrollY = 0
   })
 
+  it("does not leave a tab root when stale native history is traversed after a multi-page visit", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/community", "/events", "/events/42"]} />)
+    await user.click(screen.getByRole("button", { name: "资料" }))
+    expect(screen.getByTestId("location").textContent).toBe("/apps")
+    await user.click(screen.getByRole("button", { name: "原生返回" }))
+    await waitFor(() =>
+      expect(screen.getByTestId("location").textContent).toBe("/apps")
+    )
+  })
+
   it("restores the full last URL and source position before document replacement", async () => {
     const user = userEvent.setup()
     render(<Tree />)
@@ -131,9 +142,9 @@ describe("App navigation coordination", () => {
     await user.click(screen.getByRole("button", { name: "我的" }))
     expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
     await user.click(screen.getByRole("button", { name: "社区" }))
-    expect(screen.getByTestId("location")).toHaveTextContent(
-      "/community/cards?page=2&size=12#card-13"
-    )
+    // The office detail derives from Community, so reselecting Community is a
+    // root return rather than a jump back to the cards snapshot.
+    expect(screen.getByTestId("location")).toHaveTextContent("/community")
     expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
     await user.click(screen.getByRole("button", { name: "返回" }))
     // `/community/cards` climbs to the Community root, not to whichever tab the
@@ -159,24 +170,24 @@ describe("App navigation coordination", () => {
     expect(mocks.restore).toHaveBeenCalledTimes(restores)
   })
 
-  it("keeps public office reading separate from Community and reselects the map root", async () => {
+  it("derives a public office page from the tab that opened it", async () => {
     const user = userEvent.setup()
     render(<Tree />)
     readAt(812)
     await user.click(screen.getByRole("link", { name: "事务所详情" }))
     readAt(430)
-    await user.click(screen.getByRole("button", { name: "社区" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/community/exchange/offices/tokyo?view=members#team"
+    )
+    // Reading position belongs to the visit that was left, not to the tab.
+    await user.click(screen.getByRole("button", { name: "返回" }))
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/community/cards?page=2&size=12#card-13"
     )
     expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
+    // The map tab keeps its own root; the office page never became its top.
     await user.click(screen.getByRole("button", { name: "交换地图" }))
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/community/exchange/offices/tokyo?view=members#team"
-    )
-    expect(mocks.restore).toHaveBeenLastCalledWith(430, expect.any(Object))
-    await user.click(screen.getByRole("button", { name: "交换地图" }))
-    expect(screen.getByTestId("location").textContent).toBe(
       "/community/exchange"
     )
   })
@@ -566,7 +577,7 @@ describe("App navigation coordination", () => {
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
   })
 
-  it("preserves query-only dialog back and forward history inside an account section", async () => {
+  it("treats query-only dialog changes as view state, not extra pages", async () => {
     const router = createMemoryRouter(
       [
         {
@@ -589,37 +600,42 @@ describe("App navigation coordination", () => {
     await act(async () => {
       await router.navigate("/account/me/namecards")
     })
+    // Reopening the dialog URL restores the dialog state on the same page.
     await act(async () => {
-      await router.navigate(-1)
+      await router.navigate("/account/me/namecards?card=owner-card")
     })
     expect(screen.getByTestId("location").textContent).toBe(
       "/account/me/namecards?card=owner-card"
     )
-    await act(async () => {
-      await router.navigate(1)
-    })
-    expect(screen.getByTestId("location").textContent).toBe(
-      "/account/me/namecards"
-    )
+    // A native traversal cannot resurrect a query string the stack no longer
+    // holds; the page stays where the stack is.
     await act(async () => {
       await router.navigate(-1)
     })
+    // A query change replaces the entry, so there is no WebView history entry
+    // that could reopen or drop the dialog unexpectedly.
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/account/me/namecards?card=owner-card"
+    )
     await userEvent.click(screen.getByRole("button", { name: "我的" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
   })
 
-  it("pushes the account root when a native pop leaves a restored section", async () => {
+  it("holds the restored section when a native pop lands in another tab", async () => {
     const user = userEvent.setup()
     render(<Tree entries={["/community", "/account/me/namecards"]} />)
     expect(screen.getByTestId("location").textContent).toBe(
       "/account/me/namecards"
     )
+    // The entry below belongs to Community, not to this tab's stack. The App
+    // keeps the section instead of surfacing another tab's stale page.
     await user.click(screen.getByRole("button", { name: "原生返回" }))
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/account/me/namecards"
+    )
+    // The header control still climbs the real parent.
+    await user.click(screen.getByRole("button", { name: "返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
-    // The corrected parent is a tab root, so the next native pop climbs again
-    // instead of the correction repeating.
-    await user.click(screen.getByRole("button", { name: "原生返回" }))
-    expect(screen.getByTestId("location").textContent).toBe("/community")
   })
 
   it("replaces a cross-tab account subpage with the account root", async () => {
@@ -675,17 +691,19 @@ describe("App navigation coordination", () => {
     expect(screen.getByTestId("location").textContent).toBe(parent)
   })
 
-  it("does not bounce after the native pop correction", async () => {
+  it("stays put after a rejected native traversal", async () => {
     const user = userEvent.setup()
     render(<Tree entries={["/community", "/account/me/namecards"]} />)
     await user.click(screen.getByRole("button", { name: "原生返回" }))
     const key = screen.getByTestId("key").textContent
-    // The correction is a PUSH, so React must not run it a second time for the
-    // same commit: the entry below the corrected page stays put.
+    // A rejected traversal restores the stack top once; it must not bounce
+    // between the stale entry and the current page.
     await act(async () => {
       await Promise.resolve()
     })
-    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/account/me/namecards"
+    )
     expect(screen.getByTestId("key").textContent).toBe(key)
   })
 

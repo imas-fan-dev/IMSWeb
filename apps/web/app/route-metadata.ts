@@ -4,6 +4,19 @@ export type FrontendTarget = "web" | "app"
 export type RouteLayout = "public" | "standalone" | "admin"
 export type RouteDelivery = "prerender" | "spa" | "none"
 
+export interface AppRouteNavigation {
+  readonly tab: "home" | "community" | "map" | "resources" | "account"
+  readonly parent?: string
+  readonly canonical?: string
+  readonly identityQuery?: readonly string[]
+  readonly parentQuery?: readonly string[]
+  readonly sections?: readonly string[]
+  readonly presentation?: "auth" | "error"
+  /** Content detail keeps the initiating tab as its owner when opened as a link. */
+  readonly derived?: boolean
+  readonly private?: boolean
+}
+
 export interface RouteDescriptor {
   readonly file: string
   readonly layout: RouteLayout
@@ -13,6 +26,7 @@ export interface RouteDescriptor {
   readonly index?: true
   readonly path?: string
   readonly prerender?: readonly string[]
+  readonly appNavigation?: AppRouteNavigation
 }
 
 export interface SpaFallbackPattern {
@@ -33,7 +47,11 @@ function route(
   layout: RouteLayout,
   targets: readonly FrontendTarget[],
   delivery: RouteDelivery,
-  options: { id?: string; prerender?: readonly string[] } = {}
+  options: {
+    id?: string
+    prerender?: readonly string[]
+    appNavigation?: AppRouteNavigation
+  } = {}
 ): RouteDescriptor {
   return Object.freeze({
     ...(path === undefined ? { index: true as const } : { path }),
@@ -57,6 +75,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/"],
+      appNavigation: { tab: "home" },
     }
   ),
   route(
@@ -67,6 +86,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/about"],
+      appNavigation: { tab: "account", parent: "/account/me" },
     }
   ),
   route(
@@ -77,6 +97,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/events"],
+      appNavigation: { tab: "community", parent: "/community" },
     }
   ),
   route(
@@ -84,7 +105,8 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "pages/events/event-detail-page.tsx",
     "public",
     SHARED_TARGETS,
-    "spa"
+    "spa",
+    { appNavigation: { tab: "community", parent: "/events", derived: true } }
   ),
   route(
     "recommendations",
@@ -94,10 +116,12 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/recommendations"],
+      appNavigation: { tab: "resources", parent: "/apps" },
     }
   ),
   route("live", "pages/live/index.tsx", "public", SHARED_TARGETS, "prerender", {
     prerender: ["/live"],
+    appNavigation: { tab: "resources", parent: "/apps" },
   }),
   route(
     "community",
@@ -107,6 +131,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/community"],
+      appNavigation: { tab: "community" },
     }
   ),
   route(
@@ -117,6 +142,11 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/account/login"],
+      appNavigation: {
+        tab: "account",
+        parent: "/account/me",
+        presentation: "auth",
+      },
     }
   ),
   route(
@@ -127,6 +157,11 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/account/register"],
+      appNavigation: {
+        tab: "account",
+        parent: "/account/me",
+        presentation: "auth",
+      },
     }
   ),
   route(
@@ -137,6 +172,11 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/account/password-reset"],
+      appNavigation: {
+        tab: "account",
+        parent: "/account/me",
+        presentation: "auth",
+      },
     }
   ),
   route(
@@ -147,6 +187,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/account/security"],
+      appNavigation: { tab: "account", parent: "/account/me", private: true },
     }
   ),
   route(
@@ -157,6 +198,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/community/exchange"],
+      appNavigation: { tab: "map" },
     }
   ),
   route(
@@ -164,7 +206,15 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "pages/community/exchange/community-office-page.tsx",
     "public",
     SHARED_TARGETS,
-    "spa"
+    "spa",
+    {
+      appNavigation: {
+        tab: "map",
+        parent: "/community/exchange",
+        parentQuery: ["city", "series", "open"],
+        derived: true,
+      },
+    }
   ),
   route(
     "community/cards",
@@ -174,6 +224,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/community/cards"],
+      appNavigation: { tab: "community", parent: "/community" },
     }
   ),
   route(
@@ -181,7 +232,14 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "pages/community/namecard-submission-page.tsx",
     "public",
     SHARED_TARGETS,
-    "none"
+    "none",
+    {
+      appNavigation: {
+        tab: "community",
+        parent: "/community/cards",
+        derived: true,
+      },
+    }
   ),
   route(
     "producer-map",
@@ -191,6 +249,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/producer-map"],
+      appNavigation: { tab: "community", parent: "/community" },
     }
   ),
   route(
@@ -201,6 +260,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/tier-list"],
+      appNavigation: { tab: "resources", parent: "/apps" },
     }
   ),
   route(
@@ -211,6 +271,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/works"],
+      appNavigation: { tab: "resources", parent: "/apps" },
     }
   ),
   route(
@@ -221,6 +282,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: WORK_SLUGS.map((slug) => `/works/${slug}`),
+      appNavigation: { tab: "resources", parent: "/works", derived: true },
     }
   ),
   route(
@@ -232,6 +294,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     {
       id: "pages/wiki/modern/wiki-index-default",
       prerender: ["/wiki"],
+      appNavigation: { tab: "resources", parent: "/apps" },
     }
   ),
   route(
@@ -242,6 +305,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/wiki/modern"],
+      appNavigation: { tab: "resources", parent: "/apps", canonical: "/wiki" },
     }
   ),
   route(
@@ -253,6 +317,13 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     {
       id: "pages/wiki/modern/story-default",
       prerender: ["/story"],
+      appNavigation: {
+        tab: "resources",
+        parent: "/wiki",
+        parentQuery: ["agency"],
+        identityQuery: ["agency", "idol"],
+        derived: true,
+      },
     }
   ),
   route(
@@ -263,6 +334,14 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/story/modern"],
+      appNavigation: {
+        tab: "resources",
+        parent: "/wiki",
+        canonical: "/story",
+        parentQuery: ["agency"],
+        identityQuery: ["agency", "idol"],
+        derived: true,
+      },
     }
   ),
   route(
@@ -270,7 +349,8 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "pages/information/information-content-page.tsx",
     "public",
     SHARED_TARGETS,
-    "spa"
+    "spa",
+    { appNavigation: { tab: "home", parent: "/", derived: true } }
   ),
   route(
     "chronicle",
@@ -280,6 +360,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "prerender",
     {
       prerender: ["/chronicle"],
+      appNavigation: { tab: "resources", parent: "/apps" },
     }
   ),
   route(
@@ -287,30 +368,46 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "pages/chronicle/activity-page.tsx",
     "public",
     SHARED_TARGETS,
-    "spa"
+    "spa",
+    { appNavigation: { tab: "resources", parent: "/chronicle", derived: true } }
   ),
   route(
     "packages/:siteSlug",
     "pages/sites/site-detail-page.tsx",
     "public",
     SHARED_TARGETS,
-    "none"
+    "none",
+    { appNavigation: { tab: "resources", parent: "/works", derived: true } }
   ),
-  route("apps", "pages/apps/index.tsx", "public", APP_TARGET, "none"),
+  route("apps", "pages/apps/index.tsx", "public", APP_TARGET, "none", {
+    appNavigation: { tab: "resources" },
+  }),
   route(
     "account/me",
     "pages/account/me/account-me-page.tsx",
     "public",
     SHARED_TARGETS,
-    "spa"
+    "spa",
+    { appNavigation: { tab: "account", private: true } }
   ),
   route(
     "account/me/:section",
     "pages/account/me/account-me-section-page.tsx",
     "public",
     SHARED_TARGETS,
-    "spa"
+    "spa",
+    {
+      appNavigation: {
+        tab: "account",
+        parent: "/account/me",
+        private: true,
+        sections: ["profile", "namecards", "favorites", "offices", "claims"],
+      },
+    }
   ),
+  route("*", "pages/app-not-found-page.tsx", "public", APP_TARGET, "none", {
+    appNavigation: { tab: "home", parent: "/", presentation: "error" },
+  }),
   route(
     "wiki/classic",
     "pages/wiki/classic/index.tsx",

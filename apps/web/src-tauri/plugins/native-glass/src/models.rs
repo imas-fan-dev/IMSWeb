@@ -44,6 +44,16 @@ pub struct UpdateOptions {
     pub selected_index: Option<usize>,
 }
 
+/// Admission policy for the App-owned back gesture. Native code never decides
+/// where to navigate; it only admits an edge swipe and reports its lifecycle.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackPolicyArgs {
+    pub generation: u64,
+    pub revision: u64,
+    pub can_back: bool,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeGlassFrame {

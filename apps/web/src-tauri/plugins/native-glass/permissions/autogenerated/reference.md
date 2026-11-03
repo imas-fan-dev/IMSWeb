@@ -9,6 +9,8 @@ Default permissions for the plugin
 - `allow-set-controls`
 - `allow-set-search`
 - `allow-remove-search`
+- `allow-set-back-policy`
+- `allow-background-task`
 - `allow-destroy`
 
 ## Permission Table
@@ -19,6 +21,32 @@ Default permissions for the plugin
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`native-glass:allow-background-task`
+
+</td>
+<td>
+
+Enables the background_task command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:deny-background-task`
+
+</td>
+<td>
+
+Denies the background_task command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>
@@ -120,6 +148,32 @@ Enables the remove_search command without any pre-configured scope.
 <td>
 
 Denies the remove_search command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:allow-set-back-policy`
+
+</td>
+<td>
+
+Enables the set_back_policy command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:deny-set-back-policy`
+
+</td>
+<td>
+
+Denies the set_back_policy command without any pre-configured scope.
 
 </td>
 </tr>

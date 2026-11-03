@@ -19,6 +19,7 @@ test("App preview includes App-only client routes and preserves shared server ow
   const { appPreviewSpaRoutes, appPreviewWebOnlyRoutes } = await import(previewAppUrl.href);
   assert.deepEqual(appPreviewWebOnlyRoutes(), ["/admin", "/admin/*", "/wiki/classic", "/wiki/classic/", "/story/classic", "/story/classic/"]);
   const routes = appPreviewSpaRoutes();
+  assert.ok(!routes.includes("*"), "the client catch-all must not claim HTTP assets or API routes");
   for (const route of ["apps", "account/me", "account/me/:section", "events/:eventId"]) {
     assert.ok(routes.includes(route), route);
   }
@@ -846,6 +847,7 @@ test.describe('tauri build configuration', () => {
     assert.deepEqual(androidCapability.platforms, ["android"]);
     assert.deepEqual(androidCapability.permissions, [
       "native-glass:allow-update",
+      "native-glass:allow-background-task",
     ]);
 
     // Normalize whitespace so this test protects the native command and its
