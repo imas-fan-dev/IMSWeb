@@ -152,26 +152,11 @@ export default function AdminPlatformAccountKindsPage() {
   const [pendingIcon, setPendingIcon] = useState<File | null>(null)
   const debouncedIcon = useDebouncedValue(draft?.icon ?? "", 400)
   const preview = draft ? iconPreview(draft, debouncedIcon) : null
-  const previewKey = `${draft?.icon ?? ""}|${draft?.iconUrl ?? ""}`
+  const previewKey = `${debouncedIcon}|${draft?.iconUrl ?? ""}`
   const previewFailed = failedPreview === previewKey
 
   function patch(next: Partial<Draft>) {
     setDraft((current) => (current ? { ...current, ...next } : current))
-  }
-
-  async function uploadIcon(file: File | null) {
-    if (!file || !draft || creating) return
-    setSaving(true)
-    try {
-      await uploadAdminPlatformAccountKindIcon(draft.id, file).send()
-      toast.success("图标已更新")
-      setDraft(null)
-      setReloadToken((token) => token + 1)
-    } catch (error) {
-      toast.error(isApiError(error) ? error.message : "图标上传失败，请重试")
-    } finally {
-      setSaving(false)
-    }
   }
 
   async function save() {
@@ -190,18 +175,19 @@ export default function AdminPlatformAccountKindsPage() {
       }).send()
       setKinds(next.kinds)
       const icon = pendingIcon
-      const createdId = draft.id.trim()
+      const savedId = draft.id.trim()
       setPendingIcon(null)
       setDraft(null)
       toast.success(creating ? "平台已添加" : "平台已更新")
-      if (creating && icon) {
+      // 新建与编辑都在保存成功之后才上传，避免「一选图就落盘」。
+      if (icon) {
         try {
-          await uploadAdminPlatformAccountKindIcon(createdId, icon).send()
+          await uploadAdminPlatformAccountKindIcon(savedId, icon).send()
           toast.success("图标已上传")
-          setReloadToken((token) => token + 1)
         } catch (error) {
           toast.error(isApiError(error) ? error.message : "图标上传失败，请重试")
         }
+        setReloadToken((token) => token + 1)
       }
     } catch (saveError) {
       toast.error(
@@ -458,7 +444,7 @@ export default function AdminPlatformAccountKindsPage() {
               />
             </Field>
             <Field className="sm:col-span-2">
-              <FieldLabel htmlFor="kind-icon-file">图标文件</FieldLabel>
+              <FieldLabel>图标文件</FieldLabel>
               <div className="flex items-center gap-3">
                 <span className="flex size-12 items-center justify-center rounded-md border bg-muted/40 p-1.5">
                   {preview?.src && !previewFailed ? (
@@ -493,13 +479,8 @@ export default function AdminPlatformAccountKindsPage() {
                   onChange={(event) => {
                     const file = event.currentTarget.files?.[0]
                     event.currentTarget.value = ""
-                    if (!file) return
-                    // 新建时平台行还不存在，先把文件留住，保存成功后再上传。
-                    if (creating) {
-                      setPendingIcon(file)
-                      return
-                    }
-                    void uploadIcon(file)
+                    // 只暂存：管理员点【保存】后才会真正上传。
+                    if (file) setPendingIcon(file)
                   }}
                 />
                 {pendingIcon ? (

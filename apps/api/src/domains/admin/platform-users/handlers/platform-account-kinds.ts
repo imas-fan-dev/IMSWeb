@@ -2,7 +2,7 @@ import type { PlatformAccountKindList } from '@imsweb/contracts/namecards';
 import type { AppEnvironment } from '@/app';
 import type { PlatformAccountKindRecord } from '@/ports/repositories/namecards';
 import { services } from '@/middleware/hono-context';
-import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
+import { platformAccountIconPath } from '@imsweb/contracts/paths';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import type { Context } from 'hono';
 
@@ -38,20 +38,15 @@ function toKindView(
     };
 }
 
-/** 上传的图标优先于图标键，缺图时由前端回退到站内或 CDN。 */
-async function kindIconUrls(
-    c: Context<AppEnvironment>,
-    kinds: PlatformAccountKindRecord[]
-): Promise<(string | null)[]> {
-    const storage = services(c).storage;
-    return await Promise.all(
-        kinds.map((kind) =>
-            kind.icon_object_key && storage
-                ? resolvePublicObjectUrl(storage, kind.icon_object_key, '').then(
-                      (url) => url || null
-                  )
-                : Promise.resolve(null)
-        )
+/**
+ * 图标统一走站内读取路由（对象存储没有公开地址），带版本号做缓存失效；
+ * 未上传时给 null，由前端回退到图标键 / CDN / 首字母。
+ */
+function kindIconUrls(kinds: PlatformAccountKindRecord[]): (string | null)[] {
+    return kinds.map((kind) =>
+        kind.icon_object_key
+            ? `${platformAccountIconPath(kind.id)}?v=${encodeURIComponent(kind.updated_at)}`
+            : null
     );
 }
 
@@ -60,7 +55,7 @@ export async function handleListPlatformAccountKinds(
     c: Context<AppEnvironment>
 ): Promise<Response> {
     const kinds = await services(c).namecards!.listPlatformAccountKinds();
-    const urls = await kindIconUrls(c, kinds);
+    const urls = kindIconUrls(kinds);
     return c.json({
         kinds: kinds.map((kind, index) => toKindView(kind, urls[index] ?? null))
     } satisfies PlatformAccountKindList);
@@ -89,10 +84,11 @@ export async function handleUpsertPlatformAccountKind(
         display_order: body.displayOrder,
         enabled: body.enabled,
         uppercase: body.uppercase ?? existing?.uppercase ?? false,
-        icon_object_key: existing?.icon_object_key ?? null
+        icon_object_key: existing?.icon_object_key ?? null,
+        updated_at: existing?.updated_at ?? '' 
     });
     const kinds = await services(c).namecards!.listPlatformAccountKinds();
-    const urls = await kindIconUrls(c, kinds);
+    const urls = kindIconUrls(kinds);
     return c.json({
         kinds: kinds.map((kind, index) => toKindView(kind, urls[index] ?? null))
     } satisfies PlatformAccountKindList);

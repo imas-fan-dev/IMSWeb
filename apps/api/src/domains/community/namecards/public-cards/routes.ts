@@ -4,6 +4,7 @@ import { handleListProfileCards } from "@/domains/community/namecards/public-pro
 import { handleGetRandomOwnerlessCard } from "@/domains/community/namecards/public-cards/handlers/get-random-ownerless-card";
 import { handleGetWallInsights } from "@/domains/community/namecards/public-cards/handlers/get-wall-insights";
 import { handleListNamecards } from "@/domains/community/namecards/public-cards/handlers/list-namecards";
+import { handleServePlatformAccountIcon } from "@/domains/community/namecards/public-cards/handlers/serve-platform-account-icon";
 import { fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
 import { handleServePublicCardMedia } from "@/domains/community/namecards/public-cards/handlers/serve-card-media";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/domains/community/namecards/request";
 import {
     compatibleNamecardIdParamsSchema,
+    platformAccountKindParamsSchema,
     publicProfileParamsSchema,
     namecardListQuerySchema,
     namecardMediaParamsSchema,
@@ -42,6 +44,12 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
         "/cards/random-ownerless",
         optionalPlatformAuth,
         handleGetRandomOwnerlessCard,
+    );
+    // 平台图标走站内路由，对象存储的公开地址对这类小图并不可靠。
+    routes.get(
+        "/platform/account-kinds/:id/icon",
+        paramSchemaValidator(platformAccountKindParamsSchema),
+        handleServePlatformAccountIcon,
     );
     // Wall artwork addresses middle pages by card number: the editor's object
     // layout has no reversible public path.

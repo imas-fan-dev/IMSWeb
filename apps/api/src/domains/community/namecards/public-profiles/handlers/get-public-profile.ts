@@ -3,6 +3,7 @@ import { platformProfileView } from "@/domains/identity/platform-profile/profile
 import { services } from "@/middleware/hono-context";
 import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
 import type { ValidatedRequestContext } from "@/middleware/request-validation";
+import { platformAccountIconPath } from "@imsweb/contracts/paths";
 import type { Context } from "hono";
 import type { PublicProfileResponse } from "@/domains/community/namecards/response";
 
@@ -36,14 +37,10 @@ export async function handleGetPublicProfile(
         },
         services(c).storage,
     );
-    const storage = services(c).storage;
     const links = await repository.listPlatformAccountLinks(profile.account_id);
-    const iconUrls = await Promise.all(
-        links.map((link) =>
-            link.icon_object_key && storage
-                ? resolvePublicObjectUrl(storage, link.icon_object_key, "")
-                : Promise.resolve(null)
-        )
+    // 图标一律走站内读取路由：对象存储的公开地址实测不可用。
+    const iconUrls = links.map((link) =>
+        link.icon_object_key ? platformAccountIconPath(link.kind_id) : null
     );
     const body: PublicProfileResponse = {
         accountId: profile.account_id,

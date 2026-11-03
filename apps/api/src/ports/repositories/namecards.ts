@@ -318,6 +318,8 @@ export interface PlatformAccountKindRecord {
     uppercase: boolean;
     /** Uploaded mark; null means fall back to the bundled/CDN icon. */
     icon_object_key: string | null;
+    /** Bumped on every edit so the icon URL can be cache-busted. */
+    updated_at: string;
 }
 
 export interface PlatformAccountEntryRecord {

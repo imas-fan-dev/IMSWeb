@@ -795,6 +795,11 @@ export const platformAccountKindRequestSchema = strictRequestObject({
 
 /** What the editor needs to turn raw input into the stored identifier. */
 /** What the upload route answers: the object key it just stored. */
+/** The catalogue key, as the icon route takes it. */
+export const platformAccountKindParamsSchema = legacyStripRequestObject({
+  id: z.string().min(1).max(32),
+})
+
 export const platformAccountIconUploadSchema = exactJsonResponse({
   success: z.literal(true),
   iconObjectKey: z.string().min(1),
