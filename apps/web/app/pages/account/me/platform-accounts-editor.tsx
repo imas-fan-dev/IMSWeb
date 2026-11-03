@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import {
   decodePlatformValue,
+  encodePlatformValue,
   formatPlatformValue,
   platformValueError,
 } from "@imsweb/contracts/namecards"
@@ -25,15 +26,16 @@ function placeholderFor(kind: PlatformAccountKind): string {
   return kind.group === "link" ? "https://" : ""
 }
 
-/** 前端只分三块：游戏 ID、平台账号（社交/展示/游戏平台合并）、个人主页。 */
+/** 前端只分三块：个人主页（无标题）、游戏 ID、平台账号（社交/展示/游戏平台合并）。 */
 const EDITOR_GROUPS = [
+  // 个人主页单独一条链接，不占分组标题，放在最前面。
+  { key: "homepage", title: null, match: ["link"] },
   { key: "game", title: "游戏 ID", match: ["game"] },
   {
     key: "platform",
     title: "平台账号",
     match: ["social", "showcase", "game-platform"],
   },
-  { key: "link", title: "个人主页", match: ["link"] },
 ] as const
 
 function errorMessage(error: unknown) {
@@ -121,7 +123,11 @@ export function PlatformAccountsEditor() {
 
   const localErrors: Record<string, string> = {}
   for (const kind of kinds) {
-    const message = platformValueError(kind, (draft[kind.id] ?? "").trim())
+    // 校验的是最终存下的形式（YouTube 的 handle 会先转成百分号转义）。
+    const message = platformValueError(
+      kind,
+      encodePlatformValue(kind, (draft[kind.id] ?? "").trim())
+    )
     if (message) localErrors[kind.id] = message
   }
 
@@ -190,9 +196,11 @@ export function PlatformAccountsEditor() {
         if (rows.length === 0) return null
         return (
           <div key={group.key} className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">
-              {group.title}
-            </h3>
+            {group.title ? (
+              <h3 className="text-sm font-medium text-muted-foreground">
+                {group.title}
+              </h3>
+            ) : null}
             <div className="grid gap-3 md:grid-cols-2">
               {rows.map((kind) => (
                 <div key={kind.id} className="flex flex-col gap-1.5">
@@ -224,7 +232,7 @@ export function PlatformAccountsEditor() {
                   {kind.baseUrl ? (
                     <Input
                       value={usernames[kind.id] ?? ""}
-                      placeholder="用户名"
+                      placeholder="用户名（选填）"
                       aria-label={`${kind.name} 用户名`}
                       maxLength={60}
                       onChange={(event) => {

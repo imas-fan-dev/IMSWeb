@@ -62,6 +62,7 @@ function AccountBadge({ account }: { account: PlatformAccountLink }) {
         className={BADGE}
         style={{ backgroundColor: background }}
         aria-label={`复制${account.name}：${account.value}`}
+        title={`${account.name} ・ ${account.value}`}
         onClick={() => {
           void navigator.clipboard.writeText(account.value)
           toast.success(`已复制 ${account.value}`)
@@ -78,6 +79,7 @@ function AccountBadge({ account }: { account: PlatformAccountLink }) {
       rel="noreferrer"
       className={BADGE}
       style={{ backgroundColor: background }}
+      title={`${account.name} ・ ${account.value}`}
     >
       {body}
     </NavigationLink>
