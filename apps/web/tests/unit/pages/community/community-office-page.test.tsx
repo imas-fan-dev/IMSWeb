@@ -22,7 +22,7 @@ import {
   makePlatformProfileResponse,
   makePlatformSession,
 } from "@/mocks/data/platform"
-import { ApiError } from "~/lib/api"
+import { ApiError, type FudabaPublicMessage } from "~/lib/api"
 import { cardLabel } from "~/pages/community/exchange/components/card-label"
 import CommunityOfficePage from "~/pages/community/exchange/community-office-page"
 
@@ -30,6 +30,9 @@ const apiMocks = vi.hoisted(() => ({
   deleteFudabaCardPlacement: vi.fn(),
   getFudabaWall: vi.fn(),
   getFudabaMixedWall: vi.fn(),
+  getFudabaWallScene: vi.fn(),
+  getFudabaWallLayout: vi.fn(),
+  placeFudabaMessage: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
   getFudabaSeries: vi.fn(),
   getPlatformProfile: vi.fn(),
@@ -66,30 +69,9 @@ vi.mock("~/lib/api", async (importOriginal) => {
     deleteFudabaCardPlacement: apiMocks.deleteFudabaCardPlacement,
     getFudabaWall: apiMocks.getFudabaWall,
     getFudabaMixedWall: apiMocks.getFudabaMixedWall,
-    getFudabaWallScene: (
-      ...args: Parameters<typeof actual.getFudabaWallScene>
-    ) => {
-      const method = apiMocks.getFudabaMixedWall(...args)
-      return {
-        ...method,
-        send: async () => {
-          const result = await method.send()
-          return {
-            ...result,
-            layouts: result.office.cards.map((card: typeof placedCard) =>
-              makeCardLayout(card)
-            ),
-          }
-        },
-      }
-    },
-    getFudabaWallLayout: () => ({
-      abort: () => {},
-      send: async () => ({
-        items: [makeCardLayout(placedCard)],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      }),
-    }),
+    getFudabaWallScene: apiMocks.getFudabaWallScene,
+    getFudabaWallLayout: apiMocks.getFudabaWallLayout,
+    placeFudabaMessage: apiMocks.placeFudabaMessage,
 
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
     getFudabaSeries: apiMocks.getFudabaSeries,
@@ -221,6 +203,29 @@ describe("CommunityOfficePage", () => {
         }
       }
     )
+    apiMocks.getFudabaWallScene.mockImplementation((...args: unknown[]) => {
+      const method = apiMocks.getFudabaMixedWall(...args)
+      return {
+        ...method,
+        send: async () => {
+          const result = await method.send()
+          return {
+            ...result,
+            layouts: result.office.cards.map((card: typeof placedCard) =>
+              makeCardLayout(card)
+            ),
+          }
+        },
+      }
+    })
+    apiMocks.getFudabaWallLayout.mockReturnValue({
+      abort: () => {},
+      send: async () => ({
+        items: [makeCardLayout(placedCard)],
+        pageInfo: { hasNextPage: false, nextCursor: null },
+      }),
+    })
+    apiMocks.placeFudabaMessage.mockReset()
     apiMocks.getFudabaWall.mockReturnValue({
       abort: vi.fn(),
       send: async () => {
@@ -486,6 +491,156 @@ describe("CommunityOfficePage", () => {
     expect(
       await screen.findByRole("link", { name: "创建可公开名片" })
     ).toHaveAttribute("href", "/account/me/namecards")
+  })
+
+  it("keeps a saved message placement when an older scene finishes loading", async () => {
+    const user = userEvent.setup()
+    mockAuthenticatedPlatformSession()
+    const note: FudabaPublicMessage = {
+      id: "note-1",
+      office: {
+        id: "office-1",
+        slug: "shanghai-weekend",
+        name: "上海周末交换事务所",
+        isOpen: true,
+      },
+      authorName: "留言作者",
+      content: "移动回归留言",
+      color: "cream",
+      createdAt: "2026-08-02T09:00:00.000Z",
+      updatedAt: "2026-08-02T09:00:00.000Z",
+      placement: {
+        ...placedCard.placement,
+        x: 800,
+        y: 450,
+        rotation: 0,
+      },
+      capabilities: {
+        canEdit: true,
+        canMove: true,
+        canDestroy: true,
+      },
+    }
+    const layout = {
+      kind: "message" as const,
+      id: note.id,
+      placement: note.placement,
+      width: 242,
+      height: 277,
+      layoutVersion: 1 as const,
+      color: note.color,
+      contentRevision: 0,
+    }
+    const initial = await apiMocks.getFudabaMixedWall("shanghai-weekend").send()
+    const scene = {
+      ...initial,
+      wall: { ...initial.wall, total: 2 },
+      messages: [note],
+      layouts: [makeCardLayout(placedCard), layout],
+    }
+    const sendScene = vi.fn().mockResolvedValue(scene)
+    apiMocks.getFudabaWallScene.mockImplementation(() => ({
+      abort: vi.fn(),
+      send: sendScene,
+    }))
+    apiMocks.getFudabaWallLayout.mockReturnValue({
+      abort: vi.fn(),
+      send: async () => ({
+        items: scene.layouts,
+        pageInfo: { hasNextPage: false, nextCursor: null },
+      }),
+    })
+    apiMocks.placeFudabaMessage.mockImplementation(
+      (
+        _id: string,
+        input: {
+          x: number
+          y: number
+          rotation: number
+          zIndex: number
+          expectedRevision: number
+        }
+      ) => ({
+        send: async () => ({
+          success: true,
+          message: {
+            ...note,
+            office: { ...note.office, status: "active" },
+            authorAccountId: "platform-1",
+            contentRevision: 0,
+            moderationRevision: 0,
+            hiddenByOffice: false,
+            hiddenByAdmin: false,
+            placement: {
+              ...note.placement,
+              x: input.x,
+              y: input.y,
+              rotation: input.rotation,
+              zIndex: input.zIndex,
+              revision: input.expectedRevision + 1,
+            },
+            capabilities: {
+              ...note.capabilities,
+              canModerateOffice: false,
+              canModerateAdmin: false,
+            },
+          },
+        }),
+      })
+    )
+
+    const { container } = renderPage()
+    await user.click(
+      await screen.findByRole("button", { name: "留言：留言作者" })
+    )
+    const handle = await screen.findByRole("button", { name: "移动留言" })
+    const refresh = screen.getByRole("button", { name: "刷新墙面" })
+    await waitFor(() => expect(refresh).toBeEnabled())
+
+    let releaseOldScene: (value: typeof scene) => void = () => {
+      throw new Error("The pending scene has not been created")
+    }
+    const oldScene = new Promise<typeof scene>((resolve) => {
+      releaseOldScene = resolve
+    })
+    const callsBeforeRefresh = sendScene.mock.calls.length
+    sendScene.mockImplementationOnce(() => oldScene)
+    await user.click(refresh)
+    await waitFor(() =>
+      expect(sendScene).toHaveBeenCalledTimes(callsBeforeRefresh + 1)
+    )
+
+    handle.focus()
+    await user.keyboard("{ArrowRight}")
+    const paper = () => container.querySelector('[data-message-id="note-1"]')
+    await waitFor(() =>
+      expect(paper()).toHaveAttribute("data-placement-x", "816")
+    )
+    await waitFor(() =>
+      expect(apiMocks.placeFudabaMessage).toHaveBeenCalledTimes(1)
+    )
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "移动留言" })).toBeEnabled()
+    )
+    await act(async () => {
+      releaseOldScene(scene)
+      await oldScene
+    })
+    expect(paper()).toHaveAttribute("data-placement-x", "816")
+
+    screen.getByRole("button", { name: "移动留言" }).focus()
+    await user.keyboard("{ArrowRight}")
+    await waitFor(() =>
+      expect(apiMocks.placeFudabaMessage).toHaveBeenNthCalledWith(2, "note-1", {
+        layoutVersion: 1,
+        x: 832,
+        y: 450,
+        rotation: 0,
+        zIndex: note.placement.zIndex,
+        expectedRevision: note.placement.revision + 1,
+      })
+    )
   })
 
   it("saves keyboard placement changes for the signed-in card owner", async () => {

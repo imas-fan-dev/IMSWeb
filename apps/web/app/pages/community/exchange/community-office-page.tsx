@@ -979,6 +979,12 @@ function CommunityOfficePageContent() {
     if (pendingMessages.current.has(note.id)) return
     pendingMessages.current.add(note.id)
     setPendingMessageIds(new Set(pendingMessages.current))
+    // Discard any scene read that started before this move: its snapshot still
+    // carries the old placement and would otherwise land after the save and
+    // silently revert the note.
+    sceneGeneration.current += 1
+    activeSceneRequest.current?.abort()
+    setWallLoading(false)
     const generation = requestGeneration.current
     const actorGeneration = messageSessionGeneration.current
     const update = (value: FudabaCardPlacement) =>
