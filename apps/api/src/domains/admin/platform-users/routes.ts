@@ -6,7 +6,10 @@ import {
     adminPlatformUserStatusRequestSchema
 } from '@imsweb/contracts/platform/admin-users';
 import { adminApiPath } from '@imsweb/contracts/paths';
-import { platformAccountKindRequestSchema } from '@imsweb/contracts/namecards';
+import {
+    platformAccountKindParamsSchema,
+    platformAccountKindRequestSchema
+} from '@imsweb/contracts/namecards';
 import type { ImsHonoApp } from '@/app';
 import { handleGetAdminPlatformUser } from '@/domains/admin/platform-users/handlers/get-platform-user';
 import { handleListAdminPlatformUsers } from '@/domains/admin/platform-users/handlers/list-platform-users';
@@ -116,6 +119,9 @@ export function registerAdminPlatformUserRoutes(app: ImsHonoApp): void {
         opOnly,
         superAdminOnly,
         backofficeCsrf,
+        paramSchemaValidator(platformAccountKindParamsSchema, {
+            invalidMessage: '平台标识符无效'
+        }),
         jsonSchemaValidator(platformAccountKindRequestSchema, {
             invalidMessage: '平台配置无效'
         }),
@@ -127,6 +133,9 @@ export function registerAdminPlatformUserRoutes(app: ImsHonoApp): void {
         opOnly,
         superAdminOnly,
         backofficeCsrf,
+        paramSchemaValidator(platformAccountKindParamsSchema, {
+            invalidMessage: '平台标识符无效'
+        }),
         handleDeletePlatformAccountKind
     );
     app.put(
@@ -135,6 +144,9 @@ export function registerAdminPlatformUserRoutes(app: ImsHonoApp): void {
         opOnly,
         superAdminOnly,
         backofficeCsrf,
+        paramSchemaValidator(platformAccountKindParamsSchema, {
+            invalidMessage: '平台标识符无效'
+        }),
         handleUploadPlatformAccountIcon
     );
 }

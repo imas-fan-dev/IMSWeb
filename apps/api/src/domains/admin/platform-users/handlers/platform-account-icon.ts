@@ -1,12 +1,11 @@
 import type { PlatformAccountIconUpload } from "@imsweb/contracts/namecards";
-import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
+import { parsePlatformAccountIconRequest } from "@/domains/admin/platform-users/request";
+import type { ValidatedRequestContext } from "@/middleware/request-validation";
 import { services } from "@/middleware/hono-context";
 import type { UploadedFile } from "@/ports/http";
 import { randomHex } from "@/utils/crypto/random";
 import { deleteObjectWithCompensation } from "@/utils/storage/delete-object";
-
-const MAX_ICON_BYTES = 512 * 1024;
 
 /**
  * Marks have to keep their transparent background, so only formats that can
@@ -31,13 +30,13 @@ export function platformAccountIconKey(kindId: string, extension: string): strin
 }
 
 export async function handleUploadPlatformAccountIcon(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, "param", { id: string }>
 ): Promise<Response> {
     const runtime = services(c);
     if (!runtime.uploads || !runtime.storage) {
         throw new Error("Upload services unavailable");
     }
-    const kindId = c.req.param("id") ?? "";
+    const { id: kindId } = c.req.valid("param");
     if (!KIND_ID.test(kindId)) {
         return c.json({ success: false, message: "平台标识符无效" }, 400);
     }
@@ -46,13 +45,10 @@ export async function handleUploadPlatformAccountIcon(
     if (!kind) {
         return c.json({ success: false, message: "平台不存在" }, 404);
     }
-    const upload = await runtime.uploads.parse(c.req.raw, {
-        maxBytes: MAX_ICON_BYTES + 64 * 1024,
-        fileFields: ["icon"],
-        maxFiles: 1,
-        maxFields: 0,
-        maxParts: 1,
-    });
+    const upload = await parsePlatformAccountIconRequest(
+        runtime.uploads,
+        c.req.raw
+    );
     const file = oneFile(upload.files.icon);
     if (!file) {
         return c.json({ success: false, message: "必须上传一个图标文件" }, 400);

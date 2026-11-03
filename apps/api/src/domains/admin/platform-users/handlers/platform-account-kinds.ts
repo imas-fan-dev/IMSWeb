@@ -5,6 +5,7 @@ import { services } from '@/middleware/hono-context';
 import { platformAccountIconUrls as kindIconUrls } from '@/utils/http/platform-icon-url';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import type { Context } from 'hono';
+import type { ValidatedRequestInput } from '@/middleware/request-validation';
 
 /** The body the backoffice submits; snake_case is only the storage shape. */
 export interface PlatformAccountKindBody {
@@ -49,10 +50,17 @@ export async function handleListPlatformAccountKinds(
     } satisfies PlatformAccountKindList);
 }
 
+type PlatformAccountKindWriteContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<'param', { id: string }> &
+        ValidatedRequestInput<'json', PlatformAccountKindBody>
+>;
+
 export async function handleUpsertPlatformAccountKind(
-    c: ValidatedRequestContext<AppEnvironment, 'json', PlatformAccountKindBody>
+    c: PlatformAccountKindWriteContext
 ): Promise<Response> {
-    const id = c.req.param('id') ?? '';
+    const { id } = c.req.valid('param');
     if (!/^[a-z0-9-]{1,32}$/.test(id)) {
         return c.json({ success: false, message: '标识符只能是小写字母、数字与连字符' }, 400);
     }
@@ -83,9 +91,9 @@ export async function handleUpsertPlatformAccountKind(
 }
 
 export async function handleDeletePlatformAccountKind(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'param', { id: string }>
 ): Promise<Response> {
-    const id = c.req.param('id') ?? '';
+    const { id } = c.req.valid('param');
     const removed = await services(c).namecards!.deletePlatformAccountKind(id);
     if (!removed) {
         return c.json({ success: false, message: '平台不存在' }, 404);
