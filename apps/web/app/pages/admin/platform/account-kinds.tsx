@@ -4,6 +4,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   TrashIcon,
+  UploadIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -18,7 +19,7 @@ import {
 } from "~/components/admin/admin-ui"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
+import { Button, buttonVariants } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import {
   Dialog,
@@ -29,6 +30,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog"
 import { Field, FieldLabel } from "~/components/ui/field"
+import { cn } from "~/lib/utils"
 import { Input } from "~/components/ui/input"
 import {
   Select,
@@ -458,22 +460,35 @@ export default function AdminPlatformAccountKindsPage() {
             <Field className="sm:col-span-2">
               <FieldLabel htmlFor="kind-icon-file">图标文件</FieldLabel>
               <div className="flex items-center gap-3">
-                {preview?.src && !previewFailed ? (
-                  <img
-                    src={preview.src}
-                    alt=""
-                    className="size-10 rounded-md border object-contain"
-                    onError={() => setFailedPreview(previewKey)}
-                  />
-                ) : (
-                  <span className="flex size-10 items-center justify-center rounded-md border text-sm font-medium text-muted-foreground">
-                    {preview?.letter ?? "—"}
-                  </span>
-                )}
-                <Input
+                <span className="flex size-12 items-center justify-center rounded-md border bg-muted/40 p-1.5">
+                  {preview?.src && !previewFailed ? (
+                    <img
+                      src={preview.src}
+                      alt=""
+                      className="size-full object-contain"
+                      onError={() => setFailedPreview(previewKey)}
+                    />
+                  ) : (
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {preview?.letter ?? "—"}
+                    </span>
+                  )}
+                </span>
+                <label
+                  htmlFor="kind-icon-file"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "cursor-pointer"
+                  )}
+                >
+                  <UploadIcon aria-hidden="true" />
+                  选择文件
+                </label>
+                <input
                   id="kind-icon-file"
                   type="file"
                   accept="image/png,image/webp,image/avif,image/gif,image/svg+xml"
+                  className="sr-only"
                   disabled={saving}
                   onChange={(event) => {
                     const file = event.currentTarget.files?.[0]
@@ -487,6 +502,11 @@ export default function AdminPlatformAccountKindsPage() {
                     void uploadIcon(file)
                   }}
                 />
+                {pendingIcon ? (
+                  <span className="text-xs text-muted-foreground">
+                    已选择 {pendingIcon.name}，保存后上传
+                  </span>
+                ) : null}
               </div>
               <p className="text-xs text-muted-foreground">
                 只收带透明通道的 PNG、WebP、AVIF、GIF 或 SVG；重传会直接替换现有文件。没有上传时按图标键取

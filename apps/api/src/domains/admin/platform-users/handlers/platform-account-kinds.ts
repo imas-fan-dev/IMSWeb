@@ -47,7 +47,9 @@ async function kindIconUrls(
     return await Promise.all(
         kinds.map((kind) =>
             kind.icon_object_key && storage
-                ? resolvePublicObjectUrl(storage, kind.icon_object_key, '')
+                ? resolvePublicObjectUrl(storage, kind.icon_object_key, '').then(
+                      (url) => url || null
+                  )
                 : Promise.resolve(null)
         )
     );
