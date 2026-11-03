@@ -684,65 +684,57 @@ function decodeOnce(value: string): string {
 }
 
 /**
- * Turns whatever the visitor typed into the identifier we store: query and
- * fragment dropped, the platform's prefix removed, percent escapes decoded,
- * and the case the platform itself uses.
+ * Turns whatever the visitor typed into the identifier we store.
+ *
+ * One rule: match the platform's link template first. No match means the input
+ * is not a link for this platform, so it is handed back untouched and the
+ * pattern rejects it. A match drops the template's literal parts, then removes
+ * the first `?`, `#` or `&` in what is left together with everything after it.
  */
 export function formatPlatformValue(
   kind: PlatformAccountFormat,
   raw: string
 ): string {
-  const input = raw.trim()
-  if (!input) return ""
-  // 先在整条输入里定位模板：前缀和后缀一起给出值的边界，中间那段就是值，
-  // 不必猜哪些符号是参数。模板对不上时才退回按终结符切。
+  const input = raw.trim();
+  if (!input) return "";
   const marker = kind.baseUrl?.indexOf("{value}") ?? -1;
-  const prefix = marker >= 0 ? kind.baseUrl!.slice(0, marker) : "";
-  const suffix = marker >= 0 ? kind.baseUrl!.slice(marker + "{value}".length) : "";
-  const isUrl = /^https?:\/\//i.test(input);
+  if (marker < 0) {
+    // No template (game handles, the homepage link): the input is the value.
+    return finishValue(kind, stripTrailingSlash(input));
+  }
+  const prefix = kind.baseUrl!.slice(0, marker);
+  const suffix = kind.baseUrl!.slice(marker + "{value}".length);
   const bare = stripScheme(input);
   const barePrefix = stripScheme(prefix);
-  const bareSuffix = stripScheme(suffix);
-  let value: string;
-  if (
-    marker >= 0 &&
-    barePrefix.length > 0 &&
-    bare.toLowerCase().startsWith(barePrefix.toLowerCase())
-  ) {
-    const rest = bare.slice(barePrefix.length);
-    const end = bareSuffix
-      ? rest.toLowerCase().lastIndexOf(bareSuffix.toLowerCase())
-      : -1;
-    // 后缀在就算出精确边界；没有后缀（或对不上）才按终结符收尾。
-    value =
-      end >= 0
-        ? rest.slice(0, end)
-        : cutParams(rest, prefix.includes("?") ? /[&#]/ : /[?#&]/);
-  } else if (isUrl && barePrefix.length > 0) {
-    // 模板对不上时退回最后一段路径，别把 host 也存进去。
-    value = cutParams(bare, /[?#]/);
-    value = value.slice(value.lastIndexOf("/") + 1);
-  } else {
-    // 没有模板（外链类）时整条输入就是值，协议要留着。
-    value = cutParams(input, /[?#]/);
+  if (!bare.toLowerCase().startsWith(barePrefix.toLowerCase())) return input;
+  let value = bare.slice(barePrefix.length);
+  if (suffix) {
+    const end = value.toLowerCase().lastIndexOf(stripScheme(suffix).toLowerCase());
+    if (end < 0) return input;
+    value = value.slice(0, end);
   }
-  if (isUrl) value = value.replace(/\/+$/, "");
-  value = decodeOnce(value);
-  if (kind.uppercase) return value.toUpperCase();
-  // A pattern that never allows capitals names a lower-case-only namespace
-  // (GitHub handles), so the editor folds the input for the visitor.
-  return /A-Z/.test(kind.pattern) ? value : value.toLowerCase();
+  const cut = value.search(/[?#&]/);
+  if (cut >= 0) value = value.slice(0, cut);
+  value = stripTrailingSlash(value);
+  // 还在打模板前缀（或只剩模板本身）时不能把输入清空。
+  return value ? finishValue(kind, value) : input;
 }
 
-/** 比较模板时忽略协议与末尾斜杠，`https://x.com/u` 与 `x.com/u` 等价。 */
+/** 比较模板时忽略协议，`https://x.com/u` 与 `x.com/u` 等价。 */
 function stripScheme(value: string): string {
   return value.replace(/^https?:\/\//i, "");
 }
 
-/** 参数在哪里结束取决于位置：`{value}` 落在 query 里时只有 `&`、`#` 能结束它。 */
-function cutParams(value: string, terminator: RegExp): string {
-  const cut = value.search(terminator);
-  return cut >= 0 ? value.slice(0, cut) : value;
+function stripTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function finishValue(kind: PlatformAccountFormat, value: string): string {
+  const decoded = decodeOnce(value);
+  if (kind.uppercase) return decoded.toUpperCase();
+  // A pattern that never allows capitals names a lower-case-only namespace
+  // (GitHub handles), so the editor folds the input for the visitor.
+  return /A-Z/.test(kind.pattern) ? decoded : decoded.toLowerCase();
 }
 
 /** Canonical storage form: YouTube handles are stored percent-encoded. */

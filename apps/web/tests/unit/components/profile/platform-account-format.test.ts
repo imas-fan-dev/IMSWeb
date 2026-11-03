@@ -22,33 +22,34 @@ describe("platform account values", () => {
     expect(
       formatPlatformValue(kind({}), "https://github.com/zheizhei?tab=repos")
     ).toBe("zheizhei")
-    expect(formatPlatformValue(kind({}), "  ZheiZhei  ")).toBe("zheizhei")
+    // 不带模板的裸标识符匹配不上，原样交给正则判断。
+    expect(formatPlatformValue(kind({}), "  ZheiZhei  ")).toBe("ZheiZhei")
+    expect(platformValueError(kind({}), "ZheiZhei")).not.toBeNull()
   })
 
-  it("keeps a query template so the placeholder cannot be eaten", () => {
-    // A template with ? means the pasted query is part of the platform's own
-    // link, so only & and # may terminate the value.
+  it("drops a template suffix together with whatever follows it", () => {
     const minecraft = kind({
       id: "minecraft",
       baseUrl: "https://namemc.com/profile/{value}?tab=skin",
     })
     expect(
-      formatPlatformValue(minecraft, "https://namemc.com/profile/abc&x=1")
+      formatPlatformValue(minecraft, "https://namemc.com/profile/abc?tab=skin")
+    ).toBe("abc")
+    expect(
+      formatPlatformValue(
+        minecraft,
+        "https://namemc.com/profile/abc?tab=skin&x=1"
+      )
     ).toBe("abc")
   })
 
-  it("matches the template path before cutting what follows it", () => {
+  it("leaves an input that does not match the template untouched", () => {
     const namemc = kind({
       id: "namemc",
       baseUrl: "https://namemc.com/profile/{value}?tab=skin",
     })
-    // The pasted link repeats the template's own query; it must not leak in.
-    expect(
-      formatPlatformValue(namemc, "https://namemc.com/profile/abc?tab=skin")
-    ).toBe("abc")
-    expect(
-      formatPlatformValue(namemc, "https://namemc.com/profile/abc&extra=1")
-    ).toBe("abc")
+    const pasted = "https://namemc.com/profile/abc&extra=1"
+    expect(formatPlatformValue(namemc, pasted)).toBe(pasted)
   })
 
   it("uses a template suffix as the closing boundary", () => {
@@ -66,10 +67,10 @@ describe("platform account values", () => {
         "https://bsky.app/profile/alice.bsky.social?ref=feed"
       )
     ).toBe("alice")
-    // A custom domain never carries the suffix, so the whole handle survives.
-    expect(
-      formatPlatformValue(bluesky, "https://bsky.app/profile/alice.example.com")
-    ).toBe("alice.example.com")
+    // 自定义域名不是这个平台的链接，原样退回，由正则拒绝。
+    const custom = "https://bsky.app/profile/alice.example.com"
+    expect(formatPlatformValue(bluesky, custom)).toBe(custom)
+    expect(platformValueError(bluesky, custom)).not.toBeNull()
   })
 
   it("reads the identifier out of a query-parameter template", () => {
