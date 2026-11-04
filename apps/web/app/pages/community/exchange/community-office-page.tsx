@@ -774,6 +774,7 @@ function CommunityOfficePageContent() {
         key: Date.now(),
       })
       setWallView("wall")
+      setWallEditing(true)
       try {
         const refreshedOffice = await refreshOfficeDetail(card.id)
         if (!refreshedOffice?.cards.some((item) => item.id === card.id)) {
@@ -960,6 +961,8 @@ function CommunityOfficePageContent() {
         : current
     )
     if (created) {
+      // Focus the new note without passing a scale, so the viewport keeps the
+      // current zoom; the note is editable right away.
       setWallFocus({
         x: note.placement.x,
         y: note.placement.y,
@@ -967,6 +970,7 @@ function CommunityOfficePageContent() {
       })
       setFocusedMessageId(note.id)
       setWallView("wall")
+      if (note.capabilities.canMove) setWallEditing(true)
       loadedBounds.current = null
     }
     toast.success(created ? "便签已贴到墙上。" : "留言已更新。")
@@ -1305,19 +1309,10 @@ function CommunityOfficePageContent() {
                   variant={wallEditing ? "secondary" : "default"}
                   disabled={wallMutationPending}
                   onClick={() => {
-                    if (!wallEditing) {
-                      const owned = office.cards.find(
-                        (card) => card.viewerOwned
-                      )
-                      if (owned)
-                        setWallFocus({
-                          x: owned.placement.x,
-                          y: owned.placement.y,
-                          scale: 1,
-                          key: Date.now(),
-                        })
+                    // Entering edit mode keeps the current camera and zoom;
+                    // only switch to the wall tab if another tab is showing.
+                    if (!wallEditing && wallView !== "wall")
                       setWallView("wall")
-                    }
                     setWallEditing((current) => !current)
                   }}
                 >

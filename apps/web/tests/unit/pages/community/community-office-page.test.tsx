@@ -812,8 +812,10 @@ describe("CommunityOfficePage", () => {
       "card-2",
       {
         layoutVersion: 1,
-        x: 45,
-        y: 52,
+        // Entering edit mode no longer re-centers the camera, so the new card
+        // lands at the default viewport center.
+        x: 800,
+        y: 450,
         rotation: 0,
         zIndex: 3,
         expectedRevision: null,
