@@ -38,6 +38,7 @@ Issue、release record 或私有运维记录中。
 - [缓存架构](architecture/cache.md)：Valkey、Memory fallback、限流和非权威缓存边界。
 - [平台账号安全中心架构](architecture/platform-account-security.md)：已登录身份能力的 domain 边界、各决策的实现状态、软删约束和验证码模型。
 - [Wiki 管理架构](architecture/wiki-management.md)：Wiki 数据模型、公开/后台 API 和媒体关系。
+- [名片交换设计](architecture/namecard-exchange.md)：交换的四种入口、名片册数据模型、链接与扫码、离线重放和退役清单。
 - [URL 与公共路径架构](architecture/url-paths.md)：共享路径 builders、路由所有权和变更流程。
 - [玻璃折射的平台策略](architecture/glass-refraction-platform-strategy.md)：伪折射地板、Chromium 真折射封顶和跨引擎降级。
 - [地图渲染与当地语言策略](architecture/map-rendering.md)：底图资源分工、当地原名优先、Mapbox 样式兼容与多文字系统验收。

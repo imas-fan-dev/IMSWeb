@@ -4568,6 +4568,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261103130000_platform_account_groups',
                 '20261103140000_platform_account_five_groups',
                 '20261103150000_platform_account_icon',
+                '20261105120000_platform_profile_slug_not_numeric',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');

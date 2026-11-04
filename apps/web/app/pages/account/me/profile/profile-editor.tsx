@@ -313,8 +313,8 @@ export function ProfileEditor({
             }}
           />
           <FieldDescription>
-            3–32 位小写字母、数字、连字符或下划线；别人可以通过 /user/你的地址
-            打开你的主页，不填则用数字编号。
+            3–32 位小写字母、数字、连字符或下划线，且不能是纯数字（会和数字编号冲突）；
+            别人可以通过 /user/你的地址打开你的主页，不填则用数字编号。
           </FieldDescription>
         </Field>
         <Field

@@ -166,6 +166,8 @@ export const platformProfileUpdateRequestSchema = z
       .string()
       .trim()
       .regex(/^[a-z0-9][a-z0-9_-]{2,31}$/u, "只能使用小写字母、数字、下划线与连字符，3-32 位")
+      // 纯数字会和 uid 抢同一个 /user/<handle> 命名空间，解析时无法区分。
+      .refine((value) => !/^[0-9]+$/u.test(value), "主页地址不能是纯数字")
       .nullable()
       .optional(),
   }, { invalid_type_error: "请求体必须是对象" })
