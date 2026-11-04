@@ -337,6 +337,10 @@ import { describe, onTestFinished, test } from 'vitest';
                 publicCard.favoriteCharacters.map((character) => character.character_id),
                 [900_002, 900_001]
             );
+            const single = await repository.findApprovedCard(id);
+            assert.equal(single?.id, id);
+            assert.equal(single?.seriesCode, 'cg');
+            assert.equal(await repository.findApprovedCard(987_654), null);
             const media = await repository.findApprovedCardMedia(id);
             assert.deepEqual(
                 media?.favoriteCharacters?.map((character) => character.character_id),
