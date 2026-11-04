@@ -95,7 +95,7 @@ function pageResult(ids = [42]): NamecardPage {
       supplementPending: false,
       viewerClaimState: null,
       claimerName: null,
-      claimerAccountId: null,
+      claimerUid: null,
       image1_url: `/front-${id}.jpg`,
       image2_url: `/back-${id}.jpg`,
       image1_thumbnail_url: `/front-${id}-thumbnail.jpg`,
@@ -213,7 +213,7 @@ describe("CommunityCardsPage", () => {
           supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
-          claimerAccountId: null,
+          claimerUid: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -267,6 +267,61 @@ describe("CommunityCardsPage", () => {
     expect(submissionTime.parentElement).toHaveClass("whitespace-nowrap")
     expect(screen.queryByText(/提交于/)).not.toBeInTheDocument()
     expect(screen.queryByText("制作人名片 #459")).not.toBeInTheDocument()
+  })
+
+  it("links a claimed card to the claimant's public page by uid", async () => {
+    apiMocks.sendPage.mockResolvedValue({
+      list: [
+        {
+          id: 460,
+          seriesCode: null,
+          favoriteCharacters: [],
+          claimStatus: "claimed",
+          supplementPending: false,
+          viewerClaimState: null,
+          claimerName: "认领制作人",
+          claimerUid: 7,
+          image1_url: "/uploads/front.webp",
+          image2_url: "/uploads/back.webp",
+          image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
+          image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+          revision: 1,
+          cardId: "card-43",
+          cardNumber: 43,
+          producerName: "天海春香",
+          producerReading: null,
+          groupName: null,
+          madeOn: null,
+          isOriginal: false,
+          madeWithAi: false,
+          bio: null,
+          tradeNote: null,
+          exchangeMode: "manual" as const,
+          accent: null,
+          seriesCodes: ["765"],
+          credits: [],
+          middleImageUrls: [],
+          canEdit: false,
+          hasOwner: false,
+          status: "approved",
+          created_at: "2026-08-06T06:30:00.000Z",
+        },
+      ],
+      page: 1,
+      perPage: 12,
+      total: 1,
+      totalPage: 1,
+    })
+
+    render(
+      <MemoryRouter>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("link", { name: "认领制作人" })
+    ).toHaveAttribute("href", "/user/7")
   })
 
   it.each([
@@ -337,7 +392,7 @@ describe("CommunityCardsPage", () => {
           supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
-          claimerAccountId: null,
+          claimerUid: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -433,7 +488,7 @@ describe("CommunityCardsPage", () => {
           supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
-          claimerAccountId: null,
+          claimerUid: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -1035,7 +1090,7 @@ describe("CommunityCardsPage", () => {
           supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
-          claimerAccountId: null,
+          claimerUid: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -1535,7 +1590,7 @@ describe("CommunityCardsPage", () => {
           supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
-          claimerAccountId: null,
+          claimerUid: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",

@@ -43,7 +43,7 @@ export const namecardMetadataSchema = {
   /** The claimant's account name, shown on the wall badge. */
   claimerName: z.string().min(1).nullable(),
   /** Where that name links to; null for the legacy rows with no account. */
-  claimerAccountId: z.string().min(1).nullable(),
+  claimerUid: z.number().int().positive().nullable(),
   /** Someone's supplement is waiting for review, so nobody else may submit. */
   supplementPending: z.boolean(),
 }

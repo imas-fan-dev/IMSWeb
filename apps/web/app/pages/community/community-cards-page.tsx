@@ -189,12 +189,12 @@ function NamecardItem({
           )}
         </CardDescription>
         {card.claimStatus === "claimed" ? (
-          card.claimerAccountId ? (
+          card.claimerUid ? (
             <Badge
               variant="outline"
               className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
               render={
-                <NavigationLink to={`/user/${card.claimerAccountId}`} />
+                <NavigationLink to={`/user/${card.claimerUid}`} />
               }
             >
               <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />

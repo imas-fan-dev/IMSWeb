@@ -34,7 +34,7 @@ const card: Namecard = {
   claimStatus: "unclaimed" as const,
   viewerClaimState: null,
   claimerName: null,
-  claimerAccountId: null,
+  claimerUid: null,
   supplementPending: false,
   image1_url: "/uploads/front.webp",
   image2_url: "/uploads/back.webp",

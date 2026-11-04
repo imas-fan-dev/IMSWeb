@@ -124,10 +124,13 @@ function namecardAdminWhere(
     const clauses = [
         "publication_status <> 'withdrawn'",
         'deleted_at IS NULL',
-        // A guest upload folded into a served card is no longer its own entry.
+        // A guest upload folded into a different served card is no longer its
+        // own entry. A claim that upgraded the guest row in place records the
+        // row as its own merge target, and that card is a real card now.
         `NOT EXISTS (
             SELECT 1 FROM fudaba_card_merges merged
             WHERE merged.legacy_card_id = fudaba_cards.card_number
+              AND merged.target_card_id <> fudaba_cards.id
         )`
     ];
     const values: unknown[] = [];

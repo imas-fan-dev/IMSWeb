@@ -134,7 +134,7 @@ export async function mockNamecardBrowsing(
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
                 claimerName: null,
-                claimerAccountId: null,
+                claimerUid: null,
                 supplementPending: false,
                 image1_url: `/__namecard-qa/front-${id}.png`,
                 image2_url: `/__namecard-qa/back-${id}.png`,

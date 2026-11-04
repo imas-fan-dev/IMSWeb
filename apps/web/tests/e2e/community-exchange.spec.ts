@@ -548,6 +548,7 @@ test.describe("community exchange", () => {
             success: true,
             account: { id: "platform-wall-owner", status: "active" },
             profile: {
+              uid: 1,
               displayName: "春香P",
               avatarUrl: null,
               homeCity: "上海",
@@ -568,11 +569,11 @@ test.describe("community exchange", () => {
             account: { id: "platform-wall-owner", status: "active" },
             capabilities: { fudabaWrite: true },
             profile: {
+              uid: 1,
               displayName: "春香P",
               avatarUrl: null,
               homeCity: "上海",
               bio: "上海地区制作人",
-              uid: 1,
               pageSlug: null,
               updatedAt: 1,
             },

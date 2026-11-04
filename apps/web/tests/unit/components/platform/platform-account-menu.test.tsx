@@ -44,6 +44,7 @@ function sessionState(
               status: status === "restricted" ? "restricted" : "active",
             },
             profile: {
+              uid: 7,
               displayName: "Platform Producer",
               avatarUrl,
               homeCity: null,
@@ -118,6 +119,10 @@ describe("PlatformAccountMenu", () => {
 
     expect(screen.getByText("Platform Producer")).toBeVisible()
     expect(screen.getByText("已登录")).toBeVisible()
+    // 账号身份块本身就是通往个人主页的链接，地址用公开 uid。
+    expect(
+      screen.getByRole("link", { name: /Platform Producer/ })
+    ).toHaveAttribute("href", "/user/7")
     await userEvent.click(screen.getByRole("button", { name: "退出帐号" }))
     expect(sessionMocks.logout).toHaveBeenCalledOnce()
   })

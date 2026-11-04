@@ -14,6 +14,7 @@ export function makePlatformSessionProfile(
   overrides: Partial<PlatformSessionProfile> = {}
 ): PlatformSessionProfile {
   return {
+    uid: 1,
     displayName: "制作人",
     avatarUrl: "/platform-avatars/acct-1.webp",
     homeCity: "广州",
@@ -27,7 +28,6 @@ export function makePlatformProfile(
 ): PlatformProfile {
   return {
     ...makePlatformSessionProfile(),
-    uid: 1,
     pageSlug: null,
     updatedAt: 1767200000,
     ...overrides,

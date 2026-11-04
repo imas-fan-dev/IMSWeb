@@ -148,7 +148,10 @@ export function PlatformAccountMenu() {
           </div>
         ) : platform.session ? (
           <div className="mt-3 space-y-3">
-            <div className="flex min-w-0 items-center gap-3">
+            <NavigationLink
+              to={`/user/${platform.session.profile.uid}`}
+              className="flex min-w-0 items-center gap-3 rounded-md outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
               <Avatar size="lg">
                 {avatarSource ? (
                   <AvatarImage
@@ -177,7 +180,7 @@ export function PlatformAccountMenu() {
                   </p>
                 )}
               </div>
-            </div>
+            </NavigationLink>
             <NavigationLink
               to="/account/me"
               className={buttonVariants({

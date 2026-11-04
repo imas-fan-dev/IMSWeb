@@ -84,6 +84,7 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
     success: true,
     account: { id: "platform-owner", status: "active" },
     profile: {
+      uid: 1,
       displayName: "Owner Display",
       avatarUrl: null,
       homeCity: "Shanghai",

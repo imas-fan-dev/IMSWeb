@@ -74,6 +74,7 @@ interface NamecardRow {
     viewer_claim_state?: unknown;
     claimer_name?: unknown;
     claimer_account_id?: unknown;
+    claimer_uid?: unknown;
     supplement_pending?: unknown;
     cardId?: unknown;
     card_number?: unknown;
@@ -239,9 +240,10 @@ export function toPublicNamecardResponse(
     };
     return Object.assign(response, {
         claimerName: responseClaimerName(row.claimer_name),
-        claimerAccountId:
-            typeof row.claimer_account_id === 'string' && row.claimer_account_id
-                ? row.claimer_account_id
+        claimerUid:
+            typeof row.claimer_uid === 'number' ||
+            typeof row.claimer_uid === 'string'
+                ? Number(row.claimer_uid)
                 : null
     });
 }

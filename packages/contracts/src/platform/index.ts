@@ -279,6 +279,8 @@ export const platformAccountSchema = z
 
 export const platformSessionProfileSchema = z
   .object({
+    /** Permanent public handle: every account link is /user/<uid>. */
+    uid: z.number().int().positive(),
     displayName: z.string(),
     avatarUrl: z.string().nullable(),
     homeCity: z.string().nullable(),

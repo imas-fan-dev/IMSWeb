@@ -25,6 +25,7 @@ export function officePickerScenario() {
         success: true,
         account: { id: "picker-owner", status: "active" },
         profile: {
+          uid: 1,
           displayName: "选点制作人",
           avatarUrl: null,
           homeCity: null,

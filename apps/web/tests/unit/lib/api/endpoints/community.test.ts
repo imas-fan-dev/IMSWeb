@@ -150,7 +150,7 @@ describe("community API contracts", () => {
               supplementPending: false,
               viewerClaimState: requestCount === 1 ? null : "pending",
               claimerName: null,
-              claimerAccountId: null,
+              claimerUid: null,
             },
           ],
           total: 1,
