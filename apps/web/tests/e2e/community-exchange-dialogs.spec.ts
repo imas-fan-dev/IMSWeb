@@ -389,6 +389,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     success: true,
     account: { id: "map-owner", status: "active" },
     profile: {
+      uid: 1,
       displayName: "地图制作人",
       avatarUrl: null,
       homeCity: "上海",

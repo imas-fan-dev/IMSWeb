@@ -440,6 +440,11 @@ function namecard(card: Namecard): Namecard {
   }
 }
 
+/** 单张公开名片与列表项共用同一套图片地址归一。 */
+export function normalizeNamecard(card: Namecard): Namecard {
+  return namecard(card)
+}
+
 export function normalizeNamecardPage(page: NamecardPage): NamecardPage {
   return { ...page, list: page.list.map(namecard) }
 }

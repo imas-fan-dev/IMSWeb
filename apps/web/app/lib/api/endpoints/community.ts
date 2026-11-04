@@ -1,10 +1,11 @@
 import type { PlatformAccountLink } from "@imsweb/contracts/namecards"
-import { apiPath } from "@imsweb/contracts/paths"
+import { apiPath, namecardPath } from "@imsweb/contracts/paths"
 import {
   namecardErrorResponseSchema,
   namecardListErrorResponseSchema,
   randomOwnerlessCardErrorSchema,
   randomOwnerlessCardSchema,
+  publicNamecardResponseSchema,
   wallInsightsSchema,
   namecardReactionListQuerySchema,
   namecardReactionRequestSchema,
@@ -16,7 +17,7 @@ import {
   NO_CLIENT_CACHE,
   PUBLIC_CACHE_INVALIDATION_SOURCE,
 } from "../cache-policy"
-import { normalizeNamecardPage } from "../media-urls"
+import { normalizeNamecard, normalizeNamecardPage } from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
@@ -86,6 +87,22 @@ export function getProfileCards(accountId: string, page = 1, size = 24) {
       cacheFor: NO_CLIENT_CACHE,
       params: { page, size },
       select: normalizeNamecardPage,
+    })
+  )
+}
+
+/** 深链与随机补充：按编号取单张公开名片，当前分页里可能没有它。 */
+export function getPublicCard(cardNumber: number) {
+  return apiClient.Get(
+    namecardPath(cardNumber),
+    parsed(publicNamecardResponseSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+      select: (payload) => ({
+        ...payload,
+        card: payload.card ? normalizeNamecard(payload.card) : null,
+      }),
     })
   )
 }

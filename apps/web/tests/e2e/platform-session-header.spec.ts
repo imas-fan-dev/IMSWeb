@@ -96,6 +96,7 @@ test.describe("platform session header", () => {
             success: true,
             account: { id: "platform-browser", status: "active" },
             profile: {
+              uid: 1,
               displayName: "浏览器制作人",
               avatarUrl: null,
               homeCity: null,
@@ -159,6 +160,7 @@ test.describe("platform session header", () => {
       success: true,
       account: { id: "platform-browser", status: "active" },
       profile: {
+        uid: 1,
         displayName: "浏览器制作人",
         avatarUrl: null,
         homeCity: null,
@@ -210,6 +212,7 @@ test.describe("platform session header", () => {
               success: true,
               account: { id: "platform-cross-tab", status: "active" },
               profile: {
+                uid: 1,
                 displayName: "多页签制作人",
                 avatarUrl: null,
                 homeCity: null,
@@ -250,6 +253,7 @@ test.describe("platform session header", () => {
             success: true,
             account: { id: "platform-cross-tab", status: "active" },
             profile: {
+              uid: 1,
               displayName: "多页签制作人",
               avatarUrl: null,
               homeCity: null,

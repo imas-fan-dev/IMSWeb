@@ -2942,6 +2942,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 viewer_claim_state: 'pending',
                 claimer_name: null,
                 claimer_account_id: null,
+                claimer_uid: null,
                 supplement_pending: false
             }]);
             const adminClaim = await fudaba.findAdminCardClaim(claimId);
@@ -2990,6 +2991,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 viewer_claim_state: 'approved',
                 claimer_name: 'Producer claim-owner-a',
                 claimer_account_id: ownerA,
+                claimer_uid: 1,
                 supplement_pending: false
             }]);
             // The review result reaches the claimant through the shared
@@ -3304,6 +3306,29 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(
                 createdCardResult.card?.front_object_key,
                 `community/fudaba/cards/${boundCreateCardId}/front.webp`
+            );
+            // 早期绑定认领会把「升级后的同一张卡」记成自己的合并目标，审核队列
+            // 的排除条件因此把一张真实名片藏了起来；自合并不能再隐藏它。
+            await database.prepare(
+                `INSERT INTO fudaba_card_merges
+                     (claim_id, target_card_id, legacy_card_id, merged_at)
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT DO NOTHING`
+            ).bind(
+                'create-card-claim',
+                boundCreateCardId,
+                createLegacyId,
+                String(REVIEWED_AT)
+            ).run();
+            const queueRepository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await queueRepository.initialize();
+            const adminQueue = await queueRepository.listAdminCards(50, 0);
+            assert.ok(
+                adminQueue.some((row) => row.id === createLegacyId),
+                'a card that merged into itself stays in the admin queue'
             );
             assert.equal((await fudaba.softDeleteCardForOwner({
                 cardId: boundCreateCardId,
@@ -4568,6 +4593,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261103130000_platform_account_groups',
                 '20261103140000_platform_account_five_groups',
                 '20261103150000_platform_account_icon',
+                '20261105120000_platform_profile_slug_not_numeric',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');

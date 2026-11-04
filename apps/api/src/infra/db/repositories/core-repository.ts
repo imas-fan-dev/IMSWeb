@@ -124,10 +124,13 @@ function namecardAdminWhere(
     const clauses = [
         "publication_status <> 'withdrawn'",
         'deleted_at IS NULL',
-        // A guest upload folded into a served card is no longer its own entry.
+        // A guest upload folded into a different served card is no longer its
+        // own entry. A claim that upgraded the guest row in place records the
+        // row as its own merge target, and that card is a real card now.
         `NOT EXISTS (
             SELECT 1 FROM fudaba_card_merges merged
             WHERE merged.legacy_card_id = fudaba_cards.card_number
+              AND merged.target_card_id <> fudaba_cards.id
         )`
     ];
     const values: unknown[] = [];
@@ -740,6 +743,27 @@ export class SqlCoreRepository implements NamecardRepository {
             rows,
             'live'
         ) as NamecardPublicRecord[];
+    }
+
+    async findApprovedCard(
+        cardNumber: number
+    ): Promise<NamecardPublicRecord | null> {
+        const row = await queryOne<NamecardCardRow>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=?
+               AND publication_status='published'
+               AND ${NAMECARD_PUBLIC_ORIGIN}
+               AND deleted_at IS NULL`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const [card] = (await this.attachNamecardFavorites(
+            this.database,
+            [row],
+            'live'
+        )) as NamecardPublicRecord[];
+        return card ?? null;
     }
 
     async findPublicProfile(handle: string): Promise<PublicProfileRecord | null> {

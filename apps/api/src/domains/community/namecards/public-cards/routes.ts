@@ -1,4 +1,5 @@
 import { handleGetNamecard } from "@/domains/community/namecards/public-cards/handlers/get-namecard";
+import { handleGetPublicCard } from "@/domains/community/namecards/public-cards/handlers/get-public-card";
 import { handleGetPublicProfile } from "@/domains/community/namecards/public-profiles/handlers/get-public-profile";
 import { handleListProfileCards } from "@/domains/community/namecards/public-profiles/handlers/list-profile-cards";
 import { handleGetRandomOwnerlessCard } from "@/domains/community/namecards/public-cards/handlers/get-random-ownerless-card";
@@ -71,6 +72,13 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         paramSchemaValidator(publicProfileParamsSchema),
         handleListProfileCards,
+    );
+    // 深链与随机补充：按编号取单张公开名片，不依赖当前分页。
+    routes.get(
+        "/cards/:id",
+        optionalPlatformAuth,
+        paramSchemaValidator(compatibleNamecardIdParamsSchema, { invalidMessage: "名片 ID 无效" }, validateCompatibleNamecardIdParams),
+        handleGetPublicCard,
     );
     routes.get(
         "/card/:id",

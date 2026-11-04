@@ -170,6 +170,16 @@ test.describe('platform profile contract', () => {
             label: 'bio over 2000 characters',
             body: profileJson({ bio: 'x'.repeat(2001) }),
             message: 'bio 长度无效'
+        },
+        {
+            label: 'numeric page slug',
+            body: profileJson({ pageSlug: '12345' }),
+            message: '主页地址不能是纯数字'
+        },
+        {
+            label: 'page slug with an illegal character',
+            body: profileJson({ pageSlug: 'Owner Name' }),
+            message: '只能使用小写字母、数字、下划线与连字符，3-32 位'
         }
     ];
 

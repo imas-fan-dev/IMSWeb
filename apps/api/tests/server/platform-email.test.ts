@@ -466,14 +466,22 @@ import { afterAll, describe, onTestFinished, test, test as nodeTest, vi } from '
             ),
         );
         assert.equal(register.status, 201, await register.clone().text());
-        assert.deepEqual(await register.clone().json(), {
+        const registered = (await register.clone().json()) as {
+            account: { id: string }
+        };
+        // uid 由数据库序列分配，断言前先读出来。
+        const registeredProfile = await database
+            .prepare("SELECT uid FROM platform_profiles WHERE account_id=?")
+            .bind(registered.account.id)
+            .first<{ uid: number | string }>();
+        assert.deepEqual(registered, {
             success: true,
             account: {
-                id: ((await register.clone().json()) as { account: { id: string } })
-                    .account.id,
+                id: registered.account.id,
                 status: "active",
             },
             profile: {
+                uid: Number(registeredProfile?.uid ?? 0),
                 displayName: "Producer One",
                 avatarUrl: null,
                 homeCity: null,

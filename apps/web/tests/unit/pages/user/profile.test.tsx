@@ -136,7 +136,7 @@ function card(overrides: Partial<Namecard> = {}): Namecard {
     supplementPending: false,
     viewerClaimState: null,
     claimerName: null,
-    claimerAccountId: null,
+    claimerUid: null,
     image1_url: "/cards/front-101.jpg",
     image2_url: "/cards/back-101.jpg",
     image1_thumbnail_url: "/cards/front-101-thumb.jpg",

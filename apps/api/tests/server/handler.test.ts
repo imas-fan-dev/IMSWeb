@@ -145,6 +145,7 @@ import { test } from 'vitest';
             'handleFlagNamecard',
             'handleGetAdminNamecardDiff',
             'handleGetNamecard',
+            'handleGetPublicCard',
             'handleGetPublicProfile',
             'handleListAdminNamecardFeedback',
             'handleListAdminNamecardFeedbackAudit',
@@ -503,7 +504,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 156);
+            assert.equal(Object.values(actual).flat().length, 157);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -866,6 +867,7 @@ import { test } from 'vitest';
                 return { rows: [], total: 0, ownerTotals: {}, reporterTotals: {} };
             },
             async findPublicProfile() { return null; },
+            async findApprovedCard() { return null; },
             async listPlatformAccountLinks() { return []; },
             async listPlatformAccountKinds() { return []; },
             async upsertPlatformAccountKind() {},
@@ -1268,6 +1270,42 @@ import { test } from 'vitest';
                 success: false,
                 message: '只支持带透明通道的 PNG、WebP、AVIF、GIF 或 SVG'
             });
+        });
+    });
+
+    test.describe('public card deep link', () => {
+        test('answers one published card and null for an unknown number', async () => {
+            const card = {
+                id: 19,
+                card_number: 19,
+                cardId: 'card-19',
+                revision: 1,
+                image1_url: '/uploads/namecard/original/front.webp',
+                image2_url: null,
+                status: 'approved',
+                created_at: '2026-08-11T00:00:00.000Z',
+                exchange_mode: 'manual',
+                owner_account_id: 'owner-1'
+            };
+            const fixture = createCompatibilityFixture({
+                async findApprovedCard(cardNumber) {
+                    return cardNumber === 19
+                        ? (card as never)
+                        : null;
+                }
+            });
+
+            const found = await fixture.request('/api/cards/19');
+            assert.equal(found.status, 200);
+            const foundBody = (await responseJson(found)) as {
+                card: { id: number; cardNumber: number; image1_url: string };
+            };
+            assert.equal(foundBody.card.cardNumber, 19);
+            assert.match(foundBody.card.image1_url, /front\.webp/);
+
+            const missing = await fixture.request('/api/cards/404');
+            assert.equal(missing.status, 200);
+            assert.deepEqual(await responseJson(missing), { card: null });
         });
     });
 

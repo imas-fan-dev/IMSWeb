@@ -395,6 +395,8 @@ export interface LegacyNamecardClaimStatusRecord {
     claimer_name: string | null;
     /** Links the wall badge to the claimant's public page. */
     claimer_account_id: string | null;
+    /** The public handle the badge links to; /user/<uid> is the canonical URL. */
+    claimer_uid: number | null;
     /** A visitor's supplement is waiting for review on this wall card. */
     supplement_pending: boolean;
 }

@@ -184,6 +184,7 @@ export async function platformSessionPayload(
             status: account.status as PlatformSession['account']['status']
         },
         profile: {
+            uid: Number(profile.uid),
             displayName: profile.display_name,
             avatarUrl: profileView.avatarUrl,
             homeCity: profile.home_city,

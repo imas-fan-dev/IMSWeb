@@ -89,6 +89,7 @@ describe("Platform API boundary", () => {
           success: true,
           account: { id: "platform-1", status: "active" },
           profile: {
+            uid: 1,
             displayName: "Platform Producer",
             avatarUrl: null,
             homeCity: null,
@@ -110,6 +111,7 @@ describe("Platform API boundary", () => {
           success: true,
           account: { id: "platform-1", status: "active" },
           profile: {
+            uid: 1,
             displayName: "Platform Producer",
             avatarUrl: null,
             homeCity: null,
@@ -221,6 +223,7 @@ describe("Platform API boundary", () => {
           success: true,
           account: { id: "platform-recovered", status: "active" },
           profile: {
+            uid: 1,
             displayName: "Recovered Producer",
             avatarUrl: null,
             homeCity: null,

@@ -155,7 +155,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261103120000_platform_account_uppercase', phase: 'post-data' },
                 { version: '20261103130000_platform_account_groups', phase: 'post-data' },
                 { version: '20261103140000_platform_account_five_groups', phase: 'post-data' },
-                { version: '20261103150000_platform_account_icon', phase: 'post-data' }
+                { version: '20261103150000_platform_account_icon', phase: 'post-data' },
+                { version: '20261105120000_platform_profile_slug_not_numeric', phase: 'pre-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -684,11 +685,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 88);
+        assert.equal(catalog.count, 89);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261103150000_platform_account_icon'
+            '20261105120000_platform_profile_slug_not_numeric'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1056,7 +1057,8 @@ test.describe('PostgreSQL migration', () => {
                 '20261103120000_platform_account_uppercase',
                 '20261103130000_platform_account_groups',
                 '20261103140000_platform_account_five_groups',
-                '20261103150000_platform_account_icon'
+                '20261103150000_platform_account_icon',
+                '20261105120000_platform_profile_slug_not_numeric'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

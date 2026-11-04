@@ -4063,6 +4063,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON target.id=? AND target.owner_account_id=account.id
               AND target.deleted_at IS NULL
               AND target.publication_status<>'approving'
+              AND target.id<>guest.id
              WHERE guest.card_number=? AND guest.owner_account_id IS NULL
                AND guest.deleted_at IS NULL
                AND guest.publication_status='published'
@@ -4401,7 +4402,28 @@ export class SqlFudabaRepository implements FudabaRepository {
                               AND merged_account.deleted_at IS NULL
                             LIMIT 1
                         )
-                    ) AS claimer_account_id
+                    ) AS claimer_account_id,
+                    COALESCE(
+                        CASE
+                            WHEN claimer_account.status IN ('active', 'restricted')
+                                AND claimer_account.deleted_at IS NULL
+                                THEN owner_profile.uid
+                        END,
+                        (
+                            SELECT merged_profile.uid
+                            FROM fudaba_card_merges merged
+                            JOIN fudaba_cards merged_card
+                              ON merged_card.id=merged.target_card_id
+                            JOIN platform_accounts merged_account
+                              ON merged_account.id=merged_card.owner_account_id
+                            JOIN platform_profiles merged_profile
+                              ON merged_profile.account_id=merged_card.owner_account_id
+                            WHERE merged.legacy_card_id=wanted.card_number
+                              AND merged_account.status IN ('active', 'restricted')
+                              AND merged_account.deleted_at IS NULL
+                            LIMIT 1
+                        )
+                    ) AS claimer_uid
              FROM (VALUES ${values}) AS wanted(card_number)
              LEFT JOIN fudaba_cards guest
                     ON guest.card_number=wanted.card_number

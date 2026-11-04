@@ -514,12 +514,12 @@ export function NamecardDetailDialog({
               {card?.revision ?? 0}
             </span>
             {card?.claimStatus === "claimed" ? (
-              card.claimerAccountId ? (
+              card.claimerUid ? (
                 <Badge
                   variant="outline"
                   className="text-muted-foreground"
                   render={
-                    <NavigationLink to={`/user/${card.claimerAccountId}`} />
+                    <NavigationLink to={`/user/${card.claimerUid}`} />
                   }
                 >
                   <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />

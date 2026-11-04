@@ -116,7 +116,10 @@ export function ProfileWorkspaceNavigation({
           : "lg:sticky lg:top-16 lg:max-h-[calc(100svh-4rem)] lg:self-start lg:overflow-y-auto"
       )}
     >
-      <div className="flex min-w-0 items-center gap-3 p-4 sm:px-6 lg:p-5">
+      <NavigationLink
+        to={`/user/${profile.uid}`}
+        className="flex min-w-0 items-center gap-3 p-4 outline-none hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-6 lg:p-5"
+      >
         <Avatar size="lg" className="size-12 shrink-0">
           {avatarSource ? (
             <AvatarImage
@@ -135,7 +138,7 @@ export function ProfileWorkspaceNavigation({
             {profile.homeCity || "未填写常驻城市"} · {cardCount} 张名片
           </p>
         </div>
-      </div>
+      </NavigationLink>
 
       <nav className="min-w-0 border-t" aria-label="个人档案菜单">
         <ul className="grid grid-cols-5 lg:block">

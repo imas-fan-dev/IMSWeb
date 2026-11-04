@@ -48,6 +48,7 @@ interface PlatformClaims extends Record<string, unknown> {
 
 interface SeededSession {
     accountId: string;
+    uid: number;
     sessionId: string;
     accessToken: string;
     refreshToken: string;
@@ -160,11 +161,13 @@ function jwtPart(token: string, index: number): Record<string, unknown> {
 function expectedSessionPayload(
     accountId: string,
     status: PlatformAccountStatus,
+    uid: number,
 ) {
     return {
         success: true,
         account: { id: accountId, status },
         profile: {
+            uid,
             displayName: `Producer ${accountId}`,
             avatarUrl: `https://avatars.example.test/${accountId}.png`,
             homeCity: "Shanghai",
@@ -260,6 +263,10 @@ async function createFixture(): Promise<Fixture> {
                     now,
                 )
                 .run();
+            const profileRow = await database
+                .prepare("SELECT uid FROM platform_profiles WHERE account_id=?")
+                .bind(accountId)
+                .first<{ uid: number | string }>();
             const accessToken = await platformTokens.sign(
                 {
                     id: accountId,
@@ -271,6 +278,7 @@ async function createFixture(): Promise<Fixture> {
             );
             return {
                 accountId,
+                uid: Number(profileRow?.uid ?? 0),
                 sessionId,
                 accessToken,
                 refreshToken,
@@ -371,7 +379,7 @@ describe('platform session security contract', () => {
         assert.equal(authenticated.status, 200);
         assert.deepEqual(
             await authenticated.json(),
-            expectedSessionPayload(active.accountId, "active"),
+            expectedSessionPayload(active.accountId, "active", active.uid),
         );
 
         await fixture.database
@@ -384,7 +392,7 @@ describe('platform session security contract', () => {
         assert.equal(restricted.status, 200);
         assert.deepEqual(
             await restricted.json(),
-            expectedSessionPayload(active.accountId, "restricted"),
+            expectedSessionPayload(active.accountId, "restricted", active.uid),
         );
         const restrictedRefresh = await refreshRequest(
             fixture,
@@ -394,7 +402,7 @@ describe('platform session security contract', () => {
         assert.equal(restrictedRefresh.status, 200);
         assert.deepEqual(
             await restrictedRefresh.clone().json(),
-            expectedSessionPayload(active.accountId, "restricted"),
+            expectedSessionPayload(active.accountId, "restricted", active.uid),
         );
 
         await fixture.database
@@ -796,7 +804,7 @@ describe('platform session security contract', () => {
         assert.equal(refreshed.status, 200);
         assert.deepEqual(
             await refreshed.clone().json(),
-            expectedSessionPayload(session.accountId, "active"),
+            expectedSessionPayload(session.accountId, "active", session.uid),
         );
         const refreshedCookies = cookieValues(refreshed);
         assert.deepEqual([...refreshedCookies.keys()].sort(), [

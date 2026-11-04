@@ -40,6 +40,7 @@ export async function handleListNamecards(
                     viewer_claim_state: status?.viewer_claim_state,
                     claimer_name: status?.claimer_name,
                     claimer_account_id: status?.claimer_account_id,
+                    claimer_uid: status?.claimer_uid,
                     supplement_pending: status?.supplement_pending ?? false
                 },
                 c.get('platformUser')?.id ?? null

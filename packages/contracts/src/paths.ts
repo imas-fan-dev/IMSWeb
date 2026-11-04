@@ -42,6 +42,11 @@ export const iconPath = (suffix = ""): string =>
 export const cssPath = (suffix = ""): string =>
   appendPath(CSS_PATH_PREFIX, suffix)
 
+/** One public card by its wall number; used by deep links and the random picker. */
+export function namecardPath(cardNumber: string | number): string {
+  return apiPath(`cards/${cardNumber}`)
+}
+
 /** Artwork routes: the public wall reads published pages, moderators read both. */
 export function namecardMediaPath(
   cardNumber: string | number,

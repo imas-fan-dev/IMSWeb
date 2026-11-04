@@ -115,6 +115,7 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
           success: true,
           account: { id: "platform-browser", status: "active" },
           profile: {
+            uid: 1,
             displayName: currentProfile.displayName,
             avatarUrl: currentProfile.avatarUrl,
             homeCity: currentProfile.homeCity,

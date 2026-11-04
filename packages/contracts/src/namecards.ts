@@ -43,7 +43,7 @@ export const namecardMetadataSchema = {
   /** The claimant's account name, shown on the wall badge. */
   claimerName: z.string().min(1).nullable(),
   /** Where that name links to; null for the legacy rows with no account. */
-  claimerAccountId: z.string().min(1).nullable(),
+  claimerUid: z.number().int().positive().nullable(),
   /** Someone's supplement is waiting for review, so nobody else may submit. */
   supplementPending: z.boolean(),
 }
@@ -204,6 +204,15 @@ export const reactionSchema = z.record(z.string(), z.number().int().nonnegative(
 export type Namecard = z.infer<typeof namecardSchema>
 export type NamecardPage = z.infer<typeof namecardPageSchema>
 export type PublicProfile = z.infer<typeof publicProfileSchema>
+
+/** 深链与随机补充需要按编号取单张公开名片，列表分页拿不到当前页以外的卡。 */
+export const publicNamecardResponseSchema = exactJsonResponse({
+  card: namecardSchema.nullable(),
+})
+
+export type PublicNamecardResponse = z.infer<
+  typeof publicNamecardResponseSchema
+>
 
 /** 公开主页只有「有」和「没有」两种结果，没有更多错误码。 */
 export const publicProfileErrorSchema = exactJsonError({

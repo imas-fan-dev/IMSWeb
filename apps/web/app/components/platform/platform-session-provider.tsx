@@ -102,6 +102,7 @@ export function PlatformSessionProvider({ children }: { children: ReactNode }) {
           session: {
             ...current.session,
             profile: {
+              uid: profile.uid,
               displayName: profile.displayName,
               avatarUrl: profile.avatarUrl,
               homeCity: profile.homeCity,

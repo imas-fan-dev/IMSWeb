@@ -137,6 +137,7 @@ import {
   publicProfileSchema,
   randomOwnerlessCardErrorSchema,
   randomOwnerlessCardSchema,
+  publicNamecardResponseSchema,
   wallInsightsSchema,
   myPlatformAccountsSchema,
   namecardReactionListQuerySchema,
@@ -414,6 +415,15 @@ export function resolveApiContract(
       responses: {
         200: randomOwnerlessCardSchema,
         404: randomOwnerlessCardErrorSchema,
+      },
+    }
+  // 深链与随机补充按编号取单张公开名片；静态段已在上方优先匹配。
+  if (method === "GET" && /^\/api\/cards\/[^/]+$/.test(path))
+    return {
+      responses: {
+        200: publicNamecardResponseSchema,
+        400: namecardErrorResponseSchema,
+        404: namecardErrorResponseSchema,
       },
     }
   if (method === "GET" && path === "/api/reactions")

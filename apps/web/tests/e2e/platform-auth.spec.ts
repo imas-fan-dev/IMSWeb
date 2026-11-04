@@ -10,6 +10,7 @@ const session = {
   success: true,
   account: { id: "platform-browser", status: "active" },
   profile: {
+    uid: 1,
     displayName: "浏览器制作人",
     avatarUrl: null,
     homeCity: null,

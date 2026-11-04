@@ -72,6 +72,7 @@ const activeSession = {
   success: true as const,
   account: { id: "platform-1", status: "active" as const },
   profile: {
+    uid: 1,
     displayName: "Platform Producer",
     avatarUrl: null,
     homeCity: null,
@@ -191,6 +192,7 @@ describe("PlatformSessionProvider", () => {
     ).toEqual({
       ...activeSession,
       profile: {
+        uid: updatedProfile.uid,
         displayName: updatedProfile.displayName,
         avatarUrl: updatedProfile.avatarUrl,
         homeCity: updatedProfile.homeCity,

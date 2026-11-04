@@ -24,6 +24,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     success: true,
     account: { id: "personal-pages", status: "active" },
     profile: {
+      uid: 1,
       displayName: "页面导航制作人",
       avatarUrl: null,
       homeCity: "上海",
@@ -377,6 +378,7 @@ test("desktop root and section preserve pending, failed, retry and successful lo
     success: true,
     account: { id: "logout-feedback", status: "active" },
     profile: {
+      uid: 1,
       displayName: "退出验证制作人",
       avatarUrl: null,
       homeCity: "上海",
@@ -485,6 +487,7 @@ for (const section of ["offices", "namecards"] as const) {
       success: true,
       account: { id: "responsive-owner", status: "active" },
       profile: {
+        uid: 1,
         displayName: "响应式制作人",
         avatarUrl: null,
         homeCity: "上海",

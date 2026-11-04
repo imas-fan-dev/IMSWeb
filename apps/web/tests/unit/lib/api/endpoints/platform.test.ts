@@ -139,6 +139,7 @@ describe("Platform profile API contracts", () => {
           success: true,
           account: { id: "platform-owner", status: "active" },
           profile: {
+            uid: 1,
             displayName: path.endsWith("register") ? "新制作人" : "制作人",
             avatarUrl: null,
             homeCity: null,
@@ -218,6 +219,7 @@ describe("Platform profile API contracts", () => {
           success: true,
           account: { id: "platform-owner", status: "active" },
           profile: {
+            uid: 1,
             displayName: "Platform Producer",
             avatarUrl: null,
             homeCity: null,

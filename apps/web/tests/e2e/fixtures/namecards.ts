@@ -39,7 +39,7 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     claimStatus: "unclaimed",
     viewerClaimState: null,
     claimerName: null,
-    claimerAccountId: null,
+    claimerUid: null,
     supplementPending: false,
     image1_url: defaultFrontImage,
     image2_url: defaultBackImage,

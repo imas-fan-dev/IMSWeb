@@ -60,6 +60,10 @@ describe("ProfileWorkspaceNavigation", () => {
       "href",
       "/account/me/namecards"
     )
+    // 侧栏的身份块本身就是个人主页入口，地址用公开 uid。
+    expect(
+      screen.getByRole("link", { name: /测试制作人/ })
+    ).toHaveAttribute("href", "/user/1")
   })
 
   it("leaves App section navigation to the account root and back stack", () => {

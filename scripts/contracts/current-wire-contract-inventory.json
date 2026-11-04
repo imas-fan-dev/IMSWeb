@@ -3,43 +3,43 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "f90faaf2508e75ab89ec7ef8df54f0e37d8998d1ceb87a747150e52a4e94fa5e",
+    "semanticDigest": "2ab467a007606baf4e1c49132423d4f17e9738237c377d05b69aaa6c7ccbb41c",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 285,
-    "carriers": 359,
+    "mountedMethodPaths": 286,
+    "carriers": 360,
     "reject": 74,
-    "acceptAndProject": 182,
+    "acceptAndProject": 183,
     "passthrough": 17,
     "nonObjectApplicable": 86
   },
   "counts": {
-    "mountedRegistrations": 388,
-    "mountedMethodPaths": 292,
+    "mountedRegistrations": 389,
+    "mountedMethodPaths": 293,
     "noInputRoutes": 96,
-    "requestCarriers": 384,
+    "requestCarriers": 385,
     "policies": {
       "reject": 75,
-      "accept-and-project": 206,
+      "accept-and-project": 207,
       "passthrough": 17,
       "non-object-applicable": 86
     },
     "responses": {
-      "total": 838,
-      "json": 761,
+      "total": 841,
+      "json": 764,
       "nonJson": 77
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 285,
-      "requestCarriers": 359,
+      "mountedMethodPaths": 286,
+      "requestCarriers": 360,
       "policies": {
         "reject": 74,
-        "accept-and-project": 182,
+        "accept-and-project": 183,
         "passthrough": 17,
         "non-object-applicable": 86
       }
@@ -120,7 +120,7 @@
       "/api/about": 1,
       "/api/admin": 171,
       "/api/card": 1,
-      "/api/cards": 4,
+      "/api/cards": 5,
       "/api/check": 1,
       "/api/chronicle": 2,
       "/api/community": 53,
@@ -3891,6 +3891,47 @@
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
           "kind": "json",
           "expression": "{ msg : \"\\u67E5\\u8BE2\\u5931\\u8D25\" } satisfies NamecardListErrorResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "handlerSymbol": "handleGetPublicCard",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "schemaSymbol": "compatibleNamecardIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
+          "kind": "json",
+          "expression": "{ card : null } satisfies PublicCardResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
+          "kind": "json",
+          "expression": "{ card : response } satisfies PublicCardResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
+          "kind": "json",
+          "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : await resolveNamecardThumbnailUrl ( storage , response . image1_url , image1Url ) , image2_thumbnail_url : image2Url === null || response . image2_url === null ? null : await resolveNamecardThumbnailUrl ( storage , response . image2_url , image2Url ) , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicCardResponse"
         }
       ]
     },
@@ -16789,6 +16830,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/cards/:id",
+      "handlerSymbol": "handleGetPublicCard",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "schemaSymbol": "compatibleNamecardIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
       "path": "/api/cards/:id/media/:side",
       "handlerSymbol": "handleServePublicCardMedia",
       "kind": "param",
@@ -23409,6 +23467,30 @@
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
       "kind": "json",
       "expression": "{ msg : \"\\u67E5\\u8BE2\\u5931\\u8D25\" } satisfies NamecardListErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id",
+      "handlerSymbol": "handleGetPublicCard",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
+      "kind": "json",
+      "expression": "{ card : null } satisfies PublicCardResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id",
+      "handlerSymbol": "handleGetPublicCard",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
+      "kind": "json",
+      "expression": "{ card : response } satisfies PublicCardResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/:id",
+      "handlerSymbol": "handleGetPublicCard",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
+      "kind": "json",
+      "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : await resolveNamecardThumbnailUrl ( storage , response . image1_url , image1Url ) , image2_thumbnail_url : image2Url === null || response . image2_url === null ? null : await resolveNamecardThumbnailUrl ( storage , response . image2_url , image2Url ) , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicCardResponse"
     },
     {
       "method": "GET",

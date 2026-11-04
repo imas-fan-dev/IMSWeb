@@ -371,6 +371,7 @@ test.describe("app navigation", () => {
     success: true,
     account: { id: "platform-app", status: "active" },
     profile: {
+      uid: 1,
       displayName: "App 制作人",
       avatarUrl: null as string | null,
       homeCity: "上海",
