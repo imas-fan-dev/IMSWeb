@@ -202,3 +202,58 @@ test('a producer stores one handle per platform and can take it back', async () 
 
     assert.deepEqual(await repository.listPlatformAccountEntries(ACCOUNT), []);
 });
+
+test('the public profile answers a known handle, its empty wall and 404s the rest', async () => {
+    const { app, repository } = await createFixture();
+    await repository.upsertPlatformAccountKind({
+        id: 'bilibili',
+        name: '哔哩哔哩',
+        group_key: 'social',
+        pattern: '^[0-9]{1,20}$',
+        base_url: 'https://space.bilibili.com/{value}',
+        color: '#ff6699',
+        icon: 'bilibili',
+        display_order: 110,
+        enabled: true,
+        uppercase: false,
+        icon_object_key: null,
+        updated_at: '2026-11-03T00:00:00.000Z'
+    });
+    await repository.upsertPlatformAccountEntry({
+        accountId: ACCOUNT,
+        kindId: 'bilibili',
+        value: '12345',
+        username: null,
+        at: '2026-11-03T00:00:00.000Z'
+    });
+
+    const profile = await testRequest(app, `/api/users/${ACCOUNT}`);
+    assert.equal(profile.status, 200);
+    const body = (await profile.json()) as {
+        accountId: string;
+        uid: number;
+        pageSlug: string | null;
+        displayName: string;
+        accounts: Array<{ kindId: string; value: string; url: string | null }>;
+    };
+    assert.equal(body.accountId, ACCOUNT);
+    assert.equal(body.displayName, '目录测试制作人');
+    assert.equal(body.pageSlug, null);
+    assert.deepEqual(
+        body.accounts.map((account) => [account.kindId, account.value]),
+        [['bilibili', '12345']]
+    );
+    assert.equal(
+        body.accounts[0]?.url,
+        'https://space.bilibili.com/12345'
+    );
+
+    const wall = await testRequest(app, `/api/users/${ACCOUNT}/cards`);
+    assert.equal(wall.status, 200);
+    assert.deepEqual(await wall.json(), { list: [], total: 0, totalPage: 0 });
+
+    const unknown = await testRequest(app, '/api/users/nobody');
+    assert.equal(unknown.status, 404);
+    const unknownWall = await testRequest(app, '/api/users/nobody/cards');
+    assert.equal(unknownWall.status, 404);
+});

@@ -1093,6 +1093,151 @@ import { test } from 'vitest';
         });
     });
 
+    test.describe('platform icon upload', () => {
+        test('stores an alpha mark and rejects a format without transparency', async () => {
+            const puts: Array<{ key: string; contentType: string }> = [];
+            const keys: string[] = [];
+            const fixture = createCompatibilityFixture(
+                {
+                    listPlatformAccountKinds: async () => [
+                        {
+                            id: 'gakumas',
+                            name: '学园偶像大师',
+                            group_key: 'game',
+                            pattern: '^[A-Z0-9]{8}$',
+                            base_url: null,
+                            color: '#f39800',
+                            icon: 'gakumas',
+                            display_order: 40,
+                            enabled: true,
+                            uppercase: true,
+                            icon_object_key: null,
+                            updated_at: '2026-11-03T00:00:00.000Z'
+                        }
+                    ],
+                    setPlatformAccountKindIcon: async (id, key) => {
+                        keys.push(`${id}:${key ?? ''}`);
+                        return true;
+                    }
+                },
+                {
+                    uploads: {
+                        async parse() {
+                            return {
+                                fields: {},
+                                files: {
+                                    icon: {
+                                        filename: 'icon.svg',
+                                        contentType: 'image/svg+xml',
+                                        body: new Uint8Array([1, 2, 3])
+                                    }
+                                }
+                            };
+                        }
+                    },
+                    storage: {
+                        async get() { return null; },
+                        async put(key, _body, options) {
+                            puts.push({ key, contentType: options?.contentType ?? '' });
+                            return {
+                                body: new Uint8Array([1, 2, 3]),
+                                size: 3,
+                                contentType: options?.contentType ?? '',
+                                etag: '"icon"'
+                            };
+                        },
+                        async delete() {},
+                        async publish() {},
+                        async exists() { return true; },
+                        async copy() {},
+                        async move() {},
+                        async list() { return []; },
+                        async deletePrefix() {}
+                    }
+                }
+            );
+            const headers = {
+                Authorization: 'Bearer op-token',
+                'content-type': 'multipart/form-data; boundary=test'
+            };
+
+            const uploaded = await fixture.request(
+                '/api/admin/platform/account-kinds/gakumas/icon',
+                { method: 'PUT', headers, body: 'test' }
+            );
+            assert.equal(uploaded.status, 200);
+            assert.deepEqual(await responseJson(uploaded), {
+                success: true,
+                iconObjectKey: 'platform/account-kinds/gakumas/icon.svg'
+            });
+            assert.deepEqual(puts, [
+                {
+                    key: 'platform/account-kinds/gakumas/icon.svg',
+                    contentType: 'image/svg+xml'
+                }
+            ]);
+            assert.deepEqual(keys, [
+                'gakumas:platform/account-kinds/gakumas/icon.svg'
+            ]);
+        });
+
+        test('refuses a JPEG because the mark must keep its transparent background', async () => {
+            const fixture = createCompatibilityFixture(
+                {
+                    listPlatformAccountKinds: async () => [
+                        {
+                            id: 'gakumas',
+                            name: '学园偶像大师',
+                            group_key: 'game',
+                            pattern: '^[A-Z0-9]{8}$',
+                            base_url: null,
+                            color: '#f39800',
+                            icon: 'gakumas',
+                            display_order: 40,
+                            enabled: true,
+                            uppercase: true,
+                            icon_object_key: null,
+                            updated_at: '2026-11-03T00:00:00.000Z'
+                        }
+                    ]
+                },
+                {
+                    uploads: {
+                        async parse() {
+                            return {
+                                fields: {},
+                                files: {
+                                    icon: {
+                                        filename: 'icon.jpg',
+                                        contentType: 'image/jpeg',
+                                        body: new Uint8Array([1])
+                                    }
+                                }
+                            };
+                        }
+                    }
+                }
+            );
+
+            const rejected = await fixture.request(
+                '/api/admin/platform/account-kinds/gakumas/icon',
+                {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: 'Bearer op-token',
+                        'content-type': 'multipart/form-data; boundary=test'
+                    },
+                    body: 'test'
+                }
+            );
+            assert.equal(rejected.status, 400);
+            assert.deepEqual(await responseJson(rejected), {
+                success: false,
+                message: '只支持带透明通道的 PNG、WebP、AVIF、GIF 或 SVG'
+            });
+        });
+    });
+
     test.describe('platform icon boundary', () => {
         test('the platform icon route streams the stored mark and answers a text 404 without one', async () => {
             const body = new Uint8Array([1, 2, 3]);
