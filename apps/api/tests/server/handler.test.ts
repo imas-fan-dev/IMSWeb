@@ -1024,6 +1024,75 @@ import { test } from 'vitest';
         return response.json();
     }
 
+    test.describe('platform catalogue routes', () => {
+        test('super administrators save a kind, reject a broken pattern and delete it', async () => {
+            const saved: Array<{ id: string; name: string }> = [];
+            const fixture = createCompatibilityFixture({
+                listPlatformAccountKinds: async () => [],
+                upsertPlatformAccountKind: async (input) => {
+                    saved.push({ id: input.id, name: input.name });
+                },
+                deletePlatformAccountKind: async (id) => id === 'xbox'
+            });
+            const headers = {
+                Authorization: 'Bearer op-token',
+                'content-type': 'application/json'
+            };
+            const body = {
+                name: 'Xbox',
+                group: 'game-platform',
+                pattern: '^[A-Z0-9]{1,15}$',
+                baseUrl: 'https://xbox.com/{value}',
+                color: '#0e7a0d',
+                icon: 'xbox',
+                displayOrder: 210,
+                enabled: true
+            };
+
+            const upserted = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                { method: 'PUT', headers, body: JSON.stringify(body) }
+            );
+            assert.equal(upserted.status, 200);
+            assert.deepEqual(await responseJson(upserted), { kinds: [] });
+            assert.deepEqual(saved, [{ id: 'xbox', name: 'Xbox' }]);
+
+            const brokenPattern = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ ...body, pattern: '^([A-Za-z0-9' })
+                }
+            );
+            assert.equal(brokenPattern.status, 400);
+
+            const missingValue = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ ...body, baseUrl: 'https://xbox.com/profile' })
+                }
+            );
+            assert.equal(missingValue.status, 400);
+            assert.equal(saved.length, 1);
+
+            const removed = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                { method: 'DELETE', headers }
+            );
+            assert.equal(removed.status, 200);
+            assert.deepEqual(await responseJson(removed), { success: true });
+
+            const unknown = await fixture.request(
+                '/api/admin/platform/account-kinds/switch',
+                { method: 'DELETE', headers }
+            );
+            assert.equal(unknown.status, 404);
+        });
+    });
+
     test.describe('platform icon boundary', () => {
         test('the platform icon route streams the stored mark and answers a text 404 without one', async () => {
             const body = new Uint8Array([1, 2, 3]);
