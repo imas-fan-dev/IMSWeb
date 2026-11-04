@@ -57,7 +57,7 @@ test("desktop map creation uses desktop login and returns to the original office
         capabilities: { fudabaWrite: true },
       },
     ],
-    ...["series", "cards", "offices", "claim-envelopes"].map((name) => [
+    ...["series", "cards", "offices"].map((name) => [
       `/api/community/exchange/me/${name}`,
       { items: [] },
     ]),
