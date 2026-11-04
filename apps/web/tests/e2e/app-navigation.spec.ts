@@ -431,14 +431,13 @@ test.describe("app navigation", () => {
           json: {
             ...ACCOUNT_SESSION,
             capabilities: { fudabaWrite: true },
-            profile: { ...ACCOUNT_SESSION.profile, updatedAt: 1 },
+            profile: { ...ACCOUNT_SESSION.profile, updatedAt: 1, uid: 1, pageSlug: null },
           },
         })
     )
     for (const path of [
       "/api/community/exchange/me/series",
       "/api/community/exchange/me/cards",
-      "/api/community/exchange/me/claim-envelopes",
       "/api/community/exchange/me/offices",
     ]) {
       api.mock({ method: "GET", path, times: { min: 0, max: 4 } }, (route) =>

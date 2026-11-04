@@ -6,14 +6,22 @@ import {
 } from "@imsweb/contracts/paths"
 import { createEventResponseSchema } from "@imsweb/contracts/events"
 import {
+  adminNamecardDeleteRequestSchema,
+  adminNamecardDiffSchema,
+  adminNamecardFeedbackListSchema,
+  namecardFeedbackAuditListSchema,
+  namecardLockAuditListSchema,
   adminNamecardHttpErrorSchema,
   adminNamecardListBusinessErrorSchema,
-  adminNamecardDiffSchema,
   adminNamecardListSchema,
   adminNamecardMutationSchema,
+  adminNamecardUpdateRequestSchema,
   namecardErrorResponseSchema,
+  namecardFeedbackMutationSchema,
   namecardMutationResponseSchema,
+  resolveNamecardFeedbackRequestSchema,
 } from "@imsweb/contracts/namecards"
+import { platformProfileHttpErrorSchema } from "@imsweb/contracts/platform"
 import {
   idolMediaCatalogSchema,
   wikiErrorResponseSchema,
@@ -52,6 +60,12 @@ import {
   newsMutationSuccessSchema,
 } from "@imsweb/contracts/news"
 
+import {
+  platformAccountIconUploadSchema,
+  platformAccountKindListSchema,
+  platformAccountKindRequestSchema,
+} from "@imsweb/contracts/namecards"
+import type { z } from "@imsweb/contracts/z"
 import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
 import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
@@ -428,6 +442,89 @@ export function getAdminNamecards(
   )
 }
 
+/** The report queue: published cards readers flagged. */
+export function getAdminNamecardFeedback(page = 1) {
+  return adminApiClient.Get(
+    adminApiPath("/cards/feedback"),
+    parsed(adminNamecardFeedbackListSchema, {
+      businessErrorSchema: adminNamecardListBusinessErrorSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: { page: String(page) },
+    })
+  )
+}
+
+export interface AdminNamecardLockAuditParams {
+  page?: number
+  owner?: string
+  reason?: string
+  handler?: string
+  action?: "locked" | "unlocked"
+}
+
+export interface AdminNamecardFeedbackAuditParams {
+  page?: number
+  owner?: string
+  reporter?: string
+  outcome?: "accepted" | "rejected"
+  handler?: string
+}
+
+function auditParams(params: Record<string, number | string | undefined>) {
+  const query: Record<string, string> = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === "") continue
+    query[key] = String(value)
+  }
+  return query
+}
+
+/** Read-only: every card that is locked right now. */
+export function getAdminNamecardLockAudit(
+  params: AdminNamecardLockAuditParams = {}
+) {
+  return adminApiClient.Get(
+    adminApiPath("/cards/audit/locks"),
+    parsed(namecardLockAuditListSchema, {
+      businessErrorSchema: adminNamecardListBusinessErrorSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: auditParams({ ...params }),
+    })
+  )
+}
+
+/** Read-only: every report that already carries a verdict. */
+export function getAdminNamecardFeedbackAudit(
+  params: AdminNamecardFeedbackAuditParams = {}
+) {
+  return adminApiClient.Get(
+    adminApiPath("/cards/audit/feedback"),
+    parsed(namecardFeedbackAuditListSchema, {
+      businessErrorSchema: adminNamecardListBusinessErrorSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: auditParams({ ...params }),
+    })
+  )
+}
+
+/** Leaves the queue; the reporter is told the outcome. */
+export function resolveAdminNamecardFeedback(
+  feedbackId: number,
+  input: { outcome: "accepted" | "rejected"; note: string | null }
+) {
+  return adminApiClient.Post(
+    adminApiPath(`/cards/feedback/${feedbackId}/resolve`),
+    resolveNamecardFeedbackRequestSchema.parse(input),
+    parsed(namecardFeedbackMutationSchema, {
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
 /** Both sides of a queued revision, for the review diff dialog. */
 export function getAdminNamecardDiff(id: number) {
   return adminApiClient.Get(
@@ -436,6 +533,41 @@ export function getAdminNamecardDiff(id: number) {
       businessErrorSchema: namecardErrorResponseSchema,
       errorSchema: adminNamecardHttpErrorSchema,
       meta: withBackofficeAuth(),
+    })
+  )
+}
+
+/**
+ * Rewrites a card from the backoffice; the server answers with the card as it
+ * now stands so the dialog can keep editing without a second round trip.
+ */
+export function updateAdminNamecard(
+  id: number,
+  input: Parameters<typeof adminNamecardUpdateRequestSchema.parse>[0]
+) {
+  return adminApiClient.Put(
+    adminApiPath(`/cards/${id}`),
+    adminNamecardUpdateRequestSchema.parse(input),
+    parsed(adminNamecardDiffSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
+
+export function deleteAdminNamecard(id: number, expectedRevision: number) {
+  return adminApiClient.Delete(
+    adminApiPath(`/cards/${id}`),
+    adminNamecardDeleteRequestSchema.parse({
+      expected_revision: expectedRevision,
+    }),
+    parsed(adminNamecardMutationSchema, {
+      businessErrorSchema: namecardErrorResponseSchema,
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
     })
   )
 }
@@ -553,6 +685,56 @@ export function deleteAdminEvent(id: string) {
       errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
+    })
+  )
+}
+
+/** 后台维护平台目录：标识符、正则、色值、图标与排序都由这里改。 */
+export function getAdminPlatformAccountKinds() {
+  return adminApiClient.Get(
+    adminApiPath("/platform/account-kinds"),
+    parsed(platformAccountKindListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+export function saveAdminPlatformAccountKind(
+  id: string,
+  input: z.input<typeof platformAccountKindRequestSchema>
+) {
+  const submission = platformAccountKindRequestSchema.parse(input)
+  return adminApiClient.Put(
+    adminApiPath(`/platform/account-kinds/${encodeURIComponent(id)}`),
+    submission,
+    parsed(platformAccountKindListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function deleteAdminPlatformAccountKind(id: string) {
+  return adminApiClient.Delete(
+    adminApiPath(`/platform/account-kinds/${encodeURIComponent(id)}`),
+    undefined,
+    parsed(successFlagSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function uploadAdminPlatformAccountKindIcon(kindId: string, file: File) {
+  const form = new FormData()
+  form.append("icon", file)
+  return adminApiClient.Put(
+    adminApiPath(`/platform/account-kinds/${encodeURIComponent(kindId)}/icon`),
+    form,
+    parsed(platformAccountIconUploadSchema, {
+      errorSchema: platformProfileHttpErrorSchema,
+      meta: withBackofficeCsrf(),
     })
   )
 }

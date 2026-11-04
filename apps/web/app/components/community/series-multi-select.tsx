@@ -7,7 +7,13 @@ import { NAMECARD_SERIES_LIMIT } from "@imsweb/contracts/fudaba/runtime"
 import { Badge } from "~/components/ui/badge"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
-import type { FudabaSeries } from "~/lib/api"
+
+/** 只需要这三个字段，调用方可以只拿企划目录的投影。 */
+export interface SeriesOption {
+  code: string
+  displayName: string
+  color: string
+}
 
 /**
  * A card may sit in several series at once (a crossover print, a set spanning
@@ -17,16 +23,19 @@ import type { FudabaSeries } from "~/lib/api"
 export function SeriesMultiSelect({
   id,
   series,
+  required = true,
   selectedCodes,
   lockedCodes = [],
   disabled,
   onChange,
 }: {
   id: string
-  series: readonly FudabaSeries[]
+  series: readonly SeriesOption[]
   selectedCodes: readonly string[]
   /** Series of the selected characters; those cannot be unchecked. */
   lockedCodes?: readonly string[]
+  /** 后台允许留空，此时不标必填。 */
+  required?: boolean
   disabled: boolean
   onChange: (codes: string[]) => void
 }) {
@@ -45,7 +54,9 @@ export function SeriesMultiSelect({
     <Field data-disabled={disabled || undefined}>
       <FieldLabel htmlFor={id}>
         企划{" "}
-        <span aria-hidden="true" className="text-destructive">*</span>
+        {required ? (
+          <span aria-hidden="true" className="text-destructive">*</span>
+        ) : null}
       </FieldLabel>
       <FieldDescription>
         担当角色所属的企划会被自动勾选，且不可取消。

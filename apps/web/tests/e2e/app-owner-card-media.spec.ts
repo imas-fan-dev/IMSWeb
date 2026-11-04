@@ -167,7 +167,7 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
       route.fulfill({
         json: {
           ...session,
-          profile: { ...session.profile, updatedAt: 1 },
+          profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
           capabilities: { fudabaWrite: true },
         },
         headers: cors,
@@ -178,7 +178,6 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
     ["/api/community/exchange/me/cards", { items: [card] }],
     ["/api/community/exchange/me/cards/owner-card", { card }],
     ["/api/community/exchange/me/series", { items: [] }],
-    ["/api/community/exchange/me/claim-envelopes", { items: [] }],
     ["/api/community/exchange/me/offices", { items: [] }],
     [
       "/api/community/exchange/me/favorites",

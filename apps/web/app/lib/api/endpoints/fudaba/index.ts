@@ -4,6 +4,11 @@ import {
   mapsPath,
 } from "@imsweb/contracts/paths"
 export { createMapboxNearbySearch } from "./mapbox-place-search"
+import {
+  createNamecardFeedbackRequestSchema,
+  namecardFeedbackMutationSchema,
+  type NamecardFeedbackReason,
+} from "@imsweb/contracts/namecards"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"
@@ -26,6 +31,7 @@ import {
   normalizeFudabaSeriesList,
 } from "../../media-urls"
 import { adminApiClient } from "../../admin-client"
+import { apiClient } from "../../client"
 import { bundleAssetClient } from "../../bundle-client"
 import { STABLE_CONTENT_CACHE_FOR } from "../../cache-policy"
 import { parsed } from "../../parsed"
@@ -340,6 +346,22 @@ export interface FudabaCardPageRequest {
   office?: string
   limit?: number
   cursor?: string
+}
+
+/**
+ * The same series catalog, for surfaces that only hold a backoffice session:
+ * the route accepts an anonymous caller, so no platform token is attached.
+ */
+export function getPublicFudabaSeries() {
+  return apiClient.Get(
+    exchangePath("/series"),
+    parsed(fudabaSeriesListSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      cacheFor: STABLE_CONTENT_CACHE_FOR,
+      select: normalizeFudabaSeriesList,
+    })
+  )
 }
 
 export function getFudabaSeries() {
@@ -848,6 +870,22 @@ export function replaceFudabaCardMedia(
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformCsrf(),
       select: normalizeFudabaCardMutation,
+    })
+  )
+}
+
+/** Wall readers report a published card; the backoffice queue answers it. */
+export function reportFudabaCardFeedback(
+  cardId: string,
+  input: { reason: NamecardFeedbackReason; detail: string | null }
+) {
+  return platformApiClient.Post(
+    exchangePath(`/cards/${encodeURIComponent(cardId)}/feedback`),
+    createNamecardFeedbackRequestSchema.parse(input),
+    parsed(namecardFeedbackMutationSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
     })
   )
 }

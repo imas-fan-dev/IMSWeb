@@ -38,6 +38,7 @@ export const FRONTEND_SPA_FALLBACK_PATTERNS = Object.freeze([
     Object.freeze({ id: 'admin', match: 'prefix', path: '/admin', segments: Object.freeze(['admin'] as const) } as const),
     Object.freeze({ id: 'events/:eventId', match: 'prefix', path: '/events', segments: Object.freeze(['events'] as const), segmentCount: 2 } as const),
     Object.freeze({ id: 'community/exchange/offices/:officeSlug', match: 'prefix', path: '/community/exchange/offices', segments: Object.freeze(['community', 'exchange', 'offices'] as const), segmentCount: 4 } as const),
+    Object.freeze({ id: 'user/:accountId', match: 'prefix', path: '/user', segments: Object.freeze(['user'] as const), segmentCount: 2 } as const),
     Object.freeze({ id: 'information/:contentId', match: 'prefix', path: '/information', segments: Object.freeze(['information'] as const), segmentCount: 2 } as const),
     Object.freeze({ id: 'chronicle/:activityId', match: 'prefix', path: '/chronicle', segments: Object.freeze(['chronicle'] as const), segmentCount: 2 } as const),
     Object.freeze({ id: 'account/me', match: 'exact', path: '/account/me', segments: Object.freeze(['account', 'me'] as const) } as const),

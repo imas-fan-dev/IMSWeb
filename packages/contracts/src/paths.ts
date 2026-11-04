@@ -90,6 +90,11 @@ export function exchangePath(suffix = ""): string {
   return appendPath(EXCHANGE_PATH_PREFIX, suffix)
 }
 
+/** 平台图标只有站内一条读取路径，对象存储的公开地址不参与。 */
+export function platformAccountIconPath(kindId: string | number): string {
+  return apiPath(`platform/account-kinds/${encodeURIComponent(String(kindId))}/icon`)
+}
+
 export function adminExchangePath(suffix = ""): string {
   return appendPath(ADMIN_EXCHANGE_PATH_PREFIX, suffix)
 }

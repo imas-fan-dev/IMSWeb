@@ -5,7 +5,7 @@
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { createHonoApp } from '@/app';
 import type { ObjectStorage } from '@/ports/object-storage';
-import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
+import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardAdminUpdateInput, NamecardFeedbackAuditFilter, NamecardLockAuditFilter, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { failureMessageResponseSchema } from '@imsweb/contracts/common';
 import { // pi-lens-ignore: ts:2724
@@ -13,7 +13,7 @@ import { // pi-lens-ignore: ts:2724
 import { // pi-lens-ignore: ts:2305
     legacyEmojiMutationSchema, // pi-lens-ignore: ts:2305
     namecardEmptyResponseSchema, // pi-lens-ignore: ts:2305
-    namecardErrorResponseSchema, adminNamecardListSchema, namecardPageSchema, reactionMutationSchema, reactionSchema } from '@imsweb/contracts/namecards';
+    namecardErrorResponseSchema, adminNamecardDiffSchema, adminNamecardListSchema, namecardPageSchema, reactionMutationSchema, reactionSchema } from '@imsweb/contracts/namecards';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -141,17 +141,28 @@ import { test } from 'vitest';
             'createHandleAddReaction',
             'createHandleDeleteReaction',
             'handleApproveNamecard',
+            'handleDeleteAdminNamecard',
             'handleFlagNamecard',
             'handleGetAdminNamecardDiff',
             'handleGetNamecard',
+            'handleGetPublicProfile',
+            'handleListAdminNamecardFeedback',
+            'handleListAdminNamecardFeedbackAudit',
+            'handleListAdminNamecardLockAudit',
             'handleListAdminNamecards',
+            'handleGetRandomOwnerlessCard',
+            'handleGetWallInsights',
             'handleListNamecards',
+            'handleListProfileCards',
             'handleListReactions',
             'handleLockNamecard',
             'handleRejectNamecard',
+            'handleResolveAdminNamecardFeedback',
             'handleServeAdminNamecardMedia',
+            'handleServePlatformAccountIcon',
             'handleServePublicCardMedia',
-            'handleUnlockNamecard'
+            'handleUnlockNamecard',
+            'handleUpdateAdminNamecard'
         ],
         news: [
             'handleCreateNews',
@@ -492,7 +503,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 145);
+            assert.equal(Object.values(actual).flat().length, 156);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -716,6 +727,8 @@ import { test } from 'vitest';
         namecardFindMedia: number[];
         namecardListAdmin: Array<[number, number]>;
         namecardDiff: number[];
+        namecardLockAudit: NamecardLockAuditFilter[];
+        namecardFeedbackAudit: NamecardFeedbackAuditFilter[];
         namecardMediaKey: Array<[number, string, boolean]>;
         namecardPublishedMediaKey: [number, string][];
         namecardListApproved: Array<[number, number]>;
@@ -745,6 +758,8 @@ import { test } from 'vitest';
             namecardFindMedia: [],
             namecardListAdmin: [],
             namecardDiff: [],
+            namecardLockAudit: [],
+            namecardFeedbackAudit: [],
             namecardMediaKey: [],
             namecardPublishedMediaKey: [],
             namecardListApproved: [],
@@ -840,6 +855,27 @@ import { test } from 'vitest';
             async replaceSubmissionImage() { return { status: 'not-found' }; },
             async resubmitSubmission() { return { status: 'not-found' }; },
             async findCardByMediaUrl() { return null; },
+            async updateCardAsAdmin() { return { status: 'not-found' }; },
+            async deleteCardAsAdmin() { return { status: 'not-found' }; },
+            async listNamecardLockAudit(filter) {
+                calls.namecardLockAudit.push(filter);
+                return { rows: [], total: 0, ownerTotals: {} };
+            },
+            async listNamecardFeedbackAudit(filter) {
+                calls.namecardFeedbackAudit.push(filter);
+                return { rows: [], total: 0, ownerTotals: {}, reporterTotals: {} };
+            },
+            async findPublicProfile() { return null; },
+            async listPlatformAccountLinks() { return []; },
+            async listPlatformAccountKinds() { return []; },
+            async upsertPlatformAccountKind() {},
+            async deletePlatformAccountKind() { return false; },
+            async setPlatformAccountKindIcon() { return false; },
+            async listPlatformAccountEntries() { return []; },
+            async upsertPlatformAccountEntry() {},
+            async deletePlatformAccountEntry() { return 0; },
+            async listOwnedPublishedCards() { return []; },
+            async countOwnedPublishedCards() { return 0; },
             ...namecardOverrides
         };
         const reactions: ReactionRepository = {
@@ -987,6 +1023,307 @@ import { test } from 'vitest';
     async function responseJson(response: Response): Promise<unknown> {
         return response.json();
     }
+
+    test.describe('platform catalogue routes', () => {
+        test('super administrators save a kind, reject a broken pattern and delete it', async () => {
+            const saved: Array<{ id: string; name: string }> = [];
+            const fixture = createCompatibilityFixture({
+                listPlatformAccountKinds: async () => [
+                    {
+                        id: 'xbox',
+                        name: 'Xbox',
+                        group_key: 'game',
+                        pattern: '^[A-Z0-9]{1,15}$',
+                        base_url: 'https://xbox.com/{value}',
+                        color: '#0e7a0d',
+                        icon: 'xbox',
+                        display_order: 210,
+                        enabled: true,
+                        uppercase: false,
+                        icon_object_key: 'platform/account-kinds/xbox/icon.svg',
+                        updated_at: '2026-11-03T00:00:00.000Z'
+                    }
+                ],
+                upsertPlatformAccountKind: async (input) => {
+                    saved.push({ id: input.id, name: input.name });
+                },
+                deletePlatformAccountKind: async (id) => id === 'xbox'
+            });
+            const headers = {
+                Authorization: 'Bearer op-token',
+                'content-type': 'application/json'
+            };
+            const body = {
+                name: 'Xbox',
+                group: 'game-platform',
+                pattern: '^[A-Z0-9]{1,15}$',
+                baseUrl: 'https://xbox.com/{value}',
+                color: '#0e7a0d',
+                icon: 'xbox',
+                displayOrder: 210,
+                enabled: true
+            };
+
+            const listed = await fixture.request(
+                '/api/admin/platform/account-kinds',
+                { headers: { Authorization: 'Bearer op-token' } }
+            );
+            assert.equal(listed.status, 200);
+            const listBody = (await responseJson(listed)) as {
+                kinds: Array<{ id: string; group: string; enabled: boolean }>;
+            };
+            assert.deepEqual(
+                listBody.kinds.map((kind) => [kind.id, kind.group, kind.enabled]),
+                [['xbox', 'game', true]]
+            );
+
+            const upserted = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                { method: 'PUT', headers, body: JSON.stringify(body) }
+            );
+            assert.equal(upserted.status, 200);
+            const afterSave = (await responseJson(upserted)) as {
+                kinds: Array<{ id: string; iconUrl: string | null }>;
+            };
+            assert.equal(afterSave.kinds.length, 1);
+            assert.equal(afterSave.kinds[0]?.id, 'xbox');
+            assert.match(afterSave.kinds[0]?.iconUrl ?? '', /account-kinds\/xbox\/icon/);
+            assert.deepEqual(saved, [{ id: 'xbox', name: 'Xbox' }]);
+
+            const brokenPattern = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ ...body, pattern: '^([A-Za-z0-9' })
+                }
+            );
+            assert.equal(brokenPattern.status, 400);
+
+            const missingValue = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ ...body, baseUrl: 'https://xbox.com/profile' })
+                }
+            );
+            assert.equal(missingValue.status, 400);
+            assert.equal(saved.length, 1);
+
+            const removed = await fixture.request(
+                '/api/admin/platform/account-kinds/xbox',
+                { method: 'DELETE', headers }
+            );
+            assert.equal(removed.status, 200);
+            assert.deepEqual(await responseJson(removed), { success: true });
+
+            const unknown = await fixture.request(
+                '/api/admin/platform/account-kinds/switch',
+                { method: 'DELETE', headers }
+            );
+            assert.equal(unknown.status, 404);
+        });
+    });
+
+    test.describe('platform icon upload', () => {
+        test('stores an alpha mark and rejects a format without transparency', async () => {
+            const puts: Array<{ key: string; contentType: string }> = [];
+            const keys: string[] = [];
+            const fixture = createCompatibilityFixture(
+                {
+                    listPlatformAccountKinds: async () => [
+                        {
+                            id: 'gakumas',
+                            name: '学园偶像大师',
+                            group_key: 'game',
+                            pattern: '^[A-Z0-9]{8}$',
+                            base_url: null,
+                            color: '#f39800',
+                            icon: 'gakumas',
+                            display_order: 40,
+                            enabled: true,
+                            uppercase: true,
+                            icon_object_key: null,
+                            updated_at: '2026-11-03T00:00:00.000Z'
+                        }
+                    ],
+                    setPlatformAccountKindIcon: async (id, key) => {
+                        keys.push(`${id}:${key ?? ''}`);
+                        return true;
+                    }
+                },
+                {
+                    uploads: {
+                        async parse() {
+                            return {
+                                fields: {},
+                                files: {
+                                    icon: {
+                                        filename: 'icon.svg',
+                                        contentType: 'image/svg+xml',
+                                        body: new Uint8Array([1, 2, 3])
+                                    }
+                                }
+                            };
+                        }
+                    },
+                    storage: {
+                        async get() { return null; },
+                        async put(key, _body, options) {
+                            puts.push({ key, contentType: options?.contentType ?? '' });
+                            return {
+                                body: new Uint8Array([1, 2, 3]),
+                                size: 3,
+                                contentType: options?.contentType ?? '',
+                                etag: '"icon"'
+                            };
+                        },
+                        async delete() {},
+                        async publish() {},
+                        async exists() { return true; },
+                        async copy() {},
+                        async move() {},
+                        async list() { return []; },
+                        async deletePrefix() {}
+                    }
+                }
+            );
+            const headers = {
+                Authorization: 'Bearer op-token',
+                'content-type': 'multipart/form-data; boundary=test'
+            };
+
+            const uploaded = await fixture.request(
+                '/api/admin/platform/account-kinds/gakumas/icon',
+                { method: 'PUT', headers, body: 'test' }
+            );
+            assert.equal(uploaded.status, 200);
+            assert.deepEqual(await responseJson(uploaded), {
+                success: true,
+                iconObjectKey: 'platform/account-kinds/gakumas/icon.svg'
+            });
+            assert.deepEqual(puts, [
+                {
+                    key: 'platform/account-kinds/gakumas/icon.svg',
+                    contentType: 'image/svg+xml'
+                }
+            ]);
+            assert.deepEqual(keys, [
+                'gakumas:platform/account-kinds/gakumas/icon.svg'
+            ]);
+        });
+
+        test('refuses a JPEG because the mark must keep its transparent background', async () => {
+            const fixture = createCompatibilityFixture(
+                {
+                    listPlatformAccountKinds: async () => [
+                        {
+                            id: 'gakumas',
+                            name: '学园偶像大师',
+                            group_key: 'game',
+                            pattern: '^[A-Z0-9]{8}$',
+                            base_url: null,
+                            color: '#f39800',
+                            icon: 'gakumas',
+                            display_order: 40,
+                            enabled: true,
+                            uppercase: true,
+                            icon_object_key: null,
+                            updated_at: '2026-11-03T00:00:00.000Z'
+                        }
+                    ]
+                },
+                {
+                    uploads: {
+                        async parse() {
+                            return {
+                                fields: {},
+                                files: {
+                                    icon: {
+                                        filename: 'icon.jpg',
+                                        contentType: 'image/jpeg',
+                                        body: new Uint8Array([1])
+                                    }
+                                }
+                            };
+                        }
+                    }
+                }
+            );
+
+            const rejected = await fixture.request(
+                '/api/admin/platform/account-kinds/gakumas/icon',
+                {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: 'Bearer op-token',
+                        'content-type': 'multipart/form-data; boundary=test'
+                    },
+                    body: 'test'
+                }
+            );
+            assert.equal(rejected.status, 400);
+            assert.deepEqual(await responseJson(rejected), {
+                success: false,
+                message: '只支持带透明通道的 PNG、WebP、AVIF、GIF 或 SVG'
+            });
+        });
+    });
+
+    test.describe('platform icon boundary', () => {
+        test('the platform icon route streams the stored mark and answers a text 404 without one', async () => {
+            const body = new Uint8Array([1, 2, 3]);
+            const storage: ObjectStorage = {
+                async get() {
+                    return {
+                        body,
+                        size: body.length,
+                        contentType: 'image/svg+xml',
+                        etag: '"gakumas"'
+                    };
+                },
+                async put() { throw new Error('unexpected storage write'); },
+                async delete() {},
+                async publish() {},
+                async exists() { return true; },
+                async copy() {},
+                async move() {},
+                async list() { return []; },
+                async deletePrefix() {}
+            };
+            const fixture = createCompatibilityFixture(
+                {
+                    listPlatformAccountKinds: async () => [
+                        {
+                            id: 'gakumas',
+                            name: '学园偶像大师',
+                            group_key: 'game',
+                            pattern: '^[A-Z0-9]{8}$',
+                            base_url: null,
+                            color: '#f39800',
+                            icon: 'gakumas',
+                            display_order: 40,
+                            enabled: true,
+                            uppercase: true,
+                            icon_object_key: 'platform/account-kinds/gakumas/icon.svg',
+                            updated_at: '2026-11-03T00:00:00.000Z'
+                        }
+                    ]
+                },
+                { storage }
+            );
+
+            const stored = await fixture.request('/api/platform/account-kinds/gakumas/icon');
+            assert.equal(stored.status, 200);
+            assert.equal(stored.headers.get('content-type'), 'image/svg+xml');
+            assert.deepEqual([...new Uint8Array(await stored.arrayBuffer())], [1, 2, 3]);
+
+            const missing = await fixture.request('/api/platform/account-kinds/xbox/icon');
+            assert.equal(missing.status, 404);
+            assert.equal(await missing.text(), '图标不可用');
+        });
+    });
 
     test.describe('namecard artwork boundaries', () => {
         test('the public artwork route answers a missing page with the compatibility text', async () => {
@@ -2024,6 +2361,305 @@ import { test } from 'vitest';
             assert.deepEqual(fixture.calls.namecardUnlock, [0]);
             assert.deepEqual(fixture.calls.audit, []);
             assert.equal(fixture.calls.storageWrites, 0);
+        });
+
+        test('the audit tables answer their filters and their page totals', async () => {
+            const headers = {
+                Cookie: 'token=op-token; csrf_token=csrf',
+                'X-CSRFToken': 'csrf'
+            };
+            const lockFilters: NamecardLockAuditFilter[] = [];
+            const feedbackFilters: NamecardFeedbackAuditFilter[] = [];
+            const fixture = createCompatibilityFixture({
+                async listNamecardLockAudit(filter) {
+                    lockFilters.push(filter);
+                    return {
+                        rows: [
+                            {
+                                id: 4,
+                                cardNumber: 12,
+                                producerName: '天海春香',
+                                ownerAccountId: 'owner-1',
+                                ownerName: '调试用户',
+                                action: 'locked',
+                                reason: '非企划内容',
+                                handledBy: 'debugadmin',
+                                occurredAt: '2026-11-01T00:00:00.000Z'
+                            }
+                        ],
+                        total: 3,
+                        ownerTotals: { 'owner-1': 3 }
+                    };
+                },
+                async listNamecardFeedbackAudit(filter) {
+                    feedbackFilters.push(filter);
+                    return {
+                        rows: [
+                            {
+                                id: 9,
+                                cardNumber: 12,
+                                producerName: '天海春香',
+                                ownerAccountId: 'owner-1',
+                                ownerName: '调试用户',
+                                reporterAccountId: 'reporter-1',
+                                reporterName: '举报者',
+                                reason: 'info-error',
+                                outcome: 'rejected',
+                                handledBy: 'debugadmin',
+                                handledAt: '2026-11-02T00:00:00.000Z'
+                            }
+                        ],
+                        total: 1,
+                        ownerTotals: { 'owner-1': 1 },
+                        reporterTotals: { 'reporter-1': 1 }
+                    };
+                }
+            });
+            const locks = await fixture.request(
+                '/api/admin/cards/audit/locks?page=2&owner=%E8%B0%83%E8%AF%95&reason=%E4%BC%81%E5%88%92&handler=debug&action=unlocked',
+                { headers }
+            );
+            assert.equal(locks.status, 200);
+            const lockBody = await locks.json();
+            assert.deepEqual(lockFilters, [
+                {
+                    page: 2,
+                    pageSize: 20,
+                    owner: '调试',
+                    reason: '企划',
+                    handler: 'debug',
+                    action: 'unlocked'
+                }
+            ]);
+            assert.equal(lockBody.data[0].action, 'locked');
+            assert.equal(lockBody.data[0].occurredAt, '2026-11-01T00:00:00.000Z');
+            assert.deepEqual(lockBody.data[0].owner, {
+                name: '调试用户',
+                total: 3,
+                pageCount: 1
+            });
+            assert.equal(lockBody.pageInfo.total, 3);
+            assert.equal(lockBody.pageInfo.totalPages, 1);
+
+            const feedback = await fixture.request(
+                '/api/admin/cards/audit/feedback?outcome=rejected&reporter=%E4%B8%BE',
+                { headers }
+            );
+            assert.equal(feedback.status, 200);
+            const feedbackBody = await feedback.json();
+            assert.deepEqual(feedbackFilters, [
+                {
+                    page: 1,
+                    pageSize: 20,
+                    owner: null,
+                    reporter: '举',
+                    outcome: 'rejected',
+                    handler: null
+                }
+            ]);
+            assert.deepEqual(feedbackBody.data[0].reporter, {
+                name: '举报者',
+                total: 1,
+                pageCount: 1
+            });
+        });
+
+        test('the management endpoints rewrite and remove a card behind reason and revision gates', async () => {
+            const updates: NamecardAdminUpdateInput[] = [];
+            const removals: Array<[number, number]> = [];
+            const cardBody = {
+                expected_revision: 6,
+                reason: '修正简介',
+                status: 'published',
+                review_status: null,
+                media_order: ['#0', '#1'],
+                producerName: '天海春香',
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [1],
+                bio: '新简介',
+                tradeNote: '交换说明',
+                exchangeMode: 'auto',
+                madeOn: '2024-05',
+                groupName: null,
+                producerReading: null,
+                isOriginal: true,
+                madeWithAi: false,
+                visible: true,
+                credits: [{ accountId: null, displayName: '画师', url: null, roles: ['design'] }]
+            };
+            const headers = {
+                Cookie: 'token=op-token; csrf_token=csrf',
+                'X-CSRFToken': 'csrf',
+                'Content-Type': 'application/json'
+            };
+            const fixture = createCompatibilityFixture({
+                async updateCardAsAdmin(input) {
+                    updates.push(input);
+                    if (input.expectedRevision !== 6) {
+                        return { status: 'conflict', revision: 7 };
+                    }
+                    if (!input.reason) return { status: 'reason-required' };
+                    return {
+                        status: 'updated',
+                        revision: 7,
+                        changedFields: [{ label: '简介', before: '旧简介', after: '新简介' }],
+                        ownerChange: null
+                    };
+                },
+                async deleteCardAsAdmin(cardNumber, expectedRevision) {
+                    removals.push([cardNumber, expectedRevision]);
+                    return { status: 'updated', revision: expectedRevision + 1 };
+                },
+                // The window keeps its own draft, so the save answers with the
+                // row as it now stands.
+                async findCardDiff() {
+                    return {
+                        id: 12,
+                        status: 'approved',
+                        publicationStatus: 'published',
+                        reviewStatus: null,
+                        revision: 7,
+                        ownerAccountId: null,
+                        ownerDisplayName: null,
+                        lockReason: null,
+                        reviewReason: null,
+                        live: {
+                            producerName: '天海春香',
+                            producerReading: null,
+                            groupName: null,
+                            madeOn: '2024-05',
+                            bio: '新简介',
+                            tradeNote: '交换说明',
+                            isOriginal: true,
+                            madeWithAi: false,
+                            visible: true,
+                            exchangeMode: 'auto',
+                            seriesCodes: ['765'],
+                            credits: [{ accountId: null, displayName: '画师', url: null, roles: ['design'] }],
+                            favoriteCharacters: [{ character_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 1 }],
+                            frontImageUrl: '/api/admin/cards/12/media/live/front',
+                            backImageUrl: '/api/admin/cards/12/media/live/back',
+                            middleImageUrls: []
+                        },
+                        pending: null
+                    };
+                }
+            });
+
+            const saved = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify(cardBody)
+            });
+            assert.equal(saved.status, 200);
+            const savedDiff = await contractJson(saved, adminNamecardDiffSchema);
+            assert.equal(savedDiff.revision, 7);
+            assert.equal(savedDiff.live.bio, '新简介');
+            assert.equal(savedDiff.publicationStatus, 'published');
+            assert.equal(updates.length, 1);
+            const [update] = updates;
+            assert.equal(update!.cardNumber, 12);
+            assert.equal(update!.mediaOrder[1], '#1');
+            assert.equal(update!.content.producerName, '天海春香');
+            assert.equal(update!.content.favoriteCharacterIds[0], 1);
+            assert.equal(fixture.calls.audit.length, 1);
+            assert.equal(fixture.calls.audit[0]!.action, '修改名片');
+            assert.match(fixture.calls.audit[0]!.target, /card_id=12/);
+
+            const reasonless = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ ...cardBody, reason: null })
+            });
+            assert.equal(reasonless.status, 400);
+            assert.deepEqual(await contractJson(reasonless, namecardErrorResponseSchema), {
+                error: '请填写修改理由',
+                field: 'reason'
+            });
+
+            const stale = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ ...cardBody, expected_revision: 5 })
+            });
+            assert.equal(stale.status, 409);
+            assert.deepEqual(await contractJson(stale, namecardErrorResponseSchema), {
+                success: false,
+                error: 'Namecard changed; refresh and retry',
+                revision: 7
+            });
+            assert.equal(updates.length, 3);
+
+            // Duplicated artwork tokens never reach the repository.
+            const duplicated = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ ...cardBody, media_order: ['#0', '#0'] })
+            });
+            assert.equal(duplicated.status, 400);
+            assert.equal(updates.length, 3);
+
+            const removed = await fixture.request('/api/admin/cards/12', {
+                method: 'DELETE',
+                headers,
+                body: JSON.stringify({ expected_revision: 7 })
+            });
+            assert.equal(removed.status, 200);
+            assert.deepEqual(await responseJson(removed), { success: true, revision: 8 });
+            assert.deepEqual(removals, [[12, 7]]);
+            assert.equal(fixture.calls.audit[1]!.action, '删除名片');
+
+            const unguardedDelete = await fixture.request('/api/admin/cards/12', {
+                method: 'DELETE',
+                headers: { Cookie: 'token=op-token; csrf_token=csrf' },
+                body: JSON.stringify({ expected_revision: 7 })
+            });
+            assert.equal(unguardedDelete.status, 403);
+            assert.deepEqual(removals, [[12, 7]]);
+        });
+
+        test('a missing card answers not found on both management verbs', async () => {
+            const fixture = createCompatibilityFixture();
+            const headers = {
+                Cookie: 'token=op-token; csrf_token=csrf',
+                'X-CSRFToken': 'csrf',
+                'Content-Type': 'application/json'
+            };
+            const missing = await fixture.request('/api/admin/cards/404', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({
+                    expected_revision: 0,
+                    reason: null,
+                    status: 'published',
+                    review_status: null,
+                    media_order: ['#0'],
+                    producerName: '天海春香',
+                    seriesCodes: ['765'],
+                    favoriteCharacterIds: [],
+                    bio: '',
+                    tradeNote: '交换说明',
+                    exchangeMode: 'auto',
+                    madeOn: null,
+                    groupName: null,
+                    producerReading: null,
+                    isOriginal: false,
+                    madeWithAi: false,
+                    visible: true,
+                    credits: []
+                })
+            });
+            assert.equal(missing.status, 404);
+            const missingDelete = await fixture.request('/api/admin/cards/404', {
+                method: 'DELETE',
+                headers,
+                body: JSON.stringify({ expected_revision: 0 })
+            });
+            assert.equal(missingDelete.status, 404);
+            assert.deepEqual(await contractJson(missingDelete, namecardErrorResponseSchema), {
+                error: 'Namecard not found'
+            });
+            assert.deepEqual(fixture.calls.audit, []);
         });
 
         test('Wiki admin authentication precedes shared numeric param validation', async () => {

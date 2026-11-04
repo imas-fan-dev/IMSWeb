@@ -15,6 +15,11 @@ import { handleServePlatformAvatar } from '@/domains/identity/platform-profile/h
 import { handleUpdatePlatformProfile } from '@/domains/identity/platform-profile/handlers/update-profile';
 import { handleUploadPlatformAvatar } from '@/domains/identity/platform-profile/handlers/upload-avatar';
 import {
+    handleDeleteMyPlatformAccount,
+    handleListMyPlatformAccounts,
+    handleSaveMyPlatformAccount
+} from '@/domains/identity/platform-profile/handlers/platform-accounts';
+import {
     parsePlatformAvatarRemoval,
     parsePlatformProfileSubmission
 } from '@/domains/identity/platform-profile/profile-input';
@@ -64,6 +69,27 @@ export function registerPlatformProfileRoutes(app: ImsHonoApp): void {
     app.use(platformApiPath('/me'), privateProfileResponse);
     app.use(platformApiPath('/me/*'), privateProfileResponse);
     app.get(platformApiPath('/me'), platformAuth, handleGetPlatformProfile);
+    app.get(
+        platformApiPath('/me/accounts'),
+        platformAuth,
+        handleListMyPlatformAccounts
+    );
+    app.put(
+        platformApiPath('/me/accounts/:kindId'),
+        platformAuth,
+        activePlatformMutation,
+        platformCsrf,
+        platformWriteRateLimit,
+        handleSaveMyPlatformAccount
+    );
+    app.delete(
+        platformApiPath('/me/accounts/:kindId'),
+        platformAuth,
+        activePlatformMutation,
+        platformCsrf,
+        platformWriteRateLimit,
+        handleDeleteMyPlatformAccount
+    );
     app.get(
         platformApiPath('/me/avatar'),
         platformAuth,

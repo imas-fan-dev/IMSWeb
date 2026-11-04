@@ -57,6 +57,8 @@ import { afterAll, describe, onTestFinished, test } from 'vitest';
             },
             profile: {
                 account_id: 'account-1',
+                uid: 1,
+                page_slug: null,
                 display_name: 'Producer One',
                 avatar_object_key: null,
                 avatar_external_url: null,
@@ -396,6 +398,8 @@ import { afterAll, describe, onTestFinished, test } from 'vitest';
             },
             profile: {
                 account_id: 'account-1',
+                uid: 1,
+                page_slug: null,
                 display_name: 'Producer One',
                 avatar_object_key: null,
                 avatar_external_url: null,

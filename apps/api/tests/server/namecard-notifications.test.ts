@@ -13,6 +13,8 @@ import {
 } from '@/infra/db/repositories/namecard-notification-repository';
 import {
     cardApprovedCopy,
+    cardFeedbackAcceptedCopy,
+    cardFeedbackRejectedCopy,
     cardLockedCopy,
     cardRejectedCopy,
     cardRevisionFlaggedCopy,
@@ -22,7 +24,6 @@ import {
 import { executeSql, queryOne } from '@/infra/db/sql/query';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 import assert from 'node:assert/strict';
-import { parseEnvelopeAction } from '@/domains/community/fudaba/claims/request';
 import { describe, onTestFinished, test } from 'vitest';
 
 const ACCOUNT = 'notify-account';
@@ -60,6 +61,21 @@ test('every verdict keeps one wording, whatever pipeline wrote it', () => {
     assert.equal(
         cardRevisionFlaggedCopy(793, 'NSFW内容').title,
         '名片 #793 的新版本已被标记违规'
+    );
+});
+
+test('the report verdict thanks the reporter and quotes the reason once', () => {
+    assert.equal(
+        cardFeedbackAcceptedCopy(793).body,
+        '您的反馈已受理，感谢您协助维护偶像大师交流站'
+    );
+    assert.equal(
+        cardFeedbackRejectedCopy(793, '该名片不属于反馈人。').body,
+        '您的反馈未被受理，理由：该名片不属于反馈人。'
+    );
+    assert.equal(
+        cardFeedbackRejectedCopy(793, '  信息不符 ').body,
+        '您的反馈未被受理，理由：信息不符。'
     );
 });
 
@@ -172,24 +188,4 @@ test('prunes read rows after 30 days and unread ones after 90', async () => {
     await pruneExpiredNamecardNotifications(database, ACCOUNT);
     const remaining = await repository.list(ACCOUNT, 50);
     assert.deepEqual(remaining.items.map((row) => row.id).sort(), ['fresh-read', 'recent-unread']);
-});
-
-describe('claim envelope action parsing', () => {
-    test('accepts both decisions with a non-negative revision', () => {
-        assert.deepEqual(parseEnvelopeAction({ decision: 'confirm', expectedRevision: 0 }), {
-            decision: 'confirm',
-            expectedRevision: 0
-        });
-        assert.deepEqual(parseEnvelopeAction({ decision: 'decline', expectedRevision: 12 }), {
-            decision: 'decline',
-            expectedRevision: 12
-        });
-    });
-
-    test('rejects unknown decisions, bad revisions and extra fields', () => {
-        assert.throws(() => parseEnvelopeAction({ decision: 'maybe', expectedRevision: 1 }), /decision/);
-        assert.throws(() => parseEnvelopeAction({ decision: 'confirm', expectedRevision: -1 }), /revision/i);
-        assert.throws(() => parseEnvelopeAction({ decision: 'confirm', expectedRevision: 1, extra: true }), /未知字段/);
-        assert.throws(() => parseEnvelopeAction(null), /对象/);
-    });
 });

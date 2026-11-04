@@ -150,7 +150,7 @@ const navigation: Array<{
     accent: "bg-franchise-765",
     children: [
       { to: "/admin/cards", label: "名片审核", end: true },
-      { label: "信息修改" },
+      { to: "/admin/cards/manage", label: "反馈处理" },
       { to: "/admin/cards/characters", label: "角色列表" },
       { to: "/admin/cards/units", label: "组合列表" },
       { label: "标签管理" },
@@ -227,6 +227,11 @@ const navigation: Array<{
     icon: UsersRoundIcon,
     accent: "bg-franchise-cg",
     superOnly: true,
+    children: [
+      { to: "/admin/platform/users", label: "用户管理" },
+      { to: "/admin/platform/account-kinds", label: "平台账号" },
+      { to: "/admin/platform/audit", label: "名片审计" },
+    ],
   },
   {
     to: "/admin/system",

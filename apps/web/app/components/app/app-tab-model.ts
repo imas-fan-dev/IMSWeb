@@ -161,6 +161,8 @@ const APP_BACK_RULES: readonly AppBackRule[] = [
     target: { kind: "parent", href: "/community/cards" },
   },
   { path: "/community/cards", target: { kind: "parent", href: "/community" } },
+  // 公开主页只从名片墙的作者链接进入，退回到名片墙。
+  { path: "/user", target: { kind: "parent", href: "/community/cards" } },
   {
     path: "/events",
     exact: true,

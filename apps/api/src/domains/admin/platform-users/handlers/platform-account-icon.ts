@@ -1,0 +1,89 @@
+import type { PlatformAccountIconUpload } from "@imsweb/contracts/namecards";
+import type { AppEnvironment } from "@/app";
+import { parsePlatformAccountIconRequest } from "@/domains/admin/platform-users/request";
+import type { ValidatedRequestContext } from "@/middleware/request-validation";
+import { services } from "@/middleware/hono-context";
+import type { UploadedFile } from "@/ports/http";
+import { randomHex } from "@/utils/crypto/random";
+import { deleteObjectWithCompensation } from "@/utils/storage/delete-object";
+
+/**
+ * Marks have to keep their transparent background, so only formats that can
+ * carry an alpha channel are accepted. JPEG is deliberately absent.
+ */
+const ALPHA_FORMATS: Record<string, string> = {
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/avif": "avif",
+    "image/gif": "gif",
+    "image/svg+xml": "svg",
+};
+
+const KIND_ID = /^[a-z0-9-]{1,32}$/;
+
+function oneFile(value: UploadedFile | UploadedFile[] | undefined): UploadedFile | null {
+    return value && !Array.isArray(value) ? value : null;
+}
+
+export function platformAccountIconKey(kindId: string, extension: string): string {
+    return `platform/account-kinds/${kindId}/icon.${extension}`;
+}
+
+export async function handleUploadPlatformAccountIcon(
+    c: ValidatedRequestContext<AppEnvironment, "param", { id: string }>
+): Promise<Response> {
+    const runtime = services(c);
+    if (!runtime.uploads || !runtime.storage) {
+        throw new Error("Upload services unavailable");
+    }
+    const { id: kindId } = c.req.valid("param");
+    if (!KIND_ID.test(kindId)) {
+        return c.json({ success: false, message: "平台标识符无效" }, 400);
+    }
+    const kinds = await services(c).namecards?.listPlatformAccountKinds();
+    const kind = kinds?.find((entry) => entry.id === kindId);
+    if (!kind) {
+        return c.json({ success: false, message: "平台不存在" }, 404);
+    }
+    const upload = await parsePlatformAccountIconRequest(
+        runtime.uploads,
+        c.req.raw
+    );
+    const file = oneFile(upload.files.icon);
+    if (!file) {
+        return c.json({ success: false, message: "必须上传一个图标文件" }, 400);
+    }
+    const extension = ALPHA_FORMATS[file.contentType];
+    if (!extension) {
+        return c.json(
+            {
+                success: false,
+                message: "只支持带透明通道的 PNG、WebP、AVIF、GIF 或 SVG",
+            },
+            400
+        );
+    }
+    const key = platformAccountIconKey(kindId, extension);
+    const previousKey = kind.icon_object_key ?? null;
+    const ownerToken = randomHex(32);
+    await runtime.storage.put(key, file.body, {
+        contentType: file.contentType,
+        ownerToken,
+        metadata: { kind: "platform-account-icon", platform: kindId },
+    });
+    const saved = await services(c).namecards!.setPlatformAccountKindIcon(kindId, key);
+    if (!saved) {
+        // The row vanished between the lookup and the write; drop the orphan.
+        await deleteObjectWithCompensation(runtime, key).catch((error) => {
+            console.error("Failed to drop an orphaned platform icon", error);
+        });
+        return c.json({ success: false, message: "平台不存在" }, 404);
+    }
+    // 键名带扩展名，换了格式才会留下旧图；同格式覆盖写入时旧键就是新键。
+    if (previousKey && previousKey !== key) {
+        await deleteObjectWithCompensation(runtime, previousKey).catch((error) => {
+            console.error("Failed to schedule replaced platform icon cleanup", error);
+        });
+    }
+    return c.json({ success: true, iconObjectKey: key } satisfies PlatformAccountIconUpload);
+}

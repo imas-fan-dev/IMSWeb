@@ -5,15 +5,21 @@ import {
   exactJsonResponse,
   legacyStripRequestObject,
   numberedPageInfoSchema,
+  strictRequestObject,
   successEnvelope,
 } from "./common.js"
 import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
+  fudabaCardFieldsRequestSchema,
   namecardCreditSchema,
   namecardReactionEmojiSchema,
   type NamecardCredit,
 } from "./fudaba/index.js"
-import { NAMECARD_CREDIT_LIMIT } from "./fudaba/namecard-runtime.js"
+import {
+  NAMECARD_CREDIT_LIMIT,
+  NAMECARD_MIDDLE_IMAGE_LIMIT,
+  NAMECARD_SERIES_LIMIT,
+} from "./fudaba/namecard-runtime.js"
 
 export const cardIdSchema = z.number().int().positive()
 
@@ -34,7 +40,12 @@ export const namecardMetadataSchema = {
   viewerClaimState: z
     .enum(["pending", "approving", "approved", "rejected", "cancelled"])
     .nullable(),
+  /** The claimant's account name, shown on the wall badge. */
   claimerName: z.string().min(1).nullable(),
+  /** Where that name links to; null for the legacy rows with no account. */
+  claimerAccountId: z.string().min(1).nullable(),
+  /** Someone's supplement is waiting for review, so nobody else may submit. */
+  supplementPending: z.boolean(),
 }
 
 /**
@@ -47,7 +58,7 @@ export const namecardPublicDetailSchema = {
   cardId: z.string().min(1),
   cardNumber: z.number().int().positive(),
   revision: z.number().int().nonnegative(),
-  producerName: z.string().min(1).nullable(),
+  producerName: z.string().nullable(),
   /** Sorting aid only, rendered in parentheses after the producer name. */
   producerReading: z.string().min(1).nullable(),
   groupName: z.string().min(1).nullable(),
@@ -75,7 +86,7 @@ export const namecardPublicDetailSchema = {
  */
 export const namecardDiffSideSchema = z
   .object({
-    producerName: z.string().min(1).nullable(),
+    producerName: z.string().nullable(),
     producerReading: z.string().min(1).nullable(),
     groupName: z.string().min(1).nullable(),
     madeOn: z.string().min(1).nullable(),
@@ -96,10 +107,42 @@ export const namecardDiffSideSchema = z
   })
   .strict()
 
+/** The lifecycle column, verbatim; `status` above stays in the legacy
+ * vocabulary the review badges read. */
+export const namecardLifecycleStatusSchema = z.enum([
+  "draft",
+  "pending",
+  "approving",
+  "published",
+  "hidden",
+  "rejected",
+  "withdrawn",
+  "locked",
+])
+
+export const namecardReviewStatusSchema = z.enum([
+  "pending",
+  "rejected",
+  "locked",
+])
+
+/**
+ * Addresses one page of the live artwork: `#0` is the front, `#n-1` the back.
+ * The admin console may reorder or drop pages but never adds new artwork.
+ */
+export const namecardMediaSlotTokenSchema = z.string().regex(/^#\d{1,2}$/)
+
 export const adminNamecardDiffSchema = exactJsonResponse({
   id: cardIdSchema,
   status: z.string(),
-  reviewStatus: z.enum(["pending", "rejected", "locked"]).nullable(),
+  publicationStatus: namecardLifecycleStatusSchema,
+  reviewStatus: namecardReviewStatusSchema.nullable(),
+  revision: z.number().int().nonnegative(),
+  /** The account the card belongs to; null for an unclaimed row. */
+  ownerAccountId: z.string().min(1).nullable(),
+  ownerDisplayName: z.string().min(1).nullable(),
+  lockReason: z.string().min(1).nullable(),
+  reviewReason: z.string().min(1).nullable(),
   live: namecardDiffSideSchema,
   /** The revision waiting for review; null when nothing is queued. */
   pending: namecardDiffSideSchema.nullable(),
@@ -124,10 +167,51 @@ export const namecardPageSchema = exactJsonResponse({
   totalPage: z.number().int().nonnegative(),
 })
 
+/** One platform handle as the profile page renders it. */
+export const platformAccountLinkSchema = exactJsonResponse({
+  kindId: z.string().min(1),
+  name: z.string().min(1),
+  group: z.enum(["game", "social", "showcase", "game-platform", "link"]),
+  value: z.string().min(1),
+  /** An optional display name that replaces the platform name on the badge. */
+  username: z.string().min(1).nullable(),
+  /** Null for id-only platforms, which show a copy button instead of a link. */
+  url: z.string().min(1).nullable(),
+  color: z.string().min(1).nullable(),
+  icon: z.string().min(1).nullable(),
+  /** The mark uploaded in the backoffice, when there is one. */
+  iconUrl: z.string().nullable(),
+})
+
+export type PlatformAccountLink = z.infer<typeof platformAccountLinkSchema>
+
+/** Someone's public page: the profile half, then their own wall cards. */
+export const publicProfileSchema = exactJsonResponse({
+  accountId: z.string().min(1),
+  /** Short, permanent handle: /user/<uid>. */
+  uid: z.number().int().positive(),
+  /** Vanity path segment the owner picked, when they picked one. */
+  pageSlug: z.string().min(1).nullable(),
+  displayName: z.string().min(1),
+  avatarUrl: z.string().min(1).nullable(),
+  homeCity: z.string().min(1).nullable(),
+  bio: z.string(),
+  accounts: z.array(platformAccountLinkSchema),
+})
+
 export const reactionSchema = z.record(z.string(), z.number().int().nonnegative())
 
 export type Namecard = z.infer<typeof namecardSchema>
 export type NamecardPage = z.infer<typeof namecardPageSchema>
+export type PublicProfile = z.infer<typeof publicProfileSchema>
+
+/** 公开主页只有「有」和「没有」两种结果，没有更多错误码。 */
+export const publicProfileErrorSchema = exactJsonError({
+  success: z.literal(false),
+  code: z.literal("PUBLIC_PROFILE_UNAVAILABLE"),
+})
+
+export type PublicProfileError = z.infer<typeof publicProfileErrorSchema>
 export type NamecardReactions = z.infer<typeof reactionSchema>
 
 export const adminNamecardSchema = exactJsonResponse({
@@ -137,7 +221,7 @@ export const adminNamecardSchema = exactJsonResponse({
   image2_url: z.string().min(1).nullable(),
   status: z.string(),
   revision: z.number().int().nonnegative(),
-  producerName: z.string().min(1).nullable(),
+  producerName: z.string().nullable(),
   /** 制作人名读法：排序辅助，只有填写过的名片才带值。 */
   producerReading: z.string().min(1).nullable(),
   origin: z.string().min(1),
@@ -188,6 +272,233 @@ export type AdminNamecardListInput = z.input<typeof adminNamecardListSchema>
 export const adminNamecardMutationSchema = successEnvelope({
   revision: z.number().int().nonnegative(),
 })
+
+/**
+ * The management window always submits the whole card, so the API can diff it
+ * against the live copy and tell the owner exactly what changed.
+ *
+ * `ownerAccountId` is omitted to keep the current owner and `null` to clear it;
+ * `reason` is required whenever the submission changes anything.
+ */
+/**
+ * The backoffice may save a card whose producer name or series list is still
+ * empty; the owner editor keeps the strict shape.
+ */
+const adminNamecardFieldsSchema = fudabaCardFieldsRequestSchema
+  .extend({
+    producerName: z.string().trim().max(80),
+    seriesCodes: z.array(z.string().trim().min(1)).max(NAMECARD_SERIES_LIMIT),
+  })
+  .strict()
+
+export const adminNamecardUpdateRequestSchema = adminNamecardFieldsSchema
+  .extend({
+    expected_revision: z.number().int().nonnegative(),
+    reason: z.string().trim().max(400).nullable(),
+    ownerAccountId: z.string().trim().min(1).max(128).nullable().optional(),
+    status: namecardLifecycleStatusSchema,
+    review_status: namecardReviewStatusSchema.nullable(),
+    media_order: z
+      .array(namecardMediaSlotTokenSchema)
+      .min(1)
+      .max(2 + NAMECARD_MIDDLE_IMAGE_LIMIT),
+  })
+  .strict()
+
+/**
+ * Readers report a published card from the wall. The three presets cover every
+ * case the queue is meant to handle; `detail` carries whatever the reporter
+ * wants to add.
+ */
+export const namecardFeedbackReasonSchema = z.enum([
+  "info-error",
+  "ownership-error",
+  "content-violation",
+])
+
+export const NAMECARD_FEEDBACK_NOTE_LIMIT = 400
+
+export const createNamecardFeedbackRequestSchema = z
+  .object({
+    reason: namecardFeedbackReasonSchema,
+    /** The reporter describes the problem themselves; the server never fills it. */
+    detail: z.string().trim().min(1).max(NAMECARD_FEEDBACK_NOTE_LIMIT),
+  })
+  .strict()
+
+export const namecardFeedbackMutationSchema = successEnvelope({})
+
+/** One row of the report queue: the card on the wall plus who reported it. */
+export const adminNamecardFeedbackSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  cardNumber: z.number().int().positive(),
+  producerName: z.string().nullable(),
+  image1_url: z.string().min(1),
+  image2_url: z.string().min(1).nullable(),
+  pageCount: z.number().int().positive(),
+  reporterName: z.string().min(1),
+  reason: namecardFeedbackReasonSchema,
+  detail: z.string().min(1).nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const adminNamecardFeedbackListSchema = successEnvelope({
+  data: z.array(adminNamecardFeedbackSchema),
+  pageInfo: numberedPageInfoSchema,
+})
+
+/** The queue can also refuse: the operator session died or the read failed. */
+export const adminNamecardFeedbackListResponseSchema = z.union([
+  adminNamecardFeedbackListSchema,
+  z.object({ success: z.literal(false) }).strict(),
+])
+
+/** Resolving a report answers a flag, or a reason when the row is already gone. */
+export const namecardFeedbackResponseSchema = z.union([
+  namecardFeedbackMutationSchema,
+  z.object({ success: z.literal(false), message: z.string().min(1) }).strict(),
+])
+
+export const adminNamecardFeedbackListQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+})
+
+/** A person as the audit tables show them: a name plus both tallies. */
+export const namecardAuditUserSchema = exactJsonResponse({
+  /** Display name, falling back to the account id when no profile exists. */
+  name: z.string().min(1),
+  /** Records for this account across the whole audit. */
+  total: z.number().int().nonnegative(),
+  /** Records for this account inside the returned page. */
+  pageCount: z.number().int().nonnegative(),
+})
+
+export const namecardLockAuditActionSchema = z.enum([
+  "locked",
+  "unlocked",
+  "flagged",
+])
+
+export const namecardLockAuditRowSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  cardNumber: z.number().int().positive(),
+  producerName: z.string().nullable(),
+  owner: namecardAuditUserSchema.nullable(),
+  action: namecardLockAuditActionSchema,
+  /** Present on a lock entry; releases keep whatever the operator typed. */
+  reason: z.string().min(1).nullable(),
+  handledBy: z.string().min(1).nullable(),
+  occurredAt: z.string().min(1),
+})
+
+export const namecardLockAuditListSchema = successEnvelope({
+  data: z.array(namecardLockAuditRowSchema),
+  pageInfo: numberedPageInfoSchema,
+})
+
+export const namecardFeedbackAuditRowSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  cardNumber: z.number().int().positive(),
+  producerName: z.string().nullable(),
+  owner: namecardAuditUserSchema.nullable(),
+  reporter: namecardAuditUserSchema,
+  reason: namecardFeedbackReasonSchema,
+  outcome: z.enum(["accepted", "rejected"]),
+  handledBy: z.string().min(1).nullable(),
+  handledAt: z.string().min(1).nullable(),
+})
+
+export const namecardFeedbackAuditListSchema = successEnvelope({
+  data: z.array(namecardFeedbackAuditRowSchema),
+  pageInfo: numberedPageInfoSchema,
+})
+
+const namecardAuditFailureSchema = z.object({ success: z.literal(false) }).strict()
+
+export const namecardLockAuditListResponseSchema = z.union([
+  namecardLockAuditListSchema,
+  namecardAuditFailureSchema,
+])
+
+export const namecardFeedbackAuditListResponseSchema = z.union([
+  namecardFeedbackAuditListSchema,
+  namecardAuditFailureSchema,
+])
+
+export const namecardLockAuditQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+  owner: z.unknown().optional(),
+  reason: z.unknown().optional(),
+  handler: z.unknown().optional(),
+  action: z.unknown().optional(),
+})
+
+export const namecardFeedbackAuditQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+  owner: z.unknown().optional(),
+  reporter: z.unknown().optional(),
+  outcome: z.unknown().optional(),
+  handler: z.unknown().optional(),
+})
+
+export type NamecardAuditUser = z.infer<typeof namecardAuditUserSchema>
+export type NamecardLockAuditRow = z.infer<typeof namecardLockAuditRowSchema>
+export type NamecardFeedbackAuditRow = z.infer<typeof namecardFeedbackAuditRowSchema>
+export type NamecardLockAuditList = z.infer<typeof namecardLockAuditListSchema>
+export type NamecardFeedbackAuditList = z.infer<typeof namecardFeedbackAuditListSchema>
+export type AdminNamecardLockAuditListResponse = z.infer<
+  typeof namecardLockAuditListResponseSchema
+>
+export type AdminNamecardFeedbackAuditListResponse = z.infer<
+  typeof namecardFeedbackAuditListResponseSchema
+>
+
+export const namecardFeedbackIdParamsSchema = z.object({
+  feedbackId: z.coerce.number().int().positive(),
+})
+
+/** The reporter always gets the same template; only the outcome varies. */
+export const resolveNamecardFeedbackRequestSchema = z
+  .object({
+    outcome: z.enum(["accepted", "rejected"]),
+    /** Required when rejecting: it travels to the reporter verbatim. */
+    note: z.string().trim().max(NAMECARD_FEEDBACK_NOTE_LIMIT).nullable(),
+  })
+  .strict()
+
+export type AdminNamecardFeedback = z.infer<typeof adminNamecardFeedbackSchema>
+/** The success payload the client parses. */
+export type AdminNamecardFeedbackList = z.infer<
+  typeof adminNamecardFeedbackListSchema
+>
+export type AdminNamecardFeedbackListResponse = z.infer<
+  typeof adminNamecardFeedbackListResponseSchema
+>
+export type NamecardFeedbackResponse = z.infer<
+  typeof namecardFeedbackResponseSchema
+>
+export type NamecardFeedbackReason = z.infer<typeof namecardFeedbackReasonSchema>
+export type ResolveNamecardFeedbackInput = z.input<
+  typeof resolveNamecardFeedbackRequestSchema
+>
+export type CreateNamecardFeedbackInput = z.input<
+  typeof createNamecardFeedbackRequestSchema
+>
+export type CreateNamecardFeedbackRequest = z.infer<
+  typeof createNamecardFeedbackRequestSchema
+>
+export type ResolveNamecardFeedbackRequest = z.infer<
+  typeof resolveNamecardFeedbackRequestSchema
+>
+export type NamecardFeedbackIdParams = z.infer<
+  typeof namecardFeedbackIdParamsSchema
+>
+
+export const adminNamecardDeleteRequestSchema = z
+  .object({
+    expected_revision: z.number().int().nonnegative(),
+  })
+  .strict()
 export const namecardDetailResponseSchema = exactJsonResponse({
   image1_url: z.string().min(1),
   image2_url: z.string().min(1).nullable(),
@@ -224,6 +535,9 @@ export const namecardMediaParamsSchema = legacyStripRequestObject({
   id: z.unknown(),
   side: z.unknown(),
   variant: z.unknown().optional(),
+})
+export const publicProfileParamsSchema = legacyStripRequestObject({
+  accountId: z.string().min(1),
 })
 export const namecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
@@ -262,6 +576,8 @@ export const expectedNamecardRevisionQuerySchema = legacyStripRequestObject({
 })
 export const namecardErrorResponseSchema = z.union([
   exactJsonError({ error: z.string() }),
+  /** The backoffice points the operator at the field that failed. */
+  exactJsonError({ error: z.string(), field: z.literal("reason") }),
   exactJsonError({ msg: z.string() }),
   exactJsonError({ success: z.literal(false) }),
   exactJsonError({ success: z.literal(false), error: z.string() }),
@@ -273,6 +589,16 @@ export const adminNamecardHttpErrorSchema = z.union([
 ])
 
 export type AdminNamecardMutation = z.infer<typeof adminNamecardMutationSchema>
+export type AdminNamecardUpdateRequest = z.infer<
+  typeof adminNamecardUpdateRequestSchema
+>
+export type AdminNamecardDeleteRequest = z.infer<
+  typeof adminNamecardDeleteRequestSchema
+>
+export type NamecardLifecycleStatus = z.infer<
+  typeof namecardLifecycleStatusSchema
+>
+export type NamecardReviewStatus = z.infer<typeof namecardReviewStatusSchema>
 export type NamecardDetailResponse = z.infer<typeof namecardDetailResponseSchema>
 export type NamecardEmptyResponse = z.infer<typeof namecardEmptyResponseSchema>
 export type NamecardListErrorResponse = z.infer<typeof namecardListErrorResponseSchema>
@@ -283,3 +609,173 @@ export type ReactionMutation = z.infer<typeof reactionMutationSchema>
 export type LegacyEmojiMutation = z.infer<typeof legacyEmojiMutationSchema>
 export type ReactionMutationResponse = z.infer<typeof reactionMutationResponseSchema>
 export type ReactionErrorResponse = z.infer<typeof reactionErrorResponseSchema>
+
+/** 名片墙顶部的临时面板：进度、贡献榜与当前用户的贡献。 */
+export const wallInsightContributorSchema = z
+  .object({
+    accountId: z.string().min(1),
+    displayName: z.string().min(1),
+    points: z.number().int().nonnegative(),
+    cards: z.number().int().nonnegative(),
+  })
+  .strict()
+
+export const wallInsightViewerSchema = z
+  .object({
+    accountId: z.string().min(1),
+    displayName: z.string().min(1),
+    points: z.number().int().nonnegative(),
+    /** 1 起的全局名次；没有贡献时为 null。 */
+    rank: z.number().int().positive().nullable(),
+  })
+  .strict()
+
+export const wallInsightsSchema = exactJsonResponse({
+  /** 名片墙上还没有主人的名片总数（认领进度的分母）。 */
+  /** Every published guest submission, the shared denominator of both bars. */
+  guestTotal: z.number().int().nonnegative(),
+  ownerless: z.number().int().nonnegative(),
+  /** 这些无主名片里连企划都没有的张数（补充进度的分母）。 */
+  ownerlessMissingSeries: z.number().int().nonnegative(),
+  claimed: z.number().int().nonnegative(),
+  claimsPending: z.number().int().nonnegative(),
+  supplemented: z.number().int().nonnegative(),
+  supplementsPending: z.number().int().nonnegative(),
+  contributors: z.array(wallInsightContributorSchema).max(10),
+  viewer: wallInsightViewerSchema.nullable(),
+})
+
+export const randomOwnerlessCardSchema = exactJsonResponse({
+  cardNumber: z.number().int().positive(),
+})
+
+export const randomOwnerlessCardErrorSchema = exactJsonError({
+  success: z.literal(false),
+  code: z.literal("FUDABA_NO_OWNERLESS_CARD"),
+})
+
+export type WallInsightContributor = z.infer<typeof wallInsightContributorSchema>
+export type WallInsights = z.infer<typeof wallInsightsSchema>
+export type RandomOwnerlessCard = z.infer<typeof randomOwnerlessCardSchema>
+export type RandomOwnerlessCardError = z.infer<
+  typeof randomOwnerlessCardErrorSchema
+>
+
+/** The catalogue the backoffice edits; the profile page renders it as-is. */
+export const platformAccountKindSchema = exactJsonResponse({
+  id: z.string().min(1).max(32),
+  name: z.string().min(1).max(40),
+  group: z.enum(["game", "social", "showcase", "game-platform", "link"]),
+  pattern: z.string().min(1).max(200),
+  baseUrl: z.string().min(1).nullable(),
+  color: z.string().min(4).max(9).nullable(),
+  icon: z.string().min(1).max(40).nullable(),
+  /** An uploaded mark wins over the icon key's default. */
+  iconUrl: z.string().nullable(),
+  displayOrder: z.number().int().nonnegative(),
+  enabled: z.boolean(),
+  uppercase: z.boolean(),
+})
+
+/** 值的格式化与校验是纯运行时逻辑，住在 Zod-free 入口里，见 `./namecards-runtime`. */
+export {
+  decodePlatformValue,
+  encodePlatformValue,
+  formatPlatformValue,
+  platformValueError,
+  type PlatformAccountFormat,
+} from "./namecards-runtime.js";
+
+/** One account the visitor filled in, normalized to the bare identifier. */
+export const platformAccountEntrySchema = exactJsonResponse({
+  kindId: z.string().min(1).max(32),
+  value: z.string().min(1).max(200),
+  /** Link accounts may carry the display name they are known by. */
+  username: z.string().min(1).max(60).nullable(),
+})
+
+export const myPlatformAccountsSchema = exactJsonResponse({
+  catalog: z.array(platformAccountKindSchema),
+  entries: z.array(platformAccountEntrySchema),
+})
+
+export const platformAccountValueRequestSchema = strictRequestObject({
+  value: z.string().trim().min(1).max(200),
+  username: z.string().trim().min(1).max(60).nullable().optional(),
+})
+
+/** Removing a value reports how many rows the delete touched. */
+export const platformAccountRemovalSchema = exactJsonResponse({
+  success: z.literal(true),
+  removed: z.number().int().nonnegative(),
+})
+
+export type PlatformAccountRemoval = z.infer<
+  typeof platformAccountRemovalSchema
+>
+
+/** 后台填的正则要能直接编译，否则名片编辑器永远判定格式不符。 */
+function isUsableRegExp(pattern: string): boolean {
+  try {
+    new RegExp(pattern, "u");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const platformAccountKindRequestSchema = strictRequestObject({
+  name: z.string().trim().min(1).max(40),
+  group: z.enum(["game", "social", "showcase", "game-platform", "link"]),
+  pattern: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .refine(isUsableRegExp, "校验正则无效"),
+  baseUrl: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .nullable()
+    .refine(
+      (value) => value === null || value.includes("{value}"),
+      "链接模板必须包含 {value}"
+    ),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
+  icon: z.string().trim().min(1).max(40).nullable(),
+  displayOrder: z.number().int().min(0).max(9999),
+  enabled: z.boolean(),
+  /** Game handles are stored in capitals; the editor upper-cases as you type. */
+  uppercase: z.boolean().optional(),
+})
+
+/** What the editor needs to turn raw input into the stored identifier. */
+/** What the upload route answers: the object key it just stored. */
+/** The catalogue key, as the icon route takes it. */
+export const platformAccountKindParamsSchema = legacyStripRequestObject({
+  id: z.string().min(1).max(32),
+})
+
+export const platformAccountIconUploadSchema = exactJsonResponse({
+  success: z.literal(true),
+  iconObjectKey: z.string().min(1),
+})
+
+export type PlatformAccountIconUpload = z.infer<
+  typeof platformAccountIconUploadSchema
+>
+
+export const platformAccountKindListSchema = exactJsonResponse({
+  kinds: z.array(platformAccountKindSchema),
+})
+
+export type PlatformAccountKind = z.infer<typeof platformAccountKindSchema>
+export type PlatformAccountKindList = z.infer<typeof platformAccountKindListSchema>
+export type PlatformAccountEntry = z.infer<typeof platformAccountEntrySchema>
+export type MyPlatformAccounts = z.infer<typeof myPlatformAccountsSchema>

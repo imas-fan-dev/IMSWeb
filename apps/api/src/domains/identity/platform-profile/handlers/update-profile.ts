@@ -15,6 +15,7 @@ export async function handleUpdatePlatformProfile(
         displayName: string;
         expectedUpdatedAt: number;
         homeCity: string | null;
+        pageSlug: string | null;
     }>
 ): Promise<Response> {
     try {
@@ -27,6 +28,13 @@ export async function handleUpdatePlatformProfile(
         });
         if (result.status === 'unavailable') {
             return c.json({ success: false, code: 'PLATFORM_PROFILE_UNAVAILABLE' }, 409);
+        }
+        if (result.status === 'slug-taken') {
+            return c.json({
+                success: false,
+                code: 'PLATFORM_PROFILE_INVALID',
+                message: '这个主页地址已经被占用了'
+            } satisfies PlatformProfileError, 409);
         }
         if (result.status === 'conflict') {
             return c.json({

@@ -9,10 +9,12 @@ import {
     fudabaMediaQuerySchema,
     fudabaRevisionRequestSchema,
 } from '@imsweb/contracts/fudaba';
+import { createNamecardFeedbackRequestSchema } from '@imsweb/contracts/namecards';
 import { publicUploadsPath } from '@imsweb/contracts/paths';
 import { activePlatformMutation, platformAuth, platformCsrf } from '@/middleware/hono-auth';
 import { requireFudabaWrite } from '@/domains/community/fudaba/access-policy';
 import { handleCreateFudabaCard } from '@/domains/community/fudaba/cards/handlers/create-card';
+import { handleCreateFudabaCardFeedback } from '@/domains/community/fudaba/cards/handlers/create-card-feedback';
 import { handleDeleteFudabaCard } from '@/domains/community/fudaba/cards/handlers/delete-card';
 import { handleGetFudabaOwnerCard } from '@/domains/community/fudaba/cards/handlers/get-owner-card';
 import { handleListFudabaOwnerCards } from '@/domains/community/fudaba/cards/handlers/list-owner-cards';
@@ -51,6 +53,7 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
         if (active) routes.put(path, ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handler);
         else routes.delete(path, ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handler);
     }
+    routes.post('/cards/:cardId/feedback', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(createNamecardFeedbackRequestSchema), handleCreateFudabaCardFeedback);
     routes.put('/me/cards/:cardId/media', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handleReplaceFudabaOwnedMedia);
     routes.put('/me/cards/:cardId', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(fudabaCardUpdateRequestSchema), handleUpdateFudabaCard);
     routes.delete('/me/cards/:cardId', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(fudabaRevisionRequestSchema), handleDeleteFudabaCard);

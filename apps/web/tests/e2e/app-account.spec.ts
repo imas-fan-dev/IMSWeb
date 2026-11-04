@@ -35,7 +35,11 @@ const session = {
   },
 }
 
-type AppProfile = typeof session.profile & { updatedAt: number }
+type AppProfile = typeof session.profile & {
+  updatedAt: number
+  uid: number
+  pageSlug: string | null
+}
 
 async function applySafeArea(page: Page) {
   await page.addInitScript(() => {
@@ -85,7 +89,12 @@ async function installAccountMocks(
   api: ApiDispatcher,
   corsHeaders: Record<string, string>
 ) {
-  let currentProfile: AppProfile = { ...session.profile, updatedAt: 1 }
+  let currentProfile: AppProfile = {
+    ...session.profile,
+    updatedAt: 1,
+    uid: 1,
+    pageSlug: null,
+  }
   const emptyItems = { items: [] }
 
   await api.mock(
@@ -142,7 +151,6 @@ async function installAccountMocks(
     (route) => route.fulfill({ json: makeCharacterCatalog() })
   )
   for (const path of [
-    "/api/community/exchange/me/claim-envelopes",
     "/api/community/exchange/me/offices",
   ]) {
     await api.mock(
@@ -226,6 +234,8 @@ async function openAccountPage(
     accountMocks.setProfile({
       ...session.profile,
       updatedAt: 1,
+      uid: 1,
+      pageSlug: null,
       ...options.profile,
     })
   }
@@ -420,6 +430,8 @@ test.describe("app account", () => {
             ...session.profile,
             avatarUrl: AVATAR_PATH,
             updatedAt: 2,
+            uid: 1,
+            pageSlug: null,
           }
           accountMocks.setProfile(profile)
           await fulfillJson(route, { success: true, profile }, corsHeaders)
@@ -558,6 +570,8 @@ test.describe("app account", () => {
             ...session.profile,
             avatarUrl: null,
             updatedAt: 3,
+            uid: 1,
+            pageSlug: null,
           }
           accountMocks.setProfile(profile)
           await fulfillJson(route, { success: true, profile }, corsHeaders)

@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView, parseFudabaRevision, validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
+import { storeArtworkThumbnail } from '@/domains/community/fudaba/cards/artwork-thumbnail';
 import { isNamecardCompatibilityOrigin } from '@/domains/community/fudaba/card-media-layout';
 import {
     fudabaRepository,
@@ -133,6 +134,13 @@ export async function handleUploadFudabaOwnedMedia(
                 side,
                 account: accountId
             }
+        });
+        const thumbnail = await storeArtworkThumbnail(runtime, {
+            key,
+            body: converted.body,
+            ownerToken,
+            accountId,
+            side
         });
         const repository = fudabaRepository(c);
         cleanupNewObject = false;

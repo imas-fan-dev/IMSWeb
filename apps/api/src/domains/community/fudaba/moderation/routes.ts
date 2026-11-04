@@ -1,7 +1,10 @@
 import {
+    adminCardSupplementParamsSchema,
     fudabaAdminCardClaimParamsSchema,
     fudabaCardReviewRequestSchema,
     fudabaRegisteredCardReviewParamsSchema,
+    fudabaSupplementReviewRequestSchema,
+    reviewQueueQuerySchema,
 } from '@imsweb/contracts/fudaba/card-claims';
 import {
     fudabaLocationReviewOfficeParamsSchema,
@@ -25,9 +28,13 @@ import {
     currentBackofficeOp,
 } from '@/middleware/hono-auth';
 import {
+    handleGetFudabaCardSupplement,
     handleListFudabaCardClaimReviews,
+    handleListFudabaCardSupplements,
     handleListFudabaRegisteredCardReviews,
+    handleListFudabaReviewQueue,
     handleReviewFudabaCardClaim,
+    handleReviewFudabaCardSupplement,
     handleReviewFudabaRegisteredCard,
     handleServeFudabaRegisteredCardReviewMedia,
 } from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
@@ -121,6 +128,35 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         currentBackofficeOp,
         handleListFudabaCardClaimReviews,
+    );
+    routes.get(
+        '/review-queue',
+        backofficeAuth,
+        currentBackofficeOp,
+        querySchemaValidator(reviewQueueQuerySchema),
+        handleListFudabaReviewQueue,
+    );
+    routes.get(
+        '/card-supplements',
+        backofficeAuth,
+        currentBackofficeOp,
+        handleListFudabaCardSupplements,
+    );
+    routes.get(
+        '/card-supplements/:supplementId',
+        backofficeAuth,
+        currentBackofficeOp,
+        paramSchemaValidator(adminCardSupplementParamsSchema),
+        handleGetFudabaCardSupplement,
+    );
+    routes.put(
+        '/card-supplements/:supplementId',
+        backofficeAuth,
+        currentBackofficeOp,
+        backofficeCsrf,
+        paramSchemaValidator(adminCardSupplementParamsSchema),
+        jsonSchemaValidator(fudabaSupplementReviewRequestSchema),
+        handleReviewFudabaCardSupplement,
     );
     routes.put(
         '/card-claims/:claimId',

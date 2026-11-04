@@ -8,9 +8,8 @@ import {
 import {
   createFudabaLegacyCardClaim,
   getAdminFudabaCardClaims,
+  createFudabaCardSupplement,
   getAdminFudabaCardReviews,
-  getFudabaClaimEnvelopes,
-  respondFudabaClaimEnvelope,
   reviewAdminFudabaCard,
   reviewAdminFudabaCardClaim,
 } from "~/lib/api/endpoints/fudaba/card-claims"
@@ -22,6 +21,7 @@ const claim = {
   legacyCardId: 42,
   targetCardId: null,
   seriesCode: "765",
+  payload: { seriesCodes: ["765"], favoriteCharacterIds: [1] },
   favoriteCharacters: [idol],
   state: "pending",
   message: "旧活动现场交换",
@@ -31,19 +31,17 @@ const claim = {
   updatedAt: "2026-08-16T10:00:00.000Z",
   reviewedAt: null,
 }
-const envelope = {
-  id: "envelope-1",
-  legacyCardId: 42,
-  cardId: "42",
-  kind: "legacy-card-match",
-  title: "这是你的历史名片吗？",
-  body: "系统发现了同 ID 的历史名片。",
-  actionState: "pending",
-  claimId: null,
+const supplement = {
+  id: "supplement-1",
+  cardId: "card-1",
+  state: "pending",
+  payload: { producerName: "新しい名前" },
+  submitter: { id: "acct-1", displayName: "补充者" },
+  reviewNote: "",
   revision: 0,
-  readAt: null,
-  actedAt: null,
   createdAt: "2026-08-16T10:00:00.000Z",
+  updatedAt: "2026-08-16T10:00:00.000Z",
+  reviewedAt: null,
 }
 const ownerCard = {
   id: "registered-1",
@@ -87,44 +85,28 @@ afterEach(() => {
 })
 
 describe("Fudaba card claim API", () => {
-  it("lists and confirms same-ID claim envelopes with Platform CSRF", async () => {
+  it("submits a wall supplement with Platform CSRF", async () => {
     setCsrfCookie("platform", "platform-claim-csrf")
-    const requests: Request[] = []
+    let request: Request | null = null
     installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = requestOf(input, init)
-      requests.push(request)
-      if (request.method === "GET") {
-        return Response.json({ items: [envelope] })
-      }
-      return Response.json({
-        success: true,
-        envelope: {
-          ...envelope,
-          actionState: "confirmed",
-          claimId: claim.id,
-          revision: 1,
-          actedAt: "2026-08-16T10:05:00.000Z",
-        },
-        claim,
-      })
+      request = requestOf(input, init)
+      return Response.json({ success: true, supplement })
     })
 
-    await expect(getFudabaClaimEnvelopes().send()).resolves.toMatchObject({
-      items: [{ legacyCardId: 42, actionState: "pending" }],
-    })
     await expect(
-      respondFudabaClaimEnvelope("envelope-1", "confirm", 0).send()
-    ).resolves.toMatchObject({ claim: { id: "claim-1" } })
+      createFudabaCardSupplement("card-1", {
+        producerName: "新しい名前",
+        seriesCodes: ["765", "ml"],
+      }).send()
+    ).resolves.toMatchObject({ supplement: { id: "supplement-1" } })
 
-    expect(requests[1]?.url).toContain(
-      "/api/community/exchange/me/claim-envelopes/envelope-1"
+    expect(request!.url).toContain(
+      "/api/community/exchange/cards/card-1/supplements"
     )
-    expect(requests[1]?.headers.get(CSRF_HEADER_NAME)).toBe(
-      "platform-claim-csrf"
-    )
-    await expect(requests[1]?.json()).resolves.toEqual({
-      decision: "confirm",
-      expectedRevision: 0,
+    expect(request!.headers.get(CSRF_HEADER_NAME)).toBe("platform-claim-csrf")
+    await expect(request!.json()).resolves.toEqual({
+      producerName: "新しい名前",
+      seriesCodes: ["765", "ml"],
     })
   })
 
@@ -139,8 +121,7 @@ describe("Fudaba card claim API", () => {
     await expect(
       createFudabaLegacyCardClaim(42, {
         targetCardId: null,
-        seriesCode: "765",
-        favoriteCharacterIds: [1, 2],
+        payload: { seriesCodes: ["765"], favoriteCharacterIds: [1, 2] },
         message: "旧活动现场交换",
       }).send()
     ).resolves.toMatchObject({ claim: { legacyCardId: 42 } })
@@ -150,8 +131,7 @@ describe("Fudaba card claim API", () => {
     )
     await expect(request!.json()).resolves.toEqual({
       targetCardId: null,
-      seriesCode: "765",
-      favoriteCharacterIds: [1, 2],
+      payload: { seriesCodes: ["765"], favoriteCharacterIds: [1, 2] },
       message: "旧活动现场交换",
     })
   })
@@ -167,16 +147,14 @@ describe("Fudaba card claim API", () => {
     await expect(
       createFudabaLegacyCardClaim(42, {
         targetCardId: null,
-        seriesCode: null,
-        favoriteCharacterIds: [],
+        payload: { producerName: "制作人" },
         message: "",
       }).send()
     ).resolves.toMatchObject({ claim: { legacyCardId: 42 } })
 
     await expect(request!.json()).resolves.toEqual({
       targetCardId: null,
-      seriesCode: null,
-      favoriteCharacterIds: [],
+      payload: { producerName: "制作人" },
       message: "",
     })
   })
@@ -227,6 +205,7 @@ describe("Fudaba card claim API", () => {
           items: [
             {
               ...claim,
+              targetCardNumber: null,
               claimant: { id: "owner-1", displayName: "春香P" },
               legacyCard: {
                 id: 42,

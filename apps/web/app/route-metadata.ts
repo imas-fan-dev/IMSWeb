@@ -217,6 +217,13 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     }
   ),
   route(
+    "user/:accountId",
+    "pages/user/profile.tsx",
+    "public",
+    SHARED_TARGETS,
+    "spa",
+  ),
+  route(
     "community/cards",
     "pages/community/community-cards-page.tsx",
     "public",
@@ -496,6 +503,13 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
   ),
   route("cards", "pages/admin/cards/index.tsx", "admin", WEB_TARGET, "spa"),
   route(
+    "cards/manage",
+    "pages/admin/cards/manage.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
     "cards/characters",
     "pages/admin/cards/characters.tsx",
     "admin",
@@ -598,6 +612,20 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
   route(
     "platform/users",
     "pages/admin/platform-users/index.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "platform/account-kinds",
+    "pages/admin/platform/account-kinds.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "platform/audit",
+    "pages/admin/platform-audit/index.tsx",
     "admin",
     WEB_TARGET,
     "spa"

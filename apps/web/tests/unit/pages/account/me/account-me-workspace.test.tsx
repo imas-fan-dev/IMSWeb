@@ -119,6 +119,8 @@ const profile: PlatformProfile = {
   avatarUrl: null,
   homeCity: "上海",
   bio: "周末交换",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 10,
 }
 
@@ -414,6 +416,17 @@ describe("AccountMeWorkspace", () => {
     )
   })
 
+  it("opens a card addressed by its wall number instead of the internal id", async () => {
+    apiMocks.sendCards.mockResolvedValue({
+      items: [{ ...card, cardNumber: 793 }],
+    })
+    renderAccountSection("namecards?card=793")
+    await screen.findByRole("dialog", { name: "名片详情与编辑" })
+    expect(screen.getByRole("textbox", { name: "制作人名称" })).toHaveValue(
+      card.producerName
+    )
+  })
+
   it("synchronizes close, explicit navigation, rows and history with owned cards", async () => {
     const user = userEvent.setup()
     apiMocks.sendCards.mockResolvedValue({
@@ -489,6 +502,7 @@ describe("AccountMeWorkspace", () => {
         displayName: "更新后的制作人",
         homeCity: "上海",
         bio: "周末交换",
+        pageSlug: null,
         expectedUpdatedAt: 10,
       })
     })
@@ -969,6 +983,40 @@ describe("AccountMeWorkspace", () => {
       )
     )
     expect(await screen.findByText("名片资料已保存。")).toBeVisible()
+  })
+
+  it("reports a withdrawn resubmission instead of a plain save", async () => {
+    stubArtworkSizes()
+    const user = userEvent.setup()
+    const awaiting = {
+      ...card,
+      publicationStatus: "published" as const,
+      reviewStatus: "pending" as const,
+    }
+    apiMocks.sendCards.mockResolvedValue({ items: [awaiting] })
+    apiMocks.sendCard.mockResolvedValue({ card: awaiting })
+    renderPage()
+    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(
+      await screen.findByRole("button", { name: /周末交换名片/ })
+    )
+
+    // The card waits for a reviewer; saving it unchanged withdraws that
+    // revision, so the owner must not read "saved" and expect a review.
+    apiMocks.sendCard.mockResolvedValueOnce({
+      card: {
+        ...awaiting,
+        reviewStatus: null,
+        revision: awaiting.revision + 1,
+      },
+    })
+    await user.click(await screen.findByRole("button", { name: "保存并提交" }))
+
+    expect(
+      await screen.findByText(
+        "本次提交与原版本一致，已撤回，已通过的版本继续展示。"
+      )
+    ).toBeVisible()
   })
 
   it("creates a card from the empty state and deletes it through confirmation", async () => {

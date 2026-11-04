@@ -28,8 +28,10 @@ function card(id: number): Namecard {
     seriesCode: null,
     favoriteCharacters: [],
     claimStatus: "unclaimed",
+    supplementPending: false,
     viewerClaimState: null,
     claimerName: null,
+    claimerAccountId: null,
     image1_url: `/front-${id}.jpg`,
     image2_url: `/back-${id}.jpg`,
     image1_thumbnail_url: `/front-${id}-thumbnail.jpg`,
@@ -56,6 +58,7 @@ describe("useNamecardDetailSession", () => {
       result.current.updateCard(4, (selected) => ({
         ...selected,
         claimStatus: "pending",
+        supplementPending: false,
       }))
     )
     expect(result.current.card?.claimStatus).toBe("unclaimed")
@@ -63,6 +66,7 @@ describe("useNamecardDetailSession", () => {
       result.current.updateCard(3, (selected) => ({
         ...selected,
         claimStatus: "pending",
+        supplementPending: false,
       }))
     )
     expect(result.current.card?.claimStatus).toBe("pending")

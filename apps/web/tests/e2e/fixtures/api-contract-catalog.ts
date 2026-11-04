@@ -31,12 +31,18 @@ import {
 } from "@imsweb/contracts/editorial"
 import {
   adminCardClaimListSchema,
-  claimEnvelopeListSchema,
+  adminCardSupplementDetailSchema,
   claimMutationSchema,
-  envelopeMutationSchema,
   fudabaCardReviewRequestSchema,
-  fudabaClaimEnvelopeActionRequestSchema,
+  fudabaCardSupplementRequestSchema,
   fudabaLegacyCardClaimRequestSchema,
+  fudabaSupplementReviewRequestSchema,
+  namecardNotificationReadRequestSchema,
+  namecardNotificationReadResponseSchema,
+  reviewQueueListSchema,
+  reviewQueueQuerySchema as reviewQueueQuerySchemaRef,
+  supplementListSchema,
+  supplementMutationSchema,
   fudabaAdminCardClaimHttpErrorSchema,
   fudabaCardClaimErrorSchema,
   registeredCardReviewListSchema,
@@ -105,10 +111,21 @@ import {
 import {
   adminNamecardHttpErrorSchema,
   adminNamecardListQuerySchema,
+  adminNamecardDeleteRequestSchema,
   adminNamecardDiffSchema,
   adminNamecardListResponseSchema,
   namecardErrorResponseSchema,
   adminNamecardMutationSchema,
+  adminNamecardUpdateRequestSchema,
+  adminNamecardFeedbackListResponseSchema,
+  namecardFeedbackAuditListResponseSchema,
+  namecardFeedbackAuditQuerySchema,
+  namecardLockAuditListResponseSchema,
+  namecardLockAuditQuerySchema,
+  adminNamecardFeedbackListQuerySchema,
+  createNamecardFeedbackRequestSchema,
+  resolveNamecardFeedbackRequestSchema,
+  namecardFeedbackMutationSchema,
   expectedNamecardRevisionRequestSchema,
   flaggedNamecardRequestSchema,
   lockedNamecardRequestSchema,
@@ -117,6 +134,11 @@ import {
   namecardMutationResponseSchema,
   rejectedNamecardRequestSchema,
   namecardPageSchema,
+  publicProfileSchema,
+  randomOwnerlessCardErrorSchema,
+  randomOwnerlessCardSchema,
+  wallInsightsSchema,
+  myPlatformAccountsSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
 } from "@imsweb/contracts/namecards"
@@ -380,6 +402,20 @@ export function resolveApiContract(
         503: namecardListErrorResponseSchema,
       },
     }
+  if (method === "GET" && path === "/api/cards/wall-insights")
+    return {
+      responses: {
+        200: wallInsightsSchema,
+        500: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/cards/random-ownerless")
+    return {
+      responses: {
+        200: randomOwnerlessCardSchema,
+        404: randomOwnerlessCardErrorSchema,
+      },
+    }
   if (method === "GET" && path === "/api/reactions")
     return {
       query: namecardReactionListQuerySchema,
@@ -475,6 +511,14 @@ export function resolveApiContract(
       },
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
+  if (
+    method === "POST" &&
+    path === `${exchange}/me/notifications/read`
+  )
+    return {
+      body: namecardNotificationReadRequestSchema,
+      responses: { 200: namecardNotificationReadResponseSchema, 401: fudabaCardClaimErrorSchema },
+    }
   if (method === "GET" && path === `${exchange}/me/cards`)
     return {
       query: fudabaIgnoredQuerySchema,
@@ -492,6 +536,14 @@ export function resolveApiContract(
     return {
       body: fudabaCardUpdateRequestSchema,
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/community\/exchange\/cards\/[^/]+\/feedback$/.test(path)
+  )
+    return {
+      body: createNamecardFeedbackRequestSchema,
+      responses: { 200: namecardFeedbackMutationSchema, ...fudabaErrors },
     }
   if (
     method === "PUT" &&
@@ -635,17 +687,17 @@ export function resolveApiContract(
         ...fudabaClaimErrors,
       },
     }
-  if (method === "GET" && path === `${exchange}/me/claim-envelopes`)
-    return {
-      responses: { 200: claimEnvelopeListSchema, ...fudabaClaimErrors },
-    }
   if (
-    method === "PUT" &&
-    /^\/api\/community\/exchange\/me\/claim-envelopes\/[^/]+$/.test(path)
+    method === "POST" &&
+    /^\/api\/community\/exchange\/cards\/[^/]+\/supplements$/.test(path)
   )
     return {
-      body: fudabaClaimEnvelopeActionRequestSchema,
-      responses: { 200: envelopeMutationSchema, ...fudabaClaimErrors },
+      body: fudabaCardSupplementRequestSchema,
+      responses: {
+        200: supplementMutationSchema,
+        201: supplementMutationSchema,
+        ...fudabaClaimErrors,
+      },
     }
 
   if (method === "GET" && path === "/api/platform/auth/oauth/providers")
@@ -703,6 +755,13 @@ export function resolveApiContract(
     return {
       responses: {
         200: platformProfileResponseSchema,
+        401: platformHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/platform/me/accounts")
+    return {
+      responses: {
+        200: myPlatformAccountsSchema,
         401: platformHttpErrorSchema,
       },
     }
@@ -910,6 +969,66 @@ export function resolveApiContract(
         403: fudabaAdminCardClaimHttpErrorSchema,
       },
     }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/review-queue"
+  )
+    return {
+      query: reviewQueueQuerySchemaRef,
+      responses: {
+        200: [reviewQueueListSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    path === "/api/admin/community/exchange/card-supplements"
+  )
+    return {
+      responses: {
+        200: [supplementListSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+      },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/admin\/community\/exchange\/card-supplements\/[^/]+$/.test(path)
+  )
+    return {
+      responses: {
+        200: [adminCardSupplementDetailSchema, fudabaCardClaimErrorSchema],
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+        404: fudabaCardClaimErrorSchema,
+      },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/admin\/community\/exchange\/card-supplements\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaSupplementReviewRequestSchema,
+      responses: {
+        200: [supplementMutationSchema, fudabaCardClaimErrorSchema],
+        400: fudabaCardClaimErrorSchema,
+        401: fudabaAdminCardClaimHttpErrorSchema,
+        403: fudabaAdminCardClaimHttpErrorSchema,
+        404: fudabaCardClaimErrorSchema,
+        409: fudabaCardClaimErrorSchema,
+      },
+    }
+  if (method === "GET" && /^\/api\/users\/[^/]+$/.test(path))
+    return {
+      responses: { 200: publicProfileSchema, 404: namecardErrorResponseSchema },
+    }
+  if (method === "GET" && /^\/api\/users\/[^/]+\/cards$/.test(path))
+    return {
+      responses: { 200: namecardPageSchema, 404: namecardErrorResponseSchema },
+    }
   if (method === "GET" && path === "/api/admin/cards")
     return {
       query: adminNamecardListQuerySchema,
@@ -990,6 +1109,71 @@ export function resolveApiContract(
         404: namecardErrorResponseSchema,
         409: namecardErrorResponseSchema,
         410: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards/audit/locks")
+    return {
+      query: namecardLockAuditQuerySchema,
+      responses: {
+        200: namecardLockAuditListResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards/audit/feedback")
+    return {
+      query: namecardFeedbackAuditQuerySchema,
+      responses: {
+        200: namecardFeedbackAuditListResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards/feedback")
+    return {
+      query: adminNamecardFeedbackListQuerySchema,
+      responses: {
+        200: adminNamecardFeedbackListResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+      },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/admin\/cards\/feedback\/[^/]+\/resolve$/.test(path)
+  )
+    return {
+      body: resolveNamecardFeedbackRequestSchema,
+      responses: {
+        200: namecardFeedbackMutationSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardFeedbackMutationSchema,
+      },
+    }
+  if (method === "PUT" && /^\/api\/admin\/cards\/[^/]+$/.test(path))
+    return {
+      body: adminNamecardUpdateRequestSchema,
+      responses: {
+        200: adminNamecardDiffSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
+      },
+    }
+  if (method === "DELETE" && /^\/api\/admin\/cards\/[^/]+$/.test(path))
+    return {
+      body: adminNamecardDeleteRequestSchema,
+      responses: {
+        200: adminNamecardMutationSchema,
+        400: namecardErrorResponseSchema,
+        401: adminNamecardHttpErrorSchema,
+        403: adminNamecardHttpErrorSchema,
+        404: namecardErrorResponseSchema,
+        409: namecardErrorResponseSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/accounts")

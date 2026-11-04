@@ -162,6 +162,12 @@ export const platformProfileUpdateRequestSchema = z
     homeCity: platformProfileTextRequestSchema("homeCity", 100)
       .nullable()
       .transform((value) => value || null),
+    pageSlug: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9_-]{2,31}$/u, "只能使用小写字母、数字、下划线与连字符，3-32 位")
+      .nullable()
+      .optional(),
   }, { invalid_type_error: "请求体必须是对象" })
   .strict("请求体包含未知字段");
 
@@ -281,6 +287,9 @@ export const platformSessionProfileSchema = z
 export const platformProfileSchema = platformSessionProfileSchema
   .extend({
     updatedAt: z.number().int().safe().nonnegative(),
+    /** Permanent public handle used by /user/<uid>. */
+    uid: z.number().int().positive(),
+    pageSlug: z.string().min(3).nullable(),
   })
   .strict();
 

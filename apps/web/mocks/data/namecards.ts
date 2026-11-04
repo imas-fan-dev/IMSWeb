@@ -44,6 +44,8 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     claimStatus: "unclaimed",
     viewerClaimState: null,
     claimerName: null,
+    claimerAccountId: null,
+    supplementPending: false,
     // The grid's images pass through resolvePublicMediaUrl, which leaves the
     // path alone on local disk and returns an absolute object-storage URL
     // otherwise.

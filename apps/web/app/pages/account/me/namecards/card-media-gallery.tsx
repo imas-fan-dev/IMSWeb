@@ -15,6 +15,8 @@ const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
 /** 缩略图边长与间距；插入占位的位移按这两项算。 */
 const THUMB_SIZE = 80
 const THUMB_GAP = 8
+/** 墙上的只读预览用更小的缩略图。 */
+export const THUMB_SIZE_COMPACT = 64
 /** 指针移动超过这个距离才算拖拽，否则当作点击。 */
 const DRAG_THRESHOLD = 6
 
@@ -24,6 +26,11 @@ export type MediaSlot =
       kind: "existing"
       index: number
       url: string
+      /**
+       * The wall already hands out public URLs, so a preview of someone else's
+       * card can load them directly instead of going through the owner route.
+       */
+      direct?: boolean
     }
   | { kind: "new"; file: File; url: string }
 
@@ -33,6 +40,25 @@ export function newMediaSlot(file: File): MediaSlot {
 
 export function releaseMediaSlot(slot: MediaSlot) {
   if (slot.kind === "new") URL.revokeObjectURL(slot.url)
+}
+
+/** Preview of a card the viewer does not own: every page is a public URL. */
+export function publicMediaSlotsFromCard(card: {
+  frontImageUrl: string
+  middleImageUrls: readonly string[]
+  backImageUrl: string | null
+}): MediaSlot[] {
+  const urls = [
+    card.frontImageUrl,
+    ...card.middleImageUrls,
+    ...(card.backImageUrl ? [card.backImageUrl] : []),
+  ]
+  return urls.map((url, index) => ({
+    kind: "existing" as const,
+    index,
+    url,
+    direct: true,
+  }))
 }
 
 export function mediaSlotsFromCard(card: {
@@ -176,8 +202,10 @@ function SlotImage({
   draggable?: boolean
   style?: CSSProperties
 }) {
-  const media = useOwnerCardMedia(slot.kind === "existing" ? slot.url : null)
-  const src = slot.kind === "existing" ? media.src : slot.url
+  const signed =
+    slot.kind === "existing" && !slot.direct ? slot.url : null
+  const media = useOwnerCardMedia(signed)
+  const src = slot.kind === "new" || slot.direct ? slot.url : media.src
   if (!src) {
     return (
       <span
@@ -202,11 +230,20 @@ function SlotImage({
 export function CardMediaGallery({
   slots,
   disabled,
+  allowUpload = true,
+  /** 审核窗的纯预览：不提供任何编辑动作，也不显示编辑说明。 */
+  readOnly = false,
+  /** 缩略图边长，默认 80。 */
+  thumbSize = THUMB_SIZE,
   onChange,
   onError,
 }: {
   slots: readonly MediaSlot[]
   disabled: boolean
+  /** The backoffice may only reorder and drop pages, never add or replace. */
+  allowUpload?: boolean
+  readOnly?: boolean
+  thumbSize?: number
   onChange: (slots: MediaSlot[]) => void
   onError: (message: string) => void
 }) {
@@ -354,20 +391,22 @@ export function CardMediaGallery({
 
   return (
     <section aria-label="名片图片" className="min-w-0">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="sr-only"
-        aria-label="选择名片图片"
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? [])
-          const replaceAt = replaceRef.current
-          replaceRef.current = null
-          addFiles(files, replaceAt)
-        }}
-      />
+      {allowUpload && !disabled ? (
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          aria-label="选择名片图片"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? [])
+            const replaceAt = replaceRef.current
+            replaceRef.current = null
+            addFiles(files, replaceAt)
+          }}
+        />
+      ) : null}
 
       <div
         className={`relative aspect-video w-full overflow-hidden rounded-lg border ${
@@ -407,19 +446,21 @@ export function CardMediaGallery({
             {role}
           </span>
         ) : null}
-        {current ? (
+        {current && !readOnly ? (
           <div className="absolute right-2 bottom-2 z-10 flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="border bg-background shadow-sm ring-1 ring-border hover:bg-muted"
-              disabled={disabled}
-              onClick={() => pick(position)}
-            >
-              <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-              更换
-            </Button>
+            {allowUpload ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="border bg-background shadow-sm ring-1 ring-border hover:bg-muted"
+                disabled={disabled}
+                onClick={() => pick(position)}
+              >
+                <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+                更换
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -444,6 +485,7 @@ export function CardMediaGallery({
       >
         {visibleSlots.slice(0, dropIndex ?? 0).map((entry) => (
           <Thumbnail
+            thumbSize={thumbSize}
             key={slotKey(entry.slot)}
             entry={entry}
             active={entry.index === position}
@@ -462,7 +504,7 @@ export function CardMediaGallery({
             aria-hidden="true"
             role="listitem"
             className="relative shrink-0 rounded-md border-2 border-dashed border-primary/70 bg-muted/40"
-            style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+            style={{ width: thumbSize, height: thumbSize }}
           >
             <SlotImage
               slot={drag.slot}
@@ -474,6 +516,7 @@ export function CardMediaGallery({
 
         {visibleSlots.slice(dropIndex ?? 0).map((entry) => (
           <Thumbnail
+            thumbSize={thumbSize}
             key={slotKey(entry.slot)}
             entry={entry}
             active={entry.index === position}
@@ -487,14 +530,14 @@ export function CardMediaGallery({
           />
         ))}
 
-        {slots.length < NAMECARD_MEDIA_LIMIT && !drag ? (
+        {allowUpload && slots.length < NAMECARD_MEDIA_LIMIT && !drag ? (
           <button
             type="button"
             disabled={disabled}
             onClick={() => pick(null)}
             aria-label="添加名片图片"
             className="grid shrink-0 place-items-center rounded-md border border-dashed text-muted-foreground hover:border-primary/60 hover:text-foreground"
-            style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+            style={{ width: thumbSize, height: thumbSize }}
           >
             <ImagePlusIcon aria-hidden="true" className="size-5" />
           </button>
@@ -512,20 +555,28 @@ export function CardMediaGallery({
               alt=""
               className="pointer-events-none fixed z-50 rounded-md border-2 border-primary object-cover shadow-xl"
               style={{
-                width: THUMB_SIZE,
-                height: THUMB_SIZE,
-                left: drag.x - THUMB_SIZE / 2,
-                top: drag.y - THUMB_SIZE / 2,
+                width: thumbSize,
+                height: thumbSize,
+                left: drag.x - thumbSize / 2,
+                top: drag.y - thumbSize / 2,
               }}
             />,
             document.body
           )
         : null}
 
+      {readOnly ? null : (
       <p className="mt-2 text-xs text-muted-foreground">
-        第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。
-        最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。
+        {allowUpload ? (
+          <>
+            第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。
+            最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。
+          </>
+        ) : (
+          "只能删除或调整图片顺序，替换与新增由用户在编辑器里完成。"
+        )}
       </p>
+      )}
     </section>
   )
 }
@@ -535,6 +586,7 @@ function slotKey(slot: MediaSlot): string {
 }
 
 function Thumbnail({
+  thumbSize,
   entry,
   active,
   dragging,
@@ -545,6 +597,7 @@ function Thumbnail({
   onRemove,
   onPointerDown,
 }: {
+  thumbSize: number
   entry: { slot: MediaSlot; index: number }
   active: boolean
   dragging: boolean
@@ -561,7 +614,7 @@ function Thumbnail({
       role="listitem"
       data-thumb-pos={index}
       className="group relative shrink-0 touch-none select-none"
-      style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+      style={{ width: thumbSize, height: thumbSize }}
       onPointerDown={(event) => onPointerDown(index, event)}
     >
       <button

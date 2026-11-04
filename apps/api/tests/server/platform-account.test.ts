@@ -1213,7 +1213,9 @@ import { describe, onTestFinished, test } from 'vitest';
                     'id',
                     'last_login_at',
                     'normalized_email',
+                    'page_slug',
                     'status',
+                    'uid',
                     'updated_at'
                 ]
             );

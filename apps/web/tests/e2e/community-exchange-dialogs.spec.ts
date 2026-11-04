@@ -404,7 +404,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
       {
         ...session,
         capabilities: { fudabaWrite: true },
-        profile: { ...session.profile, updatedAt: 1 },
+        profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
       },
       3,
     ],
@@ -417,7 +417,6 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
       { office: ownedOffice },
       1,
     ],
-    ["/api/community/exchange/me/claim-envelopes", { items: [] }, 2],
     ["/api/community/exchange/me/favorites", { ...emptyPage }, 2],
     [
       "/api/community/exchange/characters",

@@ -84,6 +84,7 @@ export function ProfileEditor({
       const result = await updatePlatformProfile({
         displayName: draft.displayName,
         homeCity: draft.homeCity || null,
+        pageSlug: draft.pageSlug.trim() || null,
         bio: draft.bio,
         expectedUpdatedAt: profile.updatedAt,
       }).send()
@@ -294,6 +295,28 @@ export function ProfileEditor({
             </FieldDescription>
           </Field>
         </div>
+        <Field
+          className="lg:col-span-2 lg:col-start-1"
+          data-disabled={readOnly || undefined}
+        >
+          <FieldLabel htmlFor="exchange-profile-slug">主页地址</FieldLabel>
+          <Input
+            id="exchange-profile-slug"
+            value={draft.pageSlug}
+            maxLength={32}
+            disabled={readOnly || busy}
+            placeholder="留空则使用数字编号"
+            autoComplete="off"
+            onChange={(event) => {
+              const pageSlug = event.currentTarget.value.toLowerCase()
+              setDraft((current) => ({ ...current, pageSlug }))
+            }}
+          />
+          <FieldDescription>
+            3–32 位小写字母、数字、连字符或下划线；别人可以通过 /user/你的地址
+            打开你的主页，不填则用数字编号。
+          </FieldDescription>
+        </Field>
         <Field
           className="lg:col-span-2 lg:col-start-1"
           data-disabled={readOnly || undefined}

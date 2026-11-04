@@ -15,6 +15,8 @@ const profile = {
   avatarUrl: null,
   homeCity: "上海",
   bio: "",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 1,
 }
 

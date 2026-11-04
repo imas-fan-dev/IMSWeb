@@ -97,6 +97,8 @@ const updatedProfile = {
   avatarUrl: "https://public-media.example.test/platform/avatars/2.webp",
   homeCity: "上海",
   bio: "Updated bio",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 2,
 }
 

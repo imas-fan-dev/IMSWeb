@@ -155,7 +155,7 @@ test.describe("namecard claim workflow", () => {
                 tradeNote: null,
                 exchangeMode: "manual",
                 accent: null,
-                seriesCodes: [],
+                seriesCodes: ["765"],
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
@@ -163,8 +163,10 @@ test.describe("namecard claim workflow", () => {
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
+                supplementPending: false,
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -249,7 +251,7 @@ test.describe("namecard claim workflow", () => {
                 tradeNote: null,
                 exchangeMode: "manual",
                 accent: null,
-                seriesCodes: [],
+                seriesCodes: ["765"],
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
@@ -257,8 +259,10 @@ test.describe("namecard claim workflow", () => {
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
+                supplementPending: false,
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -301,9 +305,10 @@ test.describe("namecard claim workflow", () => {
               legacyCardId: 42,
               targetCardId: null,
               seriesCode: "765",
+              payload: { producerName: "天海春香（认领）" },
               favoriteCharacters: [favoriteCharacter],
               state: "pending",
-              message: "旧活动现场交换所得",
+              message: "",
               reviewNote: "",
               revision: 0,
               createdAt: "2026-08-16T19:30:00.000Z",
@@ -320,13 +325,16 @@ test.describe("namecard claim workflow", () => {
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
     const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
     await detail.getByRole("button", { name: "认领" }).click()
-    const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
+    const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
+    // 绑定方式是内联单选列表（不开浮层，点击不会关掉下层的详情窗）。
     await expect(
-      dialog.getByLabel("绑定方式").locator('[data-slot="select-value"]')
-    ).toHaveText("创建一张可管理的注册名片")
-    await dialog.getByRole("checkbox", { name: /天海春香/ }).click()
-    await dialog.getByLabel("认领说明").fill("旧活动现场交换所得")
+      dialog
+        .getByRole("radiogroup", { name: "绑定方式" })
+        .getByRole("radio", { name: /创建一张可管理的注册名片/ })
+    ).toHaveAttribute("aria-checked", "true")
+    // 认领不再要求相对墙上名片有改动，只拦必填项缺失。
+    await dialog.getByLabel("制作人名称").fill("天海春香（认领）")
     await dialog.getByRole("button", { name: "提交认领审核" }).click()
 
     await expect(dialog).not.toBeVisible()
@@ -336,16 +344,11 @@ test.describe("namecard claim workflow", () => {
         .locator("[data-namecard-item]")
         .getByText("认领审核中", { exact: true })
     ).toBeVisible()
-    expect(submitted).toEqual({
-      body: {
-        targetCardId: null,
-        // 企划 is left to the server: it derives one from the selected idol's
-        // agency, the bound card, or the legacy card itself.
-        seriesCode: null,
-        favoriteCharacterIds: [1],
-        message: "旧活动现场交换所得",
-      },
-      csrf: "claim-workflow-csrf",
+    expect(submitted?.csrf).toBe("claim-workflow-csrf")
+    expect(submitted?.body).toMatchObject({
+      targetCardId: null,
+      // 只提交改过的那一个字段，其余保持墙上名片的值。
+      payload: { producerName: "天海春香（认领）" },
     })
     expect(
       await page.evaluate(
@@ -365,9 +368,7 @@ test.describe("namecard claim workflow", () => {
     })
   })
 
-  test("submits a claim with neither 企划 nor 担当角色 chosen", async ({
-    page,
-  }) => {
+  test("submits only the field the visitor changed", async ({ page }) => {
     await mockClaimSurface(page)
     let submitted: Record<string, unknown> | undefined
     await api.mockRoute(
@@ -383,9 +384,10 @@ test.describe("namecard claim workflow", () => {
               legacyCardId: 42,
               targetCardId: null,
               seriesCode: "765",
+              payload: { groupName: "765PRO" },
               favoriteCharacters: [],
               state: "pending",
-              message: "旧活动现场交换所得",
+              message: "",
               reviewNote: "",
               revision: 0,
               createdAt: "2026-08-16T19:30:00.000Z",
@@ -399,15 +401,15 @@ test.describe("namecard claim workflow", () => {
     )
 
     const dialog = await openClaimDialog(page)
-    await dialog.getByLabel("认领说明").fill("旧活动现场交换所得")
+    // 企划 and 担当角色 are left alone: the server derives a series for the
+    // claim record from the bound card, the idols, or the legacy card itself.
+    await dialog.getByLabel("团体名称").fill("765PRO")
     await dialog.getByRole("button", { name: "提交认领审核" }).click()
 
     await expect(dialog).not.toBeVisible()
-    expect(submitted).toEqual({
+    expect(submitted).toMatchObject({
       targetCardId: null,
-      seriesCode: null,
-      favoriteCharacterIds: [],
-      message: "旧活动现场交换所得",
+      payload: { groupName: "765PRO" },
     })
   })
 
@@ -458,7 +460,7 @@ test.describe("namecard claim workflow", () => {
                 tradeNote: null,
                 exchangeMode: "manual",
                 accent: null,
-                seriesCodes: [],
+                seriesCodes: ["765"],
                 credits: [],
                 middleImageUrls: [],
                 canEdit: false,
@@ -466,8 +468,10 @@ test.describe("namecard claim workflow", () => {
                 seriesCode: "765",
                 favoriteCharacters: [favoriteCharacter],
                 claimStatus: "unclaimed",
+                supplementPending: false,
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
                 image1_url: FRONT_IMAGE,
                 image2_url: BACK_IMAGE,
                 image1_thumbnail_url: FRONT_IMAGE,
@@ -497,7 +501,7 @@ test.describe("namecard claim workflow", () => {
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
     const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
     await detail.getByRole("button", { name: "认领" }).click()
-    const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
+    const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
     await settleDialog(dialog)
     return dialog
@@ -612,210 +616,8 @@ test.describe("namecard claim workflow", () => {
     })
   })
 
-  const registeredCard = {
-    id: "registered-card-e2e",
-    cardNumber: 42,
-    producerName: "注册制作人",
-    seriesCodes: ["765"],
-    favoriteCharacters: [favoriteCharacter],
-    frontImageUrl: FRONT_IMAGE,
-    middleImageUrls: [],
-    backImageUrl: BACK_IMAGE,
-    accent: "#f34e6c",
-    bio: "",
-    tradeNote: "",
-    exchangeMode: "manual",
-    madeOn: null,
-    groupName: null,
-    producerReading: null,
-    isOriginal: false,
-    madeWithAi: false,
-    visible: true,
-    credits: [],
-    publicationStatus: "pending",
-    reviewStatus: null,
-    reviewReason: null,
-    reviewSubmittedAt: null,
-    pendingContent: null,
-    revision: 1,
-    createdAt: "2026-08-16T19:30:00.000Z",
-    updatedAt: "2026-08-16T19:30:00.000Z",
-  }
-
-  test("same-ID envelope asks the owner before submitting an admin-reviewed claim", async ({
-    page,
-  }) => {
-    await mockPlatformSession(page)
-    await api.mockRoute(
-      "**/api/platform/me",
-      async (route) => {
-        await route.fulfill({
-          json: {
-            success: true,
-            account: { id: "platform-claimant", status: "active" },
-            capabilities: { fudabaWrite: true },
-            profile: {
-              displayName: "认领测试制作人",
-              avatarUrl: null,
-              homeCity: "上海",
-              bio: "",
-              updatedAt: 10,
-            },
-          },
-        })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/community/exchange/me/series",
-      async (route) => {
-        await route.fulfill({
-          json: {
-            items: [
-              {
-                id: 1,
-                code: "765",
-                displayName: "765PRO",
-                color: "#f34e6c",
-                iconUrl: null,
-                imageTransform: {
-                  fit: "cover",
-                  focalX: 0.5,
-                  focalY: 0.5,
-                  zoom: 1,
-                  rotation: 0,
-                },
-                displayOrder: 0,
-                activeOfficeCount: 0,
-              },
-            ],
-          },
-        })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/wiki/catalog**",
-      async (route) => {
-        await route.fulfill({ json: catalog })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/community/exchange/me/cards",
-      async (route) => {
-        await route.fulfill({
-          json: { items: [{ ...registeredCard, id: "42" }] },
-        })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/community/exchange/me/offices",
-      async (route) => {
-        await route.fulfill({ json: { items: [] } })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/community/exchange/me/favorites?**",
-      async (route) => {
-        const response = {
-          items: [],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        } satisfies FudabaCardPage
-        await route.fulfill({ status: 200, json: response })
-      },
-      "GET"
-    )
-
-    const envelope = {
-      id: "1",
-      legacyCardId: 42,
-      cardId: "42",
-      kind: "legacy-card-match",
-      title: "这张旧名片是您的吗？",
-      body: "确认后将提交管理员审核。",
-      actionState: "pending",
-      claimId: null,
-      revision: 0,
-      readAt: null,
-      actedAt: null,
-      createdAt: "2026-08-16T19:30:00.000Z",
-    }
-    let responseBody: Record<string, unknown> | undefined
-    let csrf: string | undefined
-    const handleClaimEnvelopes = async (
-      route: import("@playwright/test").Route
-    ) => {
-      if (route.request().method() === "PUT") {
-        responseBody = route.request().postDataJSON() as Record<string, unknown>
-        csrf = route.request().headers()["x-csrftoken"]
-        await route.fulfill({
-          json: {
-            success: true,
-            envelope: {
-              ...envelope,
-              actionState: "confirmed",
-              claimId: "same-id-claim-e2e",
-              revision: 1,
-              actedAt: "2026-08-16T19:31:00.000Z",
-            },
-            claim: {
-              id: "same-id-claim-e2e",
-              legacyCardId: 42,
-              targetCardId: "42",
-              seriesCode: "765",
-              favoriteCharacters: [favoriteCharacter],
-              state: "pending",
-              message: "同 ID 旧名片身份确认",
-              reviewNote: "",
-              revision: 0,
-              createdAt: "2026-08-16T19:31:00.000Z",
-              updatedAt: "2026-08-16T19:31:00.000Z",
-              reviewedAt: null,
-            },
-          },
-        })
-        return
-      }
-      await route.fulfill({ json: { items: [envelope] } })
-    }
-    await api.mockRoute(
-      "/api/community/exchange/me/claim-envelopes",
-      handleClaimEnvelopes,
-      "GET"
-    )
-    await api.mockRoute(
-      "/api/community/exchange/me/claim-envelopes/1",
-      handleClaimEnvelopes,
-      "PUT"
-    )
-
-    await page.goto("/account/me/claims")
-    await expect(
-      page.getByRole("heading", { name: "消息", exact: true })
-    ).toBeVisible()
-    await expect(page.getByRole("dialog")).toHaveCount(0)
-    await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
-    await expect(page.getByText("历史名片 #42")).toBeVisible()
-    const confirmationResponse = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname.endsWith("/claim-envelopes/1") &&
-        response.request().method() === "PUT"
-    )
-    await page.getByRole("button", { name: "是本人名片", exact: true }).click()
-    expect((await confirmationResponse).ok()).toBe(true)
-    await expect(
-      page.getByText("已确认本人名片，认领申请等待管理员审核")
-    ).toBeVisible()
-    await expect(page.getByText("当前没有消息。")).toBeVisible()
-    expect(responseBody).toEqual({ decision: "confirm", expectedRevision: 0 })
-    expect(csrf).toBe("claim-workflow-csrf")
-  })
-
-  const registeredAdminRow = {
-    id: 41,
+  const pendingSubmission = {
+    id: 42,
     image1_url: FRONT_IMAGE,
     image2_url: BACK_IMAGE,
     status: "pending",
@@ -833,14 +635,16 @@ test.describe("namecard claim workflow", () => {
     id: "claim-admin-e2e",
     legacyCardId: 42,
     targetCardId: null,
+    targetCardNumber: null,
     seriesCode: "765",
+    payload: { producerName: "认领测试制作人" },
     favoriteCharacters: [favoriteCharacter],
-    state: "pending",
+    state: "pending" as const,
     message: "旧活动现场交换所得",
     reviewNote: "",
     revision: 2,
-    createdAt: "2026-08-16T19:30:00.000Z",
-    updatedAt: "2026-08-16T19:30:00.000Z",
+    createdAt: "2026-08-16T19:31:00.000Z",
+    updatedAt: "2026-08-16T19:31:00.000Z",
     reviewedAt: null,
     claimant: { id: "platform-claimant", displayName: "认领测试制作人" },
     legacyCard: {
@@ -850,7 +654,155 @@ test.describe("namecard claim workflow", () => {
     },
   }
 
-  test("administrator reviews registered cards and legacy-card claims", async ({
+  test.describe("same-ID match inbox", () => {
+    test.use({
+      inboxNotifications: [
+        {
+          id: "legacy-envelope-1",
+          kind: "legacy-card-match",
+          cardNumber: 42,
+          title: "这张旧名片是您的吗？",
+          body: "名片墙上有一张无主名片 #42，制作人名称是「认领测试制作人」。",
+          readAt: null,
+          createdAt: "2026-08-16T19:30:00.000Z",
+        },
+      ],
+    })
+
+    test("links a same-ID match straight to the wall card", async ({
+      page,
+    }) => {
+    await mockPlatformSession(page)
+    installEmptyWikiCatalogMock(api)
+    // 消息页属于帐号工作台，进来时会并行读会话资料与几份「我的」列表。
+    await api.mockRoute(
+      "/api/platform/me",
+      async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            account: { id: "platform-claimant", status: "active" },
+            profile: {
+              displayName: "认领测试制作人",
+              avatarUrl: null,
+              homeCity: "上海",
+              bio: "",
+              updatedAt: 1,
+              uid: 1,
+              pageSlug: null,
+            },
+            capabilities: { fudabaWrite: true },
+          },
+        })
+      },
+      "GET",
+      { min: 0, max: 12 }
+    )
+    for (const path of [
+      "/api/community/exchange/me/series",
+      "/api/community/exchange/me/cards",
+      "/api/community/exchange/me/offices",
+    ]) {
+      await api.mockRoute(
+        path,
+        async (route) => {
+          await route.fulfill({ json: { items: [] } })
+        },
+        "GET",
+        { min: 0, max: 12 }
+      )
+    }
+    await api.mockRoute(
+      "**/api/community/exchange/me/notifications/read",
+      async (route) => {
+        await route.fulfill({ json: { success: true, updated: 1 } })
+      },
+      "POST",
+      { min: 0, max: 12 }
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/me/favorites?**",
+      async (route) => {
+        const response = {
+          items: [],
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        } satisfies FudabaCardPage
+        await route.fulfill({ status: 200, json: response })
+      },
+      "GET"
+    )
+    await api.mockRoute(
+      "**/api/cards**",
+      async (route) => {
+        await route.fulfill({
+          json: {
+            list: [
+              {
+                id: 42,
+                cardId: "card-42",
+                cardNumber: 42,
+                revision: 1,
+                producerName: "认领测试制作人",
+                producerReading: null,
+                groupName: null,
+                madeOn: null,
+                isOriginal: false,
+                madeWithAi: false,
+                bio: null,
+                tradeNote: null,
+                exchangeMode: "manual",
+                accent: null,
+                seriesCodes: ["765"],
+                credits: [],
+                middleImageUrls: [],
+                canEdit: false,
+                hasOwner: false,
+                seriesCode: "765",
+                favoriteCharacters: [favoriteCharacter],
+                claimStatus: "unclaimed",
+                supplementPending: false,
+                viewerClaimState: null,
+                claimerName: null,
+                claimerAccountId: null,
+                image1_url: FRONT_IMAGE,
+                image2_url: BACK_IMAGE,
+                image1_thumbnail_url: FRONT_IMAGE,
+                image2_thumbnail_url: BACK_IMAGE,
+                status: "approved",
+                created_at: "2026-08-16T19:30:00.000Z",
+              },
+            ],
+            total: 1,
+            totalPage: 1,
+          },
+        })
+      },
+      "GET"
+    )
+    await api.mockRoute(
+      "**/api/reactions**",
+      async (route) => {
+        await route.fulfill({ json: {} })
+      },
+      "GET"
+    )
+
+    await page.goto("/account/me/claims")
+    await expect(
+      page.getByRole("heading", { name: /^消息/ })
+    ).toBeVisible()
+    await expect(page.getByText("这张旧名片是您的吗？")).toBeVisible()
+
+    await page.getByRole("link", { name: "去认领" }).click()
+    await page.waitForURL(/\/community\/cards\?card=42$/)
+    // The deep link opens the detail dialog for that card on the wall.
+      await expect(
+        page.getByRole("dialog", { name: /制作人名片/ })
+      ).toBeVisible()
+    })
+  })
+
+  test("administrator reviews submissions and claims from two tabs", async ({
     page,
     api,
   }, testInfo) => {
@@ -862,94 +814,118 @@ test.describe("namecard claim workflow", () => {
         producername: "认领审核员",
       },
     })
-    // The merged review queue lists every submission, registered owners included.
-    const handleAdminCards = async (
-      route: import("@playwright/test").Route
-    ) => {
-      const request = route.request()
-      if (request.method() === "POST") {
-        reviews.push({
-          kind: "registered",
-          body: request.postDataJSON() as Record<string, unknown>,
-          csrf: request.headers()["x-csrftoken"],
-        })
-        registeredPending = false
-        await route.fulfill({ json: { success: true, revision: 2 } })
-        return
-      }
-      await route.fulfill({
-        json: {
-          success: true,
-          data: registeredPending ? [registeredAdminRow] : [],
-          pageInfo: {
-            page: 1,
-            pageSize: 12,
-            total: registeredPending ? 1 : 0,
-            totalPages: registeredPending ? 1 : 0,
-            hasNextPage: false,
-          },
-        },
-      })
-    }
-    // The queue refetches once the verdict lands, so the list may load twice.
-    await api.mockRoute("/api/admin/cards", handleAdminCards, "GET", {
-      min: 1,
-      max: 10,
-    })
-    await api.mockRoute(
-      `/api/admin/cards/approve/${registeredAdminRow.id}`,
-      handleAdminCards,
-      "POST"
-    )
 
-    let registeredPending = true
+    let submissionPending = true
     let claimPending = true
     const reviews: Array<{
       kind: "registered" | "claim"
       body: Record<string, unknown>
       csrf: string | undefined
     }> = []
-    const handleClaimReviews = async (
-      route: import("@playwright/test").Route
-    ) => {
-      const request = route.request()
-      if (request.method() === "PUT") {
-        reviews.push({
-          kind: "claim",
-          body: request.postDataJSON() as Record<string, unknown>,
-          csrf: request.headers()["x-csrftoken"],
-        })
-        claimPending = false
-        await route.fulfill({ json: { success: true, revision: 3 } })
-        return
-      }
-      await route.fulfill({
-        json: { items: claimPending ? [pendingClaim] : [] },
-      })
-    }
+
+    // 投稿审核页签仍是原来的名片列表接口。
     await api.mockRoute(
-      "/api/admin/community/exchange/card-claims",
-      handleClaimReviews,
-      "GET"
+      "**/api/admin/cards",
+      async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: submissionPending ? [pendingSubmission] : [],
+            pageInfo: {
+              page: 1,
+              pageSize: 20,
+              total: submissionPending ? 1 : 0,
+              totalPages: submissionPending ? 1 : 0,
+              hasNextPage: false,
+            },
+          },
+        })
+      },
+      "GET",
+      { min: 1, max: 20 }
+    )
+    await api.mockRoute(
+      `/api/admin/cards/approve/${pendingSubmission.id}`,
+      async (route) => {
+        reviews.push({
+          kind: "registered",
+          body: route.request().postDataJSON() as Record<string, unknown>,
+          csrf: route.request().headers()["x-csrftoken"],
+        })
+        submissionPending = false
+        await route.fulfill({ json: { success: true, revision: 2 } })
+      },
+      "POST"
+    )
+
+    await api.mockRoute(
+      "**/api/community/exchange/characters",
+      async (route) => {
+        await route.fulfill({ json: makeCharacterCatalog() })
+      },
+      "GET",
+      { min: 0, max: 12 }
+    )
+    // 旧名片认领页签按审核类型取数，结构与投稿审核一致。
+    await api.mockRoute(
+      "**/api/admin/community/exchange/review-queue",
+      async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            data: claimPending
+              ? [
+                  {
+                    type: "claim",
+                    submittedAt: "2026-08-16T19:31:00.000Z",
+                    claim: pendingClaim,
+                  },
+                ]
+              : [],
+            pageInfo: {
+              page: 1,
+              pageSize: 20,
+              total: claimPending ? 1 : 0,
+              totalPages: claimPending ? 1 : 0,
+              hasNextPage: false,
+            },
+          },
+        })
+      },
+      "GET",
+      { min: 1, max: 20 }
     )
     await api.mockRoute(
       "/api/admin/community/exchange/card-claims/claim-admin-e2e",
-      handleClaimReviews,
+      async (route) => {
+        reviews.push({
+          kind: "claim",
+          body: route.request().postDataJSON() as Record<string, unknown>,
+          csrf: route.request().headers()["x-csrftoken"],
+        })
+        claimPending = false
+        await route.fulfill({ json: { success: true, revision: 3 } })
+      },
       "PUT"
     )
 
     await page.goto("/admin/cards")
-    // The queue is one list: registered submissions show up beside guest ones.
+    await expect(page.getByRole("tab", { name: "投稿审核" })).toBeVisible()
     await expect(page.getByText("注册制作人")).toBeVisible()
     await page.getByRole("button", { name: "通过", exact: true }).click()
     await page.getByRole("button", { name: "确认通过" }).click()
     await expect(page.getByText("注册制作人")).toHaveCount(0)
 
+    // 认领页签：同一套卡片结构，筛选换成审核类型。
     await page.getByRole("tab", { name: "旧名片认领" }).click()
-    await expect(page.getByText("历史名片 #42")).toBeVisible()
-    await page.getByRole("button", { name: "通过" }).click()
-    await page.getByRole("button", { name: "确认认领" }).click()
-    await expect(page.getByText("没有待审核认领")).toBeVisible()
+    await expect(page.getByText("名片 #42").first()).toBeVisible()
+    // 卡片上的类型徽标（页签与标题也叫这个名字，需要限定在卡片内）。
+    await expect(
+      page.locator("article").getByText("名片认领", { exact: true })
+    ).toBeVisible()
+    await page.getByRole("button", { name: "通过", exact: true }).click()
+    await page.getByRole("button", { name: "确认通过" }).click()
+    await expect(page.getByText("没有待审核的认领或补充")).toBeVisible()
 
     expect(reviews).toEqual([
       {

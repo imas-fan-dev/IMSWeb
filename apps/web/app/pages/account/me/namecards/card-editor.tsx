@@ -257,8 +257,18 @@ export function CardEditor({
       }).send()
       setDraft(cardFields(result.card))
       onSaved(result.card)
-      setFeedback({ kind: "success", message: "名片资料已保存。" })
-      toast.success("名片资料已保存")
+      // Saving exactly what is on the wall again drops the waiting revision
+      // instead of queueing an identical one.
+      const withdrawn = card.reviewStatus === "pending" && !result.card.reviewStatus
+      setFeedback({
+        kind: "success",
+        message: withdrawn
+          ? "本次提交与原版本一致，已撤回，已通过的版本继续展示。"
+          : "名片资料已保存。",
+      })
+      toast.success(
+        withdrawn ? "已撤回本次提交，已通过的版本继续展示" : "名片资料已保存"
+      )
     } catch (error) {
       mutationFailure(error, "名片保存失败，请重试。")
     } finally {
@@ -268,7 +278,7 @@ export function CardEditor({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (readOnly) return
+    if (readOnly || locked) return
     const missing = missingFields()
     if (missing.length > 0) {
       reportMissing(missing)
@@ -317,7 +327,9 @@ export function CardEditor({
   }
 
   const busy = saving || deleting
-  const editDisabled = readOnly || busy
+  // A locked card is a decision, not a draft: nothing in this form may change.
+  const locked = card?.publicationStatus === "locked"
+  const editDisabled = readOnly || busy || locked
 
   if (creating && readOnly && !card) {
     return (

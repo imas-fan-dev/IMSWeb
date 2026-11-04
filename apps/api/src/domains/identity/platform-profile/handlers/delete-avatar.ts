@@ -34,6 +34,10 @@ export async function handleDeletePlatformAvatar(
                 updatedAt: result.updatedAt
             } satisfies PlatformProfileError, 409);
         }
+        if (result.status === 'slug-taken') {
+            // Removing the avatar never touches the slug; keep the union honest.
+            return c.json({ success: false, code: 'PLATFORM_PROFILE_INVALID' }, 409);
+        }
         // The row no longer references the object, so a failed cleanup leaks an
         // unreachable object rather than breaking the profile. Compensation
         // retries it; the request itself has already succeeded.

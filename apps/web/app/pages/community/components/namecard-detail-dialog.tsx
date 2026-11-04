@@ -1,6 +1,6 @@
 import {
   ArrowLeftRightIcon,
-  FlagIcon,
+  ShareIcon,
   PlusIcon,
   ShieldCheckIcon,
   SquarePenIcon,
@@ -8,7 +8,7 @@ import {
 import { useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
 
-import { formatCredit } from "~/components/community/namecard-credit-format"
+import { creditParts } from "~/components/community/namecard-credit-format"
 import type { NamecardSide } from "~/components/shared/namecard-preview"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -27,6 +27,7 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover"
 import { getFudabaSeries, NAMECARD_REACTIONS } from "~/lib/api"
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import type {
   FudabaSeries,
   Namecard,
@@ -36,7 +37,9 @@ import { IS_APP_TARGET } from "~/lib/app-target"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
+import { withThumbnail } from "~/lib/media-urls"
 import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
+import { NamecardFeedbackDialog } from "~/pages/community/exchange/components/namecard-feedback-dialog"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
@@ -371,6 +374,10 @@ function EmptyDash() {
   return <span className="text-muted-foreground">-</span>
 }
 
+/** 窄屏把底栏压成一行：字号与高度都收一档，图标保持 16px。 */
+const FOOTER_BUTTON =
+  "min-h-9 gap-1 px-2 text-xs [&_svg]:size-4 sm:min-h-11 sm:px-2.5 sm:text-sm"
+
 export function NamecardDetailDialog({
   card,
   canClaim,
@@ -380,8 +387,10 @@ export function NamecardDetailDialog({
   onOpenChange,
   onOpenPreview,
   onClaim,
+  onSupplement,
   onReact,
   onReturnFocus,
+  dismissible = true,
 }: {
   card: Namecard | null
   canClaim: boolean
@@ -392,10 +401,16 @@ export function NamecardDetailDialog({
   onOpenChange: (open: boolean) => void
   onOpenPreview: (side: NamecardSide, trigger: HTMLButtonElement) => void
   onClaim: (card: Namecard) => void
+  onSupplement: (card: Namecard) => void
   onReact: (emoji: string) => Promise<boolean>
   onReturnFocus: () => void
+  /** 认领/补充窗开着时置 false，点它不算「点了详情窗外面」。 */
+  dismissible?: boolean
 }) {
   const navigate = useNavigation()
+  const platform = useOptionalPlatformSession()
+  const platformCanReport =
+    platform.status === "authenticated" || platform.status === "restricted"
   const entries = activeNamecardReactions(reactions.reactions)
   const [series, setSeries] = useState<ReadonlyMap<string, FudabaSeries>>(
     new Map()
@@ -426,7 +441,7 @@ export function NamecardDetailDialog({
         {
           key: "front",
           url: card.image1_url,
-          thumb: card.image1_thumbnail_url ?? card.image1_url,
+          thumb: card.image1_thumbnail_url || withThumbnail(card.image1_url),
           side: "front" as const,
         },
         ...(card.image2_url
@@ -434,7 +449,7 @@ export function NamecardDetailDialog({
               {
                 key: "back",
                 url: card.image2_url,
-                thumb: card.image2_thumbnail_url ?? card.image2_url,
+                thumb: card.image2_thumbnail_url || withThumbnail(card.image2_url),
                 side: "back" as const,
               },
             ]
@@ -463,10 +478,19 @@ export function NamecardDetailDialog({
   // Ownership is the real gate: a claimed card keeps the queue actions out of
   // the footer even while its claim request is still being reviewed.
   const unclaimed = card ? !card.hasOwner : false
+  // 认领优先于补充：认领审核期间这张卡不再接受补充，也不接受第二份认领。
+  const claimBlocked = card ? card.claimStatus !== "unclaimed" : true
+  const supplementBlocked = card
+    ? card.claimStatus !== "unclaimed" || card.supplementPending
+    : true
   const active = slides[Math.min(activeSlide, Math.max(slides.length - 1, 0))]
 
   return (
-    <Dialog open={card !== null} onOpenChange={onOpenChange}>
+    <Dialog
+      open={card !== null}
+      onOpenChange={onOpenChange}
+      disablePointerDismissal={!dismissible}
+    >
       <DialogContent
         layout="pinned"
         className="sm:max-w-5xl"
@@ -490,9 +514,23 @@ export function NamecardDetailDialog({
               {card?.revision ?? 0}
             </span>
             {card?.claimStatus === "claimed" ? (
-              <Badge variant="secondary">
-                {card.claimerName ?? "已由注册用户认领"}
-              </Badge>
+              card.claimerAccountId ? (
+                <Badge
+                  variant="outline"
+                  className="text-muted-foreground"
+                  render={
+                    <NavigationLink to={`/user/${card.claimerAccountId}`} />
+                  }
+                >
+                  <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+                  {card.claimerName ?? "已由注册用户认领"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground">
+                  <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+                  {card.claimerName ?? "已由注册用户认领"}
+                </Badge>
+              )
             ) : card?.claimStatus === "pending" ? (
               <Badge variant="outline">认领审核中</Badge>
             ) : null}
@@ -625,20 +663,28 @@ export function NamecardDetailDialog({
                   <FieldRow label="制作人员">
                     {card?.credits.length ? (
                       <ul className="space-y-1">
-                        {card.credits.map((credit, index) => (
-                          <li key={`${credit.displayName}-${index}`}>
-                            {credit.url ? (
-                              <NavigationLink
-                                href={credit.url}
-                                className="underline underline-offset-2"
-                              >
-                                {formatCredit(credit)}
-                              </NavigationLink>
-                            ) : (
-                              formatCredit(credit)
-                            )}
-                          </li>
-                        ))}
+                        {card.credits.map((credit, index) => {
+                          const parts = creditParts(credit)
+                          return (
+                            <li key={`${credit.displayName}-${index}`}>
+                              {parts.url ? (
+                                <NavigationLink
+                                  href={parts.url}
+                                  className="underline underline-offset-2"
+                                >
+                                  {parts.name}
+                                </NavigationLink>
+                              ) : (
+                                parts.name
+                              )}
+                              {parts.roles ? (
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  {parts.roles}
+                                </span>
+                              ) : null}
+                            </li>
+                          )
+                        })}
                       </ul>
                     ) : (
                       <EmptyDash />
@@ -646,7 +692,7 @@ export function NamecardDetailDialog({
                   </FieldRow>
                   <FieldRow label="企划">
                     {card?.seriesCodes.length ? (
-                      <span className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-4">
+                      <span className="flex flex-wrap gap-x-4 gap-y-1">
                         {card.seriesCodes.map((code) => (
                           <span
                             key={code}
@@ -688,12 +734,12 @@ export function NamecardDetailDialog({
           </div>
 
         </DialogBody>
-        <DialogFooter className="flex-nowrap justify-end gap-2 overflow-x-auto border-t bg-transparent">
+        <DialogFooter className="flex-row flex-nowrap justify-end gap-1.5 overflow-x-auto border-t bg-transparent px-3 sm:gap-2 sm:px-4">
             {card?.canEdit ? (
               <Button
                 type="button"
-                variant="secondary"
-                className="min-h-11"
+                variant="outline"
+                className={cn(FOOTER_BUTTON, "bg-background")}
                 onClick={() => {
                   onOpenChange(false)
                   void navigate(
@@ -708,10 +754,19 @@ export function NamecardDetailDialog({
             {unclaimed ? (
               <Button
                 type="button"
-                variant="secondary"
-                className="min-h-11"
-                disabled
-                title="暂未开放"
+                variant="outline"
+                className={cn(FOOTER_BUTTON, "bg-background")}
+                disabled={!canClaim || supplementBlocked}
+                title={
+                  card?.claimStatus === "pending"
+                    ? "这张名片正在认领审核，认领优先于补充"
+                    : card?.supplementPending
+                      ? "这张名片已有一份补充在审核"
+                      : undefined
+                }
+                onClick={() => {
+                  if (card) onSupplement(card)
+                }}
               >
                 <PlusIcon aria-hidden="true" />
                 补充
@@ -720,9 +775,13 @@ export function NamecardDetailDialog({
             {unclaimed ? (
               <Button
                 type="button"
-                variant="secondary"
-                className="min-h-11 bg-foreground text-background hover:bg-foreground/85"
-                disabled={!canClaim}
+                className={FOOTER_BUTTON}
+                disabled={!canClaim || claimBlocked}
+                title={
+                  card?.claimStatus === "pending"
+                    ? "这张名片已经有一份认领在审核"
+                    : undefined
+                }
                 onClick={() => {
                   if (card) onClaim(card)
                 }}
@@ -731,25 +790,37 @@ export function NamecardDetailDialog({
                 认领
               </Button>
             ) : null}
-            <Button
-              type="button"
-              className="min-h-11 bg-foreground text-background hover:bg-foreground/85"
-              disabled
-              title="暂未开放"
-            >
-              <ArrowLeftRightIcon aria-hidden="true" />
-              交换
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              className="min-h-11"
-              disabled
-              title="暂未开放"
-            >
-              <FlagIcon aria-hidden="true" />
-              反馈
-            </Button>
+            {unclaimed ? null : card?.canEdit ? (
+              // 拥有者看自己的名片时，这里给的是分享入口（暂不可用）。
+              <Button
+                type="button"
+                className={FOOTER_BUTTON}
+                disabled
+                title="暂未开放"
+              >
+                <ShareIcon aria-hidden="true" />
+                分享
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                className={FOOTER_BUTTON}
+                disabled
+                title="暂未开放"
+              >
+                <ArrowLeftRightIcon aria-hidden="true" />
+                交换
+              </Button>
+            )}
+            {card ? (
+              <NamecardFeedbackDialog
+                cardId={card.cardId}
+                cardLabel={card.producerName || `名片 #${card.cardNumber}`}
+                disabled={!platformCanReport}
+                triggerVariant="destructive"
+                triggerClassName={FOOTER_BUTTON}
+              />
+            ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -20,6 +20,8 @@ export function toAdminPlatformUser(
         id: record.id,
         status: record.status,
         displayName: record.display_name,
+        uid: record.uid,
+        pageSlug: record.page_slug,
         email: record.normalized_email,
         hasPassword: record.has_password,
         activeSessionCount: record.active_session_count,

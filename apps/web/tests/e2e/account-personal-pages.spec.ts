@@ -82,15 +82,18 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
         json: {
           ...session,
           capabilities: { fudabaWrite: true },
-          profile: { ...session.profile, updatedAt: 1 },
+          profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
         },
       })
+  )
+  await api.mock(
+    { method: "GET", path: "/api/platform/me/accounts", times: workspaceTimes },
+    (route) => route.fulfill({ json: { catalog: [], entries: [] } })
   )
   for (const path of [
     "/api/community/exchange/me/series",
     "/api/community/exchange/me/cards",
     "/api/community/exchange/me/offices",
-    "/api/community/exchange/me/claim-envelopes",
   ]) {
     await api.mock({ method: "GET", path, times: workspaceTimes }, (route) =>
       route.fulfill({ json: { items: [] } })
@@ -392,15 +395,18 @@ test("desktop root and section preserve pending, failed, retry and successful lo
         json: {
           ...session,
           capabilities: { fudabaWrite: true },
-          profile: { ...session.profile, updatedAt: 1 },
+          profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
         },
       })
+  )
+  await api.mock(
+    { method: "GET", path: "/api/platform/me/accounts", times: 2 },
+    (route) => route.fulfill({ json: { catalog: [], entries: [] } })
   )
   for (const path of [
     "/api/community/exchange/me/series",
     "/api/community/exchange/me/cards",
     "/api/community/exchange/me/offices",
-    "/api/community/exchange/me/claim-envelopes",
   ]) {
     await api.mock({ method: "GET", path, times: 2 }, (route) =>
       route.fulfill({ json: { items: [] } })
@@ -497,16 +503,19 @@ for (const section of ["offices", "namecards"] as const) {
           json: {
             ...session,
             capabilities: { fudabaWrite: true },
-            profile: { ...session.profile, updatedAt: 1 },
+            profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
           },
         })
+    )
+    await api.mock(
+      { method: "GET", path: "/api/platform/me/accounts", times: 1 },
+      (route) => route.fulfill({ json: { catalog: [], entries: [] } })
     )
     const ownerPaths = [
       "/api/community/exchange/me/series",
       "/api/community/exchange/me/cards",
       "/api/community/exchange/me/offices",
-      "/api/community/exchange/me/claim-envelopes",
-      "/api/community/exchange/me/favorites",
+        "/api/community/exchange/me/favorites",
     ]
     for (const path of ownerPaths)
       await api.mock({ method: "GET", path, times: 1 }, (route) =>
@@ -533,7 +542,7 @@ for (const section of ["offices", "namecards"] as const) {
     const readyCounts = ownerPaths.map(
       (path) => api.requests({ method: "GET", path }).length
     )
-    expect(readyCounts).toEqual([1, 1, 1, 1, 1])
+    expect(readyCounts).toEqual(ownerPaths.map(() => 1))
     for (const width of [900, 1440]) {
       await page.setViewportSize({ width, height: 900 })
       await page.evaluate(

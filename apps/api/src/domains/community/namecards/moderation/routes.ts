@@ -1,13 +1,25 @@
 import { handleApproveNamecard } from "@/domains/community/namecards/moderation/handlers/approve-namecard";
 import { handleFlagNamecard } from "@/domains/community/namecards/moderation/handlers/flag-namecard";
+import { handleDeleteAdminNamecard } from "@/domains/community/namecards/moderation/handlers/delete-admin-namecard";
 import { handleGetAdminNamecardDiff } from "@/domains/community/namecards/moderation/handlers/get-admin-namecard-diff";
 import { handleListAdminNamecards } from "@/domains/community/namecards/moderation/handlers/list-admin-namecards";
+import { handleListAdminNamecardFeedback } from "@/domains/community/namecards/moderation/handlers/list-admin-feedback";
+import { handleListAdminNamecardFeedbackAudit } from "@/domains/community/namecards/moderation/handlers/list-admin-feedback-audit";
+import { handleListAdminNamecardLockAudit } from "@/domains/community/namecards/moderation/handlers/list-admin-lock-audit";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
+import { fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
 import { handleServeAdminNamecardMedia } from "@/domains/community/namecards/moderation/handlers/serve-admin-namecard-media";
+import { handleResolveAdminNamecardFeedback } from "@/domains/community/namecards/moderation/handlers/resolve-admin-feedback";
 import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/handlers/unlock-namecard";
+import { handleUpdateAdminNamecard } from "@/domains/community/namecards/moderation/handlers/update-admin-namecard";
 import {
+    validateAdminNamecardDeleteRequest,
+    validateAdminNamecardFeedbackAuditQuery,
+    validateAdminNamecardFeedbackListQuery,
+    validateAdminNamecardLockAuditQuery,
     validateAdminNamecardListQuery,
+    validateAdminNamecardUpdateRequest,
     validateCompatibleNamecardIdParams,
     validateExpectedRevisionRequest,
     validateNamecardMediaParams,
@@ -15,7 +27,9 @@ import {
     validateLockedNamecardRequest,
 } from "@/domains/community/namecards/request";
 import {
+    adminNamecardDeleteRequestSchema,
     adminNamecardListQuerySchema,
+    adminNamecardUpdateRequestSchema,
     compatibleNamecardIdParamsSchema,
     expectedNamecardRevisionRequestSchema,
     flaggedNamecardRequestSchema,
@@ -33,6 +47,13 @@ import {
     paramSchemaValidator,
     querySchemaValidator,
 } from "@/middleware/request-validation";
+import {
+    adminNamecardFeedbackListQuerySchema,
+    namecardFeedbackAuditQuerySchema,
+    namecardFeedbackIdParamsSchema,
+    namecardLockAuditQuerySchema,
+    resolveNamecardFeedbackRequestSchema,
+} from "@imsweb/contracts/namecards";
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
@@ -54,6 +75,38 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
     );
     // The review queue compares the published copy with the submitted one, so
     // the diff endpoint stays separate from the list payload.
+    // The report queue: readers flag a live card, an operator answers it.
+    routes.get(
+        "/feedback",
+        backofficeAuth,
+        opOnly,
+        querySchemaValidator(adminNamecardFeedbackListQuerySchema, { invalidMessage: "反馈分页参数无效" }, validateAdminNamecardFeedbackListQuery),
+        handleListAdminNamecardFeedback,
+    );
+    // 名片审计: read-only tables behind the 平台用户 menu.
+    routes.get(
+        "/audit/locks",
+        backofficeAuth,
+        opOnly,
+        querySchemaValidator(namecardLockAuditQuerySchema, { invalidMessage: "名片审计分页参数无效" }, validateAdminNamecardLockAuditQuery),
+        handleListAdminNamecardLockAudit,
+    );
+    routes.get(
+        "/audit/feedback",
+        backofficeAuth,
+        opOnly,
+        querySchemaValidator(namecardFeedbackAuditQuerySchema, { invalidMessage: "名片审计分页参数无效" }, validateAdminNamecardFeedbackAuditQuery),
+        handleListAdminNamecardFeedbackAudit,
+    );
+    routes.post(
+        "/feedback/:feedbackId/resolve",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        paramSchemaValidator(namecardFeedbackIdParamsSchema, { invalidMessage: "反馈 ID 无效" }),
+        jsonSchemaValidator(resolveNamecardFeedbackRequestSchema, { invalidMessage: "处理参数无效" }),
+        handleResolveAdminNamecardFeedback,
+    );
     routes.get(
         "/:id/diff",
         backofficeAuth,
@@ -72,6 +125,7 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
             { invalidMessage: "名片 ID 无效" },
             validateNamecardMediaParams,
         ),
+        querySchemaValidator(fudabaMediaQuerySchema),
         handleServeAdminNamecardMedia,
     );
     routes.post(
@@ -122,6 +176,29 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         namecardIdValidator,
         jsonSchemaValidator(expectedNamecardRevisionRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionRequest),
         handleUnlockNamecard,
+    );
+    // The management window rewrites the live card in one request: fields,
+    // artwork order, both review columns and the owner. It is the only place
+    // that may move a card between accounts.
+    routes.put(
+        "/:id",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        namecardIdValidator,
+        jsonSchemaValidator(adminNamecardUpdateRequestSchema, { invalidMessage: "card content is invalid" }, validateAdminNamecardUpdateRequest),
+        handleUpdateAdminNamecard,
+    );
+    // Removal stamps `deleted_at`, which every read path already filters, so the
+    // card leaves the queue, the wall and the owner's list at once.
+    routes.delete(
+        "/:id",
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        namecardIdValidator,
+        jsonSchemaValidator(adminNamecardDeleteRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateAdminNamecardDeleteRequest),
+        handleDeleteAdminNamecard,
     );
     return routes;
 }

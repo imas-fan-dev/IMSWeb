@@ -1,21 +1,22 @@
-import type { FudabaClaimEnvelope } from '@imsweb/contracts/fudaba/card-claims';
-import type { FudabaClaimEnvelopeRecord } from '@/ports/repositories';
+import type { AdminCardSupplement } from '@imsweb/contracts/fudaba/card-claims';
+import type { FudabaCardSupplementRecord } from '@/ports/repositories';
 
-export function fudabaClaimEnvelopeView(
-    envelope: FudabaClaimEnvelopeRecord
-): FudabaClaimEnvelope {
+export function fudabaCardSupplementView(
+    supplement: FudabaCardSupplementRecord
+): AdminCardSupplement {
     return {
-        id: String(envelope.id),
-        legacyCardId: envelope.legacy_card_id,
-        cardId: String(envelope.legacy_card_id),
-        kind: envelope.kind,
-        title: envelope.title,
-        body: envelope.body,
-        actionState: envelope.action_state,
-        claimId: envelope.claim_id,
-        revision: envelope.revision,
-        readAt: envelope.read_at,
-        actedAt: envelope.actioned_at,
-        createdAt: envelope.created_at
+        id: supplement.id,
+        cardId: supplement.card_id,
+        state: supplement.state,
+        payload: supplement.payload,
+        submitter: {
+            id: supplement.submitter_account_id,
+            displayName: supplement.submitter_display_name
+        },
+        reviewNote: supplement.review_note,
+        revision: supplement.revision,
+        createdAt: supplement.created_at,
+        updatedAt: supplement.updated_at,
+        reviewedAt: supplement.reviewed_at
     };
 }

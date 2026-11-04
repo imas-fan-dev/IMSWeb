@@ -22,6 +22,10 @@ export interface PlatformAccountRecord {
 }
 
 export interface PlatformProfileRecord {
+    /** Permanent public handle for /user/<uid>. */
+    uid: number;
+    /** Optional vanity path segment. */
+    page_slug: string | null;
     account_id: string;
     display_name: string;
     avatar_object_key: string | null;
@@ -317,6 +321,8 @@ export interface PlatformAccountAdminRecord {
     id: string;
     status: PlatformAccountStatus;
     display_name: string;
+    uid: number;
+    page_slug: string | null;
     normalized_email: string | null;
     has_password: boolean;
     active_session_count: number;
@@ -401,6 +407,8 @@ export type CreateVerifiedPlatformEmailAccountResult =
     | { status: "verification-invalid" };
 
 export interface UpdatePlatformProfileTextInput {
+    /** `null` clears the vanity slug. */
+    pageSlug: string | null;
     accountId: string;
     displayName: string;
     homeCity: string | null;
@@ -423,6 +431,7 @@ export type PlatformProfileSaveResult =
           previousAvatarObjectKey: string | null;
       }
     | { status: "conflict"; updatedAt: number }
+    | { status: "slug-taken" }
     | { status: "unavailable" };
 
 /**

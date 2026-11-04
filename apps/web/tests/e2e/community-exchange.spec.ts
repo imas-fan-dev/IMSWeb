@@ -572,6 +572,8 @@ test.describe("community exchange", () => {
               avatarUrl: null,
               homeCity: "上海",
               bio: "上海地区制作人",
+              uid: 1,
+              pageSlug: null,
               updatedAt: 1,
             },
           },

@@ -174,14 +174,6 @@ test('lists the inbox, then marks one row and the rest separately', async () => 
     assert.equal(garbage.status, 400);
 });
 
-test('answers the claim envelope list for a producer without envelopes', async () => {
-    const { app, headers } = await createFixture();
-    const response = await testRequest(app, exchangePath('/me/claim-envelopes'), { headers });
-    assert.equal(response.status, 200, await response.clone().text());
-    const body = (await response.json()) as { items: unknown[] };
-    assert.deepEqual(body.items, []);
-});
-
 test('refuses the inbox without a session', async () => {
     const { app } = await createFixture();
     const response = await testRequest(app, exchangePath('/me/notifications'), {});

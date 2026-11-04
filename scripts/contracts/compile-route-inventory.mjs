@@ -9,13 +9,13 @@ const ts = createRequire(new URL("../../packages/contracts/package.json", import
 const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
-const BASELINE = { mountedMethodPaths: 267, carriers: 334, reject: 67, acceptAndProject: 169, passthrough: 17, nonObjectApplicable: 81 };
+const BASELINE = { mountedMethodPaths: 285, carriers: 359, reject: 74, acceptAndProject: 182, passthrough: 17, nonObjectApplicable: 86 };
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },
   { module: "@imsweb/contracts/fudaba/map-delivery", symbol: "fudabaMapDeliveryQuerySchema", carriers: 1, policy: "reject" },
-  { module: "@imsweb/contracts/fudaba", symbol: "fudabaIgnoredQuerySchema", carriers: 7, policy: "accept-and-project" },
-  { module: "@imsweb/contracts/fudaba", symbol: "fudabaMediaQuerySchema", carriers: 6, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/fudaba", symbol: "fudabaIgnoredQuerySchema", carriers: 6, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/fudaba", symbol: "fudabaMediaQuerySchema", carriers: 8, policy: "accept-and-project" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",

@@ -537,8 +537,20 @@ export default function AdminPlatformUsersPage() {
                     className="focus-visible:outline-2 focus-visible:outline-primary data-[highlighted=true]:bg-primary/10"
                   >
                     <TableCell className="min-w-40 whitespace-normal">
-                      <p className="font-medium">{user.displayName}</p>
-                      <p className="text-xs text-muted-foreground">{user.id}</p>
+                      <p className="font-medium">
+                        {user.displayName}{" "}
+                        <span className="font-mono text-xs font-normal text-muted-foreground">
+                          UID: {user.uid}
+                        </span>
+                        {user.pageSlug ? (
+                          <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
+                            [{user.pageSlug}]
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="font-mono text-xs text-muted-foreground break-all">
+                        {user.id}
+                      </p>
                     </TableCell>
                     <TableCell className="min-w-40 whitespace-normal">
                       {user.email ?? t("adminPlatformUsers.detail.noEmail")}

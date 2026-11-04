@@ -17,18 +17,15 @@ import {
 } from "~/components/ui/dialog"
 import { formatCredit } from "~/components/community/namecard-credit-format"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
-import { getAdminNamecardDiff, type AdminNamecard, type AdminNamecardDiff } from "~/lib/api"
-import { cn } from "~/lib/utils"
+import {
+  getAdminNamecardDiff,
+  type AdminNamecard,
+  type AdminNamecardDiff,
+} from "~/lib/api"
+import { DiffArtwork, diffImageSlots } from "./diff-artwork"
+import { ReviewFieldRows, useReviewLabels } from "./review-field-rows"
 
 type DiffSide = AdminNamecardDiff["live"]
-
-interface ImageSlot {
-  key: string
-  url: string
-  state: "same" | "removed" | "added"
-  /** 旧图排在前面，替换后的新图紧跟其后。 */
-  label: string
-}
 
 interface FieldDiff {
   label: string
@@ -37,55 +34,6 @@ interface FieldDiff {
   pending: string | null
   /** List fields compare item by item so only real edits stand out. */
   items?: { kept: string[]; removed: string[]; added: string[] }
-}
-
-const EMPTY = "-"
-
-function pairSlots(
-  before: string | null,
-  after: string | null,
-  label: string,
-  key: string
-): ImageSlot[] {
-  if (before === after) {
-    return before ? [{ key: `${key}-same`, url: before, state: "same", label }] : []
-  }
-  return [
-    ...(before
-      ? [{ key: `${key}-old`, url: before, state: "removed" as const, label }]
-      : []),
-    ...(after
-      ? [{ key: `${key}-new`, url: after, state: "added" as const, label }]
-      : []),
-  ]
-}
-
-/**
- * 图片按页序比较：正面、中间页逐位、背面。位置不同就「旧的在前、新的在后」。
- */
-export function diffImageSlots(live: DiffSide, pending: DiffSide | null): ImageSlot[] {
-  const next = pending ?? live
-  const middles = Math.max(
-    live.middleImageUrls.length,
-    next.middleImageUrls.length
-  )
-  const slots: ImageSlot[] = [
-    ...pairSlots(live.frontImageUrl, next.frontImageUrl, "正面", "front"),
-  ]
-  for (let index = 0; index < middles; index += 1) {
-    slots.push(
-      ...pairSlots(
-        live.middleImageUrls[index] ?? null,
-        next.middleImageUrls[index] ?? null,
-        `中间页 ${index + 1}`,
-        `middle-${index}`
-      )
-    )
-  }
-  slots.push(
-    ...pairSlots(live.backImageUrl, next.backImageUrl, "背面", "back")
-  )
-  return slots
 }
 
 /** Items that appear on both sides stay neutral; only the edits are coloured. */
@@ -108,6 +56,8 @@ function charactersList(side: DiffSide): string[] {
 }
 
 const YES_NO = (value: boolean) => (value ? "是" : "否")
+/** 原创与 AI 是「声明」，没勾等于没声明，不等于否认。 */
+const DECLARED = (value: boolean) => (value ? "是" : "未声明")
 const EXCHANGE_MODES: Record<DiffSide["exchangeMode"], string> = {
   auto: "自动允许",
   manual: "手动允许",
@@ -117,7 +67,20 @@ const EXCHANGE_MODES: Record<DiffSide["exchangeMode"], string> = {
 /**
  * 字段顺序与编辑窗口一致；只有提交版本存在的字段才参与比较。
  */
-export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[] {
+/** 审核员看的是企划名称，不是 `765as` 这类代号；没给解析器时退回代号。 */
+export interface DiffLabels {
+  seriesList: (codes: readonly string[]) => string
+}
+
+const RAW_LABELS: DiffLabels = {
+  seriesList: (codes) => codes.join("、"),
+}
+
+export function diffFields(
+  live: DiffSide,
+  pending: DiffSide | null,
+  labels: DiffLabels = RAW_LABELS
+): FieldDiff[] {
   const next = pending ?? live
   const textRow = (label: string, before: string, after: string): FieldDiff => ({
     label,
@@ -127,14 +90,17 @@ export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[
   const listRow = (
     label: string,
     before: readonly string[],
-    after: readonly string[]
+    after: readonly string[],
+    render: (values: readonly string[]) => string = RAW_LABELS.seriesList
   ): FieldDiff => {
     const items = diffItems(before, after)
     return {
       label,
-      live: before.join("、"),
+      live: render(before),
       pending:
-        pending && (items.removed.length || items.added.length) ? after.join("、") : null,
+        pending && (items.removed.length || items.added.length)
+          ? render(after)
+          : null,
       items,
     }
   }
@@ -143,42 +109,16 @@ export function diffFields(live: DiffSide, pending: DiffSide | null): FieldDiff[
     textRow("制作人读音", live.producerReading ?? "", next.producerReading ?? ""),
     textRow("所属团体", live.groupName ?? "", next.groupName ?? ""),
     textRow("制作日期", live.madeOn ?? "", next.madeOn ?? ""),
-    listRow("企划", live.seriesCodes, next.seriesCodes),
+    listRow("企划", live.seriesCodes, next.seriesCodes, labels.seriesList),
     listRow("担当角色", charactersList(live), charactersList(next)),
     textRow("简介", live.bio ?? "", next.bio ?? ""),
     listRow("制作人员", creditsList(live), creditsList(next)),
-    textRow("原创标记", YES_NO(live.isOriginal), YES_NO(next.isOriginal)),
-    textRow("AI 标记", YES_NO(live.madeWithAi), YES_NO(next.madeWithAi)),
+    textRow("原创标记", DECLARED(live.isOriginal), DECLARED(next.isOriginal)),
+    textRow("AI 标记", DECLARED(live.madeWithAi), DECLARED(next.madeWithAi)),
     textRow("交换说明", live.tradeNote ?? "", next.tradeNote ?? ""),
     textRow("交换模式", EXCHANGE_MODES[live.exchangeMode], EXCHANGE_MODES[next.exchangeMode]),
     textRow("公开显示", YES_NO(live.visible), YES_NO(next.visible)),
   ]
-}
-
-/** Kept items stay quiet so the eye lands on the removals and additions. */
-function ItemDiff({ items }: { items: { kept: string[]; removed: string[]; added: string[] } }) {
-  const empty = !items.kept.length && !items.removed.length && !items.added.length
-  if (empty) return <>{EMPTY}</>
-  return (
-    <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-0.5">
-      {items.kept.map((item) => (
-        <span key={`kept-${item}`}>{item}</span>
-      ))}
-      {items.removed.map((item) => (
-        <span
-          key={`removed-${item}`}
-          className="text-destructive line-through decoration-destructive/70"
-        >
-          {item}
-        </span>
-      ))}
-      {items.added.map((item) => (
-        <span key={`added-${item}`} className="text-success">
-          {item}
-        </span>
-      ))}
-    </span>
-  )
 }
 
 /**
@@ -197,10 +137,9 @@ export function NamecardReviewDialog({
   onReject: (card: AdminNamecard) => void
   onLock: (card: AdminNamecard) => void
 }) {
+  const labels = useReviewLabels()
   const [diff, setDiff] = useState<AdminNamecardDiff | null>(null)
   const [failed, setFailed] = useState(false)
-  const [activeSlot, setActiveSlot] = useState(0)
-
   useEffect(() => {
     if (!card) return
     let active = true
@@ -218,8 +157,7 @@ export function NamecardReviewDialog({
   }, [card])
 
   const slots = diff ? diffImageSlots(diff.live, diff.pending) : []
-  const fields = diff ? diffFields(diff.live, diff.pending) : []
-  const active = slots[Math.min(activeSlot, Math.max(slots.length - 1, 0))]
+  const fields = diff ? diffFields(diff.live, diff.pending, labels) : []
 
   return (
     <Dialog open={card !== null} onOpenChange={onOpenChange}>
@@ -250,74 +188,15 @@ export function NamecardReviewDialog({
             </p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              <section aria-label="图片对比" className="space-y-3">
-                {active ? (
-                  <div className="overflow-hidden rounded-xl border bg-muted">
-                    <img
-                      src={active.url}
-                      alt={`${active.label}（${active.state === "removed" ? "旧版" : active.state === "added" ? "新版" : "未改动"}）`}
-                      className={cn(
-                        "aspect-3/2 w-full object-contain",
-                        active.state === "removed" && "border-4 border-destructive",
-                        active.state === "added" && "border-4 border-success"
-                      )}
-                    />
-                  </div>
-                ) : null}
-                <ul className="card-thumb-strip flex gap-2 overflow-x-auto">
-                  {slots.map((slot, index) => (
-                    <li key={slot.key}>
-                      <button
-                        type="button"
-                        aria-label={`查看${slot.label}（${slot.state === "removed" ? "旧版" : slot.state === "added" ? "新版" : "未改动"}）`}
-                        aria-pressed={index === activeSlot}
-                        onClick={() => setActiveSlot(index)}
-                        className={cn(
-                          "relative block size-16 overflow-hidden rounded-md border",
-                          slot.state === "removed" && "border-2 border-destructive",
-                          slot.state === "added" && "border-2 border-success",
-                          index === activeSlot && "ring-2 ring-primary"
-                        )}
-                      >
-                        <img
-                          src={slot.url}
-                          alt=""
-                          className="size-full object-cover"
-                        />
-                        <span className="absolute inset-x-0 bottom-0 bg-background/85 text-[10px]/4">
-                          {slot.label}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-              <section aria-label="内容对比">
-                <dl className="space-y-2 text-sm">
-                  {fields.map((field) => (
-                    <div key={field.label} className="flex gap-3">
-                      <dt className="w-20 shrink-0 text-muted-foreground">
-                        {field.label}
-                      </dt>
-                      <dd className="min-w-0 flex-1 wrap-break-word">
-                        {field.items ? (
-                          <ItemDiff items={field.items} />
-                        ) : field.pending === null ? (
-                          field.live || EMPTY
-                        ) : (
-                          <>
-                            <span className="text-destructive line-through decoration-destructive/70">
-                              {field.live || EMPTY}
-                            </span>{" "}
-                            <span className="text-success">
-                              {field.pending || EMPTY}
-                            </span>
-                          </>
-                        )}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+              <DiffArtwork slots={slots} />
+              <section aria-label="内容对比" className="min-w-0">
+                <ReviewFieldRows
+                  rows={fields.map((field) => ({
+                    label: field.label,
+                    live: field.live,
+                    pending: field.pending ?? field.live,
+                  }))}
+                />
               </section>
             </div>
           )}
@@ -336,7 +215,7 @@ export function NamecardReviewDialog({
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             className="min-h-11"
             disabled={!card || card.status !== "pending"}
             onClick={() => {

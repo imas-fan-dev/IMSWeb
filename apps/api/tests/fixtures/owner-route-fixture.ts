@@ -33,15 +33,18 @@ import type {
     StoredObject
 } from '@/ports/object-storage';
 import type {
+    CreateNamecardFeedbackInput,
     CreateOwnedFudabaCardInput,
     FudabaCardMutationResult,
     FudabaCardRecord,
     FudabaRepository,
+    NamecardFeedbackRecord,
     PlatformAccountRepository,
     PlatformAccountStatus,
     PlatformProfileRecord,
     SoftDeleteOwnedFudabaCardInput,
     ReplaceOwnedFudabaCardMediaInput,
+    ResolveNamecardFeedbackInput,
     UpdateOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMetadataInput,
     UpdatePlatformProfileAvatarInput,
@@ -363,6 +366,8 @@ export class OwnerRouteFixture {
     writeEnabled: boolean;
     profile: PlatformProfileRecord = {
         account_id: ACCOUNT_ID,
+        uid: 7,
+        page_slug: 'owner-display',
         display_name: 'Owner Display',
         avatar_object_key: null,
         avatar_external_url: null,
@@ -387,6 +392,11 @@ export class OwnerRouteFixture {
     readonly storage = new ProtectedMemoryStorage();
     readonly compensation = new RecordingCompensation();
     readonly rateLimiter = new ControlledRateLimiter();
+    readonly feedbackCreates: CreateNamecardFeedbackInput[] = [];
+    readonly feedbackResolves: ResolveNamecardFeedbackInput[] = [];
+    feedbackQueue: NamecardFeedbackRecord[] = [];
+    feedbackCreateResult: 'created' | 'duplicate' | 'not-found' = 'created';
+    feedbackResolveResult: NamecardFeedbackRecord | null = null;
     createMode: 'saved' | 'unavailable' | 'throw' | 'mutate-then-throw' = 'saved';
     updateAvatarMode: 'saved' | 'mutate-then-throw' = 'saved';
     updateMediaMode:
@@ -741,6 +751,18 @@ export class OwnerRouteFixture {
             };
             this.cards.set(card.id, card);
             return { status: 'saved', card: { ...card }, previousObjectKey: null };
+        },
+        createCardFeedback: async (input: CreateNamecardFeedbackInput) => {
+            this.feedbackCreates.push(input);
+            return this.feedbackCreateResult;
+        },
+        listPendingCardFeedback: async () => ({
+            items: this.feedbackQueue,
+            total: this.feedbackQueue.length
+        }),
+        resolveCardFeedback: async (input: ResolveNamecardFeedbackInput) => {
+            this.feedbackResolves.push(input);
+            return this.feedbackResolveResult;
         }
     } as unknown as FudabaRepository;
 

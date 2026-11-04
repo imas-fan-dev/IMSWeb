@@ -25,7 +25,7 @@ async function mockOwnerWorkspace() {
         json: {
           ...session,
           capabilities: { fudabaWrite: true },
-          profile: { ...session.profile, updatedAt: 1 },
+          profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
         },
       })
     },
@@ -62,11 +62,6 @@ async function mockOwnerWorkspace() {
           pageInfo: { hasNextPage: false, nextCursor: null },
         },
       }),
-    "GET"
-  )
-  await api.mockRoute(
-    "/api/community/exchange/me/claim-envelopes",
-    (route) => route.fulfill({ json: { items: [] } }),
     "GET"
   )
   await api.mockRoute(

@@ -6,6 +6,7 @@ import type {
 } from '@imsweb/contracts/platform/admin-users';
 import type { AppEnvironment } from '@/app';
 import type { ValidatedRequestInput } from '@/middleware/request-validation';
+import type { ParsedUpload, UploadParser } from '@/ports/http';
 import type { PlatformAccountAdminSearchField } from '@/ports/repositories';
 
 export const ADMIN_PLATFORM_USER_DEFAULT_PAGE_SIZE = 20;
@@ -71,3 +72,19 @@ export type AdminPlatformUserStatusRequestContext = Context<
     ValidatedRequestInput<'param', AdminPlatformUserIdParams> &
         ValidatedRequestInput<'json', AdminPlatformUserStatusRequest>
 >;
+
+/** 图标上传只有一种形状：单个 `icon` 文件，其余字段一律不收。 */
+export const PLATFORM_ICON_MAX_BYTES = 512 * 1024;
+
+export function parsePlatformAccountIconRequest(
+    uploads: UploadParser,
+    request: Request
+): Promise<ParsedUpload> {
+    return uploads.parse(request, {
+        maxBytes: PLATFORM_ICON_MAX_BYTES + 64 * 1024,
+        fileFields: ['icon'],
+        maxFiles: 1,
+        maxFields: 0,
+        maxParts: 1
+    });
+}

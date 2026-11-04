@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   diffFields,
-  diffImageSlots,
 } from "~/pages/admin/cards/namecard-review-dialog"
+import { diffImageSlots } from "~/pages/admin/cards/diff-artwork"
 import type { AdminNamecardDiff } from "~/lib/api"
 
 type DiffSide = AdminNamecardDiff["live"]

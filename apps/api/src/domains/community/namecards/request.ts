@@ -3,6 +3,14 @@ import type { AppEnvironment } from "@/app";
 import { services } from "@/middleware/hono-context";
 import type { UploadedFile } from "@/ports/http";
 import type { ValidatedRequestInput } from "@/middleware/request-validation";
+import type {
+    AdminNamecardDeleteRequest,
+    AdminNamecardUpdateRequest,
+} from "@imsweb/contracts/namecards";
+import type {
+    NamecardFeedbackIdParams,
+    ResolveNamecardFeedbackRequest,
+} from "@imsweb/contracts/namecards";
 import {
     canonicalPositiveInteger,
     positiveInteger,
@@ -67,6 +75,31 @@ export type NamecardLockContext = Context<
         ValidatedRequestInput<"json", LockedNamecardRequest>
 >;
 
+/**
+ * The management window submits the whole card, so the context carries the
+ * parsed contract instead of a hand-rolled projection.
+ */
+export type NamecardUpdateContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<"param", CompatibleNamecardIdParams> &
+        ValidatedRequestInput<"json", AdminNamecardUpdateRequest>
+>;
+
+export type NamecardDeleteContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<"param", CompatibleNamecardIdParams> &
+        ValidatedRequestInput<"json", AdminNamecardDeleteRequest>
+>;
+
+export type NamecardFeedbackResolveContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<"param", NamecardFeedbackIdParams> &
+        ValidatedRequestInput<"json", ResolveNamecardFeedbackRequest>
+>;
+
 export type NamecardImageReplaceContext = Context<
     AppEnvironment,
     string,
@@ -127,6 +160,19 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
     };
 }
 
+/** 主页列表路由只校验了路径参数，分页从这里按线上同一套规则取。 */
+export function parseNamecardPage(url: string): NamecardListQuery {
+    const params = new URL(`http://local${url}`).searchParams;
+    return validateNamecardListQuery({
+        page: params.get('page'),
+        size: params.get('size'),
+    });
+}
+
+export type AdminNamecardFeedbackListQuery = {
+    page: number;
+};
+
 export function validateAdminNamecardListQuery(
     value: unknown,
 ): AdminNamecardListQuery {
@@ -149,6 +195,30 @@ export function validateAdminNamecardListQuery(
                 : null,
         origins: origins.slice(0, 4),
     };
+}
+
+/** Trims the optional reason and rejects a duplicated artwork token. */
+export function validateAdminNamecardUpdateRequest(
+    value: unknown,
+): AdminNamecardUpdateRequest {
+    const request = validateExpectedRevisionRequest(value);
+    const body = requestRecord(value, "名片内容无效");
+    const mediaOrder = Array.isArray(body.media_order) ? body.media_order : [];
+    if (new Set(mediaOrder).size !== mediaOrder.length) {
+        invalidRequest("名片图片顺序无效");
+    }
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    return {
+        ...(body as unknown as AdminNamecardUpdateRequest),
+        ...request,
+        reason: reason === "" ? null : reason.slice(0, LOCKED_NAMECARD_REASON_MAX_LENGTH),
+    };
+}
+
+export function validateAdminNamecardDeleteRequest(
+    value: unknown,
+): AdminNamecardDeleteRequest {
+    return validateExpectedRevisionRequest(value);
 }
 
 export const LOCKED_NAMECARD_REASON_MAX_LENGTH = 400;
@@ -228,4 +298,70 @@ export async function parseNamecardReplacementImage(
     });
     const files = uploadedFiles(parsed.files.image);
     return { image: files[0] ?? null };
+}
+
+/** The report queue only needs a page number. */
+export interface AdminNamecardLockAuditQuery {
+    page: number;
+    owner: string | null;
+    reason: string | null;
+    handler: string | null;
+    action: 'locked' | 'unlocked' | null;
+}
+
+export interface AdminNamecardFeedbackAuditQuery {
+    page: number;
+    owner: string | null;
+    reporter: string | null;
+    outcome: 'accepted' | 'rejected' | null;
+    handler: string | null;
+}
+
+function auditAction(
+    query: Record<string, unknown>,
+    key: string
+): 'locked' | 'unlocked' | null {
+    const value = auditText(query, key);
+    return value === 'locked' || value === 'unlocked' ? value : null;
+}
+
+function auditText(query: Record<string, unknown>, key: string): string | null {
+    const value = query[key];
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+}
+
+export function validateAdminNamecardLockAuditQuery(
+    value: unknown
+): AdminNamecardLockAuditQuery {
+    const query = requestRecord(value, '名片审计分页参数无效');
+    return {
+        page: legacyPaginationValue(query.page, DEFAULT_PAGE),
+        owner: auditText(query, 'owner'),
+        reason: auditText(query, 'reason'),
+        handler: auditText(query, 'handler'),
+        action: auditAction(query, 'action')
+    };
+}
+
+export function validateAdminNamecardFeedbackAuditQuery(
+    value: unknown
+): AdminNamecardFeedbackAuditQuery {
+    const query = requestRecord(value, '名片审计分页参数无效');
+    const outcome = auditText(query, 'outcome');
+    return {
+        page: legacyPaginationValue(query.page, DEFAULT_PAGE),
+        owner: auditText(query, 'owner'),
+        reporter: auditText(query, 'reporter'),
+        outcome: outcome === 'accepted' || outcome === 'rejected' ? outcome : null,
+        handler: auditText(query, 'handler')
+    };
+}
+
+export function validateAdminNamecardFeedbackListQuery(
+    value: unknown
+): AdminNamecardFeedbackListQuery {
+    const query = requestRecord(value, "反馈分页参数无效");
+    return { page: legacyPaginationValue(query.page, DEFAULT_PAGE) };
 }

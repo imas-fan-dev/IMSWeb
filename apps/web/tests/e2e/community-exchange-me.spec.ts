@@ -21,6 +21,8 @@ const profile = {
   avatarUrl: null,
   homeCity: "上海",
   bio: "周末参加线下交换",
+  uid: 1,
+  pageSlug: null,
   updatedAt: 10,
 }
 const directAvatarUrl =
@@ -313,14 +315,6 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
       await route.fulfill({ json: makeCharacterCatalog() })
     },
     "GET"
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/me/claim-envelopes",
-    async (route) => {
-      await route.fulfill({ json: { items: [] } })
-    },
-    "GET",
-    { min: 1, max: workspaceReads }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/favorites?**",

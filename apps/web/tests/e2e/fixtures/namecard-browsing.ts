@@ -6,6 +6,7 @@ import {
   namecardReactionRequestSchema,
   reactionMutationSchema,
   reactionSchema,
+  wallInsightsSchema,
 } from "@imsweb/contracts/namecards"
 import { apiPath, platformAuthPath } from "@imsweb/contracts/paths"
 import { platformHttpErrorSchema } from "@imsweb/contracts/platform"
@@ -133,6 +134,8 @@ export async function mockNamecardBrowsing(
                 claimStatus: "unclaimed",
                 viewerClaimState: null,
                 claimerName: null,
+                claimerAccountId: null,
+                supplementPending: false,
                 image1_url: `/__namecard-qa/front-${id}.png`,
                 image2_url: `/__namecard-qa/back-${id}.png`,
                 image1_thumbnail_url: `/__namecard-qa/front-thumb-${id}.png`,
@@ -147,6 +150,27 @@ export async function mockNamecardBrowsing(
         },
       }
     },
+  })
+  // 墙顶面板是独立请求；不登记的话整页会在 teardown 被判成未注册请求。
+  api.expect({
+    method: "GET",
+    path: apiPath("/cards/wall-insights"),
+    responses: { 200: wallInsightsSchema },
+    times: { min: 1, max: 4 },
+    handle: () => ({
+      status: 200,
+      json: {
+        guestTotal: total,
+        ownerless: total,
+        ownerlessMissingSeries: 0,
+        claimed: 0,
+        claimsPending: 0,
+        supplemented: 0,
+        supplementsPending: 0,
+        contributors: [],
+        viewer: null,
+      },
+    }),
   })
   const reactions = new Map<number, Record<string, number>>(
     Object.entries(initialReactions ?? defaultNamecardReactions).map(

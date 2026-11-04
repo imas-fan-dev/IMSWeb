@@ -35,7 +35,8 @@ import {
 import { cn } from "~/lib/utils"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { CardWorkspace } from "./namecards/card-workspace"
-import { ClaimEnvelopePanel } from "./claims/claim-envelope-panel"
+import { NamecardInboxPanel } from "./claims/namecard-inbox-panel"
+import { PlatformAccountsEditor } from "./platform-accounts-editor"
 import { FavoriteCollection } from "./favorites/favorite-collection"
 import { apiMessage, isFeatureClosed } from "./account-me-model"
 import { OfficeLocationWorkspace } from "./offices/office-location-workspace"
@@ -133,7 +134,8 @@ function ProfileWorkspace({
   const closingNavigationRef = useRef(false)
   const selectionOperationGeneration = detailGeneration.current
   const requestedSection = searchParams.get("section")
-  const requestedCardId = initialCardId ?? searchParams.get("card")
+  /** 深链可以给内部 UUID，也可以给名片墙上的编号（通知里只有编号）。 */
+  const requestedCard = initialCardId ?? searchParams.get("card")
   const requestedOfficeId =
     initialOfficeId ?? searchParams.get("office") ?? undefined
   const accountSectionBasePath =
@@ -195,6 +197,12 @@ function ProfileWorkspace({
     }
   }, [loadWorkspace, platform.session?.account.id, platform.status])
 
+  // 选择解析要读最新列表，但不能因为列表刷新而重跑（否则新建后会被清空）。
+  const cardsRef = useRef(state.phase === "ready" ? state.cards : [])
+  useEffect(() => {
+    cardsRef.current = state.phase === "ready" ? state.cards : []
+  }, [state])
+
   useEffect(() => {
     if (state.phase !== "ready") return
     if (closingNavigationRef.current) {
@@ -204,8 +212,16 @@ function ProfileWorkspace({
     detailGeneration.current += 1
     setCreating(false)
     setLoadingDetail(false)
-    setSelectedCardId(activeSection === "namecards" ? requestedCardId : null)
-  }, [state.phase, location.key, activeSection, requestedCardId])
+    const resolved =
+      activeSection !== "namecards" || !requestedCard
+        ? null
+        : (cardsRef.current.find((card) => card.id === requestedCard) ??
+          cardsRef.current.find(
+            (card) => String(card.cardNumber) === requestedCard
+          ))?.id ?? null
+    setSelectedCardId(resolved)
+    // 只看导航与地址栏：名片列表刷新（新建后重载）不应把当前选择清掉。
+  }, [state.phase, location.key, activeSection, requestedCard])
 
   function syncCardQuery(cardId: string | null) {
     if (embedded) return
@@ -559,6 +575,15 @@ function ProfileWorkspace({
               isOperationCurrent={isProfileOperationCurrent}
               onWriteClosed={closeWrites}
             />
+            <div className="mt-8 border-t pt-6">
+              <h2 className="text-xl font-semibold">平台账号</h2>
+              <p className="mt-2 text-sm/6 text-muted-foreground">
+                游戏 ID 与社交平台账号会显示在你的个人主页上；粘贴完整链接或只填标识符都可以，每个平台一条。
+              </p>
+              <div className="mt-6">
+                <PlatformAccountsEditor />
+              </div>
+            </div>
           </div>
 
           <section
@@ -661,7 +686,7 @@ function ProfileWorkspace({
             className={sectionReadOnlyReason ? "mt-6" : undefined}
             hidden={activeSection !== "claims"}
           >
-            <ClaimEnvelopePanel readOnly={exchangeReadOnly} />
+            <NamecardInboxPanel readOnly={exchangeReadOnly} />
           </div>
         </div>
       </div>

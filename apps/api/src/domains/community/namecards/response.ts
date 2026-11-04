@@ -6,6 +6,11 @@ import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys
 import type {
     AdminNamecard,
     AdminNamecardDiff,
+    AdminNamecardFeedback,
+    AdminNamecardFeedbackAuditListResponse as AdminNamecardFeedbackAuditContractResponse,
+    AdminNamecardFeedbackListResponse as AdminNamecardFeedbackListContractResponse,
+    AdminNamecardLockAuditListResponse as AdminNamecardLockAuditContractResponse,
+    NamecardFeedbackResponse as NamecardFeedbackReplyContract,
     AdminNamecardListResponse as AdminNamecardListContractResponse,
     Namecard,
     NamecardEmptyResponse,
@@ -15,6 +20,11 @@ import type {
     NamecardMutationResponse,
     NamecardPage,
     NamecardDetailResponse,
+    PublicProfile as PublicProfileContract,
+    RandomOwnerlessCard as RandomOwnerlessCardContract,
+    RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
+    PublicProfileError as PublicProfileErrorContract,
+    WallInsights as WallInsightsContract,
 } from '@imsweb/contracts/namecards';
 
 export type NamecardResponseId = number;
@@ -25,10 +35,25 @@ export type AdminNamecardResponse = AdminNamecard;
 export type AdminNamecardDiffResponse = AdminNamecardDiff;
 /** Artwork routes answer with a bare 404: the page either exists or it does not. */
 export const NAMECARD_MEDIA_NOT_FOUND = 'Not Found';
+/** 平台图标读取路由与媒体路由一样，只有「有图」和「没有图」两种结果。 */
+export const PLATFORM_ICON_NOT_FOUND = '图标不可用';
 
 export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
 export type NamecardPageResponse = NamecardPage;
 export type AdminNamecardListResponse = AdminNamecardListContractResponse;
+export type AdminNamecardFeedbackResponse = AdminNamecardFeedback;
+export type AdminNamecardFeedbackListResponse =
+    AdminNamecardFeedbackListContractResponse;
+export type NamecardFeedbackResponse = NamecardFeedbackReplyContract;
+export type AdminNamecardLockAuditListResponse = AdminNamecardLockAuditContractResponse;
+export type AdminNamecardFeedbackAuditListResponse =
+    AdminNamecardFeedbackAuditContractResponse;
+/** 墙顶面板与「随机补充一张」两条公开只读接口。 */
+export type WallInsightsResponse = WallInsightsContract;
+export type PublicProfileResponse = PublicProfileContract;
+export type PublicProfileErrorResponse = PublicProfileErrorContract;
+export type RandomOwnerlessCardResponse = RandomOwnerlessCardContract;
+export type RandomOwnerlessCardErrorResponse = RandomOwnerlessCardErrorContract;
 
 interface NamecardRow {
     id?: unknown;
@@ -48,6 +73,8 @@ interface NamecardRow {
     claim_status?: unknown;
     viewer_claim_state?: unknown;
     claimer_name?: unknown;
+    claimer_account_id?: unknown;
+    supplement_pending?: unknown;
     cardId?: unknown;
     card_number?: unknown;
     group_name?: unknown;
@@ -201,6 +228,7 @@ export function toPublicNamecardResponse(
         seriesCode: responseSeriesCode(row.series_code),
         favoriteCharacters: responseFavoriteCharacters(row.favorite_characters),
         claimStatus: responseClaimStatus(row.claim_status),
+        supplementPending: row.supplement_pending === true,
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
         image1_url: image1Url,
         image2_url: image2Url,
@@ -210,7 +238,11 @@ export function toPublicNamecardResponse(
         created_at: responseTimestamp(row.created_at)
     };
     return Object.assign(response, {
-        claimerName: responseClaimerName(row.claimer_name)
+        claimerName: responseClaimerName(row.claimer_name),
+        claimerAccountId:
+            typeof row.claimer_account_id === 'string' && row.claimer_account_id
+                ? row.claimer_account_id
+                : null
     });
 }
 
@@ -252,7 +284,13 @@ export function toAdminNamecardDiffResponse(
     return {
         id: record.id,
         status: record.status,
+        publicationStatus: record.publicationStatus,
         reviewStatus: record.reviewStatus,
+        revision: record.revision,
+        ownerAccountId: record.ownerAccountId,
+        ownerDisplayName: record.ownerDisplayName,
+        lockReason: record.lockReason,
+        reviewReason: record.reviewReason,
         live: diffSide(record.live),
         pending: record.pending ? diffSide(record.pending) : null
     };

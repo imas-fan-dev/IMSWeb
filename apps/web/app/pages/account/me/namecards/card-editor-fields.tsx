@@ -3,6 +3,14 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { CharacterMultiSelect } from "~/components/community/character-multi-select"
+import {
+  CLEAR_DATE,
+  joinMadeOn,
+  PRODUCTION_MONTHS,
+  PRODUCTION_YEARS,
+  productionDays,
+  splitMadeOn,
+} from "~/components/community/namecard-made-on"
 import { normalizeProducerReading } from "./card-reading"
 import { SeriesMultiSelect } from "~/components/community/series-multi-select"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -24,53 +32,9 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { Textarea } from "~/components/ui/textarea"
 import type { FudabaCardFields, FudabaSeries } from "~/lib/api"
-import {
-  NAMECARD_PRODUCTION_YEAR_MAX,
-  NAMECARD_PRODUCTION_YEAR_MIN,
-} from "@imsweb/contracts/fudaba/runtime"
-
 import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { CreditsEditor } from "./card-credits-editor"
 import { CardModule, type CardModuleModes } from "./card-module"
-
-const PRODUCTION_YEAR_MIN = NAMECARD_PRODUCTION_YEAR_MIN
-/** 不能制作未来日期的名片，所以上限是今年（契约上限只是结构性兜底）。 */
-const PRODUCTION_YEAR_MAX = Math.min(
-  NAMECARD_PRODUCTION_YEAR_MAX,
-  new Date().getFullYear()
-)
-const PRODUCTION_YEARS = Array.from(
-  { length: PRODUCTION_YEAR_MAX - PRODUCTION_YEAR_MIN + 1 },
-  (_, index) => String(PRODUCTION_YEAR_MAX - index)
-)
-const PRODUCTION_MONTHS = Array.from({ length: 12 }, (_, index) =>
-  String(index + 1).padStart(2, "0")
-)
-/** 三个日期下拉都给了「-」，用户任何一级都能退回到「只填到这里」。 */
-const CLEAR_DATE = "-"
-
-/** 只给出该年该月真实存在的日子，2 月与大小月都按实际天数截断。 */
-function productionDays(year: string, month: string): string[] {
-  const monthNumber = Number(month)
-  if (!year || !monthNumber) return []
-  const total = new Date(Number(year), monthNumber, 0).getDate()
-  return Array.from({ length: total }, (_, index) =>
-    String(index + 1).padStart(2, "0")
-  )
-}
-
-/** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; every part is optional but the year. */
-function splitMadeOn(value: string | null) {
-  const [year = "", month = "", day = ""] = (value ?? "").split("-")
-  return { year, month: year ? month : "", day: year && month ? day : "" }
-}
-
-function joinMadeOn(year: string, month: string, day: string): string | null {
-  if (!year) return null
-  if (!month) return year
-  if (!day) return `${year}-${month}`
-  return `${year}-${month}-${day}`
-}
 
 const FLAG_OPTIONS = [
   {
@@ -117,6 +81,7 @@ export function CardFields({
   series,
   disabled,
   modes,
+  required = true,
   onChange,
 }: {
   draft: FudabaCardFields
@@ -124,6 +89,8 @@ export function CardFields({
   disabled: boolean
   /** 每个模块可单独设为仅显示 / 编辑 / 不可见。 */
   modes?: CardModuleModes
+  /** 后台可以保存资料不全的名片，此时不标必填。 */
+  required?: boolean
   onChange: (draft: FudabaCardFields) => void
 }) {
   const { catalog, loading, failed } = useNamecardCharacterCatalog()
@@ -157,13 +124,13 @@ export function CardFields({
         <FieldGroup className="grid gap-5 sm:grid-cols-2">
           <Field data-disabled={disabled || undefined} data-card-field="producerName">
             <FieldLabel htmlFor="exchange-card-producer-name">
-              制作人名称 <RequiredMark />
+              制作人名称 {required ? <RequiredMark /> : null}
             </FieldLabel>
             <Input
               id="exchange-card-producer-name"
               value={draft.producerName}
               maxLength={80}
-              required
+              required={required}
               disabled={disabled}
               onChange={(event) =>
                 patch({ producerName: event.currentTarget.value })
@@ -347,6 +314,7 @@ export function CardFields({
         <div data-card-field="seriesCodes">
           <SeriesMultiSelect
             id="exchange-card-series"
+            required={required}
             series={series}
             selectedCodes={draft.seriesCodes}
             lockedCodes={lockedSeriesCodes}
@@ -365,14 +333,14 @@ export function CardFields({
             selectedIds={draft.favoriteCharacterIds}
             disabled={disabled || loading}
             onChange={(favoriteCharacterIds) => {
-              const required = (catalog?.characters ?? [])
+              const agencyCodes = (catalog?.characters ?? [])
                 .filter((entry) => favoriteCharacterIds.includes(entry.id))
                 .map((entry) => entry.agencyCode)
                 .filter((code): code is string => Boolean(code))
               patch({
                 favoriteCharacterIds,
                 seriesCodes: Array.from(
-                  new Set([...draft.seriesCodes, ...required])
+                  new Set([...draft.seriesCodes, ...agencyCodes])
                 ),
               })
             }}

@@ -13,7 +13,12 @@ import { namecardRepository } from '@/middleware/hono-context';
 export async function handleFlagNamecard(c: NamecardLockContext): Promise<Response> {
     const { id } = c.req.valid('param');
     const { expected_revision: expectedRevision, reason } = c.req.valid('json');
-    const result = await namecardRepository(c).flagSubmission(id, expectedRevision, reason);
+    const result = await namecardRepository(c).flagSubmission(
+        id,
+        expectedRevision,
+        reason,
+        c.get('backofficeUser')?.username ?? null
+    );
     if (result.status === 'not-found') {
         return c.json({ error: 'Namecard not found' } satisfies NamecardErrorResponse, 404);
     }

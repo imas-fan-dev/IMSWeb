@@ -377,6 +377,8 @@ import { describe, onTestFinished, test } from 'vitest';
     interface FakeAccount {
         id: string;
         status: 'active' | 'restricted' | 'suspended' | 'deleted';
+        uid: number;
+        page_slug: string | null;
         display_name: string;
         normalized_email: string | null;
         has_password: boolean;
@@ -428,6 +430,8 @@ import { describe, onTestFinished, test } from 'vitest';
         add(account: Partial<FakeAccount> & { id: string }) {
             this.accounts.set(account.id, {
                 status: 'active',
+                uid: this.accounts.size + 1,
+                page_slug: null,
                 display_name: `User ${account.id}`,
                 normalized_email: `${account.id}@example.com`,
                 has_password: true,
@@ -462,6 +466,8 @@ import { describe, onTestFinished, test } from 'vitest';
             return {
                 id: account.id,
                 status: account.status,
+                uid: account.uid,
+                page_slug: account.page_slug,
                 display_name: account.display_name,
                 normalized_email: account.normalized_email,
                 has_password: account.has_password,

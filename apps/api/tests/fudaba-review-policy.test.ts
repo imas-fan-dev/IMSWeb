@@ -8,7 +8,11 @@ import type {
 import {
     CARD_REVIEW_EXEMPT_FIELDS,
     type CardReviewSnapshot,
-    fudabaReviewPolicy
+    type CardSubmissionSnapshot,
+    fudabaReviewPolicy,
+    isArtworkReorder,
+    sameArtworkOrder,
+    sameCardSubmission
 } from '@/ports/repositories/fudaba-review-policy';
 
 const { requiresCardReview } = fudabaReviewPolicy;
@@ -118,4 +122,76 @@ test('trailing whitespace is not a content change', () => {
     );
     // Blanking a reviewed field is still a content change.
     assert.equal(requiresCardReview(live, submission({ bio: '   ' })), true);
+});
+
+const artwork: CardSubmissionSnapshot = {
+    producerName: 'P',
+    producerReading: 'ぴー',
+    bio: 'bio',
+    tradeNote: 'note',
+    groupName: null,
+    madeOn: null,
+    exchangeMode: 'manual',
+    isOriginal: false,
+    madeWithAi: false,
+    visible: true,
+    seriesCodes: ['series'],
+    favoriteCharacterIds: [1, 3],
+    credits: [{ accountId: null, displayName: 'A', url: null, roles: ['design'] }]
+};
+
+test('artwork order compares element by element', () => {
+    assert.equal(sameArtworkOrder(['front', 'mid', 'back'], ['front', 'mid', 'back']), true);
+    assert.equal(sameArtworkOrder(['front', 'mid', 'back'], ['front', 'back', 'mid']), false);
+    assert.equal(sameArtworkOrder(['front'], ['front', 'back']), false);
+});
+
+test('only a pure permutation of the same pages counts as a reorder', () => {
+    assert.equal(isArtworkReorder(['front', 'back'], ['back', 'front']), true);
+    assert.equal(isArtworkReorder(['front', 'mid-1', 'back'], ['front', 'back', 'mid-1']), true);
+    // A replacement is not a reorder even when the count matches.
+    assert.equal(isArtworkReorder(['front', 'back'], ['front', 'swap']), false);
+    // Repeating a page is not a reorder either.
+    assert.equal(isArtworkReorder(['front', 'back'], ['front', 'front']), false);
+    assert.equal(isArtworkReorder(['front', 'back'], ['front', 'back']), false);
+    assert.equal(isArtworkReorder(['front'], ['front', 'back']), false);
+});
+
+const approved = submission({ credits: [...artwork.credits] });
+
+test('an unchanged resubmission matches the approved copy', () => {
+    assert.equal(sameCardSubmission(artwork, approved), true);
+});
+
+test('any edited field makes the resubmission a real change', () => {
+    const cases: Partial<FudabaPendingCardPayload>[] = [
+        { producer_name: 'Q' },
+        { producer_reading: 'きゅー' },
+        { bio: 'different' },
+        { trade_note: 'another note' },
+        { exchange_mode: 'auto' },
+        { is_original: true },
+        { made_with_ai: true },
+        { visible: false },
+        { series_codes: ['other'] },
+        { favorite_character_ids: [1] },
+        { credits: [] }
+    ];
+    for (const overrides of cases) {
+        assert.equal(
+            sameCardSubmission(artwork, submission({ ...approved, ...overrides })),
+            false,
+            JSON.stringify(overrides)
+        );
+    }
+});
+
+test('surrounding whitespace is not a change', () => {
+    assert.equal(
+        sameCardSubmission(
+            { ...artwork, bio: 'bio', producerName: 'P' },
+            submission({ ...approved, bio: '  bio ', producer_name: ' P ' })
+        ),
+        true
+    );
 });

@@ -4,6 +4,7 @@ export function profileFields(profile: PlatformProfile) {
   return {
     displayName: profile.displayName,
     homeCity: profile.homeCity ?? "",
+    pageSlug: profile.pageSlug ?? "",
     bio: profile.bio,
   }
 }

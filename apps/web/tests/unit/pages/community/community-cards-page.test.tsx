@@ -92,8 +92,10 @@ function pageResult(ids = [42]): NamecardPage {
       seriesCode: null,
       favoriteCharacters: [],
       claimStatus: "unclaimed",
+      supplementPending: false,
       viewerClaimState: null,
       claimerName: null,
+      claimerAccountId: null,
       image1_url: `/front-${id}.jpg`,
       image2_url: `/back-${id}.jpg`,
       image1_thumbnail_url: `/front-${id}-thumbnail.jpg`,
@@ -208,8 +210,10 @@ describe("CommunityCardsPage", () => {
           seriesCode: null,
           favoriteCharacters: [],
           claimStatus: "unclaimed",
+          supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
+          claimerAccountId: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -330,8 +334,10 @@ describe("CommunityCardsPage", () => {
           seriesCode: "765",
           favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
           claimStatus: "unclaimed",
+          supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
+          claimerAccountId: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -410,7 +416,9 @@ describe("CommunityCardsPage", () => {
       name: "认领",
     })
     expect(claimButton).toBeVisible()
-    expect(claimButton).toHaveClass("min-h-11")
+    // 窄屏把底栏压成一行，只有 sm 以上才回到 44px 高。
+    expect(claimButton).toHaveClass("min-h-9")
+    expect(claimButton).toHaveClass("sm:min-h-11")
   })
 
   it("opens the complete reaction picker and updates the selected count", async () => {
@@ -422,8 +430,10 @@ describe("CommunityCardsPage", () => {
           seriesCode: null,
           favoriteCharacters: [],
           claimStatus: "unclaimed",
+          supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
+          claimerAccountId: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -1022,8 +1032,10 @@ describe("CommunityCardsPage", () => {
           seriesCode: null,
           favoriteCharacters: [],
           claimStatus: "unclaimed",
+          supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
+          claimerAccountId: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
@@ -1520,8 +1532,10 @@ describe("CommunityCardsPage", () => {
           seriesCode: null,
           favoriteCharacters: [],
           claimStatus: "unclaimed",
+          supplementPending: false,
           viewerClaimState: null,
           claimerName: null,
+          claimerAccountId: null,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
           image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
