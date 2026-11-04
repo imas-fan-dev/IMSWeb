@@ -1028,7 +1028,22 @@ import { test } from 'vitest';
         test('super administrators save a kind, reject a broken pattern and delete it', async () => {
             const saved: Array<{ id: string; name: string }> = [];
             const fixture = createCompatibilityFixture({
-                listPlatformAccountKinds: async () => [],
+                listPlatformAccountKinds: async () => [
+                    {
+                        id: 'xbox',
+                        name: 'Xbox',
+                        group_key: 'game-platform',
+                        pattern: '^[A-Z0-9]{1,15}$',
+                        base_url: 'https://xbox.com/{value}',
+                        color: '#0e7a0d',
+                        icon: 'xbox',
+                        display_order: 210,
+                        enabled: true,
+                        uppercase: false,
+                        icon_object_key: 'platform/account-kinds/xbox/icon.svg',
+                        updated_at: '2026-11-03T00:00:00.000Z'
+                    }
+                ],
                 upsertPlatformAccountKind: async (input) => {
                     saved.push({ id: input.id, name: input.name });
                 },
@@ -1054,7 +1069,12 @@ import { test } from 'vitest';
                 { method: 'PUT', headers, body: JSON.stringify(body) }
             );
             assert.equal(upserted.status, 200);
-            assert.deepEqual(await responseJson(upserted), { kinds: [] });
+            const listed = (await responseJson(upserted)) as {
+                kinds: Array<{ id: string; iconUrl: string | null }>;
+            };
+            assert.equal(listed.kinds.length, 1);
+            assert.equal(listed.kinds[0]?.id, 'xbox');
+            assert.match(listed.kinds[0]?.iconUrl ?? '', /account-kinds\/xbox\/icon/);
             assert.deepEqual(saved, [{ id: 'xbox', name: 'Xbox' }]);
 
             const brokenPattern = await fixture.request(

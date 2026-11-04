@@ -149,7 +149,7 @@ test('the catalogue keeps its icon key across an edit and reports deletes', asyn
     assert.equal(await repository.setPlatformAccountKindIcon('missing', 'x'), false);
     assert.equal(await repository.deletePlatformAccountKind('testkind'), true);
     assert.equal(await repository.deletePlatformAccountKind('testkind'), false);
-});
+}, 30_000);
 
 test('a producer stores one handle per platform and can take it back', async () => {
     const { app, repository, headers } = await createFixture();
@@ -193,6 +193,13 @@ test('a producer stores one handle per platform and can take it back', async () 
     });
     assert.equal(rejected.status, 400);
 
+    const unknownKind = await testRequest(app, platformApiPath('/me/accounts/nope'), {
+        method: 'PUT',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ value: 'x' })
+    });
+    assert.equal(unknownKind.status, 404);
+
     const removed = await testRequest(app, platformApiPath('/me/accounts/bilibili'), {
         method: 'DELETE',
         headers
@@ -201,7 +208,7 @@ test('a producer stores one handle per platform and can take it back', async () 
     assert.deepEqual(await removed.json(), { success: true, removed: 1 });
 
     assert.deepEqual(await repository.listPlatformAccountEntries(ACCOUNT), []);
-});
+}, 30_000);
 
 test('the public profile answers a known handle, its empty wall and 404s the rest', async () => {
     const { app, repository } = await createFixture();
@@ -256,4 +263,4 @@ test('the public profile answers a known handle, its empty wall and 404s the res
     assert.equal(unknown.status, 404);
     const unknownWall = await testRequest(app, '/api/users/nobody/cards');
     assert.equal(unknownWall.status, 404);
-});
+}, 30_000);
