@@ -34,6 +34,7 @@ test("adds platform accounts by selection, edits and removes them from personal 
     success: true,
     account: { id: "platform-accounts", status: "active" },
     profile: {
+      uid: 1,
       displayName: "平台账号制作人",
       avatarUrl: null,
       homeCity: "成都",

@@ -29,6 +29,7 @@ test("desktop map creation uses desktop login and returns to the original office
     success: true,
     account: { id: "office-return-owner", status: "active" },
     profile: {
+      uid: 1,
       displayName: "回跳制作人",
       avatarUrl: null,
       homeCity: null,
