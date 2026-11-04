@@ -1273,6 +1273,42 @@ import { test } from 'vitest';
         });
     });
 
+    test.describe('public card deep link', () => {
+        test('answers one published card and null for an unknown number', async () => {
+            const card = {
+                id: 19,
+                card_number: 19,
+                cardId: 'card-19',
+                revision: 1,
+                image1_url: '/uploads/namecard/original/front.webp',
+                image2_url: null,
+                status: 'approved',
+                created_at: '2026-08-11T00:00:00.000Z',
+                exchange_mode: 'manual',
+                owner_account_id: 'owner-1'
+            };
+            const fixture = createCompatibilityFixture({
+                async findApprovedCard(cardNumber) {
+                    return cardNumber === 19
+                        ? (card as never)
+                        : null;
+                }
+            });
+
+            const found = await fixture.request('/api/cards/19');
+            assert.equal(found.status, 200);
+            const foundBody = (await responseJson(found)) as {
+                card: { id: number; cardNumber: number; image1_url: string };
+            };
+            assert.equal(foundBody.card.cardNumber, 19);
+            assert.match(foundBody.card.image1_url, /front\.webp/);
+
+            const missing = await fixture.request('/api/cards/404');
+            assert.equal(missing.status, 200);
+            assert.deepEqual(await responseJson(missing), { card: null });
+        });
+    });
+
     test.describe('platform icon boundary', () => {
         test('the platform icon route streams the stored mark and answers a text 404 without one', async () => {
             const body = new Uint8Array([1, 2, 3]);
