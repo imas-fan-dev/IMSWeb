@@ -107,6 +107,7 @@ async function installAccountMocks(
     async (route) => {
       expectPlatformBearer(route.request().headers())
       const profile = {
+        uid: currentProfile.uid,
         displayName: currentProfile.displayName,
         avatarUrl: currentProfile.avatarUrl,
         homeCity: currentProfile.homeCity,

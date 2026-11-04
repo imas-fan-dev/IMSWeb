@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "cec111361e91f622ee0d5a1db08f41a8a63ec9f771f9a4f272bdbcbee0f67510",
+    "semanticDigest": "2ab467a007606baf4e1c49132423d4f17e9738237c377d05b69aaa6c7ccbb41c",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -3921,17 +3921,17 @@
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
           "kind": "json",
-          "expression": "{ card : null } satisfies PublicNamecardEnvelope"
+          "expression": "{ card : null } satisfies PublicCardResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
           "kind": "json",
-          "expression": "{ card : response } satisfies PublicNamecardEnvelope"
+          "expression": "{ card : response } satisfies PublicCardResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
           "kind": "json",
-          "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : await resolveNamecardThumbnailUrl ( storage , response . image1_url , image1Url ) , image2_thumbnail_url : image2Url === null || response . image2_url === null ? null : await resolveNamecardThumbnailUrl ( storage , response . image2_url , image2Url ) , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicNamecardEnvelope"
+          "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : await resolveNamecardThumbnailUrl ( storage , response . image1_url , image1Url ) , image2_thumbnail_url : image2Url === null || response . image2_url === null ? null : await resolveNamecardThumbnailUrl ( storage , response . image2_url , image2Url ) , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicCardResponse"
         }
       ]
     },
@@ -23474,7 +23474,7 @@
       "handlerSymbol": "handleGetPublicCard",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
       "kind": "json",
-      "expression": "{ card : null } satisfies PublicNamecardEnvelope"
+      "expression": "{ card : null } satisfies PublicCardResponse"
     },
     {
       "method": "GET",
@@ -23482,7 +23482,7 @@
       "handlerSymbol": "handleGetPublicCard",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
       "kind": "json",
-      "expression": "{ card : response } satisfies PublicNamecardEnvelope"
+      "expression": "{ card : response } satisfies PublicCardResponse"
     },
     {
       "method": "GET",
@@ -23490,7 +23490,7 @@
       "handlerSymbol": "handleGetPublicCard",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
       "kind": "json",
-      "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : await resolveNamecardThumbnailUrl ( storage , response . image1_url , image1Url ) , image2_thumbnail_url : image2Url === null || response . image2_url === null ? null : await resolveNamecardThumbnailUrl ( storage , response . image2_url , image2Url ) , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicNamecardEnvelope"
+      "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : await resolveNamecardThumbnailUrl ( storage , response . image1_url , image1Url ) , image2_thumbnail_url : image2Url === null || response . image2_url === null ? null : await resolveNamecardThumbnailUrl ( storage , response . image2_url , image2Url ) , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicCardResponse"
     },
     {
       "method": "GET",
