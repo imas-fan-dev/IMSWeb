@@ -1064,17 +1064,30 @@ import { test } from 'vitest';
                 enabled: true
             };
 
+            const listed = await fixture.request(
+                '/api/admin/platform/account-kinds',
+                { headers: { Authorization: 'Bearer op-token' } }
+            );
+            assert.equal(listed.status, 200);
+            const listBody = (await responseJson(listed)) as {
+                kinds: Array<{ id: string; group: string; enabled: boolean }>;
+            };
+            assert.deepEqual(
+                listBody.kinds.map((kind) => [kind.id, kind.group, kind.enabled]),
+                [['xbox', 'game', true]]
+            );
+
             const upserted = await fixture.request(
                 '/api/admin/platform/account-kinds/xbox',
                 { method: 'PUT', headers, body: JSON.stringify(body) }
             );
             assert.equal(upserted.status, 200);
-            const listed = (await responseJson(upserted)) as {
+            const afterSave = (await responseJson(upserted)) as {
                 kinds: Array<{ id: string; iconUrl: string | null }>;
             };
-            assert.equal(listed.kinds.length, 1);
-            assert.equal(listed.kinds[0]?.id, 'xbox');
-            assert.match(listed.kinds[0]?.iconUrl ?? '', /account-kinds\/xbox\/icon/);
+            assert.equal(afterSave.kinds.length, 1);
+            assert.equal(afterSave.kinds[0]?.id, 'xbox');
+            assert.match(afterSave.kinds[0]?.iconUrl ?? '', /account-kinds\/xbox\/icon/);
             assert.deepEqual(saved, [{ id: 'xbox', name: 'Xbox' }]);
 
             const brokenPattern = await fixture.request(
