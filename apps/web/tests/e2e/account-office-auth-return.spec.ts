@@ -53,7 +53,12 @@ test("desktop map creation uses desktop login and returns to the original office
       "/api/platform/me",
       {
         ...session,
-        profile: { ...session.profile, updatedAt: 1 },
+        profile: {
+          ...session.profile,
+          updatedAt: 1,
+          uid: 1,
+          pageSlug: null,
+        },
         capabilities: { fudabaWrite: true },
       },
     ],
