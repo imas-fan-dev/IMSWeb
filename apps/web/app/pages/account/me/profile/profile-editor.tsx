@@ -171,10 +171,7 @@ export function ProfileEditor({
   const busy = saving || avatarBusy
 
   return (
-    <section
-      className="max-w-3xl min-w-0"
-      aria-labelledby="profile-editor-title"
-    >
+    <section className="w-full min-w-0" aria-labelledby="profile-editor-title">
       <div className="flex min-w-0 items-start justify-between gap-3 border-b pb-5">
         <div className="min-w-0">
           <h2 id="profile-editor-title" className="text-xl font-semibold">

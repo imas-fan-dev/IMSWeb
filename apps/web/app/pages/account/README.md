@@ -8,18 +8,19 @@
 
 ## 能力与职责地图
 
-| 参与者与能力              | 关键实现路径                                                                                                                                                             | 职责                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| 访客登录、注册与找回密码  | [login](login/)、[register](register/)、[reset](reset/)、[认证表单](components/account-auth-form.tsx)                                                                    | 认证页面状态与共享表单编排                                         |
-| App 用户 OAuth 登录与回跳 | [App OAuth 区块](components/platform-oauth-app-section.tsx)、[登录 hook](components/use-platform-oauth-app-login.ts)、[deep link](../../lib/platform-oauth-deep-link.ts) | 外部授权与 App 回跳协调                                            |
-| 已登录用户维护帐号安全    | [security](security/)、[安全中心入口](security/account-security-page.tsx)                                                                                                | 密码、邮箱、OAuth 关联与会话设备管理                               |
-| 用户进入个人页或指定分区  | [个人页](me/account-me-page.tsx)、[分区页](me/account-me-section-page.tsx)、[共享工作区](me/account-me-workspace.tsx)                                                    | 加载会话、资料和交换能力，组合个人分区                             |
-| 用户维护资料与头像        | [profile](me/profile/)                                                                                                                                                   | 资料表单、头像上传和裁剪                                           |
-| 用户维护名片与自有媒体    | [namecards](me/namecards/)                                                                                                                                               | 名片列表、编辑、删除与自有图片读取                                 |
-| 用户管理收藏              | [favorites](me/favorites/)                                                                                                                                               | 收藏集合与展示                                                     |
-| 用户维护事务所与精确位置  | [offices](me/offices/)、[选点与地址解析](me/offices/configured-office-picker.tsx)、[共享弹窗](../../components/community/office-editor-dialog.tsx)                       | 资料编辑、选点与地址绑定、保存后整体审核；后台复用相同表单与弹窗   |
-| 用户处理认领信封          | [claims](me/claims/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束 |
-| 个人页模型与分区导航      | [account-me-model](me/account-me-model.ts)、[导航](me/profile-workspace-navigation.tsx)                                                                                  | 纯状态辅助、错误文案与分区选择                                     |
+| 参与者与能力              | 关键实现路径                                                                                                                                                             | 职责                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| 访客登录、注册与找回密码  | [login](login/)、[register](register/)、[reset](reset/)、[认证表单](components/account-auth-form.tsx)                                                                    | 认证页面状态与共享表单编排                                                             |
+| App 用户 OAuth 登录与回跳 | [App OAuth 区块](components/platform-oauth-app-section.tsx)、[登录 hook](components/use-platform-oauth-app-login.ts)、[deep link](../../lib/platform-oauth-deep-link.ts) | 外部授权与 App 回跳协调                                                                |
+| 已登录用户维护帐号安全    | [security](security/)、[安全中心入口](security/account-security-page.tsx)                                                                                                | 密码、邮箱、OAuth 关联与会话设备管理                                                   |
+| 用户进入个人页或指定分区  | [个人页](me/account-me-page.tsx)、[分区页](me/account-me-section-page.tsx)、[共享工作区](me/account-me-workspace.tsx)                                                    | 加载会话、资料和交换能力，组合个人分区                                                 |
+| 用户维护资料与头像        | [profile](me/profile/)                                                                                                                                                   | 资料表单、头像上传和裁剪                                                               |
+| 用户维护平台展示账号      | [平台账号编辑器](me/platform-accounts-editor.tsx)、[专用平台图标](me/components/platform-account-kind-icon.tsx)                                                          | 只展示已保存项；选择实际目录中的可用平台，在 Dialog 内逐项保存或移除，沿用资料编辑权限 |
+| 用户维护名片与自有媒体    | [namecards](me/namecards/)                                                                                                                                               | 名片列表、编辑、删除与自有图片读取                                                     |
+| 用户管理收藏              | [favorites](me/favorites/)                                                                                                                                               | 收藏集合与展示                                                                         |
+| 用户维护事务所与精确位置  | [offices](me/offices/)、[选点与地址解析](me/offices/configured-office-picker.tsx)、[共享弹窗](../../components/community/office-editor-dialog.tsx)                       | 资料编辑、选点与地址绑定、保存后整体审核；后台复用相同表单与弹窗                       |
+| 用户处理认领信封          | [claims](me/claims/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束                     |
+| 个人页模型与分区导航      | [account-me-model](me/account-me-model.ts)、[导航](me/profile-workspace-navigation.tsx)                                                                                  | 纯状态辅助、错误文案与分区选择                                                         |
 
 ## 协作边界
 
@@ -53,6 +54,7 @@
 
 - 认证、安全与 App OAuth：[account 单元测试](../../../tests/unit/pages/account/)。
 - 个人工作区与各分区：[account/me 单元测试](../../../tests/unit/pages/account/me/)。
+- 平台账号：[编辑器单元测试](../../../tests/unit/pages/account/me/platform-accounts-editor.test.tsx)，校验目录、逐项请求、取消、失败与限制状态。
 - 浏览器流程：[个人页](../../../tests/e2e/account-personal-pages.spec.ts)、
   [App 帐号](../../../tests/e2e/app-account.spec.ts)、
   [自有名片图片](../../../tests/e2e/owner-card-media.spec.ts)、

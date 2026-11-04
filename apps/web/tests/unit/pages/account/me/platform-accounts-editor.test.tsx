@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { renderPage } from "@/tests/unit/support/harness"
 import {
@@ -18,31 +18,22 @@ const apiMocks = vi.hoisted(() => ({
   sendSave: vi.fn(),
   sendDelete: vi.fn(),
 }))
+const toastMocks = vi.hoisted(() => ({ success: vi.fn() }))
 
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
+vi.mock("~/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api")>()),
+  getMyPlatformAccounts: apiMocks.getMyPlatformAccounts,
+  saveMyPlatformAccount: apiMocks.saveMyPlatformAccount,
+  deleteMyPlatformAccount: apiMocks.deleteMyPlatformAccount,
 }))
-
-vi.mock("~/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/api")>()
-  return {
-    ...actual,
-    getMyPlatformAccounts: apiMocks.getMyPlatformAccounts,
-    saveMyPlatformAccount: apiMocks.saveMyPlatformAccount,
-    deleteMyPlatformAccount: apiMocks.deleteMyPlatformAccount,
-  }
-})
-
 vi.mock("sonner", () => ({ toast: toastMocks }))
 
-/** 目录覆盖三种分组：链接、游戏、平台账号；只有外链平台带模板与用户名。 */
 const catalog: PlatformAccountKind[] = [
   {
     id: "homepage",
     name: "个人主页",
     group: "link",
-    pattern: "^https?://\\S+$",
+    pattern: "^https://\\S+$",
     baseUrl: null,
     color: null,
     icon: null,
@@ -52,13 +43,13 @@ const catalog: PlatformAccountKind[] = [
     uppercase: false,
   },
   {
-    id: "switch",
+    id: "game",
     name: "游戏 ID",
     group: "game",
-    pattern: "^[A-Za-z0-9]+$",
+    pattern: "^[A-Z0-9]{8}$",
     baseUrl: null,
-    color: "#e60012",
-    icon: "nintendoswitch",
+    color: "#ffc20b",
+    icon: null,
     iconUrl: null,
     displayOrder: 1,
     enabled: true,
@@ -95,7 +86,7 @@ const catalog: PlatformAccountKind[] = [
     name: "Pixiv",
     group: "showcase",
     pattern: "^\\d+$",
-    baseUrl: null,
+    baseUrl: "https://www.pixiv.net/users/{value}",
     color: null,
     icon: "pixiv",
     iconUrl: null,
@@ -105,225 +96,560 @@ const catalog: PlatformAccountKind[] = [
   },
 ]
 
-type Entry = { kindId: string; value: string; username: string | null }
-
-function loaded(entries: Omit<Entry, "username">[] = []): MyPlatformAccounts {
-  return {
-    catalog,
-    entries: entries.map((entry) => ({ ...entry, username: null })),
-  }
+function loaded(
+  entries: MyPlatformAccounts["entries"] = []
+): MyPlatformAccounts {
+  return { catalog, entries }
 }
 
-function mockEndpoints() {
+beforeEach(() => {
+  vi.resetAllMocks()
   apiMocks.getMyPlatformAccounts.mockReturnValue({
     send: apiMocks.sendAccounts,
   })
-  apiMocks.saveMyPlatformAccount.mockReturnValue({ send: apiMocks.sendSave })
+  apiMocks.saveMyPlatformAccount.mockImplementation(
+    (kindId, value, username) => ({
+      send: () => apiMocks.sendSave(kindId, value, username),
+    })
+  )
   apiMocks.deleteMyPlatformAccount.mockReturnValue({
     send: apiMocks.sendDelete,
   })
   apiMocks.sendAccounts.mockResolvedValue(loaded())
-  apiMocks.sendSave.mockResolvedValue({
-    kindId: "x",
-    value: "someone",
-    username: null,
-  })
+  apiMocks.sendSave.mockImplementation(async (kindId, value, username) => ({
+    kindId,
+    value,
+    username,
+  }))
   apiMocks.sendDelete.mockResolvedValue({ success: true, removed: 1 })
+})
+
+async function add(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByRole("button", { name: "添加账号" }))
+  await user.click(screen.getByRole("button", { name: `选择${name}` }))
+  return screen.getByRole("dialog", { name })
 }
 
 describe("PlatformAccountsEditor", () => {
-  it("waits on the catalogue, then groups the platforms into three sections", async () => {
-    mockEndpoints()
+  it("starts empty, then offers the actual catalogue only after choosing to add", async () => {
     const pending = Promise.withResolvers<MyPlatformAccounts>()
     apiMocks.sendAccounts.mockReturnValue(pending.promise)
-
-    renderPage(<PlatformAccountsEditor />)
-
-    expect(screen.getByText("正在载入")).toBeTruthy()
-
-    pending.resolve(loaded())
-
-    const homepage = await screen.findByLabelText("个人主页")
-    expect(screen.queryByRole("heading", { name: "个人主页" })).toBeNull()
-    const gameHeading = screen.getByRole("heading", { name: "游戏 ID" })
-    // 个人主页排在最前，且没有自己的分组标题。
-    expect(homepage.compareDocumentPosition(gameHeading)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    )
-
-    const gameSection = gameHeading.parentElement as HTMLElement
-    expect(within(gameSection).getByLabelText("游戏 ID")).toBeTruthy()
-    expect(within(gameSection).queryByLabelText("X")).toBeNull()
-
-    const platformSection = screen.getByRole("heading", { name: "平台账号" })
-      .parentElement as HTMLElement
-    for (const name of ["X", "Steam", "Pixiv"]) {
-      expect(within(platformSection).getByLabelText(name)).toBeTruthy()
-    }
-    expect(within(platformSection).queryByLabelText("个人主页")).toBeNull()
-    expect(within(platformSection).queryByLabelText("游戏 ID")).toBeNull()
-  })
-
-  it("skips a group whose catalogue has no rows", async () => {
-    mockEndpoints()
-    apiMocks.sendAccounts.mockResolvedValue({
-      catalog: catalog.filter((kind) => kind.group !== "game"),
-      entries: [],
-    })
-
-    renderPage(<PlatformAccountsEditor />)
-
-    expect(await screen.findByLabelText("个人主页")).toBeTruthy()
-    expect(screen.queryByRole("heading", { name: "游戏 ID" })).toBeNull()
-    expect(screen.getByRole("heading", { name: "平台账号" })).toBeTruthy()
-  })
-
-  it("reports a catalogue it could not load", async () => {
-    mockEndpoints()
-    apiMocks.sendAccounts.mockRejectedValue(new Error("boom"))
-
-    renderPage(<PlatformAccountsEditor />)
-
-    expect(
-      await screen.findByText("平台账号暂时无法加载，请刷新页面重试。")
-    ).toBeTruthy()
-    expect(screen.queryByLabelText("个人主页")).toBeNull()
-  })
-
-  it("pastes a full profile link down to the bare identifier and saves it", async () => {
-    mockEndpoints()
     const user = userEvent.setup()
     renderPage(<PlatformAccountsEditor />)
-
-    const field = await screen.findByLabelText("X")
-    const saveButton = screen.getByRole("button", { name: "保存" })
-    expect(saveButton).toBeDisabled()
-
-    await user.click(field)
-    await user.paste("https://x.com/SomeOne?ref=1")
-
-    // 平台前缀、大小写和 query 都在输入时被归一。
-    expect(field).toHaveValue("someone")
-    expect(saveButton).toBeEnabled()
-
-    await user.click(saveButton)
-
-    await waitFor(() =>
-      expect(apiMocks.saveMyPlatformAccount).toHaveBeenCalledWith(
-        "x",
-        "someone",
-        null
-      )
+    expect(screen.getByRole("status")).toHaveTextContent("正在载入")
+    pending.resolve(loaded())
+    expect(await screen.findByText("还没有添加平台账号")).toBeVisible()
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "编辑X" })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "添加账号" }))
+    const chooser = screen.getByRole("dialog", { name: "添加平台账号" })
+    for (const name of ["个人主页", "游戏 ID", "X", "Steam", "Pixiv"]) {
+      expect(
+        within(chooser).getByRole("button", { name: `选择${name}` })
+      ).toBeVisible()
+    }
+    await user.type(within(chooser).getByRole("searchbox"), "STEAM")
+    expect(
+      within(chooser).getByRole("button", { name: "选择Steam" })
+    ).toBeVisible()
+    expect(within(chooser).queryByRole("button", { name: "选择X" })).toBeNull()
+    await user.clear(within(chooser).getByRole("searchbox"))
+    await user.type(within(chooser).getByRole("searchbox"), "不存在")
+    expect(within(chooser).getByRole("status")).toHaveTextContent(
+      "没有找到这个平台"
     )
-    await waitFor(() => expect(toastMocks.success).toHaveBeenCalledWith("平台账号已保存"))
+  })
+
+  it("keeps saved entries visible and excludes both duplicates and disabled kinds from adding", async () => {
+    apiMocks.sendAccounts.mockResolvedValue({
+      catalog: catalog.map((kind) =>
+        kind.id === "pixiv" ? { ...kind, enabled: false } : kind
+      ),
+      entries: [{ kindId: "x", value: "someone", username: "平台昵称" }],
+    })
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    expect(
+      await screen.findByRole("group", { name: "X账号" })
+    ).toHaveTextContent("平台昵称")
+    expect(screen.queryByRole("button", { name: "编辑Steam" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "添加账号" }))
+    expect(screen.queryByRole("button", { name: "选择X" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "选择Pixiv" })).toBeNull()
+    expect(screen.getByRole("button", { name: "选择Steam" })).toBeVisible()
+  })
+
+  it("reports catalogue failure and never offers a write", async () => {
+    apiMocks.sendAccounts.mockRejectedValue(new Error("offline"))
+    renderPage(<PlatformAccountsEditor />)
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "平台账号暂时无法加载"
+    )
+    expect(screen.queryByRole("button", { name: "添加账号" })).toBeNull()
+  })
+
+  it("supports an empty catalogue", async () => {
+    apiMocks.sendAccounts.mockResolvedValue({ catalog: [], entries: [] })
+    renderPage(<PlatformAccountsEditor />)
+    expect(
+      await screen.findByRole("button", { name: "添加账号" })
+    ).toBeDisabled()
+    expect(screen.getByText("暂时没有可添加的平台。")).toBeVisible()
+  })
+
+  it("cancels or goes back without adding a blank card or making a request", async () => {
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    let editor = await add(user, "X")
+    await user.type(
+      within(editor).getByRole("textbox", { name: "X" }),
+      "someone"
+    )
+    await user.click(
+      within(editor).getByRole("button", { name: "返回选择平台" })
+    )
+    await user.click(screen.getByRole("button", { name: "选择X" }))
+    editor = screen.getByRole("dialog", { name: "X" })
+    expect(within(editor).getByRole("textbox", { name: "X" })).toHaveValue("")
+    await user.click(within(editor).getByRole("button", { name: "取消" }))
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    )
+    expect(screen.getByText("还没有添加平台账号")).toBeVisible()
+    expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
     expect(apiMocks.deleteMyPlatformAccount).not.toHaveBeenCalled()
   })
 
-  it("deletes a platform whose field was emptied", async () => {
-    mockEndpoints()
-    apiMocks.sendAccounts.mockResolvedValue(
-      loaded([{ kindId: "switch", value: "ABC" }])
-    )
-    const user = userEvent.setup()
-    renderPage(<PlatformAccountsEditor />)
-
-    const field = await screen.findByLabelText("游戏 ID")
-    expect(field).toHaveValue("ABC")
-
-    await user.clear(field)
-    expect(field).toHaveValue("")
-
-    await user.click(screen.getByRole("button", { name: "保存" }))
-
-    await waitFor(() =>
-      expect(apiMocks.deleteMyPlatformAccount).toHaveBeenCalledWith("switch")
-    )
-    expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
-  })
-
-  it("only offers a username field for kinds that carry a base URL", async () => {
-    mockEndpoints()
-    apiMocks.sendAccounts.mockResolvedValue({
-      catalog,
-      entries: [
-        { kindId: "x", value: "someone", username: "旧名字" },
-      ] satisfies Entry[],
+  it("normalizes a pasted link, saves only that platform and displays the server result", async () => {
+    apiMocks.sendSave.mockResolvedValue({
+      kindId: "x",
+      value: "canonical",
+      username: "后端规范名",
     })
     const user = userEvent.setup()
     renderPage(<PlatformAccountsEditor />)
-
-    expect(await screen.findByLabelText("X 用户名")).toHaveValue("旧名字")
-    expect(screen.getByLabelText("Steam 用户名")).toBeTruthy()
-    expect(screen.queryByLabelText("个人主页 用户名")).toBeNull()
-    expect(screen.queryByLabelText("游戏 ID 用户名")).toBeNull()
-
-    const username = screen.getByLabelText("X 用户名")
-    await user.clear(username)
-    await user.type(username, "新名字")
-    await user.click(screen.getByRole("button", { name: "保存" }))
-
+    const editor = await add(user, "X")
+    const value = within(editor).getByRole("textbox", {
+      name: "X",
+    })
+    await user.click(value)
+    await user.paste("https://x.com/SomeOne?ref=1")
+    expect(value).toHaveValue("someone")
+    await user.click(within(editor).getByRole("button", { name: "保存" }))
+    expect(
+      await screen.findByRole("group", { name: "X账号" })
+    ).toHaveTextContent("后端规范名")
+    expect(apiMocks.saveMyPlatformAccount).toHaveBeenCalledExactlyOnceWith(
+      "x",
+      "someone",
+      null
+    )
+    expect(apiMocks.deleteMyPlatformAccount).not.toHaveBeenCalled()
     await waitFor(() =>
-      expect(apiMocks.saveMyPlatformAccount).toHaveBeenCalledWith(
-        "x",
-        "someone",
-        "新名字"
-      )
+      expect(toastMocks.success).toHaveBeenCalledWith("平台账号已保存")
+    )
+    await user.click(screen.getByRole("button", { name: "编辑X" }))
+    expect(screen.getByRole("textbox", { name: "X" })).toHaveValue("canonical")
+  })
+
+  it("uses directory uppercase and pattern rules for game IDs", async () => {
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const editor = await add(user, "游戏 ID")
+    const field = within(editor).getByRole("textbox", {
+      name: "游戏 ID",
+    })
+    await user.type(field, "abcd1234")
+    expect(field).toHaveValue("ABCD1234")
+    await user.click(within(editor).getByRole("button", { name: "保存" }))
+    expect(
+      await screen.findByRole("button", { name: "编辑游戏 ID" })
+    ).toHaveTextContent("ABCD1234")
+    expect(apiMocks.saveMyPlatformAccount).toHaveBeenCalledExactlyOnceWith(
+      "game",
+      "ABCD1234",
+      null
     )
   })
 
-  it("shows each field's own error when a save is rejected", async () => {
-    mockEndpoints()
+  it("preserves spaces while typing an Xbox Gamertag allowed by the backend pattern", async () => {
+    const xbox: PlatformAccountKind = {
+      ...catalog[1],
+      id: "xbox",
+      name: "Xbox",
+      group: "game-platform",
+      pattern: "^[A-Za-z0-9]{15}$|^.{12}$",
+      uppercase: false,
+    }
+    apiMocks.sendAccounts.mockResolvedValue({ catalog: [xbox], entries: [] })
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const editor = await add(user, "Xbox")
+    const input = within(editor).getByRole("textbox", { name: "Xbox" })
+    await user.type(input, "Texas Gamer1")
+    expect(input).toHaveValue("Texas Gamer1")
+    await user.click(within(editor).getByRole("button", { name: "保存" }))
+    expect(
+      await screen.findByRole("button", { name: "编辑Xbox" })
+    ).toHaveTextContent("Texas Gamer1")
+    expect(apiMocks.saveMyPlatformAccount).toHaveBeenCalledExactlyOnceWith(
+      "xbox",
+      "Texas Gamer1",
+      null
+    )
+  })
+
+  it("validates before sending, including full homepage links", async () => {
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const editor = await add(user, "个人主页")
+    await user.type(
+      within(editor).getByRole("textbox", { name: "个人主页" }),
+      "example.com"
+    )
+    expect(within(editor).getByRole("alert")).toHaveTextContent(
+      "请填写完整的链接"
+    )
+    expect(within(editor).getByRole("button", { name: "保存" })).toBeDisabled()
+    expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
+  })
+
+  it("allows an unfilled selection without sending an empty PUT or DELETE", async () => {
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const editor = await add(user, "X")
+    await user.click(within(editor).getByRole("button", { name: "保存" }))
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    )
+    expect(screen.getByText("还没有添加平台账号")).toBeVisible()
+    expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
+    expect(apiMocks.deleteMyPlatformAccount).not.toHaveBeenCalled()
+  })
+
+  it("does not send a username without the account value required by the backend", async () => {
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const editor = await add(user, "X")
+    await user.type(
+      within(editor).getByRole("textbox", { name: "X 用户名" }),
+      "昵称"
+    )
+    await user.click(within(editor).getByRole("button", { name: "保存" }))
+    expect(within(editor).getByRole("alert")).toHaveTextContent(
+      "请先填写账号标识"
+    )
+    expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
+  })
+
+  it("edits the optional username without affecting other accounts", async () => {
     apiMocks.sendAccounts.mockResolvedValue(
       loaded([
-        { kindId: "homepage", value: "https://old.example" },
-        { kindId: "x", value: "old" },
+        { kindId: "x", value: "someone", username: "旧名字" },
+        { kindId: "game", value: "ABCD1234", username: null },
       ])
     )
-    // dirty 顺序跟随目录：主页先失败，X 再带着业务提示失败。
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    await user.click(await screen.findByRole("button", { name: "编辑X" }))
+    const field = screen.getByRole("textbox", { name: "X 用户名" })
+    await user.clear(field)
+    await user.type(field, "新名字")
+    await user.click(screen.getByRole("button", { name: "保存" }))
+    expect(
+      await screen.findByRole("group", { name: "X账号" })
+    ).toHaveTextContent("新名字")
+    expect(
+      screen.getByRole("button", { name: "编辑游戏 ID" })
+    ).toHaveTextContent("ABCD1234")
+    expect(apiMocks.saveMyPlatformAccount).toHaveBeenCalledExactlyOnceWith(
+      "x",
+      "someone",
+      "新名字"
+    )
+    await user.click(screen.getByRole("button", { name: "编辑游戏 ID" }))
+    expect(screen.queryByRole("textbox", { name: /用户名/ })).toBeNull()
+  })
+
+  it.each(["移除", "清空"])(
+    "removes an existing entry via %s and clears its username before adding again",
+    async (mode) => {
+      apiMocks.sendAccounts.mockResolvedValue(
+        loaded([{ kindId: "x", value: "someone", username: "旧名字" }])
+      )
+      const user = userEvent.setup()
+      renderPage(<PlatformAccountsEditor />)
+      await user.click(await screen.findByRole("button", { name: "编辑X" }))
+      if (mode === "清空")
+        await user.clear(screen.getByRole("textbox", { name: "X" }))
+      await user.click(
+        screen.getByRole("button", {
+          name: mode === "移除" ? "移除" : "保存",
+        })
+      )
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+      )
+      expect(screen.getByText("还没有添加平台账号")).toBeVisible()
+      expect(apiMocks.deleteMyPlatformAccount).toHaveBeenCalledExactlyOnceWith(
+        "x"
+      )
+      expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
+      const editor = await add(user, "X")
+      expect(
+        within(editor).getByRole("textbox", { name: "X 用户名" })
+      ).toHaveValue("")
+    }
+  )
+
+  it("keeps a disabled saved platform removable without allowing an update", async () => {
+    apiMocks.sendAccounts.mockResolvedValue({
+      catalog: [{ ...catalog[2], enabled: false }],
+      entries: [{ kindId: "x", value: "someone", username: null }],
+    })
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    await user.click(await screen.findByRole("button", { name: "编辑X" }))
+    expect(screen.getByRole("textbox", { name: "X" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "移除" }))
+    expect(apiMocks.deleteMyPlatformAccount).toHaveBeenCalledWith("x")
+  })
+
+  it("keeps a rejected draft open and preserves the original card until retry succeeds", async () => {
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([{ kindId: "x", value: "original", username: null }])
+    )
     apiMocks.sendSave
-      .mockRejectedValueOnce(new Error("network"))
       .mockRejectedValueOnce(
         new ApiError("这个账号已被占用", { kind: "business" })
       )
+      .mockResolvedValueOnce({ kindId: "x", value: "taken", username: null })
     const user = userEvent.setup()
     renderPage(<PlatformAccountsEditor />)
-
-    const homepage = await screen.findByLabelText("个人主页")
-    await user.click(homepage)
-    await user.paste("https://new.example")
-
-    const x = screen.getByLabelText("X")
-    await user.click(x)
-    await user.paste("taken")
-
+    await user.click(await screen.findByRole("button", { name: "编辑X" }))
+    const field = screen.getByRole("textbox", { name: "X" })
+    await user.clear(field)
+    await user.type(field, "taken")
     await user.click(screen.getByRole("button", { name: "保存" }))
-
-    expect(await screen.findByText("这个账号已被占用")).toBeTruthy()
-    expect(screen.getByText("保存失败，请重试")).toBeTruthy()
-    expect(x).toHaveAttribute("aria-invalid", "true")
-    expect(homepage).toHaveAttribute("aria-invalid", "true")
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "这个账号已被占用"
+    )
+    expect(field).toHaveValue("taken")
     expect(toastMocks.success).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "保存" }))
+    expect(
+      await screen.findByRole("group", { name: "X账号" })
+    ).toHaveTextContent("taken")
   })
 
-  it("flags a value that is not a full link or does not fit the pattern", async () => {
-    mockEndpoints()
+  it("retains a card when deletion fails", async () => {
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([{ kindId: "x", value: "someone", username: null }])
+    )
+    apiMocks.sendDelete.mockRejectedValue(new Error("offline"))
     const user = userEvent.setup()
     renderPage(<PlatformAccountsEditor />)
-
-    const homepage = await screen.findByLabelText("个人主页")
-    await user.click(homepage)
-    await user.paste("example.com/nope")
-
-    const game = screen.getByLabelText("游戏 ID")
-    await user.click(game)
-    await user.paste("bad id!")
-
+    await user.click(await screen.findByRole("button", { name: "编辑X" }))
+    await user.click(screen.getByRole("button", { name: "移除" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "移除失败，请重试"
+    )
+    await user.click(screen.getByRole("button", { name: "取消" }))
     expect(
-      screen.getByText("请填写完整的链接（以 https:// 开头）")
-    ).toBeTruthy()
-    expect(screen.getByText("格式不符合该平台的要求")).toBeTruthy()
-    expect(homepage).toHaveAttribute("aria-invalid", "true")
-    expect(game).toHaveAttribute("aria-invalid", "true")
+      await screen.findByRole("group", { name: "X账号" })
+    ).toHaveTextContent("someone")
+  })
+
+  it("locks the pending dialog against duplicate writes and dismissal", async () => {
+    const pending =
+      Promise.withResolvers<MyPlatformAccounts["entries"][number]>()
+    apiMocks.sendSave.mockReturnValue(pending.promise)
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const editor = await add(user, "X")
+    await user.type(
+      within(editor).getByRole("textbox", { name: "X" }),
+      "someone"
+    )
+    await user.dblClick(within(editor).getByRole("button", { name: "保存" }))
+    expect(apiMocks.saveMyPlatformAccount).toHaveBeenCalledTimes(1)
+    expect(within(editor).getByRole("button", { name: "取消" })).toBeDisabled()
+    await user.keyboard("{Escape}")
+    expect(editor).toBeVisible()
+    pending.resolve({ kindId: "x", value: "someone", username: null })
+    expect(await screen.findByRole("button", { name: "编辑X" })).toBeVisible()
+  })
+
+  it("keeps restricted accounts read-only", async () => {
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([{ kindId: "x", value: "someone", username: null }])
+    )
+    renderPage(
+      <PlatformAccountsEditor
+        readOnly
+        readOnlyReason="帐号受限，暂时无法编辑。"
+      />
+    )
+    expect(await screen.findByRole("button", { name: "编辑X" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "添加账号" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "删除X账号" })).toBeDisabled()
+    expect(screen.getByText("帐号受限，暂时无法编辑。")).toBeVisible()
+    expect(screen.getByRole("link", { name: "打开X主页" })).toHaveAttribute(
+      "href",
+      "https://x.com/someone"
+    )
+  })
+
+  it("confirms direct card deletion, clears the selected entry and leaves other accounts untouched", async () => {
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([
+        { kindId: "x", value: "someone", username: "旧昵称" },
+        { kindId: "game", value: "ABCD1234", username: null },
+      ])
+    )
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const remove = await screen.findByRole("button", { name: "删除X账号" })
+    await user.click(remove)
+    let confirmation = screen.getByRole("alertdialog", { name: "移除X账号" })
+    expect(apiMocks.deleteMyPlatformAccount).not.toHaveBeenCalled()
+    await user.click(within(confirmation).getByRole("button", { name: "取消" }))
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(remove).toHaveFocus()
+    expect(screen.getByRole("group", { name: "X账号" })).toHaveTextContent(
+      "旧昵称"
+    )
+    await user.click(remove)
+    confirmation = screen.getByRole("alertdialog", { name: "移除X账号" })
+    await user.click(
+      within(confirmation).getByRole("button", { name: "确认删除" })
+    )
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(screen.queryByRole("group", { name: "X账号" })).toBeNull()
+    expect(
+      screen.getByRole("group", { name: "游戏 ID账号" })
+    ).toHaveTextContent("ABCD1234")
+    expect(apiMocks.deleteMyPlatformAccount).toHaveBeenCalledExactlyOnceWith(
+      "x"
+    )
     expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
+    const editor = await add(user, "X")
+    expect(within(editor).getByRole("textbox", { name: "X" })).toHaveValue("")
+    expect(
+      within(editor).getByRole("textbox", { name: "X 用户名" })
+    ).toHaveValue("")
+  })
+
+  it("keeps direct deletion pending and retryable on failure, then returns the last card to the empty state", async () => {
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([{ kindId: "x", value: "someone", username: null }])
+    )
+    const pending = Promise.withResolvers<{ success: true; removed: number }>()
+    apiMocks.sendDelete.mockReturnValueOnce(pending.promise)
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    await user.click(await screen.findByRole("button", { name: "删除X账号" }))
+    const confirmation = screen.getByRole("alertdialog", { name: "移除X账号" })
+    await user.dblClick(
+      within(confirmation).getByRole("button", { name: "确认删除" })
+    )
+    expect(apiMocks.deleteMyPlatformAccount).toHaveBeenCalledTimes(1)
+    expect(
+      within(confirmation).getByRole("button", { name: "取消" })
+    ).toBeDisabled()
+    await user.keyboard("{Escape}")
+    expect(confirmation).toBeVisible()
+    pending.reject(new Error("offline"))
+    expect(await within(confirmation).findByRole("alert")).toHaveTextContent(
+      "移除失败，请重试"
+    )
+    expect(toastMocks.success).not.toHaveBeenCalled()
+    await user.click(
+      within(confirmation).getByRole("button", { name: "确认删除" })
+    )
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(screen.getByText("还没有添加平台账号")).toBeVisible()
+    expect(screen.getByRole("button", { name: "添加账号" })).toHaveFocus()
+  })
+
+  it("opens homepage and platform destinations separately from editing", async () => {
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([
+        {
+          kindId: "homepage",
+          value: "https://example.test/profile",
+          username: null,
+        },
+        { kindId: "x", value: "someone", username: "昵称" },
+      ])
+    )
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor />)
+    const link = await screen.findByRole("link", { name: "打开X主页" })
+    expect(link).toHaveAttribute("href", "https://x.com/someone")
+    expect(link).toHaveAttribute("target", "_blank")
+    expect(link).toHaveAttribute("rel", "noreferrer")
+    expect(screen.getByRole("link", { name: "打开个人主页" })).toHaveAttribute(
+      "href",
+      "https://example.test/profile"
+    )
+    expect(screen.queryByRole("dialog")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "编辑X" }))
+    expect(screen.getByRole("dialog", { name: "X" })).toBeVisible()
+    expect(screen.getByRole("textbox", { name: "X" })).toHaveValue("someone")
+    expect(apiMocks.saveMyPlatformAccount).not.toHaveBeenCalled()
+  })
+
+  it("encodes stored identifiers in the catalogue URL template", async () => {
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([{ kindId: "x", value: "a/b?c#d", username: null }])
+    )
+    renderPage(<PlatformAccountsEditor />)
+    expect(
+      await screen.findByRole("link", { name: "打开X主页" })
+    ).toHaveAttribute("href", "https://x.com/a%2Fb%3Fc%23d")
+  })
+
+  it.each([
+    "javascript:alert('{value}')",
+    "data:text/html,{value}",
+    "https://user:secret@example.test/{value}",
+    "not-a-url/{value}",
+  ])(
+    "keeps editing available without creating an unsafe link from %s",
+    async (baseUrl) => {
+      apiMocks.sendAccounts.mockResolvedValue({
+        catalog: [{ ...catalog[2], baseUrl }],
+        entries: [{ kindId: "x", value: "someone", username: null }],
+      })
+      renderPage(<PlatformAccountsEditor />)
+      expect(await screen.findByRole("button", { name: "编辑X" })).toBeEnabled()
+      expect(screen.queryByRole("link")).toBeNull()
+    }
+  )
+
+  it("ignores a mutation completed after the workspace operation becomes stale", async () => {
+    let current = true
+    const pending =
+      Promise.withResolvers<MyPlatformAccounts["entries"][number]>()
+    apiMocks.sendSave.mockReturnValue(pending.promise)
+    const user = userEvent.setup()
+    renderPage(<PlatformAccountsEditor isOperationCurrent={() => current} />)
+    const editor = await add(user, "X")
+    await user.type(
+      within(editor).getByRole("textbox", { name: "X" }),
+      "someone"
+    )
+    await user.click(within(editor).getByRole("button", { name: "保存" }))
+    current = false
+    pending.resolve({ kindId: "x", value: "someone", username: null })
+    await waitFor(() =>
+      expect(within(editor).getByRole("button", { name: "保存" })).toBeEnabled()
+    )
+    expect(toastMocks.success).not.toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: "编辑X" })).toBeNull()
   })
 })
