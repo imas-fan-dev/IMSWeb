@@ -145,6 +145,7 @@ import { test } from 'vitest';
             'handleFlagNamecard',
             'handleGetAdminNamecardDiff',
             'handleGetNamecard',
+            'handleGetPublicCard',
             'handleGetPublicProfile',
             'handleListAdminNamecardFeedback',
             'handleListAdminNamecardFeedbackAudit',
@@ -503,7 +504,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 156);
+            assert.equal(Object.values(actual).flat().length, 157);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {
@@ -866,6 +867,7 @@ import { test } from 'vitest';
                 return { rows: [], total: 0, ownerTotals: {}, reporterTotals: {} };
             },
             async findPublicProfile() { return null; },
+            async findApprovedCard() { return null; },
             async listPlatformAccountLinks() { return []; },
             async listPlatformAccountKinds() { return []; },
             async upsertPlatformAccountKind() {},

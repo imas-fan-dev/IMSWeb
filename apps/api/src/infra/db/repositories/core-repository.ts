@@ -745,6 +745,27 @@ export class SqlCoreRepository implements NamecardRepository {
         ) as NamecardPublicRecord[];
     }
 
+    async findApprovedCard(
+        cardNumber: number
+    ): Promise<NamecardPublicRecord | null> {
+        const row = await queryOne<NamecardCardRow>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=?
+               AND publication_status='published'
+               AND ${NAMECARD_PUBLIC_ORIGIN}
+               AND deleted_at IS NULL`,
+            [cardNumber]
+        );
+        if (!row) return null;
+        const [card] = (await this.attachNamecardFavorites(
+            this.database,
+            [row],
+            'live'
+        )) as NamecardPublicRecord[];
+        return card ?? null;
+    }
+
     async findPublicProfile(handle: string): Promise<PublicProfileRecord | null> {
         return queryOne<PublicProfileRecord>(
             this.database,

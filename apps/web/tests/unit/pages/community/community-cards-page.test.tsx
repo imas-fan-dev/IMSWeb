@@ -22,6 +22,8 @@ const elementScrollToDescriptor = Object.getOwnPropertyDescriptor(
 
 const apiMocks = vi.hoisted(() => ({
   getNamecardPage: vi.fn(),
+  getPublicCard: vi.fn(),
+  sendPublicCard: vi.fn(),
   getNamecardReactions: vi.fn(),
   getNamecardCharacterCatalog: vi.fn(),
   addNamecardReaction: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     addNamecardReaction: apiMocks.addNamecardReaction,
     getNamecardReactions: apiMocks.getNamecardReactions,
     getNamecardPage: apiMocks.getNamecardPage,
+    getPublicCard: apiMocks.getPublicCard,
     getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
     getFudabaSeries: () => ({
       send: () =>
@@ -182,6 +185,7 @@ describe("CommunityCardsPage", () => {
     apiMocks.sendReactions.mockResolvedValue({})
     apiMocks.sendAddReaction.mockResolvedValue({ ok: true })
     apiMocks.getNamecardPage.mockReturnValue({ send: apiMocks.sendPage })
+    apiMocks.getPublicCard.mockReturnValue({ send: apiMocks.sendPublicCard })
     apiMocks.getNamecardReactions.mockReturnValue({
       send: apiMocks.sendReactions,
     })
@@ -322,6 +326,45 @@ describe("CommunityCardsPage", () => {
     expect(
       await screen.findByRole("link", { name: "认领制作人" })
     ).toHaveAttribute("href", "/user/7")
+  })
+
+  it("opens a deep-linked card that is not on the current page", async () => {
+    apiMocks.sendPage.mockResolvedValue(pageResult([42]))
+    apiMocks.sendPublicCard.mockResolvedValue({
+      card: {
+        ...pageResult([684]).list[0],
+        cardId: "card-684",
+        cardNumber: 684,
+        id: 684,
+      },
+    })
+
+    render(
+      <MemoryRouter initialEntries={["/community/cards?card=684"]}>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("dialog", { name: /制作人名片\s*684/ })
+    ).toBeVisible()
+    expect(apiMocks.getPublicCard).toHaveBeenCalledWith(684)
+  })
+
+  it("clears a deep link whose card is no longer readable", async () => {
+    apiMocks.sendPage.mockResolvedValue(pageResult([42]))
+    apiMocks.sendPublicCard.mockResolvedValue({ card: null })
+
+    render(
+      <MemoryRouter initialEntries={["/community/cards?card=999"]}>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(
+      "这张名片暂时无法查看"
+    ))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
   it.each([

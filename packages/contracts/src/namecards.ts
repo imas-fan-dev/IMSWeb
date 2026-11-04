@@ -205,6 +205,15 @@ export type Namecard = z.infer<typeof namecardSchema>
 export type NamecardPage = z.infer<typeof namecardPageSchema>
 export type PublicProfile = z.infer<typeof publicProfileSchema>
 
+/** 深链与随机补充需要按编号取单张公开名片，列表分页拿不到当前页以外的卡。 */
+export const publicNamecardResponseSchema = exactJsonResponse({
+  card: namecardSchema.nullable(),
+})
+
+export type PublicNamecardResponse = z.infer<
+  typeof publicNamecardResponseSchema
+>
+
 /** 公开主页只有「有」和「没有」两种结果，没有更多错误码。 */
 export const publicProfileErrorSchema = exactJsonError({
   success: z.literal(false),

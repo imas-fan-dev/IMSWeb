@@ -59,6 +59,7 @@ import { useNamecardDetailReturn } from "~/pages/community/hooks/use-namecard-de
 import {
   addNamecardReaction,
   getNamecardPage,
+  getPublicCard,
   getNamecardReactions,
 } from "~/lib/api"
 import type { Namecard, NamecardPage } from "~/lib/api"
@@ -305,7 +306,9 @@ export default function CommunityCardsPage() {
     }
   }, [page, pageSize, reload])
 
-  // 站内信里的「去认领」用 ?card=<编号> 直接打开那张牌的详情。
+  // 站内信与「随机补充一张」用 ?card=<编号> 深链到任意一张名片，当前页里
+  // 通常没有它，所以要单独取一次。
+  const deepLinkFetched = useRef<string | null>(null)
   useEffect(() => {
     if (!result || detail.card) return
     const wanted = searchParams.get("card")
@@ -314,7 +317,24 @@ export default function CommunityCardsPage() {
       (item) =>
         String(item.cardNumber ?? item.id) === wanted || String(item.id) === wanted
     )
-    if (found) detail.open(found)
+    if (found) {
+      detail.open(found)
+      return
+    }
+    const cardNumber = Number(wanted)
+    if (!Number.isSafeInteger(cardNumber) || cardNumber <= 0) return
+    if (deepLinkFetched.current === wanted) return
+    deepLinkFetched.current = wanted
+    // `detail` 每次渲染都是新对象，effect 会重复执行；用 ref 保证只取一次。
+    void getPublicCard(cardNumber)
+      .send()
+      .then((payload) => {
+        if (payload.card) detail.open(payload.card)
+        else toast.error("这张名片暂时无法查看")
+      })
+      .catch(() => {
+        toast.error("这张名片暂时无法查看")
+      })
   }, [detail, result, searchParams])
 
   useEffect(() => {
