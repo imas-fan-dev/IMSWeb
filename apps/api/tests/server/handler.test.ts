@@ -1032,7 +1032,7 @@ import { test } from 'vitest';
                     {
                         id: 'xbox',
                         name: 'Xbox',
-                        group_key: 'game-platform',
+                        group_key: 'game',
                         pattern: '^[A-Z0-9]{1,15}$',
                         base_url: 'https://xbox.com/{value}',
                         color: '#0e7a0d',
