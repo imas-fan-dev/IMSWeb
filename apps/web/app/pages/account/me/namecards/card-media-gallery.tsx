@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 
 import { Button } from "~/components/ui/button"
 import { getOwnerCardMedia } from "~/lib/api"
+import { withThumbnail } from "~/lib/media-urls"
 import { useOwnerCardMedia } from "./use-owner-card-media"
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from "@imsweb/contracts/fudaba/runtime"
 
@@ -197,9 +198,11 @@ function SlotImage({
   draggable?: boolean
   style?: CSSProperties
 }) {
-  const signed = slot.kind === "existing" && !slot.direct ? slot.url : null
+  // 画廊与缩略图条统一取小图；原尺寸只在全屏预览里请求。
+  const url = slot.kind === "existing" ? withThumbnail(slot.url) : slot.url
+  const signed = slot.kind === "existing" && !slot.direct ? url : null
   const media = useOwnerCardMedia(signed)
-  const src = slot.kind === "new" || slot.direct ? slot.url : media.src
+  const src = slot.kind === "new" || slot.direct ? url : media.src
   if (!src) {
     return (
       <span

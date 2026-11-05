@@ -17,6 +17,7 @@ import type {
     SupplementMutationResponse
 } from '@imsweb/contracts/fudaba/card-claims';
 import { adminNamecardMediaPath } from '@imsweb/contracts/paths';
+import { preferThumbnail } from '@/domains/community/namecards/public-cards/handlers/serve-card-media';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import {
@@ -271,7 +272,9 @@ export async function handleServeFudabaRegisteredCardReviewMedia(
             ? (card.pending_front_object_key ?? card.front_object_key)
             : (card.pending_back_object_key ?? card.back_object_key);
     if (!key) return c.text('Not Found', 404);
-    const response = await objectReadResponse(c.req.raw, storage, key, {
+    const served =
+        c.req.query('thumb') === '1' ? await preferThumbnail(storage, key) : key;
+    const response = await objectReadResponse(c.req.raw, storage, served, {
         'Cache-Control': 'private, no-store',
         'Vary': 'Authorization, Cookie'
     });

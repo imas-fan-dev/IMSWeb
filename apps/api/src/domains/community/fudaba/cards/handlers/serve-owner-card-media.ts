@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import { fudabaRepository, services } from '@/middleware/hono-context';
+import { preferThumbnail } from '@/domains/community/namecards/public-cards/handlers/serve-card-media';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 
 export async function handleServeFudabaOwnerCardMedia(
@@ -35,7 +36,9 @@ export async function handleServeFudabaOwnerCardMedia(
               ? (draft && card.pending_back_object_key) || card.back_object_key
               : (keys[Number(middle![1]) - 1] ?? null);
     if (!key) return c.text('Not Found', 404);
-    const response = await objectReadResponse(c.req.raw, storage, key, {
+    const served =
+        c.req.query('thumb') === '1' ? await preferThumbnail(storage, key) : key;
+    const response = await objectReadResponse(c.req.raw, storage, served, {
         'Cache-Control': 'private, no-store',
         'Vary': 'Authorization, Cookie'
     }, {
