@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   formatPlatformValue,
+  matchPlatformAccountKind,
   platformValueError,
   type PlatformAccountFormat,
 } from "@imsweb/contracts/namecards"
@@ -119,5 +120,29 @@ describe("platform account values", () => {
     expect(formatPlatformValue(homepage, link)).toBe("https://preview.idol-master.top")
     expect(platformValueError(homepage, "https://preview.idol-master.top")).toBeNull()
     expect(platformValueError(homepage, "preview")).not.toBeNull()
+  })
+
+  it("routes a pasted link to the platform with the longest matching prefix", () => {
+    const catalog = [
+      kind({ id: "x", baseUrl: "https://x.com/{value}" }),
+      kind({ id: "music", baseUrl: "https://music.163.com/{value}" }),
+      kind({ id: "netease", baseUrl: "https://music.163.com/#/user/home?id={value}" }),
+      kind({ id: "youtube", baseUrl: "https://www.youtube.com/@{value}" }),
+      kind({ id: "minecraft", baseUrl: "https://namemc.com/profile/{value}" }),
+    ]
+
+    expect(
+      matchPlatformAccountKind(
+        catalog,
+        "https://music.163.com/#/user/home?id=12345"
+      )?.id
+    ).toBe("netease")
+    expect(matchPlatformAccountKind(catalog, "x.com/someone")?.id).toBe("x")
+    // 模板带后缀时，后缀也必须出现在链接里。
+    expect(
+      matchPlatformAccountKind(catalog, "https://namemc.com/skin/abc")
+    ).toBeNull()
+    expect(matchPlatformAccountKind(catalog, "https://example.com/x")).toBeNull()
+    expect(matchPlatformAccountKind(catalog, "   ")).toBeNull()
   })
 })

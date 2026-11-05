@@ -691,6 +691,7 @@ export {
   decodePlatformValue,
   encodePlatformValue,
   formatPlatformValue,
+  matchPlatformAccountKind,
   platformValueError,
   type PlatformAccountFormat,
 } from "./namecards-runtime.js";

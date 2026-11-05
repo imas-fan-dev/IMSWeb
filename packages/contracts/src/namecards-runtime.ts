@@ -61,6 +61,40 @@ export function formatPlatformValue(
   return value ? finishValue(kind, value) : input;
 }
 
+/** 粘贴整条链接时用来定位平台的模板来源。 */
+export interface PlatformAccountTemplate {
+  baseUrl: string | null
+}
+
+/**
+ * 在候选平台里找出这条链接属于谁：按字面前缀匹配，最长者优先；模板带后缀时
+ * 后缀也必须出现在剩余部分里。匹配不上返回 null，由调用方提示用户。
+ */
+export function matchPlatformAccountKind<T extends PlatformAccountTemplate>(
+  kinds: readonly T[],
+  raw: string
+): T | null {
+  const input = raw.trim()
+  if (!input) return null
+  const bare = stripScheme(input).toLowerCase()
+  let matched: { kind: T; length: number } | null = null
+  for (const kind of kinds) {
+    const baseUrl = kind.baseUrl ?? ""
+    const marker = baseUrl.indexOf("{value}")
+    if (marker < 0) continue
+    const prefix = stripScheme(baseUrl.slice(0, marker)).toLowerCase()
+    const suffix = stripScheme(
+      baseUrl.slice(marker + "{value}".length)
+    ).toLowerCase()
+    if (!prefix || !bare.startsWith(prefix)) continue
+    if (suffix && !bare.slice(prefix.length).includes(suffix)) continue
+    if (!matched || prefix.length > matched.length) {
+      matched = { kind, length: prefix.length }
+    }
+  }
+  return matched?.kind ?? null;
+}
+
 /** 比较模板时忽略协议，`https://x.com/u` 与 `x.com/u` 等价。 */
 function stripScheme(value: string): string {
   return value.replace(/^https?:\/\//i, "");
