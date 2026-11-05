@@ -3,15 +3,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { CharacterMultiSelect } from "~/components/community/character-multi-select"
-import {
-  CLEAR_DATE,
-  joinMadeOn,
-  PRODUCTION_MONTHS,
-  PRODUCTION_YEARS,
-  productionDays,
-  splitMadeOn,
-} from "~/components/community/namecard-made-on"
-import { normalizeProducerReading } from "./card-reading"
+import { NamecardIdentityFields } from "~/components/community/namecard-identity-fields"
 import { SeriesMultiSelect } from "~/components/community/series-multi-select"
 import { Checkbox } from "~/components/ui/checkbox"
 import {
@@ -20,15 +12,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "~/components/ui/field"
-import { Input } from "~/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { Textarea } from "~/components/ui/textarea"
 import type { FudabaCardFields, FudabaSeries } from "~/lib/api"
@@ -58,15 +41,6 @@ const EXCHANGE_MODE_OPTIONS = [
   { value: "none", label: "不可交换", hint: "不接受他人主动发起交换" },
 ] as const
 
-/** 必填星号；前后留一点空隙，读屏不读它（`aria-hidden`）。 */
-function RequiredMark() {
-  return (
-    <span aria-hidden="true" className="ml-1 text-destructive">
-      *
-    </span>
-  )
-}
-
 /** 字数进度，例如「(12/2000)」；标题右侧的小字提示。 */
 export function FieldCounter({ value, limit }: { value: number; limit: number }) {
   return (
@@ -95,9 +69,6 @@ export function CardFields({
 }) {
   const { catalog, loading, failed } = useNamecardCharacterCatalog()
   const [modeDirection, setModeDirection] = useState<"next" | "previous">("next")
-  const madeOn = splitMadeOn(draft.madeOn)
-  // 输入法在组合期间会先落全角英文字母，此时原样保留，提交或失去焦点时再清理。
-  const [readingComposing, setReadingComposing] = useState(false)
   // 担当角色所属的企划必须勾选且不可取消，否则角色与企划会互相矛盾。
   const lockedSeriesCodes = Array.from(
     new Set(
@@ -122,191 +93,13 @@ export function CardFields({
     <FieldGroup>
       <CardModule mode={modes?.identity}>
         <FieldGroup className="grid gap-5 sm:grid-cols-2">
-          <Field data-disabled={disabled || undefined} data-card-field="producerName">
-            <FieldLabel htmlFor="exchange-card-producer-name">
-              制作人名称 {required ? <RequiredMark /> : null}
-            </FieldLabel>
-            <Input
-              id="exchange-card-producer-name"
-              value={draft.producerName}
-              maxLength={80}
-              required={required}
-              disabled={disabled}
-              onChange={(event) =>
-                patch({ producerName: event.currentTarget.value })
-              }
-            />
-          </Field>
-
-          <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor="exchange-card-producer-reading">
-              制作人名读音
-            </FieldLabel>
-            <Input
-              id="exchange-card-producer-reading"
-              value={draft.producerReading ?? ""}
-              maxLength={80}
-              disabled={disabled}
-              autoComplete="off"
-              onChange={(event) => {
-                const composing =
-                  readingComposing ||
-                  (event.nativeEvent as { isComposing?: boolean }).isComposing ===
-                    true
-                if (composing) {
-                  patch({ producerReading: event.currentTarget.value || null })
-                  return
-                }
-                patch({
-                  producerReading: normalizeProducerReading(
-                    event.currentTarget.value
-                  ),
-                })
-              }}
-              onCompositionStart={() => setReadingComposing(true)}
-              onCompositionEnd={(event) => {
-                setReadingComposing(false)
-                patch({
-                  producerReading: normalizeProducerReading(
-                    event.currentTarget.value
-                  ),
-                })
-              }}
-              onBlur={(event) =>
-                patch({
-                  producerReading: normalizeProducerReading(
-                    event.currentTarget.value
-                  ),
-                })
-              }
-            />
-            <FieldDescription>
-              仅可使用日文假名与英文字母，用于按读音排序。
-            </FieldDescription>
-          </Field>
-
-          <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor="exchange-card-group-name">团体名称</FieldLabel>
-            <Input
-              id="exchange-card-group-name"
-              value={draft.groupName ?? ""}
-              maxLength={80}
-              disabled={disabled}
-              onChange={(event) => {
-                const value = event.currentTarget.value
-                patch({ groupName: value ? value : null })
-              }}
-            />
-            <FieldDescription>
-              可填入所属支部、事务所或社会团体名称。
-            </FieldDescription>
-          </Field>
-
-          <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor="exchange-card-made-on-year">制作时间</FieldLabel>
-            <div className="flex min-w-0 items-center gap-2">
-              <Select
-                value={madeOn.year || CLEAR_DATE}
-                disabled={disabled}
-                onValueChange={(value) => {
-                  const year = String(value ?? CLEAR_DATE)
-                  patch({
-                    madeOn:
-                      year === CLEAR_DATE
-                        ? null
-                        : joinMadeOn(year, madeOn.month, madeOn.day),
-                  })
-                }}
-              >
-                <SelectTrigger
-                  id="exchange-card-made-on-year"
-                  className="w-full"
-                  aria-label="制作年份"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectGroup>
-                    <SelectItem value={CLEAR_DATE}>-</SelectItem>
-                    {PRODUCTION_YEARS.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year} 年
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select
-                value={madeOn.month || CLEAR_DATE}
-                disabled={disabled || !madeOn.year}
-                onValueChange={(value) => {
-                  const month = String(value ?? CLEAR_DATE)
-                  const keepsDay =
-                    month !== CLEAR_DATE &&
-                    Boolean(madeOn.day) &&
-                    productionDays(madeOn.year, month).includes(madeOn.day)
-                  patch({
-                    madeOn: joinMadeOn(
-                      madeOn.year,
-                      month === CLEAR_DATE ? "" : month,
-                      keepsDay ? madeOn.day : ""
-                    ),
-                  })
-                }}
-              >
-                <SelectTrigger
-                  id="exchange-card-made-on-month"
-                  className="w-full"
-                  aria-label="制作月份"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectGroup>
-                    <SelectItem value={CLEAR_DATE}>-</SelectItem>
-                    {PRODUCTION_MONTHS.map((month) => (
-                      <SelectItem key={month} value={month}>
-                        {Number(month)} 月
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select
-                value={madeOn.day || CLEAR_DATE}
-                disabled={disabled || !madeOn.month}
-                onValueChange={(value) => {
-                  const day = String(value ?? CLEAR_DATE)
-                  patch({
-                    madeOn: joinMadeOn(
-                      madeOn.year,
-                      madeOn.month,
-                      day === CLEAR_DATE ? "" : day
-                    ),
-                  })
-                }}
-              >
-                <SelectTrigger
-                  id="exchange-card-made-on-day"
-                  className="w-full"
-                  aria-label="制作日期"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectGroup>
-                    <SelectItem value={CLEAR_DATE}>-</SelectItem>
-                    {productionDays(madeOn.year, madeOn.month).map((day) => (
-                      <SelectItem key={day} value={day}>
-                        {Number(day)} 日
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <FieldDescription>可以只精确到年份或月份。</FieldDescription>
-          </Field>
+          <NamecardIdentityFields
+            idPrefix="exchange-card"
+            draft={draft}
+            disabled={disabled}
+            requiredName={required}
+            onChange={patch}
+          />
         </FieldGroup>
       </CardModule>
 
