@@ -49,16 +49,45 @@ function placeholderFor(kind: PlatformAccountKind): string {
   return kind.group === "link" ? "https://" : ""
 }
 
+/** 桌面提示空间小、移动端抽屉空间大，同一张表两档字号。 */
+const TEMPLATE_TABLE_SIZES = {
+  dense: {
+    table: "",
+    headRow: "opacity-70",
+    headCell: "pb-0.5 font-normal",
+    nameCell: "py-0.5 pr-3 font-normal whitespace-nowrap",
+    templateCell: "w-full py-0.5 font-mono text-[11px] break-all opacity-80",
+  },
+  regular: {
+    table: "text-sm",
+    headRow: "text-xs text-muted-foreground",
+    headCell: "pb-1 font-normal",
+    nameCell: "py-1 pr-3 font-normal whitespace-nowrap",
+    templateCell:
+      "w-full py-1 font-mono text-xs break-all text-muted-foreground",
+  },
+} as const
+
 /** 平台名一列不换行，模板一列统一左对齐；提示和移动端抽屉共用。 */
-function PlatformTemplateTable({ kinds }: { kinds: PlatformAccountKind[] }) {
+function PlatformTemplateTable({
+  kinds,
+  size = "dense",
+}: {
+  kinds: PlatformAccountKind[]
+  size?: keyof typeof TEMPLATE_TABLE_SIZES
+}) {
+  const styles = TEMPLATE_TABLE_SIZES[size]
   return (
-    <table className="w-full border-collapse text-left">
+    <table className={`w-full border-collapse text-left ${styles.table}`}>
       <thead>
-        <tr className="opacity-70">
-          <th scope="col" className="pr-3 pb-0.5 font-normal whitespace-nowrap">
+        <tr className={styles.headRow}>
+          <th
+            scope="col"
+            className={`pr-3 whitespace-nowrap ${styles.headCell}`}
+          >
             平台
           </th>
-          <th scope="col" className="pb-0.5 font-normal">
+          <th scope="col" className={styles.headCell}>
             链接模板
           </th>
         </tr>
@@ -66,15 +95,10 @@ function PlatformTemplateTable({ kinds }: { kinds: PlatformAccountKind[] }) {
       <tbody>
         {kinds.map((kind) => (
           <tr key={kind.id} className="align-top">
-            <th
-              scope="row"
-              className="py-0.5 pr-3 font-normal whitespace-nowrap"
-            >
+            <th scope="row" className={styles.nameCell}>
               {kind.name}
             </th>
-            <td className="w-full py-0.5 font-mono text-[11px] break-all opacity-80">
-              {kind.baseUrl}
-            </td>
+            <td className={styles.templateCell}>{kind.baseUrl}</td>
           </tr>
         ))}
       </tbody>
@@ -464,11 +488,14 @@ export function PlatformAccountsEditor() {
                         aria-hidden="true"
                         className="mx-auto h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30"
                       />
-                      <Drawer.Title className="text-sm font-medium">
+                      <Drawer.Title className="font-heading text-base font-medium">
                         支持的平台
                       </Drawer.Title>
                       <div className="-mx-1 min-h-0 overflow-y-auto overscroll-contain px-1">
-                        <PlatformTemplateTable kinds={templatedKinds} />
+                        <PlatformTemplateTable
+                          kinds={templatedKinds}
+                          size="regular"
+                        />
                       </div>
                     </Drawer.Content>
                   </Drawer.Popup>
