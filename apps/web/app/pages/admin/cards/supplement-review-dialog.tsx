@@ -17,6 +17,7 @@ import {
   useReviewLabels,
   type ReviewRow,
 } from "./review-field-rows"
+import { textRow } from "./review-row-diff"
 import {
   getAdminFudabaCardSupplement,
   type AdminCardSupplement,
@@ -30,43 +31,35 @@ function fieldRows(
 ): ReviewRow[] {
   const pending = detail.supplement.payload
   const live = detail.live
+  const series = (codes: readonly string[]) =>
+    codes.length ? labels.seriesList(codes) : null
+  const characters = (ids: readonly number[]) =>
+    ids.length ? labels.characterList(ids) : null
+  const liveCharacters = live.favoriteCharacters.map((item) => item.id)
   const rows: ReviewRow[] = []
   if (pending.producerName !== undefined) {
-    rows.push({
-      label: "制作人名称",
-      live: live.producerName,
-      pending: pending.producerName,
-    })
+    rows.push(textRow("制作人名称", live.producerName, pending.producerName))
   }
   if (pending.groupName !== undefined) {
-    rows.push({
-      label: "团体名称",
-      live: live.groupName,
-      pending: pending.groupName,
-    })
+    rows.push(textRow("团体名称", live.groupName, pending.groupName))
   }
   if (pending.seriesCodes !== undefined) {
-    rows.push({
-      label: "企划",
-      live: live.seriesCodes.length ? labels.seriesList(live.seriesCodes) : null,
-      pending: pending.seriesCodes.length
-        ? labels.seriesList(pending.seriesCodes)
-        : null,
-    })
+    rows.push(
+      textRow("企划", series(live.seriesCodes), series(pending.seriesCodes))
+    )
   }
   if (pending.favoriteCharacterIds !== undefined) {
-    rows.push({
-      label: "担当角色",
-      live: live.favoriteCharacters.length
-        ? labels.characterList(live.favoriteCharacters.map((item) => item.id))
-        : null,
-      pending: pending.favoriteCharacterIds.length
-        ? labels.characterList(pending.favoriteCharacterIds)
-        : null,
-    })
+    rows.push(
+      textRow(
+        "担当角色",
+        characters(liveCharacters),
+        characters(pending.favoriteCharacterIds)
+      )
+    )
   }
   return rows
 }
+
 
 /**
  * 补充审核窗：只比对名片墙上的四项资料，通过后写回那张卡并给补充人发贡献值。

@@ -24,6 +24,7 @@ import {
   useReviewLabels,
   type ReviewRow,
 } from "./review-field-rows"
+import { textRow } from "./review-row-diff"
 
 type LiveSide = AdminNamecardDiff["live"]
 
@@ -37,85 +38,47 @@ function claimRows(
   labels: ReturnType<typeof useReviewLabels>,
   target: LiveSide | null = null
 ): ReviewRow[] {
+  const series = (codes: readonly string[]) =>
+    codes.length ? labels.seriesList(codes) : null
+  const characters = (ids: readonly number[]) =>
+    ids.length ? labels.characterList(ids) : null
+  const characterIds = (side: LiveSide) =>
+    side.favoriteCharacters.map((character) => character.id)
+
   // 绑定型认领丢弃游客投稿的资料：右侧整列取自目标卡片。
   if (target) {
     return [
-      {
-        label: "制作人名称",
-        live: live?.producerName ?? null,
-        pending: target.producerName ?? null,
-      },
-      {
-        label: "制作人读音",
-        live: live?.producerReading ?? null,
-        pending: target.producerReading ?? null,
-      },
-      {
-        label: "团体名称",
-        live: live?.groupName ?? null,
-        pending: target.groupName ?? null,
-      },
-      {
-        label: "制作时间",
-        live: live?.madeOn ?? null,
-        pending: target.madeOn ?? null,
-      },
-      {
-        label: "企划",
-        live: live?.seriesCodes.length ? labels.seriesList(live.seriesCodes) : null,
-        pending: target.seriesCodes.length
-          ? labels.seriesList(target.seriesCodes)
-          : null,
-      },
-      {
-        label: "担当角色",
-        live: live?.favoriteCharacters.length
-          ? labels.characterList(live.favoriteCharacters.map((item) => item.id))
-          : null,
-        pending: target.favoriteCharacters.length
-          ? labels.characterList(target.favoriteCharacters.map((item) => item.id))
-          : null,
-      },
+      textRow("制作人名称", live?.producerName ?? null, target.producerName),
+      textRow("制作人读音", live?.producerReading ?? null, target.producerReading),
+      textRow("团体名称", live?.groupName ?? null, target.groupName),
+      textRow("制作时间", live?.madeOn ?? null, target.madeOn),
+      textRow("企划", series(live?.seriesCodes ?? []), series(target.seriesCodes)),
+      textRow(
+        "担当角色",
+        characters(live ? characterIds(live) : []),
+        characters(characterIds(target))
+      ),
     ]
   }
+  // 未绑定时右侧是「申请里给了就用申请值，否则沿用线上值」。
   const payload = claim.payload
   const liveSeries = live?.seriesCodes ?? []
-  const liveCharacters = (live?.favoriteCharacters ?? []).map(
-    (character) => character.id
-  )
+  const liveCharacters = live ? characterIds(live) : []
   return [
-    {
-      label: "制作人名称",
-      live: live?.producerName ?? null,
-      pending: payload.producerName ?? live?.producerName ?? null,
-    },
-    {
-      label: "制作人读音",
-      live: live?.producerReading ?? null,
-      pending: payload.producerReading ?? live?.producerReading ?? null,
-    },
-    {
-      label: "团体名称",
-      live: live?.groupName ?? null,
-      pending: payload.groupName ?? live?.groupName ?? null,
-    },
-    {
-      label: "制作时间",
-      live: live?.madeOn ?? null,
-      pending: payload.madeOn ?? live?.madeOn ?? null,
-    },
-    {
-      label: "企划",
-      live: liveSeries.length ? labels.seriesList(liveSeries) : null,
-      pending: labels.seriesList(payload.seriesCodes ?? liveSeries),
-    },
-    {
-      label: "担当角色",
-      live: liveCharacters.length ? labels.characterList(liveCharacters) : null,
-      pending: labels.characterList(
-        payload.favoriteCharacterIds ?? liveCharacters
-      ),
-    },
+    textRow(
+      "制作人名称",
+      live?.producerName ?? null,
+      payload.producerName ?? live?.producerName ?? null
+    ),
+    textRow("制作人读音", live?.producerReading ?? null, payload.producerReading ?? live?.producerReading ?? null),
+    textRow("团体名称", live?.groupName ?? null, payload.groupName ?? live?.groupName ?? null),
+    textRow("制作时间", live?.madeOn ?? null, payload.madeOn ?? live?.madeOn ?? null),
+    textRow("企划", series(liveSeries), series(payload.seriesCodes ?? liveSeries)),
+    textRow(
+      "担当角色",
+      characters(liveCharacters),
+      characters(payload.favoriteCharacterIds ?? liveCharacters)
+    ),
   ]
 }
 

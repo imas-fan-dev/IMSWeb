@@ -27,25 +27,7 @@ import { ReviewFieldRows, useReviewLabels } from "./review-field-rows"
 
 type DiffSide = AdminNamecardDiff["live"]
 
-interface FieldDiff {
-  label: string
-  /** Single-value fields compare as one line. */
-  live: string
-  pending: string | null
-  /** List fields compare item by item so only real edits stand out. */
-  items?: { kept: string[]; removed: string[]; added: string[] }
-}
-
-/** Items that appear on both sides stay neutral; only the edits are coloured. */
-function diffItems(before: readonly string[], after: readonly string[]) {
-  const next = new Set(after)
-  const previous = new Set(before)
-  return {
-    kept: before.filter((item) => next.has(item)),
-    removed: before.filter((item) => !next.has(item)),
-    added: after.filter((item) => !previous.has(item)),
-  }
-}
+import { listRow, textRow, type DiffRow } from "./review-row-diff"
 
 function creditsList(side: DiffSide): string[] {
   return side.credits.map(formatCredit).filter((text) => text.length > 0)
@@ -80,44 +62,31 @@ export function diffFields(
   live: DiffSide,
   pending: DiffSide | null,
   labels: DiffLabels = RAW_LABELS
-): FieldDiff[] {
+): DiffRow[] {
   const next = pending ?? live
-  const textRow = (label: string, before: string, after: string): FieldDiff => ({
-    label,
-    live: before,
-    pending: pending && before !== after ? after : null,
-  })
-  const listRow = (
+  const submitted = pending !== null
+  const text = (label: string, before: string, after: string) =>
+    textRow(label, before, after, submitted)
+  const list = (
     label: string,
     before: readonly string[],
     after: readonly string[],
     render: (values: readonly string[]) => string = RAW_LABELS.seriesList
-  ): FieldDiff => {
-    const items = diffItems(before, after)
-    return {
-      label,
-      live: render(before),
-      pending:
-        pending && (items.removed.length || items.added.length)
-          ? render(after)
-          : null,
-      items,
-    }
-  }
+  ) => listRow(label, before, after, render, submitted)
   return [
-    textRow("制作人名称", live.producerName ?? "", next.producerName ?? ""),
-    textRow("制作人读音", live.producerReading ?? "", next.producerReading ?? ""),
-    textRow("所属团体", live.groupName ?? "", next.groupName ?? ""),
-    textRow("制作日期", live.madeOn ?? "", next.madeOn ?? ""),
-    listRow("企划", live.seriesCodes, next.seriesCodes, labels.seriesList),
-    listRow("担当角色", charactersList(live), charactersList(next)),
-    textRow("简介", live.bio ?? "", next.bio ?? ""),
-    listRow("制作人员", creditsList(live), creditsList(next)),
-    textRow("原创标记", DECLARED(live.isOriginal), DECLARED(next.isOriginal)),
-    textRow("AI 标记", DECLARED(live.madeWithAi), DECLARED(next.madeWithAi)),
-    textRow("交换说明", live.tradeNote ?? "", next.tradeNote ?? ""),
-    textRow("交换模式", EXCHANGE_MODES[live.exchangeMode], EXCHANGE_MODES[next.exchangeMode]),
-    textRow("公开显示", YES_NO(live.visible), YES_NO(next.visible)),
+    text("制作人名称", live.producerName ?? "", next.producerName ?? ""),
+    text("制作人读音", live.producerReading ?? "", next.producerReading ?? ""),
+    text("所属团体", live.groupName ?? "", next.groupName ?? ""),
+    text("制作日期", live.madeOn ?? "", next.madeOn ?? ""),
+    list("企划", live.seriesCodes, next.seriesCodes, labels.seriesList),
+    list("担当角色", charactersList(live), charactersList(next)),
+    text("简介", live.bio ?? "", next.bio ?? ""),
+    list("制作人员", creditsList(live), creditsList(next)),
+    text("原创标记", DECLARED(live.isOriginal), DECLARED(next.isOriginal)),
+    text("AI 标记", DECLARED(live.madeWithAi), DECLARED(next.madeWithAi)),
+    text("交换说明", live.tradeNote ?? "", next.tradeNote ?? ""),
+    text("交换模式", EXCHANGE_MODES[live.exchangeMode], EXCHANGE_MODES[next.exchangeMode]),
+    text("公开显示", YES_NO(live.visible), YES_NO(next.visible)),
   ]
 }
 
