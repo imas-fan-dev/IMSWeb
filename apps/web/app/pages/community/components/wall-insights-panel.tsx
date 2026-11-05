@@ -7,7 +7,7 @@ import {
   IdCardIcon,
   FilePenLineIcon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
 import type { WallInsights } from "@imsweb/contracts/namecards"
 
@@ -19,6 +19,7 @@ import {
 import { getRandomOwnerlessCard, getWallInsights, isApiError } from "~/lib/api"
 
 const STORAGE_KEY = "imsweb.wall-insights.collapsed"
+const subscribeToHydration = () => () => undefined
 
 function ratio(part: number, total: number) {
   if (total <= 0) return 0
@@ -103,7 +104,12 @@ export function WallInsightsPanel({
   const [insights, setInsights] = useState<WallInsights | null>(null)
   const [failed, setFailed] = useState(false)
   const [picking, setPicking] = useState(false)
-  const [collapsed, setCollapsed] = useState(() => {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false
+  )
+  const [collapsedPreference, setCollapsedPreference] = useState(() => {
     if (typeof window === "undefined") return false
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (stored !== null) return stored === "1"
@@ -111,6 +117,8 @@ export function WallInsightsPanel({
     if (typeof window.matchMedia !== "function") return false
     return window.matchMedia("(max-width: 640px)").matches
   })
+  // Match the server markup before applying the browser's saved or mobile preference.
+  const collapsed = hydrated && collapsedPreference
 
   useEffect(() => {
     let active = true
@@ -128,13 +136,9 @@ export function WallInsightsPanel({
   }, [])
 
   function toggle() {
-    setCollapsed((current) => {
-      const next = !current
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0")
-      }
-      return next
-    })
+    const next = !collapsed
+    setCollapsedPreference(next)
+    window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0")
   }
 
   async function pickRandom() {

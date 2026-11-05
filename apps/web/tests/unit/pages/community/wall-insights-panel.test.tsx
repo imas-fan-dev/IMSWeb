@@ -1,5 +1,7 @@
-import { screen, waitFor, within } from "@testing-library/react"
+import { act, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { hydrateRoot } from "react-dom/client"
+import { renderToString } from "react-dom/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { installFetchMock } from "@/tests/unit/support/api-client"
@@ -27,6 +29,69 @@ afterEach(() => {
 })
 
 describe("WallInsightsPanel", () => {
+  it.each([
+    { mobile: true, stored: null },
+    { mobile: false, stored: "1" },
+  ])(
+    "hydrates the server markup before applying collapsed preferences: %j",
+    async ({ mobile, stored }) => {
+      const browserWindow = window
+      const originalMedia = Object.getOwnPropertyDescriptor(
+        window,
+        "matchMedia"
+      )
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        value: (query: string) => ({
+          matches: mobile && query === "(max-width: 640px)",
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(() => true),
+        }),
+      })
+      if (stored !== null)
+        window.localStorage.setItem("imsweb.wall-insights.collapsed", stored)
+      installFetchMock().mockResolvedValueOnce(Response.json(insights))
+      const element = <WallInsightsPanel onPickCard={vi.fn()} />
+      let html: string
+      vi.stubGlobal("window", undefined)
+      try {
+        html = renderToString(element)
+      } finally {
+        vi.stubGlobal("window", browserWindow)
+      }
+      const container = document.createElement("div")
+      // SAFETY: React rendered this local fixture; no external HTML enters the test.
+      container.innerHTML = html
+      document.body.append(container)
+      const recovered = vi.fn()
+      let root: ReturnType<typeof hydrateRoot> | undefined
+      try {
+        await act(async () => {
+          root = hydrateRoot(container, element, {
+            onRecoverableError: recovered,
+          })
+        })
+        await waitFor(() =>
+          expect(
+            within(container).getByRole("button", { name: "展开" })
+          ).toBeVisible()
+        )
+        expect(recovered).not.toHaveBeenCalled()
+      } finally {
+        await act(async () => root?.unmount())
+        container.remove()
+        if (originalMedia)
+          Object.defineProperty(window, "matchMedia", originalMedia)
+        else Reflect.deleteProperty(window, "matchMedia")
+      }
+    }
+  )
+
   it("shows both progress bars, the leaderboard and the viewer's rank", async () => {
     installFetchMock().mockResolvedValueOnce(
       Response.json(insights, { status: 200 })
