@@ -3,6 +3,7 @@ import {
   InfoIcon,
   LinkIcon,
   LoaderCircleIcon,
+  SaveIcon,
   TrashIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -549,9 +550,13 @@ export function PlatformAccountsEditor({
         </section>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <span className="text-xs text-muted-foreground">
+          粘贴平台链接即可添加；移除条目或清空上面的输入框，点保存后生效。
+        </span>
         <Button
           type="button"
+          className="w-full shrink-0 sm:w-auto"
           disabled={readOnly || saving || dirty.length === 0}
           onClick={() => void save()}
         >
@@ -561,12 +566,11 @@ export function PlatformAccountsEditor({
               className="animate-spin"
               aria-hidden="true"
             />
-          ) : null}
+          ) : (
+            <SaveIcon data-icon="inline-start" aria-hidden="true" />
+          )}
           {saving ? "正在保存" : "保存"}
         </Button>
-        <span className="text-xs text-muted-foreground">
-          粘贴平台链接即可添加；移除条目或清空上面的输入框，点保存后生效。
-        </span>
       </div>
     </div>
   )

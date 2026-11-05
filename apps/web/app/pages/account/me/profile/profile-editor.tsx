@@ -296,7 +296,7 @@ export function ProfileEditor({
           className="lg:col-span-2 lg:col-start-1"
           data-disabled={readOnly || undefined}
         >
-          <FieldLabel htmlFor="exchange-profile-slug">主页地址</FieldLabel>
+          <FieldLabel htmlFor="exchange-profile-slug">个性 ID</FieldLabel>
           <Input
             id="exchange-profile-slug"
             value={draft.pageSlug}
@@ -310,8 +310,9 @@ export function ProfileEditor({
             }}
           />
           <FieldDescription>
-            3–32 位小写字母、数字、连字符或下划线，且不能是纯数字（会和数字编号冲突）；
-            别人可以通过 /user/你的地址打开你的主页，不填则用数字编号。
+            3–32
+            位小写字母、数字、连字符或下划线，不能是纯数字，也不能与他人重复；
+            别人可以通过 /user/个性 ID 打开你的主页，不填则使用数字编号。
           </FieldDescription>
         </Field>
         <Field
@@ -336,24 +337,26 @@ export function ProfileEditor({
             }}
           />
         </Field>
-        <Button
-          type="submit"
-          className="w-full lg:col-span-2 lg:col-start-1"
-          disabled={readOnly || busy || !draft.displayName.trim()}
-        >
-          {saving ? (
-            <LoaderCircleIcon
-              data-icon="inline-start"
-              className="animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-          ) : (
-            <SaveIcon data-icon="inline-start" aria-hidden="true" />
-          )}
-          {saving
-            ? t("platformAccount.profileEditor.saving")
-            : t("platformAccount.profileEditor.save")}
-        </Button>
+        <div className="flex justify-end lg:col-span-2 lg:col-start-1">
+          <Button
+            type="submit"
+            className="w-full sm:w-auto"
+            disabled={readOnly || busy || !draft.displayName.trim()}
+          >
+            {saving ? (
+              <LoaderCircleIcon
+                data-icon="inline-start"
+                className="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            ) : (
+              <SaveIcon data-icon="inline-start" aria-hidden="true" />
+            )}
+            {saving
+              ? t("platformAccount.profileEditor.saving")
+              : t("platformAccount.profileEditor.save")}
+          </Button>
+        </div>
       </form>
     </section>
   )

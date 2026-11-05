@@ -33,7 +33,7 @@ export async function handleUpdatePlatformProfile(
             return c.json({
                 success: false,
                 code: 'PLATFORM_PROFILE_INVALID',
-                message: '这个主页地址已经被占用了'
+                message: '这个个性 ID 已经被占用了'
             } satisfies PlatformProfileError, 409);
         }
         if (result.status === 'conflict') {

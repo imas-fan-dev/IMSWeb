@@ -10,7 +10,7 @@ function badRequest(message: string): Error {
     return Object.assign(new Error(message), { status: 400 });
 }
 
-/** 主页地址与 uid 共用 /user/<handle>，所以纯数字永远不能作为 slug。 */
+/** 个性 ID 与 uid 共用 /user/<handle>，所以纯数字永远不能作为 slug。 */
 const PAGE_SLUG = /^[a-z0-9][a-z0-9_-]{2,31}$/u;
 
 function pageSlug(value: unknown): string | null {
@@ -21,7 +21,7 @@ function pageSlug(value: unknown): string | null {
         throw badRequest('只能使用小写字母、数字、下划线与连字符，3-32 位');
     }
     if (/^[0-9]+$/u.test(normalized)) {
-        throw badRequest('主页地址不能是纯数字');
+        throw badRequest('个性 ID 不能是纯数字');
     }
     return normalized;
 }
