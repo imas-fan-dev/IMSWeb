@@ -8,10 +8,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
-import {
-  AdminEmptyState,
-  AdminPanel,
-} from "~/components/admin/admin-ui"
+import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Badge } from "~/components/ui/badge"
@@ -21,7 +18,6 @@ import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   getAdminFudabaReviewQueue,
-  isApiError,
   reviewAdminFudabaCardClaim,
   reviewAdminFudabaCardSupplement,
   type AdminCardSupplement,
@@ -44,10 +40,6 @@ const KIND_ITEMS: { value: ReviewKind; label: string }[] = [
   { value: "claim", label: "名片认领" },
   { value: "supplement", label: "信息补充" },
 ]
-
-function staleReview(error: unknown) {
-  return isApiError(error) && (error.status === 409 || error.status === 410)
-}
 
 /**
  * 旧名片认领：与投稿审核同一套结构（图墙 + 搜索 + 分页 + 逐条裁决），
@@ -73,34 +65,60 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
   const [supplementRow, setSupplementRow] = useState<SupplementRow | null>(null)
   const [rejectReason, setRejectReason] = useState("")
 
-  const type =
-    kinds.length === KIND_ITEMS.length ? "all" : (kinds[0] ?? "all")
+  const type = kinds.length === KIND_ITEMS.length ? "all" : (kinds[0] ?? "all")
   const loadKey = `${type}:${query}:${page}:${reloadToken}`
   const loading = loadedKey !== loadKey
 
-  const apply = useCallback(
-    (next: Awaited<ReturnType<typeof load>>) => {
-      // The endpoint also serves submissions; this tab only shows the two
-      // ownerless-card kinds.
-      setRows(
-        next.data.filter(
-          (row): row is ClaimRow | SupplementRow => row.type !== "submission"
-        )
+  const apply = useCallback((next: Awaited<ReturnType<typeof load>>) => {
+    // The endpoint also serves submissions; this tab only shows the two
+    // ownerless-card kinds.
+    setRows(
+      next.data.filter(
+        (row): row is ClaimRow | SupplementRow => row.type !== "submission"
       )
-      setPageInfo(next.pageInfo)
-    },
-    []
-  )
+    )
+    setPageInfo(next.pageInfo)
+  }, [])
 
   const refresh = useCallback(async () => {
     setError(false)
     try {
-      apply(await load(type, query, page))
+      const next = await load(type, query, page)
+      apply(next)
       setLoadedKey(loadKey)
+      return next.data
     } catch {
       setError(true)
+      return null
     }
   }, [apply, loadKey, page, query, type])
+
+  /** 版本竞争后把对话框里的那条换成最新 revision，避免拿着旧值再提交一次。 */
+  const reloadClaim = useCallback(
+    async (claimId: string) => {
+      const fresh = await refresh()
+      const row = fresh?.find(
+        (item): item is ClaimRow =>
+          item.type === "claim" && item.claim.id === claimId
+      )
+      if (row) setClaimRow(row)
+      return row?.claim ?? null
+    },
+    [refresh]
+  )
+
+  const reloadSupplement = useCallback(
+    async (supplementId: string) => {
+      const fresh = await refresh()
+      const row = fresh?.find(
+        (item): item is SupplementRow =>
+          item.type === "supplement" && item.supplement.id === supplementId
+      )
+      if (row) setSupplementRow(row)
+      return row?.supplement ?? null
+    },
+    [refresh]
+  )
 
   useEffect(() => {
     let active = true
@@ -129,19 +147,15 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
 
   const claimApprove = useConfirmAction<FudabaAdminCardClaim>({
     onConfirm: async (claim) => {
-      try {
-        await reviewAdminFudabaCardClaim(claim.id, {
-          decision: "approve",
-          expectedRevision: claim.revision,
-          note: "已核对历史名片与申请资料",
-        }).send()
-        setClaimRow(null)
-        await refresh()
-      } catch (reviewError) {
-        if (staleReview(reviewError)) await refresh()
-        throw reviewError
-      }
+      await reviewAdminFudabaCardClaim(claim.id, {
+        decision: "approve",
+        expectedRevision: claim.revision,
+        note: "已核对历史名片与申请资料",
+      }).send()
+      setClaimRow(null)
+      await refresh()
     },
+    reloadTarget: (claim) => reloadClaim(claim.id),
     getTitle: () => "通过名片认领",
     getDescription: (claim) =>
       `名片 #${claim.legacyCardId} 将绑定给 ${claim.claimant.displayName}，并成为可管理的注册名片。`,
@@ -150,20 +164,16 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
 
   const claimReject = useConfirmAction<FudabaAdminCardClaim>({
     onConfirm: async (claim) => {
-      try {
-        await reviewAdminFudabaCardClaim(claim.id, {
-          decision: "reject",
-          expectedRevision: claim.revision,
-          note: rejectReason.trim() || "无法确认名片归属",
-        }).send()
-        setRejectReason("")
-        setClaimRow(null)
-        await refresh()
-      } catch (reviewError) {
-        if (staleReview(reviewError)) await refresh()
-        throw reviewError
-      }
+      await reviewAdminFudabaCardClaim(claim.id, {
+        decision: "reject",
+        expectedRevision: claim.revision,
+        note: rejectReason.trim() || "无法确认名片归属",
+      }).send()
+      setRejectReason("")
+      setClaimRow(null)
+      await refresh()
     },
+    reloadTarget: (claim) => reloadClaim(claim.id),
     getTitle: () => "驳回名片认领",
     getDescription: (claim) => (
       <div className="space-y-2">
@@ -199,18 +209,14 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
 
   const supplementApprove = useConfirmAction<AdminCardSupplement>({
     onConfirm: async (supplement) => {
-      try {
-        await reviewAdminFudabaCardSupplement(supplement.id, {
-          decision: "approve",
-          expectedRevision: supplement.revision,
-          note: "已核对名片墙上的资料",
-        }).send()
-        await refresh()
-      } catch (reviewError) {
-        if (staleReview(reviewError)) await refresh()
-        throw reviewError
-      }
+      await reviewAdminFudabaCardSupplement(supplement.id, {
+        decision: "approve",
+        expectedRevision: supplement.revision,
+        note: "已核对名片墙上的资料",
+      }).send()
+      await refresh()
     },
+    reloadTarget: (supplement) => reloadSupplement(supplement.id),
     getTitle: () => "通过信息补充",
     getDescription: (supplement) =>
       `名片 #${supplement.cardId} 上的补充资料将写回名片，补充人获得贡献值。`,
@@ -219,19 +225,15 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
 
   const supplementReject = useConfirmAction<AdminCardSupplement>({
     onConfirm: async (supplement) => {
-      try {
-        await reviewAdminFudabaCardSupplement(supplement.id, {
-          decision: "reject",
-          expectedRevision: supplement.revision,
-          note: rejectReason.trim() || "资料与名片不符",
-        }).send()
-        setRejectReason("")
-        await refresh()
-      } catch (reviewError) {
-        if (staleReview(reviewError)) await refresh()
-        throw reviewError
-      }
+      await reviewAdminFudabaCardSupplement(supplement.id, {
+        decision: "reject",
+        expectedRevision: supplement.revision,
+        note: rejectReason.trim() || "资料与名片不符",
+      }).send()
+      setRejectReason("")
+      await refresh()
     },
+    reloadTarget: (supplement) => reloadSupplement(supplement.id),
     getTitle: () => "驳回信息补充",
     getDescription: (supplement) => (
       <div className="space-y-2">
@@ -406,8 +408,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
                           <LoaderCircleIcon className="animate-spin" />
                         ) : row.type === "supplement" &&
                           supplementApprove.submitting &&
-                          supplementApprove.target?.id ===
-                            row.supplement.id ? (
+                          supplementApprove.target?.id === row.supplement.id ? (
                           <LoaderCircleIcon className="animate-spin" />
                         ) : (
                           <CheckIcon />
@@ -533,11 +534,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
   )
 }
 
-function load(
-  type: string,
-  query: string,
-  page: number
-) {
+function load(type: string, query: string, page: number) {
   return getAdminFudabaReviewQueue({
     type: type as "all" | "claim" | "supplement",
     query: query || undefined,

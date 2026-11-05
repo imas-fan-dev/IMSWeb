@@ -108,10 +108,7 @@ export function artworkShapeMismatch(
   return Math.abs(ratio(front) - ratio(back)) > 0.02
 }
 
-export function mediaSlotRole(
-  position: number,
-  total: number
-): string | null {
+export function mediaSlotRole(position: number, total: number): string | null {
   if (total < 2) return null
   if (position === 0) return "正面"
   if (position === total - 1) return "背面"
@@ -202,8 +199,7 @@ function SlotImage({
   draggable?: boolean
   style?: CSSProperties
 }) {
-  const signed =
-    slot.kind === "existing" && !slot.direct ? slot.url : null
+  const signed = slot.kind === "existing" && !slot.direct ? slot.url : null
   const media = useOwnerCardMedia(signed)
   const src = slot.kind === "new" || slot.direct ? slot.url : media.src
   if (!src) {
@@ -235,6 +231,14 @@ export function CardMediaGallery({
   readOnly = false,
   /** 缩略图边长，默认 80。 */
   thumbSize = THUMB_SIZE,
+  /** 详情窗口不需要「正面/背面」这类角标与缩略图说明。 */
+  roleLabels = true,
+  /** 从墙上某一面打开时直接停在那张图上。 */
+  initialIndex = 0,
+  /** 只读预览里点大图放大；给元素是为了让全屏预览从它开始做动画。 */
+  onOpenPreview,
+  /** 放大按钮的无障碍名称；详情窗要带上编号与正反面。 */
+  previewLabel,
   onChange,
   onError,
 }: {
@@ -244,10 +248,14 @@ export function CardMediaGallery({
   allowUpload?: boolean
   readOnly?: boolean
   thumbSize?: number
+  roleLabels?: boolean
+  initialIndex?: number
+  onOpenPreview?: (index: number, element: HTMLButtonElement) => void
+  previewLabel?: (index: number) => string
   onChange: (slots: MediaSlot[]) => void
   onError: (message: string) => void
 }) {
-  const [active, setActive] = useState(0)
+  const [active, setActive] = useState(() => Math.max(0, initialIndex))
   const [drag, setDrag] = useState<DragState | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -256,7 +264,7 @@ export function CardMediaGallery({
   const dropRef = useRef<number | null>(null)
   const position = Math.min(active, Math.max(slots.length - 1, 0))
   const current = slots[position] ?? null
-  const role = mediaSlotRole(position, slots.length)
+  const role = roleLabels ? mediaSlotRole(position, slots.length) : null
 
   const addFiles = useCallback(
     (files: readonly File[], replaceAt: number | null) => {
@@ -341,7 +349,10 @@ export function CardMediaGallery({
     const handleMove = (move: PointerEvent) => {
       if (move.pointerId !== pointerId) return
       if (!dragging) {
-        if (Math.hypot(move.clientX - startX, move.clientY - startY) < DRAG_THRESHOLD)
+        if (
+          Math.hypot(move.clientX - startX, move.clientY - startY) <
+          DRAG_THRESHOLD
+        )
           return
         dragging = true
         dropRef.current = index
@@ -381,8 +392,11 @@ export function CardMediaGallery({
   }
 
   const roleLabel = useMemo(
-    () => slots.map((_, index) => mediaSlotRole(index, slots.length)),
-    [slots]
+    () =>
+      slots.map((_, index) =>
+        roleLabels ? mediaSlotRole(index, slots.length) : null
+      ),
+    [roleLabels, slots]
   )
   const visibleSlots = slots
     .map((slot, index) => ({ slot, index }))
@@ -415,11 +429,28 @@ export function CardMediaGallery({
         data-card-artwork-preview
       >
         {current ? (
-          <SlotImage
-            slot={current}
-            alt={role ? `名片${role}` : "名片图片"}
-            className="size-full object-contain"
-          />
+          onOpenPreview ? (
+            <button
+              type="button"
+              className="grid size-full place-items-center outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+              aria-label={
+                previewLabel ? previewLabel(position) : "放大名片图片"
+              }
+              onClick={(event) => onOpenPreview(position, event.currentTarget)}
+            >
+              <SlotImage
+                slot={current}
+                alt={role ? `名片${role}` : "名片图片"}
+                className="size-full object-contain"
+              />
+            </button>
+          ) : (
+            <SlotImage
+              slot={current}
+              alt={role ? `名片${role}` : "名片图片"}
+              className="size-full object-contain"
+            />
+          )
         ) : (
           <button
             type="button"
@@ -428,7 +459,7 @@ export function CardMediaGallery({
             onClick={() => pick(null)}
           >
             <span className="flex flex-col items-center gap-2">
-              <span className="grid size-14 place-items-center rounded-full border border-dashed bg-background shadow-sm motion-safe:transition-colors group-hover:border-primary/60 group-focus-visible:border-primary/60">
+              <span className="grid size-14 place-items-center rounded-full border border-dashed bg-background shadow-sm group-hover:border-primary/60 group-focus-visible:border-primary/60 motion-safe:transition-colors">
                 <ImagePlusIcon
                   aria-hidden="true"
                   className="size-6 text-muted-foreground group-hover:text-foreground"
@@ -566,16 +597,16 @@ export function CardMediaGallery({
         : null}
 
       {readOnly ? null : (
-      <p className="mt-2 text-xs text-muted-foreground">
-        {allowUpload ? (
-          <>
-            第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。
-            最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。
-          </>
-        ) : (
-          "只能删除或调整图片顺序，替换与新增由用户在编辑器里完成。"
-        )}
-      </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {allowUpload ? (
+            <>
+              第一张为正面、最后一张为背面，中间为中间页；拖拽缩略图可调整顺序。
+              最多 {NAMECARD_MEDIA_LIMIT} 张，单张不超过 8 MB。
+            </>
+          ) : (
+            "只能删除或调整图片顺序，替换与新增由用户在编辑器里完成。"
+          )}
+        </p>
       )}
     </section>
   )
@@ -621,18 +652,16 @@ function Thumbnail({
         type="button"
         onClick={() => onSelect(index)}
         aria-label={
-          roleLabel ? `第 ${index + 1} 张（${roleLabel}）` : `第 ${index + 1} 张`
+          roleLabel
+            ? `第 ${index + 1} 张（${roleLabel}）`
+            : `第 ${index + 1} 张`
         }
         aria-current={active}
         className={`block size-full overflow-hidden rounded-md border ${
           active ? "ring-2 ring-primary" : ""
         } ${dragging ? "opacity-40" : ""}`}
       >
-        <SlotImage
-          slot={slot}
-          alt=""
-          className="size-full object-cover"
-        />
+        <SlotImage slot={slot} alt="" className="size-full object-cover" />
       </button>
       {!disabled && removable ? (
         <button

@@ -3975,6 +3975,19 @@ export class SqlFudabaRepository implements FudabaRepository {
             candidates.push(target?.series_code);
         }
         candidates.push(characters[0]?.agency_code);
+        // 补充审核把企划写进 fudaba_card_series，旧 cards 归档表只读且不会跟着更新，
+        // 所以先读名片墙看到的同一份数据；archive 只作为更早的兜底。
+        const stored = await queryOne<{ series_code: string | null }>(
+            database,
+            `SELECT entry.series_code
+               FROM fudaba_cards card
+               JOIN fudaba_card_series entry ON entry.card_id=card.id
+              WHERE card.card_number=? AND card.deleted_at IS NULL
+              ORDER BY entry.display_order
+              LIMIT 1`,
+            [input.legacyCardId],
+        );
+        candidates.push(stored?.series_code);
         const legacy = await queryOne<{ series_code: string | null }>(
             database,
             `SELECT series_code FROM cards WHERE id=?`,
@@ -4873,6 +4886,11 @@ export class SqlFudabaRepository implements FudabaRepository {
         await this.applySeriesAccent(database, reviewed.id, payload.series_codes);
     }
 
+    /**
+     * 认领审核分两步提交：这里先把行推进到 approving，再由 complete 落结果。
+     * 两步之间进程中断会留下一行 approving，队列仍会把它列出来，所以这里也接受
+     * 该状态：管理员拿着最新 revision 重试即可续做，否则这行永远无法通过。
+     */
     beginCardClaimReview(
         claimId: string,
         expectedRevision: number,
@@ -4884,7 +4902,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     `UPDATE fudaba_card_claims
                  SET state='approving', revision=revision+1,
                      updated_at=CURRENT_TIMESTAMP
-                 WHERE id=? AND state='pending' AND revision=?
+                 WHERE id=? AND state IN ('pending', 'approving') AND revision=?
                  RETURNING ${CLAIM_COLUMNS}`,
                     [claimId, expectedRevision],
                 );

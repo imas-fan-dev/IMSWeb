@@ -20,6 +20,7 @@ import {
   THUMB_SIZE_COMPACT,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { NavigationLink } from "~/components/navigation/navigation-link"
+import { useCardFieldFade } from "~/components/community/use-card-field-fade"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -88,6 +89,12 @@ export function NamecardClaimDialog({
 
   /** 提交时用来算出「改了哪几处」的基线，永远取墙上的现值。 */
   const live = card ? wallCardDraftFromCard(card) : null
+  // 名片上没有制作人名称时，默认用当前帐号的显示名；用户一改就以此为准。
+  const sessionName = platform.session?.profile.displayName?.trim() ?? ""
+  const filled =
+    draft && !draft.producerName.trim() && sessionName
+      ? { ...draft, producerName: sessionName }
+      : draft
 
   const series = (catalog?.agencies ?? []).map((agency) => ({
     code: agency.code,
@@ -103,17 +110,23 @@ export function NamecardClaimDialog({
   const restricted = platform.status === "restricted"
   const ready = Boolean(card && draft && authenticated && catalog)
   const binding = existingTarget !== undefined
+  // 可绑定名片多时占满宽度会把表单顶下去，所以按详情窗口的字段样式折叠成滚动区。
+  const { ref: bindScrollRef, fade: bindScrollFade } = useCardFieldFade(
+    bindable.length
+  )
   // 认领不再要求相对 live 有改动（可能已被他人补充完整），只拦必填项缺失。
   const requiredReady = Boolean(
-    draft && draft.producerName.trim() && draft.seriesCodes.length > 0
+    filled && filled.producerName.trim() && filled.seriesCodes.length > 0
   )
   const canSubmit = ready && !submitting && (binding || requiredReady)
   const missingRequired = Boolean(
-    draft && !binding && (!draft.producerName.trim() || !draft.seriesCodes.length)
+    filled &&
+    !binding &&
+    (!filled.producerName.trim() || !filled.seriesCodes.length)
   )
 
   async function submit() {
-    if (!card || !draft || !live || !canSubmit) return
+    if (!card || !filled || !live || !canSubmit) return
     setSubmitting(true)
     try {
       // 认领接口以「旧名片编号」定位：墙上这张卡的 id 现在是 guest-<编号>，
@@ -124,7 +137,7 @@ export function NamecardClaimDialog({
         payload: binding
           ? undefined
           : (() => {
-              const patch = wallCardPayload("claim", draft, live)
+              const patch = wallCardPayload("claim", filled, live)
               // 没有任何改动时不带 payload，服务端按 live 资料落认领记录。
               return Object.keys(patch).length ? patch : undefined
             })(),
@@ -171,7 +184,9 @@ export function NamecardClaimDialog({
           {!authenticated ? (
             <Alert>
               <CircleAlertIcon aria-hidden="true" />
-              <AlertTitle>{restricted ? "帐号当前受限" : "请先登录"}</AlertTitle>
+              <AlertTitle>
+                {restricted ? "帐号当前受限" : "请先登录"}
+              </AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>
                   {restricted
@@ -198,7 +213,14 @@ export function NamecardClaimDialog({
             <>
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">绑定方式</legend>
-                <div className="space-y-2" role="radiogroup" aria-label="绑定方式">
+                <div
+                  ref={bindScrollRef}
+                  data-fade={bindScrollFade}
+                  data-size="tall"
+                  className="card-field-scroll space-y-2"
+                  role="radiogroup"
+                  aria-label="绑定方式"
+                >
                   <TargetOption
                     selected={targetCardId === NEW_CARD_VALUE}
                     title="创建一张可管理的注册名片"
@@ -242,7 +264,7 @@ export function NamecardClaimDialog({
               ) : (
                 <NamecardWallFields
                   mode="claim"
-                  draft={draft}
+                  draft={filled ?? draft}
                   series={series}
                   disabled={submitting}
                   onChange={setDraft}
@@ -272,7 +294,11 @@ export function NamecardClaimDialog({
           >
             取消
           </Button>
-          <Button type="button" disabled={!canSubmit} onClick={() => void submit()}>
+          <Button
+            type="button"
+            disabled={!canSubmit}
+            onClick={() => void submit()}
+          >
             {submitting ? (
               <LoaderCircleIcon
                 data-icon="inline-start"
@@ -321,7 +347,10 @@ function TargetOption({
         {thumbnail ? (
           <img src={thumbnail} alt="" className="size-full object-cover" />
         ) : (
-          <PlusIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+          <PlusIcon
+            className="size-4 text-muted-foreground"
+            aria-hidden="true"
+          />
         )}
       </span>
       <span className="min-w-0 flex-1">
@@ -333,7 +362,10 @@ function TargetOption({
         ) : null}
       </span>
       {selected ? (
-        <CheckIcon className="size-4 shrink-0 text-primary" aria-hidden="true" />
+        <CheckIcon
+          className="size-4 shrink-0 text-primary"
+          aria-hidden="true"
+        />
       ) : null}
     </button>
   )

@@ -9,6 +9,12 @@ import { useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
 
 import { creditParts } from "~/components/community/namecard-credit-format"
+import {
+  CardMediaGallery,
+  publicMediaSlotsFromCard,
+  THUMB_SIZE_COMPACT,
+} from "~/pages/account/me/namecards/card-media-gallery"
+import { useCardFieldFade } from "~/components/community/use-card-field-fade"
 import type { NamecardSide } from "~/components/shared/namecard-preview"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -28,16 +34,11 @@ import {
 } from "~/components/ui/popover"
 import { getFudabaSeries, NAMECARD_REACTIONS } from "~/lib/api"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
-import type {
-  FudabaSeries,
-  Namecard,
-  NamecardReactions,
-} from "~/lib/api"
+import type { FudabaSeries, Namecard, NamecardReactions } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
-import { withThumbnail } from "~/lib/media-urls"
 import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
 import { NamecardFeedbackDialog } from "~/pages/community/exchange/components/namecard-feedback-dialog"
 
@@ -309,19 +310,6 @@ function madeOnLabel(value: string | null): string {
     : NAMECARD_DATE_ONLY_FORMATTER.format(parsed)
 }
 
-type FieldFade = "none" | "top" | "bottom" | "both"
-
-function fieldFade(node: HTMLElement): FieldFade {
-  const overflowing = node.scrollHeight - node.clientHeight > 1
-  if (!overflowing) return "none"
-  const atTop = node.scrollTop <= 1
-  const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1
-  if (atTop && atBottom) return "none"
-  if (atTop) return "bottom"
-  if (atBottom) return "top"
-  return "both"
-}
-
 function FieldRow({
   label,
   children,
@@ -329,30 +317,10 @@ function FieldRow({
   label: string
   children: React.ReactNode
 }) {
-  const valueRef = useRef<HTMLDivElement>(null)
-  const [fade, setFade] = useState<FieldFade>("none")
-  // The readable height depends on the rendered text and on the scroll
-  // position, so measure on mount, on resize and on scroll. A native listener
-  // is used because scroll events do not bubble through the React root.
-  useEffect(() => {
-    const node = valueRef.current
-    if (!node) return
-    const measure = () => setFade(fieldFade(node))
-    measure()
-    node.addEventListener("scroll", measure, { passive: true })
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(measure)
-    observer?.observe(node)
-    return () => {
-      node.removeEventListener("scroll", measure)
-      observer?.disconnect()
-    }
-  }, [children])
+  const { ref: valueRef, fade } = useCardFieldFade(children)
   return (
     <div className="flex min-h-12 items-start gap-3 border-b border-border/50 py-2.5 last:border-b-0">
-      <dt className="w-20 shrink-0 pt-px text-xs/5  text-muted-foreground">
+      <dt className="w-20 shrink-0 pt-px text-xs/5 text-muted-foreground">
         {label}
       </dt>
       <dd
@@ -415,8 +383,6 @@ export function NamecardDetailDialog({
   const [series, setSeries] = useState<ReadonlyMap<string, FudabaSeries>>(
     new Map()
   )
-  const [activeSlide, setActiveSlide] = useState(0)
-  const [slideCardId, setSlideCardId] = useState(`${card?.id ?? ""}:${initialSide ?? ""}`)
 
   useEffect(() => {
     if (!card) return
@@ -436,38 +402,23 @@ export function NamecardDetailDialog({
     }
   }, [card])
 
-  const slides = card
-    ? [
-        {
-          key: "front",
-          url: card.image1_url,
-          thumb: card.image1_thumbnail_url || withThumbnail(card.image1_url),
-          side: "front" as const,
-        },
-        ...(card.image2_url
-          ? [
-              {
-                key: "back",
-                url: card.image2_url,
-                thumb: card.image2_thumbnail_url || withThumbnail(card.image2_url),
-                side: "back" as const,
-              },
-            ]
-          : []),
-        ...card.middleImageUrls.map((url, index) => ({
-          key: `middle-${index}`,
-          url,
-          thumb: url,
-          side: null,
-        })),
-      ]
+  const mediaSlots = card
+    ? publicMediaSlotsFromCard({
+        frontImageUrl: card.image1_url,
+        middleImageUrls: card.middleImageUrls,
+        backImageUrl: card.image2_url,
+      })
     : []
-
+  // 挂在 key 上：换卡或从另一面打开时重新挂载，预览回到正确的图。
   const slideKey = `${card?.id ?? ""}:${initialSide ?? ""}`
-  if (slideCardId !== slideKey) {
-    setSlideCardId(slideKey)
-    setActiveSlide(initialSide === "back" && card?.image2_url ? 1 : 0)
-  }
+  const initialSlide =
+    initialSide === "back" && mediaSlots.length > 1 ? mediaSlots.length - 1 : 0
+  const sideAt = (index: number): NamecardSide | null =>
+    index === 0
+      ? "front"
+      : index === mediaSlots.length - 1 && mediaSlots.length > 1
+        ? "back"
+        : null
 
   const submitted = card?.created_at ? new Date(card.created_at) : null
   const submittedLabel =
@@ -483,7 +434,6 @@ export function NamecardDetailDialog({
   const supplementBlocked = card
     ? card.claimStatus !== "unclaimed" || card.supplementPending
     : true
-  const active = slides[Math.min(activeSlide, Math.max(slides.length - 1, 0))]
 
   return (
     <Dialog
@@ -503,7 +453,7 @@ export function NamecardDetailDialog({
           <DialogTitle className="text-base font-semibold">
             制作人名片
             {/* 视觉上不显示编号，但对话框的可访问名必须唯一，屏幕阅读器会读出来。 */}
-            <span className="sr-only">{" "}{card?.id ?? ""}</span>
+            <span className="sr-only"> {card?.id ?? ""}</span>
           </DialogTitle>
           <div
             className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
@@ -518,16 +468,20 @@ export function NamecardDetailDialog({
                 <Badge
                   variant="outline"
                   className="text-muted-foreground"
-                  render={
-                    <NavigationLink to={`/user/${card.claimerUid}`} />
-                  }
+                  render={<NavigationLink to={`/user/${card.claimerUid}`} />}
                 >
-                  <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+                  <ShieldCheckIcon
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
                   {card.claimerName ?? "已由注册用户认领"}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-muted-foreground">
-                  <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+                  <ShieldCheckIcon
+                    data-icon="inline-start"
+                    aria-hidden="true"
+                  />
                   {card.claimerName ?? "已由注册用户认领"}
                 </Badge>
               )
@@ -560,53 +514,33 @@ export function NamecardDetailDialog({
         <DialogBody className="flex flex-col gap-5">
           <div className="grid min-h-0 gap-6 md:grid-cols-2">
             <div className="min-w-0 space-y-4">
-              {active ? (
-                <button
-                  type="button"
-                  className="relative flex aspect-3/2 w-full items-center justify-center overflow-hidden rounded-lg bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                  aria-label={`放大制作人名片 ${card?.id ?? ""} ${active.key === "front" ? "正面" : active.key === "back" ? "背面" : "中间页"}`}
-                  onClick={(event) => {
-                    if (active.side) {
-                      onOpenPreview(active.side, event.currentTarget)
-                    }
+              {/* 与认领窗口共用同一套媒体预览；详情窗只要看，不要正反面角标。 */}
+              {card ? (
+                <CardMediaGallery
+                  key={slideKey}
+                  slots={mediaSlots}
+                  disabled
+                  readOnly
+                  allowUpload={false}
+                  roleLabels={false}
+                  initialIndex={initialSlide}
+                  thumbSize={THUMB_SIZE_COMPACT}
+                  onOpenPreview={(index, element) => {
+                    const side = sideAt(index)
+                    if (side) onOpenPreview(side, element)
                   }}
-                >
-                  <img
-                    src={active.thumb}
-                    alt={`制作人名片 ${card?.id ?? ""} ${active.key === "front" ? "正面" : active.key === "back" ? "背面" : "中间页"}`}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                </button>
-              ) : (
-                <div className="aspect-3/2 w-full rounded-lg border border-dashed" />
-              )}
-              {slides.length > 1 ? (
-                <div
-                  className="card-thumb-strip flex gap-2 overflow-x-auto pb-1"
-                  aria-label="名片图片列表"
-                >
-                  {slides.map((slide, index) => (
-                    <button
-                      key={slide.key}
-                      type="button"
-                      className={cn(
-                        "size-16 shrink-0 overflow-hidden rounded-md border-2 bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                        index === activeSlide
-                          ? "border-primary"
-                          : "border-transparent"
-                      )}
-                      aria-label={`查看第 ${index + 1} 张（${slide.key === "front" ? "正面" : slide.key === "back" ? "背面" : "中间页"}）`}
-                      aria-pressed={index === activeSlide}
-                      onClick={() => setActiveSlide(index)}
-                    >
-                      <img
-                        src={slide.url}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
+                  previewLabel={(index) =>
+                    `放大制作人名片 ${card.id} ${
+                      index === 0
+                        ? "正面"
+                        : index === mediaSlots.length - 1
+                          ? "背面"
+                          : "中间页"
+                    }`
+                  }
+                  onChange={() => undefined}
+                  onError={() => undefined}
+                />
               ) : null}
 
               <section aria-labelledby="namecard-detail-reactions">
@@ -640,187 +574,186 @@ export function NamecardDetailDialog({
 
             <div className="min-w-0">
               <dl aria-label="名片公开参数">
-                  <FieldRow label="制作人名称">
-                    {card?.producerName ? (
-                      <>
-                        {card.producerName}
-                        {card.producerReading ? (
-                          <span className="ml-1 text-xs text-muted-foreground">
-                            （{card.producerReading}）
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <EmptyDash />
-                    )}
-                  </FieldRow>
-                  <FieldRow label="制作日期">
-                    {card ? madeOnLabel(card.madeOn) : <EmptyDash />}
-                  </FieldRow>
-                  <FieldRow label="所属团体">
-                    {hasText(card?.groupName) ? card?.groupName : <EmptyDash />}
-                  </FieldRow>
-                  <FieldRow label="制作人员">
-                    {card?.credits.length ? (
-                      <ul className="space-y-1">
-                        {card.credits.map((credit, index) => {
-                          const parts = creditParts(credit)
-                          return (
-                            <li key={`${credit.displayName}-${index}`}>
-                              {parts.url ? (
-                                <NavigationLink
-                                  href={parts.url}
-                                  className="underline underline-offset-2"
-                                >
-                                  {parts.name}
-                                </NavigationLink>
-                              ) : (
-                                parts.name
-                              )}
-                              {parts.roles ? (
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                  {parts.roles}
-                                </span>
-                              ) : null}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    ) : (
-                      <EmptyDash />
-                    )}
-                  </FieldRow>
-                  <FieldRow label="企划">
-                    {card?.seriesCodes.length ? (
-                      <span className="flex flex-wrap gap-x-4 gap-y-1">
-                        {card.seriesCodes.map((code) => (
+                <FieldRow label="制作人名称">
+                  {card?.producerName ? (
+                    <>
+                      {card.producerName}
+                      {card.producerReading ? (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          （{card.producerReading}）
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <EmptyDash />
+                  )}
+                </FieldRow>
+                <FieldRow label="制作日期">
+                  {card ? madeOnLabel(card.madeOn) : <EmptyDash />}
+                </FieldRow>
+                <FieldRow label="所属团体">
+                  {hasText(card?.groupName) ? card?.groupName : <EmptyDash />}
+                </FieldRow>
+                <FieldRow label="制作人员">
+                  {card?.credits.length ? (
+                    <ul className="space-y-1">
+                      {card.credits.map((credit, index) => {
+                        const parts = creditParts(credit)
+                        return (
+                          <li key={`${credit.displayName}-${index}`}>
+                            {parts.url ? (
+                              <NavigationLink
+                                href={parts.url}
+                                className="underline underline-offset-2"
+                              >
+                                {parts.name}
+                              </NavigationLink>
+                            ) : (
+                              parts.name
+                            )}
+                            {parts.roles ? (
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                {parts.roles}
+                              </span>
+                            ) : null}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : (
+                    <EmptyDash />
+                  )}
+                </FieldRow>
+                <FieldRow label="企划">
+                  {card?.seriesCodes.length ? (
+                    <span className="flex flex-wrap gap-x-4 gap-y-1">
+                      {card.seriesCodes.map((code) => (
+                        <span
+                          key={code}
+                          className="inline-flex min-w-0 items-center gap-1.5"
+                        >
                           <span
-                            key={code}
-                            className="inline-flex min-w-0 items-center gap-1.5"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="size-2 shrink-0 rounded-full"
-                              style={{
-                                backgroundColor:
-                                  series.get(code)?.color ?? "var(--border)",
-                              }}
-                            />
-                            <span className="truncate">
-                              {series.get(code)?.displayName ?? code}
-                            </span>
+                            aria-hidden="true"
+                            className="size-2 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor:
+                                series.get(code)?.color ?? "var(--border)",
+                            }}
+                          />
+                          <span className="truncate">
+                            {series.get(code)?.displayName ?? code}
                           </span>
-                        ))}
-                      </span>
-                    ) : (
-                      <EmptyDash />
-                    )}
-                  </FieldRow>
-                  <FieldRow label="担当角色">
-                    {card?.favoriteCharacters.length ? (
-                      card.favoriteCharacters.map((idol) => idol.name).join("、")
-                    ) : (
-                      <EmptyDash />
-                    )}
-                  </FieldRow>
-                  <FieldRow label="简介">
-                    {hasText(card?.bio) ? card?.bio : <EmptyDash />}
-                  </FieldRow>
-                  <FieldRow label="交换说明">
-                    {hasText(card?.tradeNote) ? card?.tradeNote : <EmptyDash />}
-                  </FieldRow>
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <EmptyDash />
+                  )}
+                </FieldRow>
+                <FieldRow label="担当角色">
+                  {card?.favoriteCharacters.length ? (
+                    card.favoriteCharacters.map((idol) => idol.name).join("、")
+                  ) : (
+                    <EmptyDash />
+                  )}
+                </FieldRow>
+                <FieldRow label="简介">
+                  {hasText(card?.bio) ? card?.bio : <EmptyDash />}
+                </FieldRow>
+                <FieldRow label="交换说明">
+                  {hasText(card?.tradeNote) ? card?.tradeNote : <EmptyDash />}
+                </FieldRow>
               </dl>
             </div>
           </div>
-
         </DialogBody>
         <DialogFooter className="flex-row flex-nowrap justify-end gap-1.5 overflow-x-auto border-t bg-transparent px-3 sm:gap-2 sm:px-4">
-            {card?.canEdit ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(FOOTER_BUTTON, "bg-background")}
-                onClick={() => {
-                  onOpenChange(false)
-                  void navigate(
-                    `/account/me/namecards?card=${encodeURIComponent(card.cardId)}`
-                  )
-                }}
-              >
-                <SquarePenIcon aria-hidden="true" />
-                编辑
-              </Button>
-            ) : null}
-            {unclaimed ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(FOOTER_BUTTON, "bg-background")}
-                disabled={!canClaim || supplementBlocked}
-                title={
-                  card?.claimStatus === "pending"
-                    ? "这张名片正在认领审核，认领优先于补充"
-                    : card?.supplementPending
-                      ? "这张名片已有一份补充在审核"
-                      : undefined
-                }
-                onClick={() => {
-                  if (card) onSupplement(card)
-                }}
-              >
-                <PlusIcon aria-hidden="true" />
-                补充
-              </Button>
-            ) : null}
-            {unclaimed ? (
-              <Button
-                type="button"
-                className={FOOTER_BUTTON}
-                disabled={!canClaim || claimBlocked}
-                title={
-                  card?.claimStatus === "pending"
-                    ? "这张名片已经有一份认领在审核"
+          {card?.canEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(FOOTER_BUTTON, "bg-background")}
+              onClick={() => {
+                onOpenChange(false)
+                void navigate(
+                  `/account/me/namecards?card=${encodeURIComponent(card.cardId)}`
+                )
+              }}
+            >
+              <SquarePenIcon aria-hidden="true" />
+              编辑
+            </Button>
+          ) : null}
+          {unclaimed ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(FOOTER_BUTTON, "bg-background")}
+              disabled={!canClaim || supplementBlocked}
+              title={
+                card?.claimStatus === "pending"
+                  ? "这张名片正在认领审核，认领优先于补充"
+                  : card?.supplementPending
+                    ? "这张名片已有一份补充在审核"
                     : undefined
-                }
-                onClick={() => {
-                  if (card) onClaim(card)
-                }}
-              >
-                <ShieldCheckIcon aria-hidden="true" />
-                认领
-              </Button>
-            ) : null}
-            {unclaimed ? null : card?.canEdit ? (
-              // 拥有者看自己的名片时，这里给的是分享入口（暂不可用）。
-              <Button
-                type="button"
-                className={FOOTER_BUTTON}
-                disabled
-                title="暂未开放"
-              >
-                <ShareIcon aria-hidden="true" />
-                分享
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                className={FOOTER_BUTTON}
-                disabled
-                title="暂未开放"
-              >
-                <ArrowLeftRightIcon aria-hidden="true" />
-                交换
-              </Button>
-            )}
-            {card ? (
-              <NamecardFeedbackDialog
-                cardId={card.cardId}
-                cardLabel={card.producerName || `名片 #${card.cardNumber}`}
-                disabled={!platformCanReport}
-                triggerVariant="destructive"
-                triggerClassName={FOOTER_BUTTON}
-              />
-            ) : null}
+              }
+              onClick={() => {
+                if (card) onSupplement(card)
+              }}
+            >
+              <PlusIcon aria-hidden="true" />
+              补充
+            </Button>
+          ) : null}
+          {unclaimed ? (
+            <Button
+              type="button"
+              className={FOOTER_BUTTON}
+              disabled={!canClaim || claimBlocked}
+              title={
+                card?.claimStatus === "pending"
+                  ? "这张名片已经有一份认领在审核"
+                  : undefined
+              }
+              onClick={() => {
+                if (card) onClaim(card)
+              }}
+            >
+              <ShieldCheckIcon aria-hidden="true" />
+              认领
+            </Button>
+          ) : null}
+          {unclaimed ? null : card?.canEdit ? (
+            // 拥有者看自己的名片时，这里给的是分享入口（暂不可用）。
+            <Button
+              type="button"
+              className={FOOTER_BUTTON}
+              disabled
+              title="暂未开放"
+            >
+              <ShareIcon aria-hidden="true" />
+              分享
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className={FOOTER_BUTTON}
+              disabled
+              title="暂未开放"
+            >
+              <ArrowLeftRightIcon aria-hidden="true" />
+              交换
+            </Button>
+          )}
+          {card ? (
+            <NamecardFeedbackDialog
+              cardId={card.cardId}
+              cardLabel={card.producerName || `名片 #${card.cardNumber}`}
+              disabled={!platformCanReport}
+              triggerVariant="destructive"
+              triggerClassName={FOOTER_BUTTON}
+            />
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

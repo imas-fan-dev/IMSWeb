@@ -2546,6 +2546,28 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         time: REVIEWED_AT
     };
 
+    /** 补充审核写企划的真实表；认领兜底必须和名片墙读同一份数据。 */
+    async function attachCardSeries(
+        database: ManagedSqlDatabase,
+        cardNumber: number,
+        seriesCode: string
+    ) {
+        const card = await database
+            .prepare(`SELECT id FROM fudaba_cards WHERE card_number=?`)
+            .bind(cardNumber)
+            .first<{ id: string }>();
+        if (!card) throw new Error('Missing fudaba card for series fixture');
+        await database
+            .prepare(
+                `INSERT INTO public.fudaba_card_series
+                 (card_id, series_code, display_order)
+                 VALUES (?, ?, 1)
+                 ON CONFLICT (card_id, series_code) DO NOTHING`
+            )
+            .bind(card.id, seriesCode)
+            .run();
+    }
+
     async function insertLegacyCard(
         database: ManagedSqlDatabase,
         suffix: string
@@ -3182,11 +3204,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             }), { status: 'series-required' });
 
             // 卡可能已被其他用户补充完整，所以认领允许不带任何改动。
+            // 补充审核写的是 fudaba_card_series，旧 cards 归档列不会跟着变，
+            // 所以这里按真实链路写企划，否则这条用例会掩盖兜底读错表的问题。
             const settledLegacyId = await insertLegacyCard(database, 'o');
-            await database
-                .prepare(`UPDATE cards SET series_code='765' WHERE id=?`)
-                .bind(settledLegacyId)
-                .run();
+            await attachCardSeries(database, settledLegacyId, '765');
             await database
                 .prepare(
                     `UPDATE fudaba_cards SET producer_name='既有制作人'
@@ -3210,10 +3231,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
             // 必填项缺失时仍然拒绝：没有制作人名称就不算可提交的认领。
             const namelessLegacyId = await insertLegacyCard(database, 'p');
-            await database
-                .prepare(`UPDATE cards SET series_code='765' WHERE id=?`)
-                .bind(namelessLegacyId)
-                .run();
+            await attachCardSeries(database, namelessLegacyId, '765');
             await database
                 .prepare(
                     `UPDATE fudaba_cards SET producer_name=NULL
@@ -3518,6 +3536,43 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const rolledBackClaim = await fudaba.findAdminCardClaim('claim-review-rollback');
             assert.equal(rolledBackClaim?.state, 'pending');
             assert.equal(rolledBackClaim?.revision, 2);
+
+            // 两步审核之间的崩溃会留下 approving 行：它仍在队列里，必须能
+            // 用最新 revision 续做，否则这条认领永远无法通过。
+            const stuckLegacyId = await insertLegacyCard(database, 'k');
+            const stuckClaim = await fudaba.createCardClaimForOwner({
+                id: 'stuck-claim',
+                legacyCardId: stuckLegacyId,
+                claimantAccountId: ownerC,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(stuckClaim.status, 'created');
+            const stuckBegin = await fudaba.beginCardClaimReview('stuck-claim', 0);
+            assert.equal(stuckBegin.status, 'claimed');
+            if (stuckBegin.status !== 'claimed') return;
+            const resumed = await fudaba.beginCardClaimReview(
+                'stuck-claim',
+                stuckBegin.claim.revision
+            );
+            assert.equal(resumed.status, 'claimed');
+            if (resumed.status !== 'claimed') return;
+            const resumedCompletion = await fudaba.completeCardClaimReview({
+                claimId: 'stuck-claim',
+                approvingRevision: resumed.claim.revision,
+                decision: 'reject',
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '续做一次被中断的审核',
+                notificationTitle: '名片认领未通过',
+                notificationBody: '请补充材料后重新提交。',
+                audit: { ...audit, action: 'reject namecard claim' }
+            });
+            assert.equal(resumedCompletion.status, 'saved');
+
         });
     });
 }

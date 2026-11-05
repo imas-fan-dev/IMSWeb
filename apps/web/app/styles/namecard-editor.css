@@ -138,6 +138,11 @@
   -ms-overflow-style: none;
 }
 
+/* 列表形态的字段（绑定方式、候选名片）比一段文本更高。 */
+.card-field-scroll[data-size="tall"] {
+  max-height: 11rem;
+}
+
 /* Only the side that still hides content gets the fade, so the reader can
    tell whether the list continues up, down or both ways. */
 .card-field-scroll[data-fade="top"] {
