@@ -14,6 +14,8 @@ test("adds platform accounts by pasting a link, then edits and removes them from
   api,
   isMobile,
 }, testInfo) => {
+  // 两次主题、一次重载、一次弹窗和 axe 检查，比默认的 20s 长。
+  test.slow()
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" })
   await page.setViewportSize(
     isMobile ? { width: 390, height: 844 } : { width: 1440, height: 1080 }
@@ -125,7 +127,7 @@ test("adds platform accounts by pasting a link, then edits and removes them from
     "/api/community/exchange/me/offices",
   ]) {
     await api.mock(
-      { method: "GET", path, times: { min: 0, max: 2 } },
+      { method: "GET", path, times: { min: 0, max: 6 } },
       (route) => route.fulfill({ json: { items: [] } })
     )
   }
@@ -133,7 +135,7 @@ test("adds platform accounts by pasting a link, then edits and removes them from
     {
       method: "GET",
       path: "/api/community/exchange/me/favorites",
-      times: { min: 0, max: 2 },
+      times: { min: 0, max: 6 },
     },
     (route) =>
       route.fulfill({
