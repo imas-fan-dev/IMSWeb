@@ -43,6 +43,7 @@ import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
 import { NamecardFeedbackQueue } from "./namecard-feedback-queue"
 import { NamecardManageDialog } from "./namecard-manage-dialog"
 import { NAMECARD_STATUS_FILTERS } from "./namecard-status-options"
+import { ReviewRowAction } from "./review-row-action"
 import { NamecardMediaPreview } from "./namecard-media-preview"
 import { REJECT_REASON_PRESETS, VIOLATION_REASON_PRESETS } from "./reason-presets"
 
@@ -482,26 +483,18 @@ export default function AdminNamecardManagePage() {
                             />
                           </div>
                           {card.status === "pending" ? (
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              aria-label="通过"
-                              title="通过"
-                              disabled={submitting}
-                              onClick={(event) =>
-                                approveConfirm.requestAction(
-                                  card,
-                                  event.currentTarget
-                                )
+                            <ReviewRowAction
+                              label="通过"
+                              icon={<CheckIcon />}
+                              pending={
+                                approveConfirm.submitting &&
+                                approveConfirm.target?.id === card.id
                               }
-                            >
-                              {approveConfirm.submitting &&
-                              approveConfirm.target?.id === card.id ? (
-                                <LoaderCircleIcon className="animate-spin" />
-                              ) : (
-                                <CheckIcon />
-                              )}
-                            </Button>
+                              disabled={submitting}
+                              onRequest={(trigger) =>
+                                approveConfirm.requestAction(card, trigger)
+                              }
+                            />
                           ) : null}
                           {card.status === "pending" ? (
                             <Button

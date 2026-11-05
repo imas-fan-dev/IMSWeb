@@ -47,6 +47,7 @@ import {
   type AdminNamecardList,
 } from "~/lib/api"
 import { NamecardMediaPreview } from "./namecard-media-preview"
+import { ReviewRowAction } from "./review-row-action"
 import { NAMECARD_STATUS_FILTERS } from "./namecard-status-options"
 import { NamecardReviewDialog } from "./namecard-review-dialog"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
@@ -535,26 +536,18 @@ export default function AdminCardsPage() {
                             />
                           </div>
                           {card.status === "pending" ? (
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              aria-label="通过"
-                              title="通过"
-                              disabled={submitting}
-                              onClick={(event) =>
-                                approveConfirm.requestAction(
-                                  card,
-                                  event.currentTarget
-                                )
+                            <ReviewRowAction
+                              label="通过"
+                              icon={<CheckIcon />}
+                              pending={
+                                approveConfirm.submitting &&
+                                approveConfirm.target?.id === card.id
                               }
-                            >
-                              {approveConfirm.submitting &&
-                              approveConfirm.target?.id === card.id ? (
-                                <LoaderCircleIcon className="animate-spin" />
-                              ) : (
-                                <CheckIcon />
-                              )}
-                            </Button>
+                              disabled={submitting}
+                              onRequest={(trigger) =>
+                                approveConfirm.requestAction(card, trigger)
+                              }
+                            />
                           ) : null}
                           {card.status === "pending" ? (
                             <Button
