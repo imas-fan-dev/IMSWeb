@@ -1,4 +1,10 @@
-import { HomeIcon, InfoIcon, LinkIcon, LoaderCircleIcon, TrashIcon } from "lucide-react"
+import {
+  HomeIcon,
+  InfoIcon,
+  LinkIcon,
+  LoaderCircleIcon,
+  TrashIcon,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -44,7 +50,9 @@ function errorMessage(error: unknown) {
 
 function KindIcon({ kind }: { kind: PlatformAccountKind }) {
   if (kind.group === "link")
-    return <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+    return (
+      <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+    )
   // 图标只收带透明通道的文件，所以一律当单色遮罩用，颜色由品牌色提供。
   const url = platformIconUrl(kind.icon, kind.iconUrl)
   if (url)
@@ -135,7 +143,9 @@ export function PlatformAccountsEditor() {
         if (!active) return
         const entries: Record<string, string> = {}
         const names: Record<string, string> = {}
-        const catalogById = new Map(result.catalog.map((kind) => [kind.id, kind]))
+        const catalogById = new Map(
+          result.catalog.map((kind) => [kind.id, kind])
+        )
         for (const entry of result.entries) {
           const kind = catalogById.get(entry.kindId)
           entries[entry.kindId] = kind
@@ -266,7 +276,10 @@ export function PlatformAccountsEditor() {
   if (loading) {
     return (
       <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-        <LoaderCircleIcon className="mr-2 size-4 animate-spin" aria-hidden="true" />
+        <LoaderCircleIcon
+          className="mr-2 size-4 animate-spin"
+          aria-hidden="true"
+        />
         正在载入
       </div>
     )
@@ -313,7 +326,9 @@ export function PlatformAccountsEditor() {
     <div className="space-y-6">
       {homepageKinds.length > 0 ? (
         <section className="space-y-2">
-          <h3 className="text-sm font-medium text-muted-foreground">个人主页</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">
+            个人主页
+          </h3>
           <div className="grid gap-3 md:grid-cols-2">
             {homepageKinds.map(renderInput)}
           </div>
@@ -335,7 +350,7 @@ export function PlatformAccountsEditor() {
           平台账号
         </h3>
         <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <Input
               value={pasted}
               aria-label="粘贴平台链接"
@@ -353,6 +368,9 @@ export function PlatformAccountsEditor() {
                 handlePaste(text, () => event.preventDefault())
               }}
             />
+            {pasteError ? (
+              <span className="text-xs text-destructive">{pasteError}</span>
+            ) : null}
           </div>
           <TooltipProvider>
             <Tooltip>
@@ -376,27 +394,41 @@ export function PlatformAccountsEditor() {
               >
                 <div className="w-full space-y-1 text-left">
                   <p className="font-medium">支持的平台</p>
-                  <ul className="space-y-0.5">
-                    {templatedKinds.map((kind) => (
-                      <li
-                        key={kind.id}
-                        className="flex items-baseline justify-between gap-2"
-                      >
-                        <span>{kind.name}</span>
-                        <span className="font-mono text-[11px] break-all opacity-80">
-                          {kind.baseUrl}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="opacity-70">
+                        <th
+                          scope="col"
+                          className="pr-3 pb-0.5 font-normal whitespace-nowrap"
+                        >
+                          平台
+                        </th>
+                        <th scope="col" className="pb-0.5 font-normal">
+                          链接模板
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {templatedKinds.map((kind) => (
+                        <tr key={kind.id} className="align-top">
+                          <th
+                            scope="row"
+                            className="py-0.5 pr-3 font-normal whitespace-nowrap"
+                          >
+                            {kind.name}
+                          </th>
+                          <td className="w-full py-0.5 font-mono text-[11px] break-all opacity-80">
+                            {kind.baseUrl}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
-        {pasteError ? (
-          <span className="text-xs text-destructive">{pasteError}</span>
-        ) : null}
 
         {filledKinds.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
@@ -467,7 +499,7 @@ export function PlatformAccountsEditor() {
           {saving ? "正在保存" : "保存"}
         </Button>
         <span className="text-xs text-muted-foreground">
-          粘贴平台链接即可添加，移除条目后点保存生效；留空即从主页移除。
+          粘贴平台链接即可添加；移除条目或清空上面的输入框，点保存后生效。
         </span>
       </div>
     </div>

@@ -572,7 +572,7 @@ function ProfileWorkspace({
             <div className="mt-8 border-t pt-6">
               <h2 className="text-xl font-semibold">平台账号</h2>
               <p className="mt-2 text-sm/6 text-muted-foreground">
-                游戏 ID 与社交平台账号会显示在你的个人主页上；粘贴完整链接或只填标识符都可以，每个平台一条。
+                {"游戏 ID 与社交平台账号会显示在你的个人主页上；社交平台粘贴主页链接即可添加，每个平台一条。"}
               </p>
               <div className="mt-6">
                 <PlatformAccountsEditor />
