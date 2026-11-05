@@ -5,6 +5,7 @@ import CoreGraphics
 enum ExchangeSearchLayout {
   static let minimumNavigationInset: CGFloat = 20
   static let inputToSubmitSpacing: CGFloat = 12
+  static let readingSpacing: CGFloat = 12
 
   // No public UIKit API exposes the painted tab body's height. Keep its
   // conservative 44pt floor, independent of docking/safe-area bounds.
@@ -17,7 +18,13 @@ enum ExchangeSearchLayout {
 
   static func expandedMinimumHeight(handle: CGFloat, input: CGFloat, submit: CGFloat) -> CGFloat {
     let handleSpace = handle > 0 ? handle + 4 : 0
-    return max(260, handleSpace + max(48, input) + inputToSubmitSpacing + max(44, submit) + 4 + 44 + 12)
+    return max(260, handleSpace + max(48, input) + inputToSubmitSpacing + max(44, submit) + readingSpacing + 44 + 12)
+  }
+
+  /// Expansion covers this browsing anchor instead of pushing it up the map.
+  static func sideControlsFrame(collapsedFrame: CGRect, hasLocate: Bool) -> CGRect {
+    let height: CGFloat = hasLocate ? 96 : 48
+    return CGRect(x: collapsedFrame.maxX - 48, y: collapsedFrame.minY - 12 - height, width: 48, height: height)
   }
 
   /// Separate vertical docking input: never use the inline range's root y.

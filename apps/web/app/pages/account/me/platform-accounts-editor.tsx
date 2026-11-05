@@ -1,6 +1,5 @@
 import { Drawer } from "@base-ui/react/drawer"
 import {
-  HomeIcon,
   InfoIcon,
   LinkIcon,
   LoaderCircleIcon,
@@ -18,7 +17,7 @@ import {
 } from "@imsweb/contracts/namecards"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
-import { platformIconUrl } from "~/components/profile/platform-account-icons"
+import { PlatformAccountKindIcon } from "./components/platform-account-kind-icon"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import {
@@ -106,40 +105,10 @@ function PlatformTemplateTable({
   )
 }
 
+const alwaysCurrent = () => true
+
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "保存失败，请重试"
-}
-
-function KindIcon({ kind }: { kind: PlatformAccountKind }) {
-  if (kind.group === "link")
-    return (
-      <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-    )
-  // 图标只收带透明通道的文件，所以一律当单色遮罩用，颜色由品牌色提供。
-  const url = platformIconUrl(kind.icon, kind.iconUrl)
-  if (url)
-    return (
-      <span
-        aria-hidden="true"
-        className="size-4 shrink-0"
-        style={{
-          backgroundColor: kind.color ?? "currentColor",
-          maskImage: `url("${url}")`,
-          WebkitMaskImage: `url("${url}")`,
-          maskSize: "contain",
-          WebkitMaskSize: "contain",
-          maskRepeat: "no-repeat",
-          WebkitMaskRepeat: "no-repeat",
-          maskPosition: "center",
-          WebkitMaskPosition: "center",
-        }}
-      />
-    )
-  return (
-    <span className="flex size-4 items-center justify-center rounded-full bg-muted text-[10px] text-muted-foreground">
-      {kind.name.slice(0, 1)}
-    </span>
-  )
 }
 
 /**
@@ -180,7 +149,15 @@ function PlatformLink({
  * 有链接模板的平台不再逐个铺开：粘贴一条平台链接就自动定位平台并生成
  * 只读条目，没有模板的平台（游戏 ID、平台 ID）仍然常驻输入框。
  */
-export function PlatformAccountsEditor() {
+export function PlatformAccountsEditor({
+  readOnly = false,
+  readOnlyReason = null,
+  isOperationCurrent = alwaysCurrent,
+}: {
+  readOnly?: boolean
+  readOnlyReason?: string | null
+  isOperationCurrent?: () => boolean
+} = {}) {
   const [kinds, setKinds] = useState<PlatformAccountKind[]>([])
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [original, setOriginal] = useState<Record<string, string>>({})
@@ -235,12 +212,14 @@ export function PlatformAccountsEditor() {
     }
   }, [])
 
-  const homepageKinds = kinds.filter((kind) => kind.group === "link")
-  const gameKinds = kinds.filter(
+  // 后台停用的平台既不出现在分组里，也不能粘贴添加。
+  const activeKinds = kinds.filter((kind) => kind.enabled)
+  const homepageKinds = activeKinds.filter((kind) => kind.group === "link")
+  const gameKinds = activeKinds.filter(
     (kind) => kind.group === "game" && !kind.baseUrl
   )
-  const templatedKinds = kinds.filter((kind) => kind.baseUrl)
-  const idKinds = kinds.filter(
+  const templatedKinds = activeKinds.filter((kind) => kind.baseUrl)
+  const idKinds = activeKinds.filter(
     (kind) => !kind.baseUrl && kind.group !== "link" && kind.group !== "game"
   )
   // 只有填过或刚添加的平台才出现：本次新加的按添加先后倒序排在前面，
@@ -250,7 +229,7 @@ export function PlatformAccountsEditor() {
     .sort((left, right) => (addedAt[right.id] ?? 0) - (addedAt[left.id] ?? 0))
 
   const localErrors: Record<string, string> = {}
-  for (const kind of kinds) {
+  for (const kind of activeKinds) {
     // 校验的是最终存下的形式（YouTube 的 handle 会先转成百分号转义）。
     const message = platformValueError(
       kind,
@@ -259,13 +238,14 @@ export function PlatformAccountsEditor() {
     if (message) localErrors[kind.id] = message
   }
 
-  const dirty = kinds.filter(
+  const dirty = activeKinds.filter(
     (kind) =>
       (draft[kind.id] ?? "").trim() !== (original[kind.id] ?? "") ||
       (usernames[kind.id] ?? "").trim() !== (originalUsernames[kind.id] ?? "")
   )
 
   function handlePaste(text: string, preventDefault: () => void) {
+    if (readOnly || !isOperationCurrent()) return
     const kind = matchPlatformAccountKind(templatedKinds, text)
     if (!kind) {
       setPasteError(MATCH_FAILED)
@@ -292,6 +272,7 @@ export function PlatformAccountsEditor() {
   }
 
   function removeEntry(kind: PlatformAccountKind) {
+    if (readOnly || !isOperationCurrent()) return
     // 只在前端移除，点【保存】时才真正删除；刷新会恢复成服务端状态。
     setDraft((current) => ({ ...current, [kind.id]: "" }))
     setUsernames((current) => ({ ...current, [kind.id]: "" }))
@@ -304,7 +285,9 @@ export function PlatformAccountsEditor() {
   }
 
   async function save() {
-    if (saving || dirty.length === 0) return
+    if (saving || dirty.length === 0 || readOnly || !isOperationCurrent()) {
+      return
+    }
     setSaving(true)
     setErrors({})
     const nextErrors: Record<string, string> = {}
@@ -361,11 +344,12 @@ export function PlatformAccountsEditor() {
     return (
       <label key={kind.id} className="flex flex-col gap-1.5">
         <span className="flex items-center gap-2 text-sm">
-          <KindIcon kind={kind} />
+          <PlatformAccountKindIcon kind={kind} />
           {kind.name}
         </span>
         <Input
           value={draft[kind.id] ?? ""}
+          disabled={readOnly}
           placeholder={placeholderFor(kind)}
           aria-label={kind.name}
           aria-invalid={
@@ -388,6 +372,10 @@ export function PlatformAccountsEditor() {
 
   return (
     <div className="space-y-6">
+      {readOnlyReason ? (
+        <p className="text-sm text-muted-foreground">{readOnlyReason}</p>
+      ) : null}
+
       {homepageKinds.length > 0 ? (
         <section className="space-y-2">
           <h3 className="text-sm font-medium text-muted-foreground">
@@ -417,6 +405,7 @@ export function PlatformAccountsEditor() {
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <Input
               value={pasted}
+              disabled={readOnly}
               aria-label="粘贴平台链接"
               aria-invalid={pasteError ? true : undefined}
               placeholder="粘贴平台主页链接，例如 https://space.bilibili.com/12345"
@@ -514,12 +503,13 @@ export function PlatformAccountsEditor() {
                 data-platform-entry={kind.id}
               >
                 <div className="flex min-w-0 items-center gap-2 text-sm">
-                  <KindIcon kind={kind} />
+                  <PlatformAccountKindIcon kind={kind} />
                   <span className="truncate">{kind.name}</span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
+                    disabled={readOnly}
                     className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
                     aria-label={`移除 ${kind.name}`}
                     onClick={() => removeEntry(kind)}
@@ -535,6 +525,7 @@ export function PlatformAccountsEditor() {
                 ) : null}
                 <Input
                   value={usernames[kind.id] ?? ""}
+                  disabled={readOnly}
                   placeholder="用户名（选填）"
                   aria-label={`${kind.name} 用户名`}
                   maxLength={60}
@@ -561,7 +552,7 @@ export function PlatformAccountsEditor() {
       <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"
-          disabled={saving || dirty.length === 0}
+          disabled={readOnly || saving || dirty.length === 0}
           onClick={() => void save()}
         >
           {saving ? (

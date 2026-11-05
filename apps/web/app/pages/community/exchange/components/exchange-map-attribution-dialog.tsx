@@ -14,6 +14,7 @@ interface ExchangeMapAttributionDialogProps {
   iosMapPresentation?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
+  finalFocus?: () => HTMLElement | false
 }
 
 /**
@@ -28,12 +29,14 @@ export function ExchangeMapAttributionDialog({
   iosMapPresentation = false,
   open,
   onOpenChange,
+  finalFocus,
 }: ExchangeMapAttributionDialogProps) {
   if (!attribution && !searchAttributions.length) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        finalFocus={finalFocus}
         safeArea={iosMapPresentation ? "custom" : "inset"}
         className={
           iosMapPresentation ? "exchange-map-attribution-dialog-ios" : undefined

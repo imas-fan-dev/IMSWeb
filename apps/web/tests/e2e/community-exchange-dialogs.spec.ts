@@ -7,6 +7,7 @@ import type {
   FudabaOwnerOffice,
 } from "@imsweb/contracts/fudaba"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
+import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
 import { settleToasts } from "./fixtures/toast"
 
 const office = {
@@ -222,15 +223,24 @@ test("keeps map state through office dialogs and opens personal pages separately
   )
   expect(await canvas.boundingBox()).toEqual(frame)
   expect(viewportReads).toBe(committedReads)
+  if (!isMobile) installPlatformOAuthProvidersMock(api)
   await more.click()
   await page.getByRole("menuitem", { name: "我的交换账号" }).click()
-  await expect(page).toHaveURL(/\/account\/me$/)
+  await expect(page).toHaveURL(
+    isMobile ? /\/account\/me$/ : /\/account\/login\?returnTo=%2Faccount%2Fme$/
+  )
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
-  await expect(
-    page.getByRole("main").getByText("未登录", { exact: true })
-  ).toBeVisible()
-  await expect(page.locator('a[href="/account/login"]')).toContainText("登录")
+  if (isMobile) {
+    await expect(
+      page.getByRole("main").getByText("未登录", { exact: true })
+    ).toBeVisible()
+    await expect(page.locator('a[href="/account/login"]')).toContainText("登录")
+  } else {
+    await expect(
+      page.getByRole("heading", { name: "登录站点帐号", exact: true })
+    ).toBeVisible()
+  }
 })
 
 test("opens direct office links over the map and safely closes after refresh @mobile", async ({

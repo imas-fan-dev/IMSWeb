@@ -108,13 +108,16 @@ describe("PlatformSessionProvider", () => {
     vi.clearAllMocks()
   })
 
-  it("stays anonymous and avoids a session request without a cookie hint", () => {
+  it("resolves anonymous without requesting a session when there is no hint", async () => {
     apiMocks.hasSessionHint.mockReturnValue(false)
 
     renderProvider()
 
-    expect(screen.getByLabelText("session-status")).toHaveTextContent(
-      "anonymous"
+    expect(screen.getByLabelText("session-status")).toHaveTextContent("loading")
+    await waitFor(() =>
+      expect(screen.getByLabelText("session-status")).toHaveTextContent(
+        "anonymous"
+      )
     )
     expect(apiMocks.getSessionSend).not.toHaveBeenCalled()
   })
@@ -130,11 +133,8 @@ describe("PlatformSessionProvider", () => {
 
     renderProvider()
 
-    await waitFor(() =>
-      expect(screen.getByLabelText("session-status")).toHaveTextContent(
-        "loading"
-      )
-    )
+    expect(screen.getByLabelText("session-status")).toHaveTextContent("loading")
+    await waitFor(() => expect(apiMocks.getSessionSend).toHaveBeenCalledOnce())
     await act(() => resolveSession(activeSession))
     expect(screen.getByLabelText("session-status")).toHaveTextContent(
       "authenticated"

@@ -23,6 +23,7 @@ export interface AMapNativeMap {
   getZooms(): MapPosition
   setZooms(zooms: MapPosition): void
   lngLatToContainer(position: MapPosition): { getX(): number; getY(): number }
+  containerToLngLat?(pixel: [number, number]): AMapLngLat
   setZoomAndCenter(
     zoom: number,
     center: MapPosition,

@@ -179,6 +179,23 @@ SHA-256；[NOTICE.txt](../../apps/web/public/emoji/twemoji/NOTICE.txt) 和
 [LICENSE-GRAPHICS.txt](../../apps/web/public/emoji/twemoji/LICENSE-GRAPHICS.txt) 提供署名与完整许可。
 资产清单的单元测试同时核对反应允许列表、实际文件和校验值，新增反应时必须一并更新。
 
+## 平台账号图标
+
+`apps/web/app/pages/account/me/components/platform-icons/` 中的 Xbox、Nintendo Switch、GitHub 与 X SVG 来自
+[Simple Icons 11.15.0](https://github.com/simple-icons/simple-icons/tree/11.15.0/icons)，
+作者为 Simple Icons 贡献者，按
+[CC0 1.0](https://github.com/simple-icons/simple-icons/blob/11.15.0/LICENSE.md) 公开分发。
+仅用于 Web 与 App 个人资料编辑区识别对应平台，商标权仍归对应平台权利人，不表示平台背书，
+也不随本仓库代码转换为 MIT 授权。文件保留原始 SVG 路径、标题与 viewBox，仅补充文件末尾换行。
+后台上传的图标仍优先使用；未上传时随个人资料模块提供这四枚图标，避免该分区依赖 CDN。
+
+| 文件 | 字节数 | SHA-256 |
+| --- | --- | --- |
+| `apps/web/app/pages/account/me/components/platform-icons/xbox.svg` | 844 | `908aba0ba8e639c2a601d070d2c12846e1f77701299b7d37f7eb211629725d8d` |
+| `apps/web/app/pages/account/me/components/platform-icons/nintendo-switch.svg` | 724 | `74e26fb73d64e552e172644825450c5c8352e830825e788c9d943fd6d4050d17` |
+| `apps/web/app/pages/account/me/components/platform-icons/github.svg` | 823 | `4a6b3318b5e73d259e32696463dd7fd2039250b067201866324ed95f4a04775d` |
+| `apps/web/app/pages/account/me/components/platform-icons/x.svg` | 253 | `fce59f371b26e742ec6c76a5035b70923e05c75c5b098ea7064862dab591fd32` |
+
 ## 新增资产要求
 
 新增静态资产必须满足：

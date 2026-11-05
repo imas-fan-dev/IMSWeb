@@ -73,7 +73,12 @@ function rejectedSessionState(error: unknown): PlatformSessionState {
 }
 
 export function PlatformSessionProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<PlatformSessionState>(anonymousState)
+  // A protected route must wait for bootstrap before deciding it needs login.
+  const [state, setState] = useState<PlatformSessionState>({
+    status: "loading",
+    session: null,
+    error: null,
+  })
   const requestGeneration = useRef(0)
 
   const acceptSession = useCallback((session: PlatformSession) => {

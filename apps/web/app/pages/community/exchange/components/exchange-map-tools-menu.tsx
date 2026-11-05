@@ -5,6 +5,8 @@ import {
   ContactRoundIcon,
   InfoIcon,
   MoreHorizontalIcon,
+  MapPinPlusIcon,
+  CircleHelpIcon,
   SlidersHorizontalIcon,
   UserRoundIcon,
 } from "lucide-react"
@@ -12,8 +14,11 @@ import { useEffect, useRef, useState, type RefObject } from "react"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Button } from "~/components/ui/button"
+import { useSafeAreaCollisionBoundary } from "~/components/ui/use-safe-area-collision-boundary"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
+import { useExchangeMapActions } from "./exchange-map-actions"
+import "./exchange-map-tools-menu.css"
 
 interface ExchangeMapToolsMenuProps {
   filterAnchorRef?: RefObject<HTMLElement | null>
@@ -24,6 +29,7 @@ interface ExchangeMapToolsMenuProps {
   onOpenChange?: (open: boolean) => void
   triggerRef?: RefObject<HTMLButtonElement | null>
   triggerClassName?: string
+  triggerLabel?: string
   side?: "top" | "bottom"
   onOpenFilter: () => void
   onOpenOffices: () => void
@@ -47,6 +53,7 @@ export function ExchangeMapToolsMenu({
   onOpenChange,
   triggerRef,
   triggerClassName,
+  triggerLabel,
   side = "top",
   onOpenFilter,
   onOpenOffices,
@@ -54,6 +61,11 @@ export function ExchangeMapToolsMenu({
   onOpenAttribution,
 }: ExchangeMapToolsMenuProps) {
   const ownTrigger = useRef<HTMLButtonElement>(null)
+  const collisionBoundary = useSafeAreaCollisionBoundary()
+  const actions = useExchangeMapActions()
+  const guideOpen = Boolean(
+    actions?.tourTarget && !["map", "search"].includes(actions.tourTarget)
+  )
   const trigger = triggerRef ?? ownTrigger
   const [localOpen, setLocalOpen] = useState(false)
   const isOpen = open ?? localOpen
@@ -92,7 +104,8 @@ export function ExchangeMapToolsMenu({
 
   return (
     <Menu.Root
-      open={isOpen}
+      open={guideOpen || isOpen}
+      modal={!guideOpen}
       onOpenChange={(value) => {
         setLocalOpen(value)
         onOpenChange?.(value)
@@ -104,7 +117,7 @@ export function ExchangeMapToolsMenu({
             ref={trigger}
             variant="secondary"
             className={cn(
-              "relative size-11 shrink-0 rounded-full",
+              "exchange-map-tools-trigger relative size-11 shrink-0 rounded-full",
               triggerClassName
             )}
             aria-label="更多地图工具"
@@ -112,7 +125,12 @@ export function ExchangeMapToolsMenu({
           />
         }
       >
-        <MoreHorizontalIcon aria-hidden="true" />
+        {triggerLabel ?? (
+          <MoreHorizontalIcon
+            className="exchange-map-tools-icon"
+            aria-hidden="true"
+          />
+        )}
         {filterApplied ? (
           <span
             aria-hidden="true"
@@ -122,12 +140,15 @@ export function ExchangeMapToolsMenu({
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner
+          collisionBoundary={collisionBoundary}
+          collisionPadding={12}
           side={side}
           sideOffset={8}
           align="end"
           className="z-50"
         >
           <Menu.Popup
+            inert={guideOpen}
             aria-labelledby={undefined}
             aria-label="更多地图工具内容"
             finalFocus={(interaction) =>
@@ -136,15 +157,16 @@ export function ExchangeMapToolsMenu({
                 : false
             }
             className={cn(
-              "exchange-map-tools-menu max-h-[min(420px,calc(100dvh-24px))] w-60 max-w-[calc(100vw-24px)] overflow-y-auto border bg-popover text-popover-foreground shadow-lg outline-none",
+              "exchange-map-tools-menu max-h-[min(420px,var(--available-height),calc(100dvh-24px))] w-60 max-w-[calc(100vw-24px)] overflow-y-auto border shadow-lg outline-none",
               IS_APP_TARGET
                 ? "exchange-map-app-surface rounded-3xl p-2 text-foreground"
-                : "rounded-xl p-1.5"
+                : "rounded-xl bg-popover p-1.5 text-popover-foreground"
             )}
           >
             <Menu.Item
               className={itemClass}
               aria-label={filterApplied ? "打开筛选，已应用筛选" : "打开筛选"}
+              data-map-guide="filters"
               onClick={() => {
                 if (filterAnchorRef) filterAnchorRef.current = trigger.current
                 openTool(onOpenFilter, !filterAnchorRef)
@@ -157,6 +179,7 @@ export function ExchangeMapToolsMenu({
             <Menu.Item
               className={itemClass}
               aria-label="打开事务所名录"
+              data-map-guide="offices"
               onClick={() => openTool(onOpenOffices)}
             >
               <Building2Icon aria-hidden="true" />
@@ -171,9 +194,29 @@ export function ExchangeMapToolsMenu({
               名片
             </Menu.Item>
             <div aria-hidden="true" className="mx-3 my-2 border-t" />
+            {actions ? (
+              <>
+                <Menu.Item
+                  className={itemClass}
+                  data-map-guide="create"
+                  onClick={() => openTool(actions.startCreate)}
+                >
+                  <MapPinPlusIcon aria-hidden="true" />
+                  选择位置创建事务所
+                </Menu.Item>
+                <Menu.Item
+                  className={itemClass}
+                  onClick={() => openTool(actions.showHelp)}
+                >
+                  <CircleHelpIcon aria-hidden="true" />
+                  使用帮助
+                </Menu.Item>
+              </>
+            ) : null}
             <Menu.LinkItem
               render={<NavigationLink to="/account/me" />}
               className={itemClass}
+              data-map-guide="account"
             >
               <UserRoundIcon aria-hidden="true" />
               我的交换账号

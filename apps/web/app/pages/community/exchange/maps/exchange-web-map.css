@@ -280,7 +280,7 @@
 @media (max-width: 1023px) {
   .exchange-web-workspace {
     top: auto;
-    bottom: max(4rem, calc(env(safe-area-inset-bottom) + 3.5rem));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
     left: 0.75rem;
     width: calc(100% - 1.5rem);
     max-height: calc(100% - 7.5rem);
@@ -312,28 +312,19 @@
   .exchange-web-office-scroll {
     max-height: min(26rem, max(5rem, calc(100dvh - 27rem)));
   }
-  [data-exchange-web-workspace][data-office-list-open]
-    [data-native-glass-control="locate"] {
-    top: auto;
-    bottom: 8rem;
-  }
-  [data-exchange-web-workspace][data-office-list-open] .exchange-web-refresh {
-    top: auto;
-    bottom: 11.25rem;
-  }
   .exchange-web-map-warning {
     right: 4.75rem;
     width: min(22rem, calc(100% - 5.5rem));
   }
   [data-exchange-web-workspace] [data-native-glass-control="locate"] {
-    top: 4.25rem;
+    top: auto;
     right: 0.75rem;
-    bottom: auto;
+    bottom: var(--exchange-map-controls-bottom, 5rem);
   }
   .exchange-web-refresh {
-    top: 7.5rem;
+    top: auto;
     right: 0.75rem;
-    bottom: auto;
+    bottom: calc(var(--exchange-map-controls-bottom, 5rem) + 3.25rem);
   }
 }
 
@@ -355,15 +346,6 @@
   .exchange-web-map-count[data-open="true"] {
     right: 4.75rem;
     width: min(22.5rem, calc(100% - 6rem));
-  }
-  [data-exchange-web-workspace][data-office-list-open]
-    [data-native-glass-control="locate"] {
-    top: 4.25rem;
-    bottom: auto;
-  }
-  [data-exchange-web-workspace][data-office-list-open] .exchange-web-refresh {
-    top: 7.5rem;
-    bottom: auto;
   }
 }
 

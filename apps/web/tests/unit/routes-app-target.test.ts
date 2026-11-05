@@ -67,7 +67,7 @@ describe("app target routes", () => {
     const { default: routes } = await import("~/routes")
     const leaves = routeLeaves(routes)
 
-    expect(leaves).toHaveLength(31)
+    expect(leaves).toHaveLength(32)
     expect(sortedLeaves(leaves)).toEqual(
       sortedLeaves(routeDescriptorsForTarget("app").map(descriptorLeaf))
     )
@@ -84,8 +84,11 @@ describe("app target routes", () => {
 
   it("resolves every App target route inside the back tree", () => {
     const descriptors = routeDescriptorsForTarget("app")
-    expect(descriptors).toHaveLength(31)
+    expect(descriptors).toHaveLength(32)
     for (const descriptor of descriptors) {
+      // The catch-all renders the not-found page for any unmatched address and
+      // is deliberately outside the page tree.
+      if (descriptor.path === "*") continue
       const path = descriptor.index ? "" : (descriptor.path ?? "")
       const pathname = `/${path.replace(/:[^/]+/g, "sample")}`
       expect(

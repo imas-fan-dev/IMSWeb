@@ -23,6 +23,8 @@ pub struct ConfigureOptions {
     pub dark: bool,
     #[serde(default)]
     pub hidden: bool,
+    #[serde(default)]
+    pub interaction_blocked: bool,
     pub items: Vec<NativeGlassTabItem>,
     #[serde(default)]
     pub selected_color: Option<NativeGlassColor>,
@@ -36,8 +38,20 @@ pub struct UpdateOptions {
     #[serde(default)]
     pub hidden: bool,
     #[serde(default)]
+    pub interaction_blocked: bool,
+    #[serde(default)]
     pub selected_color: Option<NativeGlassColor>,
     pub selected_index: Option<usize>,
+}
+
+/// Admission policy for the App-owned back gesture. Native code never decides
+/// where to navigate; it only admits an edge swipe and reports its lifecycle.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackPolicyArgs {
+    pub generation: u64,
+    pub revision: u64,
+    pub can_back: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -86,6 +100,8 @@ pub enum NativeGlassControl {
         active: bool,
         #[serde(default)]
         disabled: bool,
+        #[serde(default)]
+        busy: bool,
     },
     #[serde(rename = "menu", rename_all = "camelCase")]
     Menu {

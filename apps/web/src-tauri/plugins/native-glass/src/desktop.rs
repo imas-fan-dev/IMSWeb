@@ -1,7 +1,9 @@
 use serde::de::DeserializeOwned;
 use tauri::{plugin::PluginApi, AppHandle, Runtime};
 
-use crate::models::{ConfigureOptions, NativeGlassStatus, SetControlsArgs, UpdateOptions};
+use crate::models::{
+    BackPolicyArgs, ConfigureOptions, NativeGlassStatus, SetControlsArgs, UpdateOptions,
+};
 
 pub fn init<R: Runtime, C: DeserializeOwned>(
     app: &AppHandle<R>,
@@ -42,6 +44,20 @@ impl<R: Runtime> NativeGlass<R> {
     pub fn set_controls(&self, _args: SetControlsArgs) -> crate::Result<NativeGlassStatus> {
         Ok(NativeGlassStatus {
             reason: Some("ios-only".into()),
+            supported: false,
+        })
+    }
+
+    pub fn set_back_policy(&self, _args: BackPolicyArgs) -> crate::Result<NativeGlassStatus> {
+        Ok(NativeGlassStatus {
+            reason: Some("ios-only".into()),
+            supported: false,
+        })
+    }
+
+    pub fn background_task(&self) -> crate::Result<NativeGlassStatus> {
+        Ok(NativeGlassStatus {
+            reason: Some("android-only".into()),
             supported: false,
         })
     }

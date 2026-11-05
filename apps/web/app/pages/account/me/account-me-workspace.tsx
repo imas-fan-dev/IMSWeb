@@ -5,8 +5,9 @@ import {
   RefreshCwIcon,
   UserRoundIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useSearchParams } from "react-router"
+import { readOfficeCreateIntent } from "~/lib/maps/office-create-intent"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
@@ -119,6 +120,11 @@ function ProfileWorkspace({
   const embedded = useExchangeMapDialog()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+  const createIntentId = searchParams.get("create")
+  const initialOfficeTarget = useMemo(
+    () => readOfficeCreateIntent(createIntentId),
+    [createIntentId]
+  )
   const [state, setState] = useState<WorkspaceState>(initialState)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -572,10 +578,15 @@ function ProfileWorkspace({
             <div className="mt-8 border-t pt-6">
               <h2 className="text-xl font-semibold">平台账号</h2>
               <p className="mt-2 text-sm/6 text-muted-foreground">
-                {"游戏 ID 与社交平台账号会显示在你的个人主页上；社交平台粘贴主页链接即可添加，每个平台一条。"}
+                {"按需添加个人主页、游戏 ID 或社交账号；社交平台粘贴主页链接即可添加，每个平台一条。"}
               </p>
               <div className="mt-6">
-                <PlatformAccountsEditor />
+                <PlatformAccountsEditor
+                  key={`${profileAccountId}-${profileReadOnly}`}
+                  readOnly={profileReadOnly}
+                  readOnlyReason={profileReadOnlyReason}
+                  isOperationCurrent={isProfileOperationCurrent}
+                />
               </div>
             </div>
           </div>
@@ -665,6 +676,9 @@ function ProfileWorkspace({
           >
             <OfficeLocationWorkspace
               initialOfficeId={requestedOfficeId}
+              initialTarget={
+                activeSection === "offices" ? initialOfficeTarget : null
+              }
               series={state.series}
               homeCity={state.profile.homeCity}
               readOnly={exchangeReadOnly}

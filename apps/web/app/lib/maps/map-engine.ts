@@ -45,6 +45,8 @@ export interface MapView {
   /** Transient camera snapshot; native targets retain their coordinate identity. */
   readCamera?(): { target: MapSearchTarget; zoom: number }
   project(positions: MapPosition[]): Promise<MapScreenPoint[]>
+  /** Display target under a background gesture, retaining the engine's CRS. */
+  unproject?(point: MapScreenPoint): import("./map-search").MapSearchTarget
   addMarker(
     options: MapMarkerOptions & {
       position: MapPosition

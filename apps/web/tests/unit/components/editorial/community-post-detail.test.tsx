@@ -236,6 +236,97 @@ describe("CommunityPostDetail", () => {
     expect(screen.queryByRole("heading", { name: "内容来源" })).toBeNull()
   })
 
+  it.each(["", "  ", "<p></p>", "<p><br /></p>", "<p>&nbsp;&#160;&#xA0; </p>"])(
+    "shows the destination above the cover for a link-only article with body %j",
+    (bodyHtml) => {
+      renderDetail({ ...baseArticle, body_html: bodyHtml })
+
+      const destination = screen.getByRole("link", { name: "查看原页面" })
+      const cover = screen.getByRole("button", {
+        name: "查看湖南偶像大师 ONLY封面",
+      })
+
+      expect(screen.getByRole("heading", { name: "查看详情" })).toBeVisible()
+      expect(destination).toHaveAttribute("href", baseArticle.source_url)
+      expect(destination).toHaveAttribute("target", "_blank")
+      expect(destination).toHaveAttribute("rel", "noreferrer")
+      expect(
+        destination.compareDocumentPosition(cover) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(screen.queryByRole("complementary")).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId("editorial-article-body")
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText("暂无更多介绍")).not.toBeInTheDocument()
+    }
+  )
+
+  it("keeps explicit destinations and event facts without duplicating links for an empty article", () => {
+    renderDetail({
+      ...baseArticle,
+      body_html: "",
+      kind: "event",
+      venue_name: "上海活动中心",
+      related_links: [
+        { label: "报名入口", url: "https://example.test/register" },
+        { label: "站内说明", url: "/events/43" },
+      ],
+    })
+
+    expect(screen.getAllByRole("link", { name: "报名入口" })).toHaveLength(1)
+    expect(screen.getByRole("link", { name: "站内说明" })).toHaveAttribute(
+      "href",
+      "/events/43"
+    )
+    expect(screen.getByRole("link", { name: "站内说明" })).not.toHaveAttribute(
+      "target"
+    )
+    expect(
+      screen.queryByRole("link", { name: "查看原页面" })
+    ).not.toBeInTheDocument()
+    const aside = screen.getByRole("complementary")
+    expect(
+      within(aside).getByRole("heading", { name: "活动信息" })
+    ).toBeVisible()
+    expect(within(aside).getByText("上海活动中心")).toBeVisible()
+    expect(within(aside).queryByRole("link")).not.toBeInTheDocument()
+    expect(screen.queryByText("暂无更多介绍")).not.toBeInTheDocument()
+  })
+
+  it("renders a link-only article without a cover and deduplicates legacy destinations", () => {
+    renderDetail({
+      ...baseArticle,
+      body_html: "<p><br></p>",
+      cover_url: null,
+      registration_url: baseArticle.source_url,
+    })
+
+    expect(screen.getByRole("heading", { name: "查看详情" })).toBeVisible()
+    expect(screen.getAllByRole("link")).toHaveLength(1)
+    expect(
+      screen.getByRole("link", { name: "报名 / 查看链接" })
+    ).toHaveAttribute("href", baseArticle.source_url)
+    expect(screen.queryByRole("button")).not.toBeInTheDocument()
+    expect(screen.queryByText("暂无更多介绍")).not.toBeInTheDocument()
+  })
+
+  it("preserves image-only article content instead of treating it as a link-only post", () => {
+    renderDetail({
+      ...baseArticle,
+      body_html:
+        '<p><img src="https://media.example.test/body.webp" alt="活动海报" /></p>',
+    })
+
+    expect(screen.getByTestId("editorial-article-body")).toContainElement(
+      screen.getByRole("img", { name: "活动海报" })
+    )
+    expect(screen.getByRole("heading", { name: "相关链接" })).toBeVisible()
+    expect(
+      screen.queryByRole("heading", { name: "查看详情" })
+    ).not.toBeInTheDocument()
+  })
+
   it("renders a legacy event record with its creation date as the published date", () => {
     renderDetail({
       ...baseArticle,

@@ -42,14 +42,22 @@ private struct NativeTabItem: Decodable {
 private struct ConfigureArgs: Decodable {
   let dark: Bool
   let hidden: Bool?
+  let interactionBlocked: Bool?
   let items: [NativeTabItem]
   let selectedColor: NativeColor?
   let selectedIndex: Int
 }
 
+private struct BackPolicyArgs: Decodable {
+  let generation: UInt64
+  let revision: UInt64
+  let canBack: Bool
+}
+
 private struct UpdateArgs: Decodable {
   let dark: Bool
   let hidden: Bool?
+  let interactionBlocked: Bool?
   let selectedColor: NativeColor?
   let selectedIndex: Int?
 }
@@ -157,12 +165,13 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
   }
 }
 
-final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
+final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureRecognizerDelegate {
   private weak var webview: WKWebView?
   private var items: [NativeTabItem] = []
   private var selectedColor = imsTabBarSelectedColor
   private var selectedIndex = 0
   private var isSynchronizingSelection = false
+  private var interactionBlocked = false
   private var tabBarController: UITabBarController?
   private var tabBarHost: NativeGlassTabBarHostViewController?
   // Stored as the base class so this iOS 15-compatible plugin type never
@@ -174,6 +183,12 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   private var navigationLayoutGeneration = UInt64(Date().timeIntervalSince1970 * 1000)
   private var navigationLayoutRevision: UInt64 = 0
   private var navigationLayoutSignature: String?
+  private var backPolicyGeneration: UInt64 = 0
+  private var backPolicyRevision: UInt64 = 0
+  private var backCanNavigate = false
+  private var backGestureId: UInt64 = 0
+  private var backGestureActive = false
+  private weak var backEdgeRecognizer: UIScreenEdgePanGestureRecognizer?
 
   @objc public func setSearch(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(NativeSearchArgs.self)
@@ -226,11 +241,11 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         return self?.tabBarHost?.navigationDockingFrame(in: host.view)
       }
       host.hasLocate = (self.controlHost as? NativeGlassControlHostViewController)?.hasLocate == true
-      host.onSideLayout = { [weak self, weak host] frame in
+      host.onSideLayout = { [weak self, weak host] frame, covered in
         guard let self, let host,
           let controls = self.controlHost as? NativeGlassControlHostViewController else { return }
         let converted = frame.map { host.view.convert($0, to: controls.overlayView) }
-        controls.setSearchLocateFrame(converted)
+        controls.setSearchLocateFrame(converted, covered: covered)
       }
       host.onEvent = { [weak self] detail in
         guard let data = try? JSONSerialization.data(withJSONObject: detail),
@@ -267,9 +282,107 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   override func load(webview: WKWebView) {
     self.webview = webview
     webview.scrollView.bounces = false
+    // App stacks own page history. Replaying WebKit's back/forward list can
+    // reach entries from another tab, so the system gesture stays disabled and
+    // the App admits its own edge gesture instead.
+    webview.allowsBackForwardNavigationGestures = false
     #if DEBUG
     logNativeGlass("plugin loaded")
     #endif
+  }
+
+  @objc public func setBackPolicy(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(BackPolicyArgs.self)
+    DispatchQueue.main.async {
+      guard args.generation >= self.backPolicyGeneration else {
+        invoke.resolve(["supported": true, "applied": false, "reason": "stale-generation"])
+        return
+      }
+      self.backPolicyGeneration = args.generation
+      self.backPolicyRevision = args.revision
+      self.backCanNavigate = args.canBack
+      if args.canBack { self.installBackEdgeRecognizer() }
+      invoke.resolve(["supported": true, "applied": true])
+    }
+  }
+
+  private func installBackEdgeRecognizer() {
+    guard backEdgeRecognizer == nil, let host = manager.viewController else { return }
+    let recognizer = UIScreenEdgePanGestureRecognizer(
+      target: self, action: #selector(handleBackEdge(_:)))
+    recognizer.edges = .left
+    recognizer.delegate = self
+    recognizer.cancelsTouchesInView = false
+    host.view.addGestureRecognizer(recognizer)
+    backEdgeRecognizer = recognizer
+    publishBackPolicy()
+  }
+
+  /// Republish after the host exists so a policy set before layout is not lost.
+  private func publishBackPolicy() {
+    guard let webview else { return }
+    let detail: [String: Any] = [
+      "generation": backPolicyGeneration,
+      "revision": backPolicyRevision,
+      "canBack": backCanNavigate,
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: detail),
+      let literal = String(data: data, encoding: .utf8)
+    else { return }
+    webview.evaluateJavaScript(
+      "window.dispatchEvent(new CustomEvent('ims:native-back-policy',{detail:\(literal)}))",
+      completionHandler: nil)
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard gestureRecognizer === backEdgeRecognizer else { return true }
+    return backCanNavigate
+  }
+
+  @objc private func handleBackEdge(_ gesture: UIScreenEdgePanGestureRecognizer) {
+    switch gesture.state {
+    case .began:
+      backGestureId &+= 1
+      backGestureActive = true
+      emitBack("begin", progress: 0)
+    case .changed:
+      guard backGestureActive else { return }
+      let width = max(gesture.view?.bounds.width ?? 1, 1)
+      let progress = min(max(gesture.translation(in: gesture.view).x / width, 0), 1)
+      emitBack("progress", progress: Double(progress))
+    case .ended:
+      guard backGestureActive else { return }
+      backGestureActive = false
+      let width = max(gesture.view?.bounds.width ?? 1, 1)
+      let progress = gesture.translation(in: gesture.view).x / width
+      let velocity = gesture.velocity(in: gesture.view).x
+      if progress > 0.35 || velocity > 500 {
+        emitBack("commit", progress: 1)
+      } else {
+        emitBack("cancel", progress: 0)
+      }
+    default:
+      guard backGestureActive else { return }
+      backGestureActive = false
+      emitBack("cancel", progress: 0)
+    }
+  }
+
+  private func emitBack(_ phase: String, progress: Double) {
+    guard let webview else { return }
+    let detail: [String: Any] = [
+      "generation": backPolicyGeneration,
+      "revision": backPolicyRevision,
+      "gestureId": backGestureId,
+      "phase": phase,
+      "progress": progress,
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: detail),
+      let literal = String(data: data, encoding: .utf8)
+    else { return }
+    webview.evaluateJavaScript(
+      "window.dispatchEvent(new CustomEvent('ims:native-back',{detail:\(literal)}))",
+      completionHandler: nil)
   }
 
   @objc public func configure(_ invoke: Invoke) throws {
@@ -330,7 +443,8 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         self.selectedColor = selectedColor.uiColor
       }
       self.applyAppearance(dark: args.dark)
-      self.setBarHidden(args.hidden ?? false, animated: true)
+      self.setInteractionBlocked(args.interactionBlocked ?? false)
+      self.setBarHidden(args.hidden ?? false, animated: args.interactionBlocked != true)
       invoke.resolve(["supported": true])
     }
   }
@@ -391,6 +505,11 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   }
 
   @objc public func destroy(_ invoke: Invoke) {
+    backCanNavigate = false
+    if let recognizer = backEdgeRecognizer {
+      recognizer.view?.removeGestureRecognizer(recognizer)
+      backEdgeRecognizer = nil
+    }
     DispatchQueue.main.async {
       self.removeBar(animated: true)
       if #available(iOS 26.0, *) {
@@ -442,6 +561,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     publishExchangeNavigationLayout(force: true)
     selectTab(at: args.selectedIndex)
     applyAppearance(dark: args.dark)
+    setInteractionBlocked(args.interactionBlocked ?? false)
     setBarHidden(args.hidden ?? false, animated: false)
     return true
   }
@@ -495,6 +615,12 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   }
 
   @available(iOS 18.0, *)
+  private func setInteractionBlocked(_ blocked: Bool) {
+    interactionBlocked = blocked
+    tabBarController?.tabBar.isUserInteractionEnabled = !blocked
+  }
+
+  @available(iOS 18.0, *)
   private func setBarHidden(_ hidden: Bool, animated: Bool) {
     tabBarController?.setTabBarHidden(hidden, animated: animated)
     if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true) }
@@ -532,10 +658,18 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   @available(iOS 18.0, *)
   func tabBarController(
     _ tabBarController: UITabBarController,
+    shouldSelectTab tab: UITab
+  ) -> Bool {
+    return isSynchronizingSelection || !interactionBlocked
+  }
+
+  @available(iOS 18.0, *)
+  func tabBarController(
+    _ tabBarController: UITabBarController,
     didSelectTab selectedTab: UITab,
     previousTab: UITab?
   ) {
-    guard !isSynchronizingSelection else { return }
+    guard !isSynchronizingSelection, !interactionBlocked else { return }
     guard let index = items.firstIndex(where: { $0.route == selectedTab.identifier }) else {
       return
     }

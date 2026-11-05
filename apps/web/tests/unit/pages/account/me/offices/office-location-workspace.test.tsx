@@ -41,6 +41,8 @@ vi.mock("~/pages/account/me/offices/office-editor", () => ({
         props.onSubmit()
       }}
     >
+      <output aria-label="已选经度">{props.draft.longitude}</output>
+      <output aria-label="已选纬度">{props.draft.latitude}</output>
       {(
         [
           ["name", "事务所名称"],
@@ -177,6 +179,57 @@ it("shows aggregate review status and removes the independent public-location co
   expect(screen.queryByText(/同意公开精确位置/)).not.toBeInTheDocument()
 })
 
+it("opens a map creation intent only when writable and preserves the initial point without saving", async () => {
+  const initialTarget = {
+    kind: "wgs84" as const,
+    position: [139.8, 35.7] as [number, number],
+  }
+  const view = mount({ initialTarget, readOnly: true })
+  await screen.findByText("上海事务所")
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  view.rerender(
+    <OfficeLocationWorkspace
+      initialTarget={initialTarget}
+      series={[makeFudabaSeries()]}
+      homeCity="上海"
+      readOnly={false}
+      onWriteClosed={vi.fn()}
+    />
+  )
+  await screen.findByRole("dialog", { name: "新建事务所" })
+  expect(screen.getByLabelText("已选经度")).toHaveTextContent("139.8")
+  expect(screen.getByLabelText("已选纬度")).toHaveTextContent("35.7")
+  expect(screen.getByLabelText("城市")).toHaveValue("")
+  expect(screen.getByLabelText("事务所名称")).toHaveValue("")
+  expect(mocks.create).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText("事务所名称"), {
+    target: { value: "正在填写的事务所" },
+  })
+  view.rerender(
+    <OfficeLocationWorkspace
+      initialTarget={initialTarget}
+      series={[makeFudabaSeries()]}
+      homeCity="上海"
+      readOnly={false}
+      onWriteClosed={vi.fn()}
+    />
+  )
+  expect(screen.getByLabelText("事务所名称")).toHaveValue("正在填写的事务所")
+  view.rerender(
+    <OfficeLocationWorkspace
+      initialTarget={{ kind: "wgs84", position: [121.5, 31.2] }}
+      series={[makeFudabaSeries()]}
+      homeCity="上海"
+      readOnly={false}
+      onWriteClosed={vi.fn()}
+    />
+  )
+  await waitFor(() =>
+    expect(screen.getByLabelText("已选经度")).toHaveTextContent("121.5")
+  )
+  expect(screen.getByLabelText("事务所名称")).toHaveValue("")
+})
+
 it("saves a complete exact office with CAS and exposes its pending state", async () => {
   mount()
   await open()
@@ -223,6 +276,24 @@ it("creates once with an idempotency key and closes the shared dialog after subm
     }),
     expect.stringMatching(/^fudaba-office-/)
   )
+})
+
+it("creates an office with a secure idempotency key when randomUUID is unavailable on HTTP LAN", async () => {
+  const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(9))
+  vi.stubGlobal("crypto", { getRandomValues })
+  mocks.list.mockResolvedValue({ items: [] })
+  mount()
+  await userEvent.click(
+    await screen.findByRole("button", { name: "新建事务所" })
+  )
+  fireEvent.change(screen.getByLabelText("事务所名称"), {
+    target: { value: "局域网事务所" },
+  })
+  await userEvent.click(screen.getByRole("button", { name: "选用有效地点" }))
+  await userEvent.click(screen.getByRole("button", { name: "创建事务所" }))
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce())
+  expect(mocks.create.mock.calls[0]?.[1]).toMatch(/^fudaba-office-[\da-f]{32}$/)
+  expect(getRandomValues).toHaveBeenCalledOnce()
 })
 
 it("retains a failed create draft and reuses the same idempotency key on explicit retry", async () => {

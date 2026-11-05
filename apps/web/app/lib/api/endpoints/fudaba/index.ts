@@ -3,6 +3,7 @@ import {
   exchangePath,
   mapsPath,
 } from "@imsweb/contracts/paths"
+export { createMapboxNearbySearch } from "./mapbox-place-search"
 import {
   createNamecardFeedbackRequestSchema,
   namecardFeedbackMutationSchema,

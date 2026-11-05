@@ -527,7 +527,7 @@ it("resizes the engine, keeps side-panel attribution in the map and preserves se
 
 it.each([
   {
-    width: 1000,
+    width: 1280,
     height: 700,
     occlusion: { x: 0, y: 12, width: 400, height: 680 },
     pan: { x: 206, y: 0 },
@@ -536,7 +536,7 @@ it.each([
     width: 390,
     height: 844,
     occlusion: { x: 12, y: 300, width: 366, height: 480 },
-    pan: { x: 0, y: -278 },
+    pan: null,
   },
 ])(
   "keeps corner attribution fixed without losing search occlusion at $width px",
@@ -571,9 +571,9 @@ it.each([
         }}
       />
     )
-    await waitFor(() =>
-      expect(panBy).toHaveBeenCalledWith(pan, expect.any(Number))
-    )
+    await waitFor(() => expect(test.focus).toHaveBeenCalled())
+    if (pan) expect(panBy).toHaveBeenCalledWith(pan, expect.any(Number))
+    else expect(panBy).not.toHaveBeenCalled()
   }
 )
 
@@ -585,7 +585,6 @@ it.each([
     expanded: { x: 8, y: 300, width: 374, height: 528 },
     collapsedBottom: 136,
     expandedBottom: 556,
-    pan: { x: 0, y: -278 },
   },
   {
     width: 900,
@@ -594,7 +593,6 @@ it.each([
     expanded: { x: 8, y: 100, width: 420, height: 278 },
     collapsedBottom: 132,
     expandedBottom: 302,
-    pan: { x: 220, y: 0 },
   },
 ])(
   "keeps attribution above changing search overlays at $width px without changing search focus",
@@ -605,7 +603,6 @@ it.each([
     expanded,
     collapsedBottom,
     expandedBottom,
-    pan,
   }) => {
     const test = fixture()
     const panBy = vi.spyOn(test.view, "panBy")
@@ -645,9 +642,8 @@ it.each([
     expect(map.style.getPropertyValue("--map-attribution-bottom")).toBe(
       `${expandedBottom}px`
     )
-    await waitFor(() =>
-      expect(panBy).toHaveBeenCalledWith(pan, expect.any(Number))
-    )
+    await waitFor(() => expect(test.focus).toHaveBeenCalled())
+    expect(panBy).not.toHaveBeenCalled()
     Object.defineProperty(map, "clientHeight", { value: height + 40 })
     await act(async () => resizeObservedMap())
     expect(map.style.getPropertyValue("--map-attribution-bottom")).toBe(
@@ -673,7 +669,8 @@ it.each([
     )
     expect(map.style.getPropertyValue("--map-attribution-bottom")).toBe("8px")
     expect(map.style.getPropertyValue("--map-attribution-left")).toBe("8px")
-    expect(panBy).toHaveBeenCalledOnce()
+    expect(panBy).not.toHaveBeenCalled()
+    expect(test.focus).toHaveBeenCalledOnce()
     expect(test.open).toHaveBeenCalledOnce()
   }
 )

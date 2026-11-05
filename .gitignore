@@ -123,6 +123,10 @@ reports/
 !.agents/skills/imsweb-ui-testing-and-evidence/references/*.md
 !.agents/skills/imsweb-ui-testing-and-evidence/scripts/
 !.agents/skills/imsweb-ui-testing-and-evidence/scripts/*.mjs
+!.agents/skills/imsweb-ui-testing-and-evidence/templates/
+!.agents/skills/imsweb-ui-testing-and-evidence/templates/*.html
+!.agents/skills/imsweb-ui-testing-and-evidence/templates/*.css
+!.agents/skills/imsweb-ui-testing-and-evidence/templates/*.js
 .pi/
 
 /.pi/teams/state/
