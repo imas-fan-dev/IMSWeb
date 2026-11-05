@@ -1226,7 +1226,9 @@ describe("CommunityCardsPage", () => {
       within(preview).queryByText(/第 \d+ \/ \d+ 张/)
     ).not.toBeInTheDocument()
 
-    await user.click(within(preview).getByRole("button", { name: "背面" }))
+    await user.click(
+      within(preview).getByRole("button", { name: "查看第 2 张（背面）" })
+    )
 
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
@@ -1434,7 +1436,9 @@ describe("CommunityCardsPage", () => {
         within(preview).getByRole("img", { name: `制作人名片 42 ${label}` })
       ).toHaveAttribute("src", source)
       expect(
-        within(preview).getByRole("button", { name: label })
+        within(preview).getByRole("button", {
+          name: `查看第 ${label === "正面" ? 1 : 2} 张（${label}）`,
+        })
       ).toHaveAttribute("aria-pressed", "true")
       expect(screen.getByLabelText("列表地址")).toHaveTextContent(
         "?page=1&size=12"

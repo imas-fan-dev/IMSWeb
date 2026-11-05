@@ -103,7 +103,9 @@ test.describe("app namecard browsing", () => {
     ).toHaveCount(0)
     await expect(preview.getByText(/第 \d+ \/ \d+ 张/)).toHaveCount(0)
     await expectNamecardPreviewGeometry(page)
-    await preview.getByRole("button", { name: "背面", exact: true }).click()
+    await preview
+      .getByRole("button", { name: "查看第 2 张（背面）", exact: true })
+      .click()
     await expect(
       preview.getByRole("img", { name: "制作人名片 12 背面" })
     ).toBeVisible()

@@ -1,6 +1,7 @@
 import { RotateCcwIcon, XIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
+import type { NamecardPage } from "~/components/shared/namecard-pages"
 import { Button } from "~/components/ui/button"
 import {
   Dialog,
@@ -34,20 +35,19 @@ function clampScale(value: number) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
 }
 
-function sideLabel(side: NamecardSide) {
-  return side === "front" ? "正面" : "背面"
-}
-
 export function NamecardPreview({
   card,
-  side,
-  onSideChange,
+  pages,
+  index,
+  onIndexChange,
   onOpenChange,
   finalFocus,
 }: {
   card: Namecard | null
-  side: NamecardSide
-  onSideChange: (side: NamecardSide) => void
+  /** 全部页面按顺序排列，正面在前、背面在后。 */
+  pages: readonly NamecardPage[]
+  index: number
+  onIndexChange: (index: number) => void
   onOpenChange: (open: boolean) => void
   finalFocus?: () => HTMLElement | null
 }) {
@@ -62,9 +62,11 @@ export function NamecardPreview({
   const pointerRef = useRef<PointerState | null>(null)
   const [retry, setRetry] = useState(0)
   const { scale, offset } = view
-  const src =
-    side === "front" ? (card?.image1_url ?? "") : (card?.image2_url ?? "")
-  const identity = `${card?.id}:${side}:${src}`
+  const position = Math.min(Math.max(index, 0), Math.max(pages.length - 1, 0))
+  const page = pages[position] ?? null
+  const src = page?.url ?? ""
+  const label = page?.label ?? ""
+  const identity = `${card?.id}:${page?.key ?? ""}:${src}`
   const [displayedIdentity, setDisplayedIdentity] = useState(identity)
   if (displayedIdentity !== identity) {
     setDisplayedIdentity(identity)
@@ -83,11 +85,15 @@ export function NamecardPreview({
     setDragging(false)
   }
 
+  // 预取左右相邻页，翻页时不再闪白。
   useEffect(() => {
-    if (!card) return
-    const image = new Image()
-    image.src = (side === "front" ? card.image2_url : card.image1_url) ?? ""
-  }, [card, side])
+    const neighbors = [pages[position - 1], pages[position + 1]]
+    for (const entry of neighbors) {
+      if (!entry) continue
+      const image = new Image()
+      image.src = entry.url
+    }
+  }, [pages, position])
 
   function updateScale(getNextScale: (currentScale: number) => number) {
     setView((current) => {
@@ -99,11 +105,11 @@ export function NamecardPreview({
     })
   }
 
-  function changeSide(nextSide: NamecardSide) {
-    if (nextSide === side) return
+  function selectPage(next: number) {
+    if (next === position || next < 0 || next >= pages.length) return
     resetView()
     setImageState("loading")
-    onSideChange(nextSide)
+    onIndexChange(next)
   }
 
   function closePreview() {
@@ -178,10 +184,10 @@ export function NamecardPreview({
       resetView()
     } else if (scale <= 1 && event.key === "ArrowLeft") {
       event.preventDefault()
-      changeSide("front")
+      if (position > 0) onIndexChange(position - 1)
     } else if (scale <= 1 && event.key === "ArrowRight") {
       event.preventDefault()
-      changeSide("back")
+      if (position < pages.length - 1) onIndexChange(position + 1)
     } else if (scale > 1 && event.key === "ArrowLeft") {
       event.preventDefault()
       setView((current) => ({
@@ -228,11 +234,11 @@ export function NamecardPreview({
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-sm text-foreground">
               制作人名片 <span className="sr-only">{card?.id}</span> ·{" "}
-              {sideLabel(side)}
+              {label}
             </DialogTitle>
           </div>
           <DialogDescription className="sr-only">
-            双面名片大图预览，可切换正面和背面
+            名片大图预览，可在下方缩略图中切换页面
           </DialogDescription>
           <DialogClose
             render={
@@ -289,7 +295,7 @@ export function NamecardPreview({
               className="pointer-events-none absolute text-sm text-muted-foreground"
               role="status"
             >
-              正在载入{sideLabel(side)}…
+              正在载入{label}…
             </p>
           ) : null}
           {imageState === "error" ? (
@@ -314,7 +320,7 @@ export function NamecardPreview({
             <img
               key={`${identity}:${retry}`}
               src={src}
-              alt={`制作人名片 ${card.id} ${sideLabel(side)}`}
+              alt={`制作人名片 ${card.id} ${label}`}
               draggable={false}
               className={cn(
                 "max-h-full max-w-full object-contain select-none",
@@ -333,22 +339,35 @@ export function NamecardPreview({
         </div>
 
         <footer className="flex flex-col items-center gap-2 border-t pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]">
-          <div className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center">
-            <div className="flex items-center gap-1">
-              {(["front", "back"] as const).map((nextSide) => (
-                <Button
-                  key={nextSide}
-                  type="button"
-                  variant={side === nextSide ? "secondary" : "ghost"}
-                  className="min-h-11 min-w-11 text-foreground"
-                  aria-pressed={side === nextSide}
-                  onClick={() => changeSide(nextSide)}
-                >
-                  {sideLabel(nextSide)}
-                </Button>
-              ))}
-            </div>
+          {/* 单页与多页都靠这一条切换，不再假设只有正反两面。 */}
+          <div
+            className="flex w-full snap-x items-center justify-center gap-2 overflow-x-auto"
+            aria-label="名片页面"
+          >
+            {pages.map((entry, entryIndex) => (
+              <button
+                key={entry.key}
+                type="button"
+                aria-label={`查看第 ${entryIndex + 1} 张（${entry.label}）`}
+                aria-pressed={entryIndex === position}
+                className={cn(
+                  "size-14 shrink-0 snap-center overflow-hidden rounded-md border-2 bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  entryIndex === position
+                    ? "border-primary"
+                    : "border-transparent opacity-70 hover:opacity-100"
+                )}
+                onClick={() => selectPage(entryIndex)}
+              >
+                <img
+                  src={entry.thumb}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
 
+          <div className="flex w-full items-center justify-center gap-2">
             <div className="flex items-center gap-1">
               <Button
                 type="button"

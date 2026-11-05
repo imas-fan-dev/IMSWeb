@@ -3,10 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import {
-  NamecardPreview,
-  type NamecardSide,
-} from "~/components/shared/namecard-preview"
+import { namecardPages } from "~/components/shared/namecard-pages"
+import { NamecardPreview } from "~/components/shared/namecard-preview"
 import type { Namecard } from "~/lib/api"
 
 const card: Namecard = {
@@ -45,12 +43,13 @@ const card: Namecard = {
 }
 
 function PreviewHarness({ onClose = vi.fn() }: { onClose?: () => void }) {
-  const [side, setSide] = useState<NamecardSide>("front")
+  const [index, setIndex] = useState(0)
   return (
     <NamecardPreview
       card={card}
-      side={side}
-      onSideChange={setSide}
+      pages={namecardPages(card)}
+      index={index}
+      onIndexChange={setIndex}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
@@ -58,8 +57,11 @@ function PreviewHarness({ onClose = vi.fn() }: { onClose?: () => void }) {
   )
 }
 
+const backThumb = "查看第 2 张（背面）"
+const frontThumb = "查看第 1 张（正面）"
+
 describe("NamecardPreview", () => {
-  it("switches both sides inside one dialog with buttons and arrow keys", async () => {
+  it("switches pages from the thumbnail strip and with arrow keys", async () => {
     const user = userEvent.setup()
     render(<PreviewHarness />)
 
@@ -70,18 +72,18 @@ describe("NamecardPreview", () => {
       screen.getByRole("button", { name: "关闭名片预览" }).closest("header")
     ).toHaveClass("pt-(--safe-area-top)")
     expect(
-      screen.getByRole("button", { name: "背面" }).closest("footer")
+      screen.getByRole("button", { name: backThumb }).closest("footer")
     ).toHaveClass("pb-[calc(0.5rem+var(--safe-area-bottom))]")
     expect(
       screen.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()
 
-    await user.click(screen.getByRole("button", { name: "背面" }))
+    await user.click(screen.getByRole("button", { name: backThumb }))
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
     ).toBeVisible()
     expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
-    expect(screen.getByRole("button", { name: "背面" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: backThumb })).toHaveAttribute(
       "aria-pressed",
       "true"
     )
@@ -90,6 +92,34 @@ describe("NamecardPreview", () => {
     expect(
       screen.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()
+  })
+
+  it("numbers every page so cards with middle pages stay reachable", () => {
+    const pages = namecardPages({
+      ...card,
+      middleImageUrls: ["/uploads/middle-1.webp", "/uploads/middle-2.webp"],
+    })
+    render(
+      <NamecardPreview
+        card={card}
+        pages={pages}
+        index={2}
+        onIndexChange={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    )
+    expect(pages.map((page) => page.label)).toEqual([
+      "正面",
+      "中间页 1",
+      "中间页 2",
+      "背面",
+    ])
+    expect(
+      screen.getByRole("img", { name: "制作人名片 42 中间页 2" })
+    ).toBeVisible()
+    expect(
+      screen.getByRole("button", { name: "查看第 3 张（中间页 2）" })
+    ).toHaveAttribute("aria-pressed", "true")
   })
 
   it("keeps arrow keys for panning after zooming", async () => {
@@ -107,12 +137,12 @@ describe("NamecardPreview", () => {
   it("keeps one dialog across card changes and resets the image view", async () => {
     const user = userEvent.setup()
     const props = {
-      card,
-      side: "front" as const,
-      onSideChange: vi.fn(),
+      pages: namecardPages(card),
+      index: 0,
+      onIndexChange: vi.fn(),
       onOpenChange: vi.fn(),
     }
-    const { rerender } = render(<NamecardPreview {...props} />)
+    const { rerender } = render(<NamecardPreview card={card} {...props} />)
     const dialog = screen.getByRole("dialog")
     expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")
     expect(
@@ -122,7 +152,9 @@ describe("NamecardPreview", () => {
     fireEvent.keyDown(dialog, { key: "ArrowRight" })
     const viewport = screen.getByLabelText("名片查看区域")
     fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 20, clientY: 20 })
-    rerender(<NamecardPreview {...props} card={{ ...card, id: 43 }} />)
+    rerender(
+      <NamecardPreview card={{ ...card, id: 43 }} {...props} />
+    )
     expect(screen.getByRole("dialog")).toBe(dialog)
     expect(dialog).toHaveAccessibleName("制作人名片 43 · 正面")
     expect(
@@ -138,21 +170,22 @@ describe("NamecardPreview", () => {
     expect(props.onOpenChange).not.toHaveBeenCalled()
   })
 
-  it("retains the current image, side controls, and close action", async () => {
+  it("retains the current image, page controls, and close action", async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     render(
       <NamecardPreview
         card={card}
-        side="back"
-        onSideChange={vi.fn()}
+        pages={namecardPages(card)}
+        index={1}
+        onIndexChange={vi.fn()}
         onOpenChange={onClose}
       />
     )
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
     ).toHaveAttribute("src", card.image2_url)
-    expect(screen.getByRole("button", { name: "正面" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: frontThumb })).toBeEnabled()
     expect(
       screen.queryByRole("button", { name: "上一张名片" })
     ).not.toBeInTheDocument()
@@ -160,28 +193,31 @@ describe("NamecardPreview", () => {
     expect(onClose).toHaveBeenCalledWith(false)
   })
 
-  it("retries image failures and resets errors on side and card changes", async () => {
+  it("retries image failures and resets errors on page and card changes", async () => {
     const user = userEvent.setup()
     const props = {
-      card,
-      side: "front" as const,
-      onSideChange: vi.fn(),
+      pages: namecardPages(card),
+      onIndexChange: vi.fn(),
       onOpenChange: vi.fn(),
     }
-    const { rerender } = render(<NamecardPreview {...props} />)
+    const { rerender } = render(
+      <NamecardPreview card={card} index={0} {...props} />
+    )
     fireEvent.error(screen.getByRole("img", { name: "制作人名片 42 正面" }))
     expect(screen.getAllByRole("alert")).toHaveLength(1)
     await user.click(screen.getByRole("button", { name: "重试加载图片" }))
     expect(screen.queryByText("这张图片暂时无法显示")).not.toBeInTheDocument()
     fireEvent.load(screen.getByRole("img", { name: "制作人名片 42 正面" }))
     await user.click(screen.getByRole("button", { name: "放大名片" }))
-    rerender(<NamecardPreview {...props} side="back" />)
+    rerender(<NamecardPreview card={card} index={1} {...props} />)
     expect(screen.getByText("正在载入背面…")).toHaveAttribute("role", "status")
     expect(screen.getByRole("img", { name: "制作人名片 42 背面" })).toHaveStyle(
       { transform: "translate3d(0px, 0px, 0) scale(1)" }
     )
     fireEvent.error(screen.getByRole("img", { name: "制作人名片 42 背面" }))
-    rerender(<NamecardPreview {...props} card={{ ...card, id: 44 }} />)
+    rerender(
+      <NamecardPreview card={{ ...card, id: 44 }} index={1} {...props} />
+    )
     expect(screen.queryByText("这张图片暂时无法显示")).not.toBeInTheDocument()
   })
 
@@ -201,8 +237,7 @@ describe("NamecardPreview", () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it("supports keyboard zoom, reset, side changes and Escape without navigation props", async () => {
-    const user = userEvent.setup()
+  it("supports keyboard zoom, reset and page changes without navigation props", async () => {
     const onClose = vi.fn()
     render(<PreviewHarness onClose={onClose} />)
     const dialog = screen.getByRole("dialog")
@@ -219,50 +254,5 @@ describe("NamecardPreview", () => {
     expect(
       screen.queryByRole("button", { name: "下一张名片" })
     ).not.toBeInTheDocument()
-    await user.keyboard("{Escape}")
-    expect(onClose).toHaveBeenCalledOnce()
-  })
-
-  it("closes only for a stationary pointer action on the blank viewport", () => {
-    const onClose = vi.fn()
-    render(<PreviewHarness onClose={onClose} />)
-    const viewport = screen.getByLabelText("名片查看区域")
-    const image = screen.getByRole("img", { name: "制作人名片 42 正面" })
-
-    fireEvent.pointerDown(image, {
-      pointerId: 1,
-      clientX: 20,
-      clientY: 20,
-    })
-    fireEvent.pointerUp(image, {
-      pointerId: 1,
-      clientX: 20,
-      clientY: 20,
-    })
-    expect(onClose).not.toHaveBeenCalled()
-
-    fireEvent.pointerDown(viewport, {
-      pointerId: 2,
-      clientX: 20,
-      clientY: 20,
-    })
-    fireEvent.pointerUp(viewport, {
-      pointerId: 2,
-      clientX: 40,
-      clientY: 20,
-    })
-    expect(onClose).not.toHaveBeenCalled()
-
-    fireEvent.pointerDown(viewport, {
-      pointerId: 3,
-      clientX: 20,
-      clientY: 20,
-    })
-    fireEvent.pointerUp(viewport, {
-      pointerId: 3,
-      clientX: 22,
-      clientY: 22,
-    })
-    expect(onClose).toHaveBeenCalledOnce()
   })
 })

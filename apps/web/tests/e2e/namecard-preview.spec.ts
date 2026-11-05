@@ -67,7 +67,9 @@ test.describe("namecard preview", () => {
     await expect(
       preview.getByRole("img", { name: "制作人名片 42 正面" })
     ).toHaveAttribute("src", FRONT)
-    await preview.getByRole("button", { name: "背面", exact: true }).click()
+    await preview
+      .getByRole("button", { name: "查看第 2 张（背面）", exact: true })
+      .click()
     await expect(
       preview.getByRole("img", { name: "制作人名片 42 背面" })
     ).toHaveAttribute("src", BACK)

@@ -11,13 +11,21 @@ import {
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
+import { namecardPages } from "~/components/shared/namecard-pages"
+import { NamecardPreview } from "~/components/shared/namecard-preview"
 import { PageShell } from "~/components/shared/page-shell"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import { NamecardDetailDialog } from "~/pages/community/components/namecard-detail-dialog"
-import { getNamecardReactions, getProfileCards, getPublicProfile } from "~/lib/api"
+import {
+  addNamecardReaction,
+  getNamecardReactions,
+  getProfileCards,
+  getPublicProfile,
+} from "~/lib/api"
+import { toast } from "sonner"
 import { withThumbnail } from "~/lib/media-urls"
 import { PlatformAccountList } from "~/components/profile/platform-account-list"
 import type { Namecard as NamecardRecord, NamecardPage } from "~/lib/api"
@@ -60,6 +68,9 @@ export default function UserProfilePage() {
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const loading = loadedFor !== accountId
   const [openCard, setOpenCard] = useState<NamecardRecord | null>(null)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
+  const [busyReaction, setBusyReaction] = useState(false)
+  const previewReturnRef = useRef<HTMLButtonElement | null>(null)
   const [reactions, setReactions] = useState<Record<number, Record<string, number>>>({})
   const returnFocusRef = useRef<HTMLElement | null>(null)
 
@@ -92,6 +103,27 @@ export default function UserProfilePage() {
     platform.status === "authenticated" &&
     profile !== null &&
     platform.session?.account.id === profile.accountId
+
+  async function reactTo(cardId: number, emoji: string) {
+    if (busyReaction) return false
+    setBusyReaction(true)
+    try {
+      await addNamecardReaction(cardId, emoji).send()
+      setReactions((current) => ({
+        ...current,
+        [cardId]: {
+          ...(current[cardId] ?? {}),
+          [emoji]: ((current[cardId] ?? {})[emoji] ?? 0) + 1,
+        },
+      }))
+      return true
+    } catch {
+      toast.error("暂时无法添加反应")
+      return false
+    } finally {
+      setBusyReaction(false)
+    }
+  }
 
   useEffect(() => {
     if (!openCard || reactions[openCard.id]) return
@@ -269,6 +301,16 @@ export default function UserProfilePage() {
         )}
       </section>
 
+      <NamecardPreview
+        card={previewIndex === null ? null : openCard}
+        pages={openCard ? namecardPages(openCard) : []}
+        index={previewIndex ?? 0}
+        onIndexChange={setPreviewIndex}
+        onOpenChange={(open) => {
+          if (!open) setPreviewIndex(null)
+        }}
+        finalFocus={() => previewReturnRef.current}
+      />
       <NamecardDetailDialog
         card={openCard}
         canClaim={false}
@@ -276,14 +318,19 @@ export default function UserProfilePage() {
           reactions: openCard ? (reactions[openCard.id] ?? {}) : {},
           loading: Boolean(openCard && !reactions[openCard.id]),
         }}
-        busy={false}
+        busy={busyReaction}
         onOpenChange={(open) => {
           if (!open) setOpenCard(null)
         }}
-        onOpenPreview={() => undefined}
+        onOpenPreview={(index, trigger) => {
+          previewReturnRef.current = trigger
+          setPreviewIndex(index)
+        }}
         onClaim={() => undefined}
         onSupplement={() => undefined}
-        onReact={() => Promise.resolve(false)}
+        onReact={(emoji) =>
+          openCard ? reactTo(openCard.id, emoji) : Promise.resolve(false)
+        }
         onReturnFocus={() => {
           returnFocusRef.current?.focus()
         }}

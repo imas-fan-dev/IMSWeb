@@ -422,6 +422,10 @@ export function CardMediaGallery({
         />
       ) : null}
 
+      {/*
+        放大按钮必须绝对定位：作为普通 grid 子项时 `size-full` 的高度百分比
+        无处可依，图片会按原始高度撑出 16:9 的框，被 overflow 裁掉上下。
+      */}
       <div
         className={`relative aspect-video w-full overflow-hidden rounded-lg border ${
           current ? "bg-muted/40" : "border-dashed bg-muted/20"
@@ -432,7 +436,7 @@ export function CardMediaGallery({
           onOpenPreview ? (
             <button
               type="button"
-              className="grid size-full place-items-center outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+              className="absolute inset-0 grid place-items-center outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               aria-label={
                 previewLabel ? previewLabel(position) : "放大名片图片"
               }
@@ -441,7 +445,7 @@ export function CardMediaGallery({
               <SlotImage
                 slot={current}
                 alt={role ? `名片${role}` : "名片图片"}
-                className="size-full object-contain"
+                className="absolute inset-0 size-full object-contain"
               />
             </button>
           ) : (

@@ -18,6 +18,7 @@ import {
   NamecardPreview,
   type NamecardSide,
 } from "~/components/shared/namecard-preview"
+import { namecardPages } from "~/components/shared/namecard-pages"
 import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
@@ -243,7 +244,7 @@ export default function CommunityCardsPage() {
   const [error, setError] = useState(false)
   const [claimCard, setClaimCard] = useState<Namecard | null>(null)
   const [supplementCard, setSupplementCard] = useState<Namecard | null>(null)
-  const [previewSide, setPreviewSide] = useState<NamecardSide | null>(null)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const [detailSide, setDetailSide] = useState<NamecardSide | null>(null)
   const [previewReturnTarget, setPreviewReturnTarget] =
     useState<HTMLButtonElement | null>(null)
@@ -459,7 +460,7 @@ export default function CommunityCardsPage() {
   }
 
   function closeDetail() {
-    if (previewSide !== null) return
+    if (previewIndex !== null) return
     prepareRestore()
     detail.close()
     if (searchParams.has("card")) {
@@ -469,13 +470,13 @@ export default function CommunityCardsPage() {
     }
   }
 
-  function openPreview(side: NamecardSide, trigger: HTMLButtonElement) {
+  function openPreview(index: number, trigger: HTMLButtonElement) {
     setPreviewReturnTarget(trigger)
-    setPreviewSide(side)
+    setPreviewIndex(index)
   }
 
   function closePreview() {
-    setPreviewSide(null)
+    setPreviewIndex(null)
   }
 
   function jumpToPage(event: SubmitEvent<HTMLFormElement>) {
@@ -502,9 +503,10 @@ export default function CommunityCardsPage() {
         }}
       />
       <NamecardPreview
-        card={previewSide === null ? null : detail.card}
-        side={previewSide ?? "front"}
-        onSideChange={setPreviewSide}
+        card={previewIndex === null ? null : detail.card}
+        pages={detail.card ? namecardPages(detail.card) : []}
+        index={previewIndex ?? 0}
+        onIndexChange={setPreviewIndex}
         onOpenChange={(open) => {
           if (!open) closePreview()
         }}

@@ -367,7 +367,8 @@ export function NamecardDetailDialog({
   reactions: NamecardReactionState
   busy: boolean
   onOpenChange: (open: boolean) => void
-  onOpenPreview: (side: NamecardSide, trigger: HTMLButtonElement) => void
+  /** 传的是画廊里的页面下标：可能超过两面，光靠 front/back 表达不全。 */
+  onOpenPreview: (index: number, trigger: HTMLButtonElement) => void
   onClaim: (card: Namecard) => void
   onSupplement: (card: Namecard) => void
   onReact: (emoji: string) => Promise<boolean>
@@ -413,12 +414,6 @@ export function NamecardDetailDialog({
   const slideKey = `${card?.id ?? ""}:${initialSide ?? ""}`
   const initialSlide =
     initialSide === "back" && mediaSlots.length > 1 ? mediaSlots.length - 1 : 0
-  const sideAt = (index: number): NamecardSide | null =>
-    index === 0
-      ? "front"
-      : index === mediaSlots.length - 1 && mediaSlots.length > 1
-        ? "back"
-        : null
 
   const submitted = card?.created_at ? new Date(card.created_at) : null
   const submittedLabel =
@@ -525,10 +520,9 @@ export function NamecardDetailDialog({
                   roleLabels={false}
                   initialIndex={initialSlide}
                   thumbSize={THUMB_SIZE_COMPACT}
-                  onOpenPreview={(index, element) => {
-                    const side = sideAt(index)
-                    if (side) onOpenPreview(side, element)
-                  }}
+                  onOpenPreview={(index, element) =>
+                    onOpenPreview(index, element)
+                  }
                   previewLabel={(index) =>
                     `放大制作人名片 ${card.id} ${
                       index === 0
