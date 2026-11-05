@@ -10,6 +10,7 @@ import {
   platformValueError,
 } from "@imsweb/contracts/namecards"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { platformIconUrl } from "~/components/profile/platform-account-icons"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -88,12 +89,18 @@ function PlatformLink({
   }
   const prefix = kind.baseUrl.slice(0, marker)
   const suffix = kind.baseUrl.slice(marker + "{value}".length)
+  const href = kind.baseUrl.replace("{value}", encodePlatformValue(kind, value))
   return (
-    <div className="rounded-md border bg-muted/30 px-3 py-2 font-mono text-sm break-all">
+    <NavigationLink
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="block truncate rounded-md border bg-muted/30 px-3 py-1.5 text-sm hover:underline"
+    >
       <span className="text-muted-foreground">{prefix}</span>
       <span>{value}</span>
       {suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
-    </div>
+    </NavigationLink>
   )
 }
 
@@ -117,6 +124,8 @@ export function PlatformAccountsEditor() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [pasted, setPasted] = useState("")
   const [pasteError, setPasteError] = useState<string | null>(null)
+  // 本次编辑里新加的平台排在前面，免得新条目落在可视区外；保存后刷新回到后台排序。
+  const [addedAt, setAddedAt] = useState<Record<string, number>>({})
 
   useEffect(() => {
     let active = true
@@ -160,10 +169,11 @@ export function PlatformAccountsEditor() {
   const idKinds = kinds.filter(
     (kind) => !kind.baseUrl && kind.group !== "link" && kind.group !== "game"
   )
-  // 只有填过或刚添加的平台才出现，顺序跟随后台的排序值。
-  const filledKinds = templatedKinds.filter(
-    (kind) => (draft[kind.id] ?? "").trim() !== ""
-  )
+  // 只有填过或刚添加的平台才出现：本次新加的按添加先后倒序排在前面，
+  // 其余跟随后台的排序值（sort 稳定，未标注的条目保持原顺序）。
+  const filledKinds = templatedKinds
+    .filter((kind) => (draft[kind.id] ?? "").trim() !== "")
+    .sort((left, right) => (addedAt[right.id] ?? 0) - (addedAt[left.id] ?? 0))
 
   const localErrors: Record<string, string> = {}
   for (const kind of kinds) {
@@ -199,6 +209,10 @@ export function PlatformAccountsEditor() {
     }
     preventDefault()
     setDraft((current) => ({ ...current, [kind.id]: value }))
+    setAddedAt((current) => ({
+      ...current,
+      [kind.id]: Math.max(0, ...Object.values(current)) + 1,
+    }))
     setPasted("")
     setPasteError(null)
   }
@@ -207,6 +221,11 @@ export function PlatformAccountsEditor() {
     // 只在前端移除，点【保存】时才真正删除；刷新会恢复成服务端状态。
     setDraft((current) => ({ ...current, [kind.id]: "" }))
     setUsernames((current) => ({ ...current, [kind.id]: "" }))
+    setAddedAt((current) => {
+      const next = { ...current }
+      delete next[kind.id]
+      return next
+    })
     setPasteError(null)
   }
 
@@ -311,19 +330,17 @@ export function PlatformAccountsEditor() {
       ) : null}
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-muted-foreground">平台账号</h3>
+        <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <LinkIcon aria-hidden="true" className="size-4" />
+          平台账号
+        </h3>
         <div className="flex items-start gap-2">
-          <div className="relative min-w-0 flex-1">
-            <LinkIcon
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            />
+          <div className="min-w-0 flex-1">
             <Input
               value={pasted}
               aria-label="粘贴平台链接"
               aria-invalid={pasteError ? true : undefined}
               placeholder="粘贴平台主页链接，例如 https://space.bilibili.com/12345"
-              className="pl-9"
               maxLength={300}
               onChange={(event) => {
                 // 粘贴失败时浏览器仍会把文本放进输入框，这次 change 不能把提示清掉。
@@ -382,7 +399,7 @@ export function PlatformAccountsEditor() {
         ) : null}
 
         {filledKinds.length > 0 ? (
-          <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             {filledKinds.map((kind) => (
               <div
                 key={kind.id}
@@ -409,23 +426,16 @@ export function PlatformAccountsEditor() {
                     {errors[kind.id] ?? localErrors[kind.id]}
                   </span>
                 ) : null}
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="shrink-0">用户名</span>
-                  <Input
-                    value={usernames[kind.id] ?? ""}
-                    placeholder="选填，用于主页展示"
-                    aria-label={`${kind.name} 用户名`}
-                    className="h-8 text-xs"
-                    maxLength={60}
-                    onChange={(event) => {
-                      const next = event.currentTarget.value
-                      setUsernames((current) => ({
-                        ...current,
-                        [kind.id]: next,
-                      }))
-                    }}
-                  />
-                </label>
+                <Input
+                  value={usernames[kind.id] ?? ""}
+                  placeholder="用户名（选填）"
+                  aria-label={`${kind.name} 用户名`}
+                  maxLength={60}
+                  onChange={(event) => {
+                    const next = event.currentTarget.value
+                    setUsernames((current) => ({ ...current, [kind.id]: next }))
+                  }}
+                />
               </div>
             ))}
           </div>

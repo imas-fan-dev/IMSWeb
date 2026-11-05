@@ -170,7 +170,7 @@ describe("PlatformAccountsEditor", () => {
     ).toBeTruthy()
   })
 
-  it("turns a pasted link into a read-only entry ordered by the platform order", async () => {
+  it("turns a pasted link into a clickable entry, newest first", async () => {
     mockEndpoints()
     const user = userEvent.setup()
     renderPage(<PlatformAccountsEditor />)
@@ -178,18 +178,32 @@ describe("PlatformAccountsEditor", () => {
 
     const field = screen.getByLabelText("粘贴平台链接")
     await user.click(field)
-    await user.paste("https://steamcommunity.com/id/SteamUser?tab=1")
-    expect(await screen.findByText("SteamUser")).toBeTruthy()
-
-    await user.click(field)
     await user.paste("https://x.com/SomeOne?ref=1")
+    await user.click(field)
+    await user.paste("https://steamcommunity.com/id/SteamUser?tab=1")
 
-    // X 的排序值是 2、Steam 是 3，与粘贴顺序相反。
-    await waitFor(() => expect(entryIds()).toEqual(["x", "steam"]))
-    expect(screen.getByText("https://x.com/")).toBeTruthy()
-    expect(screen.getByText("someone")).toBeTruthy()
+    // 新加的排在前面，即使它的排序值（Steam 3）比先加的大（X 2）。
+    await waitFor(() => expect(entryIds()).toEqual(["steam", "x"]))
+    const link = screen.getByRole("link", { name: "https://x.com/someone" })
+    expect(link).toHaveAttribute("href", "https://x.com/someone")
+    expect(link).toHaveAttribute("target", "_blank")
     expect(field).toHaveValue("")
     expect(screen.getByRole("button", { name: "保存" })).toBeEnabled()
+  })
+
+  it("keeps the server order for entries that were already saved", async () => {
+    mockEndpoints()
+    apiMocks.sendAccounts.mockResolvedValue(
+      loaded([
+        { kindId: "steam", value: "SteamUser" },
+        { kindId: "x", value: "someone" },
+      ])
+    )
+    renderPage(<PlatformAccountsEditor />)
+    await screen.findByRole("heading", { name: "平台账号" })
+
+    // 没有新加的条目时按排序值来：X(2) 在 Steam(3) 前面。
+    await waitFor(() => expect(entryIds()).toEqual(["x", "steam"]))
   })
 
   it("keeps the input and explains an unsupported or repeated platform", async () => {
