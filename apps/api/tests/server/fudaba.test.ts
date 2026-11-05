@@ -2871,6 +2871,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.deepEqual(await fudaba.listNamecardContributors({ page: 3, pageSize: 5 }),
                 { items: [], total: 7 });
         });
+        // 认领/审核是真实事务，覆盖多轮审批后默认 5s 不够。
         postgresTest('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows', async () => {
             const { database, platform, fudaba, sibling } = await fixture();
             const ownerA = 'claim-owner-a';
@@ -3265,25 +3266,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             if (characterDerived.status !== 'created') return;
             assert.equal(characterDerived.claim.series_code, '765');
 
-            const legacyDerivedLegacyId = await insertLegacyCard(database, 'l');
-            await database.prepare(
-                "UPDATE cards SET series_code='cg' WHERE id=?"
-            ).bind(legacyDerivedLegacyId).run();
-            const legacyDerived = await fudaba.createCardClaimForOwner({
-                id: 'legacy-derived-series-claim',
-                legacyCardId: legacyDerivedLegacyId,
-                claimantAccountId: ownerA,
-                targetCardId: null,
-                payload: { favoriteCharacterIds: [] },
-                message: '',
-                createdAt: CREATED_AT,
-                updatedAt: CREATED_AT
-            });
-            assert.equal(legacyDerived.status, 'created');
-            if (legacyDerived.status !== 'created') return;
-            assert.equal(legacyDerived.claim.series_code, 'cg');
-            assert.deepEqual(legacyDerived.claim.favorite_characters, []);
-
             const wrongOwnerLegacyId = await insertLegacyCard(database, 'w');
             assert.deepEqual(await fudaba.createCardClaimForOwner({
                 id: 'wrong-owner-target',
@@ -3394,6 +3376,42 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 ))[0]?.claim_status,
                 'claimed'
             );
+
+            // 已经有一张就地升级过的名片（legacy_card_id = card_number）之后，
+            // 再认领另一张老卡仍必须能升级。NOT EXISTS 里的 card_number 一旦
+            // 解析到内层 bound 自己，就会变成自比较而恒为假，这里专门覆盖它。
+            const secondInPlaceLegacyId = await insertLegacyCard(database, 'z');
+            assert.equal((await fudaba.createCardClaimForOwner({
+                id: 'second-in-place-claim',
+                legacyCardId: secondInPlaceLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            })).status, 'created');
+            assert.equal(
+                (await fudaba.beginCardClaimReview('second-in-place-claim', 0)).status,
+                'claimed'
+            );
+            const secondInPlace = await fudaba.completeCardClaimReview({
+                claimId: 'second-in-place-claim',
+                approvingRevision: 1,
+                decision: 'approve',
+                media: {
+                    frontObjectKey: `community/fudaba/cards/legacy-${secondInPlaceLegacyId}/front.webp`,
+                    backObjectKey: `community/fudaba/cards/legacy-${secondInPlaceLegacyId}/back.webp`,
+                    accent: null
+                },
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '第二张就地升级',
+                notificationTitle: '旧名片认领已通过',
+                notificationBody: '旧名片已绑定到您的账号。',
+                audit: { ...audit, action: 'approve namecard claim' }
+            });
+            assert.equal(secondInPlace.status, 'saved');
 
             const rejectedLegacyId = await insertLegacyCard(database, 'j');
             const rejectedClaim = await fudaba.createCardClaimForOwner({
@@ -3572,8 +3590,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 audit: { ...audit, action: 'reject namecard claim' }
             });
             assert.equal(resumedCompletion.status, 'saved');
-
-        });
+        }, 60_000);
     });
 }
 

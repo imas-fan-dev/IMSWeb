@@ -3988,12 +3988,6 @@ export class SqlFudabaRepository implements FudabaRepository {
             [input.legacyCardId],
         );
         candidates.push(stored?.series_code);
-        const legacy = await queryOne<{ series_code: string | null }>(
-            database,
-            `SELECT series_code FROM cards WHERE id=?`,
-            [input.legacyCardId],
-        );
-        candidates.push(legacy?.series_code);
         for (const candidate of candidates) {
             if (typeof candidate !== 'string' || !candidate) continue;
             const agency = await queryOne<{ code: string }>(
@@ -5077,7 +5071,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                         // immutable provenance.
                         const updated = await database
                             .prepare(
-                                `UPDATE fudaba_cards
+                                `UPDATE fudaba_cards AS target
                          SET owner_account_id=(
                                  SELECT claimant_account_id
                                  FROM fudaba_card_claims WHERE id=?
@@ -5119,7 +5113,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                            )
                            AND NOT EXISTS (
                                SELECT 1 FROM fudaba_cards bound
-                               WHERE bound.legacy_card_id=card_number
+                               WHERE bound.legacy_card_id=target.card_number
                            )
                          RETURNING ${CARD_COLUMNS}`,
                             )
