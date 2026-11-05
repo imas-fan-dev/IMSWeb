@@ -22,8 +22,8 @@ vi.mock("~/components/app/app-tab-bar", () => ({
   AppTabBar: () => <nav aria-label="App 导航" />,
 }))
 
-vi.mock("~/components/community/namecard-upload-dialog", () => ({
-  NamecardUploadDialog: () => <input aria-label="Upload draft" />,
+vi.mock("~/components/community/namecard-create-entry", () => ({
+  NamecardCreateEntry: () => <input aria-label="Create draft" />,
 }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
@@ -76,7 +76,7 @@ describe("AppLayout", () => {
     "scopes floating-action yielding to the namecard pagination on %s without remounting upload",
     (entry) => {
       const { rerender } = render(layoutWithPagination(entry, false))
-      const upload = screen.getByRole("textbox", { name: "Upload draft" })
+      const upload = screen.getByRole("textbox", { name: "Create draft" })
       const actions = upload.closest("[data-app-floating-actions]")
       expect(actions).toHaveClass(
         "fixed",
@@ -94,9 +94,9 @@ describe("AppLayout", () => {
       expect(
         screen.getByRole("navigation", { name: "Namecard pagination" })
       ).toHaveAttribute("data-namecard-pagination-visible")
-      expect(screen.getByRole("textbox", { name: "Upload draft" })).toBe(upload)
+      expect(screen.getByRole("textbox", { name: "Create draft" })).toBe(upload)
       rerender(layoutWithPagination(entry, false))
-      expect(screen.getByRole("textbox", { name: "Upload draft" })).toBe(upload)
+      expect(screen.getByRole("textbox", { name: "Create draft" })).toBe(upload)
       expect(
         screen.getByRole("navigation", { name: "Namecard pagination" })
       ).not.toHaveAttribute("data-namecard-pagination-visible")
@@ -113,7 +113,7 @@ describe("AppLayout", () => {
       "group-has-data-namecard-pagination-visible/app-shell:hidden"
     )
     expect(
-      screen.queryByRole("textbox", { name: "Upload draft" })
+      screen.queryByRole("textbox", { name: "Create draft" })
     ).not.toBeInTheDocument()
   })
 

@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest"
 import { i18n } from "~/i18n/config"
 import PublicLayout from "~/layouts/public-layout"
 
-vi.mock("~/components/community/namecard-upload-dialog", () => ({
-  NamecardUploadDialog: () => <button type="button">上传名片</button>,
+vi.mock("~/components/community/namecard-create-entry", () => ({
+  NamecardCreateEntry: () => <button type="button">新建名片</button>,
 }))
 
 vi.mock("~/components/shared/admin-return-shortcut", () => ({
@@ -69,12 +69,12 @@ describe("PublicLayout", () => {
     expect(screen.getByRole("button", { name: "返回顶部" })).toBeVisible()
     expect(screen.getByRole("main").parentElement).toHaveClass("z-10")
     expect(
-      screen.queryByRole("button", { name: "上传名片" })
+      screen.queryByRole("button", { name: "新建名片" })
     ).not.toBeInTheDocument()
   })
 
   it.each(["/community/cards", "/community/cards/"])(
-    "places the namecard upload action in the shared floating stack for %s",
+    "places the namecard create action in the shared floating stack for %s",
     (pathname) => {
       render(
         <I18nextProvider i18n={i18n}>
@@ -91,7 +91,7 @@ describe("PublicLayout", () => {
         </I18nextProvider>
       )
 
-      const uploadAction = screen.getByRole("button", { name: "上传名片" })
+      const uploadAction = screen.getByRole("button", { name: "新建名片" })
       expect(uploadAction).toBeVisible()
       expect(uploadAction.parentElement).toHaveClass("fixed", "right-4")
     }

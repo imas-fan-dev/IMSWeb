@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Outlet, useLocation, useMatch } from "react-router"
 
-import { NamecardUploadDialog } from "~/components/community/namecard-upload-dialog"
+import { NamecardCreateEntry } from "~/components/community/namecard-create-entry"
 import { AppColdStartMask } from "~/components/app/app-cold-start-mask"
 import { AppNavigationProvider } from "~/components/app/app-navigation-provider"
 import { AppTabBar, APP_TAB_BAR_CLEARANCE } from "~/components/app/app-tab-bar"
@@ -111,7 +111,7 @@ export default function AppLayout() {
                   "group-has-data-namecard-pagination-visible/app-shell:hidden"
               )}
             >
-              {isNamecardWall ? <NamecardUploadDialog /> : null}
+              {isNamecardWall ? <NamecardCreateEntry /> : null}
               <BackToTop
                 className={cn("static", isWikiCatalog && "max-md:hidden")}
               />

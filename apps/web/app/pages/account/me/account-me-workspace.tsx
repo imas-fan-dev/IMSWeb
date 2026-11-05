@@ -136,6 +136,8 @@ function ProfileWorkspace({
   const requestedSection = searchParams.get("section")
   /** 深链可以给内部 UUID，也可以给名片墙上的编号（通知里只有编号）。 */
   const requestedCard = initialCardId ?? searchParams.get("card")
+  /** 深链里表示「直接开一张新名片」的取值，和真实名片 id 不冲突。 */
+  const NEW_CARD_QUERY = "new"
   const requestedOfficeId =
     initialOfficeId ?? searchParams.get("office") ?? undefined
   const accountSectionBasePath =
@@ -210,8 +212,14 @@ function ProfileWorkspace({
       return
     }
     detailGeneration.current += 1
-    setCreating(false)
     setLoadingDetail(false)
+    // 名片墙的「新建名片」用 ?card=new 直接打开编辑器。
+    if (activeSection === "namecards" && requestedCard === NEW_CARD_QUERY) {
+      setCreating(true)
+      setSelectedCardId(null)
+      return
+    }
+    setCreating(false)
     const resolved =
       activeSection !== "namecards" || !requestedCard
         ? null

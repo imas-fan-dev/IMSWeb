@@ -185,7 +185,6 @@ const memoryRouterBaseline = new Set([
   "components/app/app-navigation-provider.test.tsx",
   "components/app/app-tab-bar.test.tsx",
   "components/app/app-top-bar.test.tsx",
-  "components/community/namecard-upload-dialog.test.tsx",
   "components/editorial/community-post-detail.test.tsx",
   "components/navigation/navigation-link.test.tsx",
   "components/platform/platform-account-menu.test.tsx",

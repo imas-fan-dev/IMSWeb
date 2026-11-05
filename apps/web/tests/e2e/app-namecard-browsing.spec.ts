@@ -124,7 +124,7 @@ test.describe("app namecard browsing", () => {
       .toBeCloseTo(scrollY, 0)
     await expect(page).toHaveURL(/page=1&size=12$/)
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }))
-    await expect(page.getByRole("button", { name: "上传名片" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "新建名片" })).toBeVisible()
     await page.evaluate(() => document.documentElement.classList.add("dark"))
     await attachNamecardScreenshot(page, testInfo, "app-gallery-dark")
     await expectNamecardPaginationGeometry(page)
@@ -192,7 +192,7 @@ test.describe("app namecard browsing", () => {
     await expect(first).toBeVisible()
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }))
     await expect(page.locator("[data-app-floating-actions]")).toBeVisible()
-    await expect(page.getByRole("button", { name: "上传名片" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "新建名片" })).toBeVisible()
     await expect(
       page.locator(
         '[data-namecard-item] [aria-label="名片反应摘要"][aria-busy="false"]'
