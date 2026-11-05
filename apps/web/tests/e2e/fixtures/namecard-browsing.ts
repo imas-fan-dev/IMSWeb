@@ -1,5 +1,6 @@
 import {
   namecardListErrorResponseSchema,
+  namecardErrorResponseSchema,
   namecardListQuerySchema,
   namecardPageSchema,
   namecardReactionListQuerySchema,
@@ -7,13 +8,17 @@ import {
   reactionMutationSchema,
   reactionSchema,
   wallInsightsSchema,
+  namecardContributorsSchema,
+  namecardContributorsQuerySchema,
+  type WallInsights,
+  type WallInsightContributor,
 } from "@imsweb/contracts/namecards"
 import { apiPath, platformAuthPath } from "@imsweb/contracts/paths"
 import { platformHttpErrorSchema } from "@imsweb/contracts/platform"
 import { expect, type Page, type TestInfo } from "@playwright/test"
 
 import { installAdminAuthMock } from "./admin-auth"
-import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
+import type { ApiDispatcher, ApiResponse, ApiTimes } from "./api-dispatcher"
 import { installEmptyWikiCatalogMock } from "./homepage"
 
 const defaultNamecardReactions = {
@@ -31,7 +36,8 @@ export async function mockNamecardBrowsing(
   api: ApiDispatcher,
   total: number,
   initialReactions: Record<number, Record<string, number>> | undefined,
-  expectedCalls: NamecardBrowsingExpectedCalls
+  expectedCalls: NamecardBrowsingExpectedCalls,
+  wallInsights?: WallInsights | (() => ApiResponse | Promise<ApiResponse>)
 ) {
   const pictures = await page.evaluate(() => {
     return [false, true].map((portrait) => {
@@ -155,22 +161,25 @@ export async function mockNamecardBrowsing(
   api.expect({
     method: "GET",
     path: apiPath("/cards/wall-insights"),
-    responses: { 200: wallInsightsSchema },
+    responses: { 200: wallInsightsSchema, 503: namecardErrorResponseSchema },
     times: { min: 1, max: 4 },
-    handle: () => ({
-      status: 200,
-      json: {
-        guestTotal: total,
-        ownerless: total,
-        ownerlessMissingSeries: 0,
-        claimed: 0,
-        claimsPending: 0,
-        supplemented: 0,
-        supplementsPending: 0,
-        contributors: [],
-        viewer: null,
-      },
-    }),
+    handle: () =>
+      typeof wallInsights === "function"
+        ? wallInsights()
+        : {
+            status: 200,
+            json: wallInsights ?? {
+              guestTotal: total,
+              ownerless: total,
+              ownerlessMissingSeries: 0,
+              claimed: 0,
+              claimsPending: 0,
+              supplemented: 0,
+              supplementsPending: 0,
+              contributors: [],
+              viewer: null,
+            },
+          },
   })
   const reactions = new Map<number, Record<string, number>>(
     Object.entries(initialReactions ?? defaultNamecardReactions).map(
@@ -209,6 +218,7 @@ export async function mockNamecardBrowsing(
   api.expect({
     method: "GET",
     path: platformAuthPath("/session"),
+    fallback: true,
     responses: { 401: platformHttpErrorSchema },
     times: 0,
     handle: () => ({
@@ -250,6 +260,39 @@ export async function mockNamecardBrowsing(
       releaseHeld?.()
     },
   }
+}
+
+export function mockWallContributors(
+  api: ApiDispatcher,
+  contributors: WallInsightContributor[]
+) {
+  api.expect({
+    method: "GET",
+    path: apiPath("/cards/contributors"),
+    query: namecardContributorsQuerySchema,
+    responses: { 200: namecardContributorsSchema },
+    times: 2,
+    handle: ({ query }) => {
+      const page = Number(query.page)
+      const pageSize = Number(query.limit)
+      return {
+        status: 200,
+        json: {
+          contributors: contributors.slice(
+            (page - 1) * pageSize,
+            page * pageSize
+          ),
+          pageInfo: {
+            page,
+            pageSize,
+            total: contributors.length,
+            totalPages: Math.ceil(contributors.length / pageSize),
+            hasNextPage: page * pageSize < contributors.length,
+          },
+        },
+      }
+    },
+  })
 }
 
 export async function applyNamecardSafeArea(page: Page) {

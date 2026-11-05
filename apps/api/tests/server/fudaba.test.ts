@@ -2816,6 +2816,39 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '只有缺少企划的那张卡能被抽中'
             );
         });
+        postgresTest('contributor pages include everyone beyond the top five with stable ties and active accounts only', async () => {
+            const { database, platform, fudaba } = await fixture();
+            for (let index = 0; index < 9; index += 1) {
+                const id = `leader-${index}`;
+                const input = account(id);
+                input.profile.displayName = index < 2 ? 'Same name' : `Producer ${index}`;
+                if (index === 7) input.status = 'suspended';
+                if (index === 8) {
+                    input.status = 'deleted';
+                    input.deletedAt = PROFILE_AT;
+                }
+                await platform.createAccountWithProfile(input);
+                await fudaba.createCard(registeredCard(`leader-card-${index}`, id));
+                await database.prepare(`
+                    INSERT INTO namecard_contribution_events
+                        (id, account_id, card_id, kind, points, created_at)
+                    VALUES (?, ?, ?, 'card-supplement-approved', ?, ?)
+                `).bind(`leader-event-${index}`, id, `leader-card-${index}`,
+                    index < 2 ? 10 : 9 - index, CREATED_AT).run();
+            }
+            const first = await fudaba.listNamecardContributors({ page: 1, pageSize: 5 });
+            const second = await fudaba.listNamecardContributors({ page: 2, pageSize: 5 });
+            assert.equal(first.total, 7);
+            assert.equal(second.total, 7);
+            assert.deepEqual(first.items.map((row) => row.account_id),
+                ['leader-0', 'leader-1', 'leader-2', 'leader-3', 'leader-4']);
+            assert.deepEqual(second.items.map((row) => row.account_id), ['leader-5', 'leader-6']);
+            assert.equal(first.items[0]?.points, 10);
+            assert.equal(first.items[0]?.cards, 1);
+            assert.deepEqual((await fudaba.wallInsights(null)).contributors, first.items);
+            assert.deepEqual(await fudaba.listNamecardContributors({ page: 3, pageSize: 5 }),
+                { items: [], total: 7 });
+        });
         postgresTest('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows', async () => {
             const { database, platform, fudaba, sibling } = await fixture();
             const ownerA = 'claim-owner-a';

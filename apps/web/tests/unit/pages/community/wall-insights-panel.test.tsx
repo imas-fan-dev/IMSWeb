@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -33,7 +33,7 @@ describe("WallInsightsPanel", () => {
     )
     renderPage(<WallInsightsPanel onPickCard={vi.fn()} />)
 
-    expect(await screen.findByText(/2 \/ 10（20%）/)).toBeTruthy()
+    expect(await screen.findByText("20%")).toBeTruthy()
     expect(screen.getByText(/待审 1/)).toBeTruthy()
     expect(
       screen.getByRole("progressbar", { name: "认领进度" })
@@ -42,14 +42,186 @@ describe("WallInsightsPanel", () => {
       screen.getByRole("progressbar", { name: "信息补充进度" })
     ).toHaveAttribute("aria-valuenow", "30")
     expect(screen.getByText("春香P")).toBeTruthy()
-    expect(screen.getByText("5 点 · 3 张")).toBeTruthy()
-    expect(screen.getByText("你：2 点 · 第 2 名")).toBeTruthy()
+    expect(screen.getByText("参与 3 张名片")).toBeTruthy()
+    expect(screen.getByText("我的贡献：2 点 · 第 2 名")).toBeTruthy()
+  })
+
+  it("preserves fractional progress instead of rounding a real contribution to zero", async () => {
+    installFetchMock().mockResolvedValueOnce(
+      Response.json({
+        ...insights,
+        guestTotal: 831,
+        claimed: 1,
+        supplemented: 4,
+      })
+    )
+    renderPage(<WallInsightsPanel onPickCard={vi.fn()} />)
+    expect(await screen.findByText("0.1%")).toBeTruthy()
+    expect(screen.getByText("0.5%")).toBeTruthy()
+    expect(
+      screen.getByRole("progressbar", { name: "认领进度" })
+    ).toHaveAttribute("aria-valuetext", "已完成 1 张，共 831 张，0.1%")
+  })
+
+  it("loads the full leaderboard only when opened and paginates beyond the preview", async () => {
+    const contributors = Array.from({ length: 26 }, (_, index) => ({
+      accountId: `contributor-${index}`,
+      displayName: `制作人 ${index + 1}`,
+      points: 26 - index,
+      cards: 1,
+    }))
+    const fetchMock = installFetchMock()
+      .mockResolvedValueOnce(
+        Response.json({ ...insights, contributors: contributors.slice(0, 5) })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          contributors: contributors.slice(0, 25),
+          pageInfo: {
+            page: 1,
+            pageSize: 25,
+            total: 26,
+            totalPages: 2,
+            hasNextPage: true,
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          contributors: contributors.slice(25),
+          pageInfo: {
+            page: 2,
+            pageSize: 25,
+            total: 26,
+            totalPages: 2,
+            hasNextPage: false,
+          },
+        })
+      )
+    const user = userEvent.setup()
+    renderPage(<WallInsightsPanel onPickCard={vi.fn()} />)
+    await screen.findByText("制作人 3")
+    expect(screen.queryByText("制作人 4")).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const trigger = screen.getByRole("button", { name: "完整榜单" })
+    await user.click(trigger)
+    const dialog = await screen.findByRole("dialog", { name: "名片墙贡献榜" })
+    await within(dialog).findByText("制作人 25")
+    expect(
+      within(dialog).getByRole("button", { name: "上一页" })
+    ).toBeDisabled()
+    await user.click(within(dialog).getByRole("button", { name: "下一页" }))
+    await within(dialog).findByText("制作人 26")
+    expect(within(dialog).queryByText("制作人 25")).toBeNull()
+    expect(
+      within(dialog).getByRole("button", { name: "下一页" })
+    ).toBeDisabled()
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("page=2")
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it("keeps a recoverable page caption when contributors disappear between requests", async () => {
+    const contributors = Array.from({ length: 26 }, (_, index) => ({
+      accountId: "contributor-" + index,
+      displayName: "制作人 " + (index + 1),
+      points: 26 - index,
+      cards: 1,
+    }))
+    installFetchMock()
+      .mockResolvedValueOnce(Response.json(insights))
+      .mockResolvedValueOnce(
+        Response.json({
+          contributors: contributors.slice(0, 25),
+          pageInfo: {
+            page: 1,
+            pageSize: 25,
+            total: 26,
+            totalPages: 2,
+            hasNextPage: true,
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          contributors: [],
+          pageInfo: {
+            page: 2,
+            pageSize: 25,
+            total: 10,
+            totalPages: 1,
+            hasNextPage: false,
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          contributors: contributors.slice(0, 10),
+          pageInfo: {
+            page: 1,
+            pageSize: 25,
+            total: 10,
+            totalPages: 1,
+            hasNextPage: false,
+          },
+        })
+      )
+    const user = userEvent.setup()
+    renderPage(<WallInsightsPanel onPickCard={vi.fn()} />)
+    await screen.findByText("春香P")
+    await user.click(screen.getByRole("button", { name: "完整榜单" }))
+    const dialog = await screen.findByRole("dialog", { name: "名片墙贡献榜" })
+    await within(dialog).findByText("制作人 25")
+    await user.click(within(dialog).getByRole("button", { name: "下一页" }))
+    await within(dialog).findByText("共 10 位 · 第 2 页")
+    expect(
+      within(dialog).getByText("这一页暂无贡献记录，请返回上一页。")
+    ).toBeTruthy()
+    expect(
+      within(dialog).getByRole("button", { name: "下一页" })
+    ).toBeDisabled()
+    await user.click(within(dialog).getByRole("button", { name: "上一页" }))
+    await within(dialog).findByText("制作人 10")
+    expect(within(dialog).getByText("共 10 位 · 1 / 1 页")).toBeTruthy()
+  })
+
+  it("allows retrying a failed full-list request and shows an empty result", async () => {
+    installFetchMock()
+      .mockResolvedValueOnce(Response.json(insights))
+      .mockResolvedValueOnce(
+        Response.json({ error: "Unavailable" }, { status: 503 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          contributors: [],
+          pageInfo: {
+            page: 1,
+            pageSize: 25,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+          },
+        })
+      )
+    const user = userEvent.setup()
+    renderPage(<WallInsightsPanel onPickCard={vi.fn()} />)
+    await screen.findByText("春香P")
+    await user.click(screen.getByRole("button", { name: "完整榜单" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("贡献榜加载失败")
+    await user.click(screen.getByRole("button", { name: "重试" }))
+    expect(
+      await screen.findByText("暂无贡献记录，期待你的第一份贡献。")
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled()
   })
 
   it("collapses, remembers the choice and picks a random card", async () => {
     installFetchMock()
       .mockResolvedValueOnce(Response.json(insights, { status: 200 }))
-      .mockResolvedValueOnce(Response.json({ cardNumber: 789 }, { status: 200 }))
+      .mockResolvedValueOnce(
+        Response.json({ cardNumber: 789 }, { status: 200 })
+      )
     const onPickCard = vi.fn()
     renderPage(<WallInsightsPanel onPickCard={onPickCard} />)
 
@@ -84,9 +256,7 @@ describe("WallInsightsPanel", () => {
       .setup()
       .click(screen.getByRole("button", { name: "随机补充一张" }))
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "随机补充一张" })
-      ).toBeEnabled()
+      expect(screen.getByRole("button", { name: "随机补充一张" })).toBeEnabled()
     )
     expect(onPickCard).not.toHaveBeenCalled()
   })

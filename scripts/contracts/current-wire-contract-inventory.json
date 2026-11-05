@@ -3,42 +3,42 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "2ab467a007606baf4e1c49132423d4f17e9738237c377d05b69aaa6c7ccbb41c",
+    "semanticDigest": "d4e96435f2b36ef9b47e3b102d328c2240f683dbb28706982114bf141cedebf5",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 286,
-    "carriers": 360,
-    "reject": 74,
+    "mountedMethodPaths": 287,
+    "carriers": 361,
+    "reject": 75,
     "acceptAndProject": 183,
     "passthrough": 17,
     "nonObjectApplicable": 86
   },
   "counts": {
-    "mountedRegistrations": 389,
-    "mountedMethodPaths": 293,
+    "mountedRegistrations": 390,
+    "mountedMethodPaths": 294,
     "noInputRoutes": 96,
-    "requestCarriers": 385,
+    "requestCarriers": 386,
     "policies": {
-      "reject": 75,
+      "reject": 76,
       "accept-and-project": 207,
       "passthrough": 17,
       "non-object-applicable": 86
     },
     "responses": {
-      "total": 841,
-      "json": 764,
+      "total": 842,
+      "json": 765,
       "nonJson": 77
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 286,
-      "requestCarriers": 360,
+      "mountedMethodPaths": 287,
+      "requestCarriers": 361,
       "policies": {
-        "reject": 74,
+        "reject": 75,
         "accept-and-project": 183,
         "passthrough": 17,
         "non-object-applicable": 86
@@ -120,7 +120,7 @@
       "/api/about": 1,
       "/api/admin": 171,
       "/api/card": 1,
-      "/api/cards": 5,
+      "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
       "/api/community": 53,
@@ -3982,6 +3982,37 @@
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
           "kind": "non-json",
           "expression": "NAMECARD_MEDIA_NOT_FOUND"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/contributors",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "handlerSymbol": "handleListNamecardContributors",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "schemaSymbol": "namecardContributorsQuerySchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-contributors.ts",
+          "kind": "json",
+          "expression": "{ contributors : result . items . map ( ( contributor ) => ( { accountId : contributor . account_id , displayName : contributor . display_name , points : contributor . points , cards : contributor . cards , } ) ) , pageInfo : { page , pageSize : limit , total : result . total , totalPages , hasNextPage : page < totalPages , } , } satisfies NamecardContributorsResponse"
         }
       ]
     },
@@ -16881,6 +16912,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/cards/contributors",
+      "handlerSymbol": "handleListNamecardContributors",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "schemaSymbol": "namecardContributorsQuerySchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/chronicle",
       "handlerSymbol": "handleListPublicChronicleEntries",
       "kind": "query",
@@ -23507,6 +23555,14 @@
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
       "kind": "non-json",
       "expression": "NAMECARD_MEDIA_NOT_FOUND"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/contributors",
+      "handlerSymbol": "handleListNamecardContributors",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-contributors.ts",
+      "kind": "json",
+      "expression": "{ contributors : result . items . map ( ( contributor ) => ( { accountId : contributor . account_id , displayName : contributor . display_name , points : contributor . points , cards : contributor . cards , } ) ) , pageInfo : { page , pageSize : limit , total : result . total , totalPages , hasNextPage : page < totalPages , } , } satisfies NamecardContributorsResponse"
     },
     {
       "method": "GET",

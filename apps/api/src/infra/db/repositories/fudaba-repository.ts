@@ -4288,6 +4288,32 @@ export class SqlFudabaRepository implements FudabaRepository {
         };
     }
 
+    async listNamecardContributors(input: { page: number; pageSize: number }) {
+        const [count, rows] = await Promise.all([
+            queryOne<{ total: number }>(
+                this.database,
+                `SELECT COUNT(*)::int AS total FROM (${CONTRIBUTION_LEADER_SQL}) leader`,
+                [],
+            ),
+            queryAll<WallInsightContributorRecord>(
+                this.database,
+                `${CONTRIBUTION_LEADER_SQL}
+                 ORDER BY points DESC, display_name ASC, account_id ASC
+                 LIMIT ? OFFSET ?`,
+                [input.pageSize, (input.page - 1) * input.pageSize],
+            ),
+        ]);
+        return {
+            total: Number(count?.total ?? 0),
+            items: rows.map((row) => ({
+                account_id: row.account_id,
+                display_name: row.display_name,
+                points: Number(row.points),
+                cards: Number(row.cards),
+            })),
+        };
+    }
+
     async randomOwnerlessCardMissingSeries(
         viewerAccountId: string | null,
     ): Promise<number | null> {

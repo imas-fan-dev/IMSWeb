@@ -4,23 +4,25 @@ import {
   DicesIcon,
   LoaderCircleIcon,
   TrophyIcon,
+  IdCardIcon,
+  FilePenLineIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import type { WallInsights } from "@imsweb/contracts/namecards"
 
 import { Button } from "~/components/ui/button"
 import {
-  getRandomOwnerlessCard,
-  getWallInsights,
-  isApiError,
-  type WallInsights,
-} from "~/lib/api"
+  WallContributorList,
+  WallContributorsDialog,
+} from "./wall-contributors-dialog"
+import { getRandomOwnerlessCard, getWallInsights, isApiError } from "~/lib/api"
 
 const STORAGE_KEY = "imsweb.wall-insights.collapsed"
 
 function ratio(part: number, total: number) {
   if (total <= 0) return 0
-  return Math.min(100, Math.round((part / total) * 100))
+  return Math.min(100, Math.max(0, (part / total) * 100))
 }
 
 function ProgressRow({
@@ -35,25 +37,54 @@ function ProgressRow({
   pending: number
 }) {
   const percent = ratio(done, total)
+  const percentage =
+    percent > 0 && percent < 0.1
+      ? "<0.1"
+      : percent.toLocaleString("zh-CN", { maximumFractionDigits: 1 })
   return (
-    <div className="min-w-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">
-          {done} / {total}（{percent}%）· 待审 {pending}
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          {label === "认领进度" ? (
+            <IdCardIcon
+              className="size-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+          ) : (
+            <FilePenLineIcon
+              className="size-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+          )}
+          {label}
         </p>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          待审 {pending.toLocaleString()}
+        </span>
+      </div>
+      <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2 tabular-nums">
+        <p>
+          <span className="text-3xl font-semibold">
+            {done.toLocaleString()}
+          </span>
+          <span className="ml-1.5 text-sm text-muted-foreground">
+            / {total.toLocaleString()} 张
+          </span>
+        </p>
+        <span className="text-sm font-medium text-primary">{percentage}%</span>
       </div>
       <div
-        className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted"
+        className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
         role="progressbar"
         aria-label={label}
         aria-valuenow={percent}
         aria-valuemin={0}
         aria-valuemax={100}
+        aria-valuetext={`已完成 ${done} 张，共 ${total} 张，${percentage}%`}
       >
         <div
           className="h-full rounded-full bg-primary"
-          style={{ width: `${percent}%` }}
+          style={{ width: `${percent}%`, minWidth: done > 0 ? "3px" : 0 }}
         />
       </div>
     </div>
@@ -61,7 +92,7 @@ function ProgressRow({
 }
 
 /**
- * 名片墙顶部的临时面板：认领/补充进度、贡献榜前五、当前用户的贡献，
+ * 名片墙顶部的维护面板：认领/补充进度、贡献榜前三、完整榜单与当前用户的贡献，
  * 以及一个「随机找一张缺企划的无主名片」的入口。可以折叠，选择记在本地。
  */
 export function WallInsightsPanel({
@@ -131,19 +162,29 @@ export function WallInsightsPanel({
   return (
     <section
       aria-labelledby="wall-insights-title"
-      className="rounded-xl border bg-card/60 p-3 sm:p-4"
+      className="overflow-hidden rounded-xl border bg-card/90"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <TrophyIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-        <h2 id="wall-insights-title" className="text-sm font-semibold">
-          名片墙维护进度
-        </h2>
+      <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <IdCardIcon className="size-4" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 id="wall-insights-title" className="text-sm font-semibold">
+            名片墙维护进度
+          </h2>
+          {!collapsed && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              一起让每张名片的信息更完整
+            </p>
+          )}
+        </div>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="ml-auto"
           aria-expanded={!collapsed}
+          aria-controls="wall-insights-content"
           onClick={toggle}
         >
           {collapsed ? (
@@ -156,79 +197,100 @@ export function WallInsightsPanel({
       </div>
 
       {collapsed ? null : (
-        <>
-          <div className="mt-3 grid gap-4 lg:grid-cols-2">
-            <div className="min-w-0 space-y-3">
-              <ProgressRow
-                label="认领进度"
-                done={insights?.claimed ?? 0}
-                total={guestTotal}
-                pending={insights?.claimsPending ?? 0}
-              />
-              <ProgressRow
-                label="信息补充进度"
-                done={insights?.supplemented ?? 0}
-                total={guestTotal}
-                pending={insights?.supplementsPending ?? 0}
-              />
-            </div>
-
-            <div className="min-w-0">
-              <p className="text-sm font-medium">贡献榜</p>
-              {insights?.contributors.length ? (
-                <ol className="mt-1 space-y-1 text-sm">
-                  {insights.contributors.map((contributor, index) => (
-                    <li
-                      key={contributor.accountId}
-                      className="flex items-baseline gap-2"
-                    >
-                      <span className="w-4 text-right text-xs text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <span className="truncate">{contributor.displayName}</span>
-                      <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground">
-                        {contributor.points} 点 · {contributor.cards} 张
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  还没有人拿到贡献值，补充通过的第一张名片就是第一条记录。
-                </p>
-              )}
-              <p className="mt-2 text-xs text-muted-foreground">
-                {insights?.viewer
-                  ? `你：${insights.viewer.points} 点${
-                      insights.viewer.rank
-                        ? ` · 第 ${insights.viewer.rank} 名`
-                        : ""
-                    }`
-                  : "登录后可以查看自己的贡献值。"}
+        <div
+          id="wall-insights-content"
+          className="grid border-t lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]"
+        >
+          <div className="flex min-w-0 flex-col px-4 py-5 sm:px-6">
+            {!insights ? (
+              <p role="status" className="py-6 text-sm text-muted-foreground">
+                正在加载维护进度…
               </p>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-1 lg:gap-5">
+                <ProgressRow
+                  label="认领进度"
+                  done={insights?.claimed ?? 0}
+                  total={guestTotal}
+                  pending={insights?.claimsPending ?? 0}
+                />
+                <ProgressRow
+                  label="信息补充进度"
+                  done={insights?.supplemented ?? 0}
+                  total={guestTotal}
+                  pending={insights?.supplementsPending ?? 0}
+                />
+              </div>
+            )}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4 lg:mt-auto lg:pt-4">
+              <p className="text-xs text-muted-foreground">
+                认领你的名片，或帮忙补充缺失的信息。
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={picking || !insights}
+                onClick={() => void pickRandom()}
+              >
+                {picking ? (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin motion-reduce:animate-none"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <DicesIcon data-icon="inline-start" aria-hidden="true" />
+                )}
+                随机补充一张
+              </Button>
             </div>
           </div>
 
-          <div className="mt-3 flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={picking || !insights}
-              onClick={() => void pickRandom()}
-            >
-              {picking ? (
-                <LoaderCircleIcon
-                  data-icon="inline-start"
-                  className="animate-spin motion-reduce:animate-none"
+          <div className="min-w-0 border-t bg-muted/20 p-4 sm:px-6 lg:border-t-0 lg:border-l">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <TrophyIcon
+                  className="size-4 text-primary"
                   aria-hidden="true"
                 />
-              ) : (
-                <DicesIcon data-icon="inline-start" aria-hidden="true" />
-              )}
-              随机补充一张
-            </Button>
+                贡献榜{" "}
+                <span className="text-xs font-normal text-muted-foreground">
+                  前 3 名
+                </span>
+              </h3>
+              <WallContributorsDialog
+                viewerAccountId={insights?.viewer?.accountId}
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              贡献值对比，以榜首为基准
+            </p>
+            {!insights ? (
+              <p role="status" className="py-5 text-sm text-muted-foreground">
+                正在加载贡献榜…
+              </p>
+            ) : insights.contributors.length ? (
+              <WallContributorList
+                contributors={insights.contributors.slice(0, 3)}
+                viewerAccountId={insights.viewer?.accountId}
+                showComparison
+              />
+            ) : (
+              <p className="py-5 text-sm text-muted-foreground">
+                暂无贡献记录，期待你的第一份贡献。
+              </p>
+            )}
+            <p className="mt-1 border-t pt-3 text-xs text-muted-foreground tabular-nums">
+              {insights?.viewer
+                ? `我的贡献：${insights.viewer.points.toLocaleString()} 点${
+                    insights.viewer.rank
+                      ? ` · 第 ${insights.viewer.rank} 名`
+                      : " · 暂未上榜"
+                  }`
+                : "登录后可以查看自己的贡献值。"}
+            </p>
           </div>
-        </>
+        </div>
       )}
     </section>
   )

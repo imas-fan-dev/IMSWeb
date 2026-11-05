@@ -409,6 +409,11 @@ export interface WallInsightContributorRecord {
     cards: number;
 }
 
+export interface NamecardContributorsPageRecord {
+    items: WallInsightContributorRecord[];
+    total: number;
+}
+
 export interface WallInsightsRecord {
     /** Every published guest submission; both progress bars share it. */
     guest_total: number;
@@ -1028,6 +1033,10 @@ export interface FudabaRepository {
         limit: number,
     ): Promise<FudabaCardClaimRecord[]>;
     wallInsights(viewerAccountId: string | null): Promise<WallInsightsRecord>;
+    listNamecardContributors(input: {
+        page: number;
+        pageSize: number;
+    }): Promise<NamecardContributorsPageRecord>;
     /**
      * 随机挑一张缺少企划的无主名片，优先没人补充过的那些；没有可抽的返回 null。
      */

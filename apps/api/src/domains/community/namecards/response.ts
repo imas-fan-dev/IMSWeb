@@ -13,6 +13,7 @@ import type {
     NamecardFeedbackResponse as NamecardFeedbackReplyContract,
     AdminNamecardListResponse as AdminNamecardListContractResponse,
     Namecard,
+    NamecardContributors,
     NamecardEmptyResponse,
     NamecardErrorResponse,
     NamecardFavoriteCharacterInput,
@@ -50,6 +51,7 @@ export type AdminNamecardFeedbackAuditListResponse =
     AdminNamecardFeedbackAuditContractResponse;
 /** 墙顶面板与「随机补充一张」两条公开只读接口。 */
 export type WallInsightsResponse = WallInsightsContract;
+export type NamecardContributorsResponse = NamecardContributors;
 export type PublicProfileResponse = PublicProfileContract;
 export type PublicProfileErrorResponse = PublicProfileErrorContract;
 export type RandomOwnerlessCardResponse = RandomOwnerlessCardContract;

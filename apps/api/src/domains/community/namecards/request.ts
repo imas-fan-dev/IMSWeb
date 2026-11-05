@@ -12,6 +12,7 @@ import type {
     ResolveNamecardFeedbackRequest,
 } from "@imsweb/contracts/namecards";
 import {
+    boundedPositiveInteger,
     canonicalPositiveInteger,
     positiveInteger,
 } from "@/utils/validation/number";
@@ -28,6 +29,23 @@ export interface CompatibleNamecardIdParams {
 export interface NamecardListQuery {
     page: number;
     size: number;
+}
+
+export interface NamecardContributorsQuery {
+    page: number;
+    limit: number;
+}
+
+export function validateNamecardContributorsQuery(
+    value: unknown,
+): NamecardContributorsQuery {
+    const query = requestRecord(value, '贡献榜分页参数无效');
+    const page = query.page === undefined ? 1 : canonicalPositiveInteger(query.page);
+    const limit = query.limit === undefined ? 25 : boundedPositiveInteger(query.limit, 100);
+    if (page === null || limit === null) {
+        throw invalidRequest('贡献榜分页参数无效');
+    }
+    return { page, limit };
 }
 
 export type AdminNamecardListStatus =
@@ -162,11 +180,15 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
 
 /** 主页列表路由只校验了路径参数，分页从这里按线上同一套规则取。 */
 export function parseNamecardPage(url: string): NamecardListQuery {
-    const params = new URL(`http://local${url}`).searchParams;
-    return validateNamecardListQuery({
-        page: params.get('page'),
-        size: params.get('size'),
-    });
+    try {
+        const params = new URL(`http://local${url}`).searchParams;
+        return validateNamecardListQuery({
+            page: params.get('page'),
+            size: params.get('size'),
+        });
+    } catch {
+        throw invalidRequest('名片分页参数无效');
+    }
 }
 
 export type AdminNamecardFeedbackListQuery = {
@@ -209,6 +231,7 @@ export function validateAdminNamecardUpdateRequest(
     }
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     return {
+        // SAFETY: the route's contracts schema validates the full update body before this adapter.
         ...(body as unknown as AdminNamecardUpdateRequest),
         ...request,
         reason: reason === "" ? null : reason.slice(0, LOCKED_NAMECARD_REASON_MAX_LENGTH),

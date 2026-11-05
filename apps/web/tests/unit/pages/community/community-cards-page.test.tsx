@@ -54,9 +54,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getFudabaSeries: () => ({
       send: () =>
         Promise.resolve({
-          items: [
-            { code: "765", displayName: "本家", color: "#f34f6d" },
-          ],
+          items: [{ code: "765", displayName: "本家", color: "#f34f6d" }],
         }),
     }),
   }
@@ -361,9 +359,9 @@ describe("CommunityCardsPage", () => {
       </MemoryRouter>
     )
 
-    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(
-      "这张名片暂时无法查看"
-    ))
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith("这张名片暂时无法查看")
+    )
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
@@ -509,7 +507,9 @@ describe("CommunityCardsPage", () => {
       screen.queryByRole("button", { name: "认领" })
     ).not.toBeInTheDocument()
     await userEvent.setup().click(frontTrigger)
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     const claimButton = within(detail).getByRole("button", {
       name: "认领",
     })
@@ -601,7 +601,9 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getAllByRole("button", { name: "❤️，4 次反应" })[0]!
     )
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     const reactionGroup = within(detail).getByLabelText("名片全部反应")
     const addButton = within(detail).getByRole("button", {
       name: "添加反应",
@@ -733,7 +735,9 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     expect(
       within(detail).getByRole("button", { name: "❤️，5 次反应" })
     ).toBeVisible()
@@ -759,7 +763,9 @@ describe("CommunityCardsPage", () => {
     const add = within(summary).getByRole("button", { name: "添加反应" })
     expect(add).toHaveClass("max-md:hidden")
     await user.click(viewDetail)
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     expect(within(detail).getByText("还没有反应")).toBeVisible()
     expect(apiMocks.sendAddReaction).not.toHaveBeenCalled()
     await user.click(within(detail).getByRole("button", { name: "Close" }))
@@ -807,7 +813,9 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     for (let count = 10; count < 14; count += 1) {
       await user.click(
         within(detail).getByRole("button", { name: `❤️，${count} 次反应` })
@@ -890,7 +898,9 @@ describe("CommunityCardsPage", () => {
     await user.click(
       screen.getByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     const detailHeart = within(detail).getByRole("button", {
       name: "❤️，4 次反应",
     })
@@ -990,7 +1000,9 @@ describe("CommunityCardsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     await user.click(within(detail).getByRole("button", { name: "添加反应" }))
     await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
     expect(
@@ -1027,7 +1039,9 @@ describe("CommunityCardsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     await user.click(within(detail).getByRole("button", { name: "添加反应" }))
     await user.click(screen.getByRole("button", { name: "❤️，添加反应" }))
     expect(
@@ -1182,7 +1196,9 @@ describe("CommunityCardsPage", () => {
 
     await user.click(frontTrigger)
 
-    const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*\d+/,
+    })
     expect(detail).toBeVisible()
     expect(within(detail).getByText("企划")).toBeVisible()
     expect(
@@ -1402,7 +1418,9 @@ describe("CommunityCardsPage", () => {
         })
       )
 
-      const detail = await screen.findByRole("dialog", { name: /制作人名片\s*\d+/ })
+      const detail = await screen.findByRole("dialog", {
+        name: /制作人名片\s*\d+/,
+      })
       expect(within(detail).getByText("全部反应")).toBeVisible()
       await user.click(
         within(detail).getByRole("button", {
@@ -1435,7 +1453,7 @@ describe("CommunityCardsPage", () => {
 
     const list = screen.getByRole("region", { name: "公开名片" })
     expect(list).toHaveAttribute("aria-busy", "true")
-    expect(screen.getByRole("status")).toHaveTextContent("正在读取名片墙")
+    expect(within(list).getByRole("status")).toHaveTextContent("正在读取名片墙")
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
     await act(async () => first.reject(new Error("offline")))
 
@@ -1443,7 +1461,7 @@ describe("CommunityCardsPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("暂时无法读取名片墙")
     await user.click(screen.getByRole("button", { name: "重试读取名片墙" }))
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
-    expect(screen.getByRole("status")).toHaveTextContent("正在读取名片墙")
+    expect(within(list).getByRole("status")).toHaveTextContent("正在读取名片墙")
     expect(list).toHaveAttribute("aria-busy", "true")
     expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(1, 12)
     await act(async () => retry.resolve(pageResult()))
@@ -1492,7 +1510,11 @@ describe("CommunityCardsPage", () => {
     expect(screen.getByLabelText("列表地址")).toHaveTextContent(
       "?page=2&size=12&filter=recent"
     )
-    expect(screen.getByRole("status")).toHaveTextContent("正在读取名片墙")
+    expect(
+      within(screen.getByRole("region", { name: "公开名片" })).getByRole(
+        "status"
+      )
+    ).toHaveTextContent("正在读取名片墙")
     expect(
       screen.queryByRole("spinbutton", { name: "跳至" })
     ).not.toBeInTheDocument()

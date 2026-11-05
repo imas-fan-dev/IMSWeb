@@ -153,6 +153,7 @@ import { test } from 'vitest';
             'handleListAdminNamecards',
             'handleGetRandomOwnerlessCard',
             'handleGetWallInsights',
+            'handleListNamecardContributors',
             'handleListNamecards',
             'handleListProfileCards',
             'handleListReactions',
@@ -504,7 +505,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 157);
+            assert.equal(Object.values(actual).flat().length, 158);
         });
 
         test('capability domains compose named capabilities from their root routes', () => {

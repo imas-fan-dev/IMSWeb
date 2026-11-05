@@ -654,6 +654,18 @@ export const wallInsightsSchema = exactJsonResponse({
   viewer: wallInsightViewerSchema.nullable(),
 })
 
+export const namecardContributorsQuerySchema = strictRequestObject({
+  page: z.unknown().optional(),
+  limit: z.unknown().optional(),
+})
+
+export const namecardContributorsSchema = exactJsonResponse({
+  contributors: z.array(wallInsightContributorSchema),
+  pageInfo: numberedPageInfoSchema,
+})
+
+export type NamecardContributors = z.infer<typeof namecardContributorsSchema>
+
 export const randomOwnerlessCardSchema = exactJsonResponse({
   cardNumber: z.number().int().positive(),
 })

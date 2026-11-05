@@ -5,12 +5,14 @@ import { handleListProfileCards } from "@/domains/community/namecards/public-pro
 import { handleGetRandomOwnerlessCard } from "@/domains/community/namecards/public-cards/handlers/get-random-ownerless-card";
 import { handleGetWallInsights } from "@/domains/community/namecards/public-cards/handlers/get-wall-insights";
 import { handleListNamecards } from "@/domains/community/namecards/public-cards/handlers/list-namecards";
+import { handleListNamecardContributors } from '@/domains/community/namecards/public-cards/handlers/list-contributors';
 import { handleServePlatformAccountIcon } from "@/domains/community/namecards/public-cards/handlers/serve-platform-account-icon";
 import { fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
 import { handleServePublicCardMedia } from "@/domains/community/namecards/public-cards/handlers/serve-card-media";
 import {
     validateCompatibleNamecardIdParams,
     validateNamecardListQuery,
+    validateNamecardContributorsQuery,
     validateNamecardMediaParams,
 } from "@/domains/community/namecards/request";
 import {
@@ -18,6 +20,7 @@ import {
     platformAccountKindParamsSchema,
     publicProfileParamsSchema,
     namecardListQuerySchema,
+    namecardContributorsQuerySchema,
     namecardMediaParamsSchema,
 } from "@imsweb/contracts/namecards";
 import { optionalPlatformAuth } from "@/middleware/hono-auth";
@@ -45,6 +48,17 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
         "/cards/random-ownerless",
         optionalPlatformAuth,
         handleGetRandomOwnerlessCard,
+    );
+    // 完整贡献榜独立分页，墙顶摘要只需加载前几名。
+    routes.get(
+        '/cards/contributors',
+        optionalPlatformAuth,
+        querySchemaValidator(
+            namecardContributorsQuerySchema,
+            { invalidMessage: '贡献榜分页参数无效' },
+            validateNamecardContributorsQuery,
+        ),
+        handleListNamecardContributors,
     );
     // 平台图标走站内路由，对象存储的公开地址对这类小图并不可靠。
     routes.get(

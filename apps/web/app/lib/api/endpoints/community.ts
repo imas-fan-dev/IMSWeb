@@ -7,6 +7,7 @@ import {
   randomOwnerlessCardSchema,
   publicNamecardResponseSchema,
   wallInsightsSchema,
+  namecardContributorsSchema,
   namecardReactionListQuerySchema,
   namecardReactionRequestSchema,
   reactionMutationSchema,
@@ -52,6 +53,18 @@ export function getWallInsights() {
       errorSchema: namecardErrorResponseSchema,
       cacheFor: NO_CLIENT_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
+
+export function getNamecardContributors(page = 1) {
+  return apiClient.Get(
+    apiPath("/cards/contributors"),
+    parsed(namecardContributorsSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+      params: { page, limit: 25 },
     })
   )
 }
