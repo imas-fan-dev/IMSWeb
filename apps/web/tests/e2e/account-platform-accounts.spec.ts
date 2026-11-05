@@ -163,7 +163,8 @@ test("adds platform accounts by pasting a link, then edits and removes them from
     },
   })
 
-  await page.goto("/account/me")
+  // 窄屏的 /account/me 是分区入口，编辑器在 /account/me/profile。
+  await page.goto(isMobile ? "/account/me/profile" : "/account/me")
   const section = page.locator("#profile-workspace-section-profile")
   const pasteBox = section.getByRole("textbox", {
     name: "粘贴平台链接",
