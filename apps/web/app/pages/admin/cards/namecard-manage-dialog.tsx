@@ -54,16 +54,7 @@ import {
   type NamecardFeedbackReason,
 } from "~/lib/api"
 import { feedbackReasonLabel } from "~/pages/community/exchange/components/namecard-feedback-model"
-
-/** Lifecycle values the management window may set; drafts never reach a card. */
-const STATUS_OPTIONS = [
-  { value: "pending", label: "待审核" },
-  { value: "published", label: "已通过" },
-  // The owner deleted it themselves; hiding is not a management verdict.
-  { value: "hidden", label: "已隐藏（用户删除态）" },
-  { value: "rejected", label: "已驳回" },
-  { value: "locked", label: "已锁定" },
-] as const
+import { NAMECARD_STATUS_OPTIONS } from "./namecard-status-options"
 
 const REVIEW_OPTIONS = [
   { value: "none", label: "无（丢弃待审版本）" },
@@ -611,7 +602,7 @@ export function NamecardManageDialog({
                     <FieldLabel htmlFor="manage-status">名片状态</FieldLabel>
                     <Select
                       value={status}
-                      items={STATUS_OPTIONS}
+                      items={NAMECARD_STATUS_OPTIONS}
                       disabled={busy}
                       onValueChange={(value) => setStatus(String(value))}
                     >
@@ -623,7 +614,7 @@ export function NamecardManageDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent align="start">
-                        {STATUS_OPTIONS.map((option) => (
+                        {NAMECARD_STATUS_OPTIONS.map((option) => (
                           <SelectItem
                             key={option.value}
                             value={option.value}

@@ -47,6 +47,7 @@ import {
   type AdminNamecardList,
 } from "~/lib/api"
 import { NamecardMediaPreview } from "./namecard-media-preview"
+import { NAMECARD_STATUS_FILTERS } from "./namecard-status-options"
 import { NamecardReviewDialog } from "./namecard-review-dialog"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 import {
@@ -58,15 +59,6 @@ import {
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]
 }
-
-const STATUS_ITEMS = [
-  { value: "all", label: "全部状态" },
-  { value: "pending", label: "待审核" },
-  { value: "published", label: "已通过" },
-  { value: "rejected", label: "已驳回" },
-  { value: "locked", label: "已锁定" },
-  { value: "hidden", label: "已隐藏" },
-]
 
 interface NamecardListFilters {
   query: string
@@ -448,7 +440,7 @@ export default function AdminCardsPage() {
               审核状态
               <Select
                 value={statusParam || "all"}
-                items={STATUS_ITEMS}
+                items={NAMECARD_STATUS_FILTERS}
                 onValueChange={(value) =>
                   setStatusFilter(value === "all" ? "" : String(value))
                 }

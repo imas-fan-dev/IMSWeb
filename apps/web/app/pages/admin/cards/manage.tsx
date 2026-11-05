@@ -42,21 +42,13 @@ import { useDebouncedValue } from "~/lib/use-debounced-value"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
 import { NamecardFeedbackQueue } from "./namecard-feedback-queue"
 import { NamecardManageDialog } from "./namecard-manage-dialog"
+import { NAMECARD_STATUS_FILTERS } from "./namecard-status-options"
 import { NamecardMediaPreview } from "./namecard-media-preview"
 import { REJECT_REASON_PRESETS, VIOLATION_REASON_PRESETS } from "./reason-presets"
 
 export function meta() {
   return [{ title: "名片管理 | IMSWeb" }]
 }
-
-const STATUS_ITEMS = [
-  { value: "all", label: "全部状态" },
-  { value: "pending", label: "待审核" },
-  { value: "published", label: "已通过" },
-  { value: "rejected", label: "已驳回" },
-  { value: "locked", label: "已锁定" },
-  { value: "hidden", label: "已隐藏" },
-]
 
 interface NamecardListFilters {
   query: string
@@ -395,7 +387,7 @@ export default function AdminNamecardManagePage() {
               审核状态
               <Select
                 value={statusParam || "all"}
-                items={STATUS_ITEMS}
+                items={NAMECARD_STATUS_FILTERS}
                 onValueChange={(value) =>
                   setStatusFilter(value === "all" ? "" : String(value))
                 }
