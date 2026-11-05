@@ -1,3 +1,4 @@
+import { Drawer } from "@base-ui/react/drawer"
 import {
   HomeIcon,
   InfoIcon,
@@ -33,6 +34,10 @@ import {
   saveMyPlatformAccount,
   type PlatformAccountKind,
 } from "~/lib/api"
+import { useMediaQuery } from "~/lib/use-media-query"
+
+const GUIDE_LABEL = "查看支持的平台与链接模板"
+const DESKTOP_QUERY = "(min-width: 768px)"
 
 const MATCH_FAILED =
   "没有匹配到支持的平台，请检查平台是否受支持、链接格式是否符合提示中的模板。"
@@ -42,6 +47,39 @@ const ALREADY_ADDED = "这个平台已经添加过了，先移除再重新粘贴
 function placeholderFor(kind: PlatformAccountKind): string {
   if (kind.baseUrl) return kind.baseUrl
   return kind.group === "link" ? "https://" : ""
+}
+
+/** 平台名一列不换行，模板一列统一左对齐；提示和移动端抽屉共用。 */
+function PlatformTemplateTable({ kinds }: { kinds: PlatformAccountKind[] }) {
+  return (
+    <table className="w-full border-collapse text-left">
+      <thead>
+        <tr className="opacity-70">
+          <th scope="col" className="pr-3 pb-0.5 font-normal whitespace-nowrap">
+            平台
+          </th>
+          <th scope="col" className="pb-0.5 font-normal">
+            链接模板
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {kinds.map((kind) => (
+          <tr key={kind.id} className="align-top">
+            <th
+              scope="row"
+              className="py-0.5 pr-3 font-normal whitespace-nowrap"
+            >
+              {kind.name}
+            </th>
+            <td className="w-full py-0.5 font-mono text-[11px] break-all opacity-80">
+              {kind.baseUrl}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
 }
 
 function errorMessage(error: unknown) {
@@ -93,7 +131,7 @@ function PlatformLink({
 }) {
   const marker = kind.baseUrl?.indexOf("{value}") ?? -1
   if (!kind.baseUrl || marker < 0) {
-    return <div className="truncate text-sm font-medium">{value}</div>
+    return <div className="min-w-0 truncate text-sm font-medium">{value}</div>
   }
   const prefix = kind.baseUrl.slice(0, marker)
   const suffix = kind.baseUrl.slice(marker + "{value}".length)
@@ -103,7 +141,7 @@ function PlatformLink({
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="block truncate rounded-md border bg-muted/30 px-3 py-1.5 text-sm hover:underline"
+      className="block min-w-0 truncate rounded-md border bg-muted/30 px-3 py-1.5 text-sm hover:underline"
     >
       <span className="text-muted-foreground">{prefix}</span>
       <span>{value}</span>
@@ -134,6 +172,8 @@ export function PlatformAccountsEditor() {
   const [pasteError, setPasteError] = useState<string | null>(null)
   // 本次编辑里新加的平台排在前面，免得新条目落在可视区外；保存后刷新回到后台排序。
   const [addedAt, setAddedAt] = useState<Record<string, number>>({})
+  // 触屏上悬停提示不好用：窄屏改成可以下滑关闭的底部抽屉。
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
 
   useEffect(() => {
     let active = true
@@ -372,62 +412,70 @@ export function PlatformAccountsEditor() {
               <span className="text-xs text-destructive">{pasteError}</span>
             ) : null}
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger
+          {isDesktop ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      aria-label={GUIDE_LABEL}
+                    />
+                  }
+                >
+                  <InfoIcon aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  align="end"
+                  className="w-[min(20rem,calc(100vw-2rem))] max-w-none text-background"
+                >
+                  <div className="w-full space-y-1 text-left">
+                    <p className="font-medium">支持的平台</p>
+                    <PlatformTemplateTable kinds={templatedKinds} />
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Drawer.Root swipeDirection="down">
+              <Drawer.Trigger
                 render={
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="shrink-0"
-                    aria-label="查看支持的平台与链接模板"
+                    aria-label={GUIDE_LABEL}
                   />
                 }
               >
                 <InfoIcon aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent
-                side="bottom"
-                align="end"
-                className="w-[min(20rem,calc(100vw-2rem))] max-w-none text-background"
-              >
-                <div className="w-full space-y-1 text-left">
-                  <p className="font-medium">支持的平台</p>
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="opacity-70">
-                        <th
-                          scope="col"
-                          className="pr-3 pb-0.5 font-normal whitespace-nowrap"
-                        >
-                          平台
-                        </th>
-                        <th scope="col" className="pb-0.5 font-normal">
-                          链接模板
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {templatedKinds.map((kind) => (
-                        <tr key={kind.id} className="align-top">
-                          <th
-                            scope="row"
-                            className="py-0.5 pr-3 font-normal whitespace-nowrap"
-                          >
-                            {kind.name}
-                          </th>
-                          <td className="w-full py-0.5 font-mono text-[11px] break-all opacity-80">
-                            {kind.baseUrl}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </Drawer.Trigger>
+              <Drawer.Portal>
+                <Drawer.Backdrop className="fixed inset-0 z-50 bg-black/30 opacity-[calc(0.9-var(--drawer-swipe-progress))] transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0 data-swiping:duration-0 supports-backdrop-filter:backdrop-blur-xs" />
+                <Drawer.Viewport className="fixed inset-0 z-50 flex flex-col justify-end">
+                  <Drawer.Popup className="flex max-h-[80dvh] transform-[translateY(var(--drawer-swipe-movement-y))] flex-col rounded-t-2xl border-t bg-popover text-popover-foreground shadow-lg transition-transform duration-300 ease-out outline-none data-ending-style:transform-[translateY(100%)] data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:transform-[translateY(100%)] data-swiping:duration-0 data-swiping:select-none">
+                    <Drawer.Content className="flex min-h-0 flex-col gap-2 p-4 pb-[calc(1rem+var(--safe-area-bottom))]">
+                      <div
+                        aria-hidden="true"
+                        className="mx-auto h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30"
+                      />
+                      <Drawer.Title className="text-sm font-medium">
+                        支持的平台
+                      </Drawer.Title>
+                      <div className="-mx-1 min-h-0 overflow-y-auto overscroll-contain px-1">
+                        <PlatformTemplateTable kinds={templatedKinds} />
+                      </div>
+                    </Drawer.Content>
+                  </Drawer.Popup>
+                </Drawer.Viewport>
+              </Drawer.Portal>
+            </Drawer.Root>
+          )}
         </div>
 
         {filledKinds.length > 0 ? (
@@ -435,7 +483,7 @@ export function PlatformAccountsEditor() {
             {filledKinds.map((kind) => (
               <div
                 key={kind.id}
-                className="flex flex-col gap-1.5"
+                className="flex min-w-0 flex-col gap-1.5"
                 data-platform-entry={kind.id}
               >
                 <div className="flex min-w-0 items-center gap-2 text-sm">
