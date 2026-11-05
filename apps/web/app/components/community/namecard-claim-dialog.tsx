@@ -17,7 +17,6 @@ import {
 import {
   CardMediaGallery,
   publicMediaSlotsFromCard,
-  THUMB_SIZE_COMPACT,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useCardFieldFade } from "~/components/community/use-card-field-fade"
@@ -176,7 +175,6 @@ export function NamecardClaimDialog({
               disabled
               readOnly
               allowUpload={false}
-              thumbSize={THUMB_SIZE_COMPACT}
               onChange={() => undefined}
               onError={() => undefined}
             />

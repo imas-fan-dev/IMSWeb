@@ -15,8 +15,6 @@ const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024
 /** 缩略图边长与间距；插入占位的位移按这两项算。 */
 const THUMB_SIZE = 80
 const THUMB_GAP = 8
-/** 墙上的只读预览用更小的缩略图。 */
-export const THUMB_SIZE_COMPACT = 64
 /** 指针移动超过这个距离才算拖拽，否则当作点击。 */
 const DRAG_THRESHOLD = 6
 
@@ -229,8 +227,6 @@ export function CardMediaGallery({
   allowUpload = true,
   /** 审核窗的纯预览：不提供任何编辑动作，也不显示编辑说明。 */
   readOnly = false,
-  /** 缩略图边长，默认 80。 */
-  thumbSize = THUMB_SIZE,
   /** 详情窗口不需要「正面/背面」这类角标与缩略图说明。 */
   roleLabels = true,
   /** 从墙上某一面打开时直接停在那张图上。 */
@@ -247,7 +243,6 @@ export function CardMediaGallery({
   /** The backoffice may only reorder and drop pages, never add or replace. */
   allowUpload?: boolean
   readOnly?: boolean
-  thumbSize?: number
   roleLabels?: boolean
   initialIndex?: number
   onOpenPreview?: (index: number, element: HTMLButtonElement) => void
@@ -520,7 +515,7 @@ export function CardMediaGallery({
       >
         {visibleSlots.slice(0, dropIndex ?? 0).map((entry) => (
           <Thumbnail
-            thumbSize={thumbSize}
+            
             key={slotKey(entry.slot)}
             entry={entry}
             active={entry.index === position}
@@ -539,7 +534,7 @@ export function CardMediaGallery({
             aria-hidden="true"
             role="listitem"
             className="relative shrink-0 rounded-md border-2 border-dashed border-primary/70 bg-muted/40"
-            style={{ width: thumbSize, height: thumbSize }}
+            style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
           >
             <SlotImage
               slot={drag.slot}
@@ -551,7 +546,7 @@ export function CardMediaGallery({
 
         {visibleSlots.slice(dropIndex ?? 0).map((entry) => (
           <Thumbnail
-            thumbSize={thumbSize}
+            
             key={slotKey(entry.slot)}
             entry={entry}
             active={entry.index === position}
@@ -572,7 +567,7 @@ export function CardMediaGallery({
             onClick={() => pick(null)}
             aria-label="添加名片图片"
             className="grid shrink-0 place-items-center rounded-md border border-dashed text-muted-foreground hover:border-primary/60 hover:text-foreground"
-            style={{ width: thumbSize, height: thumbSize }}
+            style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
           >
             <ImagePlusIcon aria-hidden="true" className="size-5" />
           </button>
@@ -590,10 +585,10 @@ export function CardMediaGallery({
               alt=""
               className="pointer-events-none fixed z-50 rounded-md border-2 border-primary object-cover shadow-xl"
               style={{
-                width: thumbSize,
-                height: thumbSize,
-                left: drag.x - thumbSize / 2,
-                top: drag.y - thumbSize / 2,
+                width: THUMB_SIZE,
+                height: THUMB_SIZE,
+                left: drag.x - THUMB_SIZE / 2,
+                top: drag.y - THUMB_SIZE / 2,
               }}
             />,
             document.body
@@ -621,7 +616,6 @@ function slotKey(slot: MediaSlot): string {
 }
 
 function Thumbnail({
-  thumbSize,
   entry,
   active,
   dragging,
@@ -632,7 +626,6 @@ function Thumbnail({
   onRemove,
   onPointerDown,
 }: {
-  thumbSize: number
   entry: { slot: MediaSlot; index: number }
   active: boolean
   dragging: boolean
@@ -649,7 +642,7 @@ function Thumbnail({
       role="listitem"
       data-thumb-pos={index}
       className="group relative shrink-0 touch-none select-none"
-      style={{ width: thumbSize, height: thumbSize }}
+      style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
       onPointerDown={(event) => onPointerDown(index, event)}
     >
       <button

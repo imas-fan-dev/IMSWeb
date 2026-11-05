@@ -152,8 +152,8 @@ const ADMIN_CLAIM_COLUMNS = `claim.id, claim.legacy_card_id,
     claim.state, claim.message, claim.payload, claim.review_note, claim.reviewed_by,
     claim.reviewed_at, claim.revision, claim.created_at, claim.updated_at,
     profile.display_name AS claimant_display_name,
-    COALESCE(legacy.image1_url, guest_card.front_object_key) AS legacy_image1_url,
-    COALESCE(legacy.image2_url, guest_card.back_object_key) AS legacy_image2_url,
+    guest_card.front_object_key AS legacy_image1_url,
+    guest_card.back_object_key AS legacy_image2_url,
     (SELECT target.card_number FROM fudaba_cards target
       WHERE target.id=claim.target_card_id) AS target_card_number`;
 const SUPPLEMENT_COLUMNS = `supplement.id, supplement.card_id,
@@ -4519,7 +4519,6 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM fudaba_card_claims claim
              JOIN platform_profiles profile
                ON profile.account_id=claim.claimant_account_id
-             LEFT JOIN cards legacy ON legacy.id=claim.legacy_card_id
              LEFT JOIN fudaba_cards guest_card
                     ON guest_card.card_number=claim.legacy_card_id
                    AND guest_card.deleted_at IS NULL
@@ -4542,7 +4541,6 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM fudaba_card_claims claim
              JOIN platform_profiles profile
                ON profile.account_id=claim.claimant_account_id
-             LEFT JOIN cards legacy ON legacy.id=claim.legacy_card_id
              LEFT JOIN fudaba_cards guest_card
                     ON guest_card.card_number=claim.legacy_card_id
                    AND guest_card.deleted_at IS NULL

@@ -1,7 +1,6 @@
 import {
   CheckIcon,
   ContactRoundIcon,
-  ImagesIcon,
   LoaderCircleIcon,
   LockIcon,
   LockOpenIcon,
@@ -526,16 +525,11 @@ export default function AdminCardsPage() {
                           aria-label={`查看名片 #${card.id} 的审核详情`}
                           onClick={() => setReviewCard(card)}
                         >
-                          {card.pageCount > 2 ? (
-                            <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
-                              <ImagesIcon aria-hidden="true" />
-                              {card.pageCount}
-                            </Badge>
-                          ) : null}
-                          <NamecardMediaPreview
+                                                    <NamecardMediaPreview
                             frontImageUrl={withThumbnail(card.image1_url)}
                             backImageUrl={card.image2_url}
                             altBase={`名片 #${card.id}`}
+                            pageCount={card.pageCount}
                           />
                         </button>
                         <div className="flex flex-wrap items-center gap-3 p-4">

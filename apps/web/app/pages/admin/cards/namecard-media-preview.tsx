@@ -1,5 +1,7 @@
+import { ImagesIcon } from "lucide-react"
 import { useState } from "react"
 
+import { Badge } from "~/components/ui/badge"
 import { cn } from "~/lib/utils"
 
 interface NamecardMediaPreviewProps {
@@ -8,6 +10,8 @@ interface NamecardMediaPreviewProps {
   backImageUrl?: string | null
   /** 用作 alt 前缀，例如「名片 #792」。 */
   altBase: string
+  /** 总页数；超过两张（有中间页）时在角落标出，预览本身只画正反面。 */
+  pageCount?: number
 }
 
 /**
@@ -28,6 +32,7 @@ export function NamecardMediaPreview({
   frontImageUrl,
   backImageUrl,
   altBase,
+  pageCount,
 }: NamecardMediaPreviewProps) {
   const [portrait, setPortrait] = useState(false)
   const images = backImageUrl ? [frontImageUrl, backImageUrl] : [frontImageUrl]
@@ -35,11 +40,17 @@ export function NamecardMediaPreview({
   return (
     <div
       className={cn(
-        "grid aspect-13/10 gap-px border border-border bg-border",
+        "relative grid aspect-13/10 gap-px border border-border bg-border",
         images.length === 1 ? "grid-rows-1" : portrait ? "grid-cols-2" : "grid-rows-2",
       )}
       data-namecard-orientation={portrait ? "portrait" : "landscape"}
     >
+      {pageCount && pageCount > 2 ? (
+        <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
+          <ImagesIcon aria-hidden="true" />
+          {pageCount}
+        </Badge>
+      ) : null}
       {[...images].map((image, index) => (
         <div
           key={`${image}-${index}`}

@@ -1,7 +1,6 @@
 import {
   CheckIcon,
   ContactRoundIcon,
-  ImagesIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -473,16 +472,11 @@ export default function AdminNamecardManagePage() {
                           aria-label={`修改名片 #${card.id}`}
                           onClick={() => setOpenCard(card.id)}
                         >
-                          {card.pageCount > 2 ? (
-                            <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
-                              <ImagesIcon aria-hidden="true" />
-                              {card.pageCount}
-                            </Badge>
-                          ) : null}
                           <NamecardMediaPreview
                             frontImageUrl={withThumbnail(card.image1_url)}
                             backImageUrl={card.image2_url}
                             altBase={`名片 #${card.id}`}
+                            pageCount={card.pageCount}
                           />
                         </button>
                         <div className="flex flex-wrap items-center gap-3 p-4">

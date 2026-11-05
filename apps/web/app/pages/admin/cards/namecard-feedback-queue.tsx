@@ -1,10 +1,9 @@
-import { FlagIcon, ImagesIcon } from "lucide-react"
+import { FlagIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "react-router"
 
 import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
-import { Badge } from "~/components/ui/badge"
 import { withThumbnail } from "~/lib/media-urls"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
@@ -122,16 +121,11 @@ export function NamecardFeedbackQueue({
                   aria-label={`处理反馈 #${item.id}`}
                   onClick={() => setOpenItem(item)}
                 >
-                  {item.pageCount > 2 ? (
-                    <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
-                      <ImagesIcon aria-hidden="true" />
-                      {item.pageCount}
-                    </Badge>
-                  ) : null}
-                  <NamecardMediaPreview
+                                    <NamecardMediaPreview
                     frontImageUrl={withThumbnail(item.image1_url)}
                     backImageUrl={item.image2_url}
                     altBase={`名片 #${item.cardNumber}`}
+                    pageCount={item.pageCount}
                   />
                 </button>
                 <div className="flex flex-col gap-1 p-4">

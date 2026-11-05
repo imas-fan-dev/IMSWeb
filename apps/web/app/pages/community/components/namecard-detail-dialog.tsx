@@ -12,7 +12,6 @@ import { creditParts } from "~/components/community/namecard-credit-format"
 import {
   CardMediaGallery,
   publicMediaSlotsFromCard,
-  THUMB_SIZE_COMPACT,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { useCardFieldFade } from "~/components/community/use-card-field-fade"
 import type { NamecardSide } from "~/components/shared/namecard-preview"
@@ -519,7 +518,6 @@ export function NamecardDetailDialog({
                   allowUpload={false}
                   roleLabels={false}
                   initialIndex={initialSlide}
-                  thumbSize={THUMB_SIZE_COMPACT}
                   onOpenPreview={(index, element) =>
                     onOpenPreview(index, element)
                   }
