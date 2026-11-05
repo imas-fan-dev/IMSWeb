@@ -2,7 +2,7 @@ import { LoaderCircleIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import {
-  CardMediaGallery,
+  CardMediaPreview,
   type MediaSlot,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { getAdminNamecardDiff, type AdminNamecardDiff } from "~/lib/api"
@@ -62,13 +62,6 @@ export function ReviewCardPreview({ cardNumber }: { cardNumber: number }) {
     )
   }
   return (
-    <CardMediaGallery
-      slots={slots}
-      disabled
-      readOnly
-      allowUpload={false}
-      onChange={() => {}}
-      onError={() => {}}
-    />
+    <CardMediaPreview slots={slots} />
   )
 }

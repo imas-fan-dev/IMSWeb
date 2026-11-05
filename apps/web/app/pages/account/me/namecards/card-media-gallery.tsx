@@ -224,6 +224,40 @@ function SlotImage({
   )
 }
 
+/**
+ * 只读预览：认领、补充、详情与审核窗都只是「看清楚这张卡」，区别仅在于
+ * 要不要角标、从哪一页开始、要不要点开全屏。把这层配置收在这里，
+ * 各调用点不必再重复 disabled / readOnly / allowUpload 三个开关。
+ */
+export function CardMediaPreview({
+  slots,
+  roleLabels = true,
+  initialIndex = 0,
+  onOpenPreview,
+  previewLabel,
+}: {
+  slots: readonly MediaSlot[]
+  roleLabels?: boolean
+  initialIndex?: number
+  onOpenPreview?: (index: number, element: HTMLButtonElement) => void
+  previewLabel?: (index: number) => string
+}) {
+  return (
+    <CardMediaGallery
+      slots={slots}
+      disabled
+      readOnly
+      allowUpload={false}
+      roleLabels={roleLabels}
+      initialIndex={initialIndex}
+      onOpenPreview={onOpenPreview}
+      previewLabel={previewLabel}
+      onChange={() => undefined}
+      onError={() => undefined}
+    />
+  )
+}
+
 export function CardMediaGallery({
   slots,
   disabled,

@@ -15,7 +15,7 @@ import {
   type WallCardDraft,
 } from "~/components/community/namecard-wall-fields"
 import {
-  CardMediaGallery,
+  CardMediaPreview,
   publicMediaSlotsFromCard,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { NavigationLink } from "~/components/navigation/navigation-link"
@@ -166,17 +166,12 @@ export function NamecardClaimDialog({
 
         <DialogBody className="space-y-5">
           {card ? (
-            <CardMediaGallery
+            <CardMediaPreview
               slots={publicMediaSlotsFromCard({
                 frontImageUrl: card.image1_url,
                 middleImageUrls: card.middleImageUrls,
                 backImageUrl: card.image2_url,
               })}
-              disabled
-              readOnly
-              allowUpload={false}
-              onChange={() => undefined}
-              onError={() => undefined}
             />
           ) : null}
           {!authenticated ? (

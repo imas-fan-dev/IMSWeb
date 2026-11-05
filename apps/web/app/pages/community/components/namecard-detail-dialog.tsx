@@ -10,7 +10,7 @@ import type { MouseEvent } from "react"
 
 import { creditParts } from "~/components/community/namecard-credit-format"
 import {
-  CardMediaGallery,
+  CardMediaPreview,
   publicMediaSlotsFromCard,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { useCardFieldFade } from "~/components/community/use-card-field-fade"
@@ -510,12 +510,9 @@ export function NamecardDetailDialog({
             <div className="min-w-0 space-y-4">
               {/* 与认领窗口共用同一套媒体预览；详情窗只要看，不要正反面角标。 */}
               {card ? (
-                <CardMediaGallery
+                <CardMediaPreview
                   key={slideKey}
                   slots={mediaSlots}
-                  disabled
-                  readOnly
-                  allowUpload={false}
                   roleLabels={false}
                   initialIndex={initialSlide}
                   onOpenPreview={(index, element) =>
@@ -530,8 +527,6 @@ export function NamecardDetailDialog({
                           : "中间页"
                     }`
                   }
-                  onChange={() => undefined}
-                  onError={() => undefined}
                 />
               ) : null}
 
