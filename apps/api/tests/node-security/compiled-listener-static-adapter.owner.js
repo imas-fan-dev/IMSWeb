@@ -98,13 +98,16 @@ function streamingMultipartContract(fixture) {
 
 function publicUploadLimiter(fixture) {
     return async () => {
-        const { baseUrl, chronicleBase, NAMECARD_DIR, validPng } = fixture;
+        const { baseUrl, chronicleBase, validPng } = fixture;
         const clientHeaders = { 'x-forwarded-for': '192.0.2.81' };
+        // 公开上传限流由所有匿名上传入口共享；游客投稿入口已下线，
+        // 这里改用活动图集上传把同一个来源打进限流。
         let limited = false;
         for (let attempt = 0; attempt < 35; attempt += 1) {
             const form = new FormData();
+            form.append('activityId', 'rate-limited-probe');
             form.append('images', new Blob(['invalid'], { type: 'text/plain' }), 'invalid.txt');
-            const response = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
+            const response = await fetch(`${baseUrl}/eventchronicle/upload`, {
                 method: 'POST',
                 headers: clientHeaders,
                 body: form
@@ -116,18 +119,6 @@ function publicUploadLimiter(fixture) {
             assert.equal(response.status, 400);
         }
         assert.equal(limited, true);
-
-        const namecardsBefore = new Set(fs.readdirSync(NAMECARD_DIR));
-        const validNamecard = new FormData();
-        validNamecard.append('images', new Blob([validPng], { type: 'image/png' }), 'front.png');
-        validNamecard.append('images', new Blob([validPng], { type: 'image/png' }), 'back.png');
-        const namecardResponse = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
-            method: 'POST',
-            headers: clientHeaders,
-            body: validNamecard
-        });
-        assert.equal(namecardResponse.status, 429);
-        assert.deepEqual(new Set(fs.readdirSync(NAMECARD_DIR)), namecardsBefore);
 
         const blockedActivity = 'rate-limited-activity';
         const validChronicle = new FormData();

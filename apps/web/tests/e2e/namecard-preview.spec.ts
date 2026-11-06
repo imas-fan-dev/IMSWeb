@@ -54,10 +54,8 @@ test.describe("namecard preview", () => {
     const previewTrigger = detail.getByRole("button", {
       name: "放大制作人名片 42 正面",
     })
-    await expect(previewTrigger.locator("img")).toHaveAttribute(
-      "src",
-      FRONT_THUMBNAIL
-    )
+    // data: 地址不会被加上 `?thumb=1`，详情窗的大图就是原图。
+    await expect(previewTrigger.locator("img")).toHaveAttribute("src", FRONT)
     await previewTrigger.click()
 
     const preview = page.getByRole("dialog", {

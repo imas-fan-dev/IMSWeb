@@ -174,7 +174,7 @@ test.describe('platform profile contract', () => {
         {
             label: 'numeric page slug',
             body: profileJson({ pageSlug: '12345' }),
-            message: '主页地址不能是纯数字'
+            message: '个性 ID 不能是纯数字'
         },
         {
             label: 'page slug with an illegal character',

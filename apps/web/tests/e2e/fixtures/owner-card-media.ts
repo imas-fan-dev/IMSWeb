@@ -14,7 +14,9 @@ export async function installOwnerCardMediaRoutes(
   const { runtimeOrigin, token, webMode, cors } = options
   for (const side of ["front", "back"]) {
     const mediaPath = `/api/community/exchange/me/cards/owner-card/media/${side}`
-    await page.route(`**${mediaPath}?v=1`, async (route) => {
+    // 画廊取图会追加 `&thumb=1`；两种形态都要被这条拦截接住，否则请求会打到
+    // fixture 服务端（它没有缩略图对象），断言随之失败。
+    await page.route(`**${mediaPath}?v=1*`, async (route) => {
       if (route.request().method() === "OPTIONS") {
         await route.fulfill({ status: 204, headers: cors })
         return
@@ -29,7 +31,8 @@ export async function installOwnerCardMediaRoutes(
         )
         expect(headers.cookie).toBeUndefined()
       }
-      const response = await fetch(`${runtimeOrigin}${mediaPath}?v=1`, {
+      const query = new URL(route.request().url()).search || "?v=1"
+      const response = await fetch(`${runtimeOrigin}${mediaPath}${query}`, {
         headers: webMode
           ? { cookie: headers.cookie }
           : { authorization: headers.authorization },

@@ -12,11 +12,13 @@ import { fudabaCardMediaThumbnailKey } from '@/utils/storage/business-object-key
  */
 /** Falls back to the original whenever the small copy was never written. */
 export async function preferThumbnail(
-    storage: { exists(key: string): Promise<boolean> },
+    storage: { exists?(key: string): Promise<boolean> },
     key: string
 ): Promise<string> {
     const thumbnailKey = fudabaCardMediaThumbnailKey(key);
     if (thumbnailKey === key) return key;
+    // 测试替身与简化适配器可能不实现 exists：没有就不猜，直接给原图。
+    if (typeof storage.exists !== 'function') return key;
     try {
         return (await storage.exists(thumbnailKey)) ? thumbnailKey : key;
     } catch {

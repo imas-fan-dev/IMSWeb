@@ -54,12 +54,14 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
     app.get(
         publicUploadsPath('/namecard/thumbnail/:filename'),
         namecardThumbnailMediaValidator,
+        querySchemaValidator(fudabaMediaQuerySchema),
         handleServeNamecard
     );
     app.on(
         'HEAD',
         publicUploadsPath('/namecard/thumbnail/:filename'),
         namecardThumbnailMediaValidator,
+        querySchemaValidator(fudabaMediaQuerySchema),
         handleServeNamecard
     );
 }

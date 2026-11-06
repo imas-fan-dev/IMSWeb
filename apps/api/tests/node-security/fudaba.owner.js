@@ -20,14 +20,18 @@ function publicCardProjection(fixture) {
             assert.equal(Object.hasOwn(page.list[0], privateField), false, privateField);
         }
 
-        const approvedResponse = await fetch(`${baseUrl}/api/card/${approvedCardId}`);
-        assert.deepEqual(await approvedResponse.json(), {
-            image1_url: APPROVED_FRONT_URL,
-            image2_url: APPROVED_BACK_URL
-        });
+        const approvedResponse = await fetch(`${baseUrl}/api/cards/${approvedCardId}`);
+        assert.equal(approvedResponse.status, 200);
+        const approvedCard = (await approvedResponse.json()).card;
+        assert.equal(approvedCard?.producerName, page.list[0].producerName);
+        for (const privateField of ['ip', 'hash1', 'hash2']) {
+            assert.equal(Object.hasOwn(approvedCard, privateField), false, privateField);
+        }
 
-        const pendingResponse = await fetch(`${baseUrl}/api/card/${pendingCardId}`);
-        assert.deepEqual(await pendingResponse.json(), {});
+        // 未发布的名片按公开契约返回空卡片，而不是 404。
+        const pendingResponse = await fetch(`${baseUrl}/api/cards/${pendingCardId}`);
+        assert.equal(pendingResponse.status, 200);
+        assert.deepEqual(await pendingResponse.json(), { card: null });
     };
 }
 
@@ -73,24 +77,6 @@ async function namecardMediaAccess(fixture) {
 
     const removedDynamicThumbnail = await fetch(`${baseUrl}/api/thumbnail`);
     assert.equal(removedDynamicThumbnail.status, 404);
-}
-
-function spoofedImageUpload(fixture) {
-    return async () => {
-        const { baseUrl, NAMECARD_DIR } = fixture;
-        const uploadDir = NAMECARD_DIR;
-        const before = new Set(fs.readdirSync(uploadDir));
-        const form = new FormData();
-        form.append('images', new Blob(['not an image'], { type: 'image/jpeg' }), 'front.jpg');
-        form.append('images', new Blob(['still not an image'], { type: 'image/jpeg' }), 'back.jpg');
-
-        const response = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
-            method: 'POST',
-            body: form
-        });
-        assert.equal(response.status, 400);
-        assert.deepEqual(new Set(fs.readdirSync(uploadDir)), before);
-    };
 }
 
 function reactionValidation(fixture) {
@@ -152,8 +138,6 @@ function registerFudabaTests(fixture) {
         publicCardProjection(fixture)());
     test('namecard originals and stored thumbnails enforce approval or op access', () =>
         namecardMediaAccess(fixture));
-    test('spoofed image uploads are rejected without leaving files behind', () =>
-        spoofedImageUpload(fixture)());
     test('reactions require an approved card and a supported value', () =>
         reactionValidation(fixture)());
     test('[CORE-01] shared reaction contract runs against Node PostgreSQL', () =>
