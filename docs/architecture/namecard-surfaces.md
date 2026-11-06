@@ -150,12 +150,62 @@
 
 规则：认领审核期间不接受补充，也不接受第二份认领；已有属主的名片两者都不出现。
 
-## 9. 管理与审核的双轴状态
+## 9. 双轴状态：触发、可见性与通知
 
-- `publication_status`：`pending` / `approving` / `published` / `rejected` / `locked` / `hidden`。`hidden` 是「用户自己删除」的形态，不是管理员的处置结果。
-- `review_status`：只描述**待审版本**。管理窗把版本状态改成「无」等于丢弃待审版本。
-- 锁定会下架线上版本并丢弃待审提交；解除锁定只恢复整卡状态，不恢复被丢弃的版本。
-- 管理窗的理由：资料、状态或归属账号发生变动时必填（`manageChangeNeedsReason`），并随通知发给属主。
+名片有两条独立的状态轴，界面表现由两条轴共同决定：
+
+- `publication_status`：整卡状态 —— `pending`（首次提交待审）、`approving`（审核已认领，两段事务中间态）、`published`（线上）、`rejected`（首次提交被驳回）、`locked`（违规锁定）、`hidden`（属主自行删除）。
+- `review_status`：只描述**待审版本** —— `NULL`（没有待审版本）、`pending`（复审中）、`rejected`（复审驳回）、`locked`（复审违规）。
+
+要点：已发布卡修改时，线上继续展示**旧版本**，新版本进 `review_status='pending'`；审核的驳回/违规只落在版本轴，不会把整卡下架。
+
+### 9.1 转移表
+
+| 触发 | 前置条件 | publication_status | review_status | 线上看到的版本 | 通知 |
+| --- | --- | --- | --- | --- | --- |
+| 属主首次提交（`createFudabaCard`） | 有名称、企划、至少一张图 | `pending` | 保持 `NULL` | 无（不在墙/主页） | 无 |
+| 属主修改已发布卡 | 整卡 `published` | 不变 | `pending`，写入 `pending_*` | 旧版本 | 无 |
+| 属主修改未发布卡（`pending` / `rejected`） | 有属主且未锁定 | 不变（`rejected` 保持 `rejected` 直到重新审核通过） | 不变 | 无 | 无 |
+| 属主删除（`softDeleteCardForOwner`） | 不在 `approving` / `locked` / `hidden` | `hidden` | 清空 | 立即从墙/主页消失 | 无 |
+| 审核开始（`beginCardApproval`） | `pending` 或 `review_status='pending'` | `pending` → `approving` | 不变 | 已发布卡仍显示旧版 | 无 |
+| 审核通过（首审） | 状态 `approving` | `published` | 清空 | 新版本上线 | `card-approved`「已通过审核」 |
+| 审核通过（复审） | `review_status='pending'` | `published` | 清空 | 新版本替换旧版本 | `card-approved` |
+| 审核驳回（首审） | 状态 `approving`/`pending` | `rejected` | 不变 | 仍不可见 | `card-rejected`「未通过审核」+ 理由 |
+| 审核驳回（复审） | `review_status='pending'` | 保持 `published` | `rejected` | **旧版本继续在线** | `card-rejected`「新版本未通过审核」+ 理由 |
+| 标记违规（首审） | 同上 | `locked` | 不变 | 不可见 | `card-rejected`「新版本已被标记违规」 |
+| 标记违规（复审） | 同上 | 保持 `published` | `locked` | 旧版本继续在线 | 同上（复审口径） |
+| 锁定（`lockCard`） | 非 `locked`、非 `withdrawn` | `locked` | 清空 | 立即下架 | `card-locked`「已被锁定」+ 理由；卡原本是 `hidden` 时不发 |
+| 解锁（`unlockCard`） | 状态 `locked` | `pending` | 不清（原本已清） | 仍不可见，需重新审核 | `card-unlocked`「已解除锁定」 |
+| 认领通过（无绑定目标） | 老卡无主、申请人 active、企划可用 | `published` | 不清 | 升级为本人名片并出现在墙上 | `claim-approved` / `claim-rejected`（发申请人） |
+| 认领通过（绑定已有卡） | 目标卡属于申请人 | 目标卡不变；无主行软删除 | 不变 | 墙上只剩目标卡 | 同上 |
+| 补充通过 | 申请行 `pending` | 不变 | 不变 | 立即反映补充后的字段 | `card-supplement-approved` + 贡献值（每卡每账号一次） |
+| 管理窗保存 | 资料/状态/归属变动需填理由 | 按所选状态直接写入 | 按所选版本状态写入；`NULL` 表示丢弃待审版本 | 视写入结果 | `card-admin-edited` 逐字段差异；归属变更另发 `card-transferred-out` / `card-transferred-in` |
+
+### 9.2 各界面可见性
+
+| 界面 | 可见条件 |
+| --- | --- |
+| 名片墙（`GET /api/cards`、随机补充、贡献榜） | `publication_status='published'` 且 `deleted_at IS NULL`；复审中的卡展示**线上版本** |
+| 用户主页（`GET /users/:handle/cards`） | 同上，再加 `visible=true` |
+| 详情窗（墙/主页打开） | 只有上面两类卡能打开；「编辑」按 `canEdit`，「认领/补充」只在无主卡上渲染 |
+| 属主名片列表 | `owner_account_id=本人`、`deleted_at IS NULL`、`publication_status<>'hidden'` |
+| 后台投稿审核列表 | `publication_status IN ('pending','approving')` 或 `review_status='pending'`；状态筛选另有全部/已通过/已驳回/已锁定/已隐藏 |
+| 后台管理 / 反馈列表 | 全部状态，包含 `locked` 与 `hidden` |
+| 认领 / 补充审核列表 | 只看申请行的 `state`，与整卡状态无关 |
+| 徽标文案 | 整卡：待审核/已通过/已驳回/已锁定/已隐藏；复审中/复审驳回/复审违规在 `published` 上**覆盖**整卡标签；`hidden` 显示「已隐藏」 |
+
+### 9.3 通知清单
+
+| kind | 触发 | 收件人 | 标题 |
+| --- | --- | --- | --- |
+| `card-approved` | 审核通过（首审或复审） | 属主 | 名片 #N 已通过审核 |
+| `card-rejected` | 审核驳回、违规标记 | 属主 | 名片 #N 未通过审核 / 名片 #N 的新版本未通过审核 / 名片 #N 的新版本已被标记违规 |
+| `card-locked` | 锁定 | 属主（`hidden` 卡除外） | 名片 #N 已被锁定 |
+| `card-unlocked` | 解锁 | 属主 | 名片 #N 已解除锁定 |
+| `card-admin-edited` | 管理窗改动资料/状态 | 属主 | 逐字段差异 |
+| `card-transferred-out` / `card-transferred-in` | 管理窗改归属 | 原属主 / 新属主 | 归属变更 |
+| `claim-approved` / `claim-rejected` | 认领审核 | 申请人 | 旧名片认领已通过 / 未通过 |
+| `card-supplement-approved` | 补充审核通过 | 补充人 | 补充已通过（附贡献值） |
 
 ## 10. 反应
 
@@ -179,16 +229,12 @@
 
 ## 12. 维护提示
 
-- **删除 contracts 子路径时**，同步清理 `apps/web/vite.config.ts` 的 `optimizeDeps.include`。
-  Vite 启动时会解析每一条 include，残留条目会让 Web（5173）与 App（1420）两个视图启动即崩，
-  表现为 `start-dev.cmd` 反复失败、`logs/web.err.log` 报 “is not exported under the conditions”。
+- 删除 contracts 子路径时，同步清理 `apps/web/vite.config.ts` 的 `optimizeDeps.include`：
+  Vite 启动时逐条解析，残留条目会让 Web 与 App 两个视图启动即崩。
 - 处理请求参数要经校验器（`querySchemaValidator` 等）；handler 里直接读 `c.req.query()` 会被
   `tests/server/handler.test.ts` 的契约检查拦下。
 - 删除路由或 handler 时，同步更新 `handler.test.ts` 的 handler 清单与数量、`routes.test.ts`
   的 manifest 数量。
-- 本地起停用 `start-dev.cmd` / `stop-dev.cmd`（日志在仓库外的 `logs/*.log`）。Web 与 App 两个
-  dev server 共用 `apps/web/.react-router`，启动脚本会在两个端口都空闲时清一次缓存；不要手工
-  删除正在被占用的类型目录。
 - 后台队列每次列表请求都会调用 `purgeExpiredNamecardSubmissions`（`fudaba/cards/ttl-purge.ts`）：
   终态超过 3 天的名片连同对象一并清理。游客投稿入口已删除，但这段清理仍需保留。
 
