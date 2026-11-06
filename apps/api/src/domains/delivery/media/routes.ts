@@ -7,7 +7,8 @@ import {
     validateNamecardMediaParams,
     validateNamecardThumbnailMediaParams
 } from '@/domains/delivery/media/request';
-import { paramSchemaValidator } from '@/middleware/request-validation';
+import { fudabaMediaQuerySchema } from '@imsweb/contracts/fudaba';
+import { paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 
 const namecardMediaValidator = paramSchemaValidator(
     namecardMediaParamsSchema,
@@ -40,12 +41,14 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
     app.get(
         publicUploadsPath('/namecard/original/:filename'),
         namecardMediaValidator,
+        querySchemaValidator(fudabaMediaQuerySchema),
         handleServeNamecard
     );
     app.on(
         'HEAD',
         publicUploadsPath('/namecard/original/:filename'),
         namecardMediaValidator,
+        querySchemaValidator(fudabaMediaQuerySchema),
         handleServeNamecard
     );
     app.get(

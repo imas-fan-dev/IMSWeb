@@ -5,7 +5,6 @@ import {
     validateEventIdParams,
     validateEventListQuery
 } from '@/domains/content/events/request';
-import { validateFudabaGuestSubmissionIdParams } from '@/domains/community/fudaba/guest-submissions/request';
 import {
     validateAdminNamecardListQuery,
     validateNamecardListQuery
@@ -83,14 +82,6 @@ test.describe('business request models', () => {
     });
 
     test('namecard request models enforce IDs and preserve legacy parseInt pagination', () => {
-        assert.deepEqual(
-            validateFudabaGuestSubmissionIdParams({ submissionId: '9' }),
-            { id: 9 }
-        );
-        rejects(
-            () => validateFudabaGuestSubmissionIdParams({ submissionId: '-1' }),
-            /名片 ID/
-        );
         assert.deepEqual(validateNamecardListQuery({}), { page: 1, size: 25 });
         assert.deepEqual(validateNamecardListQuery({ page: '3', size: '12' }), {
             page: 3,

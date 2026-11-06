@@ -341,11 +341,6 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(single?.id, id);
             assert.equal(single?.seriesCode, 'cg');
             assert.equal(await repository.findApprovedCard(987_654), null);
-            const media = await repository.findApprovedCardMedia(id);
-            assert.deepEqual(
-                media?.favoriteCharacters?.map((character) => character.character_id),
-                [900_002, 900_001]
-            );
 
             await assert.rejects(
                 repository.insertPendingCard({

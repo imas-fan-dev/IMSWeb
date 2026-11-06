@@ -6,6 +6,7 @@ import type {
     AdminNamecardFeedbackResponse
 } from '@/domains/community/namecards/response';
 import { fudabaRepository } from '@/middleware/hono-context';
+import { namecardPageCount } from '@/domains/community/namecards/page-count';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 const PAGE_SIZE = 12;
@@ -33,8 +34,10 @@ export async function handleListAdminNamecardFeedback(
                 image2_url: item.backObjectKey
                     ? adminNamecardMediaPath(item.cardNumber, 'live', 'back')
                     : null,
-                pageCount:
-                    item.middlePageCount + 1 + (item.backObjectKey ? 1 : 0),
+                pageCount: namecardPageCount({
+                    hasBack: Boolean(item.backObjectKey),
+                    middleCount: item.middlePageCount
+                }),
                 reporterName: item.reporterName,
                 reason: item.reason,
                 detail: item.detail,

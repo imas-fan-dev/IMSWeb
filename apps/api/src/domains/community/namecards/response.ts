@@ -3,6 +3,7 @@ import type { NamecardDiffRecord, NamecardDiffSide } from '@/ports/repositories/
 import type { CardFavoriteSelectionRecord } from '@/ports/repositories';
 import type { NamecardCredit } from '@imsweb/contracts/fudaba';
 import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
+import { namecardPageCount } from '@/domains/community/namecards/page-count';
 import type {
     AdminNamecard,
     AdminNamecardDiff,
@@ -313,10 +314,10 @@ export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse
         lockReason: responseOptionalString(row.lockReason),
         reviewStatus: responseReviewStatus(row.reviewStatus),
         reviewReason: responseOptionalString(row.reviewReason),
-        pageCount:
-            1 +
-            (row.image2_url ? 1 : 0) +
-            responseStringList(row.middle_image_urls).length
+        pageCount: namecardPageCount({
+            hasBack: Boolean(row.image2_url),
+            middleCount: responseStringList(row.middle_image_urls).length
+        })
     };
 }
 

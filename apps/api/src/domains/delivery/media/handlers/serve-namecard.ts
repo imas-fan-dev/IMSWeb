@@ -26,7 +26,11 @@ async function preferLegacyNamecardThumbnail(
 }
 
 export async function handleServeNamecard(
-    c: ValidatedRequestContext<AppEnvironment, 'param', NamecardMediaRequest>
+    c: ValidatedRequestContext<
+        AppEnvironment,
+        'param' | 'query',
+        NamecardMediaRequest & { thumb?: '1' | undefined }
+    >
 ): Promise<Response> {
     const runtime = services(c);
     if (!runtime.storage) throw new Error('Object storage unavailable');
@@ -40,7 +44,7 @@ export async function handleServeNamecard(
     // 列表与预览只要小图。旧上传路径的小图在 `.../thumbnail/<file>.jpg`，
     // 不是 fudaba 那套同目录 `thumbnail.jpg`，所以两套写法都要认，缺失再回退原图。
     const served =
-        c.req.query('thumb') === '1'
+        c.req.valid('query').thumb === '1'
             ? await preferLegacyNamecardThumbnail(runtime.storage, url, key)
             : key;
     const response = await mediaObjectReadResponse(

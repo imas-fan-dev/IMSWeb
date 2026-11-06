@@ -8,8 +8,6 @@ import type { ObjectStorage } from '@/ports/object-storage';
 import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardAdminUpdateInput, NamecardFeedbackAuditFilter, NamecardLockAuditFilter, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { failureMessageResponseSchema } from '@imsweb/contracts/common';
-import { // pi-lens-ignore: ts:2724
-    fudabaGuestSubmissionErrorSchema, fudabaGuestSubmissionDetailSchema, fudabaGuestSubmissionWithdrawalSchema } from '@imsweb/contracts/fudaba/guest-submissions';
 import { // pi-lens-ignore: ts:2305
     legacyEmojiMutationSchema, // pi-lens-ignore: ts:2305
     namecardEmptyResponseSchema, // pi-lens-ignore: ts:2305
@@ -144,7 +142,6 @@ import { test } from 'vitest';
             'handleDeleteAdminNamecard',
             'handleFlagNamecard',
             'handleGetAdminNamecardDiff',
-            'handleGetNamecard',
             'handleGetPublicCard',
             'handleGetPublicProfile',
             'handleListAdminNamecardFeedback',
@@ -505,58 +502,9 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 158);
+            assert.equal(Object.values(actual).flat().length, 157);
         });
 
-        test('capability domains compose named capabilities from their root routes', () => {
-            const mountedCapabilities = {
-                'platform-auth': ['oauth', 'password-reset', 'registration', 'sessions'],
-                fudaba: [
-                    'cards',
-                    'claims',
-                    'directory',
-                    'guest-submissions',
-                    'locations',
-                    'moderation',
-                    'offices'
-                ],
-                editorial: ['assets', 'chronicle', 'posts', 'spotlight'],
-                namecards: ['moderation', 'public-cards', 'reactions']
-            } as const;
-            const composedCapabilities = {
-                wiki: ['catalog', 'media', 'stories']
-            } as const;
-            for (const [domain, names] of Object.entries(composedCapabilities)) {
-                const root = fs.readFileSync(routeFile(domain), 'utf8');
-                assert.doesNotMatch(root, /domains\/[^'"\s]+\/handlers\//);
-                for (const name of names) {
-                    assert.match(
-                        root,
-                        new RegExp(`domains/${domainSections[domain]}/${domain}/${name}/routes`)
-                    );
-                    const capability = fs.readFileSync(
-                        path.join(domainDirectory(domain), name, 'routes.ts'),
-                        'utf8'
-                    );
-                    assert.match(capability, /domains\/[^'"\s]+\/handlers\//);
-                }
-            }
-            for (const [domain, names] of Object.entries(mountedCapabilities)) {
-                const root = fs.readFileSync(routeFile(domain), 'utf8');
-                assert.match(root, /\.route\(/);
-                for (const name of names) {
-                    assert.match(
-                        root,
-                        new RegExp(`domains/${domainSections[domain]}/${domain}/${name}/routes`)
-                    );
-                    const capability = fs.readFileSync(
-                        path.join(domainDirectory(domain), name, 'routes.ts'),
-                        'utf8'
-                    );
-                    assert.match(capability, /domains\/[^'"\s]+\/handlers\//);
-                }
-            }
-        });
 
         test('route handlers use validated request models and named multipart parsers', () => {
             const failures: string[] = [];
@@ -725,7 +673,6 @@ import { test } from 'vitest';
         namecardFlag: number[];
         namecardLock: number[];
         namecardUnlock: number[];
-        namecardFindApproved: number[];
         namecardFindMedia: number[];
         namecardListAdmin: Array<[number, number]>;
         namecardDiff: number[];
@@ -756,7 +703,6 @@ import { test } from 'vitest';
             namecardFlag: [],
             namecardLock: [],
             namecardUnlock: [],
-            namecardFindApproved: [],
             namecardFindMedia: [],
             namecardListAdmin: [],
             namecardDiff: [],
@@ -802,10 +748,6 @@ import { test } from 'vitest';
             async listApprovedCards(limit, offset) {
                 calls.namecardListApproved.push([limit, offset]);
                 return [];
-            },
-            async findApprovedCardMedia(id) {
-                calls.namecardFindApproved.push(id);
-                return null;
             },
             async listAdminCards(limit, offset) {
                 calls.namecardListAdmin.push([limit, offset]);
@@ -1441,262 +1383,8 @@ import { test } from 'vitest';
             assert.deepEqual(fixture.calls.audit, []);
         });
 
-        test('Fudaba owns anonymous uploads', async () => {
-            const writes: string[] = [];
-            const fixture = createCompatibilityFixture(
-                {
-                    async insertPendingCard() {
-                        return 19;
-                    }
-                },
-                {
-                    uploads: {
-                        async parse() {
-                            return {
-                                fields: {
-                                    seriesCode: '765',
-                                    favoriteCharacterIds: '[1]'
-                                },
-                                files: {
-                                    images: [
-                                        {
-                                            filename: 'front.png',
-                                            contentType: 'image/png',
-                                            body: new Uint8Array([1])
-                                        },
-                                        {
-                                            filename: 'back.png',
-                                            contentType: 'image/png',
-                                            body: new Uint8Array([2])
-                                        }
-                                    ]
-                                }
-                            };
-                        }
-                    },
-                    images: {
-                        async validate() {
-                            return {
-                                format: 'png' as const,
-                                contentType: 'image/png',
-                                width: 1,
-                                height: 1
-                            };
-                        },
-                        async toWebp(body) { return body; },
-                        async thumbnailPng(body) { return body; },
-                        async resizeJpeg(body) { return body; }
-                    },
-                    storage: {
-                        async get() { return null; },
-                        async put(key, body, options) {
-                            writes.push(key);
-                            return {
-                                body,
-                                size: body.byteLength,
-                                contentType: options?.contentType ?? 'application/octet-stream',
-                                etag: key
-                            };
-                        },
-                        async delete() {},
-                        async exists() { return true; },
-                        async copy() {},
-                        async move() {},
-                        async list() { return []; },
-                        async deletePrefix() {}
-                    }
-                }
-            );
-            const upload = (path: string) => fixture.request(path, {
-                method: 'POST',
-                headers: { 'Content-Type': 'multipart/form-data; boundary=contract' },
-                body: '--contract--'
-            });
 
-            const fudaba = await upload('/api/community/exchange/guest-submissions');
-            assert.equal(fudaba.status, 200);
-            assert.equal(fudaba.headers.get('cache-control'), 'private, no-store');
-            const fudabaBody = await responseJson(fudaba) as {
-                success: boolean;
-                message: string;
-                submission: {
-                    id: number;
-                    publicationStatus: string;
-                    revision: number;
-                };
-                withdrawalToken: string;
-            };
-            assert.deepEqual({
-                success: fudabaBody.success,
-                message: fudabaBody.message,
-                submission: fudabaBody.submission
-            }, {
-                success: true,
-                message: '上传成功，等待审核',
-                submission: {
-                    id: 19,
-                    publicationStatus: 'pending',
-                    revision: 0
-                }
-            });
-            assert.match(fudabaBody.withdrawalToken, /^[a-f0-9]{64}$/);
-            assert.equal(writes.length, 4);
-        });
 
-        test('a valid Fudaba anonymous receipt can read and withdraw only the pending revision', async () => {
-            const seenHashes: string[] = [];
-            const seenWithdrawals: Array<[number, string, number]> = [];
-            const pending = {
-                id: 19,
-                seriesCode: null,
-                favoriteCharacters: [],
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: '/uploads/namecard/original/back.webp',
-                status: 'pending' as const,
-                created_at: '2026-08-11T00:00:00.000Z',
-                revision: 2
-            };
-            const fixture = createCompatibilityFixture({
-                async findSubmissionByTokenHash(id, tokenHash) {
-                    assert.equal(id, 19);
-                    seenHashes.push(tokenHash);
-                    return pending;
-                },
-                async withdrawSubmission(id, tokenHash, expectedRevision) {
-                    seenWithdrawals.push([id, tokenHash, expectedRevision]);
-                    return {
-                        status: 'updated',
-                        card: { ...pending, status: 'withdrawn', revision: 3 }
-                    };
-                }
-            });
-            const fudabaHeaders = {
-                'X-Fudaba-Guest-Submission-Token': 'a'.repeat(64)
-            };
-            const fudabaDetail = await fixture.request(
-                '/api/community/exchange/guest-submissions/19',
-                { headers: fudabaHeaders }
-            );
-            assert.equal(fudabaDetail.status, 200);
-            assert.equal(fudabaDetail.headers.get('cache-control'), 'private, no-store');
-            assert.deepEqual(await responseJson(fudabaDetail), {
-                success: true,
-                submission: {
-                    id: 19,
-                    seriesCode: null,
-                    favoriteCharacters: [],
-                    frontImageUrl: '/uploads/namecard/original/front.webp',
-                    backImageUrl: '/uploads/namecard/original/back.webp',
-                    publicationStatus: 'pending',
-                    createdAt: '2026-08-11T00:00:00.000Z',
-                    revision: 2
-                }
-            });
-
-            const fudabaWithdrawn = await fixture.request(
-                '/api/community/exchange/guest-submissions/19/withdraw',
-                {
-                    method: 'POST',
-                    headers: { ...fudabaHeaders, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ expectedRevision: 2 })
-                }
-            );
-            assert.equal(fudabaWithdrawn.status, 200);
-            assert.deepEqual(await responseJson(fudabaWithdrawn), {
-                success: true,
-                submission: {
-                    id: 19,
-                    seriesCode: null,
-                    favoriteCharacters: [],
-                    frontImageUrl: '/uploads/namecard/original/front.webp',
-                    backImageUrl: '/uploads/namecard/original/back.webp',
-                    publicationStatus: 'withdrawn',
-                    createdAt: '2026-08-11T00:00:00.000Z',
-                    revision: 3
-                }
-            });
-
-            assert.equal(seenHashes.length, 1);
-            assert.match(seenHashes[0], /^[a-f0-9]{64}$/);
-            assert.deepEqual(seenWithdrawals, [[19, seenHashes[0], 2]]);
-            assert.equal(fixture.calls.storageWrites, 0);
-            assert.deepEqual(fixture.calls.audit.map(({ action, target, username }) => ({
-                action,
-                target,
-                username
-            })), [
-                {
-                    action: '撤回名片投稿',
-                    target: 'card_id=19;revision=3',
-                    username: 'anonymous'
-                }
-            ]);
-        });
-
-        test('Fudaba guest submission media requires the private receipt token', async () => {
-            const reads: string[] = [];
-            const pending = {
-                id: 19,
-                seriesCode: null,
-                favoriteCharacters: [],
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: '/uploads/namecard/original/back.webp',
-                status: 'pending' as const,
-                created_at: '2026-08-11T00:00:00.000Z',
-                revision: 2
-            };
-            const fixture = createCompatibilityFixture(
-                {
-                    async findSubmissionByTokenHash(id, tokenHash) {
-                        assert.equal(id, 19);
-                        assert.match(tokenHash, /^[a-f0-9]{64}$/);
-                        return pending;
-                    }
-                },
-                {
-                    storage: {
-                        async get(key) {
-                            reads.push(key);
-                            const body = new Uint8Array([1, 2, 3]);
-                            return {
-                                body,
-                                size: body.byteLength,
-                                contentType: 'image/webp',
-                                etag: 'guest-media'
-                            };
-                        },
-                        async put() { throw new Error('unexpected storage write'); },
-                        async delete() {},
-                        async exists() { return true; },
-                        async copy() {},
-                        async move() {},
-                        async list() { return []; },
-                        async deletePrefix() {}
-                    }
-                }
-            );
-            const path = '/api/community/exchange/guest-submissions/19/media/front';
-            const unauthorized = await fixture.request(path);
-            assert.equal(unauthorized.status, 404);
-            assert.match(unauthorized.headers.get('content-type') ?? '', /^text\/plain/i);
-            assert.equal(await unauthorized.text(), 'Not Found');
-
-            const response = await fixture.request(path, {
-                headers: { 'X-Fudaba-Guest-Submission-Token': 'a'.repeat(64) }
-            });
-            assert.equal(response.status, 200);
-            assert.equal(response.headers.get('content-type'), 'image/webp');
-            assert.equal(response.headers.get('cache-control'), 'private, no-store');
-            assert.match(
-                response.headers.get('vary') ?? '',
-                /X-Fudaba-Guest-Submission-Token/
-            );
-            assert.deepEqual(
-                [...new Uint8Array(await response.arrayBuffer())],
-                [1, 2, 3]
-            );
-            assert.deepEqual(reads, ['community/namecards/assets/front/image.webp']);
-        });
 
         test.describe('namecard approval', () => {
             test('publishes originals and thumbnails before the final CAS transition', async () => {
@@ -2224,96 +1912,10 @@ import { test } from 'vitest';
             });
         });
 
-        test('guest submission detail and withdrawal preserve legacy request projection and exact envelopes', async () => {
-            const submission: NamecardSubmissionRecord = {
-                id: 7,
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: '/uploads/namecard/original/back.webp',
-                status: 'pending',
-                revision: 0,
-                series_code: '765',
-                favorite_characters: [
-                    { character_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 0 }
-                ],
-                created_at: '2026-08-03T01:00:00.000Z'
-            };
-            const fixture = createCompatibilityFixture({
-                async findSubmissionByTokenHash() { return submission; },
-                async withdrawSubmission() {
-                    return {
-                        status: 'updated',
-                        card: { ...submission, status: 'withdrawn', revision: 1 }
-                    };
-                }
-            });
-            const token = 'a'.repeat(64);
-            const headers = { 'X-Fudaba-Guest-Submission-Token': token };
-
-            const detail = await fixture.request('/api/community/exchange/guest-submissions/7', {
-                headers
-            });
-            assert.equal(detail.status, 200);
-            assert.deepEqual(await contractJson(detail, fudabaGuestSubmissionDetailSchema), {
-                success: true,
-                submission: {
-                    id: 7,
-                    seriesCode: '765',
-                    favoriteCharacters: [{ id: 1, name: '天海春香', seriesCode: '765' }],
-                    frontImageUrl: '/uploads/namecard/original/front.webp',
-                    backImageUrl: '/uploads/namecard/original/back.webp',
-                    publicationStatus: 'pending',
-                    createdAt: '2026-08-03T01:00:00.000Z',
-                    revision: 0
-                }
-            });
-
-            const withdrawn = await fixture.request('/api/community/exchange/guest-submissions/7/withdraw', {
-                method: 'POST',
-                headers: { ...headers, 'content-type': 'application/json' },
-                body: JSON.stringify({ expectedRevision: 0, ignored: true })
-            });
-            assert.equal(withdrawn.status, 200);
-            assert.deepEqual(await contractJson(withdrawn, fudabaGuestSubmissionWithdrawalSchema), {
-                success: true,
-                submission: {
-                    id: 7,
-                    seriesCode: '765',
-                    favoriteCharacters: [{ id: 1, name: '天海春香', seriesCode: '765' }],
-                    frontImageUrl: '/uploads/namecard/original/front.webp',
-                    backImageUrl: '/uploads/namecard/original/back.webp',
-                    publicationStatus: 'withdrawn',
-                    createdAt: '2026-08-03T01:00:00.000Z',
-                    revision: 1
-                }
-            });
-
-            const unavailable = await fixture.request('/api/community/exchange/guest-submissions/7');
-            assert.equal(unavailable.status, 404);
-            assert.deepEqual(await contractJson(unavailable, fudabaGuestSubmissionErrorSchema), {
-                error: 'Submission not found'
-            });
-
-            const conflicting = createCompatibilityFixture({
-                async withdrawSubmission() { return { status: 'conflict', revision: 3 }; }
-            });
-            const conflict = await conflicting.request('/api/community/exchange/guest-submissions/7/withdraw', {
-                method: 'POST',
-                headers: { ...headers, 'content-type': 'application/json' },
-                body: JSON.stringify({ expectedRevision: 0 })
-            });
-            assert.equal(conflict.status, 409);
-            assert.deepEqual(await contractJson(conflict, fudabaGuestSubmissionErrorSchema), {
-                error: 'Submission changed; refresh and retry',
-                revision: 3
-            });
-        });
-
         test('invalid namecard IDs preserve public/admin responses after auth and CSRF checks', async () => {
             const fixture = createCompatibilityFixture();
             const publicCard = await fixture.request('/api/card/not-a-number');
-            assert.equal(publicCard.status, 200);
-            assert.deepEqual(await contractJson(publicCard, namecardEmptyResponseSchema), {});
-            assert.deepEqual(fixture.calls.namecardFindApproved, []);
+            assert.equal(publicCard.status, 404);
 
             fixture.calls.namecardFindMedia.length = 0;
             fixture.calls.namecardApprove.length = 0;

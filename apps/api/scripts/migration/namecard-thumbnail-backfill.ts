@@ -189,8 +189,8 @@ async function main(): Promise<void> {
                         };
                         try {
                             if (
-                                !(await services.namecards.findApprovedCardMedia(
-                                    side.cardId,
+                                !(await services.namecards.findApprovedCard(
+                                    Number(side.cardId),
                                 ))
                             ) {
                                 entry.result = "not-approved-anymore";

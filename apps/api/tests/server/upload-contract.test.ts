@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { test } from "vitest";
 import sharp from "sharp";
-import { normalizeNamecardImage } from "@/domains/community/fudaba/guest-submissions/image";
 import { StreamingUploadParser } from "@/infra/http/busboy/upload-parser";
 import { SharpImageProcessor } from "@/infra/media/sharp/image-processor";
 import {
@@ -299,67 +298,6 @@ test.describe('upload contract', () => {
                 );
             }
         });
-    });
-
-    test("namecard normalization bounds only oversized JPEG output", async () => {
-        const body = Uint8Array.of(1, 2, 3);
-        const processor = new FixtureImages("jpeg", undefined, undefined, {
-            width: 10_630,
-            height: 6_378,
-        });
-        assert.equal(
-            await normalizeNamecardImage(
-                { filename: "card.jpg", contentType: "image/jpeg", body },
-                processor,
-            ),
-            body,
-        );
-        assert.deepEqual(processor.validationOptions, [
-            {
-                maxInputPixels: 70_000_000,
-                fullDecode: false,
-            },
-        ]);
-        assert.deepEqual(processor.conversionOptions, [
-            {
-                maxInputPixels: 70_000_000,
-                maxOutputPixels: 16_000_000,
-            },
-        ]);
-        const pngProcessor = new FixtureImages();
-        await normalizeNamecardImage(
-            { filename: "card.png", contentType: "image/png", body },
-            pngProcessor,
-        );
-        assert.deepEqual(pngProcessor.validationOptions, [
-            {
-                maxInputPixels: 40_000_000,
-                fullDecode: false,
-            },
-        ]);
-        assert.deepEqual(pngProcessor.conversionOptions, [
-            {
-                maxInputPixels: 40_000_000,
-            },
-        ]);
-        const regularJpegProcessor = new FixtureImages("jpeg");
-        await normalizeNamecardImage(
-            { filename: "regular.jpg", contentType: "image/jpeg", body },
-            regularJpegProcessor,
-        );
-        assert.deepEqual(regularJpegProcessor.conversionOptions, [
-            {
-                maxInputPixels: 70_000_000,
-            },
-        ]);
-        await assert.rejects(
-            normalizeNamecardImage(
-                { filename: "card.png", contentType: "image/png", body },
-                new FixtureImages("png", undefined, new Error("decode failed")),
-            ),
-            (error: Error & { status?: number }) =>
-                error.status === 400 && error.message === "图片内容损坏或无法解码",
-        );
     });
 
     test("Sharp runtime includes the libvips fixes for inherited image decoder CVEs", () => {

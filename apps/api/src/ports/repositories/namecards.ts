@@ -372,7 +372,6 @@ export interface NamecardRepository {
         limit: number,
         offset: number,
     ): Promise<NamecardPublicRecord[]>;
-    findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
     /** One published card by its wall number, with the same projection the list uses. */
     findApprovedCard(cardNumber: number): Promise<NamecardPublicRecord | null>;
     findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null>;

@@ -1,4 +1,3 @@
-import { handleGetNamecard } from "@/domains/community/namecards/public-cards/handlers/get-namecard";
 import { handleGetPublicCard } from "@/domains/community/namecards/public-cards/handlers/get-public-card";
 import { handleGetPublicProfile } from "@/domains/community/namecards/public-profiles/handlers/get-public-profile";
 import { handleListProfileCards } from "@/domains/community/namecards/public-profiles/handlers/list-profile-cards";
@@ -93,11 +92,6 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         paramSchemaValidator(compatibleNamecardIdParamsSchema, { invalidMessage: "名片 ID 无效" }, validateCompatibleNamecardIdParams),
         handleGetPublicCard,
-    );
-    routes.get(
-        "/card/:id",
-        paramSchemaValidator(compatibleNamecardIdParamsSchema, { invalidMessage: "名片 ID 无效" }, validateCompatibleNamecardIdParams),
-        handleGetNamecard,
     );
     return routes;
 }

@@ -952,16 +952,6 @@ export class SqlCoreRepository implements NamecardRepository {
         ) as NamecardPublicRecord[];
     }
 
-    async findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
-        const row = await queryOne<NamecardCardRow>(this.database,
-            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
-             WHERE card_number=?
-               AND publication_status='published' AND deleted_at IS NULL`,
-            [id]
-        );
-        return this.attachOneNamecard(this.database, row);
-    }
-
     async listAdminCards(limit: number, offset: number, filter?: NamecardAdminFilter): Promise<NamecardSubmissionRecord[]> {
         const where = namecardAdminWhere(filter);
         const rows = await queryAll<NamecardCardRow>(this.database,
@@ -2070,7 +2060,8 @@ export class SqlCoreRepository implements NamecardRepository {
             'SELECT display_name FROM platform_profiles WHERE account_id=?',
             [accountId]
         );
-        return row?.display_name ?? accountId;
+        // 空显示的 profile 不能变成空白属主，统一回落到帐号 id。
+        return row?.display_name?.trim() || accountId;
     }
 
     /** Series, credits, favourites and the middle-page rows of one card. */
