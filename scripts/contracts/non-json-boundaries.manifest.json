@@ -168,23 +168,6 @@
       }
     },
     {
-      "id": "FUDABA-GUEST-MEDIA-01",
-      "sourceFile": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-      "symbol": "handleServeFudabaGuestSubmissionMedia",
-      "responseKind": "binary",
-      "reason": "Receipt-token protected guest media has private cache and Vary headers.",
-      "compatibilityTextError": {
-        "body": "Not Found",
-        "status": 404,
-        "contentType": "text/plain; charset=UTF-8",
-        "justification": "C5 requires the existing text/plain 404 for invalid, missing, or unauthorized receipt media."
-      },
-      "test": {
-        "file": "apps/api/tests/server/handler.test.ts",
-        "symbol": "Fudaba guest submission media requires the private receipt token"
-      }
-    },
-    {
       "id": "FUDABA-OWNER-CARD-MEDIA-01",
       "sourceFile": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
       "symbol": "handleServeFudabaOwnerCardMedia",
