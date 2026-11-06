@@ -98,11 +98,11 @@ function fixture(overrides: {
         async randomOwnerlessCardMissingSeries() {
             return 42;
         },
-        async listLegacyNamecardClaimStatuses(ids: number[]) {
+        async listLegacyNamecardClaimStatuses(ids, viewerAccountId) {
             return ids.map((id) => ({
                 legacy_card_id: id,
                 claim_status: 'claimed' as const,
-                viewer_claim_state: 'mine' as const,
+                viewer_claim_state: viewerAccountId === 'producer-1' ? 'approved' as const : null,
                 claimer_name: '认领人',
                 claimer_account_id: 'producer-1',
                 claimer_uid: 9,

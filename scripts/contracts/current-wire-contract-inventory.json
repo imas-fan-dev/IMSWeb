@@ -3,22 +3,22 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "d4e96435f2b36ef9b47e3b102d328c2240f683dbb28706982114bf141cedebf5",
+    "semanticDigest": "a1f39e6d430a84cb36bc96c6d5bcbceea4d0b3de5dbc78add90398e7a4d09b97",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 287,
-    "carriers": 361,
+    "mountedMethodPaths": 282,
+    "carriers": 357,
     "reject": 75,
-    "acceptAndProject": 183,
+    "acceptAndProject": 179,
     "passthrough": 17,
     "nonObjectApplicable": 86
   },
   "counts": {
-    "mountedRegistrations": 390,
-    "mountedMethodPaths": 294,
-    "noInputRoutes": 96,
+    "mountedRegistrations": 384,
+    "mountedMethodPaths": 289,
+    "noInputRoutes": 95,
     "requestCarriers": 386,
     "policies": {
       "reject": 76,
@@ -27,19 +27,19 @@
       "non-object-applicable": 86
     },
     "responses": {
-      "total": 842,
-      "json": 765,
-      "nonJson": 77
+      "total": 818,
+      "json": 747,
+      "nonJson": 71
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 287,
-      "requestCarriers": 361,
+      "mountedMethodPaths": 282,
+      "requestCarriers": 357,
       "policies": {
         "reject": 75,
-        "accept-and-project": 183,
+        "accept-and-project": 179,
         "passthrough": 17,
         "non-object-applicable": 86
       }
@@ -101,29 +101,32 @@
       {
         "module": "@imsweb/contracts/fudaba",
         "symbol": "fudabaMediaQuerySchema",
-        "carriers": 8,
+        "carriers": 12,
         "policy": "accept-and-project",
-        "actualCarriers": 8,
+        "actualCarriers": 12,
         "routes": [
           "GET /api/admin/cards/:id/media/:variant/:side",
           "GET /api/cards/:id/media/:side",
           "GET /api/community/exchange/me/cards/:cardId/media/:side",
           "GET /api/community/exchange/me/offices/:officeId/media/cover",
           "GET /api/community/exchange/me/offices/:officeId/media/pending-cover",
+          "GET /uploads/namecard/original/:filename",
+          "GET /uploads/namecard/thumbnail/:filename",
           "HEAD /api/community/exchange/me/cards/:cardId/media/:side",
           "HEAD /api/community/exchange/me/offices/:officeId/media/cover",
-          "HEAD /api/community/exchange/me/offices/:officeId/media/pending-cover"
+          "HEAD /api/community/exchange/me/offices/:officeId/media/pending-cover",
+          "HEAD /uploads/namecard/original/:filename",
+          "HEAD /uploads/namecard/thumbnail/:filename"
         ]
       }
     ],
     "routeGroups": {
       "/api/about": 1,
       "/api/admin": 171,
-      "/api/card": 1,
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 53,
+      "/api/community": 48,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -2423,7 +2426,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
           "kind": "json",
-          "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : item . middlePageCount + 1 + ( item . backObjectKey ? 1 : 0 ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+          "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
@@ -2737,6 +2740,18 @@
           "schemaModule": null,
           "schemaLocation": null,
           "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        },
+        {
+          "kind": "query",
+          "source": "raw-query",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "accept-and-project",
           "syntaxPolicy": null
         }
       ],
@@ -3814,52 +3829,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/card/:id",
-      "registration": {
-        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
-      },
-      "handlerSymbol": "handleGetNamecard",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
-          },
-          "schemaSymbol": "compatibleNamecardIdParamsSchema",
-          "schemaModule": "@imsweb/contracts/namecards",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-          "kind": "json",
-          "expression": "{ } satisfies NamecardEmptyResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-          "kind": "json",
-          "expression": "{ } satisfies NamecardEmptyResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-          "kind": "json",
-          "expression": "storage ? { image1_url : await resolvePublicMediaUrl ( storage , media . image1_url ) , image2_url : media . image2_url === null ? null : await resolvePublicMediaUrl ( storage , media . image2_url ) } : media satisfies NamecardDetailResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-          "kind": "json",
-          "expression": "{ } satisfies NamecardEmptyResponse"
-        }
-      ]
-    },
-    {
-      "method": "GET",
       "path": "/api/cards",
       "registration": {
         "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
@@ -4364,83 +4333,6 @@
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-namecard-character-catalog.ts",
           "kind": "json",
           "expression": "payload"
-        }
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "handlerSymbol": "handleGetFudabaGuestSubmission",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "schemaSymbol": "fudabaGuestSubmissionParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/get-submission.ts",
-          "kind": "json",
-          "expression": "{ error : \"Submission not found\" } satisfies GuestSubmissionErrorResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/get-submission.ts",
-          "kind": "json",
-          "expression": "{ success : true , submission : toFudabaGuestSubmissionResponse ( submission ) , } satisfies FudabaGuestSubmissionDetailResponse"
-        }
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "schemaSymbol": "fudabaGuestSubmissionMediaParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
         }
       ]
     },
@@ -7377,6 +7269,20 @@
           },
           "policy": "accept-and-project",
           "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "schemaSymbol": "fudabaMediaQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
         }
       ],
       "responses": []
@@ -7397,6 +7303,20 @@
           },
           "schemaSymbol": "namecardMediaParamsSchema",
           "schemaModule": "@imsweb/contracts/media",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "schemaSymbol": "fudabaMediaQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
           "schemaLocation": {
             "file": "apps/api/src/domains/delivery/media/routes.ts"
           },
@@ -7516,6 +7436,18 @@
           "schemaLocation": null,
           "policy": "non-object-applicable",
           "syntaxPolicy": null
+        },
+        {
+          "kind": "query",
+          "source": "raw-query",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "accept-and-project",
+          "syntaxPolicy": null
         }
       ],
       "responses": [
@@ -7582,47 +7514,6 @@
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
           "kind": "json",
           "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
-        }
-      ]
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "schemaSymbol": "fudabaGuestSubmissionMediaParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
         }
       ]
     },
@@ -8629,6 +8520,20 @@
           },
           "policy": "accept-and-project",
           "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "schemaSymbol": "fudabaMediaQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
         }
       ],
       "responses": []
@@ -8649,6 +8554,20 @@
           },
           "schemaSymbol": "namecardMediaParamsSchema",
           "schemaModule": "@imsweb/contracts/media",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/routes.ts"
+          },
+          "schemaSymbol": "fudabaMediaQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
           "schemaLocation": {
             "file": "apps/api/src/domains/delivery/media/routes.ts"
           },
@@ -11727,129 +11646,6 @@
           "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
           "kind": "json",
           "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_SUPPLEMENT_FAILED\" : \"FUDABA_CARD_SUPPLEMENT_INVALID\" , message : status > = 500 ? \"\\u8D44\\u6599\\u8865\\u5145\\u63D0\\u4EA4\\u5931\\u8D25\" : messageFromError ( error ) }"
-        }
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "carriers": [
-        {
-          "kind": "no-input",
-          "source": "handler-analysis",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "schemaSymbol": null,
-          "schemaModule": null,
-          "schemaLocation": null,
-          "policy": "non-object-applicable"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ error : \"Too many requests\" , } satisfies GuestSubmissionRateLimitResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ msg : \"\\u53EA\\u5141\\u8BB8\\u4E0A\\u4F20\\u56FE\\u7247\\u6587\\u4EF6\" } satisfies GuestSubmissionMessageResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ msg : \"\\u5FC5\\u987B\\u4E0A\\u4F202\\u5F20\\u56FE\\u7247\" } satisfies GuestSubmissionMessageResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ msg : \"\\u6587\\u4EF6\\u8FC7\\u5927\" } satisfies GuestSubmissionMessageResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ msg : \"\\u91CD\\u590D\\u4E0A\\u4F20\" } satisfies GuestSubmissionMessageResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ success : true , message , submission : { id , publicationStatus : \"pending\" , revision : 0 , } , withdrawalToken , } satisfies FudabaGuestSubmissionReceiptResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ msg : \"\\u670D\\u52A1\\u5668\\u9519\\u8BEF\" } satisfies GuestSubmissionMessageResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-          "kind": "json",
-          "expression": "{ msg : messageFromError ( error ) } satisfies GuestSubmissionMessageResponse"
-        }
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "schemaSymbol": "fudabaGuestSubmissionParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        },
-        {
-          "kind": "json",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "schemaSymbol": "fudabaGuestSubmissionWithdrawalRequestSchema",
-          "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-          "kind": "json",
-          "expression": "{ error : \"Submission not found\" } satisfies GuestSubmissionErrorResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-          "kind": "json",
-          "expression": "{ error : \"Submission not found\" } satisfies GuestSubmissionErrorResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-          "kind": "json",
-          "expression": "{ error : \"Submission changed; refresh and retry\" , revision : result . revision , } satisfies GuestSubmissionErrorResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-          "kind": "json",
-          "expression": "{ success : true , submission : toFudabaGuestSubmissionResponse ( result . card ) , } satisfies FudabaGuestSubmissionWithdrawalResponse"
         }
       ]
     },
@@ -15209,7 +15005,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/update-profile.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"PLATFORM_PROFILE_INVALID\" , message : \"\\u8FD9\\u4E2A\\u4E3B\\u9875\\u5730\\u5740\\u5DF2\\u7ECF\\u88AB\\u5360\\u7528\\u4E86\" } satisfies PlatformProfileError"
+          "expression": "{ success : false , code : \"PLATFORM_PROFILE_INVALID\" , message : \"\\u8FD9\\u4E2A\\u4E2A\\u6027 ID \\u5DF2\\u7ECF\\u88AB\\u5360\\u7528\\u4E86\" } satisfies PlatformProfileError"
         },
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/update-profile.ts",
@@ -16506,6 +16302,21 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
+      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
+      "kind": "query",
+      "source": "raw-query",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "accept-and-project",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/community/exchange/card-supplements/:supplementId",
       "handlerSymbol": "handleGetFudabaCardSupplement",
       "kind": "param",
@@ -16827,23 +16638,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/card/:id",
-      "handlerSymbol": "handleGetNamecard",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
-      },
-      "schemaSymbol": "compatibleNamecardIdParamsSchema",
-      "schemaModule": "@imsweb/contracts/namecards",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
       "path": "/api/cards",
       "handlerSymbol": "handleListNamecards",
       "kind": "query",
@@ -17028,40 +16822,6 @@
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId",
-      "handlerSymbol": "handleGetFudabaGuestSubmission",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "schemaSymbol": "fudabaGuestSubmissionParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "schemaSymbol": "fudabaGuestSubmissionMediaParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "GET",
@@ -18239,6 +17999,23 @@
     },
     {
       "method": "GET",
+      "path": "/uploads/namecard/original/:filename",
+      "handlerSymbol": "handleServeNamecard",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "schemaSymbol": "fudabaMediaQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
       "path": "/uploads/namecard/thumbnail/:filename",
       "handlerSymbol": "handleServeNamecard",
       "kind": "param",
@@ -18248,6 +18025,23 @@
       },
       "schemaSymbol": "namecardMediaParamsSchema",
       "schemaModule": "@imsweb/contracts/media",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
+      "path": "/uploads/namecard/thumbnail/:filename",
+      "handlerSymbol": "handleServeNamecard",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "schemaSymbol": "fudabaMediaQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
       "schemaLocation": {
         "file": "apps/api/src/domains/delivery/media/routes.ts"
       },
@@ -18316,6 +18110,21 @@
     },
     {
       "method": "HEAD",
+      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
+      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
+      "kind": "query",
+      "source": "raw-query",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "accept-and-project",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "HEAD",
       "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
       "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
       "kind": "param",
@@ -18328,23 +18137,6 @@
       "schemaLocation": null,
       "policy": "non-object-applicable",
       "syntaxPolicy": null
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "schemaSymbol": "fudabaGuestSubmissionMediaParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "HEAD",
@@ -18859,6 +18651,23 @@
     },
     {
       "method": "HEAD",
+      "path": "/uploads/namecard/original/:filename",
+      "handlerSymbol": "handleServeNamecard",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "schemaSymbol": "fudabaMediaQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "HEAD",
       "path": "/uploads/namecard/thumbnail/:filename",
       "handlerSymbol": "handleServeNamecard",
       "kind": "param",
@@ -18868,6 +18677,23 @@
       },
       "schemaSymbol": "namecardMediaParamsSchema",
       "schemaModule": "@imsweb/contracts/media",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "HEAD",
+      "path": "/uploads/namecard/thumbnail/:filename",
+      "handlerSymbol": "handleServeNamecard",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "schemaSymbol": "fudabaMediaQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
       "schemaLocation": {
         "file": "apps/api/src/domains/delivery/media/routes.ts"
       },
@@ -20446,40 +20272,6 @@
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
-      "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "schemaSymbol": "fudabaGuestSubmissionParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
-      "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
-      "kind": "json",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "schemaSymbol": "fudabaGuestSubmissionWithdrawalRequestSchema",
-      "schemaModule": "@imsweb/contracts/fudaba/guest-submissions",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/guest-submissions/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "POST",
@@ -22866,7 +22658,7 @@
       "handlerSymbol": "handleListAdminNamecardFeedback",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
       "kind": "json",
-      "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : item . middlePageCount + 1 + ( item . backObjectKey ? 1 : 0 ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+      "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
     },
     {
       "method": "GET",
@@ -23470,38 +23262,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/card/:id",
-      "handlerSymbol": "handleGetNamecard",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-      "kind": "json",
-      "expression": "{ } satisfies NamecardEmptyResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/card/:id",
-      "handlerSymbol": "handleGetNamecard",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-      "kind": "json",
-      "expression": "{ } satisfies NamecardEmptyResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/card/:id",
-      "handlerSymbol": "handleGetNamecard",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-      "kind": "json",
-      "expression": "storage ? { image1_url : await resolvePublicMediaUrl ( storage , media . image1_url ) , image2_url : media . image2_url === null ? null : await resolvePublicMediaUrl ( storage , media . image2_url ) } : media satisfies NamecardDetailResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/card/:id",
-      "handlerSymbol": "handleGetNamecard",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-namecard.ts",
-      "kind": "json",
-      "expression": "{ } satisfies NamecardEmptyResponse"
-    },
-    {
-      "method": "GET",
       "path": "/api/cards",
       "handlerSymbol": "handleListNamecards",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
@@ -23691,46 +23451,6 @@
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-namecard-character-catalog.ts",
       "kind": "json",
       "expression": "payload"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId",
-      "handlerSymbol": "handleGetFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/get-submission.ts",
-      "kind": "json",
-      "expression": "{ error : \"Submission not found\" } satisfies GuestSubmissionErrorResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId",
-      "handlerSymbol": "handleGetFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/get-submission.ts",
-      "kind": "json",
-      "expression": "{ success : true , submission : toFudabaGuestSubmissionResponse ( submission ) , } satisfies FudabaGuestSubmissionDetailResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
     },
     {
       "method": "GET",
@@ -24795,30 +24515,6 @@
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
       "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/media/:side",
-      "handlerSymbol": "handleServeFudabaGuestSubmissionMedia",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/serve-submission-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
     },
     {
       "method": "HEAD",
@@ -26339,102 +26035,6 @@
       "file": "apps/api/src/domains/community/fudaba/claims/handlers/card-claims.ts",
       "kind": "json",
       "expression": "{ success : false , code : status > = 500 ? \"FUDABA_CARD_SUPPLEMENT_FAILED\" : \"FUDABA_CARD_SUPPLEMENT_INVALID\" , message : status > = 500 ? \"\\u8D44\\u6599\\u8865\\u5145\\u63D0\\u4EA4\\u5931\\u8D25\" : messageFromError ( error ) }"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ error : \"Too many requests\" , } satisfies GuestSubmissionRateLimitResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ msg : \"\\u53EA\\u5141\\u8BB8\\u4E0A\\u4F20\\u56FE\\u7247\\u6587\\u4EF6\" } satisfies GuestSubmissionMessageResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ msg : \"\\u5FC5\\u987B\\u4E0A\\u4F202\\u5F20\\u56FE\\u7247\" } satisfies GuestSubmissionMessageResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ msg : \"\\u6587\\u4EF6\\u8FC7\\u5927\" } satisfies GuestSubmissionMessageResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ msg : \"\\u91CD\\u590D\\u4E0A\\u4F20\" } satisfies GuestSubmissionMessageResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ success : true , message , submission : { id , publicationStatus : \"pending\" , revision : 0 , } , withdrawalToken , } satisfies FudabaGuestSubmissionReceiptResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ msg : \"\\u670D\\u52A1\\u5668\\u9519\\u8BEF\" } satisfies GuestSubmissionMessageResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions",
-      "handlerSymbol": "handleCreateFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission.ts",
-      "kind": "json",
-      "expression": "{ msg : messageFromError ( error ) } satisfies GuestSubmissionMessageResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
-      "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-      "kind": "json",
-      "expression": "{ error : \"Submission not found\" } satisfies GuestSubmissionErrorResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
-      "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-      "kind": "json",
-      "expression": "{ error : \"Submission not found\" } satisfies GuestSubmissionErrorResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
-      "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-      "kind": "json",
-      "expression": "{ error : \"Submission changed; refresh and retry\" , revision : result . revision , } satisfies GuestSubmissionErrorResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/community/exchange/guest-submissions/:submissionId/withdraw",
-      "handlerSymbol": "handleWithdrawFudabaGuestSubmission",
-      "file": "apps/api/src/domains/community/fudaba/guest-submissions/handlers/withdraw-submission.ts",
-      "kind": "json",
-      "expression": "{ success : true , submission : toFudabaGuestSubmissionResponse ( result . card ) , } satisfies FudabaGuestSubmissionWithdrawalResponse"
     },
     {
       "method": "POST",
@@ -28458,7 +28058,7 @@
       "handlerSymbol": "handleUpdatePlatformProfile",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/update-profile.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"PLATFORM_PROFILE_INVALID\" , message : \"\\u8FD9\\u4E2A\\u4E3B\\u9875\\u5730\\u5740\\u5DF2\\u7ECF\\u88AB\\u5360\\u7528\\u4E86\" } satisfies PlatformProfileError"
+      "expression": "{ success : false , code : \"PLATFORM_PROFILE_INVALID\" , message : \"\\u8FD9\\u4E2A\\u4E2A\\u6027 ID \\u5DF2\\u7ECF\\u88AB\\u5360\\u7528\\u4E86\" } satisfies PlatformProfileError"
     },
     {
       "method": "PUT",
