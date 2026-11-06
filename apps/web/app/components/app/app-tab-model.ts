@@ -113,8 +113,7 @@ interface AppBackRule {
  *
  * - Every tab root matches exactly. `/` must stay exact: as a prefix it would
  *   swallow every other route.
- * - `/community/cards/submissions` precedes `/community/cards`, which precedes
- *   the general Community prefix.
+ * - `/community/cards` precedes the general Community prefix.
  * - Exact rules precede prefix rules on the same path (`/events`, `/works`,
  *   `/chronicle`), so a parent and its detail pages resolve differently.
  */
@@ -156,10 +155,6 @@ const APP_BACK_RULES: readonly AppBackRule[] = [
     target: { kind: "parent", href: "/community/exchange" },
   },
 
-  {
-    path: "/community/cards/submissions",
-    target: { kind: "parent", href: "/community/cards" },
-  },
   { path: "/community/cards", target: { kind: "parent", href: "/community" } },
   // 公开主页只从名片墙的作者链接进入，退回到名片墙。
   { path: "/user", target: { kind: "parent", href: "/community/cards" } },

@@ -66,7 +66,6 @@ import type {
   FudabaAdminCardClaim,
   FudabaRegisteredCardReview,
 } from "@imsweb/contracts/fudaba/card-claims"
-import type { FudabaGuestSubmission } from "@imsweb/contracts/fudaba/guest-submissions"
 import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
 import type {
   PlatformProfileMutationResponse,
@@ -447,21 +446,6 @@ export function normalizeNamecard(card: Namecard): Namecard {
 
 export function normalizeNamecardPage(page: NamecardPage): NamecardPage {
   return { ...page, list: page.list.map(namecard) }
-}
-
-export function normalizeFudabaGuestSubmissionEnvelope<
-  T extends { submission: FudabaGuestSubmission },
->(response: T): T {
-  return {
-    ...response,
-    submission: {
-      ...response.submission,
-      frontImageUrl: apiMediaUrl(response.submission.frontImageUrl),
-      backImageUrl: response.submission.backImageUrl
-        ? apiMediaUrl(response.submission.backImageUrl)
-        : null,
-    },
-  }
 }
 
 /* -------------------------------------------------------------------------- */

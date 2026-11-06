@@ -217,7 +217,6 @@ const memoryRouterBaseline = new Set([
   "pages/account/me/account-me-workspace.test.tsx",
   "pages/community/exchange/community-exchange-session.test.tsx",
   "pages/account/me/profile-workspace-navigation.test.tsx",
-  "pages/community/namecard-submission-page.test.tsx",
   "pages/events/event-detail-app-page.test.tsx",
   "pages/events/events-app-header.test.tsx",
   "pages/events/events-center.test.tsx",

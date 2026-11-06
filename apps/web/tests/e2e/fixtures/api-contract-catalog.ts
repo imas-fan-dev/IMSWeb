@@ -57,10 +57,6 @@ import {
   adminOfficeHttpErrorSchema,
 } from "@imsweb/contracts/fudaba/office-review"
 import {
-  fudabaGuestSubmissionErrorSchema,
-  fudabaGuestSubmissionReceiptSchema,
-} from "@imsweb/contracts/fudaba/guest-submissions"
-import {
   fudabaCardPageSchema,
   fudabaCardPlacementDeleteRequestSchema,
   fudabaCardPlacementDeleteResponseSchema,
@@ -204,16 +200,6 @@ import {
   adminPlatformUserHttpErrorSchema,
 } from "@imsweb/contracts/platform/admin-users"
 
-const guestSubmissionMultipartSchema = z
-  .string()
-  .min(1)
-  .refine(
-    (body) =>
-      (body.match(/name="images"/g)?.length ?? 0) === 2 &&
-      body.includes('name="seriesCode"') &&
-      body.includes('name="favoriteCharacterIds"'),
-    "expected two images, seriesCode, and favoriteCharacterIds multipart fields"
-  )
 const aboutAvatarMultipartSchema = z
   .string()
   .min(1)
@@ -275,14 +261,6 @@ const fudabaClaimErrors = {
   403: fudabaCardClaimErrorSchema,
   404: fudabaCardClaimErrorSchema,
   409: fudabaCardClaimErrorSchema,
-}
-const fudabaGuestSubmissionErrors = {
-  400: fudabaGuestSubmissionErrorSchema,
-  404: fudabaGuestSubmissionErrorSchema,
-  409: fudabaGuestSubmissionErrorSchema,
-  413: fudabaGuestSubmissionErrorSchema,
-  429: fudabaGuestSubmissionErrorSchema,
-  500: fudabaGuestSubmissionErrorSchema,
 }
 
 export function resolveApiContract(
@@ -669,20 +647,6 @@ export function resolveApiContract(
       responses: {
         200: fudabaCardPlacementDeleteResponseSchema,
         ...fudabaErrors,
-      },
-    }
-  if (method === "POST" && path === `${exchange}/guest-submissions`)
-    return {
-      rawBody: {
-        name: "guest namecard multipart request",
-        reason:
-          "FormData is a Web-local non-JSON boundary without a shared request schema",
-        schema: guestSubmissionMultipartSchema,
-        contentType: multipartFormDataContentTypeSchema,
-      },
-      responses: {
-        200: fudabaGuestSubmissionReceiptSchema,
-        ...fudabaGuestSubmissionErrors,
       },
     }
   if (

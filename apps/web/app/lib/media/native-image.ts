@@ -8,7 +8,6 @@ export type NativeImageKind =
   | "platform-avatar"
   | "fudaba-card-front"
   | "fudaba-card-back"
-  | "guest-namecard"
 
 export type PreparedNativeImage = {
   id: string

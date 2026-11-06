@@ -235,20 +235,6 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     }
   ),
   route(
-    "community/cards/submissions/:id",
-    "pages/community/namecard-submission-page.tsx",
-    "public",
-    SHARED_TARGETS,
-    "none",
-    {
-      appNavigation: {
-        tab: "community",
-        parent: "/community/cards",
-        derived: true,
-      },
-    }
-  ),
-  route(
     "producer-map",
     "pages/producer-map/index.tsx",
     "public",

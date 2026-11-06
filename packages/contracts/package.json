@@ -67,16 +67,6 @@
         "default": "./dist/cjs/fudaba/index.js"
       }
     },
-    "./fudaba/guest-submissions": {
-      "import": {
-        "types": "./dist/esm/fudaba/guest-submissions.d.ts",
-        "default": "./dist/esm/fudaba/guest-submissions.js"
-      },
-      "require": {
-        "types": "./dist/cjs/fudaba/guest-submissions.d.ts",
-        "default": "./dist/cjs/fudaba/guest-submissions.js"
-      }
-    },
     "./fudaba/map-delivery": {
       "import": {
         "types": "./dist/esm/fudaba/map-delivery.d.ts",

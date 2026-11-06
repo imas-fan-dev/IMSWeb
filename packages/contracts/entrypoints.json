@@ -10,7 +10,6 @@
     { "subpath": "./namecards", "source": "src/namecards.ts", "namespace": "namecards", "runtime": "schema" },
     { "subpath": "./namecards/runtime", "source": "src/namecards-runtime.ts", "namespace": "namecardsRuntime", "runtime": "zod-free" },
     { "subpath": "./fudaba", "source": "src/fudaba/index.ts", "namespace": "fudaba", "runtime": "schema" },
-    { "subpath": "./fudaba/guest-submissions", "source": "src/fudaba/guest-submissions.ts", "namespace": "fudabaGuestSubmissions", "runtime": "schema" },
     { "subpath": "./fudaba/map-delivery", "source": "src/fudaba/map-delivery.ts", "namespace": "fudabaMapDelivery", "runtime": "schema" },
     { "subpath": "./fudaba/runtime", "source": "src/fudaba/runtime.ts", "namespace": "fudabaRuntime", "runtime": "zod-free" },
     { "subpath": "./fudaba/card-claims", "source": "src/fudaba/card-claims.ts", "namespace": "fudabaCardClaims", "runtime": "schema" },
