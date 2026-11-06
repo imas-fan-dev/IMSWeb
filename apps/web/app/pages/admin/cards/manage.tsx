@@ -467,7 +467,7 @@ export default function AdminNamecardManagePage() {
                         >
                           <NamecardMediaPreview
                             frontImageUrl={withThumbnail(card.image1_url)}
-                            backImageUrl={card.image2_url}
+                            backImageUrl={card.image2_url ? withThumbnail(card.image2_url) : null}
                             altBase={`名片 #${card.id}`}
                             pageCount={card.pageCount}
                           />

@@ -123,7 +123,7 @@ export function NamecardFeedbackQueue({
                 >
                                     <NamecardMediaPreview
                     frontImageUrl={withThumbnail(item.image1_url)}
-                    backImageUrl={item.image2_url}
+                    backImageUrl={item.image2_url ? withThumbnail(item.image2_url) : null}
                     altBase={`名片 #${item.cardNumber}`}
                     pageCount={item.pageCount}
                   />

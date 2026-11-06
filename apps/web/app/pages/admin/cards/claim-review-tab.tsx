@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react"
 import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { withThumbnail } from "~/lib/media-urls"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -354,13 +355,13 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
                       {row.type === "claim" ? (
                         <NamecardMediaPreview
                           frontImageUrl={row.claim.legacyCard.frontImageUrl}
-                          backImageUrl={row.claim.legacyCard.backImageUrl}
+                          backImageUrl={row.claim.legacyCard.backImageUrl ? withThumbnail(row.claim.legacyCard.backImageUrl) : null}
                           altBase={label}
                         />
                       ) : (
                         <NamecardMediaPreview
                           frontImageUrl={row.card.frontImageUrl}
-                          backImageUrl={row.card.backImageUrl}
+                          backImageUrl={row.card.backImageUrl ? withThumbnail(row.card.backImageUrl) : null}
                           altBase={label}
                         />
                       )}
