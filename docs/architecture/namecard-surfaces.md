@@ -110,11 +110,64 @@
 - 服务端 `preferThumbnail()` 是唯一的「缺失回退原图」判断点。
 - 全屏预览必须继续使用原图 URL；任何缩略图化都不能作用到 `NamecardPreview`。
 
-## 6. 复用清单（新增实现前先查）
+## 6. 并发、幂等与恢复
+
+| 场景 | 机制 | 失败后的表现 |
+| --- | --- | --- |
+| 属主保存 / 管理窗修改 / 删除 | 整卡 `revision` 乐观锁（`expectedRevision`） | 409 且带 `revision`；前端提示刷新后重试 |
+| 认领审核 | 两段事务：`beginCardClaimReview` 先把行推进到 `approving` 并 +1 revision，`completeCardClaimReview` 再落结果；失败时尽力回滚 | 两步之间崩溃会留下 `approving`：队列仍列出它，用最新 revision 可**续做**（`begin` 接受 `pending` 与 `approving`） |
+| 认领重复提交 | 同一老卡只允许一条 `pending/approving/approved` | 409「已经有一份认领在审核」 |
+| 补充重复提交 | 同一张卡同一时间只允许一份待审补充 | 409 并返回已有申请 |
+| 审核确认失败 | 确认框用 `useConfirmAction.reloadTarget` 重新取该行 | 对话框就地换成最新 revision，避免拿旧值反复提交 |
+| 409 的两种语义 | 版本竞争只带 `code` + `revision`；业务拒绝带 `message`（如「认领目标不可用」） | `adminErrorMessage` 只在服务端给了 message 时原样展示，否则给「刷新后重试」 |
+
+## 7. 媒体：对象、鉴权与缓存
+
+| 路由 | 谁能读 | 缓存头 |
+| --- | --- | --- |
+| `/uploads/namecard/original|thumbnail/*` | 已发布名片公开可读；未发布要求登录 | 与静态资源一致 |
+| `/api/cards/:id/media/:side` | 公开（仅已发布） | `public, max-age=300`，302 到存储 |
+| `/community/exchange/me/cards/:id/media/:side` | 属主本人（`platformAuth`） | `private, no-store`，`Vary: Authorization, Cookie` |
+| `/admin/api/cards/:id/media/:variant/:side` | 后台（`backofficeAuth`） | `private, no-store`，`Vary: Cookie` |
+| `/admin/exchange/card-reviews/:id/media/:side` | 后台 | `private, no-store` |
+
+对象命名：
+
+- 新路径：`community/fudaba/cards/<cardId>/versions/<version>/front|back|middle-N.webp`，600px 副本是同目录的 `thumbnail.jpg`。
+- 旧路径：`/uploads/namecard/original/<file>.webp`，小图在同级 `thumbnail/<file>.jpg`。
+- `namecard-thumbnail-backfill.ts` 负责给历史名片补缩略图；写之前用 `findApprovedCard` 确认这张卡仍然公开发布。
+
+## 8. 公开名片上的状态投影
+
+墙与个人主页的响应里带四个派生字段，详情窗的按钮按它们决定显示：
+
+| 字段 | 含义 |
+| --- | --- |
+| `hasOwner` | 是否已有属主；无主才渲染认领/补充 |
+| `claimStatus` | `unclaimed` / `pending` / `claimed`；`pending` 时补充也被挡住（认领优先） |
+| `viewerClaimState` | 当前访问者自己的认领状态，未登录为 null |
+| `supplementPending` | 是否已有一份待审补充 |
+
+规则：认领审核期间不接受补充，也不接受第二份认领；已有属主的名片两者都不出现。
+
+## 9. 管理与审核的双轴状态
+
+- `publication_status`：`pending` / `approving` / `published` / `rejected` / `locked` / `hidden`。`hidden` 是「用户自己删除」的形态，不是管理员的处置结果。
+- `review_status`：只描述**待审版本**。管理窗把版本状态改成「无」等于丢弃待审版本。
+- 锁定会下架线上版本并丢弃待审提交；解除锁定只恢复整卡状态，不恢复被丢弃的版本。
+- 管理窗的理由：资料、状态或归属账号发生变动时必填（`manageChangeNeedsReason`），并随通知发给属主。
+
+## 10. 反应
+
+- 写入是公开接口 `POST /api/reactions`；名片墙客户端自己做一次会话级软限流并乐观累加，用户主页直接写接口后本地 +1。
+- 读取：墙按卡片 id 懒加载一次；详情窗的「全部反应」与墙卡摘要共用同一份数据。
+
+## 11. 复用清单（新增实现前先查）
 
 | 需要 | 用这个 | 不要再造 |
 | --- | --- | --- |
 | 图片画廊 / 只读预览 | `CardMediaGallery` / `CardMediaPreview` | 手写 `<img>` 轮播 |
+| 按编号取一张只读预览 | `ReviewCardPreview`（取数壳，内部就是 `CardMediaPreview`） | 再写一个「拉 diff + 映射槽位」的预览 |
 | 全屏看名片 | `NamecardPreview` + `namecardPages` | 正反面切换按钮 |
 | 列表瓦片 | `NamecardMediaPreview` | 另一套正反面拼合 |
 | 只读字段对照 | `ReviewFieldRows` + `review-row-diff` | 再写一份标色逻辑 |
@@ -124,7 +177,7 @@
 | 页数 | `namecardPageCount`（API） | 三处各算一遍 |
 | 名片页面编号 | `namecardPageLabel` / `mediaSlotRole` | 「正面/背面/中间页」各自命名 |
 
-## 7. 维护提示
+## 12. 维护提示
 
 - **删除 contracts 子路径时**，同步清理 `apps/web/vite.config.ts` 的 `optimizeDeps.include`。
   Vite 启动时会解析每一条 include，残留条目会让 Web（5173）与 App（1420）两个视图启动即崩，
@@ -133,8 +186,13 @@
   `tests/server/handler.test.ts` 的契约检查拦下。
 - 删除路由或 handler 时，同步更新 `handler.test.ts` 的 handler 清单与数量、`routes.test.ts`
   的 manifest 数量。
+- 本地起停用 `start-dev.cmd` / `stop-dev.cmd`（日志在仓库外的 `logs/*.log`）。Web 与 App 两个
+  dev server 共用 `apps/web/.react-router`，启动脚本会在两个端口都空闲时清一次缓存；不要手工
+  删除正在被占用的类型目录。
+- 后台队列每次列表请求都会调用 `purgeExpiredNamecardSubmissions`（`fudaba/cards/ttl-purge.ts`）：
+  终态超过 3 天的名片连同对象一并清理。游客投稿入口已删除，但这段清理仍需保留。
 
-## 8. 测试入口
+## 13. 测试入口
 
 | 层 | 文件 |
 | --- | --- |
