@@ -29,7 +29,7 @@ export function ownerCardMediaPath(
       url.username ||
       url.password ||
       url.hash ||
-      (url.search && !/^\?v=\d+$/.test(url.search)) ||
+      (url.search && !/^\?v=\d+(?:&thumb=1)?$/.test(url.search)) ||
       !id ||
       id.length > 128 ||
       /[/\\]/.test(id) ||
