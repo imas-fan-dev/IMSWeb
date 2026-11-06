@@ -118,7 +118,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # `playwright install --with-deps` has to pull ~114 MB of WebKit system
+    # libraries; when the mirror is slow that alone has taken 44 minutes while
+    # the suite itself needs ~10, so 45 minutes cut the run off mid-test.
+    timeout-minutes: 75
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
