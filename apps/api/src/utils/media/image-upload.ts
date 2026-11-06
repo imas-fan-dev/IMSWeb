@@ -19,7 +19,9 @@ const IMAGE_TYPES: Record<string, ImageTypeRule> = {
     '.gif': { mimes: ['image/gif'], formats: ['gif'] },
     '.webp': { mimes: ['image/webp'], formats: ['webp'] },
     '.bmp': { mimes: ['image/bmp', 'image/x-ms-bmp'], formats: ['bmp'] },
-    '.avif': { mimes: ['image/avif'], formats: ['avif', 'heif'] }
+    '.avif': { mimes: ['image/avif'], formats: ['avif', 'heif'] },
+    '.heic': { mimes: ['image/heic'], formats: ['heif'] },
+    '.heif': { mimes: ['image/heif'], formats: ['heif'] }
 };
 
 function badRequest(message: string): Error {

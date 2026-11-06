@@ -7,6 +7,7 @@ import {
 
 import { Button } from "~/components/ui/button"
 import type { AdminRecommendation } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -50,7 +51,7 @@ export function RecommendationRow({
           {recommendation.author || "未知发布者"}
           {recommendation.date ? ` · ${formatDate(recommendation.date)}` : ""}
         </p>
-        <a
+        <NavigationLink
           href={recommendation.content}
           target="_blank"
           rel="noreferrer"
@@ -58,7 +59,7 @@ export function RecommendationRow({
         >
           <span className="truncate">{recommendation.content}</span>
           <ArrowUpRightIcon className="size-3 shrink-0" aria-hidden="true" />
-        </a>
+        </NavigationLink>
       </div>
       <div className="col-span-2 flex justify-end sm:col-span-1 sm:self-center">
         <Button

@@ -1,0 +1,52 @@
+import type {
+    AdminAccountRepository,
+    AuditRepository,
+    BackofficeAuthRepository,
+} from "@/ports/repositories/admin";
+import type { PlatformAccountRepository } from "@/ports/repositories/platform";
+import type { FudabaRepository } from "@/ports/repositories/fudaba";
+import type {
+    NamecardRepository,
+    ReactionRepository,
+} from "@/ports/repositories/namecards";
+import type {
+    EditorialRepository,
+    EventRepository,
+    HomepageLinkRepository,
+    NewsRepository,
+} from "@/ports/repositories/content";
+import type { SitePackageRepository } from "@/ports/repositories/site-packages";
+import type { NamecardCharacterRepository } from "@/ports/repositories/namecard-characters";
+import type { NamecardUnitRepository } from "@/ports/repositories/namecard-units";
+import type { StationMessageRepository } from "@/ports/repositories/station-messages";
+import type { StoryRepository } from "@/ports/repositories/wiki";
+
+export interface RepositoryServices {
+    backofficeAuth: BackofficeAuthRepository;
+    adminAccounts: AdminAccountRepository;
+    platformAccounts: PlatformAccountRepository;
+    fudaba: FudabaRepository;
+    audit: AuditRepository;
+    news: NewsRepository;
+    events: EventRepository;
+    editorial: EditorialRepository;
+    namecards: NamecardRepository;
+    reactions: ReactionRepository;
+    homepageLinks: HomepageLinkRepository;
+    sitePackages: SitePackageRepository;
+    namecardCharacters: NamecardCharacterRepository;
+    namecardUnits: NamecardUnitRepository;
+    stationMessages: StationMessageRepository;
+    story: StoryRepository;
+}
+
+export * from "@/ports/repositories/admin";
+export * from "@/ports/repositories/platform";
+export * from "@/ports/repositories/fudaba";
+export * from "@/ports/repositories/namecards";
+export * from "@/ports/repositories/content";
+export * from "@/ports/repositories/site-packages";
+export * from "@/ports/repositories/namecard-characters";
+export * from "@/ports/repositories/namecard-units";
+export * from "@/ports/repositories/station-messages";
+export * from "@/ports/repositories/wiki";

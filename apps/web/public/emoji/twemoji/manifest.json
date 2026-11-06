@@ -1,0 +1,285 @@
+{
+  "project": "Twemoji",
+  "version": "17.0.3",
+  "source": "https://github.com/jdecked/twemoji/tree/v17.0.3/assets/svg",
+  "license": "CC-BY-4.0",
+  "modified": false,
+  "assets": [
+    {
+      "emoji": "❤️",
+      "file": "2764.svg",
+      "bytes": 368,
+      "sha256": "09a743ee0c32ca57c9be64b13b29c396310d1dd309cb4d7d3be722e47db95f27"
+    },
+    {
+      "emoji": "👍",
+      "file": "1f44d.svg",
+      "bytes": 1663,
+      "sha256": "0f2b2ef249afadcfcd3cd9e1dcc7ba612f595135cd70c6663267380ea4d3331e"
+    },
+    {
+      "emoji": "😂",
+      "file": "1f602.svg",
+      "bytes": 1668,
+      "sha256": "1752c287f6fbbb65e1c982399584bbc9b1e0c46f0dc181cda9b8028dc60c4c01"
+    },
+    {
+      "emoji": "🤣",
+      "file": "1f923.svg",
+      "bytes": 1658,
+      "sha256": "cbd192d59e571778d577df96be003f18e5520c355a0d8d48576aa83a040d3e10"
+    },
+    {
+      "emoji": "😭",
+      "file": "1f62d.svg",
+      "bytes": 1318,
+      "sha256": "d0333b5cb416ad6545055766fc8128566874ab5ead272e5a691a24704048f077"
+    },
+    {
+      "emoji": "😍",
+      "file": "1f60d.svg",
+      "bytes": 941,
+      "sha256": "e17d4d0339ce34ba1ee3274fdc98a1bd5ca4a8f309861b63b746970a609d7d63"
+    },
+    {
+      "emoji": "🥰",
+      "file": "1f970.svg",
+      "bytes": 2384,
+      "sha256": "303d516f1985e3bc62aa92d1a55c2140a14435b255a32b4c3bc776a2395f056d"
+    },
+    {
+      "emoji": "😘",
+      "file": "1f618.svg",
+      "bytes": 2224,
+      "sha256": "52741c0837915c2af0469345fda5a6e62b31f56c22efda6005cbcd52deb24285"
+    },
+    {
+      "emoji": "🤯",
+      "file": "1f92f.svg",
+      "bytes": 3078,
+      "sha256": "a78d1df06565c8669b4b38e7e2e6e137e3efe80196d48f6f2d4e29e903967a8f"
+    },
+    {
+      "emoji": "😱",
+      "file": "1f631.svg",
+      "bytes": 1577,
+      "sha256": "c050671286ff22d29215d2ecf081a85337b164bdc007e6d342b47f39ef11a339"
+    },
+    {
+      "emoji": "😎",
+      "file": "1f60e.svg",
+      "bytes": 997,
+      "sha256": "d32bd9f51b2a54f620f9693e833935c5e2cb2304cbf89aab75fd10f054711ce5"
+    },
+    {
+      "emoji": "🤩",
+      "file": "1f929.svg",
+      "bytes": 1270,
+      "sha256": "2ab3b3a3394fa7f9e81996884447f0c4bcfecb002514328cbbc85e913ac8eb72"
+    },
+    {
+      "emoji": "😤",
+      "file": "1f624.svg",
+      "bytes": 2140,
+      "sha256": "cb7afd3340f443e389fe3e11f0deacd2e60e79506c8e70aa5b7d03485b187fd2"
+    },
+    {
+      "emoji": "🙏",
+      "file": "1f64f.svg",
+      "bytes": 1519,
+      "sha256": "8507d163d2a5c3e4ae298f241d74883e6481b720e78543c08291102ec738b433"
+    },
+    {
+      "emoji": "👏",
+      "file": "1f44f.svg",
+      "bytes": 2721,
+      "sha256": "9c38198544d25668f7e68c0fbd77a35cb3dfa6ae38df6760ab7616c111a7e007"
+    },
+    {
+      "emoji": "✨",
+      "file": "2728.svg",
+      "bytes": 1052,
+      "sha256": "9271962e9fc8257ce9e008bde83ac1408a2f196db6142548769f290873b70b93"
+    },
+    {
+      "emoji": "💯",
+      "file": "1f4af.svg",
+      "bytes": 1808,
+      "sha256": "a54c7a6df9d88bbd31edebbd5281e7152c6374fdabbf3f67185210cb3dd7eada"
+    },
+    {
+      "emoji": "🎉",
+      "file": "1f389.svg",
+      "bytes": 3153,
+      "sha256": "194de9942601b9a42cc9ea79663aaca170816cfc07cbe8b2a568852427fa7088"
+    },
+    {
+      "emoji": "💥",
+      "file": "1f4a5.svg",
+      "bytes": 842,
+      "sha256": "d700b57f2d2a20509c05ba3130977df9b7ca52f89aa886a5d7e49c7a7a44b91a"
+    },
+    {
+      "emoji": "🌟",
+      "file": "1f31f.svg",
+      "bytes": 1288,
+      "sha256": "417f2724229cce0e9f529aab4634f23e7d2a2fc517ac7c2dd63962f529759d2d"
+    },
+    {
+      "emoji": "🐵",
+      "file": "1f435.svg",
+      "bytes": 1395,
+      "sha256": "55809bf65ad9a14eabacbe3a52952f2257c9e16ab81a7cd059996222e4fab7d3"
+    },
+    {
+      "emoji": "🐶",
+      "file": "1f436.svg",
+      "bytes": 1817,
+      "sha256": "52acbb8b0f2d817937b6de1581e298217887e62fb1265055fdcbacae10c669c3"
+    },
+    {
+      "emoji": "🐱",
+      "file": "1f431.svg",
+      "bytes": 3340,
+      "sha256": "a7f61fb700b3a7d3cd6b6839e8574c330fe7baff59f0a964614a2cb324f95abf"
+    },
+    {
+      "emoji": "🦊",
+      "file": "1f98a.svg",
+      "bytes": 2153,
+      "sha256": "5b5b42dd21db3a10ad01b079ccd22da94aa5a00a216fcef3052020354f6a5580"
+    },
+    {
+      "emoji": "🐼",
+      "file": "1f43c.svg",
+      "bytes": 1040,
+      "sha256": "f62d0a2b082c192743e4ea6e3ec841c76efb17fe882c068e00d5264e9ad42128"
+    },
+    {
+      "emoji": "🐳",
+      "file": "1f433.svg",
+      "bytes": 789,
+      "sha256": "28d63fec48ab0c89355c23de6727b6fe04de522a4760f9cfa8361f7de40a745d"
+    },
+    {
+      "emoji": "🔥",
+      "file": "1f525.svg",
+      "bytes": 822,
+      "sha256": "4fa646a4dbc10513ddeb70561789483638faf456e15186f4eb7291c5c455cbb6"
+    },
+    {
+      "emoji": "💀",
+      "file": "1f480.svg",
+      "bytes": 760,
+      "sha256": "5b60b847389fd7e41afd366c679320a8eb234ea95333e2d803230d93205aee52"
+    },
+    {
+      "emoji": "👀",
+      "file": "1f440.svg",
+      "bytes": 1060,
+      "sha256": "d3256511e2a292691206b9899f7dffb667362f9eb15153bbf1ca275f1fd5c31b"
+    },
+    {
+      "emoji": "🍀",
+      "file": "1f340.svg",
+      "bytes": 1058,
+      "sha256": "762a21a73ce5607534f037e439debaf601dc84f319a5c318d1a71c855c3bb0fc"
+    },
+    {
+      "emoji": "🌈",
+      "file": "1f308.svg",
+      "bytes": 733,
+      "sha256": "555858f907bda45e059201a8a3d8910876ef8d830b9b82cfc0ca9aa55c7b029a"
+    },
+    {
+      "emoji": "🐛",
+      "file": "1f41b.svg",
+      "bytes": 2845,
+      "sha256": "4baa20e467a3f55ea47d4baf2520a7c9c91a9ce03ddeb9e48e4ba6f703689876"
+    },
+    {
+      "emoji": "💎",
+      "file": "1f48e.svg",
+      "bytes": 301,
+      "sha256": "6e7a1458d222e42798409e0e827860aa1cdff49188b5fd8bb249eae14d38e532"
+    },
+    {
+      "emoji": "🚀",
+      "file": "1f680.svg",
+      "bytes": 677,
+      "sha256": "3892ef66f49ce43d49c8719e9277da0e0e821059f0cc239a549f6629cc12b3cf"
+    },
+    {
+      "emoji": "🏆",
+      "file": "1f3c6.svg",
+      "bytes": 1237,
+      "sha256": "7510cc92013c2cd6c8271e3435539d9870044945e4a50151a50b18e61ee4ba83"
+    },
+    {
+      "emoji": "🍕",
+      "file": "1f355.svg",
+      "bytes": 1018,
+      "sha256": "38fedd10ba8a4fb9f35fc2d5b82d3af638c35f7f846ca904f06d0969815e6103"
+    },
+    {
+      "emoji": "🍔",
+      "file": "1f354.svg",
+      "bytes": 2509,
+      "sha256": "1b4dd5c3ef3320cfe96b6040a7ccff367f4e7dd19d2236e3360bc5aaa6d04816"
+    },
+    {
+      "emoji": "🎮",
+      "file": "1f3ae.svg",
+      "bytes": 1382,
+      "sha256": "eb9b8da31ca230a280bcb5f66143b1580ad722527cd9d9820e523cc33bb88b3c"
+    },
+    {
+      "emoji": "🌹",
+      "file": "1f339.svg",
+      "bytes": 905,
+      "sha256": "e4811c2a5e7af97359c718a20571660a462910f79d2da7e57cec571b24262048"
+    },
+    {
+      "emoji": "🍭",
+      "file": "1f36d.svg",
+      "bytes": 2907,
+      "sha256": "9be678c7cf45d3ab138ed64c0ffa3dff1ccc4ddb55a11152c2de23e7d7dbf597"
+    },
+    {
+      "emoji": "🔨",
+      "file": "1f528.svg",
+      "bytes": 401,
+      "sha256": "1b8052e038108784e4ab7d367a41ac82ed7f73a345b79a318d8bf48c13384d42"
+    },
+    {
+      "emoji": "🔫",
+      "file": "1f52b.svg",
+      "bytes": 1876,
+      "sha256": "7e617ccb65bacd90ee706ee0188dcaf56a45d25278730276defca835182500b1"
+    },
+    {
+      "emoji": "❓",
+      "file": "2753.svg",
+      "bytes": 388,
+      "sha256": "c5dcee581f8c61de91f96e6260db49d3c4bc49522ff6f23bd1efaee225678cc8"
+    },
+    {
+      "emoji": "🧒",
+      "file": "1f9d2.svg",
+      "bytes": 1243,
+      "sha256": "ce0f3b15821b6ab2fbe099c24404d2a388c9d1f0cbef929d65fb06681d7cc9f1"
+    },
+    {
+      "emoji": "😙",
+      "file": "1f619.svg",
+      "bytes": 1523,
+      "sha256": "957f39f49ce14d84fcc199f875f4e7fee6f7d0212d4f8c3d62dbd0da174291d7"
+    },
+    {
+      "emoji": "🔘",
+      "file": "1f518.svg",
+      "bytes": 156,
+      "sha256": "41721152ae3865f6b5c90df83fcd2ab825b476330759b7ad70d3a3bd414421bb"
+    }
+  ]
+}

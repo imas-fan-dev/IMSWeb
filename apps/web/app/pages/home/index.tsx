@@ -1,4 +1,6 @@
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { ActivityHighlights } from "./components/activity-highlights"
+import { AppHomeLinksFooter } from "./components/app-home-links-footer"
 import { BirthdayCalendar } from "./components/birthday-calendar"
 import { HomeFeed } from "./components/home-feed"
 import { HomeBrowserBrand } from "./components/home-browser-brand"
@@ -26,13 +28,19 @@ export function HomePortal() {
         <div className="relative z-10">
           <SeriesWall />
           <TodayBirthdayNotice />
-          <PortalDirectory />
+          {IS_APP_TARGET ? null : <PortalDirectory />}
           <HomeFeed />
           <BirthdayCalendar />
           <ActivityHighlights />
           <RandomIdol />
-          <FriendLinks />
-          <SiteSupport />
+          {IS_APP_TARGET ? (
+            <AppHomeLinksFooter />
+          ) : (
+            <>
+              <FriendLinks />
+              <SiteSupport />
+            </>
+          )}
         </div>
       </HomepageLinksProvider>
     </main>

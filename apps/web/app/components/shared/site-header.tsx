@@ -1,10 +1,11 @@
-import { BookOpenTextIcon, MenuIcon } from "lucide-react"
-import { useState } from "react"
+import { BookOpenTextIcon, HouseIcon, MenuIcon } from "lucide-react"
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, NavLink } from "react-router"
+import { useLocation } from "react-router"
 
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
-import { Button } from "~/components/ui/button"
+import { PlatformAccountMenu } from "~/components/platform/platform-account-menu"
+import { Button, buttonVariants } from "~/components/ui/button"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
 import {
   Sheet,
@@ -15,6 +16,10 @@ import {
   SheetTrigger,
 } from "~/components/ui/sheet"
 import { cn } from "~/lib/utils"
+import {
+  NavigationLink,
+  NavigationNavLink,
+} from "~/components/navigation/navigation-link"
 
 const navigation = [
   { to: "/", label: "navigation.home", end: true },
@@ -25,115 +30,284 @@ const navigation = [
     end: false,
   },
   { to: "/live", label: "navigation.live", end: false },
-  { to: "/community", label: "navigation.community", end: true },
+  { to: "/community", label: "navigation.community", end: false },
   { to: "/about", label: "navigation.about", end: true },
 ] as const
 
-function desktopLinkClass({ isActive }: { isActive: boolean }) {
-  return cn(
-    "relative flex h-16 items-center px-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-    "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary after:transition-transform",
-    isActive ? "text-foreground after:scale-x-100" : "after:scale-x-0"
+const subscribeToHydration = () => () => undefined
+
+function useHydrated() {
+  return useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false
   )
 }
 
-export function SiteHeader() {
+function desktopLinkClass({ isActive }: { isActive: boolean }) {
+  return cn(
+    "glass-tab relative z-10 flex h-9 flex-1 items-center justify-center rounded-full px-3 text-sm font-medium whitespace-nowrap",
+    isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+  )
+}
+
+/**
+ * Index of the nav entry owning the current URL, mirroring NavLink's own rules.
+ * A single lens sliding between entries is the iOS 26 navigation idiom; letting
+ * each entry paint its own background would cross-fade instead of travel.
+ */
+function activeNavigationIndex(pathname: string) {
+  return navigation.findIndex((item) =>
+    item.end
+      ? pathname === item.to
+      : pathname === item.to || pathname.startsWith(`${item.to}/`)
+  )
+}
+
+type LensGeometry = {
+  slot: number
+  offsetLeft: number
+  width: number
+}
+
+export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
+  const { pathname } = useLocation()
+  const navigationIndex = activeNavigationIndex(pathname)
+  const navigationSlot = Math.max(navigationIndex, 0)
+  const hydrated = useHydrated()
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+  const navigationSegmentRef = useRef<HTMLDivElement>(null)
+  const navigationLinkRefs = useRef<Array<HTMLAnchorElement | null>>([])
+  const [lensGeometry, setLensGeometry] = useState<LensGeometry | null>(null)
+
+  // Same travelling-lens contract as the app tab bar: the slot distance of the
+  // pending move, derived during render, so the lens deforms in proportion to
+  // how far it goes. Six entries here rather than five, so the widest jump is
+  // five slots; the amplitude is clamped in CSS to keep the website restrained.
+  const [travel, setTravel] = useState({ slot: navigationSlot, distance: 0 })
+  if (travel.slot !== navigationSlot) {
+    setTravel({
+      slot: navigationSlot,
+      distance: Math.abs(navigationSlot - travel.slot),
+    })
+  }
+
+  useLayoutEffect(() => {
+    if (navigationIndex < 0) return
+
+    const segment = navigationSegmentRef.current
+    const activeLink = navigationLinkRefs.current[navigationIndex]
+    if (!segment || !activeLink) return
+
+    const measuredLink = activeLink
+    let disposed = false
+
+    function measureLens() {
+      if (disposed) return
+
+      const offsetLeft = measuredLink.offsetLeft
+      const width = measuredLink.offsetWidth
+      if (
+        !Number.isFinite(offsetLeft) ||
+        !Number.isFinite(width) ||
+        width <= 0
+      ) {
+        return
+      }
+
+      setLensGeometry((current) => {
+        if (
+          current?.slot === navigationIndex &&
+          current.offsetLeft === offsetLeft &&
+          current.width === width
+        ) {
+          return current
+        }
+
+        return { slot: navigationIndex, offsetLeft, width }
+      })
+    }
+
+    measureLens()
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measureLens)
+    resizeObserver?.observe(segment)
+    resizeObserver?.observe(measuredLink)
+
+    void document.fonts?.ready.then(measureLens)
+
+    return () => {
+      disposed = true
+      resizeObserver?.disconnect()
+    }
+  }, [navigationIndex])
+
+  const lensVisible =
+    navigationIndex >= 0 && lensGeometry?.slot === navigationIndex
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
-        <Link
+    <header className="glass-surface glass-bar glass-scroll-bar glass-refract sticky top-0 z-40">
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-7xl items-center sm:h-16 sm:gap-3 sm:px-6 lg:gap-6 lg:px-8",
+          compact ? "h-12 gap-1.5 px-3" : "h-16 gap-2 px-4"
+        )}
+      >
+        <NavigationLink
           to="/"
           className="flex min-w-0 items-center gap-3"
           aria-label={t("brand.homeLabel")}
         >
-          <BrandWordmark className="h-7 sm:h-9" />
+          <BrandWordmark
+            className={cn(compact ? "h-6" : "h-7", "sm:h-9")}
+            alt=""
+          />
           <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
             {t("brand.name")}
           </span>
-        </Link>
+        </NavigationLink>
 
         <nav
-          className="ml-auto hidden items-center gap-5 lg:flex"
+          className="ml-auto hidden items-center lg:flex"
           aria-label={t("navigation.mainLabel")}
         >
-          {navigation.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={desktopLinkClass}
+          {/* Glass segment, not a backdrop-filter surface of its own: the header
+              behind it is already blurred, so a second blur layer would cost
+              compositing for no visible gain. */}
+          <div
+            ref={navigationSegmentRef}
+            className="glass-surface glass-quiet relative flex items-stretch rounded-full p-1 ring-1 ring-foreground/10"
+            style={
+              {
+                "--glass-lens-travel": travel.distance,
+              } as React.CSSProperties
+            }
+          >
+            <span
+              aria-hidden="true"
+              data-visible={lensVisible ? "true" : undefined}
+              className="glass-lens absolute inset-y-1.5 left-0 opacity-0 data-visible:opacity-100"
+              style={
+                lensGeometry
+                  ? {
+                      width: `${lensGeometry.width}px`,
+                      translate: `${lensGeometry.offsetLeft}px`,
+                    }
+                  : undefined
+              }
             >
-              {t(item.label)}
-            </NavLink>
-          ))}
+              <span
+                key={travel.slot}
+                className="glass-lens-skin absolute inset-x-[12%] inset-y-0 rounded-full bg-foreground/8 ring-1 ring-foreground/10"
+              />
+            </span>
+            {navigation.map((item, index) => (
+              <NavigationNavLink
+                key={item.to}
+                ref={(element) => {
+                  navigationLinkRefs.current[index] = element
+                }}
+                to={item.to}
+                end={item.end}
+                className={desktopLinkClass}
+              >
+                {t(item.label)}
+              </NavigationNavLink>
+            ))}
+          </div>
         </nav>
 
-        <Link
+        <NavigationLink
           to="/wiki"
           className="hidden items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:inline-flex"
         >
           {t("navigation.storySite")}
           <BookOpenTextIcon aria-hidden="true" className="size-3.5" />
-        </Link>
+        </NavigationLink>
 
-        <ThemeToggle className="ml-auto lg:ml-0" />
-
-        <Sheet
-          open={mobileNavigationOpen}
-          onOpenChange={setMobileNavigationOpen}
+        <div
+          className={cn(
+            "ml-auto flex shrink-0 items-center lg:ml-0",
+            compact ? "gap-1.5 sm:gap-2" : "gap-2"
+          )}
         >
-          <SheetTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="lg:hidden"
-                aria-label={t("navigation.open")}
-              />
-            }
-          >
-            <MenuIcon data-icon="inline-start" />
-          </SheetTrigger>
-          <SheetContent side="right" className="w-[min(88vw,22rem)]">
-            <SheetHeader className="border-b">
-              <SheetTitle>{t("navigation.title")}</SheetTitle>
-              <SheetDescription>{t("navigation.description")}</SheetDescription>
-            </SheetHeader>
-            <nav
-              className="flex flex-col px-2"
-              aria-label={t("navigation.mobileLabel")}
+          {compact ? (
+            <NavigationLink
+              to="/"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "icon" }),
+                "sm:hidden"
+              )}
+              aria-label="返回首页"
+              title="返回首页"
             >
-              {navigation.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  onClick={() => setMobileNavigationOpen(false)}
-                  className={({ isActive }) =>
-                    cn(
-                      "rounded-md p-3 text-sm font-medium hover:bg-muted",
-                      isActive && "bg-muted text-primary"
-                    )
-                  }
-                >
-                  {t(item.label)}
-                </NavLink>
-              ))}
-              <Link
-                to="/wiki"
-                onClick={() => setMobileNavigationOpen(false)}
-                className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary p-3 text-sm font-medium text-primary-foreground"
+              <HouseIcon aria-hidden="true" />
+            </NavigationLink>
+          ) : null}
+          <PlatformAccountMenu />
+          <ThemeToggle />
+
+          <Sheet
+            open={mobileNavigationOpen}
+            onOpenChange={setMobileNavigationOpen}
+          >
+            <SheetTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="lg:hidden"
+                  disabled={!hydrated}
+                  aria-label={t("navigation.open")}
+                />
+              }
+            >
+              <MenuIcon data-icon="inline-start" />
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[min(88vw,22rem)]">
+              <SheetHeader className="border-b">
+                <SheetTitle>{t("navigation.title")}</SheetTitle>
+                <SheetDescription>
+                  {t("navigation.description")}
+                </SheetDescription>
+              </SheetHeader>
+              <nav
+                className="flex flex-col px-2"
+                aria-label={t("navigation.mobileLabel")}
               >
-                {t("navigation.storySite")}
-                <BookOpenTextIcon aria-hidden="true" className="size-3.5" />
-              </Link>
-            </nav>
-          </SheetContent>
-        </Sheet>
+                {navigation.map((item) => (
+                  <NavigationNavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={() => setMobileNavigationOpen(false)}
+                    className={({ isActive }) =>
+                      cn(
+                        "rounded-md p-3 text-sm font-medium hover:bg-muted",
+                        isActive && "bg-muted text-primary"
+                      )
+                    }
+                  >
+                    {t(item.label)}
+                  </NavigationNavLink>
+                ))}
+                <NavigationLink
+                  to="/wiki"
+                  onClick={() => setMobileNavigationOpen(false)}
+                  className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary p-3 text-sm font-medium text-primary-foreground"
+                >
+                  {t("navigation.storySite")}
+                  <BookOpenTextIcon aria-hidden="true" className="size-3.5" />
+                </NavigationLink>
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   )

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="IMSWeb App 页面验收报告，按 iOS 与 Android 独立查看页面、场景和证据。">
+  <title>App 页面验收 · IMSWeb</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script src="dataset.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到页面总览</a>
+  <aside class="sidebar" aria-label="验收导航">
+    <a class="brand" href="#"><span class="brand-mark">iM</span><span>IMSWeb<span class="brand-sub">App 验收工作台</span></span></a>
+    <div class="workspace"><span class="workspace-icon" data-icon="smartphone"></span><div><b>全量页面验收</b><small>页面与场景 · 双平台</small></div><span class="tiny-tag">报告</span></div>
+    <p class="nav-caption">浏览报告</p>
+    <nav id="navigation"></nav>
+    <div class="sidebar-note"><span data-icon="layers"></span><b>一页一份验收记录</b><p>同一页面，分别保留 iOS 和 Android 的结果与截图。</p></div>
+    <div class="sidebar-bottom"><a class="evidence-link" href="evidence.html"><span data-icon="image"></span>全部证据图册</a><button id="about-button"><span data-icon="file-text"></span>验收与报告说明<span data-icon="arrow-up-right"></span></button><div class="build-label"><span class="live-dot"></span>页面与证据 <span>v1</span></div></div>
+  </aside>
+  <div class="shell">
+    <header class="topbar"><div class="breadcrumb">验收工作台<span>/</span><b>页面总览</b></div><div class="top-actions"><span class="preview-label">App 验收报告</span><button class="icon-button" id="theme-button" aria-label="切换深浅主题" title="切换深浅主题"><span data-icon="moon"></span></button></div></header>
+    <main id="main">
+      <div class="page-heading"><div><div class="heading-kicker"><span class="tiny-square"></span>IMSWeb / APP ACCEPTANCE</div><h1>App 页面验收</h1><p>按平台浏览截图，点击查看验收详情。</p></div><button class="button primary" id="export-button" aria-label="导出页面清单"><span data-icon="download"></span>导出页面清单</button></div>
+      <div class="platform-row"><div class="platform-switch" role="group" aria-label="验收平台"><button data-platform="ios" aria-pressed="true"><span class="os-mark">iOS</span><span>iOS</span></button><button data-platform="android" aria-pressed="false"><span data-icon="smartphone"></span><span>Android</span></button></div><p id="device-label"></p><span class="historical-tag">平台独立记录</span></div>
+      <section class="stats" aria-label="当前平台页面覆盖" id="stats"></section>
+      <div class="scope-note"><span data-icon="info"></span><p>页面结果按当前源码与必需场景计算。<span class="note-more">历史截图、DOM 参考与缺失证据独立保留。</span></p><button id="scope-button">查看范围<span data-icon="chevron-right"></span></button></div>
+      <section class="gallery-section" aria-labelledby="gallery-title">
+        <div class="gallery-heading"><div><h2 id="gallery-title">全部页面 <span id="page-count"></span></h2><p id="gallery-subtitle">先看已有画面，再补齐每个页面的原生证据。</p></div><label class="search-box"><span data-icon="search"></span><input id="search" type="search" placeholder="搜索页面或路由…" aria-label="搜索页面名称或路由"><kbd>/</kbd></label></div>
+        <div class="filter-row"><div class="filters" role="group" aria-label="页面状态"><button data-status="all" aria-pressed="true">全部<span></span></button><button data-status="native" aria-pressed="false">有原生证据<span></span></button><button data-status="pending" aria-pressed="false">待原生验收<span></span></button><button data-status="attention" aria-pressed="false"><i class="status-dot warning"></i>需要关注<span></span></button></div><span class="gallery-hint"><span data-icon="maximize-2"></span>点击查看详情</span></div>
+        <div id="cards" class="cards"></div>
+        <section id="missing-section" class="missing-section" aria-labelledby="missing-title"><div class="section-divider"><h3 id="missing-title">待收录截图</h3><span id="missing-count"></span><p>页面清单已建立，等待对应平台的原生截图。</p></div><div id="missing-cards" class="missing-cards"></div></section>
+        <div id="empty" class="empty" hidden><span data-icon="search"></span><h3>没有找到匹配的页面</h3><p>试试其他名称、路由或筛选条件。</p><button class="button" id="reset-button">重置筛选</button></div>
+      </section>
+      <footer class="page-footer"><span><span class="live-dot"></span>iOS 与 Android 独立记录 · 截图不等于全页通过</span><span id="inventory-source"></span></footer>
+    </main>
+  </div>
+  <dialog id="detail-dialog" aria-labelledby="detail-title"><div class="detail-layout"><section class="image-panel" aria-label="页面截图"><div class="image-toolbar"><span id="image-label"></span><button class="icon-button" id="zoom-button" aria-label="放大截图" title="放大截图"><span data-icon="maximize-2"></span></button></div><div id="image-stage" class="image-stage"></div><div id="thumbnails" class="thumbnails" aria-label="选择场景截图"></div><p id="image-caption"></p></section><section class="detail-panel"><div class="detail-topline"><span id="detail-platform" class="eyebrow"></span><button class="icon-button close-detail" aria-label="关闭详情" autofocus><span data-icon="x"></span></button></div><div class="detail-scroll"><p id="detail-group" class="detail-group"></p><h2 id="detail-title"></h2><code id="detail-route"></code><div id="detail-badges" class="detail-badges"></div><div class="detail-tabs" role="tablist" aria-label="详情内容"><button role="tab" id="tab-checks" aria-controls="checks-panel" aria-selected="true" tabindex="0">验收详情</button><button role="tab" id="tab-evidence" aria-controls="evidence-panel" aria-selected="false" tabindex="-1">环境与来源</button></div><div role="tabpanel" id="checks-panel" aria-labelledby="tab-checks"></div><div role="tabpanel" id="evidence-panel" aria-labelledby="tab-evidence" hidden></div></div><div class="detail-bottom"><span id="detail-index"></span><div><button class="icon-button" id="prev-page" aria-label="上一页面"><span data-icon="chevron-left"></span></button><button class="icon-button" id="next-page" aria-label="下一页面"><span data-icon="chevron-right"></span></button></div></div></section></div></dialog>
+  <dialog id="zoom-dialog" aria-label="原始截图放大"><div class="zoom-toolbar"><span>原始截图 · 可滚动查看</span><button class="button" id="close-zoom"><span data-icon="x"></span>关闭</button></div><img id="zoom-image" alt=""></dialog>
+  <dialog id="about-dialog" aria-labelledby="about-title"><div class="about-header"><span class="eyebrow">REPORT GUIDE</span><button class="icon-button" id="close-about" aria-label="关闭说明" autofocus><span data-icon="x"></span></button></div><h2 id="about-title">先看页面，再看证据。</h2><p>按页面浏览 App 验收结果，iOS 与 Android 保持独立。</p><div class="about-flow"><div><span>01</span><b>建立页面清单</b><p>从 App 路由生成五栏目目录，合并别名、展开个人子页。</p></div><div><span>02</span><b>分别验收双平台</b><p>各自保留设备、系统、数据模式与源码 / 包绑定。</p></div><div><span>03</span><b>生成截图报告</b><p>总览查看覆盖，Dialog 查看场景、问题与原始证据。</p></div></div><h3>怎样读这份报告</h3><ul><li><b>PASS</b>：全部必需场景具备当前源码的原生结果、绑定回执及已审核运行截图。</li><li><b>PARTIAL / UNRUN</b>：场景或证据待补。仅 DOM 参考与历史截图不贡献当前原生通过。</li><li><b>REWORK / BLOCKED</b>：场景失败、运行截图需返工，或执行受阻；失败与重试保留。</li></ul><p class="about-normalization" id="normalization"></p><p class="about-normalization">导出按钮保存当前平台全部页面、场景与状态。生成器读取清单，不执行测试或替作者审图。数据模式和设备范围以各次实际回执为准。</p><button class="button primary" id="understood">开始浏览</button></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

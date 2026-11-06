@@ -1,3 +1,17 @@
+import { publicAssetsPath, publicUploadsPath, siteContentPath } from '@imsweb/contracts/paths';
+
+const PROTECTED_CHRONICLE_UPLOAD_PATH = publicAssetsPath('/images/eventchronicle/events/upload')
+    .slice(1)
+    .toLowerCase();
+const NAMECARD_UPLOAD_PATH = publicUploadsPath('/namecard/original').slice(1).toLowerCase();
+const SITE_CONTENT_PATH = siteContentPath().slice(1).toLowerCase();
+const CHRONICLE_EVENTS_META_PATH = publicAssetsPath('/images/eventchronicle/events/meta')
+    .slice(1)
+    .toLowerCase();
+const CHRONICLE_META_PATH = publicAssetsPath('/images/eventchronicle/meta')
+    .slice(1)
+    .toLowerCase();
+
 export function getRequestPathSegments(requestUrl: unknown): string[] | null {
     let requestPath = String(requestUrl || '').split('?')[0];
     try {
@@ -19,19 +33,19 @@ export function isProtectedChronicleUploadPath(requestUrl: unknown): boolean {
     const segments = getRequestPathSegments(requestUrl);
     if (!segments) return false;
     return segments.slice(0, 5).map((segment) => segment.toLowerCase()).join('/') ===
-        'assets/images/eventchronicle/events/upload';
+        PROTECTED_CHRONICLE_UPLOAD_PATH;
 }
 
 export function isNamecardUploadPath(requestUrl: unknown): boolean {
     const segments = getRequestPathSegments(requestUrl);
     if (!segments) return false;
     return segments.slice(0, 3).map((segment) => segment.toLowerCase()).join('/') ===
-        'uploads/namecard/original';
+        NAMECARD_UPLOAD_PATH;
 }
 
 export function isManifestControlledSiteContentPath(requestUrl: unknown): boolean {
     const segments = getRequestPathSegments(requestUrl);
-    if (!segments || segments[0]?.toLowerCase() !== 'site-content') return false;
+    if (!segments || segments[0]?.toLowerCase() !== SITE_CONTENT_PATH) return false;
     if (segments[1] === '_preview') {
         return segments.length >= 3 && /^[a-f0-9]{32,128}$/i.test(segments[2]);
     }
@@ -52,8 +66,8 @@ export function isSensitiveRequestPath(requestUrl: unknown): boolean {
         'templates', 'venv'
     ]).has(firstSegment);
     const chronicleMetadata = lowerSegments.slice(0, 5).join('/') ===
-        'assets/images/eventchronicle/events/meta' ||
-        lowerSegments.slice(0, 4).join('/') === 'assets/images/eventchronicle/meta';
+        CHRONICLE_EVENTS_META_PATH ||
+        lowerSegments.slice(0, 4).join('/') === CHRONICLE_META_PATH;
     const privateWorkDirectory = lowerSegments.some((segment) =>
         segment === '.idempotency' || segment === '.staging' || segment === '.trash'
     );

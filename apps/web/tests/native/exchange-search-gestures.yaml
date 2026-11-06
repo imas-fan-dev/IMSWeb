@@ -1,0 +1,30 @@
+appId: top.idol-master.imsweb
+---
+# Starts in the large-results state produced by exchange-search-results.yaml.
+- assertVisible:
+    id: "ims-native-search-result-native-place:1"
+- swipe:
+    start: "50%, 85%"
+    end: "50%, 38%"
+    duration: 600
+- swipe:
+    start: "50%, 85%"
+    end: "50%, 38%"
+    duration: 600
+- assertVisible:
+    id: "ims-native-search-result-native-place:5"
+- takeScreenshot:
+    path: "NativeSearchResultsScrolled"
+# Measured on owned 402x874 host: handle [20,62][382,106], center y84.
+# Re-measure and adapt for another viewport; result scrolling is independent.
+- swipe:
+    start: "50%, 10%"
+    end: "50%, 70%"
+    duration: 800
+- assertVisible: "查找地点"
+- assertNotVisible:
+    id: "ims-native-exchange-search-input"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- takeScreenshot:
+    path: "NativeSearchDragCollapsed"

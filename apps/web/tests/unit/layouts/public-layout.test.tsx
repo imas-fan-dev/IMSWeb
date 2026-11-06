@@ -1,17 +1,22 @@
 import { render, screen } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, Route, Routes } from "react-router"
+import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 
 import { i18n } from "~/i18n/config"
 import PublicLayout from "~/layouts/public-layout"
 
-vi.mock("~/components/community/namecard-upload-dialog", () => ({
-  NamecardUploadDialog: () => <button type="button">上传名片</button>,
+vi.mock("~/components/community/namecard-create-entry", () => ({
+  NamecardCreateEntry: () => <button type="button">新建名片</button>,
 }))
 
 vi.mock("~/components/shared/admin-return-shortcut", () => ({
-  AdminReturnShortcut: () => null,
+  AdminReturnShortcut: () => (
+    <a href="/admin" data-testid="admin-return-shortcut">
+      返回管理工作台
+    </a>
+  ),
 }))
 
 vi.mock("~/components/shared/back-to-top", () => ({
@@ -34,6 +39,12 @@ vi.mock("~/components/shared/site-header", () => ({
   SiteHeader: () => <header>站点导航</header>,
 }))
 
+vi.mock("~/components/platform/platform-session-provider", () => ({
+  PlatformSessionProvider: ({ children }: { children: ReactNode }) => (
+    <div data-testid="platform-session-boundary">{children}</div>
+  ),
+}))
+
 describe("PublicLayout", () => {
   it("shares one animated series background across public routes", () => {
     render(
@@ -49,18 +60,21 @@ describe("PublicLayout", () => {
     )
 
     expect(screen.getAllByTestId("series-icon-background")).toHaveLength(1)
+    expect(screen.getByTestId("platform-session-boundary")).toContainElement(
+      screen.getByText("活动中心内容")
+    )
     expect(screen.getByText("活动中心内容")).toBeVisible()
     expect(screen.getByText("站点导航")).toBeVisible()
     expect(screen.getByText("站点页脚")).toBeVisible()
     expect(screen.getByRole("button", { name: "返回顶部" })).toBeVisible()
     expect(screen.getByRole("main").parentElement).toHaveClass("z-10")
     expect(
-      screen.queryByRole("button", { name: "上传名片" })
+      screen.queryByRole("button", { name: "新建名片" })
     ).not.toBeInTheDocument()
   })
 
   it.each(["/community/cards", "/community/cards/"])(
-    "places the namecard upload action in the shared floating stack for %s",
+    "places the namecard create action in the shared floating stack for %s",
     (pathname) => {
       render(
         <I18nextProvider i18n={i18n}>
@@ -77,7 +91,7 @@ describe("PublicLayout", () => {
         </I18nextProvider>
       )
 
-      const uploadAction = screen.getByRole("button", { name: "上传名片" })
+      const uploadAction = screen.getByRole("button", { name: "新建名片" })
       expect(uploadAction).toBeVisible()
       expect(uploadAction.parentElement).toHaveClass("fixed", "right-4")
     }
@@ -115,5 +129,125 @@ describe("PublicLayout", () => {
     expect(screen.getByRole("button", { name: "返回顶部" })).toHaveClass(
       "max-md:hidden"
     )
+  })
+
+  it.each(["/community/exchange", "/community/exchange/"])(
+    "uses the full-screen map shell for %s",
+    (initialEntry) => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <MemoryRouter initialEntries={[initialEntry]}>
+            <Routes>
+              <Route element={<PublicLayout />}>
+                <Route
+                  path="community/exchange/*"
+                  element={<main>交换地图内容</main>}
+                />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </I18nextProvider>
+      )
+
+      const shell = screen.getByTestId(
+        "platform-session-boundary"
+      ).firstElementChild
+      expect(shell).toHaveClass("h-dvh", "min-h-0", "overflow-hidden")
+      expect(
+        screen.queryByTestId("series-icon-background")
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText("站点页脚")).not.toBeInTheDocument()
+      expect(screen.getByText("交换地图内容")).toBeVisible()
+    }
+  )
+
+  it.each(["/community/exchange/offices/sample-office"])(
+    "keeps the map shell behind contextual office pages at %s",
+    (pathname) => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <MemoryRouter initialEntries={[pathname]}>
+            <Routes>
+              <Route element={<PublicLayout />}>
+                <Route
+                  path="community/exchange/*"
+                  element={<main>交换帐号内容</main>}
+                />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </I18nextProvider>
+      )
+
+      const shell = screen.getByTestId(
+        "platform-session-boundary"
+      ).firstElementChild
+      expect(shell).toHaveClass("h-dvh", "min-h-0", "overflow-hidden")
+      expect(
+        screen.queryByTestId("series-icon-background")
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText("站点页脚")).not.toBeInTheDocument()
+      expect(screen.getByText("交换帐号内容")).toBeVisible()
+    }
+  )
+
+  it.each(["/account/me/profile", "/account/me", "/account/me/offices"])(
+    "gives personal pages a scrolling document at %s",
+    (pathname) => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <MemoryRouter initialEntries={[pathname]}>
+            <Routes>
+              <Route element={<PublicLayout />}>
+                <Route path="*" element={<main>个人页面</main>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </I18nextProvider>
+      )
+      expect(screen.getByText("站点页脚")).toBeVisible()
+      expect(screen.getByTestId("series-icon-background")).toBeVisible()
+      expect(
+        screen.getByTestId("platform-session-boundary").firstElementChild
+      ).not.toHaveClass("overflow-hidden")
+    }
+  )
+
+  it("removes the floating admin shortcut on event detail routes", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/events/42"]}>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route
+                path="events/:eventId"
+                element={<main>活动详情内容</main>}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    expect(screen.getByText("活动详情内容")).toBeVisible()
+    expect(
+      screen.queryByTestId("admin-return-shortcut")
+    ).not.toBeInTheDocument()
+  })
+
+  it("keeps the floating admin shortcut on other public routes", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/events"]}>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route path="events" element={<main>活动中心内容</main>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    expect(screen.getByTestId("admin-return-shortcut")).toBeVisible()
   })
 })

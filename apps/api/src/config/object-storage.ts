@@ -6,6 +6,7 @@ export type NodeObjectStorageConfig =
         publicReadUrlBase?: string;
         region: string;
         endpoint?: string;
+        publicEndpoint?: string;
         forcePathStyle: boolean;
         prefix: string;
         readUrlTtlSeconds: number;
@@ -43,19 +44,19 @@ function parsePrefix(value: string | undefined): string {
     return prefix;
 }
 
-function parseEndpoint(value: string | undefined): string | undefined {
+function parseEndpoint(name: string, value: string | undefined): string | undefined {
     if (!value) return undefined;
     let endpoint: URL;
     try {
         endpoint = new URL(value);
     } catch {
-        throw new Error('IMS_S3_ENDPOINT must be a valid HTTP(S) URL');
+        throw new Error(`${name} must be a valid HTTP(S) URL`);
     }
     if (
         !['http:', 'https:'].includes(endpoint.protocol) ||
         endpoint.username || endpoint.password || endpoint.search || endpoint.hash
     ) {
-        throw new Error('IMS_S3_ENDPOINT must be a credential-free HTTP(S) URL');
+        throw new Error(`${name} must be a credential-free HTTP(S) URL`);
     }
     return endpoint.toString().replace(/\/$/, '');
 }
@@ -146,12 +147,22 @@ export function parseNodeObjectStorageConfig(
         throw new Error('IMS_S3_REGION must be a valid region identifier');
     }
 
+    const endpoint = parseEndpoint(
+        'IMS_S3_ENDPOINT',
+        optionalValue(environment, 'IMS_S3_ENDPOINT')
+    );
+    const publicEndpoint = parseEndpoint(
+        'IMS_S3_PUBLIC_ENDPOINT',
+        optionalValue(environment, 'IMS_S3_PUBLIC_ENDPOINT')
+    );
+
     return {
         type,
         bucket,
         ...(publicReadUrlBase ? { publicReadUrlBase } : {}),
         region,
-        endpoint: parseEndpoint(optionalValue(environment, 'IMS_S3_ENDPOINT')),
+        endpoint,
+        ...(publicEndpoint ? { publicEndpoint } : {}),
         forcePathStyle: parseBoolean(
             'IMS_S3_FORCE_PATH_STYLE',
             environment.IMS_S3_FORCE_PATH_STYLE,

@@ -1,0 +1,59 @@
+/*
+ * Media rendering: image loading/error states and the series-icon watermark.
+ * Element defaults sit in `@layer base`; the decorative series-icon classes sit
+ * in `@layer components` so a utility class can still hide or size them.
+ * `@keyframes` stays at the top level because it does not participate in the
+ * cascade.
+ */
+
+@layer base {
+  img[data-image-state="loading"] {
+    background-color: var(--muted);
+    background-image: linear-gradient(
+      105deg,
+      transparent 28%,
+      color-mix(in oklch, var(--foreground) 18%, transparent) 48%,
+      transparent 68%
+    );
+    background-position: 200% 0;
+    background-size: 220% 100%;
+    animation: image-loading-shimmer 1.25s ease-in-out infinite;
+  }
+
+  img[data-image-state="error"] {
+    @apply bg-muted;
+  }
+}
+
+@keyframes image-loading-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@layer components {
+  .series-icon-background {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    contain: strict;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .series-icon-motif {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 48px;
+    aspect-ratio: 1;
+    max-width: none;
+    height: auto;
+    object-fit: contain;
+    opacity: 0;
+    transform-origin: center;
+    backface-visibility: hidden;
+    will-change: transform;
+  }
+}
