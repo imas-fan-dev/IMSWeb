@@ -179,6 +179,10 @@ describe("StoryManagementPage", () => {
     const shared = createAdminCatalog()
     const bodyWrites: unknown[] = []
     let linked = false
+    let finishLinkedStories: () => void = () => undefined
+    const linkedStoriesReady = new Promise<void>((resolve) => {
+      finishLinkedStories = () => resolve()
+    })
     installFetchMock((...args) => {
       const request = requestDetails(args)
       const url = new URL(request.url, window.location.origin)
@@ -217,14 +221,14 @@ describe("StoryManagementPage", () => {
           assets: [],
         })
       if (url.pathname === "/api/admin/wiki/stories")
-        return json(
-          linked
-            ? {
+        return linked
+          ? linkedStoriesReady.then(() =>
+              Response.json({
                 ...stories,
                 idol: { ...stories.idol, id: 55, name: "新关联人物" },
-              }
-            : stories
-        )
+              })
+            )
+          : json(stories)
       return Promise.reject(new Error(`Unexpected request: ${request.url}`))
     })
     const router = createMemoryRouter(
@@ -244,12 +248,17 @@ describe("StoryManagementPage", () => {
       ).toBe("55")
     )
     expect(bodyWrites).toEqual([{ profileId: 7 }])
+    finishLinkedStories()
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     )
-    expect(screen.getByRole("button", { name: "打开公开页" })).toHaveAttribute(
-      "href",
-      expect.stringContaining(encodeURIComponent("新关联人物"))
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "打开公开页" })
+      ).toHaveAttribute(
+        "href",
+        expect.stringContaining(encodeURIComponent("新关联人物"))
+      )
     )
   })
 
