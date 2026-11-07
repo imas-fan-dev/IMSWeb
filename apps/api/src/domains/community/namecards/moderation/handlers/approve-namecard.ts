@@ -67,11 +67,25 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
         const canonicalUrls: string[] = [];
         const rewritten: { front?: string; back?: string } = {};
         let uploadCardId: string | null = null;
+        // 交付响应给的是路由地址；审批必须回到真实对象键再决定复制/发布。
+        const [frontKey, backKey] = await Promise.all([
+            repository.findCardMediaKey(id, 'front', false),
+            repository.findCardMediaKey(id, 'back', false)
+        ]);
         for (const [side, value] of [
-            ['front', claim.card.image1_url],
-            ['back', claim.card.image2_url]
+            ['front', frontKey],
+            ['back', backKey]
         ] as const) {
             if (typeof value !== 'string') continue;
+            if (value.startsWith('community/fudaba/cards/')) {
+                // 统一页面布局：对象已经是版本化的，直接发布，不再复制成旧布局。
+                if (!storage.publish) {
+                    throw new Error('Object storage publication is unavailable');
+                }
+                await storage.publish(value);
+                canonicalUrls.push(namecardOriginalUrlFromObjectKey(value));
+                continue;
+            }
             if (
                 value.startsWith(`${PUBLIC_UPLOADS_PATH_PREFIX}/`) ||
                 value.startsWith('http')
@@ -100,8 +114,8 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
         if (uploadCardId !== null && (rewritten.front ?? rewritten.back) !== undefined) {
             await repository.attachCanonicalMedia(
                 uploadCardId,
-                rewritten.front ?? (claim.card.image1_url as string),
-                rewritten.back ?? (claim.card.image2_url as string)
+                rewritten.front ?? frontKey ?? '',
+                rewritten.back ?? backKey ?? ''
             );
         }
         if (canonicalUrls.length > 0) {

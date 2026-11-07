@@ -230,8 +230,8 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         # The bounded surface includes mock API dev commands, test UI tooling,
         # and the App E2E static preview pair (Web preview:app, API test:app-preview).
-        self.assertEqual(len(root_scripts), 58)
-        self.assertEqual(len(api_scripts), 44)
+        self.assertEqual(len(root_scripts), 57)
+        self.assertEqual(len(api_scripts), 46)
         self.assertEqual(len(web_scripts), 22)
         self.assertEqual(
             api_scripts["test:app-preview"],

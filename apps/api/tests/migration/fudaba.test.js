@@ -1349,7 +1349,7 @@ END;
             for (const table of Object.values(plan.sourceTables)) {
                 assert.equal(table.source, table.included + table.excluded + table.failed);
             }
-            assert.equal(plan.operations.length, 23);
+            assert.equal(plan.operations.length, 22);
             const seriesOperations = plan.operations.filter(
                 ({ table }) => table === 'fudaba_card_series'
             );
@@ -1645,13 +1645,6 @@ END;
             assert.equal(providerPlan.blockers.some(({ sourceTable, reason }) =>
                 sourceTable === 'oauth_accounts' && reason.includes('provider')), true);
 
-            const invalidExchange = await createApprovedSnapshot({
-                snapshotId: 'invalid-exchange',
-                invalidExchangeOwnership: true
-            });
-            const exchangePlan = await buildImportPlan(invalidExchange.directory);
-            assert.equal(exchangePlan.blockers.some(({ sourceTable }) =>
-                sourceTable === 'exchange_requests'), true);
         });
 
         test.describe('real PostgreSQL', () => {
@@ -1673,7 +1666,7 @@ END;
                     targetBucket: TARGET_BUCKET
                 });
                 assert.equal(dryRun.committed, false);
-                assert.equal(dryRun.summary.missing, 17);
+                assert.equal(dryRun.summary.missing, 16);
                 assert.equal(dryRun.summary.unchanged, 6);
                 assert.deepEqual(dryRun.artifactSha256, {
                     source: sha256File(path.join(snapshot.directory, 'source.json')),
@@ -1702,7 +1695,7 @@ END;
                     ...confirmations
                 });
                 assert.equal(applied.committed, true);
-                assert.equal(applied.summary.inserted, 17);
+                assert.equal(applied.summary.inserted, 16);
                 const repeated = await importSnapshot({
                     snapshotDirectory: snapshot.directory,
                     connectionString: harness.databaseUrl,
@@ -1711,7 +1704,7 @@ END;
                     ...confirmations
                 });
                 assert.equal(repeated.summary.inserted, 0);
-                assert.equal(repeated.summary.unchanged, 23);
+                assert.equal(repeated.summary.unchanged, 22);
                 const reconciled = await reconcileSnapshot({
                     snapshotDirectory: snapshot.directory,
                     connectionString: harness.databaseUrl,
@@ -1940,9 +1933,13 @@ END;
                 )).rows[0];
                 assert.equal(office.status, 'archived');
                 assert.equal(office.archived_at.toISOString(), '2026-07-16T02:03:04.000Z');
-                for (const table of ['fudaba_office_cards', 'fudaba_messages', 'fudaba_exchange_requests']) {
+                for (const table of ['fudaba_office_cards', 'fudaba_messages']) {
                     assert.equal(Number((await pool.query(`SELECT COUNT(*) FROM ${table}`)).rows[0].count), 1);
                 }
+                const exchangeTable = (await pool.query(
+                    "SELECT to_regclass('public.fudaba_exchange_requests') AS name"
+                )).rows[0].name;
+                assert.equal(exchangeTable, null);
                 const repeated = await importSnapshot({
                     snapshotDirectory: snapshot.directory,
                     connectionString: harness.databaseUrl,
@@ -1950,7 +1947,7 @@ END;
                     apply: true,
                     ...snapshotConfirmations(snapshot.directory)
                 });
-                assert.equal(repeated.summary.unchanged, 23);
+                assert.equal(repeated.summary.unchanged, 22);
                 assert.equal(repeated.summary.inserted, 0);
                 const reconciliation = await reconcileSnapshot({
                     snapshotDirectory: snapshot.directory,
@@ -2016,7 +2013,7 @@ END;
                 ]);
                 assert.deepEqual(
                     reports.map(({ summary }) => summary.inserted).sort((a, b) => a - b),
-                    [0, 17]
+                    [0, 16]
                 );
                 assert.equal(reports.every(({ committed }) => committed), true);
 
@@ -2024,7 +2021,6 @@ END;
                 try {
                     assert.equal(Number((await pool.query('SELECT COUNT(*) FROM platform_accounts')).rows[0].count), 2);
                     assert.equal(Number((await pool.query('SELECT COUNT(*) FROM fudaba_cards')).rows[0].count), 2);
-                    assert.equal(Number((await pool.query('SELECT COUNT(*) FROM fudaba_exchange_requests')).rows[0].count), 1);
                 } finally {
                     await pool.end();
                 }

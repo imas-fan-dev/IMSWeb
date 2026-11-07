@@ -361,7 +361,9 @@ export function CardMediaGallery({
   const shownRef = useRef(targetDeg)
   // 归一时必须落在「这次动画的目标」上；快速连点会让旧目标作废。
   const targetRef = useRef(targetDeg)
-  targetRef.current = targetDeg
+  useEffect(() => {
+    targetRef.current = targetDeg
+  }, [targetDeg])
 
   /** 动画跑完（或兜底超时）后把角度归一，避免 270/360 这类跨圈值累积。 */
   const settle = useCallback(() => {

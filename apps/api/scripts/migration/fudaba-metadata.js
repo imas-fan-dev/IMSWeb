@@ -2522,6 +2522,11 @@ function operationForRow(table, row, descriptor, context) {
                 }),
             ];
         case "exchange_requests": {
+            // 目标表 fudaba_exchange_requests 已由名片交换系统迁移删除；旧办公室
+            // 交换申请从未上线，历史行只留在来源快照里，不再写入目标库。
+            return [];
+        }
+        case "__retired_exchange_requests": {
             context.requireIncluded("offices", row.office_id);
             context.requireIncluded("users", row.requester_id);
             context.requireIncluded("users", row.recipient_id);

@@ -6,15 +6,16 @@ const { assertReactionContract } = require('../contracts/runtime-contracts.js');
 
 function publicCardProjection(fixture) {
     return async () => {
-        const { APPROVED_BACK_THUMBNAIL_URL, APPROVED_BACK_URL, APPROVED_FRONT_THUMBNAIL_URL, APPROVED_FRONT_URL, approvedCardId, baseUrl, pendingCardId } = fixture;
+        const { APPROVED_BACK_ROUTE_URL, APPROVED_FRONT_ROUTE_URL, approvedCardId, baseUrl, pendingCardId } = fixture;
         const listResponse = await fetch(`${baseUrl}/api/cards?page=1&size=25`);
         assert.equal(listResponse.status, 200);
         const page = await listResponse.json();
         assert.equal(page.total, 1);
         assert.equal(page.list.length, 1);
-        assert.equal(page.list[0].image1_url, APPROVED_FRONT_URL);
-        assert.equal(page.list[0].image1_thumbnail_url, APPROVED_FRONT_THUMBNAIL_URL);
-        assert.equal(page.list[0].image2_thumbnail_url, APPROVED_BACK_THUMBNAIL_URL);
+        assert.equal(page.list[0].image1_url, APPROVED_FRONT_ROUTE_URL);
+        assert.equal(page.list[0].image1_thumbnail_url, APPROVED_FRONT_ROUTE_URL);
+        assert.equal(page.list[0].image2_url, APPROVED_BACK_ROUTE_URL);
+        assert.equal(page.list[0].image2_thumbnail_url, APPROVED_BACK_ROUTE_URL);
 
         for (const privateField of ['ip', 'hash1', 'hash2']) {
             assert.equal(Object.hasOwn(page.list[0], privateField), false, privateField);

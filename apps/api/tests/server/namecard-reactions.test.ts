@@ -70,7 +70,8 @@ describe('namecard reactions resolve the same cards the wall lists', () => {
         });
 
         assert.deepEqual(await reactions.findApprovedCard(6301), { id: 6301 });
-        assert.equal(await reactions.findApprovedCard(6302), null);
+        // 属主改图后的 fudaba 版本布局同样属于公开墙。
+        assert.deepEqual(await reactions.findApprovedCard(6302), { id: 6302 });
         assert.equal(await reactions.findApprovedCard(6303), null);
 
         await reactions.incrementReaction(6301, '❤️');

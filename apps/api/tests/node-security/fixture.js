@@ -148,6 +148,8 @@ function createNodeSecurityFixture({ test, beforeAll, afterAll }) {
     const fixture = {
         get APPROVED_BACK_THUMBNAIL_URL() { return APPROVED_BACK_THUMBNAIL_URL; },
         get APPROVED_BACK_URL() { return APPROVED_BACK_URL; },
+        get APPROVED_FRONT_ROUTE_URL() { return `/api/cards/${approvedCardId}/media/front`; },
+        get APPROVED_BACK_ROUTE_URL() { return `/api/cards/${approvedCardId}/media/back`; },
         get APPROVED_FRONT_THUMBNAIL_URL() { return APPROVED_FRONT_THUMBNAIL_URL; },
         get APPROVED_FRONT_URL() { return APPROVED_FRONT_URL; },
         get EVENT_DIR() { return EVENT_DIR; },
