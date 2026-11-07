@@ -28,6 +28,7 @@ import type {
     RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
     NamecardCardShare as NamecardCardShareContract,
     NamecardCollectionPage as NamecardCollectionPageContract,
+    NamecardCollectionVisibilityResponse as NamecardCollectionVisibilityContract,
     NamecardExchangeDecision as NamecardExchangeDecisionContract,
     NamecardExchangeHistoryPage as NamecardExchangeHistoryPageContract,
     NamecardExchangeResult as NamecardExchangeResultContract,
@@ -77,9 +78,8 @@ export type NamecardExchangeHistoryPageResponse =
 export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
 /** 名片册的可见性切换只回一个确认标记。 */
-export interface NamecardCollectionVisibilityResponse {
-    success: true;
-}
+export type NamecardCollectionVisibilityResponse =
+    NamecardCollectionVisibilityContract;
 
 
 interface NamecardRow {

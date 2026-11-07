@@ -189,6 +189,29 @@ export interface ManageDialogFeedback {
   reporterName: string
 }
 
+/**
+ * 管理窗按「槽位顺序」记录旋转：0 是正面、最后一个是背面，其余是中间页。
+ * `middles` 与页面顺序对齐；末尾的空转保留，避免后面的下标错位。
+ */
+export function adminRotationPayload(
+  slotCount: number,
+  rotations: Readonly<Record<number, number>>
+): { front?: number; back?: number; middles?: number[] } | undefined {
+  const turns = (position: number) =>
+    (((rotations[position] ?? 0) % 4) + 4) % 4
+  const last = Math.max(slotCount - 1, 0)
+  const middles = Array.from({ length: Math.max(last - 1, 0) }, (_, index) =>
+    turns(index + 1)
+  )
+  while (middles.length > 0 && middles[middles.length - 1] === 0) middles.pop()
+  const payload = {
+    ...(turns(0) ? { front: turns(0) } : {}),
+    ...(last > 0 && turns(last) ? { back: turns(last) } : {}),
+    ...(middles.length > 0 ? { middles } : {}),
+  }
+  return Object.keys(payload).length ? payload : undefined
+}
+
 export function NamecardManageDialog({
   cardNumber,
   feedback = null,
@@ -322,17 +345,7 @@ export function NamecardManageDialog({
     }
   }
 
-  /** 只提交正面/背面；中间页不支持旋转。 */
-  const rotationPayload = (() => {
-    const turns = (position: number) =>
-      (((rotations[position] ?? 0) % 4) + 4) % 4
-    const last = Math.max(slots.length - 1, 0)
-    const payload = {
-      ...(turns(0) ? { front: turns(0) } : {}),
-      ...(last > 0 && turns(last) ? { back: turns(last) } : {}),
-    }
-    return Object.keys(payload).length ? payload : undefined
-  })()
+  const rotationPayload = adminRotationPayload(slots.length, rotations)
 
   async function persist(): Promise<boolean> {
     if (!diff || !draft) return false

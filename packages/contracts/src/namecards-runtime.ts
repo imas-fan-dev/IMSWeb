@@ -7,6 +7,12 @@
  * value here so the Web can keep reading them from the entrypoint it uses.
  */
 
+/** 单次交换的名片数量上限：快速列表、发起与扫码出示同受此限。 */
+export const NAMECARD_EXCHANGE_CARD_LIMIT = 20
+
+/** 扫码出示的二维码一周内有效。 */
+export const NAMECARD_SCAN_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
 /** The fields the editor needs to turn raw input into the stored value. */
 export interface PlatformAccountFormat {
   id: string

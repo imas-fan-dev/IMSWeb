@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { NAMECARD_SCAN_TOKEN_TTL_MS } from '@imsweb/contracts/namecards';
+import { NAMECARD_SCAN_TOKEN_TTL_MS } from '@imsweb/contracts/namecards/runtime';
 
 /** 二维码只出示一次,库里只留 token 的摘要。 */
 export function newScanToken(): { token: string; tokenHash: string } {

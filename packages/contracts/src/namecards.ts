@@ -1,3 +1,8 @@
+import {
+  NAMECARD_EXCHANGE_CARD_LIMIT,
+  NAMECARD_SCAN_TOKEN_TTL_MS,
+} from "./namecards-runtime.js"
+
 import { z } from "zod"
 import { cardPageSchema } from "./fudaba/index.js"
 import {
@@ -321,11 +326,16 @@ export const adminNamecardUpdateRequestSchema = adminNamecardFieldsSchema
       .array(namecardMediaSlotTokenSchema)
       .min(1)
       .max(2 + NAMECARD_MIDDLE_IMAGE_LIMIT),
-    /** 保存时对正反面应用的旋转圈数（0-3），随这次保存立即生效。 */
+    /** 保存时对正/背/中间页应用的旋转圈数（0-3），随这次保存立即生效。 */
     rotations: z
       .object({
         front: z.number().int().min(0).max(3).optional(),
         back: z.number().int().min(0).max(3).optional(),
+        /** 按中间页顺序排列；长度覆盖到最后一张被旋转的中间页。 */
+        middles: z
+          .array(z.number().int().min(0).max(3))
+          .max(NAMECARD_MIDDLE_IMAGE_LIMIT)
+          .optional(),
       })
       .strict()
       .optional(),
@@ -702,11 +712,7 @@ export type RandomOwnerlessCardError = z.infer<
   typeof randomOwnerlessCardErrorSchema
 >
 
-/** 单次交换的名片数量上限：快速列表、发起与扫码出示同受此限。 */
-export const NAMECARD_EXCHANGE_CARD_LIMIT = 20
-
-/** 扫码出示的二维码一周内有效。 */
-export const NAMECARD_SCAN_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export { NAMECARD_EXCHANGE_CARD_LIMIT, NAMECARD_SCAN_TOKEN_TTL_MS }
 
 export const namecardExchangeSourceSchema = z.enum([
   "card-share",
@@ -842,6 +848,14 @@ export const namecardCollectionPageSchema = exactJsonResponse({
   total: z.number().int().nonnegative(),
   totalPage: z.number().int().nonnegative(),
 })
+
+export const namecardCollectionVisibilityResponseSchema = exactJsonResponse({
+  success: z.literal(true),
+})
+
+export type NamecardCollectionVisibilityResponse = z.infer<
+  typeof namecardCollectionVisibilityResponseSchema
+>
 
 export const namecardCollectionQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),

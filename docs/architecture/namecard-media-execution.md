@@ -182,6 +182,8 @@ CREATE TABLE fudaba_card_pages (
   列表中间页数量都按 live 页行推导）；仓储不再写 `fudaba_card_media`。
 - 删除被旧名片媒体路由遮蔽的重复公开页面路由（`directory/serve-public-card-page.ts`）。
 - 旧名片媒体解析（`cardMediaKey`）优先读页面行，页面缺失才回退列。
+- 已发布卡的修订通过时，`publishStagedRevision` 会把 pending 页整组提升为 live（含复审回归用例）；
+  驳回/锁定只改审核状态，待审页清理由验收用例 C19/C21 跟踪。
 - 旧名片交付的 `image*_url` / `middle_image_urls` / 认领审核预览改为直接输出媒体路由地址，
   不再反推对象 key。
 

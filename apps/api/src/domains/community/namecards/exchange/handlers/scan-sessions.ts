@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-    NAMECARD_EXCHANGE_CARD_LIMIT,
-} from '@imsweb/contracts/namecards';
+import { NAMECARD_EXCHANGE_CARD_LIMIT } from '@imsweb/contracts/namecards/runtime';
 import type {
     NamecardScanCommitContext,
     NamecardScanSessionContext,

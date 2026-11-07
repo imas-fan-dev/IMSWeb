@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   adminMediaOrder,
+  adminRotationPayload,
   fieldsFromSide,
   manageChangeNeedsReason,
   slotsFromSide,
@@ -96,5 +97,24 @@ describe("namecard management window", () => {
     expect(stored.groupName).toBe("本家")
     expect(stored.favoriteCharacterIds).toEqual([])
     expect(stored.credits).toHaveLength(1)
+  })
+})
+
+describe("admin rotation payload", () => {
+  it("maps front and back turns", () => {
+    expect(adminRotationPayload(4, { 0: 1, 3: 2 })).toEqual({
+      front: 1,
+      back: 2,
+    })
+  })
+
+  it("keeps middle indices aligned and drops trailing zeros", () => {
+    expect(adminRotationPayload(4, { 1: 1 })).toEqual({ middles: [1] })
+    expect(adminRotationPayload(5, { 2: 3 })).toEqual({ middles: [0, 3] })
+  })
+
+  it("ignores rotations on single and double sided cards that have no middles", () => {
+    expect(adminRotationPayload(1, { 0: 1 })).toEqual({ front: 1 })
+    expect(adminRotationPayload(2, {})).toBeUndefined()
   })
 })

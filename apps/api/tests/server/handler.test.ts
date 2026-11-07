@@ -2199,6 +2199,132 @@ import { test } from 'vitest';
             assert.deepEqual(removals, [[12, 7]]);
         });
 
+        test('admin rotation accepts middle pages', async () => {
+            const updates: NamecardAdminUpdateInput[] = [];
+            const puts: string[] = [];
+            const fixture = createCompatibilityFixture({
+                async findAdminCardArtwork() {
+                    return {
+                        cardId: 'card-12',
+                        staged: false,
+                        frontObjectKey:
+                            'community/fudaba/cards/card-12/live/front.11111111-1111-4111-8111-111111111111.webp',
+                        middleObjectKeys: [
+                            'community/fudaba/cards/card-12/live/page-aaaaaaa1.22222222-2222-4222-8222-222222222222.webp'
+                        ],
+                        backObjectKey:
+                            'community/fudaba/cards/card-12/live/back.33333333-3333-4333-8333-333333333333.webp'
+                    };
+                },
+                async updateCardAsAdmin(input) {
+                    updates.push(input);
+                    return {
+                        status: 'updated',
+                        revision: 7,
+                        changedFields: [],
+                        ownerChange: null
+                    };
+                },
+                async findCardDiff() {
+                    return {
+                        id: 12,
+                        status: 'approved',
+                        publicationStatus: 'published',
+                        reviewStatus: null,
+                        revision: 7,
+                        ownerAccountId: null,
+                        ownerDisplayName: null,
+                        lockReason: null,
+                        reviewReason: null,
+                        live: {
+                            producerName: '天海春香',
+                            producerReading: null,
+                            groupName: null,
+                            isGroupCard: false,
+                            madeOn: null,
+                            bio: '',
+                            tradeNote: '',
+                            isOriginal: false,
+                            madeWithAi: false,
+                            visible: true,
+                            exchangeMode: 'none',
+                            seriesCodes: ['765'],
+                            credits: [],
+                            favoriteCharacters: [],
+                            frontImageUrl: '/api/admin/cards/12/media/live/front',
+                            backImageUrl: '/api/admin/cards/12/media/live/back',
+                            middleImageUrls: ['/api/admin/cards/12/media/live/middle-1']
+                        },
+                        pending: null
+                    };
+                }
+            }, {
+                storage: {
+                    async get() {
+                        return {
+                            body: new Uint8Array([1, 2, 3]),
+                            size: 3,
+                            contentType: 'image/webp',
+                            etag: 'etag'
+                        };
+                    },
+                    async put(key: string) {
+                        puts.push(key);
+                        return {
+                            body: new Uint8Array([1, 2, 3]),
+                            size: 3,
+                            contentType: 'image/webp',
+                            etag: 'etag'
+                        };
+                    },
+                    async delete() {},
+                    async publish() {},
+                    async exists() { return true; },
+                    async copy() {},
+                    async move() {},
+                    async list() { return []; },
+                    async deletePrefix() {}
+                } as unknown as RuntimeServices['storage'],
+                images: {
+                    async rotate(body: Uint8Array) { return body; },
+                    async validate() { return { width: 100, height: 100 }; }
+                } as unknown as RuntimeServices['images']
+            });
+            const response = await fixture.request('/api/admin/cards/12', {
+                method: 'PUT',
+                headers: {
+                    Cookie: 'token=op-token; csrf_token=csrf',
+                    'X-CSRFToken': 'csrf',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    expected_revision: 6,
+                    reason: '旋转中间页',
+                    status: 'published',
+                    review_status: null,
+                    media_order: ['#0', '#1', '#2'],
+                    rotations: { middles: [1] },
+                    producerName: '天海春香',
+                    seriesCodes: ['765'],
+                    favoriteCharacterIds: [],
+                    bio: '',
+                    tradeNote: '',
+                    exchangeMode: 'none',
+                    madeOn: null,
+                    groupName: null,
+                    producerReading: null,
+                    isOriginal: false,
+                    madeWithAi: false,
+                    visible: true,
+                    credits: []
+                })
+            });
+            assert.equal(response.status, 200);
+            assert.equal(updates.length, 1);
+            assert.equal(updates[0]!.pages?.length, 1);
+            assert.match(puts[0] ?? '', /\/live\/page-aaaaaaa1\.[0-9a-f-]+\.webp$/);
+        });
+
         test('a missing card answers not found on both management verbs', async () => {
             const fixture = createCompatibilityFixture();
             const headers = {

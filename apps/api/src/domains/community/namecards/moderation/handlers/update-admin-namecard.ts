@@ -34,7 +34,14 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
     /** 新对象确认可公开读取后才允许删除旧对象，否则旧图还能顶上。 */
     let replacedSafeToDelete = false;
     const rotations = body.rotations;
-    if (rotations && ((rotations.front ?? 0) !== 0 || (rotations.back ?? 0) !== 0)) {
+    const middleTurns = rotations?.middles ?? [];
+    const hasMiddleRotation = middleTurns.some((turns) => turns !== 0);
+    if (
+        rotations &&
+        ((rotations.front ?? 0) !== 0 ||
+            (rotations.back ?? 0) !== 0 ||
+            hasMiddleRotation)
+    ) {
         const runtime = services(c);
         if (!runtime.storage || !runtime.images?.rotate) {
             throw new Error('Image rotation is unavailable');
@@ -96,6 +103,13 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
                     ordered[ordered.length - 1]!,
                     backTurns
                 );
+            }
+            // 中间页按 media_order 的槽位解析：第 0 是正面、最后是背面，
+            // 中间的 1..n-2 与 rotations.middles 的下标一一对应。
+            for (const [index, turns] of middleTurns.entries()) {
+                const slot = index + 1;
+                if (turns === 0 || slot >= ordered.length - 1) continue;
+                await rotate(ordered[slot]!, turns);
             }
             if (
                 createdKeys.length > 0 &&
@@ -174,7 +188,9 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
     }
     const labels = [
         ...result.changedFields.map((change) => change.label),
-        ...(nextFrontObjectKey !== undefined || nextBackObjectKey !== undefined
+        ...(nextFrontObjectKey !== undefined ||
+        nextBackObjectKey !== undefined ||
+        hasMiddleRotation
             ? ['图片旋转']
             : [])
     ].join('|');

@@ -119,7 +119,7 @@
 | 免审动作 | 触发位置 | 免审条件 | 直接写入 | 结果 |
 | --- | --- | --- | --- | --- |
 | **撤回待审版本** | 属主保存（`updateCardMetadataForOwner`） | 整卡已 `published` 且存在 `pending_payload`；提交的字段与线上一致（`sameCardSubmission`），暂存图片与线上图片也一致（`sameArtworkOrder`，顺序在内） | 清空 `pending_payload`、三个图片暂存列与 `review_status` | 待审版本（含页序改动）整体回退；不发通知 |
-| **纯页序调整** | 属主图片保存（`replaceCardMediaForOwner`） | 整卡已 `published` 且**没有待审版本**，提交集合与线上集合逐个 key 相同、仅顺序不同（`isArtworkReorder`） | 直写 `front/back_object_key` 并重写 `fudaba_card_media` | 新顺序立即生效，不进队列 |
+| **纯页序调整** | 属主图片保存（`replaceCardMediaForOwner`） | 整卡已 `published` 且**没有待审版本**，提交集合与线上集合逐个 key 相同、仅顺序不同（`isArtworkReorder`） | 直写 `front/back_object_key` 并重排 `fudaba_card_pages.display_order` | 新顺序立即生效，不进队列 |
 | **旋转 90°** | 新建 / 图片保存（`rotations: {front,back}`） | 属主本人、revision 匹配；页数与页序都没变 | 写入时先旋转再落盘，生成新版本对象与缩略图，整次保存只加一个 `revision`；有暂存图时改暂存那套，否则直接改线上 | 需要点保存，但不进复审（与页序同档） |
 | 管理窗保存 | `updateAdminNamecard` | 理由必填（资料/状态/归属任一变动） | 按所选状态直接写 `publication_status` / `review_status` / 归属，并落审计 | 立即生效；通知 `card-admin-edited`，归属变更另发 `card-transferred-*` |
 | 属主删除 | `softDeleteCardForOwner` | 不在 `approving` / `locked` / `hidden` | `publication_status='hidden'`，清空暂存与版本状态 | 立即从墙与主页消失 |
