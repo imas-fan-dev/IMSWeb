@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { encodeFudabaCardCursor, parseFudabaCardQuery } from '@/domains/community/fudaba/directory/request';
 import { fudabaPublicCardView } from '@/domains/community/fudaba/directory/response';
+import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
 import { fudabaRepository, services } from '@/middleware/hono-context';
 
 export async function handleListFudabaFavoriteCards(
@@ -20,9 +21,22 @@ export async function handleListFudabaFavoriteCards(
     });
     const hasNextPage = rows.length > query.limit;
     const page = hasNextPage ? rows.slice(0, query.limit) : rows;
-    const items = await Promise.all(page.map((card) =>
-        fudabaPublicCardView(services(c).storage, card)
-    ));
+    // 测试替身可能只实现列表所需的方法：缺批量查询时按无页面行处理。
+    const pagesByCard =
+        (await fudabaRepository(c).listCardPagesBatch?.(
+            page.map((card) => card.id)
+        )) ?? new Map();
+    const items = await Promise.all(page.map((card) => {
+        const rows = pagesByCard.get(card.id);
+        const pages = cardArtworkView({
+            scope: 'public',
+            cardNumber: 0,
+            cardId: card.id,
+            live: rows?.live ?? [],
+            pending: []
+        }).live;
+        return fudabaPublicCardView(services(c).storage, card, pages);
+    }));
     const last = page.at(-1);
     return c.json({
         items,

@@ -1,11 +1,16 @@
-import { ImagePlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
-import { useCallback, useMemo, useRef, useState } from "react"
+import {
+  ImagePlusIcon,
+  RefreshCwIcon,
+  RotateCcwIcon,
+  RotateCwIcon,
+  XIcon,
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { createPortal } from "react-dom"
 
 import { Button } from "~/components/ui/button"
 import { getOwnerCardMedia } from "~/lib/api"
-import { withThumbnail } from "~/lib/media-urls"
 import { useOwnerCardMedia } from "./use-owner-card-media"
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from "@imsweb/contracts/fudaba/runtime"
 
@@ -46,12 +51,20 @@ export function publicMediaSlotsFromCard(card: {
   frontImageUrl: string
   middleImageUrls: readonly string[]
   backImageUrl: string | null
+  /** 统一布局的页面；有值时优先使用（预览图用 800 档）。 */
+  pages?: readonly { pageId: string; previewUrl: string }[]
 }): MediaSlot[] {
-  const urls = [
+  const legacyUrls = [
     card.frontImageUrl,
     ...card.middleImageUrls,
     ...(card.backImageUrl ? [card.backImageUrl] : []),
   ]
+  // 迁移期页面行可能只覆盖了部分面：只有整套齐全时才按页面渲染，
+  // 否则会丢掉还没迁移的那一面（例如只有正面行、背面仍是旧 key）。
+  const urls =
+    card.pages && card.pages.length === legacyUrls.length
+      ? card.pages.map((page) => page.previewUrl)
+      : legacyUrls
   return urls.map((url, index) => ({
     kind: "existing" as const,
     index,
@@ -97,13 +110,24 @@ export function buildMediaSubmit(slots: readonly MediaSlot[]): {
 }
 
 /** True when the two sides are different shapes, orientation swaps included. */
+/** 旋转后的实际形状：奇圈数会交换宽高，比较时按最终朝向比。 */
+export function turnedShape(
+  size: { width: number; height: number } | null,
+  turns: number
+): { width: number; height: number } | null {
+  if (!size) return null
+  return (((turns % 4) + 4) % 4) % 2 === 1
+    ? { width: size.height, height: size.width }
+    : size
+}
+
 export function artworkShapeMismatch(
   front: { width: number; height: number } | null,
   back: { width: number; height: number } | null
 ): boolean {
   if (!front || !back || front.width <= 0 || back.width <= 0) return false
   const ratio = (size: { width: number; height: number }) =>
-    Math.max(size.width / size.height, size.height / size.width)
+    size.width / size.height
   return Math.abs(ratio(front) - ratio(back)) > 0.02
 }
 
@@ -151,14 +175,19 @@ async function loadSize(
 }
 
 export async function artworkSidesMismatch(
-  slots: readonly MediaSlot[]
+  slots: readonly MediaSlot[],
+  rotations: Readonly<Record<number, number>> = {}
 ): Promise<boolean> {
   if (slots.length < 2) return false
   const [front, back] = await Promise.all([
     loadSize(slots[0]),
     loadSize(slots[slots.length - 1]),
   ])
-  return artworkShapeMismatch(front, back)
+  // 只转了一面时，最终落库的形状已经变了，提示要按旋转后的尺寸判断。
+  return artworkShapeMismatch(
+    turnedShape(front, rotations[0] ?? 0),
+    turnedShape(back, rotations[slots.length - 1] ?? 0)
+  )
 }
 
 export function validateArtworkFile(file: File): string | null {
@@ -191,15 +220,17 @@ function SlotImage({
   alt,
   draggable = false,
   style,
+  onAspect,
 }: {
   slot: MediaSlot
   className: string
   alt: string
   draggable?: boolean
   style?: CSSProperties
+  /** 报告原图宽高比，预览按它决定旋转后要不要缩小。 */
+  onAspect?: (ratio: number) => void
 }) {
-  // 画廊与缩略图条统一取小图；原尺寸只在全屏预览里请求。
-  const url = slot.kind === "existing" ? withThumbnail(slot.url) : slot.url
+  const url = slot.url
   const signed = slot.kind === "existing" && !slot.direct ? url : null
   const media = useOwnerCardMedia(signed)
   const src = slot.kind === "new" || slot.direct ? url : media.src
@@ -220,6 +251,12 @@ function SlotImage({
       className={className}
       draggable={draggable}
       style={style}
+      onLoad={(event) => {
+        const image = event.currentTarget
+        if (image.naturalWidth && image.naturalHeight) {
+          onAspect?.(image.naturalWidth / image.naturalHeight)
+        }
+      }}
     />
   )
 }
@@ -235,12 +272,17 @@ export function CardMediaPreview({
   initialIndex = 0,
   onOpenPreview,
   previewLabel,
+  rotations,
+  onRotate,
 }: {
   slots: readonly MediaSlot[]
   roleLabels?: boolean
   initialIndex?: number
   onOpenPreview?: (index: number, element: HTMLButtonElement) => void
   previewLabel?: (index: number) => string
+  /** 审核前的旋转提案：只改预览，随提交一起写入。 */
+  rotations?: Readonly<Record<number, number>>
+  onRotate?: (position: number, direction: "left" | "right") => void
 }) {
   return (
     <CardMediaGallery
@@ -252,6 +294,8 @@ export function CardMediaPreview({
       initialIndex={initialIndex}
       onOpenPreview={onOpenPreview}
       previewLabel={previewLabel}
+      rotations={rotations}
+      onRotate={onRotate}
       onChange={() => undefined}
       onError={() => undefined}
     />
@@ -274,6 +318,10 @@ export function CardMediaGallery({
   previewLabel,
   onChange,
   onError,
+  /** 旋转当前这张图 90°；给了才显示旋转按钮。 */
+  onRotate,
+  /** 每一页待保存的旋转圈数（0-3），只在前端用 CSS 预览。 */
+  rotations = {},
 }: {
   slots: readonly MediaSlot[]
   disabled: boolean
@@ -286,6 +334,8 @@ export function CardMediaGallery({
   previewLabel?: (index: number) => string
   onChange: (slots: MediaSlot[]) => void
   onError: (message: string) => void
+  onRotate?: (position: number, direction: "left" | "right") => void
+  rotations?: Readonly<Record<number, number>>
 }) {
   const [active, setActive] = useState(() => Math.max(0, initialIndex))
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -297,6 +347,96 @@ export function CardMediaGallery({
   const position = Math.min(active, Math.max(slots.length - 1, 0))
   const current = slots[position] ?? null
   const role = roleLabels ? mediaSlotRole(position, slots.length) : null
+  const turn = pendingTurns(rotations, position)
+  const targetDeg = turn * 90
+  // 每一页都可以旋转：中间页与正反面是同一套 slot。
+  const rotatable = slots.length > 0
+
+  /*
+    动画先从「当前角度」沿最短方向转到目标角，再在动画结束后归一回 0/90/180/270。
+    直接写归一后的值会让 270→0 这类变化倒着转一大圈，看起来像抖动。
+  */
+  const [shownDeg, setShownDeg] = useState(targetDeg)
+  const [spinning, setSpinning] = useState(false)
+  const shownRef = useRef(targetDeg)
+  // 归一时必须落在「这次动画的目标」上；快速连点会让旧目标作废。
+  const targetRef = useRef(targetDeg)
+  targetRef.current = targetDeg
+
+  /** 动画跑完（或兜底超时）后把角度归一，避免 270/360 这类跨圈值累积。 */
+  const settle = useCallback(() => {
+    const settled = targetRef.current
+    shownRef.current = settled
+    setSpinning(false)
+    setShownDeg(settled)
+  }, [])
+
+  useEffect(() => {
+    const current = shownRef.current
+    const delta = ((targetDeg - current) % 360 + 540) % 360 - 180
+    if (delta === 0) {
+      // 已经停在同余角度：补一次归一，别让 `spinning` 挂住。
+      if (shownRef.current !== targetDeg) settle()
+      return undefined
+    }
+    const next = current + delta
+    shownRef.current = next
+    setSpinning(true)
+    setShownDeg(next)
+    /*
+      兜底 400ms：真实收尾靠 transitionend。固定 220ms 会在掉帧时抢在
+      动画完成前归一，画面从中间角度直接跳到终点，看起来就是反向抖一下。
+    */
+    const timer = setTimeout(settle, 400)
+    return () => clearTimeout(timer)
+  }, [targetDeg, settle])
+
+  // 换到别的页时直接落位，不做跨图动画。
+  const lastPositionRef = useRef(position)
+  useEffect(() => {
+    if (lastPositionRef.current === position) return
+    lastPositionRef.current = position
+    shownRef.current = targetDeg
+    setSpinning(false)
+    setShownDeg(targetDeg)
+  }, [position, targetDeg])
+
+  /*
+    旋转 90°/270° 后画面框变成 9:16 的形状，按 object-contain 的绘制尺寸重算
+    缩放，目标是「刚好填满、不裁切」——宽图要缩，竖图要放大：
+      r >= 16/9 → 旋转后顶满高度，缩到 9/16；
+      9/16 < r < 16/9 → 缩/放到 1/r；
+      r <= 9/16 → 放到 16/9 顶满宽度。
+  */
+  const [previewAspect, setPreviewAspect] = useState<{
+    key: string
+    ratio: number
+  } | null>(null)
+  const aspectRatio =
+    previewAspect && previewAspect.key === (current?.url ?? "")
+      ? previewAspect.ratio
+      : null
+  const frame = 16 / 9
+  const fittedScale =
+    aspectRatio === null
+      ? 1
+      : aspectRatio >= frame
+        ? 1 / frame
+        : aspectRatio <= 1 / frame
+          ? frame
+          : 1 / aspectRatio
+  const scaled = turn % 2 === 1 ? fittedScale : 1
+  /*
+    动画进行中必须保留内联的 transition：目标刚好归一为 0° 时若把整个 style
+    摘掉，浏览器就没有可过渡的声明，90→0 会直接瞬移。
+  */
+  const rotationStyle =
+    !spinning && shownDeg === 0 && scaled === 1
+      ? undefined
+      : {
+          transform: `rotate(${shownDeg}deg) scale(${scaled})`,
+          transition: spinning ? "transform 200ms ease-out" : "none",
+        }
 
   const addFiles = useCallback(
     (files: readonly File[], replaceAt: number | null) => {
@@ -464,6 +604,36 @@ export function CardMediaGallery({
         }`}
         data-card-artwork-preview
       >
+        {current && onRotate && rotatable ? (
+          <div className="absolute right-2 top-2 z-10 flex gap-1">
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="size-8 shadow-sm"
+              aria-label="向左旋转 90 度"
+              onClick={(event) => {
+                event.stopPropagation()
+                onRotate(position, "left")
+              }}
+            >
+              <RotateCcwIcon aria-hidden="true" className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="size-8 shadow-sm"
+              aria-label="向右旋转 90 度"
+              onClick={(event) => {
+                event.stopPropagation()
+                onRotate(position, "right")
+              }}
+            >
+              <RotateCwIcon aria-hidden="true" className="size-4" />
+            </Button>
+          </div>
+        ) : null}
         {current ? (
           onOpenPreview ? (
             <button
@@ -474,18 +644,42 @@ export function CardMediaGallery({
               }
               onClick={(event) => onOpenPreview(position, event.currentTarget)}
             >
+              <span
+                className="absolute inset-0 block"
+                style={rotationStyle}
+                onTransitionEnd={(event) => {
+                  if (event.propertyName !== "transform") return
+                  if (spinning) settle()
+                }}
+              >
+                <SlotImage
+                  slot={current}
+                  alt={role ? `名片${role}` : "名片图片"}
+                  className="size-full object-contain"
+                  onAspect={(ratio) =>
+                    setPreviewAspect({ key: current.url, ratio })
+                  }
+                />
+              </span>
+            </button>
+          ) : (
+            <span
+              className="block size-full"
+              style={rotationStyle}
+              onTransitionEnd={(event) => {
+                if (event.propertyName !== "transform") return
+                if (spinning) settle()
+              }}
+            >
               <SlotImage
                 slot={current}
                 alt={role ? `名片${role}` : "名片图片"}
-                className="absolute inset-0 size-full object-contain"
+                className="size-full object-contain"
+                onAspect={(ratio) =>
+                  setPreviewAspect({ key: current.url, ratio })
+                }
               />
-            </button>
-          ) : (
-            <SlotImage
-              slot={current}
-              alt={role ? `名片${role}` : "名片图片"}
-              className="size-full object-contain"
-            />
+            </span>
           )
         ) : (
           <button
@@ -563,6 +757,7 @@ export function CardMediaGallery({
             onSelect={setActive}
             onRemove={removeAt}
             onPointerDown={startDrag}
+            turns={pendingTurns(rotations, entry.index)}
           />
         ))}
 
@@ -577,6 +772,13 @@ export function CardMediaGallery({
               slot={drag.slot}
               alt=""
               className="size-full rounded-[4px] object-cover opacity-40"
+              style={
+                pendingTurns(rotations, drag.index) === 0
+                  ? undefined
+                  : {
+                      transform: `rotate(${pendingTurns(rotations, drag.index) * 90}deg)`,
+                    }
+              }
             />
           </div>
         ) : null}
@@ -594,6 +796,7 @@ export function CardMediaGallery({
             onSelect={setActive}
             onRemove={removeAt}
             onPointerDown={startDrag}
+            turns={pendingTurns(rotations, entry.index)}
           />
         ))}
 
@@ -648,6 +851,13 @@ export function CardMediaGallery({
   )
 }
 
+function pendingTurns(
+  rotations: Readonly<Record<number, number>>,
+  index: number
+): number {
+  return (((rotations[index] ?? 0) % 4) + 4) % 4
+}
+
 function slotKey(slot: MediaSlot): string {
   return slot.kind === "existing" ? `existing-${slot.index}` : slot.url
 }
@@ -662,6 +872,7 @@ function Thumbnail({
   onSelect,
   onRemove,
   onPointerDown,
+  turns,
 }: {
   entry: { slot: MediaSlot; index: number }
   active: boolean
@@ -672,6 +883,8 @@ function Thumbnail({
   onSelect: (index: number) => void
   onRemove: (index: number) => void
   onPointerDown: (index: number, event: React.PointerEvent<HTMLElement>) => void
+  /** 待保存的旋转圈数；缩略图与预览保持同一朝向。 */
+  turns: number
 }) {
   const { slot, index } = entry
   return (
@@ -695,7 +908,16 @@ function Thumbnail({
           active ? "ring-2 ring-primary" : ""
         } ${dragging ? "opacity-40" : ""}`}
       >
-        <SlotImage slot={slot} alt="" className="size-full object-cover" />
+        <SlotImage
+          slot={slot}
+          alt=""
+          className="size-full object-cover"
+          style={
+            turns === 0
+              ? undefined
+              : { transform: `rotate(${turns * 90}deg)` }
+          }
+        />
       </button>
       {!disabled && removable ? (
         <button

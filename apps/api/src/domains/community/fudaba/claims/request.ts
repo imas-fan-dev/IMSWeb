@@ -7,9 +7,13 @@ import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 export interface CardClaimPayloadInput {
     favoriteCharacterIds?: number[];
     groupName?: string | null;
+    /** 团体标记：认领/补充时可以提出把这张无主卡标成团体名片。 */
+    isGroupCard?: boolean;
     madeOn?: string | null;
     producerName?: string;
     producerReading?: string | null;
+    /** 审核通过后再执行的旋转；目前只有正反面。 */
+    rotations?: { front?: number; back?: number };
     seriesCodes?: string[];
 }
 
@@ -112,6 +116,12 @@ function claimPayload(
         throw badRequest('至少要改动一处资料');
     }
     const parsed: CardClaimPayloadInput = {};
+    if ('isGroupCard' in payload) {
+        if (typeof payload.isGroupCard !== 'boolean') {
+            throw badRequest('isGroupCard 必须是布尔值');
+        }
+        parsed.isGroupCard = payload.isGroupCard;
+    }
     if ('producerName' in payload) {
         const name = text(payload.producerName, 'producerName', 80);
         if (!name) throw badRequest('producerName 不能为空');
@@ -136,6 +146,21 @@ function claimPayload(
             PRODUCTION_DATE_PATTERN
         );
     }
+    if ('rotations' in payload) {
+        const rotations = object(payload.rotations);
+        allowedKeys(rotations, ['front', 'back']);
+        const turns = (value: unknown): number | undefined => {
+            if (value === undefined) return undefined;
+            if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 3) {
+                throw badRequest('rotations 必须是 0-3 的整数');
+            }
+            return value;
+        };
+        parsed.rotations = {
+            front: turns(rotations.front),
+            back: turns(rotations.back)
+        };
+    }
     if ('seriesCodes' in payload) parsed.seriesCodes = seriesCodes(payload.seriesCodes);
     if ('favoriteCharacterIds' in payload) {
         parsed.favoriteCharacterIds = characterIds(payload.favoriteCharacterIds);
@@ -144,6 +169,8 @@ function claimPayload(
 }
 
 const CLAIM_PAYLOAD_KEYS = [
+    'isGroupCard',
+    'rotations',
     'producerName',
     'producerReading',
     'groupName',
@@ -152,6 +179,8 @@ const CLAIM_PAYLOAD_KEYS = [
     'favoriteCharacterIds',
 ] as const;
 const SUPPLEMENT_PAYLOAD_KEYS = [
+    'isGroupCard',
+    'rotations',
     'producerName',
     'groupName',
     'seriesCodes',

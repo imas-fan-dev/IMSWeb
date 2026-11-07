@@ -141,7 +141,13 @@ export function validateNamecardMediaParams(
 ): NamecardMediaParams {
     const params = requestRecord(value, "名片 ID 无效");
     const side = typeof params.side === "string" ? params.side : "";
-    if (side !== "front" && side !== "back" && !/^middle-\d{1,2}$/.test(side)) {
+    // 统一布局的页面用稳定槽位 `page-<uuid>`；旧值继续兼容。
+    if (
+        side !== "front" &&
+        side !== "back" &&
+        !/^middle-\d{1,2}$/.test(side) &&
+        !/^page-[0-9a-f-]{8,}$/.test(side)
+    ) {
         throw invalidRequest("名片图页无效");
     }
     return {

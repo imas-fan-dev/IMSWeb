@@ -15,6 +15,7 @@ function side(overrides: Partial<DiffSide> = {}): DiffSide {
     producerName: "ZheiZhei",
     producerReading: "ぜいぜい",
     groupName: null,
+    isGroupCard: false,
     madeOn: "2025-10-07",
     bio: "简介",
     tradeNote: "交换说明",

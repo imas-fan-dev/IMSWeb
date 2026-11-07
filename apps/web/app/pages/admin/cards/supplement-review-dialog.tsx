@@ -57,6 +57,20 @@ function fieldRows(
       )
     )
   }
+  // 旋转是这次补充的一部分，审核员必须看到，否则通过后卡片朝向会莫名变化。
+  const rotations = pending.rotations
+  const turnLabels = rotations
+    ? (["front", "back"] as const)
+        .map((side) => {
+          const turns = rotations[side] ?? 0
+          if (!turns) return null
+          return `${side === "front" ? "正面" : "背面"} ${turns * 90}°`
+        })
+        .filter((label): label is string => label !== null)
+    : []
+  if (turnLabels.length > 0) {
+    rows.push(textRow("图片旋转", null, turnLabels.join("、")))
+  }
   return rows
 }
 

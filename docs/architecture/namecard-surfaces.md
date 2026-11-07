@@ -12,7 +12,7 @@
 
 | 来源 | 内容 | 现状 |
 | --- | --- | --- |
-| `fudaba_cards` | 名片主体：正反面对象 key、暂存版本（`pending_*`）、制作人名称/读音、团体、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表** |
+| `fudaba_cards` | 名片主体：正反面对象 key、暂存版本（`pending_*`）、制作人名称/读音、团体、**团体标记 `is_group_card`**、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表** |
 | `fudaba_card_media` | 中间页（按 `display_order`） | 在用 |
 | `fudaba_card_series` / `fudaba_card_favorite_characters` / `fudaba_card_credits` | 企划、担当角色、制作人员 | 在用 |
 | `fudaba_card_claims` | 认领申请；`legacy_card_id` 存老卡编号，`payload` 只带改动 | 在用 |
@@ -25,6 +25,14 @@
 - `revision` 是整卡的乐观锁；属主保存、审核通过、管理窗修改都带 `expectedRevision`。
 - 认领/补充各有自己的 `revision`，与名片 revision 无关。
 - 公开读取只看 `publication_status='published'` 且 `deleted_at IS NULL`。
+- **页面行是媒体唯一来源**：`fudaba_card_pages(card_id, queue, page_id, display_order,
+  object_version, width, height)` 保存每张卡的 live/pending 页序，`page_id` 为稳定槽位
+  （`front`、`back`、`page-<uuid>`）。`fudaba_cards` 的 `front_object_key` / `back_object_key` /
+  `pending_*` 与 `fudaba_card_media` 只作为迁移兼容缓存保留：媒体路由页面优先、缺口才回退旧列，
+  兼容缓存与列在观察一版后删除。
+- **响应只给路由地址**：列表与详情返回 `pages[]`（`url` 原图、`previewUrl` 800、`thumbUrl` 400），
+  旧字段 `image1_url` / `image2_url` 也已是 `/api/cards/<编号>/media/…` 或后台媒体路由；
+  浏览器不再拿到对象键，读侧也不再反推存储路径。
 
 ## 2. 页面与组件
 
@@ -34,7 +42,7 @@
 
 | 入口 | 窗口 | 媒体 | 字段 | 动作 |
 | --- | --- | --- | --- | --- |
-| 个人名片管理（`account/me/namecards`） | `CardWorkspace` → `CardEditor`（3xl） | `CardMediaGallery`：上传 + 拖动排序 + 替换 + 删除 | `CardFields` 13 项（身份四字段来自 `NamecardIdentityFields`）；必填：名称、企划、至少一张图 | 首次 `createFudabaCard`；之后 `updateFudabaCard`；图片有改动先 `replaceFudabaCardMedia`；`deleteFudabaCard` |
+| 个人名片管理（`account/me/namecards`） | `CardWorkspace` → `CardEditor`（3xl） | `CardMediaGallery`：上传 + 拖动排序 + 替换 + 删除 + 旋转（预览区左上角两个按钮） | `CardFields` 13 项（身份四字段 + 团体标记来自 `NamecardIdentityFields`）；必填：制作人名称（团体名片改为选填、改由团体名称必填）、企划、至少一张图 | 首次 `createFudabaCard`；之后 `updateFudabaCard`；图片有改动先 `replaceFudabaCardMedia`；`deleteFudabaCard` |
 | 名片墙 · 认领（`NamecardClaimDialog`，2xl） | 同上壳 | `CardMediaPreview`（只读） | `NamecardWallFields mode="claim"` 6 项 + 绑定方式；必填：名称、企划（可从卡/角色/绑定目标推导） | `createFudabaLegacyCardClaim` |
 | 名片墙 · 补充（`NamecardSupplementDialog`，2xl） | 同上壳 | `CardMediaPreview` | `NamecardWallFields mode="supplement"` 4 项；必须至少一处改动 | `createFudabaCardSupplement` |
 | 后台 · 反馈 / 修改（`NamecardManageDialog`，4xl） | 同上壳，`feedback` 有无区分两个入口 | `CardMediaGallery`（只允许排序/删除） | `CardFields required={false}` + 账号归属、名片状态、版本状态、理由；资料/状态/归属有变动时理由必填 | `updateAdminNamecard`、`deleteAdminNamecard`、`resolveAdminNamecardFeedback` |
@@ -69,10 +77,10 @@
 | 用途 | 路由 | 备注 |
 | --- | --- | --- |
 | 名片墙列表 / 单卡 | `GET /api/cards`、`GET /api/cards/:id` | 单卡用于深链与随机补充 |
-| 名片媒体 | `GET /api/cards/:id/media/:side?thumb=1` | 支持 `middle-N`；`thumb=1` 取 600px 小图 |
-| 旧上传路径媒体 | `GET /uploads/namecard/original|thumbnail/:filename` | 旧对象仍被公开名片引用；`?thumb=1` 已支持 |
+| 名片媒体 | `GET /api/cards/:id/media/:side` | `side` 支持 `front`/`back`/`middle-N`/`page-<uuid>`；`?w=160\|400\|800\|1400`，不带 `w` 返回原图 |
+| 旧上传路径媒体 | `GET /uploads/namecard/original|thumbnail/:filename` | 仅历史对象的直链；列表与详情已改用上面两条路由 |
 | 属主编辑 | `/community/exchange/me/cards…` | 创建为 multipart，更新为 JSON，图片单独 PUT |
-| 属主媒体 | `GET /community/exchange/me/cards/:id/media/:side?v=<rev>&thumb=1` | 受保护对象，`draft=1` 取暂存版本 |
+| 属主媒体 | `GET /community/exchange/me/cards/:id/media/:side?w=&draft=1` | 受保护对象；`v` 只做缓存破坏，`draft=1` 取待审页 |
 | 认领申请 | `POST /community/exchange/legacy-cards/:cardNumber/claims` | 以老卡编号定位 |
 | 补充申请 | `POST /community/exchange/cards/:cardId/supplements` | 必须真的改动 |
 | 反馈 | `POST /community/exchange/cards/:n/feedback` | 读者提交，后台处理后结掉 |
@@ -89,26 +97,78 @@
 5. **页数**：`1 + 中间页数 + (有背面 ? 1 : 0)`，服务端统一走 `namecardPageCount`（SQL 侧 `card_page_count` 同公式）。
 6. **状态**：`publication_status`（pending/approving/published/rejected/locked/hidden）×  `review_status`（待审版本）。后台词汇表在 `namecard-status-options.ts`。
 7. **属主显示名**：`platform_profiles.display_name`，为空或空白时回落到帐号 id。
+8. **团体名片**：`is_group_card=true` 时必填项从「制作人名称」换成「团体名称」，**制作人名称转为选填**（团体可能有自己的吉祥物）；留空时服务端把它写成团体名称，供检索与既有读取路径使用，团体改名时该回落值跟着走，使用者自己填的名称不会被覆盖。团体标记只允许 `exchange_mode='auto'`（数据库 CHECK + 服务端强制 + 编辑器置灰），勾选或取消都要复审；被个人认领后标记保留，改动仍需复审，改归属走【反馈】。
+
+### 4.1 免审路径（不经版本复审就直接生效）
+
+名片有两条写入面：**内容面**（需要复审）和**状态面**（上下架、归属、裁决，本来就不走版本复审）。
+内容面也不是整体复审：`fudaba-review-policy.ts` 明确划了两组字段，判定只看四个字段的差异。
+
+#### 4.1.1 字段分组
+
+| 组 | 字段 | 行为 |
+| --- | --- | --- |
+| **需要复审**（`requiresCardReview`） | `producer_name` 制作人名称、`bio` 简介、`trade_note` 交换说明、`is_original` 原创标记、`is_group_card` 团体标记；**团体卡或即将成为团体卡时**的 `group_name` 团体名称 | 已发布卡写入 `pending_payload` 并把 `review_status` 置 `pending`；线上继续展示旧值 |
+| **免审**（`CARD_REVIEW_EXEMPT_FIELDS`） | `producer_reading` 读音、`series_codes` 企划、`favorite_character_ids` 担当角色、`credits` 创作人员、`made_on` 制作日期、`group_name` 团体、`made_with_ai` AI 标记、`visible` 公开显示、`exchange_mode` 交换模式 | 直接写线上列与三张关系表（企划 `fudaba_card_series`、担当角色、创作人员）并 `revision+1`；若已有待审版本，同一批值同步写进 `pending_payload`，保证将来通过复审不会把它们回退 |
+
+新增字段时必须同时改两处：`CARD_REVIEW_EXEMPT_FIELDS` 与 `updateCardMetadataForOwner` 的免审分支；
+`fudaba-review-policy.ts` 顶部有编译期守卫，漏声明会直接编译失败。
+
+#### 4.1.2 内容免审与状态免审
+
+| 免审动作 | 触发位置 | 免审条件 | 直接写入 | 结果 |
+| --- | --- | --- | --- | --- |
+| **撤回待审版本** | 属主保存（`updateCardMetadataForOwner`） | 整卡已 `published` 且存在 `pending_payload`；提交的字段与线上一致（`sameCardSubmission`），暂存图片与线上图片也一致（`sameArtworkOrder`，顺序在内） | 清空 `pending_payload`、三个图片暂存列与 `review_status` | 待审版本（含页序改动）整体回退；不发通知 |
+| **纯页序调整** | 属主图片保存（`replaceCardMediaForOwner`） | 整卡已 `published` 且**没有待审版本**，提交集合与线上集合逐个 key 相同、仅顺序不同（`isArtworkReorder`） | 直写 `front/back_object_key` 并重写 `fudaba_card_media` | 新顺序立即生效，不进队列 |
+| **旋转 90°** | 新建 / 图片保存（`rotations: {front,back}`） | 属主本人、revision 匹配；页数与页序都没变 | 写入时先旋转再落盘，生成新版本对象与缩略图，整次保存只加一个 `revision`；有暂存图时改暂存那套，否则直接改线上 | 需要点保存，但不进复审（与页序同档） |
+| 管理窗保存 | `updateAdminNamecard` | 理由必填（资料/状态/归属任一变动） | 按所选状态直接写 `publication_status` / `review_status` / 归属，并落审计 | 立即生效；通知 `card-admin-edited`，归属变更另发 `card-transferred-*` |
+| 属主删除 | `softDeleteCardForOwner` | 不在 `approving` / `locked` / `hidden` | `publication_status='hidden'`，清空暂存与版本状态 | 立即从墙与主页消失 |
+| 后台删除 | `deleteCardAsAdmin` | 理由 + revision 匹配 | 写 `deleted_at`，清空暂存 | 所有读取路径同时不可见 |
+| 锁定 / 解锁 | `lockCard` / `unlockCard` | 锁定需理由 | `publication_status` 切换，锁定清空暂存三件套 | 锁定立即下架；解锁回到 `pending` 等重新审核 |
+| 认领通过 | `completeCardClaimReview` | 申请人 active、目标卡归属申请人（绑定时）、企划可用 | 升级老卡或软删无主行 | 内容由申请承载，不过版本复审 |
+| 补充通过 | `completeCardSupplementReview` | 申请行 `pending` | 逐字段写回名片 | 立即反映；发 `card-supplement-approved` 与贡献值 |
+| 反应 / 反馈 | `POST /api/reactions`、`…/feedback` | 已发布卡 | 独立的反应与反馈表 | 不改名片内容 |
+
+#### 4.1.3 必须复审的情形
+
+- 已发布卡改动了**五个复审字段**中的任意一个，哪怕只改一个字。
+- 团体卡的制作人名称只影响展示（留空即回落团体名），仍按普通改名复审。
+- 团体卡改动团体名称，或个人卡被勾选/取消【团体名片】。
+- 已发布卡新增、替换、删除任何图片（唯一例外是上表的「纯页序」）。
+- 未发布卡（`pending` / `rejected`）的任何编辑——它们本来就在等首审。
+- 首审与复审一律由 `beginCardApproval` → `completeCardApproval` 两段事务执行，没有旁路。
+- 旋转不属于内容变更：它不改页数、不改页序、不改字段，因此对有主卡始终保持免审。
+
+#### 4.1.4 属主保存的判定顺序
+
+1. 快照当前线上内容与图片集合；
+2. 若与线上完全一致 → **撤回**待审版本，不写内容；
+3. 若只有免审字段变化 → 直写线上，并把同批值同步进已有的 `pending_payload`；
+4. 若复审字段有变化 → 写 `pending_*` 并把 `review_status` 置 `pending`；
+5. 图片单独提交时先走 `replaceCardMediaForOwner`：仅顺序不同 → 免审重排，否则写暂存。
 
 ## 5. 图片使用要求
 
-当前所有名片图都有 600px 级的 `thumbnail` 副本（fudaba 在同目录的 `thumbnail.jpg`，
-旧上传路径在同级 `thumbnail/<file>.jpg`）。服务端 `preferThumbnail` 负责回退到原图。
+写路径不再生成任何缩略图副本；读取路由按 `?w=` 用 sharp 生成并按页面版本缓存（webp）。
+历史布局遗留的 `.thumbnail.jpg` / `uploads/namecard/thumbnail/…` 只等待 P5 GC，不再有新写入。
 
-| 场景 | 现在 | 目标（按需尺寸服务） |
-| --- | --- | --- |
-| 全屏预览 `NamecardPreview` | 原图 | 原图（保留原始字节，不做二次压缩） |
-| 画廊大图（`CardMediaPreview`/`CardMediaGallery`） | 600px 缩略图 | ≈1000px（当前渲染宽约 480–700px） |
-| 缩略图条（全屏预览底部） | 原图 | ≈160px |
-| 列表瓦片（`NamecardMediaPreview`） | 原图 + `?thumb=1` 尝试 | ≈400px |
-| 上传 | ≤8 MB，JPEG 像素上限 70M、PNG 40M，转 webp | 不变 |
+尺寸按「渲染宽度 × 设备像素比」定档，宽度是唯一参数（高度按比例，横竖构图都不需要第二套规则）：
+
+| 场景 | 渲染宽度 | 请求档位 | 说明 |
+| --- | --- | --- | --- |
+| 全屏预览 `NamecardPreview` | 视口 | 原图 | 保留原始字节，不做二次压缩 |
+| 画廊大图（`CardMediaPreview`/`CardMediaGallery`） | 480–700px | `w=800`（1x）/ `w=1400`（2x） | 默认 800 |
+| 缩略图条（全屏预览底部） | 约 80px | `w=160` | 2x 覆盖 |
+| 列表瓦片（`NamecardMediaPreview`） | 约 200–400px | `w=400`（1x）/ `w=800`（2x） | |
+| 上传 | — | — | ≤8 MB，JPEG 像素上限 70M、PNG 40M，转 webp |
+
+服务端只接受 `160/400/800/1400` 四档，其余宽度返回 400；未命中缓存时用 sharp 生成并写回同作用域缓存对象。
 
 接入尺寸服务时的约定：
 
-- `?thumb=1` 保留为「小图」语义；新增 `?w=` / `?fit=` 时由处理服务构造完整 URL，客户端不自行拼接。
-- 客户端统一经 `withThumbnail()`（`apps/web/app/lib/media-urls.ts`）取小图；换成其它参数名只改这一处。
-- 服务端 `preferThumbnail()` 是唯一的「缺失回退原图」判断点。
-- 全屏预览必须继续使用原图 URL；任何缩略图化都不能作用到 `NamecardPreview`。
+- 小图只有一个入口 `?w=`；`?thumb=1` 已删除，客户端不得再拼。尺寸档位只有 `160/400/800/1400`，其它值返回 400。
+- 客户端统一消费 `pages[].url` / `previewUrl` / `thumbUrl`，不再有 `withThumbnail()` 之类的 URL 拼装层。
+- 全屏预览固定使用 `pages[].url`（原图）；缩略图档位只用于瓦片与页签。
 
 ## 6. 并发、幂等与恢复
 
@@ -128,14 +188,24 @@
 | `/uploads/namecard/original|thumbnail/*` | 已发布名片公开可读；未发布要求登录 | 与静态资源一致 |
 | `/api/cards/:id/media/:side` | 公开（仅已发布） | `public, max-age=300`，302 到存储 |
 | `/community/exchange/me/cards/:id/media/:side` | 属主本人（`platformAuth`） | `private, no-store`，`Vary: Authorization, Cookie` |
-| `/admin/api/cards/:id/media/:variant/:side` | 后台（`backofficeAuth`） | `private, no-store`，`Vary: Cookie` |
+| `/api/admin/cards/:id/media/:variant/:side` | 后台（`backofficeAuth`） | `private, no-store`，`Vary: Cookie` |
 | `/admin/exchange/card-reviews/:id/media/:side` | 后台 | `private, no-store` |
 
 对象命名：
 
-- 新路径：`community/fudaba/cards/<cardId>/versions/<version>/front|back|middle-N.webp`，600px 副本是同目录的 `thumbnail.jpg`。
-- 旧路径：`/uploads/namecard/original/<file>.webp`，小图在同级 `thumbnail/<file>.jpg`。
-- `namecard-thumbnail-backfill.ts` 负责给历史名片补缩略图；写之前用 `findApprovedCard` 确认这张卡仍然公开发布。
+- 新路径：`community/fudaba/cards/<cardId>/<live|pending>/<pageId>.<version>.webp`，`pageId` 为
+  `front` / `back` / `page-<uuid>`；不再写缩略图副本。
+- 旧路径：`/uploads/namecard/original/<file>.webp` 只是历史对象的公开别名，按需由媒体路由折回键。
+
+键与别名的关系（排查媒体问题先看这一条）：
+
+- 页面行存 `page_id` + `object_version`，对象键由 `cardPageObjectKey()` 生成；正/反/中间页按
+  `display_order` 定位。
+- 旧列仍可能是**对象键**（`community/namecards/...`）或公开别名
+  （`/uploads/namecard/original/<stem>.webp`）；页面行命中时不会读旧列。别名写进列会让旧列
+  回退路径反推失败，历史数据由 `20261107120000_namecard_media_key_normalization.sql` 修过。
+- 数据库触发器 `fudaba_cards_normalize_media` 在 INSERT/UPDATE 时把别名改写成键。
+- 只为已发布卡出图；`?w=160|400|800|1400` 由媒体路由按需生成并缓存。
 
 ## 8. 公开名片上的状态投影
 
@@ -164,7 +234,11 @@
 | 触发 | 前置条件 | publication_status | review_status | 线上看到的版本 | 通知 |
 | --- | --- | --- | --- | --- | --- |
 | 属主首次提交（`createFudabaCard`） | 有名称、企划、至少一张图 | `pending` | 保持 `NULL` | 无（不在墙/主页） | 无 |
-| 属主修改已发布卡 | 整卡 `published` | 不变 | `pending`，写入 `pending_*` | 旧版本 | 无 |
+| 属主修改已发布卡的复审字段 | 整卡 `published`，改动了名称/简介/交换说明/原创标记 | 不变 | `pending`，写入 `pending_payload` | 旧版本 | 无 |
+| 属主修改已发布卡的免审字段 | 整卡 `published`，只改动读音/企划/角色/创作人员/日期/团体/AI/可见性/交换模式 | 不变 | 不变 | 改动立即上线 | 无 |
+| 勾选 / 取消团体标记 | 整卡 `published` | 不变 | `pending`，写入 `pending_payload` | 旧版本（个人卡）继续展示 | 无 |
+| 属主把待审内容改回线上版本（撤回） | 整卡 `published` 且已有 `pending_payload`，提交与线上完全一致 | 不变 | 清空 | 旧版本 | 无 |
+| 属主只调整页序（无待审版本） | 整卡 `published`，集合相同仅顺序不同 | 不变 | 不变 | 立即换成新顺序 | 无 |
 | 属主修改未发布卡（`pending` / `rejected`） | 有属主且未锁定 | 不变（`rejected` 保持 `rejected` 直到重新审核通过） | 不变 | 无 | 无 |
 | 属主删除（`softDeleteCardForOwner`） | 不在 `approving` / `locked` / `hidden` | `hidden` | 清空 | 立即从墙/主页消失 | 无 |
 | 审核开始（`beginCardApproval`） | `pending` 或 `review_status='pending'` | `pending` → `approving` | 不变 | 已发布卡仍显示旧版 | 无 |
@@ -180,6 +254,17 @@
 | 认领通过（绑定已有卡） | 目标卡属于申请人 | 目标卡不变；无主行软删除 | 不变 | 墙上只剩目标卡 | 同上 |
 | 补充通过 | 申请行 `pending` | 不变 | 不变 | 立即反映补充后的字段 | `card-supplement-approved` + 贡献值（每卡每账号一次） |
 | 管理窗保存 | 资料/状态/归属变动需填理由 | 按所选状态直接写入 | 按所选版本状态写入；`NULL` 表示丢弃待审版本 | 视写入结果 | `card-admin-edited` 逐字段差异；归属变更另发 `card-transferred-out` / `card-transferred-in` |
+
+补充：
+
+- 复审通过时，暂存的中间页（`pending_middle_object_keys`）会整体写回 `fudaba_card_media` 并清空暂存列；
+  这一步曾漏掉，导致「新加的页在通过后消失」。历史脏数据由
+  `20261107120000_namecard_media_key_normalization.sql` 回填。
+- 待审版本的图片集合是**权威**的：预览、`draft=1` 媒体路由、逐页取图都按暂存集合索引，绝不回落到线上页；
+  只有整卡没有暂存图片时（纯文字复审）才看线上页。
+- 锁定会清空暂存三件套（payload + 前后图 + 中间页），解锁后的卡从干净的 `pending` 重新开始。
+- 管理窗的图片顺序索引的是**弹窗里显示的那一面**（有复审版本时是暂存集合，否则是线上集合）；
+  按下标跨面混用会把背面写成中间页。
 
 ### 9.2 各界面可见性
 
@@ -226,6 +311,19 @@
 | 行内裁决按钮 | `ReviewRowAction` | 复制按钮 + spinner 判定 |
 | 页数 | `namecardPageCount`（API） | 三处各算一遍 |
 | 名片页面编号 | `namecardPageLabel` / `mediaSlotRole` | 「正面/背面/中间页」各自命名 |
+| 单页旋转 | `CardMediaGallery` 的 `onRotate(position, direction)` | 另写一套旋转按钮与位置换算 |
+
+## 11.1 旋转的落地位置
+
+点击只改 CSS 预览，真正的重写发生在写入那一次：
+
+| 入口 | 提交内容 | 落库时机 |
+|---|---|---|
+| 属主新建 / 保存图片 | `rotations: {front?, back?}`（顺时针 90° 的圈数） | 同一次创建/保存；页集不变时直接改线上，不进复审 |
+| 认领、补充 | payload `rotations` | 审核批准时 |
+| 后台管理窗 | 同上，随整卡保存提交 | 保存即生效：handler 按 `media_order` 的最终位置转好对象并替换 key；不要求理由、不通知属主 |
+
+每一页（含中间页）都可以旋转；中间页按页序随 `middles` 提交。
 
 ## 12. 维护提示
 
@@ -237,6 +335,24 @@
   的 manifest 数量。
 - 后台队列每次列表请求都会调用 `purgeExpiredNamecardSubmissions`（`fudaba/cards/ttl-purge.ts`）：
   终态超过 3 天的名片连同对象一并清理。游客投稿入口已删除，但这段清理仍需保留。
+- 新增迁移要同步四处：`apps/api/tests/migration/postgres-migrations.test.js` 的 `count`、末位版本与两个有序清单，
+  以及 `apps/api/tests/server/fudaba.test.ts` 里「review migrations preserve…」用例的 `executed` 列表。
+- 新增/删除路由或 handler 后跑 `node scripts/contracts/compile-route-inventory.mjs --write`，并同步
+  `scripts/contracts/tests/compile-route-inventory.test.mjs` 的 approved totals；`handler.test.ts` 另有两道门禁
+  （handler 清单与数量、每个 `c.json` 首参的 `satisfies …Response`）。
+- **线上图必须是公开对象。** 墙与主页按 `createPublicReadUrl` 取图，一个 key 解析失败会让整页
+  列表连带失败。审核发布的是「批准后真正上线」的那一套（有暂存图时取 `pending_*`）；任何直接
+  改写线上图列的写入方（属主保存、补充审核、认领绑定）都要自己 `publish` 新 key。
+- 单面名片的背面在响应里可能是 `null`，也可能整个字段缺席（`undefined`）。判断一律用
+  `== null`，写 `=== null` 会让整条列表 500。
+- 审核窗口按 id 从当前列表取行（`activeReviewCard` / `activeClaim` / `activeSupplement`）：
+  用打开时的快照提交，revision 一变就永远 409。
+- 墙的公开集合由 `NAMECARD_PUBLIC_ORIGIN` 决定：`guest`/`legacy`、canonical 布局
+  （`community/namecards/assets/…`）、`community/fudaba/cards/…` 版本布局。新的
+  `front_object_key` 写入路径必须落在其中，否则整张卡从墙上消失。
+- 缩略图不再写入：需要小图时一律请求 `?w=`，由媒体路由按页面版本生成缓存；历史
+  `.thumbnail.jpg` 只等 P5 引用集 GC 清理。
+- 已上线图未发布的历史数据用 `ops:namecards:republish` 修复（`-- --dry-run` 先看数量）。
 
 ## 13. 测试入口
 
@@ -245,5 +361,6 @@
 | Web 组件 | `tests/unit/components/community/`、`tests/unit/pages/community/`、`tests/unit/pages/admin/cards/` |
 | Web 共享组件 | `tests/unit/components/shared/namecard-preview.test.tsx`、`tests/unit/pages/account/me/namecards/` |
 | API 领域 | `apps/api/tests/server/fudaba.test.ts`、`apps/api/tests/server/namecard.test.ts` |
+| 交换后端 | `apps/api/tests/server/namecard-exchange.test.ts`（真库）、`namecard-exchange-routes.test.ts`（路由冒烟） |
 | 契约 | `apps/api/tests/server/handler.test.ts`、`apps/web/tests/e2e/fixtures/api-contract-catalog.ts` |
 | 端到端 | `apps/web/tests/e2e/namecard-*.spec.ts`、`app-namecard-browsing.spec.ts` |

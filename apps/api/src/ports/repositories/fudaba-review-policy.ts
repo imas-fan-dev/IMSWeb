@@ -29,7 +29,12 @@ export type CardReviewExemptField = (typeof CARD_REVIEW_EXEMPT_FIELDS)[number];
 type CardReviewField = Exclude<keyof FudabaPendingCardPayload, CardReviewExemptField>;
 
 /** Fields `requiresCardReview` actually compares. */
-type ComparedReviewField = 'bio' | 'is_original' | 'producer_name' | 'trade_note';
+type ComparedReviewField =
+    | 'bio'
+    | 'is_group_card'
+    | 'is_original'
+    | 'producer_name'
+    | 'trade_note';
 
 // Compile-time guard: a new payload field must be compared or declared exempt.
 type MissingComparison = Exclude<CardReviewField, ComparedReviewField>;
@@ -42,6 +47,8 @@ export interface CardReviewSnapshot {
     bio: string | null;
     tradeNote: string | null;
     isOriginal: boolean;
+    isGroupCard: boolean;
+    groupName: string | null;
 }
 
 function text(value: string | null | undefined): string {
@@ -67,6 +74,7 @@ export interface CardSubmissionSnapshot {
     bio: string | null;
     tradeNote: string | null;
     groupName: string | null;
+    isGroupCard: boolean;
     madeOn: string | null;
     exchangeMode: string;
     isOriginal: boolean;
@@ -126,6 +134,7 @@ export function sameCardSubmission(
         text(current.bio) === text(next.bio) &&
         text(current.tradeNote) === text(next.trade_note) &&
         text(current.groupName) === text(next.group_name) &&
+        current.isGroupCard === next.is_group_card &&
         text(current.madeOn) === text(next.made_on) &&
         text(current.exchangeMode) === text(next.exchange_mode) &&
         current.isOriginal === next.is_original &&
@@ -145,6 +154,18 @@ function requiresCardReview(
     current: CardReviewSnapshot,
     next: FudabaPendingCardPayload
 ): boolean {
+    // The flag itself always needs a reviewer: it changes who the card belongs
+    // to and pins the exchange mode.
+    if (current.isGroupCard !== next.is_group_card) return true;
+    // On a group card the group name is the primary display name and the value
+    // search matches on, so renaming it is content. On a personal card it stays
+    // an accessory detail and publishes at once.
+    if (
+        (current.isGroupCard || next.is_group_card) &&
+        text(current.groupName) !== text(next.group_name)
+    ) {
+        return true;
+    }
     if (text(current.producerName) !== text(next.producer_name)) return true;
     if (text(current.bio) !== text(next.bio)) return true;
     if (text(current.tradeNote) !== text(next.trade_note)) return true;

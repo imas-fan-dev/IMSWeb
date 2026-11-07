@@ -31,7 +31,6 @@ import {
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Badge } from "~/components/ui/badge"
-import { withThumbnail } from "~/lib/media-urls"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
 import { ClaimReviewTab } from "./claim-review-tab"
 import { useDebouncedValue } from "~/lib/use-debounced-value"
@@ -382,12 +381,13 @@ export default function AdminCardsPage() {
     getFallbackFocus,
   })
 
+  // 窗口必须跟着列表的最新行：属主保存、旋转都会把 revision 顶上去，用窗口
+  // 打开时那一次的快照去提交只会一直撞 409（刷新后仍然失败）。
   // Approving or locking drops the row from the queue, so the review window
   // closes with it instead of showing a revision that no longer exists.
-  const activeReviewCard =
-    reviewCard && cards.some((card) => card.id === reviewCard.id)
-      ? reviewCard
-      : null
+  const activeReviewCard = reviewCard
+    ? (cards.find((card) => card.id === reviewCard.id) ?? null)
+    : null
 
   const submitting =
     approveConfirm.submitting ||
@@ -519,8 +519,14 @@ export default function AdminCardsPage() {
                           onClick={() => setReviewCard(card)}
                         >
                                                     <NamecardMediaPreview
-                            frontImageUrl={withThumbnail(card.image1_url)}
-                            backImageUrl={card.image2_url ? withThumbnail(card.image2_url) : null}
+                            frontImageUrl={
+                              card.pages?.find((page) => page.role === "front")?.thumbUrl ??
+                              card.image1_url
+                            }
+                            backImageUrl={
+                              card.pages?.find((page) => page.role === "back")?.thumbUrl ??
+                              card.image2_url ? card.image2_url : null
+                            }
                             altBase={`名片 #${card.id}`}
                             pageCount={card.pageCount}
                           />

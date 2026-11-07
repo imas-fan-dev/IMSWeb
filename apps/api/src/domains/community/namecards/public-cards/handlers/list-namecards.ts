@@ -1,6 +1,6 @@
 import type { AppEnvironment } from '@/app';
-import { resolveNamecardThumbnailUrl } from '@/domains/community/fudaba/card-media-assets';
 import type { NamecardListQuery } from '@/domains/community/namecards/request';
+import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
 import {
     toPublicNamecardResponse,
     type NamecardListErrorResponse,
@@ -31,8 +31,22 @@ export async function handleListNamecards(
             status.legacy_card_id,
             status
         ]));
+        // 统一布局的页面行：一次批量查询，缺批量方法时按无页面处理。
+        const pagesByNumber =
+            (await services(c).fudaba?.listCardPagesBatchByNumbers?.(
+                rows.map((card) => Number(card.id))
+            )) ?? new Map();
         const cards = rows.map((card) => {
             const status = statusByCardId.get(Number(card.id));
+            const pageRows = pagesByNumber.get(Number(card.id));
+            const pages = cardArtworkView({
+                scope: 'public',
+                publicRoute: 'cards',
+                cardNumber: Number(card.id),
+                cardId: String(card.cardId ?? card.id),
+                live: pageRows?.live ?? [],
+                pending: []
+            }).live;
             return toPublicNamecardResponse(
                 {
                     ...card,
@@ -43,7 +57,8 @@ export async function handleListNamecards(
                     claimer_uid: status?.claimer_uid,
                     supplement_pending: status?.supplement_pending ?? false
                 },
-                c.get('platformUser')?.id ?? null
+                c.get('platformUser')?.id ?? null,
+                pages
             );
         });
         const storage = services(c).storage;
@@ -58,19 +73,8 @@ export async function handleListNamecards(
                         card.image2_url === null
                             ? null
                             : await resolvePublicMediaUrl(storage, card.image2_url);
-                    const image1ThumbnailUrl = await resolveNamecardThumbnailUrl(
-                        storage,
-                        card.image1_url,
-                        image1Url
-                    );
-                    const image2ThumbnailUrl =
-                        image2Url === null
-                            ? null
-                            : await resolveNamecardThumbnailUrl(
-                                  storage,
-                                  card.image2_url as string,
-                                  image2Url
-                              );
+                    const image1ThumbnailUrl = image1Url;
+                    const image2ThumbnailUrl = image2Url;
                     const middleImageUrls = await Promise.all(
                         card.middleImageUrls.map((url) =>
                             resolvePublicMediaUrl(storage, url)

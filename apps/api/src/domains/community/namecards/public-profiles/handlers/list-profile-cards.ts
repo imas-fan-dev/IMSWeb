@@ -1,5 +1,5 @@
 import type { AppEnvironment } from "@/app";
-import { resolveNamecardThumbnailUrl } from "@/domains/community/fudaba/card-media-assets";
+import { cardArtworkView } from "@/domains/community/fudaba/cards/artwork-view";
 import { parseNamecardPage } from "@/domains/community/namecards/request";
 import {
     toPublicNamecardResponse,
@@ -43,25 +43,38 @@ export async function handleListProfileCards(
         (page - 1) * size,
     );
     const storage = services(c).storage;
+    const pagesByNumber =
+        (await services(c).fudaba?.listCardPagesBatchByNumbers?.(
+            rows.map((card) => Number(card.card_number))
+        )) ?? new Map();
     const list = await Promise.all(
         rows.map(async (card) => {
+            const pageRows = pagesByNumber.get(Number(card.card_number));
+            const pages = cardArtworkView({
+                scope: 'public',
+                publicRoute: 'cards',
+                cardNumber: Number(card.card_number),
+                cardId: String(card.cardId ?? card.card_number),
+                live: pageRows?.live ?? [],
+                pending: []
+            }).live;
             const response = toPublicNamecardResponse(
                 card,
                 c.get("platformUser")?.id ?? null,
+                pages,
             );
             const image1Url = storage
                 ? await resolvePublicMediaUrl(storage, response.image1_url)
                 : response.image1_url;
+            // 单面名片的背面是 undefined 而不是 null；按 null 判断会让整页
+            // 解析到 undefined 的图而抛错，主页就一张都显示不出来。
             const image2Url =
-                response.image2_url === null
+                response.image2_url == null
                     ? null
                     : storage
                       ? await resolvePublicMediaUrl(storage, response.image2_url)
                       : response.image2_url;
-            const thumb = async (source: string, url: string) =>
-                storage
-                    ? resolveNamecardThumbnailUrl(storage, source, url)
-                    : url;
+            const thumb = async (_source: string, url: string) => url;
             return {
                 ...response,
                 image1_url: image1Url,

@@ -138,6 +138,9 @@ function NamecardItem({
   onReact: (cardId: number, emoji: string) => Promise<boolean>
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
+  // 统一布局优先：页面自带原图与 400 档缩略图，旧字段只做回退。
+  const pageFront = card.pages?.find((page) => page.role === "front")
+  const pageBack = card.pages?.find((page) => page.role === "back")
   return (
     <Card
       data-namecard-item
@@ -145,13 +148,18 @@ function NamecardItem({
     >
       <div className="grid gap-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
         {(["front", "back"] as const).flatMap((side) => {
-          const original = side === "front" ? card.image1_url : card.image2_url
+          const page = side === "front" ? pageFront : pageBack
+          const original =
+            page?.url ??
+            (side === "front" ? card.image1_url : card.image2_url)
           // 单面名片没有背面：不渲染空格子，让正面占满整行。
           if (!original) return []
           const thumbnail =
+            page?.thumbUrl ??
             (side === "front"
               ? card.image1_thumbnail_url
-              : card.image2_thumbnail_url) ?? original
+              : card.image2_thumbnail_url) ??
+            original
           return [
             <button
               key={side}

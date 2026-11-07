@@ -5,7 +5,14 @@ import {
     type AdminNamecardDiffResponse,
     type NamecardErrorResponse
 } from '@/domains/community/namecards/response';
-import { namecardRepository } from '@/middleware/hono-context';
+import { namecardRepository, services } from '@/middleware/hono-context';
+import { randomUUID } from 'node:crypto';
+import { fudabaCardMediaVersionObjectKey } from '@/utils/storage/business-object-keys';
+import { randomHex } from '@/utils/crypto/random';
+import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
+import { parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
+import type { FudabaCardPageWrite } from '@/ports/repositories';
+import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
 /**
  * Rewrites the live card the way the management window shows it. The owner is
@@ -14,7 +21,95 @@ import { namecardRepository } from '@/middleware/hono-context';
 export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promise<Response> {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
-    const result = await namecardRepository(c).updateCardAsAdmin({
+    const repository = namecardRepository(c);
+    /*
+      旋转在保存这一下生效：先把最终落到正面/背面的对象转好，再把新键交给
+      仓储。它只换图，不进审核、也不通知属主。
+    */
+    const createdKeys: string[] = [];
+    const writtenPages: FudabaCardPageWrite[] = [];
+    const replacedKeys: string[] = [];
+    let nextFrontObjectKey: string | undefined;
+    let nextBackObjectKey: string | null | undefined;
+    /** 新对象确认可公开读取后才允许删除旧对象，否则旧图还能顶上。 */
+    let replacedSafeToDelete = false;
+    const rotations = body.rotations;
+    if (rotations && ((rotations.front ?? 0) !== 0 || (rotations.back ?? 0) !== 0)) {
+        const runtime = services(c);
+        if (!runtime.storage || !runtime.images?.rotate) {
+            throw new Error('Image rotation is unavailable');
+        }
+        const artwork = await repository.findAdminCardArtwork(id);
+        const surface = artwork
+            ? [
+                  artwork.frontObjectKey,
+                  ...artwork.middleObjectKeys,
+                  ...(artwork.backObjectKey ? [artwork.backObjectKey] : [])
+              ]
+            : [];
+        const ordered = body.media_order.map(
+            (token) => surface[Number(token.slice(1))]
+        );
+        if (ordered.length > 0 && ordered.every(Boolean)) {
+            const keepsStaged = body.review_status !== null;
+            const rotate = async (
+                key: string,
+                turns: number
+            ): Promise<string> => {
+                const turn = ((turns % 4) + 4) % 4;
+                if (turn === 0) return key;
+                const object = await runtime.storage!.get(key);
+                if (!object) throw new Error('Artwork image is unavailable');
+                const rotated = await runtime.images!.rotate!(object.body, turn * 90);
+                if (!runtime.images!.validate) {
+                    throw new Error('Image validation is unavailable');
+                }
+                const info = await runtime.images!.validate(rotated, 'image/webp');
+                const stored = await storeCardPage(runtime, {
+                    cardId: artwork?.cardId ?? String(id),
+                    queue: keepsStaged ? 'pending' : 'live',
+                    pageId:
+                        parseCardPageObjectKey(key)?.pageId ??
+                        `page-${randomUUID()}`,
+                    body: rotated,
+                    width: info.width,
+                    height: info.height,
+                    accountId: 'admin'
+                });
+                createdKeys.push(stored.key);
+                writtenPages.push({
+                    pageId: stored.pageId,
+                    objectVersion: stored.version,
+                    width: stored.width,
+                    height: stored.height
+                });
+                replacedKeys.push(key);
+                return stored.key;
+            };
+            const frontTurns = rotations.front ?? 0;
+            const backTurns = rotations.back ?? 0;
+            if (frontTurns !== 0) {
+                nextFrontObjectKey = await rotate(ordered[0]!, frontTurns);
+            }
+            if (backTurns !== 0 && ordered.length > 1) {
+                nextBackObjectKey = await rotate(
+                    ordered[ordered.length - 1]!,
+                    backTurns
+                );
+            }
+            if (
+                createdKeys.length > 0 &&
+                !keepsStaged &&
+                body.status === 'published'
+            ) {
+                await Promise.all(
+                    createdKeys.map((key) => runtime.storage!.publish!(key))
+                );
+                replacedSafeToDelete = true;
+            }
+        }
+    }
+    const result = await repository.updateCardAsAdmin({
         cardNumber: id,
         expectedRevision: body.expected_revision,
         reason: body.reason,
@@ -25,6 +120,7 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
             producerName: body.producerName,
             producerReading: body.producerReading,
             groupName: body.groupName,
+            isGroupCard: body.isGroupCard ?? undefined,
             madeOn: body.madeOn,
             bio: body.bio,
             tradeNote: body.tradeNote,
@@ -37,6 +133,13 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
             credits: body.credits
         },
         mediaOrder: body.media_order,
+        ...(nextFrontObjectKey !== undefined
+            ? { nextFrontObjectKey }
+            : {}),
+        ...(nextBackObjectKey !== undefined
+            ? { nextBackObjectKey }
+            : {}),
+        ...(writtenPages.length > 0 ? { pages: writtenPages } : {}),
         actor: c.get('backofficeUser')?.username ?? null,
         updatedAt: new Date()
     });
@@ -63,7 +166,18 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
     ) {
         return c.json({ error: result.message } satisfies NamecardErrorResponse, 400);
     }
-    const labels = result.changedFields.map((change) => change.label).join('|');
+    // 没发布就没写入线上：此时删旧图会让名片墙直接失去图片，先留着。
+    if (replacedSafeToDelete) {
+        for (const key of replacedKeys) {
+            await deleteObjectWithCompensation(services(c), key).catch(() => undefined);
+        }
+    }
+    const labels = [
+        ...result.changedFields.map((change) => change.label),
+        ...(nextFrontObjectKey !== undefined || nextBackObjectKey !== undefined
+            ? ['图片旋转']
+            : [])
+    ].join('|');
     await writeAudit(c, '修改名片', `card_id=${id};reason=${body.reason ?? ''};revision=${result.revision};fields=${labels}`);
     // The window keeps its own draft, so it needs the row as it is now: revision
     // fences the next save and the normalised content replaces the draft.

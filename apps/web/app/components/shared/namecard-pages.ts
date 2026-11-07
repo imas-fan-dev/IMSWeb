@@ -33,7 +33,25 @@ export function namecardPages(card: {
   image2_url: string | null
   image1_thumbnail_url?: string | null
   image2_thumbnail_url?: string | null
+  /** 统一布局的页面；有值时优先按页面渲染。 */
+  pages?: readonly {
+    pageId: string
+    order: number
+    url: string
+    thumbUrl: string
+  }[]
 }): NamecardPage[] {
+  const legacyCount =
+    1 + card.middleImageUrls.length + (card.image2_url ? 1 : 0)
+  // 迁移期页面行可能只覆盖部分面，只有齐全时才用它，避免丢掉旧 key 的那一面。
+  if (card.pages && card.pages.length === legacyCount) {
+    return card.pages.map((page, index) => ({
+      key: page.pageId,
+      url: page.url,
+      thumb: page.thumbUrl,
+      label: namecardPageLabel(index, card.pages!.length),
+    }))
+  }
   const entries: Array<{ url: string; thumb: string }> = [
     {
       url: card.image1_url,

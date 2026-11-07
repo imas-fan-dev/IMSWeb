@@ -11,7 +11,6 @@ import { useCallback, useEffect, useState } from "react"
 import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
-import { withThumbnail } from "~/lib/media-urls"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -53,6 +52,21 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
   const query = useDebouncedValue(draftQuery.trim(), 300)
   const [page, setPage] = useState(1)
   const [rows, setRows] = useState<(ClaimRow | SupplementRow)[]>([])
+  const [claimRow, setClaimRow] = useState<ClaimRow | null>(null)
+  const [supplementRow, setSupplementRow] = useState<SupplementRow | null>(null)
+  // 队列刷新后窗口要拿最新行：用打开时的快照提交会一直撞 409。
+  const activeClaim = claimRow
+    ? ((rows.find(
+        (row) => row.type === "claim" && row.claim.id === claimRow.claim.id
+      ) as ClaimRow | undefined) ?? null)
+    : null
+  const activeSupplement = supplementRow
+    ? ((rows.find(
+        (row) =>
+          row.type === "supplement" &&
+          row.supplement.id === supplementRow.supplement.id
+      ) as SupplementRow | undefined) ?? null)
+    : null
   const [pageInfo, setPageInfo] = useState({
     page: 1,
     pageSize: 20,
@@ -62,8 +76,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
   })
   const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [error, setError] = useState(false)
-  const [claimRow, setClaimRow] = useState<ClaimRow | null>(null)
-  const [supplementRow, setSupplementRow] = useState<SupplementRow | null>(null)
+
   const [rejectReason, setRejectReason] = useState("")
 
   const type = kinds.length === KIND_ITEMS.length ? "all" : (kinds[0] ?? "all")
@@ -354,14 +367,34 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
                     >
                       {row.type === "claim" ? (
                         <NamecardMediaPreview
-                          frontImageUrl={row.claim.legacyCard.frontImageUrl}
-                          backImageUrl={row.claim.legacyCard.backImageUrl ? withThumbnail(row.claim.legacyCard.backImageUrl) : null}
+                          frontImageUrl={
+                            row.claim.legacyCard.pages?.find(
+                              (page) => page.role === "front"
+                            )?.thumbUrl ?? row.claim.legacyCard.frontImageUrl
+                          }
+                          backImageUrl={
+                            row.claim.legacyCard.pages?.find(
+                              (page) => page.role === "back"
+                            )?.thumbUrl ??
+                            (row.claim.legacyCard.backImageUrl
+                              ? row.claim.legacyCard.backImageUrl
+                              : null)
+                          }
                           altBase={label}
                         />
                       ) : (
                         <NamecardMediaPreview
-                          frontImageUrl={row.card.frontImageUrl}
-                          backImageUrl={row.card.backImageUrl ? withThumbnail(row.card.backImageUrl) : null}
+                          frontImageUrl={
+                            row.card.pages?.find((page) => page.role === "front")
+                              ?.thumbUrl ?? row.card.frontImageUrl
+                          }
+                          backImageUrl={
+                            row.card.pages?.find((page) => page.role === "back")
+                              ?.thumbUrl ??
+                            (row.card.backImageUrl
+                              ? row.card.backImageUrl
+                              : null)
+                          }
                           altBase={label}
                         />
                       )}
@@ -469,7 +502,7 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
       />
 
       <ClaimReviewDialog
-        claim={claimRow?.claim ?? null}
+        claim={activeClaim?.claim ?? null}
         onOpenChange={(open) => {
           if (!open) setClaimRow(null)
         }}
@@ -479,10 +512,10 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
       />
 
       <SupplementReviewDialog
-        supplement={supplementRow?.supplement ?? null}
-        cardNumber={supplementRow?.card.cardNumber ?? 0}
+        supplement={activeSupplement?.supplement ?? null}
+        cardNumber={activeSupplement?.card.cardNumber ?? 0}
         cardLabel={
-          supplementRow ? `名片 #${supplementRow.card.cardNumber}` : ""
+          activeSupplement ? `名片 #${activeSupplement.card.cardNumber}` : ""
         }
         onOpenChange={(open) => {
           if (!open) setSupplementRow(null)

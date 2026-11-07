@@ -409,7 +409,10 @@ export function normalizeFudabaAdminCardClaimList<
       legacyCard: {
         ...item.legacyCard,
         frontImageUrl: apiMediaUrl(item.legacyCard.frontImageUrl),
-        backImageUrl: apiMediaUrl(item.legacyCard.backImageUrl),
+        // 单面名片没有背面，保持 null 让预览只画一张。
+        backImageUrl: item.legacyCard.backImageUrl
+          ? apiMediaUrl(item.legacyCard.backImageUrl)
+          : null,
       },
     })),
   }

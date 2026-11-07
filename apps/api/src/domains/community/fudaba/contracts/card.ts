@@ -1,3 +1,4 @@
+import type { CardPageView } from "@/domains/community/fudaba/cards/artwork-view";
 import { exchangePath } from '@imsweb/contracts/paths';
 import type {
     FudabaCharacterSelection,
@@ -30,8 +31,16 @@ const cardMediaUrl = (card: FudabaCardRecord, side: string, query = '') =>
         `/me/cards/${encodeURIComponent(card.id)}/media/${side}?v=${card.revision}${query}`
     );
 
-export function fudabaOwnerCardView(card: FudabaCardRecord): FudabaOwnerCard {
+export function fudabaOwnerCardView(
+    card: FudabaCardRecord,
+    pages?: readonly CardPageView[],
+    pendingPages?: readonly CardPageView[]
+): FudabaOwnerCard {
     return {
+        ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
+        ...(pendingPages && pendingPages.length > 0
+            ? { pendingPages: [...pendingPages] }
+            : {}),
         id: card.id,
         cardNumber: card.card_number,
         producerName: card.producer_name,
@@ -48,6 +57,7 @@ export function fudabaOwnerCardView(card: FudabaCardRecord): FudabaOwnerCard {
         exchangeMode: card.exchange_mode,
         madeOn: card.made_on,
         groupName: card.group_name,
+        isGroupCard: card.is_group_card,
         producerReading: card.producer_reading,
         isOriginal: card.is_original,
         madeWithAi: card.made_with_ai,
@@ -91,6 +101,7 @@ function pendingContentView(
         exchangeMode: payload.exchange_mode,
         madeOn: payload.made_on,
         groupName: payload.group_name,
+        isGroupCard: payload.is_group_card,
         producerReading: payload.producer_reading,
         isOriginal: payload.is_original,
         madeWithAi: payload.made_with_ai,

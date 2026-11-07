@@ -6,7 +6,6 @@ import {
   type MediaSlot,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { getAdminNamecardDiff, type AdminNamecardDiff } from "~/lib/api"
-import { withThumbnail } from "~/lib/media-urls"
 import { slotsFromSide } from "./namecard-manage-dialog"
 
 /**
@@ -27,7 +26,7 @@ export function ReviewCardPreview({ cardNumber }: { cardNumber: number }) {
         setSlots(
           slotsFromSide(detail.pending ?? detail.live).map((slot) =>
             slot.kind === "existing"
-              ? { ...slot, url: withThumbnail(slot.url) }
+              ? { ...slot, url: slot.url }
               : slot
           )
         )

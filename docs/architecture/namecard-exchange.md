@@ -23,7 +23,9 @@
 2. 名片可见性（`visible`）只影响名片墙与个人主页的展示，不影响持有者主动分享。
 3. `auto`（自动确认）的名片在交换流程中不产生任何通知。
 4. `manual`（手动确认）的名片被他人申请交换时，持有者收到通知并决定是否同意，申请者随后收到结果通知。
-5. 整卡 `locked` 与 `hidden` 的名片不会出现在持有者的「选择用于交换的名片」列表里，因此不能作为提供方。
+5. 整卡 `locked` 与 `hidden` 的名片不会出现在持有者的「选择用于交换的名片」列表里，因此不能作为提供方。
+11. 团体名片（`is_group_card=true`）的交换模式固定为 `auto`：数据库 CHECK、服务端与编辑器三处同时约束，
+    勾选或取消该标记本身要经过版本复审。
 6. 整卡 `locked` 的名片不出现在已交换方的名片册里；整卡 `hidden`（持有者删除）的名片仍然出现在名片册里。
 7. 无主名片不参与交换；`withdrawn` 状态不使用，不在设计范围内。
 8. 已经在我名片册里的名片不能被再次交换；对方已经拥有的名片不会被我再次送出。命中时后台自动跳过。
@@ -272,14 +274,15 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 
 ## 10. 执行顺序
 
-1. 迁移：新增四张表、删除两张旧表、补通知 kind。
-2. 契约：路径 builder、请求/响应 schema、`targetMissingCount`。
-3. 仓储：`NamecardRepository` 增加交换、名片册、快速列表、扫码会话四组方法。
-4. 服务端流程：执行算法 + 确认/拒绝 + 幂等 + 跳过。
-5. 前端：四条入口、名片册页、快速列表管理、二维码绘制与下载。
-6. OGP 模板注入。
-7. 离线队列与重放。
-8. 退役收藏与旧交换表，清理契约、文案与测试。
+1. ✅ 迁移：新增五张表、删除旧交换表、补通知 kind。
+2. ✅ 契约：路径 builder、请求/响应 schema、`targetMissingCount`。
+3. ✅ 仓储：`NamecardRepository` 增加交换、名片册、快速列表、扫码会话四组方法。
+4. ✅ 服务端流程：执行算法 + 确认/拒绝 + 幂等 + 跳过。
+5. ⏳ 前端：四条入口、名片册页、快速列表管理、二维码绘制与下载。
+6. ⏳ OGP 模板注入（依赖 `__spa-fallback.html` 模板化）。
+7. ⏳ 离线队列与重放（客户端 IndexedDB）。
+8. 部分完成：旧交换表已退役；**收藏按决定保留到前端阶段**，届时再清 `fudaba_card_favorites`、
+   `/me/favorites`、投影里的 `favorites` 计数与按钮。
 
 ## 11. 测试计划
 
@@ -300,11 +303,15 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - `fudaba_card_likes` 保留。
 - `page_slug` 不允许纯数字：契约、错误解析器与数据库约束三处同时收紧，历史数据由迁移校验。
 
-建议取值（待确认）：
+已定（原「建议取值」已确认）：
 
-- **快速交换列表上限 20 张**，**单次交换提供上限 20 张**。
-  名片册是卡片网格，20 张一屏可见；单事务批量插入 20 行没有压力；上限主要防误操作
-  （一次把全部名片塞给对方）和给限流一个稳定上界。扫码模式出示方同样受 20 限制。
+- **快速交换列表上限 20 张**，**单次交换提供上限 20 张**（契约常量 `NAMECARD_EXCHANGE_CARD_LIMIT`，
+  数据库 CHECK 同步）。名片册是卡片网格，20 张一屏可见；上限主要防误操作并给限流一个稳定上界。
+  扫码模式出示方同样受 20 限制。
+- 旧 `fudaba_exchange_requests` 连同 `fudaba_office_cards` 删除守卫里的 `in_use` 判断、
+  `fudaba_moderation_cases.resource_kind='exchange'` 取值与 `FUDABA_CARD_PLACEMENT_IN_USE` 错误码一并删除。
+- OGP 注入本轮不做，留到前端阶段。
+- 名片册快照存**对象键**，读取时经 `resolveSnapshotMedia` 换成存储签名 URL（与墙一致）。
 
 已定（补充）：
 
@@ -312,3 +319,31 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - OGP 注入对全部访客生效，不做 UA 分流。
 - 交换在 `pending` 期间不占用名片：同一张卡可以同时出现在多轮交换里，持有者也可以继续分享给别人；
   名片册条目按「谁收藏了哪张卡」记录，不存在排他性。
+
+## 13. 后端实现进展（前端入场前先读）
+
+后端（迁移 / 契约 / 仓储 / 服务端）已落地，前端尚未开始。当前代码事实：
+
+| 层 | 位置 |
+| --- | --- |
+| 迁移 | `apps/api/migrations/postgresql/20261106120000_namecard_exchange_system.sql` |
+| 契约 | `packages/contracts/src/namecards.ts` 的 `namecard*Exchange*` / `namecardCollection*` / `namecardScan*`，路径叶子在 `packages/contracts/src/paths.ts` 的 `exchange*Path` |
+| 端口 | `apps/api/src/ports/repositories/namecards.ts` 的「名片册与交换」一节（15 个方法） |
+| 仓储 | `apps/api/src/infra/db/repositories/core-repository.ts` 的 `commitExchange` / `decideExchange` / 名片册 / 快速清单 / 扫码会话 |
+| 服务端 | `apps/api/src/domains/community/namecards/exchange/`（`commit.ts`、`media.ts`、`scan.ts`、`request.ts`、`handlers/`、`routes.ts`） |
+
+路由全部挂在 **`/api/community/exchange`** 下（`app.route(communityApiPath(), namecardExchangeRoutes())`），
+共 13 条：`card/:slug`（+`/commit`）、`cards/:cardNumber/request`、`quick/:handle`（+`/commit`）、
+`me/quick`（GET/PUT）、`me/collection`（GET）与 `me/collection/:cardNumber`（PUT）、`me/exchanges`、
+`scan/sessions`（+`/:token/commit`）、`exchanges/:id/accept|decline`。写操作统一走
+`platformAuth + activePlatformMutation + platformCsrf + platformWriteRateLimit`。
+
+实现时必须遵守的两条（都踩过）：
+
+- **响应里的媒体地址要穿存储**：仓储给的是对象键，handler 必须经 `resolveExchangeCardMedia` /
+  `resolveSnapshotMedia` 换成签名 URL，否则浏览器加载不了。参考 `public-cards/handlers/get-public-card.ts`。
+- **名片册快照存键、读时解析**：`snapshot` 是交换当时那份投影的冻结副本，卡片被删后靠它渲染；
+  签名 URL 会过期，所以库里存键，`me/collection` 读时再解析。
+
+验证入口：`apps/api/tests/server/namecard-exchange.test.ts`（真库：双向入册、manual 待确认后裁决、
+幂等与跳过、快速清单过滤）与 `namecard-exchange-routes.test.ts`（分享页 404/400、写接口 401、快速页 404）。

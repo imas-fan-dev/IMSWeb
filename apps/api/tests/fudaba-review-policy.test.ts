@@ -21,7 +21,9 @@ const live: CardReviewSnapshot = {
     producerName: 'P',
     bio: 'bio',
     tradeNote: 'note',
-    isOriginal: false
+    isOriginal: false,
+    isGroupCard: false,
+    groupName: null
 };
 
 function submission(
@@ -29,6 +31,7 @@ function submission(
 ): FudabaPendingCardPayload {
     return {
         producer_name: 'P',
+        is_group_card: false,
         producer_reading: 'ぴー',
         series_codes: ['series'],
         favorite_character_ids: [1, 3],
@@ -91,6 +94,34 @@ test('the exempt fields publish without a review', () => {
     }
 });
 
+test('the group flag and a group card rename always need a review', () => {
+    // 勾选/取消团体标记本身要过审：它决定了名片归属与交换模式。
+    assert.equal(
+        requiresCardReview(live, submission({ is_group_card: true, group_name: 'g' })),
+        true
+    );
+    assert.equal(
+        requiresCardReview(
+            { ...live, isGroupCard: true, groupName: 'g' },
+            submission({ is_group_card: false })
+        ),
+        true
+    );
+    // 团体卡上团体名称是主显示名与检索值，改名属于内容变更。
+    assert.equal(
+        requiresCardReview(
+            { ...live, isGroupCard: true, groupName: 'g', producerName: 'g' },
+            submission({ is_group_card: true, group_name: 'g2', producer_name: 'g2' })
+        ),
+        true
+    );
+    // 个人卡上它只是附属信息，改了立即生效。
+    assert.equal(
+        requiresCardReview(live, submission({ group_name: 'g2' })),
+        false
+    );
+});
+
 test('the reviewed fields always need a review', () => {
     const changes: Partial<FudabaPendingCardPayload>[] = [
         { producer_name: 'P2' },
@@ -130,6 +161,7 @@ const artwork: CardSubmissionSnapshot = {
     bio: 'bio',
     tradeNote: 'note',
     groupName: null,
+    isGroupCard: false,
     madeOn: null,
     exchangeMode: 'manual',
     isOriginal: false,

@@ -15,6 +15,8 @@ export type FudabaExchangeMode = 'auto' | 'manual' | 'none';
 
 export interface FudabaCardFields {
     bio: string;
+    /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
+    isGroupCard: boolean;
     credits: FudabaCardCredit[];
     exchangeMode: FudabaExchangeMode;
     favoriteCharacterIds: number[];
@@ -46,6 +48,8 @@ export interface FudabaCardPlacementSubmission {
 
 const CARD_FIELDS = [
     'producerName',
+    'isGroupCard',
+    'rotations',
     'seriesCodes',
     'favoriteCharacterIds',
     'bio',
@@ -244,19 +248,35 @@ function cardFields(value: Record<string, unknown>): FudabaCardFields {
     // 原创声明与 AI 声明互斥；两个都被勾选说明前端被绕过，移除原创声明。
     const isOriginal = booleanValue(value.isOriginal ?? false, 'isOriginal') && !madeWithAi;
     const seriesCodes = seriesCodeList(value.seriesCodes);
+    // 团体名片没有制作人名称：必填项换成团体名称，展示名由团体名称派生。
+    const isGroupCard = booleanValue(value.isGroupCard ?? false, 'isGroupCard');
+    const groupName = nullableText(value.groupName, 'groupName', 80);
+    if (isGroupCard && groupName === null) {
+        throw badRequest('团体名片需要填写团体名称');
+    }
+    // 团体名片的制作人名称是选填（团体可能有吉祥物）：留空时回落到团体名称。
+    const producerName = isGroupCard
+        ? (nullableText(value.producerName, 'producerName', 80) ?? (groupName as string))
+        : text(value.producerName, 'producerName', 80, true);
     return {
-        producerName: text(value.producerName, 'producerName', 80, true),
+        isGroupCard,
+        producerName,
         seriesCodes,
         favoriteCharacterIds: favoriteCharacterIds(value.favoriteCharacterIds),
         bio: text(value.bio, 'bio', 2000),
         tradeNote: text(value.tradeNote, 'tradeNote', 1000),
-        exchangeMode: exchangeMode(value.exchangeMode),
+        // 团体名片只能是自动交换，前端即便传了别的值也按自动处理。
+        exchangeMode: isGroupCard ? 'auto' : exchangeMode(value.exchangeMode),
         madeOn: productionDate(value.madeOn),
-        groupName: nullableText(value.groupName, 'groupName', 80),
+        groupName,
         producerReading: producerReading(value.producerReading),
         isOriginal,
         madeWithAi,
-        visible: booleanValue(value.visible ?? true, 'visible'),
+        // 团体名片的表述是「任何人都可以自由领取」，所以它必须可见：
+        // 前端即便传了 false 也按可见处理。
+        visible: isGroupCard
+            ? true
+            : booleanValue(value.visible ?? true, 'visible'),
         credits: credits(value.credits)
     };
 }
@@ -321,6 +341,44 @@ function placementRevision(value: unknown): number {
         );
     }
     return value;
+}
+
+/**
+ * 保存时随图一起提交的旋转，按顺时针 90° 的圈数记（0-3）。只在真正写入的那一次
+ * 生效：新建和替换图片各算一次保存，revision 只加一次。
+ */
+export function parseMediaRotations(value: string | undefined | null): {
+    front: number;
+    back: number;
+    middles: number[];
+} {
+    if (!value) return { front: 0, back: 0, middles: [] };
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        throw Object.assign(new Error('旋转参数格式无效'), { status: 400 });
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw Object.assign(new Error('旋转参数格式无效'), { status: 400 });
+    }
+    const turns = (input: unknown): number => {
+        if (input === undefined) return 0;
+        if (typeof input !== 'number' || !Number.isInteger(input) || input < 0 || input > 3) {
+            throw Object.assign(new Error('旋转圈数必须是 0-3 的整数'), { status: 400 });
+        }
+        return input;
+    };
+    const record = parsed as { front?: unknown; back?: unknown; middles?: unknown };
+    const middles = record.middles === undefined ? [] : record.middles;
+    if (!Array.isArray(middles)) {
+        throw Object.assign(new Error('中间页旋转格式无效'), { status: 400 });
+    }
+    return {
+        front: turns(record.front),
+        back: turns(record.back),
+        middles: middles.map((value) => turns(value))
+    };
 }
 
 export function parseFudabaCardCreateFields(

@@ -12,12 +12,15 @@ import type { FudabaCardRecord } from '@/ports/repositories';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { convertUserImageToWebp } from '@/utils/media/user-image';
+import { parseMediaRotations } from '@/domains/community/fudaba/cards/request';
+import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
+import { parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
+import type { FudabaCardPageWrite } from '@/ports/repositories';
 import {
     deleteObjectWithCompensation,
     deleteOwnedObjectWithCompensation
 } from '@/utils/storage/delete-object';
 import { fudabaCardMediaVersionObjectKey } from '@/utils/storage/business-object-keys';
-import { storeArtworkThumbnail } from '@/domains/community/fudaba/cards/artwork-thumbnail';
 
 const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
 // Twenty 8 MiB originals would be a 160 MiB body; the editor downscales and the
@@ -149,17 +152,21 @@ export async function handleReplaceFudabaOwnedMedia(
         throw new Error('Upload services unavailable');
     }
     const accountId = c.get('platformUser')!.id;
-    const created: Array<{ key: string; token: string }> = [];
+    const createdKeys: string[] = [];
     let committed = false;
     try {
         const upload = await runtime.uploads.parse(c.req.raw, {
             maxBytes: MAX_MEDIA_TOTAL_BYTES,
             fileFields: ['images'],
             maxFiles: MAX_MEDIA_SLOTS,
-            maxFields: 2,
+            // expectedRevision + order + rotations，外加一个哨兵：busboy 在
+            // 触到上限时就会丢弃后续字段，字段顺序不能影响结果。
+            maxFields: 4,
             maxParts: MAX_MEDIA_SLOTS + 2
         });
-        exactFields(upload.fields, ['expectedRevision', 'order']);
+
+        exactFields(upload.fields, ['expectedRevision', 'order', 'rotations']);
+        const rotations = parseMediaRotations(upload.fields.rotations);
         const expectedRevision = parseFudabaRevision(upload.fields.expectedRevision);
         const files = uploadedFiles(upload.files.images);
         if (files.length > MAX_MEDIA_SLOTS) {
@@ -180,14 +187,17 @@ export async function handleReplaceFudabaOwnedMedia(
                 revision: current.revision
             }, 409);
         }
+        const surface = editableSlots(current);
         const order = resolveOrder(
             upload.fields.order ??
                 JSON.stringify(files.map((_file, index) => `@${index}`)),
             files.length,
-            editableSlots(current)
+            surface
         );
         const uploadedKeys: string[] = [];
         const uploadedBodies: Uint8Array[] = [];
+        const uploadedPages: FudabaCardPageWrite[] = [];
+        const queue = current.publication_status === 'published' ? 'pending' : 'live';
         for (const [index, file] of files.entries()) {
             const converted = await convertUserImageToWebp(
                 file,
@@ -195,35 +205,171 @@ export async function handleReplaceFudabaOwnedMedia(
                 MAX_CARD_IMAGE_BYTES
             );
             uploadedBodies.push(converted.body);
-            const key = fudabaCardMediaVersionObjectKey(
+            const stored = await storeCardPage(runtime, {
                 cardId,
-                crypto.randomUUID()
-            );
-            const ownerToken = randomHex(32);
-            await runtime.storage.put(key, converted.body, {
-                contentType: 'image/webp',
-                protectedAccess: true,
-                ownerToken,
-                metadata: {
-                    kind: 'fudaba-card-image',
-                    side: `slot-${index}`,
-                    account: accountId
-                }
-            });
-            created.push({ key, token: ownerToken });
-            const thumbnail = await storeArtworkThumbnail(runtime, {
-                key,
+                queue,
+                pageId: `page-${crypto.randomUUID()}`,
                 body: converted.body,
-                ownerToken,
-                accountId,
-                side: `slot-${index}`
+                width: converted.width,
+                height: converted.height,
+                accountId
             });
-            if (thumbnail) created.push({ key: thumbnail.key, token: thumbnail.ownerToken });
-            uploadedKeys.push(key);
+            uploadedPages.push({
+                pageId: stored.pageId,
+                objectVersion: stored.version,
+                width: stored.width,
+                height: stored.height
+            });
+            createdKeys.push(stored.key);
+            uploadedKeys.push(stored.key);
         }
         const slots = order.map((item) =>
             item.startsWith('@') ? uploadedKeys[Number(item.slice(1))]! : item
         );
+        const rotationOnly =
+            files.length === 0 &&
+            (rotations.front !== 0 || rotations.back !== 0) &&
+            slots.length === surface.length &&
+            slots.every((key, index) => key === surface[index]);
+        /*
+          旋转与换图是同一次保存：在这里把最终落到正面/背面的对象转好，revision
+          只加一次。旧的独立旋转接口会为每次 90° 各加一版，把审核窗口的版本栅栏
+          顶掉。
+        */
+        if ((rotations.front || rotations.back) && !runtime.images.rotate) {
+            throw new Error('Image rotation is unavailable');
+        }
+        const rotateSlot = async (
+            key: string,
+            turns: number,
+            queue: 'live' | 'pending'
+        ): Promise<string> => {
+            const turn = ((turns % 4) + 4) % 4;
+            if (turn === 0) return key;
+            const object = await runtime.storage!.get(key);
+            if (!object) {
+                throw Object.assign(new Error('名片图片不可用'), { status: 400 });
+            }
+            const rotated = await runtime.images!.rotate!(object.body, turn * 90);
+            if (!runtime.images!.validate) {
+                throw new Error('Image validation is unavailable');
+            }
+            const info = await runtime.images!.validate(rotated, 'image/webp');
+            // 旧布局的槽位在第一次旋转时顺带换成统一布局，身份取稳定槽位。
+            const pageId =
+                parseCardPageObjectKey(key)?.pageId ?? `page-${crypto.randomUUID()}`;
+            const stored = await storeCardPage(runtime, {
+                cardId,
+                queue,
+                pageId,
+                body: rotated,
+                width: info.width,
+                height: info.height,
+                accountId
+            });
+            createdKeys.push(stored.key);
+            rotatedPages.push({
+                pageId: stored.pageId,
+                objectVersion: stored.version,
+                width: stored.width,
+                height: stored.height
+            });
+            return stored.key;
+        };
+        const staged =
+            current.publication_status === 'published' &&
+            (current.pending_front_object_key !== null ||
+                current.pending_back_object_key !== null ||
+                current.pending_middle_object_keys.length > 0);
+        const rotatedPages: FudabaCardPageWrite[] = [];
+        if (rotationOnly) {
+            /*
+              只转不换：页序与页数都没变，按「页序调整」同档直接落库，不进复审。
+              卡上有暂存图片时改待审那一套（仍是同一个待审版本），否则改线上。
+            */
+            const rotated = [...slots];
+            rotated[0] = await rotateSlot(
+                rotated[0]!,
+                rotations.front,
+                staged ? 'pending' : 'live'
+            );
+            if (rotated.length > 1) {
+                rotated[rotated.length - 1] = await rotateSlot(
+                    rotated[rotated.length - 1]!,
+                    rotations.back,
+                    staged ? 'pending' : 'live'
+                );
+            }
+            for (let index = 0; index < Math.max(0, rotated.length - 2); index += 1) {
+                const turns = rotations.middles[index] ?? 0;
+                if (turns === 0) continue;
+                rotated[index + 1] = await rotateSlot(
+                    rotated[index + 1]!,
+                    turns,
+                    staged ? 'pending' : 'live'
+                );
+            }
+            const result = await repository.rotateCardMediaForOwner({
+                cardId,
+                ownerAccountId: accountId,
+                frontObjectKey: rotated[0]!,
+                backObjectKey: rotated.length > 1 ? rotated[rotated.length - 1]! : null,
+                middleObjectKeys: rotated.slice(1, Math.max(1, rotated.length - 1)),
+                pages: rotatedPages,
+                staged,
+                expectedRevision,
+                updatedAt: new Date().toISOString()
+            });
+            if (result.status !== 'saved') {
+                for (const key of createdKeys) {
+                    await deleteObjectWithCompensation(runtime, key).catch(
+                        () => undefined
+                    );
+                }
+                return result.status === 'conflict'
+                    ? c.json({
+                          success: false,
+                          code: 'FUDABA_CARD_CONFLICT',
+                          revision: result.revision
+                      }, 409)
+                    : c.json({ success: false, code: 'FUDABA_CARD_NOT_FOUND' }, 404);
+            }
+            committed = true;
+            // 线上图必须可公开读取；待审那套等审核通过时统一发布。
+            if (!staged && runtime.storage.publish) {
+                await Promise.all(
+                    createdKeys.map((key) => runtime.storage!.publish!(key))
+                ).catch((error) => {
+                    console.error('Failed to publish rotated card media', error);
+                });
+            }
+            for (const previous of result.previousObjectKeys ?? []) {
+                if (rotated.includes(previous)) continue;
+                await deleteObjectWithCompensation(runtime, previous).catch(
+                    () => undefined
+                );
+            }
+            return c.json({ success: true, card: fudabaOwnerCardView(result.card) });
+        }
+        const replaceQueue =
+            current.publication_status === 'published' ? 'pending' : 'live';
+        if (slots.length > 0) {
+            slots[0] = await rotateSlot(slots[0]!, rotations.front, replaceQueue);
+        }
+        if (slots.length > 1) {
+            slots[slots.length - 1] = await rotateSlot(
+                slots[slots.length - 1]!,
+                rotations.back,
+                replaceQueue
+            );
+        }
+        // 中间页按页序携带圈数；位置 1 起的槽位与 middles 一一对应。
+        const middleCount = Math.max(0, slots.length - 2);
+        for (let index = 0; index < middleCount; index += 1) {
+            const turns = rotations.middles[index] ?? 0;
+            if (turns === 0) continue;
+            slots[index + 1] = await rotateSlot(slots[index + 1]!, turns, replaceQueue);
+        }
         // The accent belongs to the front artwork, so it is only resampled when
         // the front slot is a new upload; a reorder keeps the existing colour.
         const uploadedAccent =
@@ -238,17 +384,16 @@ export async function handleReplaceFudabaOwnedMedia(
             frontObjectKey: slots[0]!,
             backObjectKey: slots.length > 1 ? slots[slots.length - 1]! : null,
             middleObjectKeys: slots.slice(1, Math.max(1, slots.length - 1)),
+            pages: uploadedPages,
             accent: uploadedAccent,
             expectedRevision: expectedRevision!,
             updatedAt: new Date().toISOString()
         });
         if (result.status !== 'saved') {
-            for (const entry of created) {
-                await deleteOwnedObjectWithCompensation(
-                    runtime,
-                    entry.key,
-                    entry.token
-                ).catch(() => undefined);
+            for (const key of createdKeys) {
+                await deleteObjectWithCompensation(runtime, key).catch(
+                    () => undefined
+                );
             }
             return result.status === 'conflict'
                 ? c.json({
@@ -286,12 +431,10 @@ export async function handleReplaceFudabaOwnedMedia(
         return c.json({ success: true, card: fudabaOwnerCardView(result.card) });
     } catch (error) {
         if (!committed) {
-            for (const entry of created) {
-                await deleteOwnedObjectWithCompensation(
-                    runtime,
-                    entry.key,
-                    entry.token
-                ).catch(() => undefined);
+            for (const key of createdKeys) {
+                await deleteObjectWithCompensation(runtime, key).catch(
+                    () => undefined
+                );
             }
         }
         const status = statusFromError(error);

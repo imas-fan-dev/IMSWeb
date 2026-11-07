@@ -3,7 +3,7 @@ import {
   LoaderCircleIcon,
   PlusIcon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -61,6 +61,27 @@ export function NamecardSupplementDialog({
     card ? wallCardDraftFromCard(card) : null
   )
   const [submitting, setSubmitting] = useState(false)
+  // 提交前只改预览；审核通过时服务端才真正旋转。
+  const [rotations, setRotations] = useState<Record<number, number>>({})
+  const mediaSlots = useMemo(
+    () =>
+      card
+        ? publicMediaSlotsFromCard({
+            frontImageUrl: card.image1_url,
+            middleImageUrls: card.middleImageUrls,
+            backImageUrl: card.image2_url,
+            pages: card.pages,
+          })
+        : [],
+    [card]
+  )
+  const turns = (position: number) =>
+    (((rotations[position] ?? 0) % 4) + 4) % 4
+  const lastPosition = Math.max(mediaSlots.length - 1, 0)
+  const rotationPatch = {
+    ...(turns(0) ? { front: turns(0) } : {}),
+    ...(lastPosition > 0 && turns(lastPosition) ? { back: turns(lastPosition) } : {}),
+  }
 
   useEffect(() => {
     if (!open || platform.status !== "authenticated" || catalog) return
@@ -96,7 +117,7 @@ export function NamecardSupplementDialog({
   const busy = Boolean(card?.supplementPending)
   const canSubmit =
     Boolean(card && draft && live && authenticated && catalog) &&
-    changed &&
+    (changed || Object.keys(rotationPatch).length > 0) &&
     !busy &&
     !submitting
 
@@ -104,10 +125,12 @@ export function NamecardSupplementDialog({
     if (!card || !draft || !live || !canSubmit) return
     setSubmitting(true)
     try {
-      await createFudabaCardSupplement(
-        card.cardId,
-        wallCardPayload("supplement", draft, live)
-      ).send()
+      await createFudabaCardSupplement(card.cardId, {
+        ...wallCardPayload("supplement", draft, live),
+        ...(Object.keys(rotationPatch).length
+          ? { rotations: rotationPatch }
+          : {}),
+      }).send()
       onSubmitted()
       onOpenChange(false)
       toast.success("补充已提交审核")
@@ -133,11 +156,19 @@ export function NamecardSupplementDialog({
         <DialogBody className="space-y-5">
           {card ? (
             <CardMediaPreview
-              slots={publicMediaSlotsFromCard({
-                frontImageUrl: card.image1_url,
-                middleImageUrls: card.middleImageUrls,
-                backImageUrl: card.image2_url,
-              })}
+              slots={mediaSlots}
+              rotations={rotations}
+              onRotate={(position, direction) =>
+                setRotations((current) => ({
+                  ...current,
+                  [position]:
+                    (((current[position] ?? 0) +
+                      (direction === "right" ? 1 : 3)) %
+                      4 +
+                      4) %
+                    4,
+                }))
+              }
             />
           ) : null}
           {!authenticated ? (

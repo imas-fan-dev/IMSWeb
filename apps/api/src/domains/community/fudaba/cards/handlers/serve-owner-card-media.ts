@@ -2,7 +2,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import { fudabaRepository, services } from '@/middleware/hono-context';
-import { preferThumbnail } from '@/domains/community/namecards/public-cards/handlers/serve-card-media';
+import { readSizedCardPage } from '@/domains/community/fudaba/cards/artwork-store';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 
 export async function handleServeFudabaOwnerCardMedia(
@@ -12,9 +12,10 @@ export async function handleServeFudabaOwnerCardMedia(
     const side = c.req.param('side') || '';
     // `middle-<1-based index>` addresses an ordered middle page.
     const middle = /^middle-(\d{1,2})$/.exec(side);
+    const page = /^page-[0-9a-f-]{8,}$/.test(side);
     if (
         !validFudabaCardId(cardId) ||
-        (side !== 'front' && side !== 'back' && !middle)
+        (side !== 'front' && side !== 'back' && !middle && !page)
     ) {
         return c.text('Not Found', 404);
     }
@@ -25,20 +26,64 @@ export async function handleServeFudabaOwnerCardMedia(
     if (!card) return c.text('Not Found', 404);
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
-    // `draft=1` asks for the revision still under review. It falls back to the
-    // live object because a submitted revision may reuse the existing images.
+    // `draft=1` asks for the revision still under review. A revision owns its
+    // own page set only when it staged artwork; a text-only edit keeps serving
+    // the live pages.
     const draft = c.req.query('draft') === '1';
-    const keys = draft ? card.pending_middle_object_keys : card.middle_object_keys;
+    const stagedArtwork =
+        draft &&
+        (card.pending_front_object_key !== null ||
+            card.pending_back_object_key !== null ||
+            card.pending_middle_object_keys.length > 0);
+    const keys = stagedArtwork
+        ? card.pending_middle_object_keys
+        : card.middle_object_keys;
+    // 统一布局的页面按稳定槽位取 key；待审那一套由 `draft=1` 选择。
+    if (page) {
+        const found = await fudabaRepository(c).findCardPageKeyForOwner(
+            cardId,
+            c.get('platformUser')!.id,
+            side,
+            draft
+        );
+        if (!found) return c.text('Not Found', 404);
+        const w = c.req.query('w');
+        if (w) {
+            const sized = await readSizedCardPage(
+                { storage, images: services(c).images },
+                { key: found.key, width: Number(w) }
+            );
+            if (!sized) return c.text('Not Found', 404);
+            const bytes = sized.body.slice();
+            return c.body(bytes.buffer as ArrayBuffer, 200, {
+                'Content-Type': sized.contentType,
+                'Cache-Control': 'private, no-store',
+                Vary: 'Authorization, Cookie'
+            });
+        }
+        const servedPage = found.key;
+        const pageResponse = await objectReadResponse(
+            c.req.raw,
+            storage,
+            servedPage,
+            { 'Cache-Control': 'private, no-store', Vary: 'Authorization, Cookie' },
+            {
+                mode:
+                    c.get('platformAuthSource') === 'authorization'
+                        ? 'proxy'
+                        : 'redirect'
+            }
+        );
+        return pageResponse ?? c.text('Not Found', 404);
+    }
     const key =
         side === 'front'
-            ? (draft && card.pending_front_object_key) || card.front_object_key
+            ? (stagedArtwork ? card.pending_front_object_key : card.front_object_key)
             : side === 'back'
-              ? (draft && card.pending_back_object_key) || card.back_object_key
+              ? (stagedArtwork ? card.pending_back_object_key : card.back_object_key)
               : (keys[Number(middle![1]) - 1] ?? null);
     if (!key) return c.text('Not Found', 404);
-    const served =
-        c.req.query('thumb') === '1' ? await preferThumbnail(storage, key) : key;
-    const response = await objectReadResponse(c.req.raw, storage, served, {
+    const response = await objectReadResponse(c.req.raw, storage, key, {
         'Cache-Control': 'private, no-store',
         'Vary': 'Authorization, Cookie'
     }, {

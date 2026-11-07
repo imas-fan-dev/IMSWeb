@@ -14,8 +14,8 @@ export async function installOwnerCardMediaRoutes(
   const { runtimeOrigin, token, webMode, cors } = options
   for (const side of ["front", "back"]) {
     const mediaPath = `/api/community/exchange/me/cards/owner-card/media/${side}`
-    // 画廊取图会追加 `&thumb=1`；两种形态都要被这条拦截接住，否则请求会打到
-    // fixture 服务端（它没有缩略图对象），断言随之失败。
+    // 画廊与预览都直接取带 `v` 的原图地址；拦截这条形态，避免请求打到
+    // fixture 服务端（它没有这些对象），导致断言失败。
     await page.route(`**${mediaPath}?v=1*`, async (route) => {
       if (route.request().method() === "OPTIONS") {
         await route.fulfill({ status: 204, headers: cors })

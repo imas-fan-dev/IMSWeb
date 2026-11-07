@@ -58,14 +58,6 @@ describe("owner media credential boundary", () => {
         "https://api.ims.test"
       )
     ).toContain("/media/back")
-    // 画廊取小图会追加 `&thumb=1`；带 auth 的取图必须继续认这条地址，
-    // 否则 App 端会退化成不带 bearer 的 `<img>` 请求。
-    expect(
-      ownerCardMediaPath(
-        "/api/community/exchange/me/cards/card-1/media/front?v=3&thumb=1",
-        "https://api.ims.test"
-      )
-    ).toBe("/api/community/exchange/me/cards/card-1/media/front?v=3&thumb=1")
   })
   it.each([
     "https://evil.test/api/community/exchange/me/cards/card-1/media/front",
@@ -79,6 +71,7 @@ describe("owner media credential boundary", () => {
     "/api/community/exchange/me/cards/a/media/front?thumb=1",
     "/api/community/exchange/me/cards/a/media/front?v=1&thumb=2",
     "/api/community/exchange/me/cards/a/media/front?v=1&thumb=1&draft=1",
+    "/api/community/exchange/me/cards/a/media/front?v=3&thumb=1",
     "/api/community/exchange/me/cards/a/media/front?v=-1",
     "/api/community/exchange/me/cards/a/media/front?v=1.5",
     "/api/community/exchange/me/cards/a/media/front?v=",

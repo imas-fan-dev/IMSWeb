@@ -63,6 +63,36 @@ export function adminNamecardMediaPath(
   return adminApiPath(`cards/${cardNumber}/media/${variant}/${side}`)
 }
 
+/** 统一页面布局：公开墙、交换区、后台与属主各有一条页面媒体路由。 */
+export function cardPageMediaPath(
+  cardNumber: string | number,
+  pageId: string,
+): string {
+  return apiPath(`cards/${cardNumber}/media/${pageId}`)
+}
+
+export function exchangeCardPageMediaPath(
+  cardId: string,
+  pageId: string,
+): string {
+  return apiPath(`community/exchange/cards/${encodeURIComponent(cardId)}/media/${pageId}`)
+}
+
+export function adminCardPageMediaPath(
+  cardNumber: string | number,
+  variant: "live" | "draft",
+  pageId: string,
+): string {
+  return adminApiPath(`cards/${cardNumber}/media/${variant}/${pageId}`)
+}
+
+export function ownerCardPageMediaPath(
+  cardId: string,
+  pageId: string,
+): string {
+  return communityApiPath(`exchange/me/cards/${encodeURIComponent(cardId)}/media/${pageId}`)
+}
+
 export function apiPath(suffix = ""): string {
   return appendPath(API_PATH_PREFIX, suffix)
 }
@@ -93,6 +123,64 @@ export function communityApiPath(suffix = ""): string {
 
 export function exchangePath(suffix = ""): string {
   return appendPath(EXCHANGE_PATH_PREFIX, suffix)
+}
+
+/** 单张名片的固定分享短链；短链由卡片决定，不随分享次数变化。 */
+export function exchangeCardSharePath(slug: string): string {
+  return exchangePath(`card/${encodeURIComponent(slug)}`)
+}
+
+export function exchangeCardShareCommitPath(slug: string): string {
+  return exchangePath(`card/${encodeURIComponent(slug)}/commit`)
+}
+
+/** 从名片墙或详情窗直接向某张名片发起交换。 */
+export function exchangeCardRequestPath(cardNumber: string | number): string {
+  return exchangePath(`cards/${encodeURIComponent(String(cardNumber))}/request`)
+}
+
+/** 快速交换页：uid 或自定义主页路径都能落到同一个页面。 */
+export function exchangeQuickPath(handle: string): string {
+  return exchangePath(`quick/${encodeURIComponent(handle)}`)
+}
+
+export function exchangeQuickCommitPath(handle: string): string {
+  return exchangePath(`quick/${encodeURIComponent(handle)}/commit`)
+}
+
+export function exchangeMyQuickPath(): string {
+  return exchangePath("me/quick")
+}
+
+export function exchangeMyCollectionPath(): string {
+  return exchangePath("me/collection")
+}
+
+export function exchangeMyCollectionEntryPath(
+  cardNumber: string | number
+): string {
+  return exchangePath(`me/collection/${encodeURIComponent(String(cardNumber))}`)
+}
+
+export function exchangeMyHistoryPath(): string {
+  return exchangePath("me/exchanges")
+}
+
+export function exchangeDecisionPath(
+  exchangeId: string,
+  decision: "accept" | "decline"
+): string {
+  return exchangePath(
+    `exchanges/${encodeURIComponent(exchangeId)}/${decision}`
+  )
+}
+
+export function exchangeScanSessionPath(): string {
+  return exchangePath("scan/sessions")
+}
+
+export function exchangeScanCommitPath(token: string): string {
+  return exchangePath(`scan/sessions/${encodeURIComponent(token)}/commit`)
 }
 
 /** 平台图标只有站内一条读取路径，对象存储的公开地址不参与。 */

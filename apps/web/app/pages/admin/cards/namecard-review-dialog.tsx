@@ -74,6 +74,7 @@ export function diffFields(
     render: (values: readonly string[]) => string = RAW_LABELS.seriesList
   ) => listRow(label, before, after, render, submitted)
   return [
+    text("团体名片", YES_NO(live.isGroupCard === true), YES_NO(next.isGroupCard === true)),
     text("制作人名称", live.producerName ?? "", next.producerName ?? ""),
     text("制作人读音", live.producerReading ?? "", next.producerReading ?? ""),
     text("所属团体", live.groupName ?? "", next.groupName ?? ""),
@@ -135,7 +136,9 @@ export function NamecardReviewDialog({
           <DialogTitle>名片 #{card?.id ?? ""}</DialogTitle>
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>
-              {card ? `${card.producerName ?? `名片 #${card.id}`} · 版本 ${card.revision}` : ""}
+              {card
+                ? `${card.producerName ?? `名片 #${card.id}`} · 版本 ${diff?.revision ?? card.revision}`
+                : ""}
             </span>
             {card ? (
               <NamecardStatusBadge
@@ -176,7 +179,8 @@ export function NamecardReviewDialog({
             className="min-h-11"
             disabled={!card || card.status !== "pending"}
             onClick={() => {
-              if (card) onApprove(card)
+              // 两版对比读到的 revision 比列表行新，冲突重试才有意义。
+              if (card) onApprove({ ...card, revision: diff?.revision ?? card.revision })
             }}
           >
             <CheckIcon data-icon="inline-start" aria-hidden="true" />

@@ -16,6 +16,7 @@ import type {
     NamecardUnitRecord,
 } from "@/ports/repositories";
 import { requirePublicObjectUrl } from "@/utils/storage/public-object-url";
+import type { CardPageView } from '@/domains/community/fudaba/cards/artwork-view';
 
 export async function fudabaPublicOfficeView(
     storage: ObjectStorage | undefined,
@@ -57,6 +58,7 @@ export async function fudabaPublicOfficeView(
 export async function fudabaPublicCardView(
     storage: ObjectStorage | undefined,
     card: FudabaPublicCardRecord,
+    pages?: CardPageView[],
 ): Promise<FudabaCard> {
     if (!storage) {
         throw Object.assign(new Error("公开对象读取地址未配置"), {
@@ -98,6 +100,7 @@ export async function fudabaPublicCardView(
         visible: card.visible,
         credits: card.credits,
         createdAt: card.created_at,
+        ...(pages && pages.length > 0 ? { pages } : {}),
         interactions: {
             likes: card.like_count,
             favorites: card.favorite_count,

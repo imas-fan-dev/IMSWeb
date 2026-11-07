@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { cardPageSchema } from "./index.js"
 import {
   backofficeProtectedHttpErrorSchema,
   exactJsonError,
@@ -54,10 +55,25 @@ const claimFieldSchema = {
 
 const filledInAtLeastOnce = (value: object) => Object.keys(value).length > 0
 
+/**
+ * 审核通过后要执行的旋转，按顺时针 90° 的圈数记（0-3）。目前上线版本只有正反面，
+ * 中间页不上传新图，所以旋转也只支持这两面。
+ */
+export const cardMediaRotationsSchema = z
+  .object({
+    front: z.number().int().min(0).max(3).optional(),
+    back: z.number().int().min(0).max(3).optional(),
+  })
+  .strict();
+
 /** 认领记录里的字段快照：空对象表示「只提交归属关系」。 */
 export const fudabaCardClaimPayloadSchema = z
   .object({
     producerName: claimFieldSchema.producerName.optional(),
+    /** 团体标记：认领时可以把一张无主卡标成团体名片。 */
+    isGroupCard: z.boolean().optional(),
+    /** 审核通过后再执行的旋转，提交人不动原始对象。 */
+    rotations: cardMediaRotationsSchema.optional(),
     producerReading: claimFieldSchema.producerReading.optional(),
     groupName: claimFieldSchema.groupName.optional(),
     madeOn: claimFieldSchema.madeOn.optional(),
@@ -119,7 +135,10 @@ export const fudabaAdminCardClaimSchema = fudabaCardClaimSchema
       .object({
         id: legacyCardIdSchema,
         frontImageUrl: z.string().min(1),
-        backImageUrl: z.string().min(1),
+        /** 单面名片没有背面，队列里就是 null。 */
+        backImageUrl: z.string().min(1).nullable(),
+        /** 统一布局的页面（后台作用域）。 */
+        pages: z.array(cardPageSchema).optional(),
       })
       .strict(),
   })
@@ -138,6 +157,10 @@ export const reviewMutationSchema = successEnvelope({ revision: revisionSchema }
 export const fudabaCardSupplementPayloadSchema = z
   .object({
     producerName: claimFieldSchema.producerName.optional(),
+    /** 团体标记：补充者可以提出把这张无主卡标成团体名片。 */
+    isGroupCard: z.boolean().optional(),
+    /** 审核通过后按顺序执行的旋转，提交人不动原始对象。 */
+    rotations: cardMediaRotationsSchema.optional(),
     groupName: claimFieldSchema.groupName.optional(),
     seriesCodes: claimFieldSchema.seriesCodes.optional(),
     favoriteCharacterIds: claimFieldSchema.favoriteCharacterIds.optional(),
@@ -186,6 +209,7 @@ const supplementCardSchema = z
     /** Empty for single-sided cards without middle pages. */
     middleImageUrls: z.array(z.string().min(1)),
     backImageUrl: z.string().min(1).nullable(),
+    pages: z.array(cardPageSchema).optional(),
     pageCount: z.number().int().positive(),
   })
   .strict()
@@ -382,6 +406,10 @@ export const NAMECARD_NOTIFICATION_KINDS = [
   // An ownerless card whose producer name matches an account invites that
   // account to claim it.
   "legacy-card-match",
+  // 手动交换：待确认与两种结果各通知一次。
+  "card-exchange-requested",
+  "card-exchange-accepted",
+  "card-exchange-declined",
   // Backoffice station messages share this inbox; they carry no card number.
   "station-message",
 ] as const

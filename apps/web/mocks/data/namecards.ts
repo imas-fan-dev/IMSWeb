@@ -27,6 +27,7 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     producerName: "天海春香",
     producerReading: null,
     groupName: null,
+    isGroupCard: false,
     madeOn: null,
     isOriginal: false,
     madeWithAi: false,

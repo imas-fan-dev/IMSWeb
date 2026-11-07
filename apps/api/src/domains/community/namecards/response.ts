@@ -1,3 +1,4 @@
+import type { CardPageView } from "@/domains/community/fudaba/cards/artwork-view";
 import type { FudabaCardClaimState } from '@/ports/repositories';
 import type { NamecardDiffRecord, NamecardDiffSide } from '@/ports/repositories/namecards';
 import type { CardFavoriteSelectionRecord } from '@/ports/repositories';
@@ -25,6 +26,14 @@ import type {
     PublicProfile as PublicProfileContract,
     RandomOwnerlessCard as RandomOwnerlessCardContract,
     RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
+    NamecardCardShare as NamecardCardShareContract,
+    NamecardCollectionPage as NamecardCollectionPageContract,
+    NamecardExchangeDecision as NamecardExchangeDecisionContract,
+    NamecardExchangeHistoryPage as NamecardExchangeHistoryPageContract,
+    NamecardExchangeResult as NamecardExchangeResultContract,
+    NamecardQuickExchange as NamecardQuickExchangeContract,
+    NamecardQuickSettings as NamecardQuickSettingsContract,
+    NamecardScanSession as NamecardScanSessionContract,
     PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
 } from '@imsweb/contracts/namecards';
@@ -57,6 +66,21 @@ export type PublicProfileResponse = PublicProfileContract;
 export type PublicProfileErrorResponse = PublicProfileErrorContract;
 export type RandomOwnerlessCardResponse = RandomOwnerlessCardContract;
 export type RandomOwnerlessCardErrorResponse = RandomOwnerlessCardErrorContract;
+/** 交换系统的响应体，按入口各取一份。 */
+export type NamecardCardShareResponse = NamecardCardShareContract;
+export type NamecardQuickExchangeResponse = NamecardQuickExchangeContract;
+export type NamecardQuickSettingsResponse = NamecardQuickSettingsContract;
+export type NamecardExchangeResultResponse = NamecardExchangeResultContract;
+export type NamecardCollectionPageResponse = NamecardCollectionPageContract;
+export type NamecardExchangeHistoryPageResponse =
+    NamecardExchangeHistoryPageContract;
+export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
+export type NamecardScanSessionResponse = NamecardScanSessionContract;
+/** 名片册的可见性切换只回一个确认标记。 */
+export interface NamecardCollectionVisibilityResponse {
+    success: true;
+}
+
 
 interface NamecardRow {
     id?: unknown;
@@ -82,6 +106,7 @@ interface NamecardRow {
     cardId?: unknown;
     card_number?: unknown;
     group_name?: unknown;
+    is_group_card?: unknown;
     made_on?: unknown;
     is_original?: unknown;
     made_with_ai?: unknown;
@@ -200,7 +225,8 @@ function namecardThumbnailUrl(imageUrl: string): string {
 
 export function toPublicNamecardResponse(
     row: NamecardRow,
-    viewerAccountId: string | null = null
+    viewerAccountId: string | null = null,
+    pages?: readonly CardPageView[]
 ): PublicNamecardResponse {
     const image1Url = responseString(row.image1_url, 'image1_url');
     const image2Url = responseOptionalString(row.image2_url);
@@ -230,12 +256,14 @@ export function toPublicNamecardResponse(
             row.owner_account_id === viewerAccountId,
         hasOwner: typeof row.owner_account_id === 'string',
         seriesCode: responseSeriesCode(row.series_code),
+        isGroupCard: row.is_group_card === true,
         favoriteCharacters: responseFavoriteCharacters(row.favorite_characters),
         claimStatus: responseClaimStatus(row.claim_status),
         supplementPending: row.supplement_pending === true,
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
         image1_url: image1Url,
         image2_url: image2Url,
+        ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
         image1_thumbnail_url: namecardThumbnailUrl(image1Url),
         image2_thumbnail_url: image2Url === null ? null : namecardThumbnailUrl(image2Url),
         status: responseString(row.status, 'status'),
@@ -259,6 +287,7 @@ function diffSide(side: NamecardDiffSide): NamecardDiffSideResponse {
         producerName: side.producerName,
         producerReading: side.producerReading,
         groupName: side.groupName,
+        isGroupCard: side.isGroupCard === true,
         madeOn: side.madeOn,
         // Legacy rows carry empty strings; the diff contract speaks `null` for "not filled in".
         bio: side.bio?.trim() ? side.bio : null,
@@ -301,8 +330,12 @@ export function toAdminNamecardDiffResponse(
     };
 }
 
-export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse {
+export function toAdminNamecardResponse(
+    row: NamecardRow,
+    pages?: readonly CardPageView[]
+): AdminNamecardResponse {
     return {
+        ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
         id: responseId(row.id),
         image1_url: responseString(row.image1_url, 'image1_url'),
         image2_url: responseOptionalString(row.image2_url),

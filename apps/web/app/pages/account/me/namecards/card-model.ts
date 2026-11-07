@@ -3,7 +3,6 @@ import {
   isApiError,
   type FudabaCardFields,
   type FudabaOwnerCard,
-  type FudabaSeries,
   type PlatformProfile,
 } from "~/lib/api"
 
@@ -46,6 +45,7 @@ export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
     exchangeMode: content.exchangeMode,
     madeOn: content.madeOn,
     groupName: content.groupName,
+    isGroupCard: content.isGroupCard ?? false,
     isOriginal: content.isOriginal,
     madeWithAi: content.madeWithAi,
     visible: content.visible,
@@ -53,16 +53,14 @@ export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
   }
 }
 
-export function emptyCardFields(
-  profile: PlatformProfile,
-  series: FudabaSeries[]
-): FudabaCardFields {
+export function emptyCardFields(profile: PlatformProfile): FudabaCardFields {
   return {
     producerName: profile.displayName,
     producerReading: null,
-    // A new card starts on the first published series; the editor lets the
-    // author move it or add more.
-    seriesCodes: series[0] ? [series[0].code] : [],
+    isGroupCard: false,
+    // Nothing is ticked up front: a new card may belong to several series, and
+    // pre-selecting the first one published a choice the author never made.
+    seriesCodes: [],
     favoriteCharacterIds: [],
     bio: profile.bio,
     tradeNote: "",

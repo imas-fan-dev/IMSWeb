@@ -86,7 +86,7 @@ export function CardEditor({
   onWriteClosed: () => void
 }) {
   const [draft, setDraft] = useState<FudabaCardFields>(() =>
-    card ? cardFields(card) : emptyCardFields(profile, series)
+    card ? cardFields(card) : emptyCardFields(profile)
   )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -105,6 +105,8 @@ export function CardEditor({
       : []
   )
   const [mediaDirty, setMediaDirty] = useState(false)
+  /** 待保存的旋转：位置 → 圈数。只在预览里用 CSS 体现，保存时才写服务器。 */
+  const [rotations, setRotations] = useState<Record<number, number>>({})
 
   const notices: EditorNotice[] = [
     ...cardNotices(card, creating).map((notice) => ({
@@ -129,6 +131,35 @@ export function CardEditor({
   function updateSlots(next: MediaSlot[]) {
     setSlots(next)
     setMediaDirty(true)
+  }
+
+  /** 旋转只改本地预览，保存提交时才真正重写图片。 */
+  function rotateMedia(position: number, direction: "left" | "right") {
+    setRotations((current) => ({
+      ...current,
+      [position]:
+        (((current[position] ?? 0) + (direction === "right" ? 1 : 3)) % 4 + 4) % 4,
+    }))
+  }
+
+  /**
+   * 旋转和换图是同一次保存：只提交正面/背面的圈数，服务端在写入时转好，
+   * revision 只加一次。
+   */
+  function rotationPayload():
+    | { front?: number; back?: number; middles?: number[] }
+    | undefined {
+    const turns = (position: number) =>
+      (((rotations[position] ?? 0) % 4) + 4) % 4
+    const last = Math.max(slots.length - 1, 0)
+    // 中间页按页序提交；全为 0 时不带这个字段。
+    const middles = slots.slice(1, Math.max(1, last)).map((_slot, index) => turns(index + 1))
+    const payload = {
+      ...(turns(0) ? { front: turns(0) } : {}),
+      ...(last > 0 && turns(last) ? { back: turns(last) } : {}),
+      ...(middles.some((value) => value !== 0) ? { middles } : {}),
+    }
+    return Object.keys(payload).length ? payload : undefined
   }
 
   function mutationFailure(error: unknown, fallback: string) {
@@ -163,7 +194,12 @@ export function CardEditor({
 
   function missingFields(): readonly string[] {
     const missing: string[] = []
-    if (!draft.producerName.trim()) missing.push("producerName")
+    // 团体名片没有制作人名称，必填项换成团体名称。
+    if (draft.isGroupCard) {
+      if (!(draft.groupName ?? "").trim()) missing.push("groupName")
+    } else if (!draft.producerName.trim()) {
+      missing.push("producerName")
+    }
     if (draft.seriesCodes.length === 0) missing.push("seriesCodes")
     if (slots.length === 0) missing.push("media")
     return missing
@@ -171,6 +207,7 @@ export function CardEditor({
 
   const FIELD_MESSAGES: Record<string, string> = {
     producerName: "请填写制作人名称。",
+    groupName: "团体名片请填写团体名称。",
     seriesCodes: "请至少选择一个所属企划。",
     media: "请至少添加一张名片图片。",
   }
@@ -215,6 +252,7 @@ export function CardEditor({
     setFeedback(null)
     try {
       if (creating) {
+        const pendingRotations = rotationPayload()
         const files = slots.flatMap((slot) =>
           slot.kind === "new" ? [slot.file] : []
         )
@@ -230,25 +268,29 @@ export function CardEditor({
           front,
           ...(back ? { back } : {}),
           images,
+          ...(pendingRotations ? { rotations: pendingRotations } : {}),
         }).send()
         setDraft(cardFields(result.card))
         onCreated(result.card)
         seedSlots(result.card)
+        setRotations({})
         setFeedback({ kind: "success", message: "名片草稿已创建。" })
         toast.success("名片草稿已创建")
         return
       }
       if (!card) return
       let latest = card
-      if (mediaDirty) {
+      const pendingRotations = rotationPayload()
+      if (mediaDirty || pendingRotations) {
         const media = await replaceFudabaCardMedia(
           card.id,
-          buildMediaSubmit(slots),
+          { ...buildMediaSubmit(slots), rotations: pendingRotations },
           card.revision
         ).send()
         latest = media.card
         setDraft(cardFields(media.card))
         seedSlots(media.card)
+        setRotations({})
         onSaved(media.card)
       }
       const result = await updateFudabaCard(card.id, {
@@ -284,7 +326,11 @@ export function CardEditor({
       reportMissing(missing)
       return
     }
-    if (mediaDirty && (await artworkSidesMismatch(slots))) {
+    // 新建时 mediaDirty 还是 false，但正反面尺寸不同同样要二次确认。
+    if (
+      (creating || mediaDirty) &&
+      (await artworkSidesMismatch(slots, rotations))
+    ) {
       setPendingSubmit(() => () => {
         setAspectWarning(false)
         void submitCard()
@@ -376,6 +422,10 @@ export function CardEditor({
             disabled={editDisabled || modes?.media === "view"}
             onChange={updateSlots}
             onError={(message) => setFeedback({ kind: "error", message })}
+            rotations={rotations}
+            onRotate={
+              !readOnly && modes?.media !== "view" ? rotateMedia : undefined
+            }
           />
         </div>
       </CardModule>
@@ -445,7 +495,9 @@ export function CardEditor({
       <CardDeleteDialog
         open={deleteOpen}
         deleting={deleting}
-        displayName={card?.producerName ?? "当前名片"}
+        displayName={
+          (card?.isGroupCard ? card.groupName : card?.producerName) ?? "当前名片"
+        }
         onOpenChange={setDeleteOpen}
         onConfirm={() => void removeCard()}
       />

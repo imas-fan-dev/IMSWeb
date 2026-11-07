@@ -20,6 +20,8 @@ export interface WallCardDraft {
   producerName: string
   producerReading: string | null
   groupName: string | null
+  /** 团体名片：制作人名称为空，展示与检索改用团体名称。 */
+  isGroupCard: boolean
   madeOn: string | null
   seriesCodes: string[]
   favoriteCharacterIds: number[]
@@ -29,6 +31,7 @@ export function wallCardDraftFromCard(card: {
   producerName: string | null
   producerReading: string | null
   groupName: string | null
+  isGroupCard?: boolean
   madeOn: string | null
   seriesCodes: string[]
   favoriteCharacters: { id: number }[]
@@ -37,6 +40,7 @@ export function wallCardDraftFromCard(card: {
     producerName: card.producerName ?? "",
     producerReading: card.producerReading,
     groupName: card.groupName,
+    isGroupCard: card.isGroupCard === true,
     madeOn: card.madeOn,
     seriesCodes: [...card.seriesCodes],
     favoriteCharacterIds: card.favoriteCharacters.map(
@@ -60,6 +64,9 @@ export function wallCardPayload(
   }
   if (draft.groupName !== live.groupName) {
     payload.groupName = draft.groupName
+  }
+  if (draft.isGroupCard !== live.isGroupCard) {
+    payload.isGroupCard = draft.isGroupCard
   }
   if (mode === "claim" && draft.madeOn !== live.madeOn) {
     payload.madeOn = draft.madeOn

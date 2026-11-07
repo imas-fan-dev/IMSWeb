@@ -33,12 +33,10 @@ export async function handleRemoveFudabaCardPlacement(
                 code: 'FUDABA_CARD_PLACEMENT_NOT_FOUND'
             }, 404);
         }
-        if (result.status === 'conflict' || result.status === 'in-use') {
+        if (result.status === 'conflict') {
             return c.json({
                 success: false,
-                code: result.status === 'in-use'
-                    ? 'FUDABA_CARD_PLACEMENT_IN_USE'
-                    : 'FUDABA_CARD_PLACEMENT_CONFLICT',
+                code: 'FUDABA_CARD_PLACEMENT_CONFLICT',
                 revision: result.revision
             }, 409);
         }

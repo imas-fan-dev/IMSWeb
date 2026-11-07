@@ -26,7 +26,6 @@ import {
   getPublicProfile,
 } from "~/lib/api"
 import { toast } from "sonner"
-import { withThumbnail } from "~/lib/media-urls"
 import { PlatformAccountList } from "~/components/profile/platform-account-list"
 import type { Namecard as NamecardRecord, NamecardPage } from "~/lib/api"
 
@@ -265,7 +264,7 @@ export default function UserProfilePage() {
                   }}
                 >
                   <img
-                    src={withThumbnail(card.image1_url)}
+                    src={card.image1_url}
                     alt={`制作人名片 ${card.cardNumber} 正面`}
                     className="block h-auto w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
                   />

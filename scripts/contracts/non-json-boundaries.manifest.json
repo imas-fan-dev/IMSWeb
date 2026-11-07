@@ -432,23 +432,6 @@
       }
     },
     {
-      "id": "FUDABA-OWNER-UPLOAD-SIDE-01",
-      "sourceFile": "apps/api/src/domains/community/fudaba/cards/handlers/upload-owned-media.ts",
-      "symbol": "handleUploadFudabaOwnedMedia",
-      "responseKind": "compatibility-text-error",
-      "reason": "The multipart upload has contracts-owned JSON success and errors, while an invalid side remains a compatibility text 404.",
-      "compatibilityTextError": {
-        "body": "Not Found",
-        "status": 404,
-        "contentType": "text/plain; charset=UTF-8",
-        "justification": "C5 preserves the invalid upload-side text/plain 404."
-      },
-      "test": {
-        "file": "apps/api/tests/server/fudaba.test.ts",
-        "symbol": "owner card upload rejects an unknown side with compatibility text"
-      }
-    },
-    {
       "id": "WIKI-ENTITY-ICON-MEDIA-01",
       "sourceFile": "apps/api/src/domains/content/wiki/media/handlers/serve-wiki-entity-icon.ts",
       "symbol": "createHandleServeWikiEntityIcon",

@@ -234,6 +234,25 @@ export const namecardProducerReadingSchema = z
     "制作人名读法只能使用日文假名、英文字母、撇号与连字符"
   );
 
+/** 统一布局下的一页：身份、角色、顺序与可直接渲染的地址。 */
+export const cardPageSchema = z
+  .object({
+    pageId: z.string().min(1),
+    role: z.enum(["front", "back", "middle"]),
+    order: z.number().int().positive(),
+    /** 原图地址：全屏预览用，不做二次压缩。 */
+    url: z.string().min(1),
+    /** 画廊用（800 档）。 */
+    previewUrl: z.string().min(1),
+    /** 列表瓦片用（400 档）。 */
+    thumbUrl: z.string().min(1),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  })
+  .strict();
+
+export type CardPage = z.infer<typeof cardPageSchema>
+
 export const fudabaCardSchema = exactJsonResponse({
   id: z.string().min(1),
   producerName: z.string().min(1),
@@ -261,6 +280,8 @@ export const fudabaCardSchema = exactJsonResponse({
   credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
   createdAt: timestampSchema,
   interactions: fudabaCardInteractionsSchema,
+  /** 统一布局的页面；旧字段保留一个版本。 */
+  pages: z.array(cardPageSchema).optional(),
 });
 
 export const fudabaCardPlacementSchema = z
@@ -379,6 +400,8 @@ export const fudabaPendingCardContentSchema = z
     exchangeMode: namecardExchangeModeSchema,
     madeOn: namecardProductionDateSchema.nullable(),
     groupName: z.string().max(80).nullable(),
+    /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
+    isGroupCard: z.boolean(),
     producerReading: z.string().max(80).nullable(),
     isOriginal: z.boolean(),
     madeWithAi: z.boolean(),
@@ -390,6 +413,10 @@ export const fudabaPendingCardContentSchema = z
 export const fudabaOwnerCardSchema = z
   .object({
     id: ownerCardIdSchema,
+    /** 线上页面。 */
+    pages: z.array(cardPageSchema).optional(),
+    /** 待审页面（存在暂存图时）。 */
+    pendingPages: z.array(cardPageSchema).optional(),
     /** Public number shown as 名片 #编号. */
     cardNumber: z.number().int().positive(),
     producerName: ownerCardTextSchema(80, true),
@@ -410,6 +437,8 @@ export const fudabaOwnerCardSchema = z
     exchangeMode: namecardExchangeModeSchema,
     madeOn: namecardProductionDateSchema.nullable(),
     groupName: z.string().max(80).nullable(),
+    /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
+    isGroupCard: z.boolean(),
     producerReading: z.string().max(80).nullable(),
     isOriginal: z.boolean(),
     madeWithAi: z.boolean(),
@@ -584,6 +613,11 @@ export const fudabaMapQuerySchema = strictRequestObject({
   limit: queryValueSchema.optional(),
 });
 export const fudabaOfficeSlugParamsSchema = strictRequestObject({ officeSlug: z.unknown() });
+export const fudabaCardPageParamsSchema = strictRequestObject({
+  cardId: z.unknown(),
+  pageId: z.unknown(),
+});
+
 export const fudabaCardIdParamsSchema = strictRequestObject({ cardId: z.unknown() });
 export const fudabaOfficeIdParamsSchema = strictRequestObject({ officeId: z.unknown() });
 export const fudabaCardOfficePlacementParamsSchema = strictRequestObject({
@@ -596,7 +630,10 @@ export const fudabaCardMediaParamsSchema = strictRequestObject({
 });
 // JSON mutations reject unknown keys.
 export const fudabaCardFieldsRequestSchema = z.object({
-  producerName: ownerCardRequestTextSchema(80, true),
+  /** 团体名片没有制作人名称，改由团体名称承担展示与检索。 */
+  producerName: ownerCardRequestTextSchema(80),
+  /** 一张名片属于某个团体而不是某位制作人。 */
+  isGroupCard: z.boolean().optional(),
   seriesCodes: namecardSeriesCodesSchema,
   favoriteCharacterIds: z
     .array(z.number().int().positive())
@@ -664,8 +701,8 @@ export const fudabaMediaQuerySchema = legacyStripRequestObject({
   v: z.string().optional(),
   /** `1` serves the media of the revision still under review. */
   draft: z.enum(["1"]).optional(),
-  /** `1` serves the 600px copy; readers fall back to the original. */
-  thumb: z.enum(["1"]).optional(),
+  /** 统一媒体路由的宽度档位；不传则返回原图。 */
+  w: z.enum(["160", "400", "800", "1400"]).optional(),
 });
 export const fudabaPlaceSearchQuerySchema = legacyStripRequestObject({
   q: z.string().trim().min(2).max(120).refine((value) => !hasAsciiControl(value)),

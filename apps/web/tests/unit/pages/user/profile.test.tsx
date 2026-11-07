@@ -308,7 +308,7 @@ describe("UserProfilePage", () => {
     expect(screen.getByText(/共 2 张/)).toBeTruthy()
     expect(
       screen.getByAltText("制作人名片 101 正面").getAttribute("src")
-    ).toBe("/cards/front-101.jpg?thumb=1")
+    ).toBe("/cards/front-101.jpg")
 
     await waitFor(() =>
       expect(apiMocks.getProfileCards).toHaveBeenCalledTimes(2)

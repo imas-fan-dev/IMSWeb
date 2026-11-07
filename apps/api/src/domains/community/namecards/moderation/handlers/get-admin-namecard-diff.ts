@@ -4,7 +4,8 @@ import {
     type AdminNamecardDiffResponse,
     type NamecardErrorResponse
 } from '@/domains/community/namecards/response';
-import { namecardRepository } from '@/middleware/hono-context';
+import { namecardRepository, services } from '@/middleware/hono-context';
+import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 export async function handleGetAdminNamecardDiff(
@@ -19,8 +20,38 @@ export async function handleGetAdminNamecardDiff(
                 404
             );
         }
+        const response = toAdminNamecardDiffResponse(diff);
+        const pagesByNumber =
+            (await services(c).fudaba?.listCardPagesBatchByNumbers?.([id])) ??
+            new Map();
+        const rows = pagesByNumber.get(id);
+        const live = cardArtworkView({
+            scope: 'admin',
+            cardNumber: id,
+            cardId: String(id),
+            live: rows?.live ?? [],
+            pending: []
+        }).live;
+        const pendingRows = rows?.pending ?? [];
+        const pending =
+            pendingRows.length > 0
+                ? cardArtworkView({
+                      scope: 'admin',
+                      cardNumber: id,
+                      cardId: String(id),
+                      live: [],
+                      pending: pendingRows
+                  }).pending ?? []
+                : null;
         return c.json(
-            toAdminNamecardDiffResponse(diff) satisfies AdminNamecardDiffResponse
+            {
+                ...response,
+                live: { ...response.live, ...(live.length > 0 ? { pages: live } : {}) },
+                pending:
+                    response.pending && pending
+                        ? { ...response.pending, pages: pending }
+                        : response.pending
+            } satisfies AdminNamecardDiffResponse
         );
     } catch (error) {
         console.error('[admin-namecard-diff]', error);

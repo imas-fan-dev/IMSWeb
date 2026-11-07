@@ -156,7 +156,11 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261103130000_platform_account_groups', phase: 'post-data' },
                 { version: '20261103140000_platform_account_five_groups', phase: 'post-data' },
                 { version: '20261103150000_platform_account_icon', phase: 'post-data' },
-                { version: '20261105120000_platform_profile_slug_not_numeric', phase: 'pre-data' }
+                { version: '20261105120000_platform_profile_slug_not_numeric', phase: 'pre-data' },
+                { version: '20261106120000_namecard_exchange_system', phase: 'pre-data' },
+                { version: '20261107120000_namecard_media_key_normalization', phase: 'post-data' },
+                { version: '20261107160000_namecard_group_card', phase: 'post-data' },
+                { version: '20261107180000_fudaba_card_pages', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -685,11 +689,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 89);
+        assert.equal(catalog.count, 93);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261105120000_platform_profile_slug_not_numeric'
+            '20261107180000_fudaba_card_pages'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1058,7 +1062,11 @@ test.describe('PostgreSQL migration', () => {
                 '20261103130000_platform_account_groups',
                 '20261103140000_platform_account_five_groups',
                 '20261103150000_platform_account_icon',
-                '20261105120000_platform_profile_slug_not_numeric'
+                '20261105120000_platform_profile_slug_not_numeric',
+                '20261106120000_namecard_exchange_system',
+                '20261107120000_namecard_media_key_normalization',
+                '20261107160000_namecard_group_card',
+                '20261107180000_fudaba_card_pages'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

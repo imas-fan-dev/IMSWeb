@@ -1,7 +1,6 @@
 import { PUBLIC_UPLOADS_PATH_PREFIX } from '@imsweb/contracts/paths';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import {
-    ensureNamecardThumbnails,
     publishNamecardMedia
 } from '@/domains/community/fudaba/card-media-assets';
 import type { NamecardMutationContext } from '@/domains/community/namecards/request';
@@ -106,7 +105,6 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
             );
         }
         if (canonicalUrls.length > 0) {
-            await ensureNamecardThumbnails({ ...runtime, storage }, canonicalUrls);
             await publishNamecardMedia(storage, canonicalUrls);
         }
         const completed = await repository.completeCardApproval(id, claim.card.revision);

@@ -177,6 +177,7 @@ export type FudabaExchangeMode = "auto" | "manual" | "none";
 /** The copy a submitter asks to publish; mirrors the live columns one to one. */
 export interface FudabaPendingCardPayload {
     producer_name: string;
+    is_group_card: boolean;
     /** Ordered series; the first entry is the one the legacy column mirrors. */
     series_codes: string[];
     favorite_character_ids: number[];
@@ -194,6 +195,15 @@ export interface FudabaPendingCardPayload {
 
 /** Verdict on the newest submission of an already published card. */
 export type FudabaCardReviewStatus = "pending" | "rejected" | "locked";
+
+/** 一面名片图在统一布局里的位置。 */
+export interface FudabaCardPageRecord {
+    page_id: string;
+    display_order: number;
+    object_version: string;
+    width: number;
+    height: number;
+}
 
 export interface FudabaCardRecord {
     id: string;
@@ -218,6 +228,8 @@ export interface FudabaCardRecord {
     exchange_mode: FudabaExchangeMode;
     made_on: string | null;
     group_name: string | null;
+    /** 团体名片：制作人名称为空时由团体名称派生。 */
+    is_group_card: boolean;
     producer_reading: string | null;
     is_original: boolean;
     made_with_ai: boolean;
@@ -241,6 +253,8 @@ export interface NewFudabaCardInput {
     id: string;
     ownerAccountId: string;
     producerName: string;
+    /** 团体名片：制作人名称为空时由团体名称派生。 */
+    isGroupCard?: boolean;
     seriesCodes: string[];
     favoriteCharacterIds?: number[];
     legacyCardId?: number | null;
@@ -264,7 +278,17 @@ export interface NewFudabaCardInput {
     deletedAt: string | null;
 }
 
+/** 一次写入的页面：对象已落盘，这里只记录版本与尺寸。 */
+export interface FudabaCardPageWrite {
+    pageId: string;
+    objectVersion: string;
+    width: number;
+    height: number;
+}
+
 export interface CreateOwnedFudabaCardInput {
+    /** 统一布局的页面行；与 front/back/middle 列同一事务写入。 */
+    pages?: FudabaCardPageWrite[];
     id: string;
     ownerAccountId: string;
     producerName: string;
@@ -281,6 +305,7 @@ export interface CreateOwnedFudabaCardInput {
     exchangeMode: FudabaExchangeMode;
     madeOn: string | null;
     groupName: string | null;
+    isGroupCard?: boolean;
     producerReading: string | null;
     isOriginal: boolean;
     madeWithAi: boolean;
@@ -301,23 +326,12 @@ export interface UpdateOwnedFudabaCardMetadataInput {
     exchangeMode: FudabaExchangeMode;
     madeOn: string | null;
     groupName: string | null;
+    isGroupCard?: boolean;
     producerReading: string | null;
     isOriginal: boolean;
     madeWithAi: boolean;
     visible: boolean;
     credits?: FudabaCardCredit[];
-    expectedRevision: number;
-    updatedAt: string;
-}
-
-export interface UpdateOwnedFudabaCardMediaInput {
-    cardId: string;
-    ownerAccountId: string;
-    side: "front" | "back";
-    /** Null clears the back image, turning the card single-sided. */
-    objectKey: string | null;
-    /** Dominant colour of the new front image; ignored for the back side. */
-    accent?: string | null;
     expectedRevision: number;
     updatedAt: string;
 }
@@ -336,6 +350,27 @@ export interface ReplaceOwnedFudabaCardMediaInput {
     middleObjectKeys: string[];
     /** Accent sampled from a newly uploaded front image, if any. */
     accent?: string | null;
+    /** 本次新写入的页面（对象已落盘），用于同步统一布局的页面行。 */
+    pages?: FudabaCardPageWrite[];
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+/**
+ * 服务端旋转一张图后，把新的对象键写回它所在的那一面。`staged` 表示这次要落在
+ * 待审版本上（卡上已有暂存图片），否则直接改线上。
+ */
+/** 只替换某一面/某几面的对象键：页序、页数与归属都不变。 */
+export interface RotateOwnedFudabaCardMediaInput {
+    cardId: string;
+    ownerAccountId: string;
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    middleObjectKeys: string[];
+    /** 有暂存图片时写待审那一套，否则写线上那一套。 */
+    staged: boolean;
+    /** 本次重写出来的页面（对象已落盘），用于同步页面行。 */
+    pages?: FudabaCardPageWrite[];
     expectedRevision: number;
     updatedAt: string;
 }
@@ -383,7 +418,7 @@ export interface FudabaRegisteredCardReviewRecord extends FudabaCardRecord {
 export interface FudabaAdminCardClaimRecord extends FudabaCardClaimRecord {
     claimant_display_name: string;
     legacy_image1_url: string;
-    legacy_image2_url: string;
+    legacy_image2_url: string | null;
     /** The owner card this claim binds to; null when it creates a new card. */
     target_card_number: number | null;
 }
@@ -434,6 +469,9 @@ export interface WallInsightsRecord {
  */
 export interface FudabaCardPayload {
     producerName?: string;
+    isGroupCard?: boolean;
+    /** 审核通过后要执行的旋转圈数（顺时针 90° 的次数）；只支持正反面。 */
+    rotations?: { front?: number; back?: number };
     producerReading?: string | null;
     groupName?: string | null;
     madeOn?: string | null;
@@ -546,6 +584,7 @@ export interface CreateClaimedFudabaCardInput {
     exchangeMode: "auto" | "manual" | "none";
     madeOn: string | null;
     groupName: string | null;
+    isGroupCard?: boolean;
     isOriginal: boolean;
     madeWithAi: boolean;
     visible: boolean;
@@ -567,6 +606,8 @@ export interface ClaimedCardMediaInput {
     backObjectKey: string | null;
     /** `null` keeps the card's current accent. */
     accent: string | null;
+    /** 审核时旋转出来的页面，用于同步统一布局的页面行。 */
+    pages?: FudabaCardPageWrite[];
 }
 
 export type CompleteFudabaClaimReviewInput =
@@ -595,6 +636,8 @@ export interface CompleteFudabaSupplementReviewInput {
     /** Points awarded once per (account, card) when a supplement is approved. */
     contributionPoints: number;
     contributionId: string;
+    /** 批准时替换的正反面（补充里带着旋转时才会传）。 */
+    media?: ClaimedCardMediaInput | null;
 }
 
 export type FudabaClaimReviewResult =
@@ -605,21 +648,6 @@ export type FudabaClaimReviewResult =
       }
     | { status: "conflict"; revision: number; state: FudabaCardClaimState }
     | { status: "unavailable" };
-
-export interface FudabaExchangeRequestRecord {
-    id: string;
-    office_id: string;
-    requester_account_id: string;
-    recipient_account_id: string;
-    wanted_card_id: string;
-    offered_card_id: string | null;
-    note: string;
-    status: FudabaExchangeStatus;
-    version: number;
-    created_at: string;
-    updated_at: string;
-    resolved_at: string | null;
-}
 
 export interface NewFudabaModerationCaseInput {
     id: string;
@@ -838,7 +866,6 @@ export type FudabaCardPlacementSaveResult =
 export type FudabaCardPlacementRemovalResult =
     | { status: "removed"; revision: number }
     | { status: "conflict"; revision: number }
-    | { status: "in-use"; revision: number }
     | { status: "unavailable" };
 
 export interface FudabaPublicOfficeDetailRecord
@@ -889,6 +916,38 @@ export interface FudabaRepository {
         slug: string,
         viewerAccountId: string | null,
     ): Promise<FudabaPublicOfficeDetailRecord | null>;
+    /** 统一布局下的页面：live 与 pending 两套队列，按 display_order 排好。 */
+    listCardPages(cardId: string): Promise<{
+        live: FudabaCardPageRecord[];
+        pending: FudabaCardPageRecord[];
+    }>;
+    /** 按名片编号批量读取页面行（名片墙使用）。 */
+    listCardPagesBatchByNumbers(cardNumbers: readonly number[]): Promise<
+        Map<number, { live: FudabaCardPageRecord[]; pending: FudabaCardPageRecord[] }>
+    >;
+    /** 属主读取某一页的 key（live/pending 由 draft 决定）。 */
+    findCardPageKeyForOwner(
+        cardId: string,
+        ownerAccountId: string,
+        pageId: string,
+        draft: boolean
+    ): Promise<{ key: string; queue: 'live' | 'pending' } | null>;
+    /** 整体替换某一队列的页面行（迁移脚本使用；不碰对象与列）。 */
+    replaceCardPages(
+        cardId: string,
+        queue: 'live' | 'pending',
+        pages: readonly FudabaCardPageWrite[],
+        updatedAt: string
+    ): Promise<void>;
+    /** 批量读取页面行：公开列表一次查询，避免逐卡 N+1。 */
+    listCardPagesBatch(cardIds: readonly string[]): Promise<
+        Map<string, { live: FudabaCardPageRecord[]; pending: FudabaCardPageRecord[] }>
+    >;
+    /** 公开墙按卡片 UUID 取某一页的线上 key（统一布局）。 */
+    findPublishedCardPageKeyById(
+        cardId: string,
+        pageId: string
+    ): Promise<string | null>;
     listPublicCards(
         input: ListFudabaPublicCardsInput,
     ): Promise<FudabaPublicCardRecord[]>;
@@ -1013,12 +1072,15 @@ export interface FudabaRepository {
     updateCardMetadataForOwner(
         input: UpdateOwnedFudabaCardMetadataInput,
     ): Promise<FudabaCardMutationResult>;
-    updateCardMediaForOwner(
-        input: UpdateOwnedFudabaCardMediaInput,
-    ): Promise<FudabaCardMutationResult>;
     /** Replaces the whole ordered middle-page set of one card. */
     replaceCardMediaForOwner(
         input: ReplaceOwnedFudabaCardMediaInput,
+    ): Promise<FudabaCardMutationResult>;
+    /**
+     * 旋转落库：只换图不改页序，与页序调整同档，不进复审。
+     */
+    rotateCardMediaForOwner(
+        input: RotateOwnedFudabaCardMediaInput,
     ): Promise<FudabaCardMutationResult>;
     softDeleteCardForOwner(
         input: SoftDeleteOwnedFudabaCardInput,
@@ -1137,16 +1199,6 @@ export interface FudabaRepository {
         content: string;
         createdAt: string;
     }): Promise<boolean>;
-    createExchangeRequest(input: {
-        id: string;
-        officeId: string;
-        requesterAccountId: string;
-        recipientAccountId: string;
-        wantedCardId: string;
-        offeredCardId: string | null;
-        note: string;
-        createdAt: string;
-    }): Promise<FudabaExchangeRequestRecord | null>;
     setCardInteraction(input: {
         kind: "like" | "favorite";
         cardId: string;

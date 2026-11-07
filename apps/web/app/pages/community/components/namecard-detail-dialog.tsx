@@ -407,6 +407,7 @@ export function NamecardDetailDialog({
         frontImageUrl: card.image1_url,
         middleImageUrls: card.middleImageUrls,
         backImageUrl: card.image2_url,
+        pages: card.pages,
       })
     : []
   // 挂在 key 上：换卡或从另一面打开时重新挂载，预览回到正确的图。

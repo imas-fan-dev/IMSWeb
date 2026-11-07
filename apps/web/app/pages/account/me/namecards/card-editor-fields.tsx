@@ -86,7 +86,14 @@ export function CardFields({
   }, [failed])
 
   function patch(next: Partial<FudabaCardFields>) {
-    onChange({ ...draft, ...next })
+    const merged = { ...draft, ...next }
+    // 团体名片意味着「任何人都可以自由领取」，所以交换模式固定自动、
+    // 可见性必须打开，不能被单独关掉。
+    onChange(
+      merged.isGroupCard
+        ? { ...merged, exchangeMode: "auto", visible: true }
+        : merged
+    )
   }
 
   return (
@@ -224,7 +231,7 @@ export function CardFields({
         <Field data-disabled={disabled || undefined}>
           <FieldLabel>交换模式</FieldLabel>
           <Tabs
-            value={draft.exchangeMode}
+            value={draft.isGroupCard ? "auto" : draft.exchangeMode}
             onValueChange={(value) => {
               const from = EXCHANGE_MODE_OPTIONS.findIndex(
                 (option) => option.value === draft.exchangeMode
@@ -243,7 +250,8 @@ export function CardFields({
                 <TabsTrigger
                   key={option.value}
                   value={option.value}
-                  disabled={disabled}
+                  // 团体名片只能是自动交换，其他选项置灰。
+                  disabled={disabled || (draft.isGroupCard && option.value !== "auto")}
                 >
                   {option.label}
                 </TabsTrigger>
@@ -269,11 +277,14 @@ export function CardFields({
       </CardModule>
 
       <CardModule mode={modes?.visibility}>
-        <Field orientation="horizontal" data-disabled={disabled || undefined}>
+        <Field
+          orientation="horizontal"
+          data-disabled={disabled || draft.isGroupCard || undefined}
+        >
           <Checkbox
             id="exchange-card-visible"
             checked={draft.visible}
-            disabled={disabled}
+            disabled={disabled || draft.isGroupCard}
             onCheckedChange={(checked) => patch({ visible: checked === true })}
           />
           <label

@@ -48,6 +48,7 @@ import {
   fudabaErrorResponseSchema,
   fudabaCardFieldsRequestSchema,
   fudabaCardInteractionKindSchema,
+
   fudabaCardPlacementDeleteRequestSchema,
   fudabaCardPlacementSaveRequestSchema,
   fudabaCardUpdateRequestSchema,
@@ -188,6 +189,15 @@ export const fudabaCardCreateSchema = fudabaCardFieldsRequestSchema
     back: fileSchema.optional(),
     /** Ordered middle pages, submitted after the first and last image. */
     images: z.array(fileSchema).optional(),
+    /** 保存时应用的旋转圈数（0-3），与上传同一次写入。 */
+    rotations: z
+      .object({
+        front: z.number().int().min(0).max(3).optional(),
+        back: z.number().int().min(0).max(3).optional(),
+        middles: z.array(z.number().int().min(0).max(3)).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
 
@@ -216,6 +226,9 @@ export type CreateFudabaCardInput = z.input<typeof fudabaCardCreateSchema> & {
   back?: File | undefined
   /** Everything between the front and the back, in display order. */
   images?: readonly File[] | undefined
+  rotations?:
+    | { front?: number; back?: number; middles?: number[] }
+    | undefined
 }
 
 export type UpdateFudabaCardInput = z.input<
@@ -760,6 +773,7 @@ export function withdrawFudabaOwnerLocation(
 
 function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("producerName", fields.producerName)
+  form.append("isGroupCard", String(fields.isGroupCard ?? false))
   form.append("producerReading", fields.producerReading ?? "")
   form.append("seriesCodes", JSON.stringify(fields.seriesCodes))
   form.append(
@@ -782,6 +796,7 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
     front,
     back,
     images = [],
+    rotations,
     ...fields
   } = fudabaCardCreateSchema.parse(input)
   const form = new FormData()
@@ -789,6 +804,7 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
   form.append("front", front)
   if (back) form.append("back", back)
   for (const image of images) form.append("images", image)
+  if (rotations) form.append("rotations", JSON.stringify(rotations))
   return platformApiClient.Post(
     exchangePath("/cards"),
     form,
@@ -854,13 +870,18 @@ export function uploadFudabaCardMedia(
  */
 export function replaceFudabaCardMedia(
   cardId: string,
-  input: { images: readonly File[]; order: readonly string[] },
+  input: {
+    images: readonly File[]
+    order: readonly string[]
+    rotations?: { front?: number; back?: number; middles?: number[] }
+  },
   expectedRevision: number
 ) {
   const revision = fudabaRevisionSchema.parse(expectedRevision)
   const form = new FormData()
   for (const image of input.images) form.append("images", image)
   form.append("order", JSON.stringify(input.order))
+  if (input.rotations) form.append("rotations", JSON.stringify(input.rotations))
   form.append("expectedRevision", String(revision))
   return platformApiClient.Put(
     exchangePath(`/me/cards/${encodeURIComponent(cardId)}/media`),

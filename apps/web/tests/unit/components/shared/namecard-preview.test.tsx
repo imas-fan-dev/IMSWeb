@@ -14,6 +14,7 @@ const card: Namecard = {
   cardNumber: 1,
   producerName: "天海春香",
   producerReading: null,
+  isGroupCard: false,
   groupName: null,
   madeOn: null,
   isOriginal: false,

@@ -1,21 +1,24 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView } from '@/domains/community/fudaba/contracts/card';
-import { parseFudabaCardCreateFields } from '@/domains/community/fudaba/cards/request';
-import { storeArtworkThumbnail } from '@/domains/community/fudaba/cards/artwork-thumbnail';
+import {
+    parseFudabaCardCreateFields,
+    parseMediaRotations
+} from '@/domains/community/fudaba/cards/request';
+import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { fudabaRepository, services } from '@/middleware/hono-context';
 import type { UploadedFile } from '@/ports/http';
-import type { FudabaCardMutationResult, FudabaCardRecord } from '@/ports/repositories';
+import type {
+    FudabaCardMutationResult,
+    FudabaCardPageWrite,
+    FudabaCardRecord
+} from '@/ports/repositories';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { convertUserImageToWebp } from '@/utils/media/user-image';
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from '@imsweb/contracts/fudaba/runtime';
-import {
-    fudabaCardBackObjectKey,
-    fudabaCardFrontObjectKey,
-    fudabaCardMiddleVersionObjectKey
-} from '@/utils/storage/business-object-keys';
-import { deleteOwnedObjectWithCompensation } from '@/utils/storage/delete-object';
+import { randomUUID } from 'node:crypto';
+import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
 
 const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_CARD_REQUEST_BYTES = (MAX_CARD_IMAGE_BYTES * 2) + (128 * 1024);
@@ -31,7 +34,7 @@ export async function handleCreateFudabaCard(
     if (!runtime.uploads || !runtime.images || !runtime.storage) {
         throw new Error('Upload services unavailable');
     }
-    const created: Array<{ key: string; ownerToken: string }> = [];
+    const createdKeys: string[] = [];
     let cleanupCreatedObjects = true;
     try {
         const upload = await runtime.uploads.parse(c.req.raw, {
@@ -44,7 +47,7 @@ export async function handleCreateFudabaCard(
             // 13 text fields today (producer, reading, series, characters,
             // bio, trade note, exchange mode, made on, group, three flags,
             // credits).
-            maxFields: 16,
+            maxFields: 17,
             maxParts: 20 + NAMECARD_MIDDLE_IMAGE_LIMIT
         });
         const front = oneFile(upload.files.front);
@@ -53,15 +56,32 @@ export async function handleCreateFudabaCard(
             throw Object.assign(new Error('必须上传名片正面'), { status: 400 });
         }
         const fields = parseFudabaCardCreateFields(upload.fields);
+        // 旋转和上传同一次保存：写入前转好，revision 只由这次创建产生。
+        const rotations = parseMediaRotations(upload.fields.rotations);
         const frontImage = await convertUserImageToWebp(
             front,
             runtime.images,
             MAX_CARD_IMAGE_BYTES
         );
         // A single-sided card is legal: no back artwork, nothing uploaded.
-        const backImage = back
+        if ((rotations.front || rotations.back) && !runtime.images.rotate) {
+            throw new Error('Image rotation is unavailable');
+        }
+        const rotatedFront = rotations.front
+            ? await runtime.images.rotate!(
+                  frontImage.body,
+                  rotations.front * 90
+              )
+            : frontImage.body;
+        const rawBack = back
             ? await convertUserImageToWebp(back, runtime.images, MAX_CARD_IMAGE_BYTES)
             : null;
+        const rotatedBack = rawBack
+            ? rotations.back
+                ? await runtime.images.rotate!(rawBack.body, rotations.back * 90)
+                : rawBack.body
+            : null;
+        const backImage = rawBack ? { ...rawBack, body: rotatedBack! } : null;
         // The picker marks the second slot of a multi-image submission as the
         // back, so middle pages cannot exist without one: a card with two or
         // more images always has a back, and anything else is a client bug.
@@ -83,56 +103,79 @@ export async function handleCreateFudabaCard(
         }
         const images = runtime.images;
         const middleImages = await Promise.all(
-            middleFiles.map((file) =>
-                convertUserImageToWebp(file, images, MAX_CARD_IMAGE_BYTES),
-            ),
+            middleFiles.map(async (file, index) => {
+                const converted = await convertUserImageToWebp(
+                    file,
+                    images,
+                    MAX_CARD_IMAGE_BYTES
+                );
+                const turns = rotations.middles[index] ?? 0;
+                return turns
+                    ? {
+                          ...converted,
+                          body: await images.rotate!(
+                              converted.body,
+                              turns * 90
+                          )
+                      }
+                    : converted;
+            }),
         );
-        const accent = (await runtime.images.dominantColor?.(frontImage.body)) ?? null;
+        const accent = (await runtime.images.dominantColor?.(rotatedFront)) ?? null;
         const cardId = crypto.randomUUID();
-        const frontKey = fudabaCardFrontObjectKey(cardId, 'webp');
-        const backKey = backImage ? fudabaCardBackObjectKey(cardId, 'webp') : null;
-        const pendingUploads: Array<{
-            key: string;
-            body: Uint8Array;
-            side: string;
-        }> = [{ key: frontKey, body: frontImage.body, side: 'front' }];
-        if (backKey && backImage) {
-            pendingUploads.push({ key: backKey, body: backImage.body, side: 'back' });
+        const ownerAccountId = c.get('platformUser')!.id;
+        const pages: FudabaCardPageWrite[] = [];
+        const store = async (
+            pageId: string,
+            body: Uint8Array,
+            width: number,
+            height: number
+        ) => {
+            const stored = await storeCardPage(runtime, {
+                cardId,
+                queue: 'live',
+                pageId,
+                body,
+                width,
+                height,
+                accountId: ownerAccountId
+            });
+            createdKeys.push(stored.key);
+            pages.push({
+                pageId,
+                objectVersion: stored.version,
+                width,
+                height
+            });
+            return stored.key;
+        };
+        const frontKey = await store(
+            `page-${randomUUID()}`,
+            rotatedFront,
+            frontImage.width,
+            frontImage.height
+        );
+        let backKey: string | null = null;
+        if (backImage) {
+            backKey = await store(
+                `page-${randomUUID()}`,
+                backImage.body,
+                rawBack!.width,
+                rawBack!.height
+            );
         }
         const middleKeys: string[] = [];
-        middleImages.forEach((image, index) => {
-            const key = fudabaCardMiddleVersionObjectKey(cardId, index + 1, '0');
-            middleKeys.push(key);
-            pendingUploads.push({
-                key,
-                body: image.body,
-                side: `middle-${index + 1}`,
-            });
-        });
-        for (const image of pendingUploads) {
-            const ownerToken = randomHex(32);
-            await runtime.storage.put(image.key, image.body, {
-                contentType: 'image/webp',
-                protectedAccess: true,
-                ownerToken,
-                metadata: {
-                    kind: 'fudaba-card-image',
-                    side: image.side,
-                    account: c.get('platformUser')!.id
-                }
-            });
-            created.push({ key: image.key, ownerToken });
-            const thumbnail = await storeArtworkThumbnail(runtime, {
-                key: image.key,
-                body: image.body,
-                ownerToken,
-                accountId: c.get('platformUser')!.id,
-                side: image.side
-            });
-            if (thumbnail) created.push(thumbnail);
+        for (const [index, image] of middleImages.entries()) {
+            middleKeys.push(
+                await store(
+                    `page-${randomUUID()}`,
+                    image.body,
+                    image.width,
+                    image.height
+                )
+            );
         }
         const now = new Date().toISOString();
-        const ownerAccountId = c.get('platformUser')!.id;
         const repository = fudabaRepository(c);
         cleanupCreatedObjects = false;
         let result: FudabaCardMutationResult;
@@ -144,6 +187,7 @@ export async function handleCreateFudabaCard(
                 frontObjectKey: frontKey,
                 backObjectKey: backKey,
                 middleObjectKeys: middleKeys,
+                pages,
                 accent,
                 createdAt: now,
                 updatedAt: now
@@ -171,8 +215,8 @@ export async function handleCreateFudabaCard(
         }
         if (result.status !== 'saved') {
             cleanupCreatedObjects = true;
-            await Promise.all(created.map(({ key, ownerToken }) =>
-                deleteOwnedObjectWithCompensation(runtime, key, ownerToken)
+            await Promise.all(createdKeys.map((key) =>
+                deleteObjectWithCompensation(runtime, key)
             ));
             return c.json({ success: false, code: 'FUDABA_CARD_UNAVAILABLE' }, 409);
         }
@@ -180,9 +224,8 @@ export async function handleCreateFudabaCard(
         return c.json({ success: true, card: fudabaOwnerCardView(result.card) }, 201);
     } catch (error) {
         if (cleanupCreatedObjects) {
-            await Promise.all(created.map(({ key, ownerToken }) =>
-                deleteOwnedObjectWithCompensation(runtime, key, ownerToken)
-                    .catch(() => undefined)
+            await Promise.all(createdKeys.map((key) =>
+                deleteObjectWithCompensation(runtime, key).catch(() => undefined)
             ));
         }
         const status = statusFromError(error);

@@ -78,6 +78,7 @@ export function fieldsFromSide(side: NamecardDiffSide): FudabaCardFields {
     exchangeMode: side.exchangeMode,
     madeOn: side.madeOn,
     groupName: side.groupName,
+    isGroupCard: side.isGroupCard === true,
     isOriginal: side.isOriginal,
     madeWithAi: side.madeWithAi,
     visible: side.visible,
@@ -87,6 +88,17 @@ export function fieldsFromSide(side: NamecardDiffSide): FudabaCardFields {
 
 /** Front, middle pages, then back — the same order the server stores. */
 export function slotsFromSide(side: NamecardDiffSide): MediaSlot[] {
+  // 统一布局的页面优先；index 用页面顺序，保证 media_order 的 `#i` 语义不变。
+  // 页面只覆盖部分面（迁移期）时整套回退，避免丢掉未迁移的那一面。
+  const legacyCount =
+    1 + side.middleImageUrls.length + (side.backImageUrl ? 1 : 0)
+  if (side.pages && side.pages.length === legacyCount) {
+    return side.pages.map((page) => ({
+      kind: "existing" as const,
+      index: page.order - 1,
+      url: page.previewUrl,
+    }))
+  }
   const urls = [
     side.frontImageUrl,
     ...side.middleImageUrls,
@@ -194,6 +206,8 @@ export function NamecardManageDialog({
   const [draft, setDraft] = useState<FudabaCardFields | null>(null)
   const [original, setOriginal] = useState<FudabaCardFields | null>(null)
   const [slots, setSlots] = useState<MediaSlot[]>([])
+  /** 待保存的旋转：位置 → 圈数；保存时随 media_order 一起提交。 */
+  const [rotations, setRotations] = useState<Record<number, number>>({})
   const [status, setStatus] = useState<string>("pending")
   const [reviewStatus, setReviewStatus] = useState<string>("none")
   const [ownerAccountId, setOwnerAccountId] = useState("")
@@ -229,6 +243,7 @@ export function NamecardManageDialog({
         setDraft(fields)
         setOriginal(fields)
         setSlots(slotsFromSide(card.live))
+    setRotations({})
         setStatus(card.publicationStatus)
         setReviewStatus(card.reviewStatus ?? "none")
         setOwnerAccountId(card.ownerAccountId ?? "")
@@ -307,6 +322,18 @@ export function NamecardManageDialog({
     }
   }
 
+  /** 只提交正面/背面；中间页不支持旋转。 */
+  const rotationPayload = (() => {
+    const turns = (position: number) =>
+      (((rotations[position] ?? 0) % 4) + 4) % 4
+    const last = Math.max(slots.length - 1, 0)
+    const payload = {
+      ...(turns(0) ? { front: turns(0) } : {}),
+      ...(last > 0 && turns(last) ? { back: turns(last) } : {}),
+    }
+    return Object.keys(payload).length ? payload : undefined
+  })()
+
   async function persist(): Promise<boolean> {
     if (!diff || !draft) return false
     if (needsReason && !reason.trim()) {
@@ -330,6 +357,7 @@ export function NamecardManageDialog({
         status,
         review_status: reviewStatus === "none" ? null : reviewStatus,
         media_order: adminMediaOrder(slots),
+        ...(rotationPayload ? { rotations: rotationPayload } : {}),
       }).send()
       applyCard(next)
       return true
@@ -487,6 +515,18 @@ export function NamecardManageDialog({
                 slots={slots}
                 disabled={busy}
                 allowUpload={false}
+                rotations={rotations}
+                onRotate={(position, direction) =>
+                  setRotations((current) => ({
+                    ...current,
+                    [position]:
+                      (((current[position] ?? 0) +
+                        (direction === "right" ? 1 : 3)) %
+                        4 +
+                        4) %
+                      4,
+                  }))
+                }
                 onChange={setSlots}
                 onError={setMessage}
               />

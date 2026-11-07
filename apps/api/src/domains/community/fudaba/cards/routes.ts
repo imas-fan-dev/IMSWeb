@@ -10,7 +10,6 @@ import {
     fudabaRevisionRequestSchema,
 } from '@imsweb/contracts/fudaba';
 import { createNamecardFeedbackRequestSchema } from '@imsweb/contracts/namecards';
-import { publicUploadsPath } from '@imsweb/contracts/paths';
 import { activePlatformMutation, platformAuth, platformCsrf } from '@/middleware/hono-auth';
 import { requireFudabaWrite } from '@/domains/community/fudaba/access-policy';
 import { handleCreateFudabaCard } from '@/domains/community/fudaba/cards/handlers/create-card';
@@ -23,7 +22,6 @@ import { handleSaveFudabaCardPlacement } from '@/domains/community/fudaba/cards/
 import { handleServeFudabaOwnerCardMedia } from '@/domains/community/fudaba/cards/handlers/serve-owner-card-media';
 import { createHandleFudabaCardInteraction } from '@/domains/community/fudaba/cards/handlers/set-card-interaction';
 import { handleUpdateFudabaCard } from '@/domains/community/fudaba/cards/handlers/update-card';
-import { handleUploadFudabaOwnedMedia } from '@/domains/community/fudaba/cards/handlers/upload-owned-media';
 import { handleReplaceFudabaOwnedMedia } from '@/domains/community/fudaba/cards/handlers/replace-owned-media';
 import { platformUploadRateLimit, platformWriteRateLimit } from '@/middleware/platform-mutation-limit';
 import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
@@ -59,6 +57,5 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
     routes.delete('/me/cards/:cardId', ...write, paramSchemaValidator(fudabaCardIdParamsSchema), jsonSchemaValidator(fudabaRevisionRequestSchema), handleDeleteFudabaCard);
     routes.put('/offices/:officeId/cards/:cardId/placement', ...write, paramSchemaValidator(fudabaCardOfficePlacementParamsSchema), jsonSchemaValidator(fudabaCardPlacementSaveRequestSchema), handleSaveFudabaCardPlacement);
     routes.delete('/offices/:officeId/cards/:cardId/placement', ...write, paramSchemaValidator(fudabaCardOfficePlacementParamsSchema), jsonSchemaValidator(fudabaCardPlacementDeleteRequestSchema), handleRemoveFudabaCardPlacement);
-    routes.put(publicUploadsPath('/:side'), requireFudabaWrite, platformAuth, activePlatformMutation, platformCsrf, platformUploadRateLimit, handleUploadFudabaOwnedMedia);
     return routes;
 }

@@ -5,7 +5,7 @@ import {
   PlusIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -59,6 +59,20 @@ export function NamecardClaimDialog({
 }) {
   const platform = useOptionalPlatformSession()
   const [catalog, setCatalog] = useState<WikiPublicCatalog | null>(null)
+  // 提交前只改预览；审核通过时服务端才真正旋转。
+  const [rotations, setRotations] = useState<Record<number, number>>({})
+  const mediaSlots = useMemo(
+    () =>
+      card
+        ? publicMediaSlotsFromCard({
+            frontImageUrl: card.image1_url,
+            middleImageUrls: card.middleImageUrls,
+            backImageUrl: card.image2_url,
+            pages: card.pages,
+          })
+        : [],
+    [card]
+  )
   const [ownerCards, setOwnerCards] = useState<FudabaOwnerCard[]>([])
   const [loadError, setLoadError] = useState(false)
   const [targetCardId, setTargetCardId] = useState(NEW_CARD_VALUE)
@@ -114,15 +128,15 @@ export function NamecardClaimDialog({
     bindable.length
   )
   // 认领不再要求相对 live 有改动（可能已被他人补充完整），只拦必填项缺失。
+  // 团体名片的必填项是团体名称，制作人名称可以留空。
   const requiredReady = Boolean(
-    filled && filled.producerName.trim() && filled.seriesCodes.length > 0
+    filled &&
+      (filled.isGroupCard
+        ? (filled.groupName ?? "").trim()
+        : filled.producerName.trim()) &&
+      filled.seriesCodes.length > 0
   )
   const canSubmit = ready && !submitting && (binding || requiredReady)
-  const missingRequired = Boolean(
-    filled &&
-    !binding &&
-    (!filled.producerName.trim() || !filled.seriesCodes.length)
-  )
 
   async function submit() {
     if (!card || !filled || !live || !canSubmit) return
@@ -130,13 +144,29 @@ export function NamecardClaimDialog({
     try {
       // 认领接口以「旧名片编号」定位：墙上这张卡的 id 现在是 guest-<编号>，
       // 直接当编号用在服务端会被判无效。
+      const turns = (position: number) =>
+        (((rotations[position] ?? 0) % 4) + 4) % 4
+      const lastPosition = Math.max(mediaSlots.length - 1, 0)
+      const rotationPatch = {
+        ...(turns(0) ? { front: turns(0) } : {}),
+        ...(lastPosition > 0 && turns(lastPosition)
+          ? { back: turns(lastPosition) }
+          : {}),
+      }
       const result = await createFudabaLegacyCardClaim(card.cardNumber, {
         targetCardId: binding ? existingTarget.id : null,
-        // 绑定已有名片时信息以那张卡为准，所以只提交归属关系。
+        // 绑定已有名片时信息以那张卡为准，所以只提交归属关系与旋转。
         payload: binding
-          ? undefined
+          ? Object.keys(rotationPatch).length
+            ? { rotations: rotationPatch }
+            : undefined
           : (() => {
-              const patch = wallCardPayload("claim", filled, live)
+              const patch = {
+                ...wallCardPayload("claim", filled, live),
+                ...(Object.keys(rotationPatch).length
+                  ? { rotations: rotationPatch }
+                  : {}),
+              }
               // 没有任何改动时不带 payload，服务端按 live 资料落认领记录。
               return Object.keys(patch).length ? patch : undefined
             })(),
@@ -167,11 +197,19 @@ export function NamecardClaimDialog({
         <DialogBody className="space-y-5">
           {card ? (
             <CardMediaPreview
-              slots={publicMediaSlotsFromCard({
-                frontImageUrl: card.image1_url,
-                middleImageUrls: card.middleImageUrls,
-                backImageUrl: card.image2_url,
-              })}
+              slots={mediaSlots}
+              rotations={rotations}
+              onRotate={(position, direction) =>
+                setRotations((current) => ({
+                  ...current,
+                  [position]:
+                    (((current[position] ?? 0) +
+                      (direction === "right" ? 1 : 3)) %
+                      4 +
+                      4) %
+                    4,
+                }))
+              }
             />
           ) : null}
           {!authenticated ? (
@@ -240,11 +278,6 @@ export function NamecardClaimDialog({
                 ) : null}
               </fieldset>
 
-              {missingRequired ? (
-                <p className="text-xs text-destructive">
-                  制作人名称与企划是必填项，补齐后才能提交认领。
-                </p>
-              ) : null}
               {existingTarget ? (
                 <Alert>
                   <ShieldCheckIcon aria-hidden="true" />

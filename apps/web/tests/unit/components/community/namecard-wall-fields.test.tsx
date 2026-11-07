@@ -74,6 +74,7 @@ function draft(overrides: Partial<WallCardDraft> = {}): WallCardDraft {
     producerName: "",
     producerReading: null,
     groupName: null,
+    isGroupCard: false,
     madeOn: null,
     seriesCodes: [],
     favoriteCharacterIds: [],
@@ -215,6 +216,7 @@ describe("wallCardDraftFromCard", () => {
       producerName: "",
       producerReading: null,
       groupName: null,
+      isGroupCard: false,
       madeOn: null,
       seriesCodes: [],
       favoriteCharacterIds: [],
@@ -238,6 +240,7 @@ describe("wallCardDraftFromCard", () => {
       producerName: "春香P",
       producerReading: "はるか",
       groupName: "765PRO",
+      isGroupCard: false,
       madeOn: "2025-10-07",
       seriesCodes: ["765", "cg"],
       favoriteCharacterIds: [1, 3],
@@ -332,7 +335,7 @@ describe("wallCardPayload", () => {
 })
 
 describe("NamecardClaimDialog required fields", () => {
-  it("surfaces the missing-fields message for an empty producer name", async () => {
+  it("keeps the claim button disabled until the required fields are filled", async () => {
     render(
       <NamecardClaimDialog
         card={wallCard()}
@@ -342,13 +345,30 @@ describe("NamecardClaimDialog required fields", () => {
       />
     )
 
+    // 必填项由星号与原生 required 表达，不再额外给一段提示文案。
     expect(
-      await screen.findByText("制作人名称与企划是必填项，补齐后才能提交认领。")
-    ).toBeVisible()
+      await screen.findByRole("textbox", { name: "制作人名称" })
+    ).toHaveValue("")
     expect(screen.getByRole("button", { name: /提交认领审核/ })).toBeDisabled()
-    // The message is about the six-field form rendered above it.
-    expect(screen.getByRole("textbox", { name: "制作人名称" })).toHaveValue("")
     expect(screen.getByRole("group", { name: "企划" })).toBeTruthy()
+  })
+
+  it("requires the group name instead of the producer name on a group card", async () => {
+    render(
+      <NamecardClaimDialog
+        card={wallCard()}
+        open
+        onOpenChange={vi.fn()}
+        onSubmitted={vi.fn()}
+      />
+    )
+
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: /团体名片/ })
+    )
+    expect(screen.getByRole("textbox", { name: "制作人名称" })).not.toBeRequired()
+    expect(screen.getByRole("textbox", { name: "团体名称" })).toBeRequired()
+    expect(screen.getByRole("button", { name: /提交认领审核/ })).toBeDisabled()
   })
 })
 

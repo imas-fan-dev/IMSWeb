@@ -1,6 +1,7 @@
 import type {
     CardFavoriteSelectionRecord,
     FudabaCardCredit,
+    FudabaCardPageWrite,
     NamecardFeedbackReason
 } from '@/ports/repositories/fudaba';
 
@@ -57,6 +58,8 @@ export interface NamecardDiffSide {
     producerName: string | null;
     producerReading: string | null;
     groupName: string | null;
+    /** 省略即保持当前值；只有显式传布尔才改变团体标记。 */
+    isGroupCard?: boolean;
     madeOn: string | null;
     bio: string | null;
     tradeNote: string | null;
@@ -101,6 +104,8 @@ export interface NamecardAdminContent {
     producerName: string;
     producerReading: string | null;
     groupName: string | null;
+    /** 省略即保持当前值；只有显式传布尔才改变团体标记。 */
+    isGroupCard?: boolean;
     madeOn: string | null;
     bio: string;
     tradeNote: string;
@@ -126,6 +131,11 @@ export interface NamecardAdminUpdateInput {
     content: NamecardAdminContent;
     /** `#<index>` tokens over the current live pages, in their new order. */
     mediaOrder: readonly string[];
+    /** 旋转后的新对象键；给定后覆盖对应位置的旧键（后台旋转即时生效）。 */
+    nextFrontObjectKey?: string;
+    nextBackObjectKey?: string | null;
+    /** 旋转写出的页面（对象已落盘），用于同步统一布局的页面行。 */
+    pages?: FudabaCardPageWrite[];
     updatedAt: Date;
 }
 
@@ -172,6 +182,8 @@ export type NamecardSubmissionStatus =
 export interface NamecardSubmissionRecord extends CardMediaRecord {
     id: number;
     status: NamecardSubmissionStatus;
+    /** 团体名片：制作人名称为空时由团体名称派生。 */
+    is_group_card?: boolean;
     revision: number;
     series_code?: string | null;
     submission_kind?: NamecardSubmissionKind;
@@ -334,6 +346,109 @@ export interface NamecardAdminFilter {
     origins: string[];
 }
 
+/** 交换入口：单卡分享、从墙上发起、快速交换页、扫码。 */
+export type NamecardExchangeSourceRecord =
+    | 'card-share'
+    | 'card-request'
+    | 'quick'
+    | 'scan';
+
+export type NamecardExchangeStatusRecord =
+    | 'pending'
+    | 'completed'
+    | 'declined'
+    | 'expired';
+
+export type NamecardExchangeSkipReasonRecord =
+    | 'already-owned'
+    | 'owned-by-target'
+    | 'unavailable';
+
+/** 某张名片没能参与交换的原因；整次交换仍然可以成功。 */
+export interface NamecardExchangeSkipRecord {
+    cardNumber: number;
+    side: 'target' | 'initiator';
+    reason: NamecardExchangeSkipReasonRecord;
+}
+
+export interface NamecardExchangeRecord {
+    id: string;
+    client_exchange_id: string;
+    source: NamecardExchangeSourceRecord;
+    status: NamecardExchangeStatusRecord;
+    initiator_account_id: string;
+    target_account_id: string;
+    target_card_numbers: number[];
+    initiator_card_numbers: number[];
+    skipped: NamecardExchangeSkipRecord[];
+    created_at: string | Date;
+    resolved_at: string | Date | null;
+}
+
+/**
+ * 名片册里留存的那份只读投影。原卡还在时前端读实时投影，原卡删除后只剩它，
+ * 所以字段与公开名片保持一致，只是不带认领与互动状态。
+ */
+export interface NamecardCollectionSnapshotRecord {
+    producerName: string | null;
+    producerReading: string | null;
+    groupName: string | null;
+    madeOn: string | null;
+    bio: string | null;
+    tradeNote: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    exchangeMode: 'auto' | 'manual' | 'none';
+    accent: string | null;
+    seriesCodes: string[];
+    image1_url: string;
+    image2_url: string | null;
+    middleImageUrls: string[];
+    credits: FudabaCardCredit[];
+}
+
+export interface NamecardCollectionEntryRecord {
+    card_number: number;
+    obtained_at: string | Date;
+    hidden_at: string | Date | null;
+    /** 原卡仍在时带实时投影，否则为 null。 */
+    card: NamecardPublicRecord | null;
+    snapshot: NamecardCollectionSnapshotRecord;
+}
+
+export interface NamecardExchangeCommitInput {
+    id: string;
+    clientExchangeId: string;
+    source: NamecardExchangeSourceRecord;
+    initiatorAccountId: string;
+    targetAccountId: string;
+    targetCardNumbers: number[];
+    giveCardNumbers: number[];
+    /** 扫码交换在提交时一并消费二维码。 */
+    scanSessionId: string | null;
+    at: string;
+}
+
+export interface NamecardExchangeCommitResult {
+    exchange: NamecardExchangeRecord;
+    /** 同一次 `clientExchangeId` 的重复提交。 */
+    idempotent: boolean;
+    targetMissingCount: number;
+}
+
+export type NamecardExchangeDecisionRecord =
+    | { status: 'completed' | 'declined' }
+    | { status: 'not-found' }
+    | { status: 'expired' };
+
+export interface NamecardScanSessionRecord {
+    id: string;
+    account_id: string;
+    card_numbers: number[];
+    expires_at: string | Date;
+    consumed_at: string | Date | null;
+}
+
 export interface NamecardRepository {
     findCardByOrderedHashes(
         hash1: string,
@@ -367,6 +482,70 @@ export interface NamecardRepository {
         limit: number,
         offset: number,
     ): Promise<NamecardPublicRecord[]>;
+    /* ---- 名片册与交换（docs/architecture/namecard-exchange.md） ---- */
+    /** 幂等锚点：同一次提交重试时先查这里。 */
+    findExchangeByClientId(
+        clientExchangeId: string,
+    ): Promise<NamecardExchangeRecord | null>;
+    /** 一次交换的全部落库动作在同一个事务里完成。 */
+    commitExchange(
+        input: NamecardExchangeCommitInput,
+    ): Promise<NamecardExchangeCommitResult>;
+    decideExchange(input: {
+        exchangeId: string;
+        accountId: string;
+        decision: 'accept' | 'decline';
+        at: string;
+    }): Promise<NamecardExchangeDecisionRecord>;
+    listExchanges(input: {
+        accountId: string;
+        limit: number;
+        offset: number;
+    }): Promise<{ rows: NamecardExchangeRecord[]; total: number }>;
+    listCollection(input: {
+        accountId: string;
+        limit: number;
+        offset: number;
+    }): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }>;
+    /** 隐藏或恢复名片册里的一条；false 表示这一条不存在。 */
+    setCollectionHidden(input: {
+        accountId: string;
+        cardNumber: number;
+        hidden: boolean;
+        at: string;
+    }): Promise<boolean>;
+    /** 我有、仍可交换、且对方名片册里还没有的张数。 */
+    countMissingCollectionCards(input: {
+        /** 名片属于谁。 */
+        cardOwnerId: string;
+        /** 已经收着这些名片的另一方。 */
+        otherAccountId: string;
+    }): Promise<number>;
+    /** 快速交换清单：只有持有者勾选的卡，读取时再过滤一次可用性。 */
+    listQuickExchangeCards(accountId: string): Promise<NamecardPublicRecord[]>;
+    replaceQuickExchangeCards(input: {
+        accountId: string;
+        cardNumbers: number[];
+    }): Promise<void>;
+    /** 选卡界面需要的全部可交换名片，带 `selected` 标记由调用方合并。 */
+    listExchangeCandidates(accountId: string): Promise<NamecardPublicRecord[]>;
+    /** 固定不变的分享短链；卡片没有短链时补一条。 */
+    ensureExchangeLink(cardId: string): Promise<string>;
+    findCardByExchangeSlug(slug: string): Promise<NamecardPublicRecord | null>;
+    /** 快速交换页：按 uid、主页路径或账号 ID 找到对方与他的可交换名片。 */
+    findExchangeTarget(handle: string): Promise<{
+        profile: PublicProfileRecord;
+        cards: NamecardPublicRecord[];
+    } | null>;
+    createScanSession(input: {
+        id: string;
+        tokenHash: string;
+        accountId: string;
+        cardNumbers: number[];
+        expiresAt: string;
+    }): Promise<void>;
+    findScanSession(tokenHash: string): Promise<NamecardScanSessionRecord | null>;
+
     countAdminCards(filter?: NamecardAdminFilter): Promise<number>;
     listApprovedCards(
         limit: number,
@@ -375,6 +554,14 @@ export interface NamecardRepository {
     /** One published card by its wall number, with the same projection the list uses. */
     findApprovedCard(cardNumber: number): Promise<NamecardPublicRecord | null>;
     findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null>;
+    /** 管理窗编辑的那一套页面（有待审图时取待审那套）的对象键。 */
+    findAdminCardArtwork(cardNumber: number): Promise<{
+        cardId: string;
+        staged: boolean;
+        frontObjectKey: string;
+        backObjectKey: string | null;
+        middleObjectKeys: string[];
+    } | null>;
     /**
      * Object key backing one artwork page, for the moderator preview. `draft`
      * prefers the submitted revision and falls back to the live object.
@@ -385,6 +572,11 @@ export interface NamecardRepository {
         draft: boolean
     ): Promise<string | null>;
     /** The key of a page the public wall is allowed to serve. */
+    /** 统一布局下某一面（live 队列）的对象 key；未迁移的卡返回 null。 */
+    findPublishedCardPageKey(
+        cardNumber: number,
+        pageId: string
+    ): Promise<string | null>;
     findPublishedCardMediaKey(
         cardNumber: number,
         side: string

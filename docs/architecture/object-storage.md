@@ -450,36 +450,11 @@ pnpm run migration:public-objects -- \
 报告写入被 Git 忽略的 `data/migration/public-object-placement*.json`。新上传的 pending 名片直接
 写入 `__protected/`；审核通过时 `publish()` 在同一 bucket 内移动到公开业务语义路径。
 
-### 名片缩略图对象与历史回填
+### 名片缩略图（已退役）
 
-每张名片图片的缩略图是与其原图同目录保存的独立对象：
+名片写路径不再生成 `<stem>.thumbnail.jpg`，也不再维护 `/uploads/namecard/thumbnail/…` 公开别名。
+列表与详情的小图统一请求媒体路由的 `?w=160|400|800|1400`，由 sharp 按需生成并按页面版本缓存
+（webp，版本化 key 可长期缓存）。
 
-- 原图：`community/namecards/assets/<stem>/image.<extension>`；
-- 缩略图：`community/namecards/assets/<stem>/thumbnail.jpg`，公开路径为
-  `/uploads/namecard/thumbnail/<原文件名>.jpg`。
-
-上传与重新上传使用 Sharp 生成 600×400、JPEG quality 80 的缩略图，并与原图一起写入
-`__protected/`；审核通过时 `publish()` 同时发布原图与缩略图；替换、删除和终态 TTL 清理同样
-成对处理。公开名片列表返回缩略图 CDN 地址，展开预览仍使用原图地址。列表解析在缩略图对象尚
-未生成时回退到原图地址，因此可以先部署代码再回填，部署窗口不会破图。
-
-历史已审核名片使用一次性幂等脚本回填缩略图。脚本只处理 `status='approved'` 名片，跳过已存在
-且内容一致的目标对象，写入前重查审核状态，并使用 `putIfUnchanged` 防止并发重复版本；写入后
-回读核对，失败可重跑。先只读盘点：
-
-```sh
-pnpm run migration:namecard-thumbnails
-```
-
-确认 `data/migration/namecard-thumbnail-backfill-dry-run.json` 中不存在
-`missing-original` 或 `error` 后，精确确认目标 bucket 并应用：
-
-```sh
-pnpm run migration:namecard-thumbnails -- \
-  --apply \
-  --confirm-bucket "$IMS_S3_BUCKET"
-```
-
-该脚本是增量写入，可在线上执行；失败后重跑会自动跳过已完成对象。应用完成后再次运行只读盘
-点，结果应全部为 `exists`，随后在公开名片墙验证列表请求只命中缩略图 CDN 地址、展开预览才请
-求原图地址。
+历史遗留的缩略图对象只等待 P5 引用集 GC：确认不再被任何页面行引用后按年龄清理；
+`migration:namecard-thumbnails` 与 `ops:namecards:thumbnails` 脚本已删除。

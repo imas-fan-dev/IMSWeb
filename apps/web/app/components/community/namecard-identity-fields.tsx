@@ -1,3 +1,4 @@
+import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import {
@@ -23,6 +24,8 @@ export interface NamecardIdentityDraft {
   producerName: string
   producerReading: string | null
   groupName: string | null
+  /** 团体名片：制作人名称为空，展示与检索改用团体名称。 */
+  isGroupCard?: boolean
   madeOn: string | null
 }
 
@@ -57,7 +60,7 @@ export function NamecardIdentityFields({
       <Field data-disabled={disabled || undefined}>
         <FieldLabel htmlFor={`${idPrefix}-producer-name`}>
           制作人名称
-          {requiredName ? (
+          {requiredName && !draft.isGroupCard ? (
             <span aria-hidden="true" className="ml-1 text-destructive">
               *
             </span>
@@ -67,10 +70,15 @@ export function NamecardIdentityFields({
           id={`${idPrefix}-producer-name`}
           value={draft.producerName}
           maxLength={80}
-          required={requiredName}
+          required={requiredName && !draft.isGroupCard}
           disabled={disabled}
           onChange={(event) => onChange({ producerName: event.currentTarget.value })}
         />
+        {draft.isGroupCard ? (
+          <FieldDescription>
+            团体名片可不填：留空时展示与检索使用团体名称。
+          </FieldDescription>
+        ) : null}
       </Field>
 
       {showReading ? (
@@ -110,17 +118,42 @@ export function NamecardIdentityFields({
       ) : null}
 
       <Field data-disabled={disabled || undefined}>
-        <FieldLabel htmlFor={`${idPrefix}-group-name`}>团体名称</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}-group-name`}>
+          团体名称
+          {draft.isGroupCard ? (
+            <span aria-hidden="true" className="ml-1 text-destructive">
+              *
+            </span>
+          ) : null}
+        </FieldLabel>
         <Input
           id={`${idPrefix}-group-name`}
           value={draft.groupName ?? ""}
           maxLength={80}
+          required={draft.isGroupCard}
           disabled={disabled}
           onChange={(event) => {
             const value = event.currentTarget.value
             onChange({ groupName: value ? value : null })
           }}
         />
+        {/* 说明区里的勾选项：结构照抄「原创声明 / AI 声明」的复选框行。 */}
+        <Field data-card-field="isGroupCard" orientation="horizontal">
+          <Checkbox
+            id={`${idPrefix}-is-group`}
+            checked={draft.isGroupCard === true}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onChange({ isGroupCard: checked === true })
+            }
+          />
+          <label
+            htmlFor={`${idPrefix}-is-group`}
+            className="min-w-0 text-sm text-muted-foreground"
+          >
+            该名片为团体名片，任何人都可以自由领取。
+          </label>
+        </Field>
       </Field>
 
       {showMadeOn ? (

@@ -5,6 +5,8 @@ import {
     type AdminNamecardListResponse
 } from '@/domains/community/namecards/response';
 import { purgeExpiredNamecardSubmissions } from '@/domains/community/fudaba/cards/ttl-purge';
+import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { services } from '@/middleware/hono-context';
 import { namecardRepository } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
@@ -22,9 +24,29 @@ export async function handleListAdminNamecards(
             repository.countAdminCards(filter)
         ]);
         const totalPages = Math.ceil(total / pageSize);
+        const pagesByNumber =
+            (await services(c).fudaba?.listCardPagesBatchByNumbers?.(
+                rows.map((row) => Number(row.id))
+            )) ?? new Map();
         return c.json({
             success: true,
-            data: rows.map(toAdminNamecardResponse),
+            data: rows.map((row) => {
+                const rowsForCard = pagesByNumber.get(Number(row.id));
+                const pending =
+                    row.reviewStatus === 'pending' &&
+                    (rowsForCard?.pending.length ?? 0) > 0;
+                const pages = cardArtworkView({
+                    scope: 'admin',
+                    cardNumber: Number(row.id),
+                    cardId: String(row.cardId ?? row.id),
+                    live: rowsForCard?.live ?? [],
+                    pending: pending ? (rowsForCard?.pending ?? []) : []
+                });
+                return toAdminNamecardResponse(
+                    row,
+                    pending ? (pages.pending ?? []) : pages.live
+                );
+            }),
             pageInfo: {
                 page,
                 pageSize,

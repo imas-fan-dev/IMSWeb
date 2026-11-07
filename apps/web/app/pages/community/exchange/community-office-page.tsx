@@ -345,14 +345,6 @@ function CommunityOfficePageContent() {
   }, [officeSlug])
 
   async function handlePlacementFailure(error: unknown, fallback: string) {
-    if (
-      isApiError(error) &&
-      error.status === 409 &&
-      error.code === "FUDABA_CARD_PLACEMENT_IN_USE"
-    ) {
-      toast.error("这张名片已有交换记录，暂时不能从事务所移除。")
-      return
-    }
     if (isApiError(error) && error.status === 409) {
       try {
         await refreshOfficeDetail()

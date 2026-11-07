@@ -45,7 +45,6 @@ import type {
     SoftDeleteOwnedFudabaCardInput,
     ReplaceOwnedFudabaCardMediaInput,
     ResolveNamecardFeedbackInput,
-    UpdateOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMetadataInput,
     UpdatePlatformProfileAvatarInput,
     UpdatePlatformProfileTextInput
@@ -75,6 +74,7 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         card_number: 1,
         owner_account_id: ACCOUNT_ID,
         producer_name: 'Owner Producer',
+        is_group_card: false,
         producer_reading: null,
         series_codes: ['765'],
         favorite_characters: [],
@@ -411,7 +411,6 @@ export class OwnerRouteFixture {
     private profileMutationCommitted = false;
     readonly createInputs: CreateOwnedFudabaCardInput[] = [];
     readonly metadataInputs: UpdateOwnedFudabaCardMetadataInput[] = [];
-    readonly mediaInputs: UpdateOwnedFudabaCardMediaInput[] = [];
     readonly mediaSetInputs: ReplaceOwnedFudabaCardMediaInput[] = [];
     readonly deleteInputs: SoftDeleteOwnedFudabaCardInput[] = [];
     readonly profileTextInputs: UpdatePlatformProfileTextInput[] = [];
@@ -621,43 +620,6 @@ export class OwnerRouteFixture {
             };
             this.cards.set(card.id, card);
             return { status: 'saved', card: { ...card }, previousObjectKey: null };
-        },
-        updateCardMediaForOwner: async (
-            input: UpdateOwnedFudabaCardMediaInput
-        ): Promise<FudabaCardMutationResult> => {
-            this.mediaInputs.push(input);
-            if (this.updateMediaMode === 'throw') throw new Error('media repository failed');
-            const current = this.cards.get(input.cardId);
-            if (
-                this.updateMediaMode === 'unavailable' || !current ||
-                current.owner_account_id !== input.ownerAccountId ||
-                current.deleted_at !== null || this.accountStatus !== 'active'
-            ) {
-                return { status: 'unavailable' };
-            }
-            if (
-                this.updateMediaMode === 'conflict' ||
-                current.revision !== input.expectedRevision
-            ) {
-                return { status: 'conflict', revision: current.revision };
-            }
-            const property = input.side === 'front'
-                ? 'front_object_key' as const
-                : 'back_object_key' as const;
-            const previousObjectKey = current[property];
-            const card = {
-                ...current,
-                [property]: input.objectKey,
-                publication_status: 'pending' as const,
-                revision: current.revision + 1,
-                updated_at: input.updatedAt
-            };
-            this.cards.set(card.id, card);
-            if (this.updateMediaMode === 'mutate-then-throw') {
-                this.cardMutationCommitted = true;
-                throw new Error('media connection lost after commit');
-            }
-            return { status: 'saved', card: { ...card }, previousObjectKey };
         },
         replaceCardMediaForOwner: async (
             input: ReplaceOwnedFudabaCardMediaInput

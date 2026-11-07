@@ -306,6 +306,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     id: "managed-card",
     cardNumber: 2,
     producerName: "地图制作人",
+    isGroupCard: false,
     seriesCodes: ["765"],
     favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
     frontImageUrl: "/brand/series/wall/765pro.webp",

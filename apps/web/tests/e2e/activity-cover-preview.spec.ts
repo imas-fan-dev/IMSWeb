@@ -120,6 +120,7 @@ test.describe("activity cover preview", () => {
           cardId: "card-1",
           cardNumber: 1,
           producerName: "天海春香",
+          isGroupCard: false,
           producerReading: null,
           groupName: null,
           madeOn: null,

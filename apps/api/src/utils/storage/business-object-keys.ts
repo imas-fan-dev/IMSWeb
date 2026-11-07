@@ -1,4 +1,4 @@
-import { publicUploadsPath } from '@imsweb/contracts/paths';
+import { PUBLIC_UPLOADS_PATH_PREFIX, publicUploadsPath } from '@imsweb/contracts/paths';
 function normalizeObjectKey(value: string): string {
     const key = value.replace(/^\/+/, '').replace(/\\/g, '/');
     const segments = key.split('/');
@@ -122,6 +122,11 @@ const NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN =
 // store the object key) can hand the legacy /uploads/namecard/original/...
 // shape back to response and media-resolution code that still expects it.
 export function namecardOriginalUrlFromObjectKey(key: string): string {
+    // A row that already stores the public path (older guest approvals did)
+    // must not blow up the whole list: the value is its own answer.
+    if (key.startsWith(`${PUBLIC_UPLOADS_PATH_PREFIX}/namecard/original/`)) {
+        return key;
+    }
     const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(key);
     if (!match) throw new Error(`Unsupported namecard object key: ${key}`);
     return publicUploadsPath(`/namecard/original/${match[1]}.${match[2]}`);
@@ -240,13 +245,83 @@ export function fudabaCardMediaVersionObjectKey(
  * Editor artwork keeps its 600px copy beside the original, so a list can ask
  * for the small file with the same key it already holds.
  */
-export function fudabaCardMediaThumbnailKey(objectKey: string): string {
-    const segments = objectKey.split('/');
-    const filename = segments.at(-1) ?? '';
-    // Every artwork slot owns its version folder, so the small copy always
-    // sits next to the original as `thumbnail.jpg`.
-    if (!filename.endsWith('.webp')) return objectKey;
-    return [...segments.slice(0, -1), 'thumbnail.jpg'].join('/');
+/** 拆解统一布局 key；不是这种布局时返回 null（迁移前的旧 key）。 */
+export function parseCardPageObjectKey(key: string): {
+    cardId: string;
+    queue: 'live' | 'pending';
+    pageId: string;
+    version: string;
+} | null {
+    const match =
+        /^community\/fudaba\/cards\/([^/]+)\/(live|pending)\/(front|back|page-[0-9a-f-]{8,})\.([0-9a-f-]{8,})\.webp$/.exec(
+            key
+        );
+    if (!match) return null;
+    return {
+        cardId: match[1]!,
+        queue: match[2] as 'live' | 'pending',
+        pageId: match[3]!,
+        version: match[4]!
+    };
+}
+
+/** 版本化页面 key：只有这种地址可以按「不可变」长期缓存。 */
+export function isCardPageObjectKey(key: string): boolean {
+    return /^community\/fudaba\/cards\/[^/]+\/(?:live|pending)\/(?:front|back|page-[0-9a-f-]{8,})\.[0-9a-f-]{8,}\.webp$/.test(
+        key
+    );
+}
+
+const CARD_PAGE_ID = /^(?:front|back|page-[0-9a-f-]{8,})$/;
+const CARD_PAGE_QUEUE = /^(?:live|pending)$/;
+
+/**
+ * 对外可见的尺寸档位（按渲染宽度 × 设备像素比取整）：
+ * - 160  缩略图条（80 @2x）
+ * - 400  列表瓦片 1x
+ * - 800  列表瓦片 2x / 详情画廊 1x
+ * - 1400 详情画廊 2x
+ * 其余宽度一律拒绝，避免缓存被任意参数打散。
+ */
+export const CARD_PAGE_WIDTHS = [160, 400, 800, 1400] as const;
+
+/**
+ * 统一的名片页面 key：`cards/<cardId>/<queue>/<pageId>.<version>.webp`。
+ * 槽位（pageId）与顺序无关，版本每次写入都变，地址不可变。
+ */
+export function cardPageObjectKey(
+    cardId: string,
+    queue: string,
+    pageId: string,
+    version: string
+): string {
+    if (!CARD_PAGE_QUEUE.test(queue)) {
+        throw new Error(`Unsupported card page queue: ${queue}`);
+    }
+    if (!CARD_PAGE_ID.test(pageId)) {
+        throw new Error(`Unsupported card page id: ${pageId}`);
+    }
+    return (
+        `community/fudaba/cards/${fudabaEntitySegment(cardId)}/${queue}/` +
+        `${pageId}.${fudabaEntitySegment(version)}.webp`
+    );
+}
+
+/** 按需生成的小图，与源对象同作用域；版本一换即失效。 */
+export function cardPageCacheObjectKey(
+    cardId: string,
+    queue: string,
+    pageId: string,
+    version: string,
+    width: number
+): string {
+    if (!(CARD_PAGE_WIDTHS as readonly number[]).includes(width)) {
+        throw new Error(`Unsupported card page width: ${width}`);
+    }
+    return (
+        `community/fudaba/cards/${fudabaEntitySegment(cardId)}/${queue}/cache/` +
+        `${pageId}.${fudabaEntitySegment(version)}.${width}.webp`
+    );
 }
 
 export function fudabaCardMiddleVersionObjectKey(

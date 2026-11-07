@@ -1153,30 +1153,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             expectedRevision: 1
         }), { status: 'unavailable' });
 
-        const exchange = await fixture.repository.createExchangeRequest({
-            id: `${dialect}-placement-exchange`,
-            officeId,
-            requesterAccountId: otherId,
-            recipientAccountId: ownerId,
-            wantedCardId: cardId,
-            offeredCardId: null,
-            note: '',
-            createdAt: UPDATED_AT
-        });
-        assert.ok(exchange);
-        assert.deepEqual(await fixture.repository.removeCardPlacementForOwner({
-            officeId,
-            cardId,
-            ownerAccountId: ownerId,
-            expectedRevision: 0
-        }), { status: 'conflict', revision: 1 });
-        assert.deepEqual(await fixture.repository.removeCardPlacementForOwner({
-            officeId,
-            cardId,
-            ownerAccountId: ownerId,
-            expectedRevision: 1
-        }), { status: 'in-use', revision: 1 });
-
         const removable = await fixture.repository.saveCardPlacementForOwner(
             placementInput(officeId, removableCardId, ownerId, null)
         );
@@ -1300,7 +1276,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         readonly removeInputs: Array<Parameters<
             FudabaRepository['removeCardPlacementForOwner']
         >[0]> = [];
-        inUse = false;
         readonly app: ReturnType<typeof createHonoApp>;
 
         constructor(options: FixtureOptions = {}) {
@@ -1388,9 +1363,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                         status: 'conflict' as const,
                         revision: current.revision
                     };
-                }
-                if (this.inUse) {
-                    return { status: 'in-use' as const, revision: current.revision };
                 }
                 this.placements.delete(key);
                 return {
@@ -1722,20 +1694,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     body: JSON.stringify({ expectedRevision: '0' })
                 })).status, 400);
 
-                fixture.inUse = true;
-                const inUse = await fixture.app.request(`http://ims.test${path()}`, {
-                    method: 'DELETE',
-                    headers: bearerHeaders({ 'content-type': 'application/json' }),
-                    body: JSON.stringify({ expectedRevision: 0 })
-                });
-                assert.equal(inUse.status, 409);
-                assert.deepEqual(await contractJson(inUse, fudabaErrorResponseSchema), {
-                    success: false,
-                    code: 'FUDABA_CARD_PLACEMENT_IN_USE',
-                    revision: 0
-                });
-
-                fixture.inUse = false;
                 const removed = await fixture.app.request(`http://ims.test${path()}`, {
                     method: 'DELETE',
                     headers: {
@@ -1949,6 +1907,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             card_number: 1,
             owner_account_id: 'owner-1',
             producer_name: 'Owner',
+            is_group_card: false,
             producer_reading: null,
             series_codes: ['765'],
             favorite_characters: [character()],
@@ -3812,16 +3771,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 content: 'This must not be persisted.',
                 createdAt: UPDATED_AT
             }), false);
-            assert.equal(await fixture.repository.createExchangeRequest({
-                id: `${dialect}-blocked-exchange`,
-                officeId,
-                requesterAccountId: requesterId,
-                recipientAccountId: ownerId,
-                wantedCardId: wantedId,
-                offeredCardId: null,
-                note: '',
-                createdAt: UPDATED_AT
-            }), null);
 
             await assert.rejects(fixture.database.prepare(
                 `INSERT INTO fudaba_office_cards
@@ -3833,139 +3782,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             (id, office_id, author_account_id, content, created_at)
          VALUES (?, ?, ?, 'Bypassed repository', ?)`
             ).bind(`${dialect}-direct-message`, officeId, requesterId, UPDATED_AT).run());
-            await assert.rejects(fixture.database.prepare(
-                `INSERT INTO fudaba_exchange_requests
-            (id, office_id, requester_account_id, recipient_account_id,
-             wanted_card_id, offered_card_id, note, status, version,
-             created_at, updated_at, resolved_at)
-         VALUES (?, ?, ?, ?, ?, NULL, '', 'pending', 0, ?, ?, NULL)`
-            ).bind(
-                `${dialect}-direct-exchange`,
-                officeId,
-                requesterId,
-                ownerId,
-                wantedId,
-                UPDATED_AT,
-                UPDATED_AT
-            ).run());
-        }
-
-        async function assertExchangeConstraints(
-            dialect: 'postgresql'
-        ): Promise<void> {
-            const fixture = await createFixture(dialect);
-            const requesterId = `${dialect}-exchange-requester`;
-            const recipientId = `${dialect}-exchange-recipient`;
-            const otherId = `${dialect}-exchange-other`;
-            const officeId = `${dialect}-exchange-office`;
-            const wantedCardId = `${dialect}-wanted-card`;
-            const offeredCardId = `${dialect}-offered-card`;
-            const otherCardId = `${dialect}-other-card`;
-            const exchangeId = `${dialect}-valid-exchange`;
-            for (const accountId of [requesterId, recipientId, otherId]) {
-                await seedPlatformAccount(fixture, accountId);
-            }
-            await fixture.repository.createOffice(office(officeId, recipientId));
-            await seedPublishedOfficeFixture(fixture.database, officeId);
-            await fixture.repository.createCard(card(wantedCardId, recipientId));
-            await fixture.repository.createCard(card(offeredCardId, requesterId));
-            await fixture.repository.createCard(card(otherCardId, otherId));
-            assert.equal(await placeCard(
-                fixture,
-                officeId,
-                wantedCardId,
-                recipientId
-            ), true);
-
-            assert.equal(await fixture.repository.createExchangeRequest({
-                id: `${dialect}-wrong-wanted-owner`,
-                officeId,
-                requesterAccountId: requesterId,
-                recipientAccountId: otherId,
-                wantedCardId,
-                offeredCardId,
-                note: '',
-                createdAt: CREATED_AT
-            }), null);
-            assert.equal(await fixture.repository.createExchangeRequest({
-                id: `${dialect}-wrong-offered-owner`,
-                officeId,
-                requesterAccountId: requesterId,
-                recipientAccountId: recipientId,
-                wantedCardId,
-                offeredCardId: otherCardId,
-                note: '',
-                createdAt: CREATED_AT
-            }), null);
-            await assert.rejects(fixture.database.prepare(
-                `INSERT INTO fudaba_exchange_requests
-            (id, office_id, requester_account_id, recipient_account_id,
-             wanted_card_id, offered_card_id, note, status, version,
-             created_at, updated_at, resolved_at)
-         VALUES (?, ?, ?, ?, ?, NULL, '', 'pending', 0, ?, ?, NULL)`
-            ).bind(
-                `${dialect}-direct-wrong-wanted-owner`,
-                officeId,
-                requesterId,
-                otherId,
-                wantedCardId,
-                CREATED_AT,
-                CREATED_AT
-            ).run());
-            await assert.rejects(fixture.database.prepare(
-                `INSERT INTO fudaba_exchange_requests
-            (id, office_id, requester_account_id, recipient_account_id,
-             wanted_card_id, offered_card_id, note, status, version,
-             created_at, updated_at, resolved_at)
-         VALUES (?, ?, ?, ?, ?, ?, '', 'pending', 0, ?, ?, NULL)`
-            ).bind(
-                `${dialect}-direct-wrong-offered-owner`,
-                officeId,
-                requesterId,
-                recipientId,
-                wantedCardId,
-                otherCardId,
-                CREATED_AT,
-                CREATED_AT
-            ).run());
-
-            const created = await fixture.repository.createExchangeRequest({
-                id: exchangeId,
-                officeId,
-                requesterAccountId: requesterId,
-                recipientAccountId: recipientId,
-                wantedCardId,
-                offeredCardId,
-                note: 'Trade?',
-                createdAt: CREATED_AT
-            });
-            assert.equal(created?.status, 'pending');
-            assert.equal(created?.created_at, CREATED_AT);
-            assert.equal(created?.offered_card_id, offeredCardId);
-            assert.equal(await fixture.repository.createExchangeRequest({
-                id: `${dialect}-duplicate-pending-exchange`,
-                officeId,
-                requesterAccountId: requesterId,
-                recipientAccountId: recipientId,
-                wantedCardId,
-                offeredCardId: null,
-                note: '',
-                createdAt: UPDATED_AT
-            }), null);
-
-            await fixture.database.prepare(
-                `UPDATE fudaba_exchange_requests
-         SET status='accepted', version=1, updated_at=?, resolved_at=?
-         WHERE id=?`
-            ).bind(UPDATED_AT, UPDATED_AT, exchangeId).run();
-            await assert.rejects(fixture.database.prepare(
-                `UPDATE fudaba_exchange_requests
-         SET status='declined', version=2, updated_at=?, resolved_at=?
-         WHERE id=?`
-            ).bind(RESOLVED_AT, RESOLVED_AT, exchangeId).run());
-            assert.equal(await fixture.database.prepare(
-                'SELECT status FROM fudaba_exchange_requests WHERE id=?'
-            ).bind(exchangeId).first<string>('status'), 'accepted');
         }
 
         postgresTest('moderation constraints cannot be bypassed', async () => {
@@ -4064,10 +3880,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
         postgresTest('real PostgreSQL enforces Fudaba ownership and archived-office constraints', async () => {
             await assertOwnerAndArchiveBoundary('postgresql');
-        });
-
-        postgresTest('real PostgreSQL enforces exchange ownership and final-state constraints', async () => {
-            await assertExchangeConstraints('postgresql');
         });
 
         postgresTest('real PostgreSQL retains actors referenced by resolved moderation cases', async () => {
@@ -4699,6 +4511,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261103140000_platform_account_five_groups',
                 '20261103150000_platform_account_icon',
                 '20261105120000_platform_profile_slug_not_numeric',
+                '20261106120000_namecard_exchange_system',
+                '20261107120000_namecard_media_key_normalization',
+                '20261107160000_namecard_group_card',
+                '20261107180000_fudaba_card_pages',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
@@ -8163,7 +7979,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const recovered = await uploadCover(uncertain);
             assert.equal(recovered.status, 202);
             assert.deepEqual(uncertain.events.slice(0, 2), ['reserve', 'put']);
-            assert.equal(uncertain.storage.ownedDeletes.length, 0);
+            assert.equal(uncertain.storage.deletes.length, 0);
         });
 
         test('cover cleanup preserves objects while the database still or possibly references them',
@@ -8468,18 +8284,35 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 assert.equal(fixture.images.conversions.length, 2);
                 assert.equal(fixture.storage.puts.length, 2);
                 assert.equal(fixture.createInputs[0]?.ownerAccountId, ACCOUNT_ID);
+                // 页面行与正反面列同一次创建写入，顺序即 front → back。
+                assert.deepEqual(
+                    fixture.createInputs[0]?.pages?.map((page) =>
+                        /^page-[0-9a-f-]{8,}$/.test(page.pageId)
+                    ),
+                    [true, true]
+                );
                 assert.deepEqual(fixture.createInputs[0]?.favoriteCharacterIds, [900001]);
                 for (const put of fixture.storage.puts) {
                     assert.equal(put.options.contentType, 'image/webp');
                     assert.equal(put.options.protectedAccess, true);
-                    assert.match(put.options.ownerToken || '', /^[0-9a-f]{64}$/);
                     assert.equal(put.options.metadata?.account, ACCOUNT_ID);
                     assert.equal(put.options.metadata?.kind, 'fudaba-card-image');
+                    // 统一布局：页面身份与队列写进 metadata，不再按 side 区分。
+                    assert.match(
+                        String(put.options.metadata?.page ?? ''),
+                        /^(front|back|page-[0-9a-f-]{8,})$/
+                    );
+                    assert.equal(put.options.metadata?.queue, 'live');
                 }
-                assert.deepEqual(
-                    new Set(fixture.storage.puts.map((put) => put.options.metadata?.side)),
-                    new Set(['front', 'back'])
+                // 页面身份是稳定槽位，不再用 front/back 命名。
+                assert.equal(
+                    new Set(
+                        fixture.storage.puts.map((put) => put.options.metadata?.page)
+                    ).size,
+                    2
                 );
+                // 写路径不再生成缩略图：两面上传只产生两个对象。
+                assert.equal(fixture.storage.puts.length, 2);
             });
 
             test('accepts a card without selected characters', async () => {
@@ -8708,7 +8541,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const body = await response.json();
             assert.equal(response.status, 200, JSON.stringify(body));
             const uploadedKey = fixture.storage.puts.at(-1)!.key;
-            assert.match(uploadedKey, /\/versions\/[^/]+\/media\.webp$/);
+            // 统一布局：未发布的编辑落在 pending 队列，页面身份是稳定槽位。
+            assert.match(
+                uploadedKey,
+                /\/pending\/page-[0-9a-f-]{8,}\.[0-9a-f-]{8,}\.webp$/
+            );
             const input = fixture.mediaSetInputs.at(-1)!;
             assert.equal(input.frontObjectKey, live.front_object_key);
             assert.equal(input.backObjectKey, live.middle_object_keys[1]);
@@ -8795,99 +8632,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(fixture.mediaSetInputs.length, 0);
         });
 
-        test('owner card upload rejects an unknown side with compatibility text', async () => {
-            const fixture = new OwnerRouteFixture();
-            const response = await fixture.app.request(
-                'http://ims.test/api/community/exchange/uploads/unknown',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            assert.equal(response.status, 404);
-            assert.match(response.headers.get('content-type') ?? '', /^text\/plain/i);
-            assert.equal(await response.text(), 'Not Found');
-            assert.equal(fixture.uploads.calls.length, 0);
-        });
-
-        test('both card-side uploads commit through owner CAS without leaking keys', async () => {
-            const fixture = new OwnerRouteFixture();
-            let expectedRevision = fixture.cards.get('owner-card')!.revision;
-            for (const side of ['front', 'back'] as const) {
-                fixture.uploads.next = mediaUpload({
-                    cardId: 'owner-card',
-                    expectedRevision: String(expectedRevision)
-                });
-                const response = await fixture.app.request(
-                    `http://ims.test/api/community/exchange/uploads/${side}`,
-                    { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-                );
-                const body = await response.json();
-                assert.equal(response.status, 200, `${side}: ${JSON.stringify(body)}`);
-                assert.equal(JSON.stringify(body).includes('object_key'), false);
-                assert.equal(fixture.mediaInputs.at(-1)?.ownerAccountId, ACCOUNT_ID);
-                assert.equal(fixture.mediaInputs.at(-1)?.side, side);
-                expectedRevision += 1;
-            }
-            assert.equal(fixture.cards.get('owner-card')?.revision, 3);
-            for (const put of fixture.storage.puts) {
-                assert.equal(put.options.protectedAccess, true);
-                assert.equal(put.options.metadata?.account, ACCOUNT_ID);
-            }
-        });
-
-        // A compatibility row is read back by the namecard readers, which reverse the
-        // stored key into a public path and understand only the namecards layout. Those
-        // readers run for every status except withdrawn and rejected, so the layout may
-        // not drift while a card sits between reviews -- a Fudaba-layout key here used
-        // to throw and blank the whole listing that contained the row.
-        test('a compatibility card replacement keeps the namecards media layout', async () => {
-            const fixture = new OwnerRouteFixture();
-            fixture.cards.set('legacy-card', ownerCard({
-                id: 'legacy-card',
-                origin: 'legacy',
-                legacy_card_id: 42,
-                front_object_key: 'community/namecards/assets/legacy-42-front/image.webp',
-                back_object_key: 'community/namecards/assets/legacy-42-back/image.webp',
-                publication_status: 'published'
-            }));
-            fixture.uploads.next = mediaUpload({
-                cardId: 'legacy-card',
-                expectedRevision: '1'
-            });
-            const response = await fixture.app.request(
-                'http://ims.test/api/community/exchange/uploads/front',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            const body = await response.json();
-            assert.equal(response.status, 200, JSON.stringify(body));
-            assert.deepEqual(fixture.storage.puts.map((put) => put.key), [
-                'community/namecards/assets/legacy-card-front/image.webp'
-            ]);
-            // The replacement is not public yet: `updateCardMediaForOwner` reset the
-            // card to `pending`, so the object stays protected until the review
-            // publishes the card again.
-            assert.equal(fixture.storage.puts[0]!.options.protectedAccess, true);
-            assert.equal(fixture.cards.get('legacy-card')?.publication_status, 'pending');
-        });
-
-        test('an exchange card replacement keeps the versioned owner layout', async () => {
-            const fixture = new OwnerRouteFixture();
-            fixture.uploads.next = mediaUpload({
-                cardId: 'owner-card',
-                expectedRevision: '1'
-            });
-            const response = await fixture.app.request(
-                'http://ims.test/api/community/exchange/uploads/back',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            const body = await response.json();
-            assert.equal(response.status, 200, JSON.stringify(body));
-            const keys = fixture.storage.puts.map((put) => put.key);
-            assert.equal(keys.length, 1);
-            assert.match(
-                keys[0]!,
-                /^community\/fudaba\/cards\/owner-card\/versions\/[^/]+\/back\.webp$/
-            );
-        });
-
         test('soft deletion hides the card and keeps its media', async () => {
             const fixture = new OwnerRouteFixture();
             const current = fixture.cards.get('owner-card')!;
@@ -8924,7 +8668,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             unavailable.createMode = 'unavailable';
             const unavailableResponse = await postCard(unavailable);
             assert.equal(unavailableResponse.status, 409);
-            assert.equal(unavailable.storage.ownedDeletes.length, 2);
+            assert.equal(unavailable.storage.deletes.length, 2);
             assert.deepEqual(
                 new Set(unavailable.storage.objects.keys()),
                 unavailableSeededKeys
@@ -8944,12 +8688,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             storageFailure.storage.failPutNumber = 2;
             const response = await postCard(storageFailure);
             assert.equal(response.status, 500);
-            assert.equal(storageFailure.storage.ownedDeletes.length, 1);
+            assert.equal(storageFailure.storage.deletes.length, 1);
             assert.deepEqual(new Set(storageFailure.storage.objects.keys()), seededKeys);
             assert.equal(storageFailure.createInputs.length, 0);
         });
 
-        test('committed create and card-side writes recover after the repository throws', async () => {
+        test('committed create writes recover after the repository throws', async () => {
             const create = new OwnerRouteFixture();
             create.createMode = 'mutate-then-throw';
             const created = await postCard(create);
@@ -8962,27 +8706,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             for (const put of create.storage.puts) {
                 assert.equal(create.storage.objects.has(put.key), true);
             }
-
-            const side = new OwnerRouteFixture();
-            side.updateMediaMode = 'mutate-then-throw';
-            side.uploads.next = mediaUpload({
-                cardId: 'owner-card',
-                expectedRevision: '1'
-            });
-            const sideResponse = await side.app.request(
-                'http://ims.test/api/community/exchange/uploads/front',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            const sideBody = await sideResponse.json();
-            assert.equal(sideResponse.status, 200, JSON.stringify(sideBody));
-            const sideKey = side.mediaInputs[0]?.objectKey;
-            assert.ok(sideKey);
-            assert.equal(side.cards.get('owner-card')?.front_object_key, sideKey);
-            assert.equal(side.storage.objects.has(sideKey), true);
-            assert.equal(side.storage.ownedDeletes.length, 0);
         });
 
-        test('failed confirmation reads preserve objects that ambiguous mutations may reference', async () => {
+        test('failed confirmation reads preserve objects that ambiguous create mutations may reference', async () => {
             const create = new OwnerRouteFixture();
             create.createMode = 'mutate-then-throw';
             create.failCardConfirmationRead = true;
@@ -8993,72 +8719,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             for (const put of create.storage.puts) {
                 assert.equal(create.storage.objects.has(put.key), true);
             }
-
-            const side = new OwnerRouteFixture();
-            side.updateMediaMode = 'mutate-then-throw';
-            side.failCardConfirmationRead = true;
-            side.uploads.next = mediaUpload({
-                cardId: 'owner-card',
-                expectedRevision: '1'
-            });
-            const sideResponse = await side.app.request(
-                'http://ims.test/api/community/exchange/uploads/back',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            assert.equal(sideResponse.status, 500);
-            const sideKey = side.mediaInputs[0]!.objectKey!;
-            assert.equal(side.cards.get('owner-card')?.back_object_key, sideKey);
-            assert.equal(side.storage.objects.has(sideKey), true);
-            assert.equal(side.storage.ownedDeletes.length, 0);
-        });
-
-        test('media CAS conflicts clean the new object and old-object failures enqueue compensation', async () => {
-            const conflict = new OwnerRouteFixture();
-            conflict.updateMediaMode = 'conflict';
-            const seededKeys = new Set(conflict.storage.objects.keys());
-            conflict.uploads.next = mediaUpload({
-                cardId: 'owner-card',
-                expectedRevision: '1'
-            });
-            const rejected = await conflict.app.request(
-                'http://ims.test/api/community/exchange/uploads/front',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            assert.equal(rejected.status, 409);
-            assert.equal(conflict.storage.ownedDeletes.length, 1);
-            assert.deepEqual(new Set(conflict.storage.objects.keys()), seededKeys);
-
-            const cleanupFailure = new OwnerRouteFixture();
-            const oldFront = cleanupFailure.cards.get('owner-card')!.front_object_key;
-            cleanupFailure.storage.failDeletes.add(oldFront);
-            cleanupFailure.uploads.next = mediaUpload({
-                cardId: 'owner-card',
-                expectedRevision: '1'
-            });
-            const saved = await cleanupFailure.app.request(
-                'http://ims.test/api/community/exchange/uploads/front',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            assert.equal(saved.status, 200);
-            assert.deepEqual(cleanupFailure.compensation.enqueued.map((item) => ({
-                kind: item.kind,
-                payload: item.payload
-            })), [{ kind: 'delete-object', payload: { key: oldFront } }]);
-
-            const repositoryFailure = new OwnerRouteFixture();
-            repositoryFailure.updateMediaMode = 'throw';
-            repositoryFailure.uploads.next = mediaUpload({
-                cardId: 'owner-card',
-                expectedRevision: '1'
-            });
-            const failed = await repositoryFailure.app.request(
-                'http://ims.test/api/community/exchange/uploads/back',
-                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-            );
-            assert.equal(failed.status, 500);
-            assert.equal(repositoryFailure.storage.ownedDeletes.length, 0);
-            const uncertainKey = repositoryFailure.mediaInputs[0]!.objectKey!;
-            assert.equal(repositoryFailure.storage.objects.has(uncertainKey), true);
         });
 
         test('owner media is protected, private, and inaccessible through another account card', async () => {
@@ -9228,19 +8888,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(buckets.includes('fudaba-write-attempt'), false);
         });
 
-        test('single-side uploads retain their IP and account pre-parse limits', async () => {
-            for (const bucket of ['fudaba-upload-attempt', 'platform-upload-account']) {
-                const fixture = new OwnerRouteFixture();
-                fixture.rateLimiter.deniedBuckets.add(bucket);
-                const response = await fixture.app.request(
-                    'http://ims.test/api/community/exchange/uploads/front',
-                    { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
-                );
-                assert.equal(response.status, 429, bucket);
-                assert.equal(fixture.uploads.calls.length, 0, bucket);
-                assert.equal(fixture.storage.puts.length, 0, bucket);
-            }
-        });
     });
 }
 
@@ -9563,64 +9210,23 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             updatedAt: MEDIA_UPDATED_AT
         }), { status: 'conflict', revision: 1 });
 
-        // A live card stages new revisions instead of overwriting them, so the
-        // in-place fences below are exercised on a card still in review.
-        await fixture.database.prepare(
-            `UPDATE fudaba_cards
-         SET publication_status='pending'
-         WHERE id=?`
-        ).bind(cardId).run();
-        const nextFront = `community/fudaba/cards/${cardId}/front-next.webp`;
-        const mediaSaved = await fixture.fudaba.updateCardMediaForOwner({
-            cardId,
-            ownerAccountId: ownerId,
-            side: 'front',
-            objectKey: nextFront,
-            expectedRevision: 1,
-            updatedAt: MEDIA_UPDATED_AT
-        });
-        assert.equal(mediaSaved.status, 'saved');
-        if (mediaSaved.status !== 'saved') return;
-        assert.equal(
-            mediaSaved.previousObjectKey,
-            ownedCard(cardId, ownerId).frontObjectKey
-        );
-        assert.equal(mediaSaved.card.front_object_key, nextFront);
-        assert.equal(mediaSaved.card.revision, 2);
-        assert.equal(mediaSaved.card.publication_status, 'pending');
-
-        await fixture.database.prepare(
-            "UPDATE platform_accounts SET status='restricted' WHERE id=?"
-        ).bind(ownerId).run();
-        assert.deepEqual(await fixture.fudaba.updateCardMediaForOwner({
-            cardId,
-            ownerAccountId: ownerId,
-            side: 'back',
-            objectKey: `community/fudaba/cards/${cardId}/back-blocked.webp`,
-            expectedRevision: 2,
-            updatedAt: DELETED_AT
-        }), { status: 'unavailable' });
-        await fixture.database.prepare(
-            "UPDATE platform_accounts SET status='active' WHERE id=?"
-        ).bind(ownerId).run();
-
         const deleted = await fixture.fudaba.softDeleteCardForOwner({
             cardId,
             ownerAccountId: ownerId,
-            expectedRevision: 2,
+            expectedRevision: 1,
             deletedAt: DELETED_AT
         });
         assert.equal(deleted.status, 'saved');
         if (deleted.status !== 'saved') return;
         assert.equal(deleted.card.publication_status, 'hidden');
         assert.equal(deleted.card.deleted_at, null);
-        assert.equal(deleted.card.revision, 3);
+        assert.equal(deleted.card.revision, 2);
         assert.equal(await fixture.fudaba.findCardForOwner(cardId, ownerId), null);
         assert.deepEqual(await fixture.fudaba.listCardsForOwner(ownerId), []);
         assert.deepEqual(await fixture.fudaba.softDeleteCardForOwner({
             cardId,
             ownerAccountId: ownerId,
-            expectedRevision: 3,
+            expectedRevision: 2,
             deletedAt: DELETED_AT
         }), { status: 'unavailable' });
     }
@@ -9935,16 +9541,26 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
             assert.equal(created.status, 'saved');
             if (created.status !== 'saved') return;
-            const media = (name: string): string =>
-                `community/fudaba/cards/${cardId}/${name}.webp`;
+            const page = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) =>
+                `abcdef12-0000-4000-8000-00000000000${n}`;
+            const key = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
             const postgres = fixture.database as PostgresConnection;
             const first = await fixture.fudaba.replaceCardMediaForOwner({
                 cardId,
                 ownerAccountId: ownerId,
-                frontObjectKey: media('front'),
-                backObjectKey: media('back'),
-                middleObjectKeys: [media('m1'), media('m2')],
+                frontObjectKey: key('aaaaaaa1', 1),
+                backObjectKey: key('aaaaaaa4', 4),
+                middleObjectKeys: [key('aaaaaaa2', 2), key('aaaaaaa3', 3)],
                 accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa3'), objectVersion: version(3), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa4'), objectVersion: version(4), width: 1000, height: 700 }
+                ],
                 expectedRevision: created.card.revision,
                 updatedAt: MEDIA_UPDATED_AT
             });
@@ -9958,9 +9574,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const reordered = await fixture.fudaba.replaceCardMediaForOwner({
                 cardId,
                 ownerAccountId: ownerId,
-                frontObjectKey: media('front'),
-                backObjectKey: media('back'),
-                middleObjectKeys: [media('m2'), media('m1')],
+                frontObjectKey: key('aaaaaaa1', 1),
+                backObjectKey: key('aaaaaaa4', 4),
+                middleObjectKeys: [key('aaaaaaa3', 3), key('aaaaaaa2', 2)],
                 accent: null,
                 expectedRevision: first.card.revision,
                 updatedAt: MEDIA_UPDATED_AT
@@ -9972,11 +9588,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(reordered.card.review_submitted_at ?? null, null);
             assert.equal(reordered.card.pending_front_object_key, null);
             assert.deepEqual(reordered.card.pending_middle_object_keys, []);
-            assert.equal(reordered.card.front_object_key, media('front'));
-            assert.equal(reordered.card.back_object_key, media('back'));
+            assert.equal(reordered.card.front_object_key, key('aaaaaaa1', 1));
+            assert.equal(reordered.card.back_object_key, key('aaaaaaa4', 4));
             assert.deepEqual(reordered.card.middle_object_keys, [
-                media('m2'),
-                media('m1')
+                key('aaaaaaa3', 3),
+                key('aaaaaaa2', 2)
             ]);
             assert.equal(reordered.card.revision, first.card.revision + 1);
         });
@@ -10141,7 +9757,29 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.match(String(notices[0]!.body), /简介/);
             assert.match(String(notices[0]!.body), /修正录入错误/);
 
-            const removed = await core.deleteCardAsAdmin(cardNumber, moved.revision);
+            // 后台旋转：不要求理由、不产生字段改动、不通知属主，但必须落库。
+            const rotated = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: moved.revision,
+                reason: null,
+                nextFrontObjectKey: `community/fudaba/cards/${cardId}/versions/rotated/media.webp`
+            });
+            assert.equal(rotated.status, 'updated');
+            if (rotated.status !== 'updated') return;
+            assert.deepEqual(rotated.changedFields, []);
+            assert.equal(rotated.revision, moved.revision + 1);
+            const rotatedRow = (await postgres.pool.query(
+                'SELECT front_object_key FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows[0] as { front_object_key: string } | undefined;
+            assert.match(rotatedRow?.front_object_key ?? '', /versions\/rotated\/media\.webp$/);
+            const noticesAfterRotation = (await postgres.pool.query(
+                'SELECT COUNT(*)::int AS total FROM public.namecard_notifications'
+            )).rows[0] as { total: number };
+            assert.equal(noticesAfterRotation.total, notices.length);
+
+            const removed = await core.deleteCardAsAdmin(cardNumber, rotated.revision);
             assert.equal(removed.status, 'updated');
             if (removed.status !== 'updated') return;
             const queue = await core.listAdminCards(50, 0);
@@ -10552,17 +10190,26 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
             assert.equal(created.status, 'saved');
             if (created.status !== 'saved') return;
-            const middleKeys = [
-                `community/fudaba/cards/${cardId}/middle-1.webp`,
-                `community/fudaba/cards/${cardId}/middle-2.webp`
-            ];
+            const page = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) =>
+                `abcdef12-0000-4000-8000-00000000000${n}`;
+            const key = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
+            const middleKeys = [key('bbbbbbb2', 2), key('bbbbbbb3', 3)];
             const media = await fixture.fudaba.replaceCardMediaForOwner({
                 cardId,
                 ownerAccountId: ownerId,
-                frontObjectKey: created.card.front_object_key,
-                backObjectKey: created.card.back_object_key,
+                frontObjectKey: key('bbbbbbb1', 1),
+                backObjectKey: key('bbbbbbb4', 4),
                 middleObjectKeys: middleKeys,
                 accent: null,
+                pages: [
+                    { pageId: page('bbbbbbb1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb3'), objectVersion: version(3), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb4'), objectVersion: version(4), width: 1000, height: 700 }
+                ],
                 expectedRevision: created.card.revision,
                 updatedAt: MEDIA_UPDATED_AT
             });
@@ -10606,6 +10253,110 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 )).rows[0],
                 { keys: middleKeys }
             );
+        });
+
+        postgresTest('real PostgreSQL keeps page rows stable across reorder, add and delete', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-pages-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-pages-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const postgres = fixture.database as PostgresConnection;
+            const page = (name: string) => `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) => `${'abcdef12'.repeat(4)}`.slice(0, 8) + `-0000-4000-8000-00000000000${n}`;
+            const key = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
+            const rows = async () =>
+                (await postgres.pool.query(
+                    'SELECT page_id, display_order, object_version FROM public.fudaba_card_pages WHERE card_id = $1 ORDER BY display_order',
+                    [cardId]
+                )).rows as Array<{ page_id: string; display_order: number; object_version: string }>;
+
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa1', 1),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [key('aaaaaaa2', 2)],
+                accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa3'), objectVersion: version(3), width: 1000, height: 700 }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            assert.deepEqual((await rows()).map((row) => row.display_order), [1, 2, 3]);
+            const versionsBefore = (await rows()).map((row) => row.object_version);
+
+            // 调换顺序：只改 display_order，版本不变。
+            const reordered = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa2', 2),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [key('aaaaaaa1', 1)],
+                accent: null,
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(reordered.status, 'saved');
+            if (reordered.status !== 'saved') return;
+            assert.deepEqual(
+                (await rows()).map((row) => row.page_id),
+                [page('aaaaaaa2'), page('aaaaaaa1'), page('aaaaaaa3')]
+            );
+            assert.deepEqual(
+                (await rows()).map((row) => row.object_version),
+                [versionsBefore[1], versionsBefore[0], versionsBefore[2]]
+            );
+
+            // 加页：新行插入到目标位置，已有页顺序顺延。
+            const added = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa2', 2),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [key('aaaaaaa9', 9), key('aaaaaaa1', 1)],
+                accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa9'), objectVersion: version(9), width: 1000, height: 700 }
+                ],
+                expectedRevision: reordered.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(added.status, 'saved');
+            if (added.status !== 'saved') return;
+            assert.deepEqual(
+                (await rows()).map((row) => row.page_id),
+                [page('aaaaaaa2'), page('aaaaaaa9'), page('aaaaaaa1'), page('aaaaaaa3')]
+            );
+
+            // 删页：对应行删除，其余重排。
+            const removed = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa2', 2),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [],
+                accent: null,
+                expectedRevision: added.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(removed.status, 'saved');
+            if (removed.status !== 'saved') return;
+            assert.deepEqual(
+                (await rows()).map((row) => row.page_id),
+                [page('aaaaaaa2'), page('aaaaaaa3')]
+            );
+            assert.deepEqual((await rows()).map((row) => row.display_order), [1, 2]);
         });
     });
 }

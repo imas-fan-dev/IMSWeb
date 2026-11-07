@@ -39,6 +39,7 @@ export function makeFudabaOwnerCard(
     id: "card-1",
     cardNumber: 1,
     producerName: "P",
+    isGroupCard: false,
     seriesCodes: ["765"],
     favoriteCharacters: [],
     frontImageUrl: "/api/exchange/me/cards/card-1/media/front?v=3",
