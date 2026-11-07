@@ -43,7 +43,7 @@ import { apiPath, exchangePath } from "@imsweb/contracts/paths"
 
 import { installCommunityContentMock } from "./community-content"
 import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
-import { installHomepageLinksMock } from "./homepage"
+import { installHomepageLinksMock, installBirthdaysMock } from "./homepage"
 import { installNamecardListMock } from "./namecards"
 import { installPlatformOAuthProvidersMock } from "./platform-auth"
 import { installSeededWikiApis, type SeededWikiApiRegistration } from "./wiki"
@@ -118,6 +118,7 @@ export type SeededPublicApiRegistration = {
     | "/api/community/exchange/series"
     | "/api/events"
     | "/api/homepage-links"
+    | "/api/birthdays"
     | "/api/live-schedule"
     | "/api/news"
     | "/api/platform/auth/oauth/providers"
@@ -125,6 +126,7 @@ export type SeededPublicApiRegistration = {
 }
 
 export const homeSeededApis: SeededPublicApiRegistration[] = [
+  { path: "/api/birthdays", times: 1 },
   { path: "/api/wiki/random_idol", times: 1 },
   { path: "/api/wiki/catalog", times: 1 },
   { path: "/api/community-posts/spotlight", times: 1 },
@@ -298,6 +300,8 @@ export function installSeededPublicApis(
       installEventsMock(api, times)
     } else if (path === "/api/homepage-links") {
       installHomepageLinksMock(api, times)
+    } else if (path === "/api/birthdays") {
+      installBirthdaysMock(api, times)
     } else if (path === "/api/live-schedule") {
       installLiveScheduleMock(api, times)
     } else if (path === "/api/news") {

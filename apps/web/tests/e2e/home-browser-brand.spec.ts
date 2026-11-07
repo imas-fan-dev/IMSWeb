@@ -4,6 +4,7 @@ import {
   browserIconUrls,
   installBrowserIconMock,
   installHomepageLinksMock,
+  installBirthdaysMock,
 } from "./fixtures/homepage"
 
 test.describe("home browser brand", () => {
@@ -15,6 +16,7 @@ test.describe("home browser brand", () => {
     test.skip(isMobile, "desktop navigation is used to verify route cleanup")
     await installBrowserIconMock(api)
     installHomepageLinksMock(api)
+    installBirthdaysMock(api)
     await api.mockRoute(
       "/api/wiki/random_idol",
       (route) => route.fulfill({ status: 500, json: { error: "Unavailable" } }),

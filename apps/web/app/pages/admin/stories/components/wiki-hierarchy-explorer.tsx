@@ -99,7 +99,7 @@ export function WikiHierarchyExplorer({
             </EmptyMedia>
             <EmptyTitle>还没有内容</EmptyTitle>
             <EmptyDescription>
-              请前往偶像管理维护栏目与内容页。
+              可从角色档案选择人物，或前往 Wiki 条目管理维护栏目与剧情专题。
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

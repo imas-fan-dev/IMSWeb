@@ -17,6 +17,17 @@ const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/fudaba", symbol: "fudabaIgnoredQuerySchema", carriers: 6, policy: "accept-and-project" },
   { module: "@imsweb/contracts/fudaba", symbol: "fudabaMediaQuerySchema", carriers: 12, policy: "accept-and-project" },
 ];
+// New management capabilities are reconciled separately; the existing baseline,
+// including all public routes and their unknown-key policies, stays frozen.
+const EXPLICIT_ADMIN_ADDITIONS = [
+  { module: "@imsweb/contracts/catalog", symbol: "adminCatalogStoryTargetRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/story-target", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/catalog", symbol: "adminCatalogCreateCharacterRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/characters", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/catalog", symbol: "adminCatalogDefaultProfileRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/default-profile", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/catalog", symbol: "adminCatalogProfileRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/profiles", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/catalog", symbol: "adminCatalogGroupKindRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/group-kind", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/catalog", symbol: "adminCatalogBindingRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/wiki-bindings", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/catalog", symbol: "adminCatalogProfileImageParamsSchema", kind: "param", method: "GET", path: "/api/admin/catalog/profile-images/:kind/:id", carriers: 1, policy: "accept-and-project" },
+];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
   platformAuthOAuthPath: "/api/platform/auth/oauth", adminPlatformAuthOAuthPath: "/api/admin/platform/auth/oauth",
@@ -572,8 +583,22 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
     }
     return { ...addition, actualCarriers: matching.length, routes: matching.map((carrier) => `${carrier.method} ${carrier.path}`).sort() };
   });
+  const matchesAdminAddition = (carrier, addition) => carrier.schemaModule === addition.module &&
+    carrier.schemaSymbol === addition.symbol && carrier.kind === addition.kind &&
+    carrier.method === addition.method && carrier.path === addition.path;
+  const explicitAdminAdditions = (enforceBaseline ? EXPLICIT_ADMIN_ADDITIONS : []).map((addition) => {
+    const matching = carriers.filter((carrier) => matchesAdminAddition(carrier, addition));
+    if (matching.length !== addition.carriers || matching.some((carrier) => carrier.policy !== addition.policy)) {
+      diagnostics.push(reconciliationIssue(
+        `explicit admin addition ${addition.method} ${addition.path} expected ${addition.carriers} ${addition.policy} carriers, found ${matching.length}`,
+        addition.symbol,
+      ));
+    }
+    return { ...addition, actualCarriers: matching.length };
+  });
   const baselineCarriers = carriers.filter((carrier) =>
-    !(carrier.kind === "query" && additionKeys.has(`${carrier.schemaModule}\0${carrier.schemaSymbol}`)));
+    !(carrier.kind === "query" && additionKeys.has(`${carrier.schemaModule}\0${carrier.schemaSymbol}`)) &&
+    !EXPLICIT_ADMIN_ADDITIONS.some((addition) => matchesAdminAddition(carrier, addition)));
   const baselineRouteCount = new Set(baselineCarriers.map((carrier) => `${carrier.method}\0${carrier.path}`)).size;
   const baselinePolicies = policyCounts(baselineCarriers);
   const baselineChecks = [
@@ -618,6 +643,7 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
     reconciliation: {
       baselineCompatible: { mountedMethodPaths: baselineRouteCount, requestCarriers: baselineCarriers.length, policies: baselinePolicies },
       explicitQueryAdditions,
+      explicitAdminAdditions,
       routeGroups,
     },
     diagnostics: diagnostics.sort((a, b) => `${a.file}:${a.line}:${a.message}`.localeCompare(`${b.file}:${b.line}:${b.message}`)),
@@ -655,11 +681,16 @@ export function reconciliation(inventory) {
     "",
     `The compiler inventory resolves all ${inventory.counts.mountedRegistrations} registrations. It finds ${inventory.counts.requestCarriers} current carriers on ${inventory.counts.mountedMethodPaths} method/path instances. Compatibility aliases remain distinct, while exact duplicate registrations collapse only when method, path, and handler identity match.`,
     "",
-    `Removing the ${inventory.counts.requestCarriers - compatible.requestCarriers} explicit query validators listed below produces ${compatible.mountedMethodPaths} method/path instances and ${compatible.requestCarriers} carriers. Those totals and all four policies match the approved ${BASELINE.mountedMethodPaths}/${BASELINE.carriers} baseline exactly. The added validators make previously accepted and ignored query surfaces visible to static enforcement; they do not remove a historical carrier.`,
+    `Removing the ${inventory.counts.requestCarriers - compatible.requestCarriers} explicitly listed query and administrative additions produces ${compatible.mountedMethodPaths} method/path instances and ${compatible.requestCarriers} carriers. Those totals and all four policies match the approved ${BASELINE.mountedMethodPaths}/${BASELINE.carriers} baseline exactly. Existing public routes remain in that baseline.`,
     "",
     "## Explicit Query Validators",
     "",
     ...additions,
+    "",
+    "## Explicit Administrative Additions",
+    "",
+    ...(inventory.reconciliation.explicitAdminAdditions ?? []).map((addition) =>
+      `- \`${addition.method} ${addition.path}\`: ${addition.actualCarriers} ${addition.policy} \`${addition.kind}\` carrier from \`${addition.module}:${addition.symbol}\`.`),
     "",
     "## Enforcement",
     "",

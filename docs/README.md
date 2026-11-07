@@ -39,6 +39,7 @@ Issue、release record 或私有运维记录中。
 - [平台账号安全中心架构](architecture/platform-account-security.md)：已登录身份能力的 domain 边界、各决策的实现状态、软删约束和验证码模型。
 - [Wiki 管理架构](architecture/wiki-management.md)：Wiki 数据模型、公开/后台 API 和媒体关系。
 - [名片交换设计](architecture/namecard-exchange.md)：交换的四种入口、名片册数据模型、链接与扫码、离线重放和退役清单。
+- [统一偶像资料库](architecture/idol-catalog.md)：角色企划档案、组合标签、名片与 Wiki 引用及资料扩充的目标架构。
 - [URL 与公共路径架构](architecture/url-paths.md)：共享路径 builders、路由所有权和变更流程。
 - [玻璃折射的平台策略](architecture/glass-refraction-platform-strategy.md)：伪折射地板、Chromium 真折射封顶和跨引擎降级。
 - [地图渲染与当地语言策略](architecture/map-rendering.md)：底图资源分工、当地原名优先、Mapbox 样式兼容与多文字系统验收。
@@ -63,6 +64,7 @@ Issue、release record 或私有运维记录中。
 - [OpenMap S3 发布规范](operations/openmap-s3-publication.md)
 - [Platform OAuth Provider 运维](operations/platform-oauth-providers.md)
 - [Fudaba Platform 数据迁移合同](migrations/fudaba-platform.md)
+- [统一偶像资料库迁移与回放](migrations/idol-catalog.md)
 - [Producer Map 数据迁移与对账](migrations/producer-map-online.md)
 
 ## 治理

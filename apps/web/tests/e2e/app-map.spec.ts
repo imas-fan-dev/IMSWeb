@@ -11,7 +11,10 @@ import {
   fudabaSeriesListSchema,
 } from "@imsweb/contracts/fudaba"
 
-import { installHomepageLinksMock } from "./fixtures/homepage"
+import {
+  installBirthdaysMock,
+  installHomepageLinksMock,
+} from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
 import { expect, test, type ApiDispatcher } from "./fixtures/test"
 
@@ -1159,6 +1162,7 @@ test.describe("app map", () => {
       )
 
       installHomepageLinksMock(api)
+      installBirthdaysMock(api)
       const mapBounds = installMapMocks(api)
       await page.goto("/")
 

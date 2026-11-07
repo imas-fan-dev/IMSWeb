@@ -77,6 +77,7 @@ test.describe("home layout geometry", () => {
       { path: "/api/wiki/catalog", times: 1 },
       { path: "/api/community-posts/spotlight", times: 1 },
       { path: "/api/homepage-links", times: 1 },
+      { path: "/api/birthdays", times: 1 },
       { path: "/api/news", times: 2 },
       { path: "/api/events", times: 2 },
       { path: "/api/live-schedule", times: 1 },

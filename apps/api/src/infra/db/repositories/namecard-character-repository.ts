@@ -18,14 +18,15 @@ import { queryAll, queryOne } from '@/infra/db/sql/query';
  * row, `agency` supplies the label; the column order matches
  * `NamecardCharacterRecord` so the row can be cast directly.
  */
-const CHARACTER_SELECT = `SELECT entry.id, entry.agency_id, entry.category,
-        entry.is_fallback, entry.name_cn, entry.name_ja, entry.name_en,
-        entry.aliases, entry.display_order, entry.revision,
+const CHARACTER_SELECT = `SELECT entry.id, profile.project_id AS agency_id, profile.category,
+        profile.is_fallback, profile.name_cn, profile.name_ja, profile.name_en,
+        profile.aliases, profile.display_order, entry.revision,
         entry.created_at, entry.updated_at,
         agency.code AS agency_code, agency.name_cn AS agency_name,
         agency.color AS agency_color
-    FROM namecard_characters entry
-    JOIN agencies agency ON agency.id=entry.agency_id`;
+    FROM catalog_characters entry
+    JOIN catalog_character_project_profiles profile ON profile.id=entry.default_profile_id
+    JOIN projects agency ON agency.id=profile.project_id`;
 
 /**
  * Catalog order: agency, then category in the order the contract declares,
@@ -34,7 +35,7 @@ const CHARACTER_SELECT = `SELECT entry.id, entry.agency_id, entry.category,
  * in `@imsweb/contracts/fudaba/admin-characters`.
  */
 const CHARACTER_ORDER = `ORDER BY agency.display_order, agency.id,
-        CASE entry.category
+        CASE profile.category
             WHEN 'idol' THEN 0
             WHEN 'staff' THEN 1
             WHEN 'rival' THEN 2
@@ -42,17 +43,17 @@ const CHARACTER_ORDER = `ORDER BY agency.display_order, agency.id,
             WHEN 'chara' THEN 4
             ELSE 5
         END,
-        entry.display_order, entry.created_at, entry.id`;
+        profile.display_order, entry.created_at, entry.id`;
 
 /** The name unique index; a violation is a duplicate name, not a server error. */
-const AGENCY_NAME_CONSTRAINT = 'namecard_characters_agency_name_key';
+const AGENCY_NAME_CONSTRAINT = 'catalog_characters_project_name_key';
 
 /**
  * The partial unique index that allows at most one fallback entry per category;
  * a violation is a request error with a readable message.
  */
 const FALLBACK_CATEGORY_CONSTRAINT =
-    'namecard_characters_fallback_category_key';
+    'catalog_characters_fallback_category_key';
 
 interface FilterFragment {
     clause: string;
@@ -68,19 +69,20 @@ function characterFilter(filter: NamecardCharacterListFilter): FilterFragment {
     const values: unknown[] = [];
     if (filter.query !== null) {
         clauses.push(
-            `(entry.name_cn ILIKE ? ESCAPE '\\'
-              OR entry.name_ja ILIKE ? ESCAPE '\\'
-              OR entry.name_en ILIKE ? ESCAPE '\\'
-              OR entry.aliases ILIKE ? ESCAPE '\\')`
+            `(profile.name_cn ILIKE ? ESCAPE '\'
+              OR profile.name_ja ILIKE ? ESCAPE '\'
+              OR profile.name_en ILIKE ? ESCAPE '\'
+              OR profile.aliases ILIKE ? ESCAPE '\')`
         );
         values.push(filter.query, filter.query, filter.query, filter.query);
     }
     if (filter.agencyId !== null) {
-        clauses.push('entry.agency_id=?');
+        clauses.push(`EXISTS (SELECT 1 FROM catalog_character_project_profiles participation
+            WHERE participation.character_id=entry.id AND participation.project_id=?)`);
         values.push(filter.agencyId);
     }
     if (filter.category !== null) {
-        clauses.push('entry.category=?');
+        clauses.push('profile.category=?');
         values.push(filter.category);
     }
     return { clause: clauses.join(' AND '), values };
@@ -91,7 +93,7 @@ function isDuplicateName(error: unknown): boolean {
     const databaseError = error as Error & { code?: string; constraint?: string };
     return (
         databaseError.code === '23505' &&
-        databaseError.constraint === AGENCY_NAME_CONSTRAINT
+        (databaseError.constraint === AGENCY_NAME_CONSTRAINT || databaseError.constraint === 'wiki_entries_effective_name_key')
     );
 }
 
@@ -125,7 +127,8 @@ export class SqlNamecardCharacterRepository implements NamecardCharacterReposito
         const fragment = characterFilter(filter);
         const row = await queryOne<{ total: number }>(
             this.database,
-            `SELECT COUNT(*) AS total FROM namecard_characters entry
+            `SELECT COUNT(*) AS total FROM catalog_characters entry
+             JOIN catalog_character_project_profiles profile ON profile.id=entry.default_profile_id
              WHERE ${fragment.clause}`,
             fragment.values,
         );
@@ -152,8 +155,8 @@ export class SqlNamecardCharacterRepository implements NamecardCharacterReposito
     listNamecardCharacterAgencies(): Promise<NamecardCharacterAgencyRecord[]> {
         return queryAll<NamecardCharacterAgencyRecord>(
             this.database,
-            `SELECT id, code, name_cn, color, wiki_enabled
-             FROM agencies ORDER BY display_order, id`,
+            `SELECT p.id,p.code,p.name_cn,p.color,s.is_enabled AS wiki_enabled
+             FROM projects p JOIN wiki_project_settings s ON s.project_id=p.id ORDER BY p.display_order,p.id`,
         );
     }
 
@@ -197,9 +200,9 @@ export class SqlNamecardCharacterRepository implements NamecardCharacterReposito
     }
 
     updateNamecardCharacter(
-        input: UpdateNamecardCharacterInput,
+        input: UpdateNamecardCharacterInput
     ): Promise<NamecardCharacterUpdateResult> {
-        return this.database.transaction(async (database) => {
+        return this.database.transaction<NamecardCharacterUpdateResult>(async (database) => {
             try {
                 const updated = await queryOne<{ id: number }>(
                     database,
@@ -248,6 +251,10 @@ export class SqlNamecardCharacterRepository implements NamecardCharacterReposito
                 }
                 throw error;
             }
+        }).catch((error: unknown): NamecardCharacterUpdateResult => {
+            if (isDuplicateName(error)) return { status: 'duplicate' };
+            if (isDuplicateFallback(error)) return { status: 'fallback-exists' };
+            throw error;
         });
     }
 

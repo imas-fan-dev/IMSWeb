@@ -3,6 +3,7 @@
 // 不做扁平 re-export，避免跨域原子名撞名。
 // 命名规则：命名空间 = 子路径的 camelCase（fudaba/card-claims ↔ fudabaCardClaims）。
 export * as wiki from "./wiki.js"
+export * as catalog from "./catalog.js"
 export * as platform from "./platform/index.js"
 export * as platformAdmin from "./platform/admin.js"
 export * as platformAdminEmail from "./platform/admin-email.js"

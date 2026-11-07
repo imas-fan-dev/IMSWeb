@@ -37,6 +37,7 @@ export class S3CompensationService implements CompensationService {
         private readonly database: ManagedSqlDatabase,
         private readonly state: S3UploadStateMachine,
         private readonly deletePhysicalObject: S3PhysicalObjectDelete,
+        private readonly isReferenced?: (key: string) => Promise<boolean>,
     ) {}
 
     async enqueue(
@@ -137,7 +138,10 @@ export class S3CompensationService implements CompensationService {
                 if (typeof payload.key !== "string" || !payload.key) {
                     throw new Error("Invalid object key");
                 }
-                if (typeof payload.objectId === "string" && payload.objectId) {
+                if (await this.isReferenced?.(payload.key)) {
+                    // The deletion intent is obsolete once a catalog/Wiki
+                    // reference has been acquired. Complete it without deletion.
+                } else if (typeof payload.objectId === "string" && payload.objectId) {
                     if (!storage.deleteIfObjectId) {
                         throw new Error(
                             "Version-fenced object deletion is unavailable",

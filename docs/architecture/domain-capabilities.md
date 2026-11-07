@@ -45,6 +45,7 @@ Domain、模块和 handler 清单由 `apps/api/scripts/checks/hono-architecture.
 | admin | `admin-accounts` | 后台账号生命周期 | accounts | S |
 | admin | `platform-users` | 平台用户账号管理 | handlers（平铺，未分 capability） | M |
 | admin | `audit` | 后台审计记录写入与查询 | write、read | 横切 |
+| admin | `catalog` | 人物与组合企划档案、媒体及 Wiki 绑定 | handlers（平铺） | S |
 | content | `wiki` | 企划、内容页、剧情与素材 | catalog、story-content、story-catalog、entity-media、story-assets、tools | L |
 | content | `information` | 资讯公开阅读与后台编排 | public-content、admin-content、assets | M |
 | content | `news` | 新闻发布与公开列表 | news | S |

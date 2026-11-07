@@ -265,7 +265,9 @@ describe("WikiEntityEditorDialog", () => {
       expect(onOpenChange).toHaveBeenCalledWith(false)
       expect(onSaved).toHaveBeenCalledTimes(1)
     })
-    const request = requestDetails(fetchMock.mock.calls[0] ?? [])
+    const request = fetchMock.mock.calls
+      .map(requestDetails)
+      .find(({ method }) => method === "DELETE")!
     expect(request.method).toBe("DELETE")
     expect(new URL(request.url, window.location.origin).pathname).toBe(
       "/api/admin/wiki/groups/31"
@@ -338,7 +340,9 @@ describe("WikiEntityEditorDialog", () => {
       expect(onOpenChange).toHaveBeenCalledWith(false)
       expect(onSaved).toHaveBeenCalledTimes(1)
     })
-    const request = requestDetails(fetchMock.mock.calls[0] ?? [])
+    const request = fetchMock.mock.calls
+      .map(requestDetails)
+      .find(({ method }) => method === "DELETE")!
     expect(request.method).toBe("DELETE")
     expect(new URL(request.url, window.location.origin).pathname).toBe(
       "/api/admin/wiki/idols/10"

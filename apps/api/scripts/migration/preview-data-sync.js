@@ -12,14 +12,19 @@ const { migratePostgres, readMigrations } = require('./postgres-migrations');
 // Dependency order. Identity, security, queues, config and immutable legacy archives
 // deliberately have no entry. Never discover writable tables from source input.
 const TABLES = [
-    's3_object_versions', 's3_object_index', 'agencies', 'idols', 'theme_colors',
-    'wiki_groups', 'wiki_group_members', 'wiki_categories', 'wiki_idol_categories',
+    's3_object_versions', 's3_object_index', 'projects', 'wiki_project_settings', 'wiki_entries', 'theme_colors',
+    'wiki_navigation_groups', 'wiki_navigation_group_entries', 'wiki_categories', 'wiki_entry_categories',
     'wiki_story_content_types', 'wiki_story_source_platforms', 'wiki_story_cover_assets',
     'wiki_story_cards', 'wiki_story_links', 'news', 'articles', 'events',
     'homepage_links', 'site_packages', 'site_package_revisions',
     'fudaba_cards', 'namecard_guest_attributes', 'namecard_reactions'
 ];
 const IGNORED = {
+    wiki_project_settings: ['layout_revision'],
+    // The preview catalog owns identity/profile data. A migrated legacy source
+    // can have different profile IDs; content sync must not import its bindings.
+    wiki_entries: ['character_profile_id', 'group_profile_id', 'binding_revision'],
+    wiki_navigation_groups: ['group_profile_id', 'binding_revision'],
     articles: ['created_at', 'updated_at', 'revision', 'created_by', 'updated_by', 'published_by'],
     site_packages: ['published_revision_id', 'created_by', 'updated_by'],
     site_package_revisions: ['created_by', 'preview_token_hash'],
@@ -33,6 +38,27 @@ const IGNORED = {
     namecard_guest_attributes: ['submitted_ip', 'withdrawal_token_hash'],
     s3_object_versions: ['owner_token'],
     s3_object_index: ['operation_id']
+};
+const WIKI_LAYOUT_TABLES = new Set(['projects','wiki_project_settings','wiki_entries','wiki_navigation_groups',
+    'wiki_navigation_group_entries','wiki_categories','wiki_entry_categories']);
+// Historical sync state used compatibility relation/column names. Translate it
+// in PostgreSQL (including bigint JSON values) instead of treating an upgrade as
+// a first import. Retain old state for audit; accepted writes establish canonical
+// baselines in the same transaction as the business row.
+const LEGACY_BASELINES = {
+    projects: { table: 'agencies', columns: {} },
+    wiki_project_settings: { table: 'agencies', columns: { id: 'project_id', wiki_enabled: 'is_enabled' } },
+    wiki_entries: { table: 'idols', columns: {
+        agency_id: 'project_id', name_cn: 'local_name_cn', folder_name: 'storage_slug', color: 'local_accent_color',
+        wiki_enabled: 'is_visible', avatar_object_key: 'local_image_object_key', avatar_fit: 'local_image_fit',
+        avatar_focal_x: 'local_image_focal_x', avatar_focal_y: 'local_image_focal_y', avatar_zoom: 'local_image_zoom',
+        avatar_rotation: 'local_image_rotation', avatar_media_revision: 'local_image_media_revision'
+    } },
+    wiki_navigation_groups: { table: 'wiki_groups', columns: { agency_id: 'project_id' } },
+    wiki_navigation_group_entries: { table: 'wiki_group_members', columns: {
+        agency_id: 'project_id', group_id: 'navigation_group_id', idol_id: 'entry_id'
+    } },
+    wiki_entry_categories: { table: 'wiki_idol_categories', columns: { agency_id: 'project_id', idol_id: 'entry_id' } }
 };
 const quote = (value) => '"' + value.replaceAll('"', '""') + '"';
 const relation = (table) => `public.${quote(table)}`;
@@ -163,6 +189,47 @@ async function ensureState(client) {
         )`);
 }
 
+async function compatibleBaselines(target, table, managed, options) {
+    if (!options.hasState) return new Map();
+    const legacy = options.stateTable ? null : LEGACY_BASELINES[table];
+    const renamed = (expression) => `(SELECT jsonb_object_agg(COALESCE($4::jsonb->>e.key,e.key),e.value) FROM jsonb_each(${expression}) e)`;
+    const rows = await target.query(`WITH candidates AS (
+        SELECT row_key,payload,0 AS priority FROM preview_sync.baselines WHERE source_id=$1 AND table_name=$2
+        UNION ALL
+        SELECT ${renamed('row_key')},${renamed('payload')},1 FROM preview_sync.baselines WHERE source_id=$1 AND table_name=$3
+    ), chosen AS (SELECT DISTINCT ON (row_key) row_key,payload FROM candidates ORDER BY row_key,priority)
+    SELECT row_key::text AS key,COALESCE((SELECT jsonb_object_agg(e.key,e.value) FROM jsonb_each(payload) e WHERE e.key=ANY($5::text[])),'{}'::jsonb)::text AS payload FROM chosen`,
+    [options.sourceId,options.stateTable || table,legacy?.table ?? null,JSON.stringify(legacy?.columns || {}),managed]);
+    return new Map(rows.rows.map((row) => [row.key,row.payload]));
+}
+
+async function retireLegacyBaselines(target, sourceId, apply = false) {
+    let removed = 0;
+    for (const legacyTable of new Set(Object.values(LEGACY_BASELINES).map((mapping) => mapping.table))) {
+        const destinations = Object.entries(LEGACY_BASELINES).filter(([,mapping]) => mapping.table === legacyTable);
+        const values = [sourceId,legacyTable];
+        const checks = destinations.map(([table,mapping]) => {
+            values.push(table,JSON.stringify(mapping.columns));
+            const name = values.length - 1;
+            const columns = values.length;
+            return `EXISTS (SELECT 1 FROM preview_sync.baselines current
+                WHERE current.source_id=old.source_id AND current.table_name=$${name}
+                AND current.row_key=(SELECT jsonb_object_agg(COALESCE($${columns}::jsonb->>e.key,e.key),e.value) FROM jsonb_each(old.row_key) e))`;
+        });
+        const predicate = `old.source_id=$1 AND old.table_name=$2 AND ${checks.join(' AND ')}`;
+        const result = await target.query(apply
+            ? `DELETE FROM preview_sync.baselines old WHERE ${predicate} RETURNING row_key`
+            : `SELECT row_key FROM preview_sync.baselines old WHERE ${predicate}`,values);
+        removed += result.rowCount;
+    }
+    return removed;
+}
+
+async function advanceWikiLayoutRevisions(target, projects) {
+    if (!projects.size) return 0;
+    return (await target.query('UPDATE wiki_project_settings SET layout_revision=layout_revision+1 WHERE project_id=ANY($1::bigint[])',[Array.from(projects)])).rowCount;
+}
+
 // Compare JSON inside PostgreSQL: bigint IDs and numeric values never round-trip
 // through JavaScript numbers. Baselines and business writes share one transaction.
 async function mergeTable(source, target, table, options) {
@@ -171,6 +238,7 @@ async function mergeTable(source, target, table, options) {
         [...(IGNORED[table] || []), 'revision'];
     const stateTable = options.stateTable || table;
     const managed = columns.map((column) => column.name).filter((name) => !ignored.includes(name));
+    const baselines = await compatibleBaselines(target,table,managed,options);
     const keys = columns.filter((column) => column.primary_key).map((column) => column.name);
     const projection = `to_jsonb(t) - $1::text[]`;
     const keyExpression = `jsonb_build_object(${keys.map((key) => `'${key}',t.${quote(key)}`).join(',')})`;
@@ -200,28 +268,29 @@ async function mergeTable(source, target, table, options) {
         table === 's3_object_index' ? " WHERE t.state='ready' AND NOT(t.logical_key=ANY($2::text[])) AND EXISTS (SELECT 1 FROM public.s3_object_versions v WHERE v.object_id=t.object_id AND v.storage_scope='public')" : '';
     const initialValues = table === 'fudaba_cards'
         ? "jsonb_build_object('created_at',t.created_at,'updated_at',t.updated_at,'exchange_mode','none','trade_note',NULL)::text" : "'{}'::text";
+    const projectColumn = table === 'projects' ? 'id' : columns.some((column) => column.name==='project_id') ? 'project_id' : 'agency_id';
+    const layoutProject = WIKI_LAYOUT_TABLES.has(table) ? `t.${quote(projectColumn)}::text` : 'NULL::text';
     const rows = await source.query(`SELECT (${projection})::text AS payload, ${references} AS parent_refs,
-        ${initialValues} AS insert_values,
+        ${initialValues} AS insert_values,${layoutProject} AS layout_project_id,
         (${keyExpression})::text AS key FROM ${relation(table)} t${filter}`, mediaTable ? [ignored, preservedKeys] : [ignored]);
     const summary = { insert: 0, update: 0, adopt: 0, unchanged: 0, conflict: 0, deleted: 0,
-        insertedKeys: new Set(), conflictKeys: new Set() };
+        insertedKeys: new Set(), conflictKeys: new Set(),changedProjects: new Set() };
     if (table === 's3_object_index') {
         const retained = await source.query('SELECT count(*)::int AS count FROM public.s3_object_index WHERE logical_key=ANY($1::text[])', [preservedKeys]);
         summary.preserved = retained.rows[0].count;
     }
     Object.defineProperty(summary, 'insertedKeys', { enumerable: false });
     Object.defineProperty(summary, 'conflictKeys', { enumerable: false });
+    Object.defineProperty(summary, 'changedProjects', { enumerable: false });
     const seen = new Set();
     for (const row of rows.rows) {
         seen.add(row.key);
         const ownershipGuard = table === 'fudaba_cards' ? ', (t.owner_account_id IS NOT NULL OR t.pending_payload IS NOT NULL) AS locally_owned' : '';
         const current = await target.query(`SELECT (${projection})::text AS payload${ownershipGuard}
             FROM ${relation(table)} t WHERE ${predicate}${options.apply ? ' FOR UPDATE' : ''}`, [ignored, row.key]);
-        const baseline = options.hasState ? await target.query(`SELECT payload::text AS payload
-            FROM preview_sync.baselines WHERE source_id=$1 AND table_name=$2 AND row_key=$3::jsonb`,
-        [options.sourceId, stateTable, row.key]) : { rows: [] };
-        let action = decision(baseline.rows[0]?.payload ?? null, row.payload, current.rows[0]?.payload ?? null);
-        if (!baseline.rows.length && options.bootstrapKeys?.has(row.key) && action === 'conflict') action = 'update';
+        const baseline = baselines.get(row.key) ?? null;
+        let action = decision(baseline, row.payload, current.rows[0]?.payload ?? null);
+        if (baseline === null && options.bootstrapKeys?.has(row.key) && action === 'conflict') action = 'update';
         const parentKeys = JSON.parse(row.parent_refs);
         if (dependencies.some((fk, index) => options.parentConflicts.get(fk.parent.replace(/^public\./, '')).has(parentKeys[index]))) action = 'conflict';
         if (action === 'update' && current.rows[0]?.locally_owned) action = 'conflict';
@@ -269,7 +338,7 @@ async function mergeTable(source, target, table, options) {
                             WHERE ${predicate}`, [row.payload, row.key]);
                     }
                 }
-                if (['insert', 'update', 'adopt'].includes(action)) {
+                if (['insert', 'update', 'adopt', 'unchanged'].includes(action)) {
                     await target.query(`INSERT INTO preview_sync.baselines VALUES ($1,$2,$3::jsonb,$4::jsonb)
                         ON CONFLICT(source_id,table_name,row_key) DO UPDATE SET payload=EXCLUDED.payload`,
                     [options.sourceId, stateTable, row.key, row.payload]);
@@ -286,15 +355,14 @@ async function mergeTable(source, target, table, options) {
         summary[action] += 1;
         if (action === 'insert') summary.insertedKeys.add(row.key);
         if (action === 'conflict') summary.conflictKeys.add(row.key);
+        if (['insert','update'].includes(action) && row.layout_project_id) summary.changedProjects.add(row.layout_project_id);
     }
     if (options.hasState) {
-        const prior = await target.query(`SELECT row_key::text AS key FROM preview_sync.baselines
-            WHERE source_id=$1 AND table_name=$2`, [options.sourceId, stateTable]);
-        for (const row of prior.rows) if (!seen.has(row.key)) {
-            if (mediaTable && (await source.query(`SELECT 1 FROM ${relation(table)} t WHERE to_jsonb(t) @> $1::jsonb`, [row.key])).rows.length) continue;
+        for (const key of baselines.keys()) if (!seen.has(key)) {
+            if (mediaTable && (await source.query(`SELECT 1 FROM ${relation(table)} t WHERE to_jsonb(t) @> $1::jsonb`, [key])).rows.length) continue;
             summary.deleted += 1;
             if (options.apply) await target.query(`INSERT INTO preview_sync.events
-                (source_id,table_name,row_key,kind) VALUES ($1,$2,$3::jsonb,'source-deleted')`, [options.sourceId, stateTable, row.key]);
+                (source_id,table_name,row_key,kind) VALUES ($1,$2,$3::jsonb,'source-deleted')`, [options.sourceId, stateTable, key]);
         }
     }
     return summary;
@@ -397,14 +465,16 @@ async function run(config, apply = false) {
             await target.query(`LOCK TABLE ${TABLES.map(relation).join(',')} IN SHARE ROW EXCLUSIVE MODE`);
         }
         const hasState = Boolean((await target.query("SELECT to_regclass('preview_sync.baselines') AS name")).rows[0].name);
-        /** @type {{sourceId: string, mode: string, media?: Record<string, number|string>, tables: Record<string, {
+        /** @type {{sourceId: string, mode: string, legacyBaselinesRemoved?: number, media?: Record<string, number|string>, tables: Record<string, {
          * insert?: number, update?: number, adopt?: number, unchanged?: number,
          * conflict?: number, deleted?: number, preserved?: number, skipped?: string,
          * insertedKeys?: Set<string>, conflictKeys?: Set<string>
+         * changedProjects?: Set<string>
          * }>}} */
         const report = { sourceId: config.sourceId, mode: apply ? 'apply' : 'plan', tables: {} };
         const blocked = new Set();
         const parentConflicts = new Map();
+        const changedProjects = new Set();
         for (const table of TABLES) {
             if (table === 's3_object_index' && blocked.has('s3_object_versions') ||
                 !table.startsWith('s3_') && (blocked.has('s3_object_versions') || blocked.has('s3_object_index'))) {
@@ -418,6 +488,7 @@ async function run(config, apply = false) {
                 apply, hasState, sourceId: config.sourceId, verifyMedia, actor: config.previewActorAccountId,
                 preserveMediaKeys: config.preserveMediaKeys || [], parentConflicts
             });
+            for (const project of report.tables[table].changedProjects) changedProjects.add(project);
             if (report.tables[table].conflict) {
                 blocked.add(table);
                 parentConflicts.set(table, report.tables[table].conflictKeys);
@@ -438,10 +509,12 @@ async function run(config, apply = false) {
             report.tables.site_package_publications = { skipped: 'parent-conflict' };
         }
         if (apply) {
+            await advanceWikiLayoutRevisions(target,changedProjects);
             await target.query(`SELECT setval('public.namecard_number_seq', GREATEST(
                 (SELECT COALESCE(max(card_number),1) FROM public.fudaba_cards),
                 (SELECT last_value FROM public.namecard_number_seq)),true)`);
         }
+        report.legacyBaselinesRemoved = hasState || apply ? await retireLegacyBaselines(target,config.sourceId,apply) : 0;
         await target.query('COMMIT');
         await stage.query('COMMIT');
         if (verifyMedia.stats) report.media = { ...verifyMedia.stats };
@@ -474,4 +547,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { TABLES, decision, validateConfig, mergeTable, ensureState, run };
+module.exports = { TABLES, decision, validateConfig, mergeTable, ensureState, retireLegacyBaselines, advanceWikiLayoutRevisions, command, run };

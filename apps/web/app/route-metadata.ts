@@ -221,7 +221,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "pages/user/profile.tsx",
     "public",
     SHARED_TARGETS,
-    "spa",
+    "spa"
   ),
   route(
     "community/cards",
@@ -525,6 +525,20 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
   ),
   route("stories", "pages/admin/stories/index.tsx", "admin", WEB_TARGET, "spa"),
   route("idols", "pages/admin/idols/index.tsx", "admin", WEB_TARGET, "spa"),
+  route(
+    "idols/characters",
+    "pages/admin/idols/characters.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "idols/units",
+    "pages/admin/idols/units.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
   route(
     "idols/agencies",
     "pages/admin/idols/agencies.tsx",

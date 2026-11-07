@@ -166,6 +166,9 @@ export function createHandleSaveWikiEntityImage<E extends Env>(
         requireWikiServices(services, ['story', 'storage', 'images', 'uploads']);
         let createdKey: string | null = null;
         try {
+            if (kind !== 'agency' && await services.catalog?.ownsWikiPresentation(kind, context.req.valid('param').id)) {
+                return wikiJson(wikiErrorBody('图片由偶像资料库维护，请在对应企划档案中编辑'), 409);
+            }
             const target = await resolveTarget(
                 kind,
                 context.req.valid('param').id,

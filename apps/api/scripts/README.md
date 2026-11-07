@@ -12,6 +12,8 @@ S3-compatible 对象存储。
 | 测试桶同步 | `development/sync-r2-to-rustfs.js` | 默认只读盘点；`--apply` 写 RustFS | `pnpm run dev:rustfs:sync-r2` |
 | PostgreSQL schema | `migration/postgres-migrations.js` | 应用版本化 migration | `pnpm run migration:postgresql` |
 | Preview 增量同步 | `migration/preview-data-sync.js` | 默认仅重建独立临时库；`--apply` 合并公开内容与媒体，保留 preview 修改 | [配置与定时入口](../../../docs/operations/preview-data-sync.md) |
+| 角色公开事实 | `migration/catalog-facts.js` | 默认只读预测；`--apply` 补充可确认资料，保护手工维护 | [角色迁移与回放](../../../docs/migrations/idol-catalog.md) |
+| 迁移后旧副本清理 | `migration/legacy-data-cleanup.js` | 默认只读；可按剧情／担当／表情选范围；`--apply` 校验、自动备份并事务删除已核实副本 | [清理边界与命令](../../../docs/migrations/idol-catalog.md) |
 | Fudaba 元数据 | `migration/fudaba-command.js` | 默认导出或对账；导入命令写 PostgreSQL | `pnpm --filter @imsweb/api run migration:fudaba -- extract` / `pnpm run migration:fudaba:import` / `pnpm run migration:fudaba:reconcile` |
 | Fudaba 媒体 | `migration/fudaba-media-sync.js` | 默认生成计划；显式 `--apply` 写对象存储 | `pnpm run media:fudaba:sync` |
 | 品牌素材导入 | `migration/legacy-brand-assets.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:brand-assets:sync` |

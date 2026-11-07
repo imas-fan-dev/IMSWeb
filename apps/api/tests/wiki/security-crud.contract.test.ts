@@ -273,7 +273,9 @@ describe('Wiki idol media object storage contract', () => {
         }, headers);
         assert.equal(upload.status, 200);
         assert.equal((await json(upload)).status, 'success');
-        const key = 'wiki/agencies/sc/idols/sakuragi_mano/avatar.webp';
+        const key = fixture.story.idols[5]!.avatar_object_key;
+        assert.ok(key);
+        assert.match(key, /^wiki\/agencies\/sc\/idols\/sakuragi_mano\/avatars\/[0-9a-f-]+\.webp$/);
         assert.ok(fixture.storage.objects.has(key));
 
         const stored = await fixture.app.request('/api/wiki/idol-media');

@@ -25,7 +25,10 @@ function errorMessage(error: unknown): string {
 export class FilesystemCompensationService implements CompensationService {
     private running?: Promise<void>;
 
-    constructor(private readonly directory: string) {}
+    constructor(
+        private readonly directory: string,
+        private readonly isReferenced?: (key: string) => Promise<boolean>,
+    ) {}
 
     private id(kind: string, payload: unknown): string {
         return crypto
@@ -130,7 +133,7 @@ export class FilesystemCompensationService implements CompensationService {
                     throw new Error("Invalid object compensation");
                 }
                 if (entry.kind === "delete-object") {
-                    await storage.delete(key);
+                    if (!await this.isReferenced?.(key)) await storage.delete(key);
                 } else if (entry.kind === "protect-object") {
                     throw new Error(
                         "Filesystem object protection does not require compensation",

@@ -1,11 +1,10 @@
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RULE_CHECK = PROJECT_ROOT / "scripts/check-source-rules.mjs"
@@ -480,6 +479,30 @@ assert.equal(formatWireContractAudit('/unreadable-root', { audit: invalid }), [
             result = self.run_fixture(root)
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_wire_audit_limits_catalog_multipart_parse_to_exact_boundary(self):
+        for symbol, accepted in [("parseCatalogImageRequest", True), ("parseCatalogElsewhere", False)]:
+            with self.subTest(symbol=symbol), tempfile.TemporaryDirectory(prefix="ims-source-rules-") as temporary:
+                root = Path(temporary)
+                self.make_fixture(root)
+                contract = root / "packages/contracts/src/catalog.ts"
+                contract.parent.mkdir(parents=True, exist_ok=True)
+                contract.write_text(
+                    'export const adminCatalogMediaRequestSchema = { safeParse(value: unknown) { return { success: true, data: value } } }\n',
+                    encoding="utf-8",
+                )
+                request = root / "apps/api/src/domains/admin/catalog/request.ts"
+                request.parent.mkdir(parents=True, exist_ok=True)
+                request.write_text(
+                    'import { adminCatalogMediaRequestSchema } from "@imsweb/contracts/catalog"\n'
+                    f'export function {symbol}(value: unknown) {{ return adminCatalogMediaRequestSchema.safeParse(value) }}\n',
+                    encoding="utf-8",
+                )
+                result = self.run_fixture(root)
+                if accepted:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
 
     def test_wire_audit_does_not_exempt_local_json_dto(self):
         with tempfile.TemporaryDirectory(prefix="ims-source-rules-") as temporary:

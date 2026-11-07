@@ -68,10 +68,15 @@ elif [[ "$joined" == *" ps --all --quiet email-worker "* ]]; then
     printf '%s\n' email-worker-1 email-worker-2
 elif [[ "$joined" == *" inspect --format "*" email-worker-"* ]]; then
     printf '%s\n' "running healthy"
+elif [[ "$joined" == *" run --rm --no-deps api node -e "*"Invalid preview backup target"* ]]; then
+    printf '%s' 'imsweb_preview'
 elif [[ "$joined" == *" exec -T postgres "*"pg_dump "* ]]; then
+    [[ "${FAKE_BACKUP_FAILURE:-}" != dump ]] || exit 1
+    [[ "${FAKE_BACKUP_FAILURE:-}" != empty ]] || exit 0
     printf 'PGDMPimsweb-test-backup\n'
 elif [[ "$joined" == *" exec -T postgres "*"pg_restore "* ]]; then
     cat >/dev/null
+    [[ "${FAKE_BACKUP_FAILURE:-}" != restore ]] || exit 1
 elif [[ "$joined" == *" run --rm --no-deps api test -f "* &&
         -n "${FAKE_INCOMPATIBLE_IMAGE:-}" &&
         "${IMS_API_IMAGE:-}" == "$FAKE_INCOMPATIBLE_IMAGE" ]]; then
@@ -874,6 +879,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
             write_executable(self.bin_dir / "stat", FAKE_STAT)
             write_executable(self.bin_dir / "flock", FAKE_FLOCK)
             write_executable(self.bin_dir / "mv", FAKE_MV)
+            write_executable(self.bin_dir / "sha256sum", FAKE_SHA256SUM)
         self.runtime_env.write_text(
             "\n".join(
                 (
@@ -1018,6 +1024,17 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
             if "up -d --no-build --no-deps api" in command
         )
         self.assertLess(migration_index, worker_index)
+        dump_index = next(i for i, command in enumerate(commands) if "pg_dump " in command)
+        restore_index = next(i for i, command in enumerate(commands) if "pg_restore " in command)
+        self.assertLess(dump_index, restore_index)
+        self.assertIn('sh imsweb_preview', commands[dump_index])
+        self.assertNotIn('--dbname="$POSTGRES_DB"', commands[dump_index])
+        self.assertLess(restore_index, migration_index)
+        backups = list((self.deploy_root / "backups").glob("*/postgresql.dump"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
+        self.assertTrue(Path(str(backups[0]) + ".sha256").is_file())
+        self.assertIn(str(backups[0]), records[0].read_text(encoding="utf-8"))
         self.assertLess(worker_index, api_index)
         self.assertIn("inspect --format", command_log)
         self.assertIn("email-worker-1", command_log)
@@ -1025,6 +1042,28 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         self.assertNotIn("local-storage", command_log)
         self.assertNotIn("--build", command_log)
         self.assertIn("Preview deployment completed.\n", result.stdout)
+
+    def test_backup_failure_prevents_migration_and_candidate_startup(self):
+        for failure in ("dump", "empty", "restore", "checksum"):
+            with self.subTest(failure=failure):
+                if failure == "checksum":
+                    write_executable(self.bin_dir / "sha256sum", "#!/usr/bin/env bash\nexit 1\n")
+                environment = self.environment()
+                environment["FAKE_BACKUP_FAILURE"] = failure
+                result = subprocess.run(
+                    ("bash", str(PREVIEW_DEPLOY_SCRIPT), "preview-" + "1" * 12, "1" * 40,
+                     "ghcr.io/imas-fan-dev/imsweb-api@sha256:" + "a" * 64,
+                     str(self.compose_source), str(self.deploy_root), str(self.compose_override_source)),
+                    cwd=PROJECT_ROOT, env=environment, text=True, capture_output=True, check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("pre-migration PostgreSQL backup failed", result.stderr)
+                commands = self.container_log.read_text(encoding="utf-8")
+                self.assertNotIn("node apps/api/scripts/migration/postgres-migrations.js", commands)
+                self.assertNotIn("--scale email-worker=", commands)
+                self.assertNotIn("up -d --no-build --no-deps api", commands)
+                self.assertFalse((self.deploy_root / "current").exists())
+                self.container_log.unlink()
 
     def test_preview_deployment_rejects_unsafe_super_admin_username(self):
         commit = "1" * 40

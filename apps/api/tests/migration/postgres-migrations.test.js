@@ -156,7 +156,12 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261103130000_platform_account_groups', phase: 'post-data' },
                 { version: '20261103140000_platform_account_five_groups', phase: 'post-data' },
                 { version: '20261103150000_platform_account_icon', phase: 'post-data' },
-                { version: '20261105120000_platform_profile_slug_not_numeric', phase: 'pre-data' }
+    { version: '20261104160000_shared_character_catalog', phase: 'post-data' },
+    { version: '20261104161000_catalog_project_settings', phase: 'post-data' },
+    { version: '20261104162000_catalog_character_cv', phase: 'post-data' },
+    { version: '20261105120000_platform_profile_slug_not_numeric', phase: 'pre-data' },
+    { version: '20261105190000_character_profile_authority', phase: 'post-data' },
+    { version: '20261105200000_catalog_public_facts', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -685,11 +690,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 89);
+        assert.equal(catalog.count, 94);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261105120000_platform_profile_slug_not_numeric'
+            '20261105200000_catalog_public_facts'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1058,7 +1063,12 @@ test.describe('PostgreSQL migration', () => {
                 '20261103130000_platform_account_groups',
                 '20261103140000_platform_account_five_groups',
                 '20261103150000_platform_account_icon',
-                '20261105120000_platform_profile_slug_not_numeric'
+        '20261104160000_shared_character_catalog',
+        '20261104161000_catalog_project_settings',
+        '20261104162000_catalog_character_cv',
+        '20261105120000_platform_profile_slug_not_numeric',
+        '20261105190000_character_profile_authority',
+        '20261105200000_catalog_public_facts'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

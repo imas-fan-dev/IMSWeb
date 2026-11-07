@@ -87,6 +87,7 @@ export type NamecardUnitCreateResult =
 
 export type NamecardUnitUpdateResult =
     | { status: 'updated'; unit: NamecardUnitRecord }
+    | { status: 'profile-in-use' }
     | { status: 'conflict'; revision: number }
     | { status: 'not-found' }
     | { status: 'duplicate' }

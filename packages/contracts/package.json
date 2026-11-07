@@ -27,6 +27,16 @@
         "default": "./dist/cjs/wiki.js"
       }
     },
+    "./catalog": {
+      "import": {
+        "types": "./dist/esm/catalog.d.ts",
+        "default": "./dist/esm/catalog.js"
+      },
+      "require": {
+        "types": "./dist/cjs/catalog.d.ts",
+        "default": "./dist/cjs/catalog.js"
+      }
+    },
     "./platform": {
       "import": {
         "types": "./dist/esm/platform/index.d.ts",

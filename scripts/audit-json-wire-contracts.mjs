@@ -533,6 +533,7 @@ function schemaKey(origin) {
 function isDocumentedRequestBoundaryParse(repositoryRoot, call, origin) {
   const file = relative(repositoryRoot, call.getSourceFile().fileName);
   const symbol = enclosingFunctionName(call);
+  if (file === "apps/api/src/domains/admin/catalog/request.ts" && symbol === "parseCatalogImageRequest" && origin.name === "adminCatalogMediaRequestSchema") return true;
   if (file === "apps/api/src/domains/content/wiki/request.ts" && origin.name === "wikiStoryLinkDeleteBodySchema") return true;
   if (file === "apps/api/src/domains/content/wiki/stories/handlers/add-story.ts" && origin.name === "wikiStorySourcesJsonSchema") return true;
   if (file === "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts" && symbol === "concealedOAuthLinkParams" && origin.name === "platformOAuthLinkParamsSchema") return true;

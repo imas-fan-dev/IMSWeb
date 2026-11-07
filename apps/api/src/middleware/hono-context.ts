@@ -18,6 +18,7 @@ import type {
     StationMessageRepository
 } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import type { CatalogRepository } from '@/ports/repositories/catalog';
 
 export function services(c: Context<AppEnvironment>): RuntimeServices {
     return c.get('services');
@@ -88,6 +89,10 @@ export function namecardUnitRepository(
     c: Context<AppEnvironment>
 ): NamecardUnitRepository {
     return requireRepository(c, 'namecardUnits');
+}
+
+export function catalogRepository(c: Context<AppEnvironment>): CatalogRepository {
+    return requireRepository(c, 'catalog');
 }
 
 export function reactionRepository(c: Context<AppEnvironment>): ReactionRepository {

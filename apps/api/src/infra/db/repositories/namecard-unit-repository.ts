@@ -46,7 +46,7 @@ const UNIT_SELECT = `SELECT unit.id, unit.name_cn, unit.name_ja, unit.name_en,
 const UNIT_ORDER = 'ORDER BY unit.display_order, unit.id';
 
 /** The live-name unique index; a violation is a duplicate name, not a 500. */
-const UNIT_NAME_CONSTRAINT = 'namecard_units_name_cn_key';
+const UNIT_NAME_CONSTRAINT = 'catalog_groups_name_cn_key';
 
 interface FilterFragment {
     clause: string;
@@ -98,7 +98,7 @@ function isDuplicateName(error: unknown): boolean {
     const databaseError = error as Error & { code?: string; constraint?: string };
     return (
         databaseError.code === '23505' &&
-        databaseError.constraint === UNIT_NAME_CONSTRAINT
+        (databaseError.constraint === UNIT_NAME_CONSTRAINT || databaseError.constraint === 'wiki_entries_effective_name_key')
     );
 }
 
@@ -378,6 +378,10 @@ export class SqlNamecardUnitRepository implements NamecardUnitRepository {
             );
         } catch (error) {
             if (isDuplicateName(error)) return { status: 'duplicate' };
+            const failure = error as { code?: string; constraint?: string };
+            if (['23503', '23001'].includes(failure.code ?? '') && ['wiki_entries_group_profile_fk', 'wiki_navigation_profile_fk'].includes(failure.constraint ?? '')) {
+                return { status: 'profile-in-use' };
+            }
             throw error;
         }
     }
@@ -436,8 +440,9 @@ async function writeUnitLinks(
         statements.push(
             sqlStatement(
                 database,
-                'DELETE FROM namecard_unit_agencies WHERE unit_id=?',
-                [unitId]
+                `DELETE FROM catalog_group_project_profiles WHERE group_id=?
+                 ${agencyIds.length ? `AND project_id NOT IN (${agencyIds.map(() => '?').join(',')})` : ''}`,
+                [unitId, ...agencyIds]
             ),
             sqlStatement(
                 database,
@@ -446,12 +451,21 @@ async function writeUnitLinks(
             )
         );
     }
+    // Existing project profiles can be bound by Wiki entries. Keep their IDs
+    // and presentation when the legacy unit editor reorders affiliations.
+    if (replace) {
+        await database.batch(statements.splice(0));
+        await database.prepare(
+            'UPDATE catalog_group_project_profiles SET display_order=display_order+1000000 WHERE group_id=?'
+        ).bind(unitId).run();
+    }
     for (const [index, agencyId] of agencyIds.entries()) {
         statements.push(
             sqlStatement(
                 database,
-                `INSERT INTO namecard_unit_agencies
-                    (unit_id, agency_id, display_order) VALUES (?, ?, ?)`,
+                `INSERT INTO catalog_group_project_profiles
+                    (group_id, project_id, display_order) VALUES (?, ?, ?)
+                 ON CONFLICT (group_id, project_id) DO UPDATE SET display_order=excluded.display_order`,
                 [unitId, agencyId, index]
             )
         );

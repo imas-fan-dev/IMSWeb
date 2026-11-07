@@ -427,6 +427,7 @@ test.describe("app events", () => {
       const { coverRequested, releaseCover, eventRequestCount } =
         await mockCommunityApis(page, api)
       installSeededPublicApis(api, [
+        { path: "/api/birthdays", times: 1 },
         { path: "/api/community/content", times: 1 },
         { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
         { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },

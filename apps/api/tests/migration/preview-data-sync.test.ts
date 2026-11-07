@@ -3,13 +3,74 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import { afterAll, test } from 'vitest';
 import { Client } from 'pg';
-import { decision, validateConfig, mergeTable, ensureState, run } from '../../scripts/migration/preview-data-sync';
+import { decision, validateConfig, mergeTable, ensureState, retireLegacyBaselines, advanceWikiLayoutRevisions, run } from '../../scripts/migration/preview-data-sync';
 import { applyMigrations, readMigrations } from '../../scripts/migration/postgres-migrations';
 import { verifier } from '../../scripts/migration/preview-media-sync';
 import { createPostgresTestHarness, postgresIntegrationEnabled } from '../integration/postgres-harness';
 import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle';
 
 afterAll(() => closeSharedPostgresTestAllocator());
+
+test.skipIf(!postgresIntegrationEnabled())('old catalog baselines upgrade without losing bigint keys, local bindings or conflict protection', async () => {
+    const sourceDb = await createPostgresTestHarness({ label: 'catalog_baseline_source',seedCanonicalAgencies: false });
+    const targetDb = await createPostgresTestHarness({ label: 'catalog_baseline_target',seedCanonicalAgencies: false });
+    const source = new Client({ connectionString: sourceDb.databaseUrl });
+    const target = new Client({ connectionString: targetDb.databaseUrl });
+    try {
+        await source.connect(); await target.connect();
+        const project = '9007199254740993';
+        for (const client of [source,target]) {
+            await client.query("INSERT INTO agencies(id,code,name_cn,color,banner_title) VALUES ($1,'baseline','原企划','#123456','原标题')",[project]);
+            await client.query("INSERT INTO idols(id,agency_id,name_cn,folder_name) VALUES (11,$1,'绑定条目','bound_entry')",[project]);
+        }
+        const owner = (await target.query("INSERT INTO namecard_characters(agency_id,name_cn) VALUES ($1,'角色档案') RETURNING id",[project])).rows[0].id;
+        await target.query("UPDATE catalog_character_project_profiles SET cv_name='人工声优',representative_color='#111111',avatar_object_key='manual.webp' WHERE character_id=$1",[owner]);
+        await target.query('UPDATE wiki_entries SET character_profile_id=(SELECT default_profile_id FROM catalog_characters WHERE id=$1) WHERE id=11',[owner]);
+        const profilesBefore = (await target.query('SELECT * FROM catalog_character_project_profiles ORDER BY id')).rows;
+        await ensureState(target);
+        for (const table of ['agencies','idols']) {
+            const rows = (await source.query(`SELECT jsonb_build_object('id',id)::text AS key,(to_jsonb(t)-'revision')::text AS payload FROM ${table} t`)).rows;
+            for (const row of rows) await target.query('INSERT INTO preview_sync.baselines VALUES ($1,$2,$3::jsonb,$4::jsonb)',['legacy',table,row.key,row.payload]);
+        }
+        const oldBaselineCount = Number((await target.query('SELECT count(*) FROM preview_sync.baselines')).rows[0].count);
+        const projectCount = Number((await source.query('SELECT count(*) FROM projects')).rows[0].count);
+        await source.query("UPDATE projects SET name_cn='来源新企划' WHERE id=$1",[project]);
+        await source.query("UPDATE wiki_project_settings SET banner_title='来源新标题' WHERE project_id=$1",[project]);
+        await source.query("UPDATE wiki_entries SET local_accent_color='#999999' WHERE id=11");
+        await target.query('UPDATE wiki_project_settings SET layout_revision=99 WHERE project_id=$1',[project]);
+        const options = { apply: true,hasState: true,sourceId: 'legacy' };
+        await target.query('BEGIN READ ONLY');
+        assert.equal((await mergeTable(source,target,'projects',{ ...options,apply: false })).update,1);
+        await target.query('ROLLBACK');
+        assert.equal((await target.query('SELECT name_cn FROM projects WHERE id=$1',[project])).rows[0].name_cn,'原企划');
+        await target.query('BEGIN');
+        const projectChanges = await mergeTable(source,target,'projects',options);
+        assert.equal(projectChanges.update,1);
+        assert.equal(await retireLegacyBaselines(target,'legacy',true),0);
+        const settingChanges = await mergeTable(source,target,'wiki_project_settings',options);
+        const entryChanges = await mergeTable(source,target,'wiki_entries',options);
+        assert.equal(settingChanges.update,1);
+        assert.equal(entryChanges.update,1);
+        assert.equal(await advanceWikiLayoutRevisions(target,new Set([...projectChanges.changedProjects,...settingChanges.changedProjects,...entryChanges.changedProjects])),1);
+        assert.equal(await retireLegacyBaselines(target,'legacy',true),oldBaselineCount);
+        await target.query('COMMIT');
+        assert.equal((await target.query('SELECT layout_revision::text FROM wiki_project_settings WHERE project_id=$1',[project])).rows[0].layout_revision,'100');
+        assert.equal((await target.query("UPDATE wiki_project_settings SET banner_title='过期覆盖' WHERE project_id=$1 AND layout_revision=99",[project])).rowCount,0);
+        assert.equal((await target.query('SELECT id::text FROM projects WHERE code=$1',['baseline'])).rows[0].id,project);
+        assert.deepEqual((await target.query('SELECT * FROM catalog_character_project_profiles ORDER BY id')).rows,profilesBefore);
+        assert.ok((await target.query('SELECT character_profile_id FROM wiki_entries WHERE id=11')).rows[0].character_profile_id);
+        await target.query('BEGIN');
+        assert.equal((await mergeTable(source,target,'projects',options)).unchanged,projectCount);
+        assert.equal(await retireLegacyBaselines(target,'legacy',true),0);
+        await target.query('COMMIT');
+        await source.query("UPDATE projects SET name_cn='来源再次编辑' WHERE id=$1",[project]);
+        await target.query("UPDATE projects SET name_cn='本地独立编辑' WHERE id=$1",[project]);
+        await target.query('BEGIN');
+        assert.equal((await mergeTable(source,target,'projects',options)).conflict,1);
+        await target.query('COMMIT');
+        assert.equal((await target.query('SELECT name_cn FROM projects WHERE id=$1',[project])).rows[0].name_cn,'本地独立编辑');
+    } finally { await source.end(); await target.end(); await sourceDb.close(); await targetDb.close(); }
+});
 
 test('merge policy preserves divergent preview changes and never resurrects deleted rows', () => {
     assert.equal(decision(null, 'source', null), 'insert');

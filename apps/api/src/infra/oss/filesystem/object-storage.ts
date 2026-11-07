@@ -70,7 +70,8 @@ export class FilesystemObjectStorage implements ObjectStorage {
         let relative = normalized;
         if (
             normalized.startsWith('editorial/') ||
-            normalized.startsWith('community/')
+            normalized.startsWith('community/') ||
+            normalized.startsWith('catalog/')
         ) {
             root = this.roots.uploadsDir;
         } else if (normalized.startsWith('chronicle/')) {
