@@ -58,6 +58,7 @@ const ownerCard = {
   exchangeMode: "manual",
   madeOn: null,
   groupName: null,
+  isGroupCard: false,
   producerReading: null,
   isOriginal: false,
   madeWithAi: false,

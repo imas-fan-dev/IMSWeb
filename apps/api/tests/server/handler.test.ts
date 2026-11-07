@@ -1424,6 +1424,11 @@ import { test } from 'vitest';
         test.describe('namecard approval', () => {
             test('publishes originals and thumbnails before the final CAS transition', async () => {
                 const fixture = createCompatibilityFixture({
+                    async findCardMediaKey(_id, side) {
+                        return side === 'front'
+                            ? 'community/namecards/assets/front/image.webp'
+                            : 'community/namecards/assets/back/image.webp';
+                    },
                     async beginCardApproval(id, expectedRevision) {
                         assert.equal(id, 19);
                         assert.equal(expectedRevision, 2);
