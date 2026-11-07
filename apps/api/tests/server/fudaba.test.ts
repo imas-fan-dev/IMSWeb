@@ -10358,6 +10358,103 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
             assert.deepEqual((await rows()).map((row) => row.display_order), [1, 2]);
         });
+
+        postgresTest('real PostgreSQL promotes staged pages when a revision is approved', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-approve-pages-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-approve-pages-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const page = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) =>
+                `abcdef12-0000-4000-8000-00000000000${n}`;
+            const live = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
+            const pending = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/pending/${page(name)}.${version(n)}.webp`;
+            const postgres = fixture.database as PostgresConnection;
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: live('aaaaaaa1', 1),
+                backObjectKey: live('aaaaaaa3', 3),
+                middleObjectKeys: [live('aaaaaaa2', 2)],
+                accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa3'), objectVersion: version(3), width: 1000, height: 700 }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status='published', review_status=NULL WHERE id=$1",
+                [cardId]
+            );
+            const staged = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: pending('bbbbbbb1', 1),
+                backObjectKey: pending('bbbbbbb3', 3),
+                middleObjectKeys: [pending('bbbbbbb2', 2)],
+                accent: null,
+                pages: [
+                    { pageId: page('bbbbbbb1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb3'), objectVersion: version(3), width: 1000, height: 700 }
+                ],
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            assert.equal(staged.card.review_status, 'pending');
+            const claimed = await fixture.fudaba.beginRegisteredCardReview(
+                cardId,
+                staged.card.revision
+            );
+            assert.equal(claimed.status, 'claimed');
+            if (claimed.status !== 'claimed') return;
+            const approved = await fixture.fudaba.completeRegisteredCardReview({
+                cardId,
+                approvingRevision: claimed.card.revision,
+                decision: 'publish',
+                reviewedAt: MEDIA_UPDATED_AT,
+                audit: {
+                    username: 'reviewer',
+                    producername: 'Review Admin',
+                    action: 'publish registered card',
+                    target: cardId,
+                    ip: '127.0.0.1',
+                    time: MEDIA_UPDATED_AT
+                }
+            });
+            assert.equal(approved.status, 'saved');
+            const rows = await postgres.pool.query(
+                `SELECT page_id, queue FROM public.fudaba_card_pages
+                  WHERE card_id=$1 ORDER BY queue, display_order`,
+                [cardId]
+            );
+            assert.deepEqual(
+                rows.rows.map((row: { queue: string; page_id: string }) => [
+                    row.queue,
+                    row.page_id
+                ]),
+                [
+                    ['live', page('bbbbbbb1')],
+                    ['live', page('bbbbbbb2')],
+                    ['live', page('bbbbbbb3')]
+                ]
+            );
+        });
     });
 }
 

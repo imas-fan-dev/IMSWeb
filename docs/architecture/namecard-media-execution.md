@@ -285,7 +285,7 @@ CREATE TABLE fudaba_card_pages (
 | 保存整套（`replace-owned-media` 上传） | 完成：上传落 `pending`（已发布卡）或 `live`，页面行随保存同步；页集混有旧 key 时保守跳过删除 |
 | 旋转分支（`rotateSlot`） | 完成：读旧对象 → 旋转 → `storeCardPage`（按保存面决定 `live`/`pending`）→ 同步页面行；旧布局槽位在第一次旋转时顺带转成新布局，身份取稳定槽位 |
 | 后台旋转（`update-admin-namecard` + `updateCardAsAdmin`） | 完成：改用 `storeCardPage`，按 `review_status` 写 `pending`/`live`，页面行随整卡保存同步；旧对象仍是发布成功后才删 |
-| 认领 / 补充的旋转写入 | 待做：`rotateReviewedArtwork` 仍写旧布局，`completeCardClaimReview` / `completeCardSupplementReview` 尚无 `pages` 入参 |
+| 认领 / 补充的旋转写入 | 已完成：`rotateReviewedArtwork` 写页面对象并回传 `pages`；`completeCardClaimReview` / `completeCardSupplementReview` 收到 `pages` 后同步页面行 |
 | 删除 `PUT /uploads/:side` 与 `updateCardMediaForOwner` | 已完成（P4） |
 | 契约 `cardPageSchema` 与六个接口的 `pages[]` | 待做（P2） |
 | P1 写入切换、P2 读取切换、P3 迁移脚本、P4 代码层退役 | 已完成 |

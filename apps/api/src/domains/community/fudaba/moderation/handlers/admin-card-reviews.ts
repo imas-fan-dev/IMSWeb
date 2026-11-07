@@ -60,7 +60,7 @@ interface CreatedObject {
 }
 
 /**
- * 审核通过时按圈数重写一张图：读原对象、转好、写成新版本对象并出缩略图。
+ * 审核通过时按圈数重写一张图：读原对象、转好、写成新版本页面对象。
  * 圈数为 0 时不写任何对象，原 key 原样返回。
  */
 async function rotateReviewedArtwork(

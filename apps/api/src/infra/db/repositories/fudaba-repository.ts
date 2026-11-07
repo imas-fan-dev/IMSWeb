@@ -5188,6 +5188,29 @@ export class SqlFudabaRepository implements FudabaRepository {
                 reviewed.id,
             ],
         );
+        // 待审修订一旦通过，它暂存的整套页就是线上页：先清掉旧 live 页，
+        // 再把 pending 页整体提升为 live，媒体路由才不会继续读到旧版本。
+        const pendingPages = await queryAll<{ page_id: string }>(
+            database,
+            `SELECT page_id FROM fudaba_card_pages
+              WHERE card_id=? AND queue='pending'`,
+            [reviewed.id],
+        );
+        if (pendingPages.length > 0) {
+            await executeSql(
+                database,
+                `DELETE FROM fudaba_card_pages
+                  WHERE card_id=? AND queue='live'`,
+                [reviewed.id],
+            );
+            await executeSql(
+                database,
+                `UPDATE fudaba_card_pages
+                    SET queue='live', updated_at=?
+                  WHERE card_id=? AND queue='pending'`,
+                [reviewedAt, reviewed.id],
+            );
+        }
         await this.replaceCardCredits(database, reviewed.id, payload.credits ?? []);
         // Favourites live in their own table, so the published selection is only
         // swapped once the revision actually goes live.
