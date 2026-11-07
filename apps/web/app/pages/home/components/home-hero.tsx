@@ -1,7 +1,7 @@
 import { CakeSliceIcon } from "lucide-react"
 
 import { cn } from "~/lib/utils"
-import { getBirthdaysOn } from "../birthday-data"
+import { useHomeBirthdays } from "../hooks/use-home-birthdays"
 import { seriesItems } from "../home-content"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
@@ -54,10 +54,10 @@ export function SeriesWall() {
   )
 }
 
-export function TodayBirthdayNotice() {
-  const today = new Date()
+export function TodayBirthdayNotice({ today = new Date() }: { today?: Date }) {
+  const { getBirthdaysOn, loading, error } = useHomeBirthdays()
   const birthdays = getBirthdaysOn(today.getMonth() + 1, today.getDate())
-  if (!birthdays.length) return null
+  if (loading || error || !birthdays.length) return null
 
   return (
     <aside className="border-b bg-card" aria-label="今日生日">
@@ -70,7 +70,7 @@ export function TodayBirthdayNotice() {
           <span className="font-medium">今天生日：</span>
           {birthdays.map((idol, index) => (
             <span
-              key={idol.agency + "-" + idol.name}
+              key={idol.characterId}
               className="inline-flex items-center gap-1.5 font-semibold"
             >
               {index ? "、" : ""}

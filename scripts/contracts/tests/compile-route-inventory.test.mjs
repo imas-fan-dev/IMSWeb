@@ -141,19 +141,36 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 384,
-      mountedMethodPaths: 289,
-      noInputRoutes: 95,
-      requestCarriers: 386,
+      mountedRegistrations: 394,
+      mountedMethodPaths: 296,
+      noInputRoutes: 98,
+      requestCarriers: 393,
       policies: {
-        reject: 76,
-        "accept-and-project": 207,
+        reject: 82,
+        "accept-and-project": 208,
         passthrough: 17,
         "non-object-applicable": 86,
       },
-      responses: { total: 818, json: 747, nonJson: 71 },
+      responses: { total: 834, json: 763, nonJson: 71 },
       unresolved: 0,
     });
+    assert.deepEqual(current.baseline, {
+      mountedMethodPaths: 282, carriers: 357, reject: 75, acceptAndProject: 179,
+      passthrough: 17, nonObjectApplicable: 86,
+    });
+    assert.deepEqual(current.reconciliation.baselineCompatible, {
+      mountedMethodPaths: 282, requestCarriers: 357,
+      policies: { reject: 75, "accept-and-project": 179, passthrough: 17, "non-object-applicable": 86 },
+    });
+    assert.deepEqual(current.reconciliation.explicitAdminAdditions, [
+      { module: "@imsweb/contracts/catalog", symbol: "adminCatalogStoryTargetRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/story-target", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/catalog", symbol: "adminCatalogCreateCharacterRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/characters", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/catalog", symbol: "adminCatalogDefaultProfileRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/default-profile", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/catalog", symbol: "adminCatalogProfileRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/profiles", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/catalog", symbol: "adminCatalogGroupKindRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/group-kind", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/catalog", symbol: "adminCatalogBindingRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/wiki-bindings", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/catalog", symbol: "adminCatalogProfileImageParamsSchema", kind: "param", method: "GET", path: "/api/admin/catalog/profile-images/:kind/:id", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+    ]);
     assert.deepEqual(current, artifact);
   });
 

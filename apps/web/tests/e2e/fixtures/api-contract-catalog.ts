@@ -6,6 +6,7 @@ import {
   adminCommunityContentUpdateRequestSchema,
   adminCommunityContentImageUploadSchema,
 } from "@imsweb/contracts/community-content"
+import { catalogBirthdaysSchema } from "@imsweb/contracts/catalog"
 import {
   aboutAdminSnapshotSchema,
   aboutAdminUpdateSchema,
@@ -94,6 +95,19 @@ import {
   fudabaSeriesListSchema,
 } from "@imsweb/contracts/fudaba"
 import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
+import {
+  namecardCharacterAgencyListSchema,
+  namecardCharacterListSchema,
+  namecardCharacterListQuerySchema,
+} from "@imsweb/contracts/fudaba/admin-characters"
+import {
+  adminCatalogSchema,
+  adminCatalogHttpErrorSchema,
+  adminCatalogProfileRequestSchema,
+  adminCatalogGroupKindRequestSchema,
+  adminCatalogBindingRequestSchema,
+  adminCatalogMutationSchema,
+} from "@imsweb/contracts/catalog"
 import {
   liveScheduleErrorResponseSchema,
   liveScheduleListSchema,
@@ -337,6 +351,13 @@ export function resolveApiContract(
         500: homepageLinkErrorResponseSchema,
       },
     }
+  if (method === "GET" && path === "/api/birthdays")
+    return {
+      responses: {
+        200: catalogBirthdaysSchema,
+        500: adminCatalogHttpErrorSchema,
+      },
+    }
   if (method === "GET" && path === "/api/wiki/catalog")
     return {
       query: wikiCatalogQuerySchema,
@@ -499,13 +520,13 @@ export function resolveApiContract(
       },
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
-  if (
-    method === "POST" &&
-    path === `${exchange}/me/notifications/read`
-  )
+  if (method === "POST" && path === `${exchange}/me/notifications/read`)
     return {
       body: namecardNotificationReadRequestSchema,
-      responses: { 200: namecardNotificationReadResponseSchema, 401: fudabaCardClaimErrorSchema },
+      responses: {
+        200: namecardNotificationReadResponseSchema,
+        401: fudabaCardClaimErrorSchema,
+      },
     }
   if (method === "GET" && path === `${exchange}/me/cards`)
     return {
@@ -555,8 +576,7 @@ export function resolveApiContract(
             const images = names.filter((name) => name === "images")
             const others = names.filter((name) => name !== "images").sort()
             return (
-              images.length > 0 &&
-              others.join(",") === "expectedRevision,order"
+              images.length > 0 && others.join(",") === "expectedRevision,order"
             )
           }, "expected images plus expectedRevision and order fields"),
         contentType: multipartFormDataContentTypeSchema,
@@ -943,10 +963,7 @@ export function resolveApiContract(
         403: fudabaAdminCardClaimHttpErrorSchema,
       },
     }
-  if (
-    method === "GET" &&
-    path === "/api/admin/community/exchange/review-queue"
-  )
+  if (method === "GET" && path === "/api/admin/community/exchange/review-queue")
     return {
       query: reviewQueueQuerySchemaRef,
       responses: {
@@ -1260,6 +1277,54 @@ export function resolveApiContract(
         contentType: multipartFormDataContentTypeSchema,
       },
       responses: { 200: aboutImageUploadSchema, ...protectedErrors },
+    }
+  if (method === "GET" && path === "/api/admin/catalog")
+    return {
+      responses: {
+        200: adminCatalogSchema,
+        401: adminCatalogHttpErrorSchema,
+        403: adminCatalogHttpErrorSchema,
+        500: adminCatalogHttpErrorSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/admin/catalog/profiles")
+    return {
+      body: adminCatalogProfileRequestSchema,
+      responses: {
+        200: adminCatalogMutationSchema,
+        400: adminCatalogHttpErrorSchema,
+        403: adminCatalogHttpErrorSchema,
+        409: adminCatalogHttpErrorSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/admin/catalog/group-kind")
+    return {
+      body: adminCatalogGroupKindRequestSchema,
+      responses: {
+        200: adminCatalogMutationSchema,
+        400: adminCatalogHttpErrorSchema,
+        403: adminCatalogHttpErrorSchema,
+        409: adminCatalogHttpErrorSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/admin/catalog/wiki-bindings")
+    return {
+      body: adminCatalogBindingRequestSchema,
+      responses: {
+        200: adminCatalogMutationSchema,
+        400: adminCatalogHttpErrorSchema,
+        403: adminCatalogHttpErrorSchema,
+        409: adminCatalogHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/cards/characters/agencies")
+    return {
+      responses: { 200: namecardCharacterAgencyListSchema, ...protectedErrors },
+    }
+  if (method === "GET" && path === "/api/admin/cards/characters")
+    return {
+      query: namecardCharacterListQuerySchema,
+      responses: { 200: namecardCharacterListSchema, ...protectedErrors },
     }
   if (method === "GET" && path === "/api/admin/wiki/catalog")
     return {

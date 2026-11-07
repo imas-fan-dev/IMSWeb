@@ -305,7 +305,7 @@ export function StoryManager() {
       <AdminPageHeader
         eyebrow="STORY ARCHIVE"
         title="剧情内容管理"
-        description="企划、偶像和剧情均从服务端动态读取，写入后以数据库返回状态为准。"
+        description="企划、角色和剧情均从服务端动态读取，写入后以数据库返回状态为准。"
         actions={
           <>
             <NavigationLink
@@ -369,7 +369,7 @@ export function StoryManager() {
               onValueChange={chooseAgency}
             />
             <SelectionControl
-              label="偶像"
+              label="角色"
               value={selectedIdol?.name ?? ""}
               items={selectedAgencyIdols.map((idol) => ({
                 label: idol.name,

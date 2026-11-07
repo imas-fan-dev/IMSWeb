@@ -2,7 +2,10 @@ import type { Locator, Page } from "@playwright/test"
 
 import { api, expect, test } from "./fixtures/test"
 
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import {
+  installEmptyWikiCatalogMock,
+  installBirthdaysMock,
+} from "./fixtures/homepage"
 
 const delayedCoverUrl = "/test-assets/community-delayed-cover.png"
 const longTitle = `移动端社区动态${"超长标题".repeat(18)}`
@@ -50,6 +53,7 @@ const detail = {
 
 async function mockCommunityApis(page: Page) {
   installEmptyWikiCatalogMock(api, { min: 0, max: 1 })
+  installBirthdaysMock(api, { min: 0, max: 1 })
   await api.mockRoute(
     "/api/wiki/random_idol",
     (route) => route.fulfill({ status: 500, json: { error: "Unavailable" } }),

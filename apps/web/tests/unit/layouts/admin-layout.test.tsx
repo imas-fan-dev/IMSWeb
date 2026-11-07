@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import AdminLayout from "~/layouts/admin-layout"
+import LegacyCatalogCharacters from "~/pages/admin/idols/characters"
+import LegacyCardCharacters from "~/pages/admin/cards/characters"
 import { ApiError } from "~/lib/api/api-error"
 
 const mocks = vi.hoisted(() => ({
@@ -50,7 +52,12 @@ function renderAdminLayout(initialEntry = "/admin") {
           <Route path="idols/groups" element={<h1>栏目资料</h1>} />
           <Route path="idols/entries" element={<h1>条目资料</h1>} />
           <Route path="cards" element={<h1>名片审核列表</h1>} />
-          <Route path="cards/characters" element={<h1>角色列表</h1>} />
+          <Route
+            path="idols/characters"
+            element={<LegacyCatalogCharacters />}
+          />
+          <Route path="cards/characters" element={<LegacyCardCharacters />} />
+          <Route path="idols/units" element={<h1>组合列表</h1>} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -238,10 +245,69 @@ describe("AdminLayout", () => {
         "aria-current",
         "page"
       )
-      expect(screen.getByRole("link", { name: "企划管理" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "栏目管理" })).toHaveAttribute(
         "href",
-        "/admin/idols/agencies"
+        "/admin/idols/groups"
       )
+    }
+  )
+
+  it.each(["units"])(
+    "keeps shared %s identity writes outside editor access",
+    (suffix) => {
+      mocks.useRequest.mockReturnValue({
+        data: {
+          success: true,
+          user: {
+            id: 4,
+            username: "editor",
+            producername: "Editor",
+            dept: "editor",
+            adminRole: null,
+          },
+        },
+        loading: false,
+        error: undefined,
+        onError: mocks.onError,
+        send: mocks.send,
+      })
+      renderAdminLayout(`/admin/idols/${suffix}`)
+      expect(
+        screen.getByRole("heading", { name: "无法访问管理工作台" })
+      ).toBeVisible()
+    }
+  )
+
+  it.each(["/admin/idols/characters", "/admin/cards/characters"])(
+    "lets an editor follow %s to the shared read-only workspace",
+    (route) => {
+      mocks.useRequest.mockReturnValue({
+        data: {
+          success: true,
+          user: {
+            id: 4,
+            username: "editor",
+            producername: "Editor",
+            dept: "editor",
+            adminRole: null,
+          },
+        },
+        loading: false,
+        error: undefined,
+        onError: mocks.onError,
+        send: mocks.send,
+      })
+      renderAdminLayout(route)
+      expect(
+        screen.getByRole("heading", { name: "偶像管理入口" })
+      ).toBeVisible()
+      expect(screen.getByRole("link", { name: "角色档案" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      )
+      expect(
+        screen.queryByRole("link", { name: "角色列表" })
+      ).not.toBeInTheDocument()
     }
   )
 
@@ -421,7 +487,7 @@ describe("AdminLayout", () => {
     expect(screen.getByText("标签管理")).toBeVisible()
   })
 
-  it("marks only the matching card child as current", () => {
+  it("marks only the matching catalog child as current", () => {
     mocks.useRequest.mockReturnValue({
       data: {
         success: true,
@@ -439,16 +505,15 @@ describe("AdminLayout", () => {
       send: mocks.send,
     })
 
-    renderAdminLayout("/admin/cards/characters")
+    renderAdminLayout("/admin/idols/characters")
 
-    // 名片审核 is an exact match, so a deeper sibling must not light it up.
-    expect(screen.getByRole("link", { name: "名片审核" })).not.toHaveAttribute(
-      "aria-current"
-    )
-    expect(screen.getByRole("link", { name: "角色列表" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "角色档案" })).toHaveAttribute(
       "aria-current",
       "page"
     )
+    expect(
+      screen.queryByRole("link", { name: "角色列表" })
+    ).not.toBeInTheDocument()
   })
 
   it("collapses the card group away from its routes until it is hovered", async () => {

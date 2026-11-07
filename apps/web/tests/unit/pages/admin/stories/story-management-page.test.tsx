@@ -10,6 +10,7 @@ import {
 import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StoryManagementPage } from "~/pages/admin/stories"
 import type { WikiAdminCatalog, WikiAdminStories } from "~/lib/api"
+import { createAdminCatalog } from "@/mocks/data/catalog"
 
 function json(payload: unknown) {
   return Promise.resolve(Response.json(payload))
@@ -173,6 +174,85 @@ const stories = {
 } satisfies WikiAdminStories
 
 describe("StoryManagementPage", () => {
+  it("selects a role profile directly and opens its ungrouped story entry by stable ID", async () => {
+    const linkedCatalog = structuredClone(catalog)
+    const shared = createAdminCatalog()
+    const bodyWrites: unknown[] = []
+    let linked = false
+    installFetchMock((...args) => {
+      const request = requestDetails(args)
+      const url = new URL(request.url, window.location.origin)
+      if (url.pathname === "/api/admin/catalog") return json(shared)
+      if (url.pathname === "/api/admin/catalog/story-target") {
+        bodyWrites.push(JSON.parse(String(request.body)))
+        expect(request.headers.get("X-CSRFToken")).toBe("wiki-workbench-test")
+        linked = true
+        linkedCatalog.agencies[0].idols.push({
+          ...linkedCatalog.agencies[0].idols[0],
+          id: 55,
+          name: "新关联人物",
+          folderName: "character_profile_7",
+          groupIds: [],
+        })
+        return json({
+          success: true,
+          entryId: 55,
+          characterId: 20,
+          profileId: 7,
+          projectId: 1,
+          projectCode: "765pro",
+        })
+      }
+      if (url.pathname === "/api/admin/wiki/catalog") return json(linkedCatalog)
+      if (url.pathname === "/api/admin/wiki/story-source-catalog")
+        return json({
+          status: "success",
+          contentTypes: [],
+          sourcePlatforms: [],
+        })
+      if (url.pathname.endsWith("/story-cover-assets"))
+        return json({
+          status: "success",
+          agency: { id: 1, code: "765pro", name: "765PRO" },
+          assets: [],
+        })
+      if (url.pathname === "/api/admin/wiki/stories")
+        return json(
+          linked
+            ? {
+                ...stories,
+                idol: { ...stories.idol, id: 55, name: "新关联人物" },
+              }
+            : stories
+        )
+      return Promise.reject(new Error(`Unexpected request: ${request.url}`))
+    })
+    const router = createMemoryRouter(
+      [{ path: "/admin/stories", element: <StoryManagementPage /> }],
+      { initialEntries: ["/admin/stories?agencyId=1&idolId=10"] }
+    )
+    render(<RouterProvider router={router} />)
+    const user = userEvent.setup()
+    await screen.findByRole("textbox", { name: "搜索剧情" })
+    await user.click(screen.getByRole("button", { name: "从角色档案选择" }))
+    await user.click(
+      await screen.findByRole("button", { name: "天海春香 · 本家" })
+    )
+    await waitFor(() =>
+      expect(
+        new URLSearchParams(router.state.location.search).get("idolId")
+      ).toBe("55")
+    )
+    expect(bodyWrites).toEqual([{ profileId: 7 }])
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    )
+    expect(screen.getByRole("button", { name: "打开公开页" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(encodeURIComponent("新关联人物"))
+    )
+  })
+
   beforeEach(() => {
     setCsrfCookie("legacy", "wiki-workbench-test")
   })
@@ -228,7 +308,7 @@ describe("StoryManagementPage", () => {
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument()
     }
     const manageLink = new URL(
-      screen.getByRole("link", { name: "偶像管理" }).getAttribute("href")!,
+      screen.getByRole("link", { name: "Wiki 条目管理" }).getAttribute("href")!,
       window.location.origin
     )
     expect(manageLink.searchParams.get("idolId")).toBe("10")

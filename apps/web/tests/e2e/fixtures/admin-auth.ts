@@ -10,6 +10,7 @@ import {
   type AdminSessionResponse,
 } from "@imsweb/contracts/admin"
 import { adminApiPath } from "@imsweb/contracts/paths"
+import { adminCatalogSchema } from "@imsweb/contracts/catalog"
 import type { Page } from "@playwright/test"
 
 import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
@@ -80,6 +81,24 @@ export async function installAdminAuthMock(
   }
 
   const csrfToken = options.csrfToken ?? "admin-e2e-csrf"
+  api.expect({
+    name: "catalog binding metadata for existing management dialogs",
+    method: "GET",
+    path: adminApiPath("/catalog"),
+    responses: { 200: adminCatalogSchema },
+    fallback: true,
+    times: { min: 0, max: 20 },
+    handle: () => ({
+      json: {
+        success: true,
+        projects: [],
+        characters: [],
+        groups: [],
+        entries: [],
+        navigationGroups: [],
+      },
+    }),
+  })
   const user = {
     ...defaultAdminUser,
     ...options.user,

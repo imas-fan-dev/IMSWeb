@@ -378,6 +378,9 @@ Workflow。应从已包含修复的默认分支进入 `Run workflow`，再输入
 手动 preview 部署时，在 GitHub Actions 选择 `Deploy preview`，将运行分支选为 `release/v1.1`，
 并勾选 `confirm_preview_deploy`。手动运行只重新部署当前分支 head 已由 push 构建和签名的镜像，
 不会重新构建；不接受任意 commit、Tag 或其他分支。`release/v1.1` push 会自动触发，无需人工确认。
+Preview 部署在执行候选 PostgreSQL migrations 前，先创建私有的完整数据库备份，检查非空、
+通过 `pg_restore --list` 校验并记录 SHA-256。任一步失败都不执行迁移或启动候选服务。
+备份位于部署根目录的 `backups/`，成功部署记录包含备份路径和摘要；代码回退不自动恢复数据库。
 
 发布后核对 Workflow summary、GitHub Environment deployment history、生产机 release record、
 Nginx/API 日志以及代表性 R2 对象。GitHub runner 的最终公网探测失败时 Workflow 会标红，但目标

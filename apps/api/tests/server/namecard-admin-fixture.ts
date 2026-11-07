@@ -15,6 +15,7 @@ import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
 import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { SqlNamecardCharacterRepository } from '@/infra/db/repositories/namecard-character-repository';
 import { SqlNamecardUnitRepository } from '@/infra/db/repositories/namecard-unit-repository';
+import { SqlCatalogRepository } from '@/infra/db/repositories/catalog-repository';
 import { queryAll, queryOne } from '@/infra/db/sql/query';
 import type { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
@@ -55,7 +56,7 @@ export interface NamecardAdminFixture {
     close(): Promise<void>;
 }
 
-export async function createNamecardAdminFixture(): Promise<NamecardAdminFixture> {
+export async function createNamecardAdminFixture(overrides: Partial<RuntimeServices> = {}): Promise<NamecardAdminFixture> {
     const connection = await createPostgresTestDatabase('namecard-admin');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const operatorId = await insertUser(connection, 'namecard-operator', {
@@ -76,9 +77,11 @@ export async function createNamecardAdminFixture(): Promise<NamecardAdminFixture
         backofficeAuth: new SqlBackofficeAuthRepository(connection),
         namecardCharacters: new SqlNamecardCharacterRepository(connection),
         namecardUnits: new SqlNamecardUnitRepository(connection),
+        catalog: new SqlCatalogRepository(connection),
         audit,
         backofficeTokens: tokens,
-        config: { cookieSecure: false, fudabaPublicReadEnabled: true }
+        config: { cookieSecure: false, fudabaPublicReadEnabled: true },
+        ...overrides
     };
     return {
         app: createTestApp(() => services),

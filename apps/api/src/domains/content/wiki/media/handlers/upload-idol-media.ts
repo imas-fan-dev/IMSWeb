@@ -13,7 +13,7 @@ import {
 import { parseUploadWikiIdolMediaRequest } from '@/domains/content/wiki/request';
 import type { WikiRouteHandler } from '@/domains/content/wiki/response';
 import {
-    idolMediaObjectKey,
+    versionedIdolAvatarObjectKey,
     idolMediaUrl,
     requireWikiServices,
     validateAndConvertStoryImage
@@ -42,8 +42,11 @@ export function createHandleUploadWikiIdolMedia<E extends Env>(
                 (upload.fields.idol ?? '').trim()
             );
             if ('error' in target) return target.error;
+            if (await services.catalog?.ownsWikiPresentation('idol', target.idol.id)) {
+                return wikiJson(wikiErrorBody('图片由偶像资料库维护'), 409);
+            }
             const converted = await validateAndConvertStoryImage(file, services.images!);
-            createdKey = idolMediaObjectKey(target.agency.code, target.idol.folderName);
+            createdKey = versionedIdolAvatarObjectKey(target.agency.code, target.idol.folderName, crypto.randomUUID());
             cleanupCreated = !await services.storage!.exists(createdKey);
             const object = await services.storage!.put(createdKey, converted, {
                 contentType: 'image/webp',

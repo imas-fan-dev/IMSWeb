@@ -1,8 +1,10 @@
 import type { CompensationService, ObjectStorage } from '@/ports/object-storage';
+import type { CatalogRepository } from '@/ports/repositories/catalog';
 
 export interface ObjectCleanupServices {
     compensation?: CompensationService;
     storage?: ObjectStorage;
+    catalog?: Pick<CatalogRepository, 'hasMediaReference'>;
 }
 
 export async function deleteObjectWithCompensation(
@@ -10,6 +12,7 @@ export async function deleteObjectWithCompensation(
     key: string
 ): Promise<void> {
     if (!runtime.storage) return;
+    if (await runtime.catalog?.hasMediaReference(key)) return;
     try {
         await runtime.storage.delete(key);
     } catch (error) {

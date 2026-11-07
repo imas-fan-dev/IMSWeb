@@ -5,6 +5,7 @@ import {
   wikiPath,
 } from "@imsweb/contracts/paths"
 import { http, HttpResponse } from "msw"
+import { createCatalogBirthdays } from "../data/catalog"
 
 import {
   makeAboutPageContent,
@@ -54,6 +55,9 @@ import {
  * need a withdrawal token that only the real submission flow can mint.
  */
 export const publicHandlers = [
+  http.get(apiPath("/birthdays"), () =>
+    HttpResponse.json(createCatalogBirthdays())
+  ),
   http.get(apiPath("/about"), () => HttpResponse.json(makeAboutPageContent())),
   http.get(apiPath("/homepage-links"), () =>
     HttpResponse.json(makeHomepageLinks())

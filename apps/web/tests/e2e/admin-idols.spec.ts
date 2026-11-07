@@ -116,7 +116,7 @@ test("independent catalog editing preserves the story workspace @mobile", async 
   ]) {
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0)
   }
-  await page.getByRole("link", { name: "偶像管理", exact: true }).click()
+  await page.getByRole("link", { name: "Wiki 条目管理", exact: true }).click()
   await expect(
     page.getByRole("heading", { name: "条目管理", exact: true })
   ).toBeVisible()

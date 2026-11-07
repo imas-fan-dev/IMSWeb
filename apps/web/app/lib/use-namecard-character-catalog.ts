@@ -9,20 +9,23 @@ let catalogRequest: Promise<NamecardCharacterCatalog> | null = null
 
 /**
  * Every picker on a page wants the same catalog, so the promise itself is
- * memoized at module scope: the upload dialog, the claim dialog, and the card
- * editor share a single round trip instead of three.
+ * shared while in flight: the upload dialog, the claim dialog, and the card
+ * editor share a single round trip. Completed content uses the API client's
+ * expiring cache instead of a permanent module promise.
  */
 function requestNamecardCharacterCatalog() {
-  catalogRequest ??= getNamecardCharacterCatalog()
-    .send()
-    .catch((error: unknown) => {
-      catalogRequest = null
-      throw error
-    })
+  if (catalogRequest) return catalogRequest
+  const request: Promise<NamecardCharacterCatalog> =
+    getNamecardCharacterCatalog()
+      .send()
+      .finally(() => {
+        if (catalogRequest === request) catalogRequest = null
+      })
+  catalogRequest = request
   return catalogRequest
 }
 
-/** Drops the shared promise so a test can exercise the failure path again. */
+/** Reset after a catalog mutation, or before exercising a new test scenario. */
 export function resetNamecardCharacterCatalogCache() {
   catalogRequest = null
 }

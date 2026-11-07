@@ -168,8 +168,10 @@ export class SqlWikiEntityRepository {
         const row = await queryOne<IdolRecord>(
             this.database,
             `SELECT ${IDOL_COLUMNS} FROM idols
-             WHERE agency_id=? AND name_cn=? AND deleted_at IS NULL`,
-            [agencyId, idolName],
+             WHERE agency_id=? AND (name_cn=? OR id IN (
+                 SELECT id FROM wiki_entries WHERE project_id=? AND local_name_cn=?
+             )) AND deleted_at IS NULL ORDER BY CASE WHEN name_cn=? THEN 0 ELSE 1 END, id LIMIT 1`,
+            [agencyId, idolName, agencyId, idolName, idolName],
         );
         return row ? idolRecord(row) : null;
     }

@@ -19,6 +19,7 @@ src/
   paths.ts               # API 与公开 delivery URL 前缀及路径拼接器
   index.ts               # 根导出：按业务命名空间聚合（非扁平 re-export）
   wiki.ts                # 单文件域：平铺（含偶像媒体目录管理）
+  catalog.ts             # 统一人物／组合企划档案与 Wiki 绑定管理
   namecards.ts           # 名片公开/投稿/管理员队列
   admin.ts               # 后台会话与管理员账号
   about.ts / producer-map.ts / homepage-links.ts / site-packages.ts / media.ts
@@ -44,6 +45,7 @@ src/
 
 - 子路径与目录一一对应：`@imsweb/contracts/fudaba`、
   `@imsweb/contracts/fudaba/card-claims`、`@imsweb/contracts/fudaba/location-review`。
+- `@imsweb/contracts/catalog` 定义角色档案管理与公开生日投影契约；公开名片和 Wiki 继续使用原有契约。
 - 当平铺域获得第二个文件时，提升为文件夹（`platform.ts` →
   `platform/index.ts` + `platform/admin.ts`），并在 `package.json` 的
   `exports` 中补充对应子路径。
