@@ -1,4 +1,5 @@
 import { PUBLIC_UPLOADS_PATH_PREFIX } from '@imsweb/contracts/paths';
+import { NAMECARD_MIDDLE_IMAGE_LIMIT } from '@imsweb/contracts/fudaba/runtime';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import {
     publishNamecardMedia
@@ -10,8 +11,10 @@ import type {
 } from '@/domains/community/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
 import {
+    cardPageObjectKey,
     namecardCardMediaObjectKey,
-    namecardOriginalUrlFromObjectKey
+    namecardOriginalUrlFromObjectKey,
+    parseCardPageObjectKey
 } from '@/utils/storage/business-object-keys';
 
 // Registered-user uploads keep their own layout until approval; every public
@@ -121,6 +124,34 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
         }
         if (canonicalUrls.length > 0) {
             await publishNamecardMedia(storage, canonicalUrls);
+        }
+        // 已发布卡的 staged 修订只把改动过的页写进 pending 队列。这些对象必须
+        // 先搬到 live 路径再公开，否则页面行指向 pending 对象，公开路由 404。
+        const stagedKeys = [
+            await repository.findCardMediaKey(id, 'front', true),
+            await repository.findCardMediaKey(id, 'back', true),
+            ...await Promise.all(
+                Array.from(
+                    { length: NAMECARD_MIDDLE_IMAGE_LIMIT },
+                    (_, index) => repository.findCardMediaKey(id, `middle-${index + 1}`, true)
+                )
+            )
+        ];
+        for (const key of stagedKeys) {
+            if (typeof key !== 'string') continue;
+            const parsed = parseCardPageObjectKey(key);
+            if (!parsed || parsed.queue !== 'pending') continue;
+            const liveKey = cardPageObjectKey(
+                parsed.cardId,
+                'live',
+                parsed.pageId,
+                parsed.version
+            );
+            await storage.move(key, liveKey);
+            if (!storage.publish) {
+                throw new Error('Object storage publication is unavailable');
+            }
+            await storage.publish(liveKey);
         }
         const completed = await repository.completeCardApproval(id, claim.card.revision);
         if (completed.status !== 'updated') {
