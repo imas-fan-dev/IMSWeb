@@ -21,6 +21,10 @@ export default defineConfig({
     },
     test: {
         environment: 'node',
+        // Migration tests create and drop whole databases; the default 5s is a
+        // CI-only flake source when the suite runs in parallel.
+        testTimeout: 30_000,
+        hookTimeout: 30_000,
         include: ['tests/**/*.test.{ts,js}'],
         // One process per file matches `node --test`'s default isolation and
         // keeps PostgreSQL pools and module state from crossing between files.
