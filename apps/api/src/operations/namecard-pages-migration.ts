@@ -159,25 +159,48 @@ export async function runNamecardPagesMigration(
                 }
                 const object = await storage.get(key);
                 if (!object) throw new Error(`object missing: ${key}`);
-                const info = await images!.validate!(object.body, 'image/webp');
+                // 旧布局可能是 PNG/JPEG；统一转成 webp 再写入页面对象。
+                const sourceType =
+                    object.contentType?.split(';')[0]?.trim().toLowerCase() ||
+                    'image/webp';
+                let sourceInfo;
+                try {
+                    sourceInfo = await images!.validate!(
+                        object.body,
+                        sourceType
+                    );
+                } catch {
+                    sourceInfo = await images!.validate!(
+                        object.body,
+                        'image/webp'
+                    );
+                }
                 if (dryRun) {
                     return {
                         page: {
                             pageId: `page-${crypto.randomUUID()}`,
                             objectVersion: crypto.randomUUID(),
-                            width: info.width,
-                            height: info.height
+                            width: sourceInfo.width,
+                            height: sourceInfo.height
                         },
                         copied: true
                     };
                 }
+                const body =
+                    sourceType === 'image/webp'
+                        ? object.body
+                        : await images!.toWebp!(object.body, 85);
+                const info =
+                    sourceType === 'image/webp'
+                        ? sourceInfo
+                        : await images!.validate!(body, 'image/webp');
                 const stored = await storeCardPage(
                     { storage, images },
                     {
                         cardId: card.id,
                         queue,
                         pageId: `page-${crypto.randomUUID()}`,
-                        body: object.body,
+                        body,
                         width: info.width,
                         height: info.height,
                         accountId: 'migration'
