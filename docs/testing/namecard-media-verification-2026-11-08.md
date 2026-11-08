@@ -105,3 +105,14 @@ node ./node_modules/vitest/vitest.mjs run tests/server/namecard.test.ts
 2. C15 在预览站的中间页旋转要在修复后重新执行一次，并检查背面未被误转。
 3. L1/L3/L5/L6 仍需要账号/无主卡等前置数据。
 4. 最新部署的 Web/浏览器阶段尚未全部通过。
+
+## 6. 测试账号来源
+
+预览站账号密码保存在工作区外：
+
+`F:\imas-fan-dev\test account.txt`
+
+- 属主账号：`zheizhei_real@163.com`
+- 管理员账号：`admin`
+
+密码不写入本仓库；每次需要登录时从上述文件读取。
