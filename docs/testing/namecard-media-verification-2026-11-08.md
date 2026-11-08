@@ -83,7 +83,31 @@
 
 失败必须附可复现步骤；修复后在同一行改为通过并写提交号。
 
-## 5. 本轮已发现并修复的代码问题
+## 5. 入口清单（与 `docs/architecture/namecard-surfaces.md` 对齐）
+
+L1 是编辑工作台，**没有详情窗和全屏预览**；详情窗/全屏属于 L2 与 L3。
+
+| 入口 ID | 面 | 实际组件/入口 | 取图字段 |
+| --- | --- | --- | --- |
+| `L1-inventory` | 属主我的名片 | `CardInventory` 左侧清单 | `frontImageUrl` |
+| `L1-gallery-main` | 属主我的名片 | `CardEditor → CardMediaGallery` 大图 | 当前页 `previewUrl` / `url` |
+| `L1-gallery-strip` | 属主我的名片 | 同上，底部缩略图条 | 每页 `previewUrl` |
+| `L2-tile` | 名片墙 | 墙面瓦片 | `pages[].thumbUrl` |
+| `L2-detail` | 名片墙 | `NamecardDetailDialog → CardMediaPreview` | 当前页 `previewUrl` |
+| `L2-full` | 名片墙 | `NamecardPreview` 全屏 + 底部缩略图 | `pages[].url` / `previewUrl` |
+| `L3-tile` | 用户主页 | 主页名片瓦片 | `pages[].thumbUrl` |
+| `L3-detail` | 用户主页 | 复用 `NamecardDetailDialog` | 同 `L2-detail` |
+| `L3-full` | 用户主页 | 复用 `NamecardPreview` | 同 `L2-full` |
+| `L4-live` / `L4-draft` | 投稿审核 | `NamecardReviewDialog → DiffArtwork` | 左 live / 右 draft |
+| `L5-old` / `L5-target` | 认领审核 | `ClaimReviewDialog` | 老卡 / 目标卡 |
+| `L6-request` | 补充审核 | `SupplementReviewDialog` | 申请页集 |
+| `L7-tile` | 反馈管理 | 反馈列表瓦片 | `NamecardMediaPreview` |
+| `L7-dialog` | 反馈管理 | `NamecardManageDialog` | `CardMediaGallery` 每页 |
+| `ADMIN-side` | 管理侧 | `/api/admin/cards/:n/media/live/front\|back` | 直接 `<img>` 解码 |
+
+只有 `L2-*` / `L3-*` 检查详情窗和全屏；`L1-*` 不检查这两个窗口。
+
+## 6. 本轮已发现并修复的代码问题
 
 | 问题 | 修复 |
 | --- | --- |
