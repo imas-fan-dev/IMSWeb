@@ -92,6 +92,8 @@ COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/migrations/postgresql apps/api/migrations/postgresql
 COPY --from=build /app/apps/api/scripts/migration/postgres-migrations.js \
     apps/api/scripts/migration/postgres-migrations.js
+COPY --from=build /app/apps/api/scripts/migration/namecard-card-pages.js \
+    apps/api/scripts/migration/namecard-card-pages.js
 
 RUN mkdir -p /app/data \
     && chown node:node /app/data
