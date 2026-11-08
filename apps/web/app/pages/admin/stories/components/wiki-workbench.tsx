@@ -51,6 +51,7 @@ import {
   WorkbenchSkeleton,
 } from "./wiki-workbench-sections"
 import { NavigationLink } from "~/components/navigation/navigation-link"
+import { StoryCharacterSelector } from "./story-character-selector"
 
 export function WikiWorkbench() {
   const location = useLocation()
@@ -87,6 +88,8 @@ export function WikiWorkbench() {
     storyUrl,
     deleteConfirm,
     refreshSourceCatalog,
+    refreshCatalog,
+    setSelection,
   } = useWikiWorkbenchState()
 
   const explorer = selectedAgency ? (
@@ -102,9 +105,17 @@ export function WikiWorkbench() {
       <AdminPageHeader
         eyebrow="WIKI WORKBENCH"
         title="Wiki 内容工作台"
-        description="按企划、栏目与内容页定位资料，维护剧情卡片、媒体和来源。"
+        description="角色剧情关联角色档案，共用名称和图片保持同步；剧情卡片、媒体、分类和来源在此维护。"
         actions={
           <>
+            <StoryCharacterSelector
+              onSelected={async (target) => {
+                await refreshCatalog()
+                setSelection(target.projectId, target.entryId)
+                setMobileExplorerOpen(false)
+                reloadStories()
+              }}
+            />
             <Button
               type="button"
               variant="outline"
@@ -200,7 +211,7 @@ export function WikiWorkbench() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">企划目录</p>
             <p className="text-xs text-muted-foreground">
-              请前往偶像管理建立企划与内容页。
+              请先建立企划，人物剧情可直接从角色档案选择。
             </p>
           </div>
         )}
@@ -215,7 +226,7 @@ export function WikiWorkbench() {
             })}`}
             className={buttonVariants({ variant: "outline" })}
           >
-            偶像管理
+            Wiki 条目管理
           </NavigationLink>
         </div>
       </section>
@@ -230,7 +241,7 @@ export function WikiWorkbench() {
             </EmptyMedia>
             <EmptyTitle>还没有 Wiki 企划</EmptyTitle>
             <EmptyDescription>
-              在偶像管理建立企划与内容页后，即可维护剧情。
+              建立企划后，可选择角色档案或维护剧情专题。
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -347,7 +358,7 @@ export function WikiWorkbench() {
                   </EmptyMedia>
                   <EmptyTitle>这个企划还没有内容页</EmptyTitle>
                   <EmptyDescription>
-                    请在偶像管理中建立内容页，也可以先建立栏目后再归档。
+                    可直接从角色档案选择人物，或在 Wiki 条目管理建立剧情专题。
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>

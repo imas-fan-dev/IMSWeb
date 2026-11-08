@@ -93,6 +93,7 @@ test.beforeEach(async ({ page, api }) => {
     (route) => route.fulfill({ json: homepageLinks })
   )
   installSeededPublicApis(api, [
+    { path: "/api/birthdays", times: { min: 0, max: 1 } },
     { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
     { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },
     { path: "/api/community-posts/spotlight", times: { min: 0, max: 1 } },

@@ -20,8 +20,10 @@ import type { NamecardCharacterRepository } from "@/ports/repositories/namecard-
 import type { NamecardUnitRepository } from "@/ports/repositories/namecard-units";
 import type { StationMessageRepository } from "@/ports/repositories/station-messages";
 import type { StoryRepository } from "@/ports/repositories/wiki";
+import type { CatalogRepository } from "@/ports/repositories/catalog";
 
 export interface RepositoryServices {
+    catalog: CatalogRepository;
     backofficeAuth: BackofficeAuthRepository;
     adminAccounts: AdminAccountRepository;
     platformAccounts: PlatformAccountRepository;
@@ -50,3 +52,4 @@ export * from "@/ports/repositories/namecard-characters";
 export * from "@/ports/repositories/namecard-units";
 export * from "@/ports/repositories/station-messages";
 export * from "@/ports/repositories/wiki";
+export * from "@/ports/repositories/catalog";

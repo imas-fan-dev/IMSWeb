@@ -2,6 +2,15 @@
   "format": "imsweb-non-json-boundaries/v1",
   "boundaries": [
     {
+      "id": "ADMIN-CATALOG-PROFILE-IMAGE-01",
+      "sourceFile": "apps/api/src/domains/admin/catalog/handlers/serve-profile-image.ts",
+      "symbol": "handleServeAdminCatalogProfileImage",
+      "responseKind": "binary",
+      "reason": "Backoffice catalog image preview reuses object storage without adding public delivery routes.",
+      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/catalog.ts", "symbol": "adminCatalogHttpErrorSchema" },
+      "test": { "file": "apps/api/tests/server/catalog.test.ts", "symbol": "catalog image GET requires Backoffice access and returns contract JSON errors" }
+    },
+    {
       "id": "FUDABA-ADMIN-OFFICE-MEDIA-01",
       "sourceFile": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "symbol": "handleServeAdminFudabaOfficeMedia",

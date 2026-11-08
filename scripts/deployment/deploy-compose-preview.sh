@@ -59,7 +59,7 @@ deploy_root_segments="/${deploy_root#/}/"
 [[ "$probe_delay" =~ ^[0-9]+$ ]] ||
     fail "IMS_DEPLOY_PROBE_DELAY_SECONDS must be a non-negative integer"
 
-for command_name in awk cmp curl date env flock grep install ln mktemp mv rm sed seq sleep stat; do
+for command_name in awk cmp curl date env flock grep install ln mktemp mv rm sed seq sha256sum sleep stat; do
     command -v "$command_name" >/dev/null || fail "$command_name is not installed"
 done
 command -v "$container_cli" >/dev/null || fail "$container_cli is not installed"
@@ -174,12 +174,13 @@ install -d -m 0700 "$deploy_root"
 deploy_root=$(cd "$deploy_root" && pwd -P)
 releases_dir=$deploy_root/releases
 deployments_dir=$deploy_root/deployments
+backups_dir=$deploy_root/backups
 current_link=$deploy_root/current
 previous_link=$deploy_root/previous
 lock_file=$deploy_root/.deploy.lock
 
-install -d -m 0700 "$releases_dir" "$deployments_dir"
-for managed_dir in "$releases_dir" "$deployments_dir"; do
+install -d -m 0700 "$releases_dir" "$deployments_dir" "$backups_dir"
+for managed_dir in "$releases_dir" "$deployments_dir" "$backups_dir"; do
     [[ -d "$managed_dir" && ! -L "$managed_dir" ]] ||
         fail "managed preview directories must not be symbolic links"
 done
@@ -300,6 +301,39 @@ wait_for_postgres() {
     return 1
 }
 
+backup_file=
+backup_sha=
+backup_postgres() {
+    local directory staging database_name
+    # Back up the application's database, which need not be POSTGRES_DB (the
+    # cluster's bootstrap database). Emit only the name, never URL credentials.
+    database_name=$(compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" "$image_ref" \
+        run --rm --no-deps api node -e '
+            try {
+                const url = new URL(process.env.DATABASE_URL);
+                const name = decodeURIComponent(url.pathname.slice(1));
+                if (!["postgres:", "postgresql:"].includes(url.protocol) || url.hostname !== "postgres" ||
+                    (url.port && url.port !== "5432") || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,62}$/.test(name)) throw new Error();
+                process.stdout.write(name);
+            } catch { console.error("Invalid preview backup target"); process.exit(1); }
+        ') || return 1
+    [[ "$database_name" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,62}$ ]] || return 1
+    directory=$(mktemp -d "$backups_dir/$(date -u +%Y%m%dT%H%M%SZ)-${preview_id}.XXXXXX") || return 1
+    staging=$directory/.postgresql.dump.tmp
+    printf '%s\n' 'Creating the pre-deployment preview PostgreSQL recovery point.'
+    compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" "$image_ref" exec -T postgres \
+        sh -ec 'exec pg_dump --username="$POSTGRES_USER" --dbname="$1" --format=custom' sh "$database_name" \
+        >"$staging" || return 1
+    [[ -s "$staging" ]] || return 1
+    compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" "$image_ref" exec -T postgres \
+        sh -ec 'exec pg_restore --list >/dev/null' <"$staging" || return 1
+    backup_file=$directory/postgresql.dump
+    mv "$staging" "$backup_file" || return 1
+    sha256sum "$backup_file" >"$backup_file.sha256" || return 1
+    backup_sha=$(awk '{ print $1 }' "$backup_file.sha256") || return 1
+    [[ "$backup_sha" =~ ^[0-9a-f]{64}$ ]]
+}
+
 email_workers_healthy() {
     local compose_file=$1
     local compose_override=$2
@@ -403,6 +437,8 @@ elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
 elif ! wait_for_postgres "$release_dir/compose.yaml" \
     "$release_dir/compose.preview.yaml" "$image_ref"; then
     deployment_error="candidate PostgreSQL readiness check failed"
+elif ! backup_postgres; then
+    deployment_error="pre-migration PostgreSQL backup failed"
 elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
     "$image_ref" run --rm --no-deps api \
     node apps/api/scripts/migration/postgres-migrations.js; then
@@ -478,11 +514,13 @@ fi
 
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 record_file=$deployments_dir/${timestamp}-${preview_id}.json
-printf '{\n  "action": "preview-deploy",\n  "release": "%s",\n  "commit": "%s",\n  "image": "%s",\n  "previousRelease": "%s",\n  "completedAt": "%s"\n}\n' \
+printf '{\n  "action": "preview-deploy",\n  "release": "%s",\n  "commit": "%s",\n  "image": "%s",\n  "previousRelease": "%s",\n  "backup": "%s",\n  "backupSha256": "%s",\n  "completedAt": "%s"\n}\n' \
     "$preview_id" \
     "$release_sha" \
     "$image_ref" \
     "$current_release" \
+    "$backup_file" \
+    "$backup_sha" \
     "$timestamp" >"$record_file"
 printf '%s\n' \
     "Preview deployment completed." \

@@ -409,7 +409,10 @@ export async function cleanupWikiObjects(
     if (!services.storage) return;
     const uniqueKeys = [...new Set(keys)];
     const results = await Promise.allSettled(
-        uniqueKeys.map((key) => deleteObjectWithCompensation(services, key)),
+        uniqueKeys.map(async (key) => {
+            if (await services.catalog?.hasMediaReference(key)) return;
+            await deleteObjectWithCompensation(services, key);
+        }),
     );
     for (const [index, result] of results.entries()) {
         if (result.status === "rejected") {

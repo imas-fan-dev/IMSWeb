@@ -1,6 +1,7 @@
 import { fudabaErrorResponseSchema } from "@imsweb/contracts/fudaba"
 import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
 import { exchangePath } from "@imsweb/contracts/paths"
+import { invalidateCache } from "alova"
 
 import { STABLE_CONTENT_CACHE_FOR } from "../../cache-policy"
 import { apiClient } from "../../client"
@@ -26,4 +27,8 @@ export function getNamecardCharacterCatalog() {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
     })
   )
+}
+
+export async function invalidateNamecardCharacterCatalog() {
+  await invalidateCache(getNamecardCharacterCatalog())
 }

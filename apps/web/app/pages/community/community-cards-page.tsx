@@ -548,7 +548,7 @@ export default function CommunityCardsPage() {
         onReturnFocus={restore}
       />
       <NamecardSupplementDialog
-        key={supplementCard?.id ?? "none"}
+        key={`supplement:${supplementCard?.id ?? "none"}`}
         card={canClaim ? supplementCard : null}
         open={canClaim && supplementCard !== null}
         onOpenChange={(open) => {
@@ -573,7 +573,7 @@ export default function CommunityCardsPage() {
         }}
       />
       <NamecardClaimDialog
-        key={claimCard?.id ?? "none"}
+        key={`claim:${claimCard?.id ?? "none"}`}
         card={canClaim ? claimCard : null}
         open={canClaim && claimCard !== null}
         onOpenChange={(open) => {

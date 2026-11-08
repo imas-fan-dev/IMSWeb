@@ -226,11 +226,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.deepEqual(foreignKeys.results, [
                 {
                     source_table: 'fudaba_card_series',
-                    target_table: 'agencies'
+                    target_table: 'projects'
                 },
                 {
                     source_table: 'fudaba_office_series_tags',
-                    target_table: 'agencies'
+                    target_table: 'projects'
                 }
             ]);
         });
@@ -4510,7 +4510,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261103130000_platform_account_groups',
                 '20261103140000_platform_account_five_groups',
                 '20261103150000_platform_account_icon',
+                '20261104160000_shared_character_catalog',
+                '20261104161000_catalog_project_settings',
+                '20261104162000_catalog_character_cv',
                 '20261105120000_platform_profile_slug_not_numeric',
+                '20261105190000_character_profile_authority',
+                '20261105200000_catalog_public_facts',
                 '20261106120000_namecard_exchange_system',
                 '20261107120000_namecard_media_key_normalization',
                 '20261107160000_namecard_group_card',

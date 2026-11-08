@@ -106,6 +106,9 @@ function idolResponse(idol: IdolRecord, groupIds: number[]) {
 }
 
 function catalogError(error: unknown, fallback: string): Response {
+    if (error instanceof Error && /^Bound (entry|navigation) presentation is owned by the catalog/.test(error.message)) {
+        return wikiJson(wikiErrorBody('继承资料已变化，请刷新或到对应企划档案中修改'), 409);
+    }
     const duplicate = error instanceof Error && /unique|duplicate/i.test(error.message);
     return wikiJson(
         wikiErrorBody(wikiMessageOf(error, fallback)),

@@ -1,4 +1,5 @@
 import { aboutPageContentSchema } from "@imsweb/contracts/about"
+import { catalogBirthdaysSchema } from "@imsweb/contracts/catalog"
 import {
   chronicleActivityListSchema,
   chronicleActivitySchema,
@@ -74,6 +75,7 @@ type RouteCase = {
 }
 
 const routeCases: RouteCase[] = [
+  { path: apiPath("/birthdays"), schema: catalogBirthdaysSchema },
   { path: apiPath("/about"), schema: aboutPageContentSchema },
   { path: apiPath("/homepage-links"), schema: homepageLinksSchema },
   { path: apiPath("/information"), schema: informationListSchema },

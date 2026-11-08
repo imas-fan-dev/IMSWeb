@@ -238,6 +238,7 @@ const singleCapabilityRepositories = new Map([
             "namecard-units",
         ],
     ],
+    ["catalog-repository.ts", ["SqlCatalogRepository", "CatalogRepository", "catalog"]],
     [
         "reaction-repository.ts",
         ["SqlReactionRepository", "ReactionRepository", "namecards"],
@@ -324,6 +325,7 @@ const portContracts = new Map([
         ["NamecardCharacterRepository"],
     ],
     ["repositories/namecard-units.ts", ["NamecardUnitRepository"]],
+    ["repositories/catalog.ts", ["CatalogRepository"]],
     ["repositories/station-messages.ts", ["StationMessageRepository"]],
     ["repositories/fudaba-review-policy.ts", ["FudabaReviewPolicy"]],
     [
@@ -594,6 +596,7 @@ const domainSections = new Map([
             "platform-users",
             "namecard-characters",
             "namecard-units",
+            "catalog",
             "station-messages",
         ],
     ],
@@ -611,6 +614,7 @@ const domainSections = new Map([
             "community-content",
             "live-schedule",
             "homepage-links",
+            "birthdays",
             "brand-assets",
         ],
     ],
@@ -652,6 +656,7 @@ function domainDirectory(domain) {
 }
 
 const validatedRequestDomains = new Set([
+    "birthdays",
     "about",
     "admin-accounts",
     "audit",
@@ -666,6 +671,7 @@ const validatedRequestDomains = new Set([
     "namecards",
     "namecard-characters",
     "namecard-units",
+    "catalog",
     "news",
     "platform-users",
     "producer-map",

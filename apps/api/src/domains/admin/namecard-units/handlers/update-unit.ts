@@ -56,6 +56,9 @@ export async function handleUpdateAdminNamecardUnit(
             409
         );
     }
+    if (result.status === 'profile-in-use') {
+        return c.json({ success: false, message: '该企划档案仍被 Wiki 引用，请先解除绑定' } satisfies FailureMessageResponse, 409);
+    }
     if (result.status === 'conflict') {
         return c.json(
             {

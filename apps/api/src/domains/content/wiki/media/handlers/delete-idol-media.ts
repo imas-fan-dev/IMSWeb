@@ -34,6 +34,9 @@ export function createHandleDeleteWikiIdolMedia<E extends Env>(
                 fields.idol
             );
             if ('error' in target) return target.error;
+            if (await services.catalog?.ownsWikiPresentation('idol', target.idol.id)) {
+                return wikiJson(wikiErrorBody('图片由偶像资料库维护'), 409);
+            }
             const record = await services.story!.findIdolById(target.idol.id);
             const key = record?.avatar_object_key ?? null;
             await services.story!.setIdolAvatarObjectKey(target.idol.id, null);

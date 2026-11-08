@@ -971,6 +971,8 @@ export class SqlFudabaRepository implements FudabaRepository {
     private async validateCardFavorites(
         database: SqlDatabase,
         characterIds: readonly number[],
+        retainedCardId: string | null = null,
+        reviewedCharacterIds: readonly number[] = [],
     ): Promise<CardFavoriteSelectionRecord[]> {
         if (characterIds.length > NAMECARD_FAVORITE_CHARACTER_LIMIT) {
             throw new InvalidCardFavoriteSelectionError(
@@ -992,8 +994,16 @@ export class SqlFudabaRepository implements FudabaRepository {
             `SELECT character.id AS character_id, agency.code AS agency_code, character.name_cn
              FROM namecard_characters character
              JOIN agencies agency ON agency.id=character.agency_id
-             WHERE character.id IN (${placeholders}) AND character.deleted_at IS NULL`,
-            characterIds,
+             WHERE character.id IN (${placeholders}) AND (
+                 character.deleted_at IS NULL
+                 OR EXISTS (SELECT 1 FROM fudaba_card_favorite_characters retained
+                     WHERE retained.card_id=? AND retained.character_id=character.id)
+                 OR EXISTS (SELECT 1 FROM fudaba_cards retained WHERE retained.id=? AND (
+                     retained.pending_payload->'favorite_character_ids' @> jsonb_build_array(character.id)
+                     OR retained.pending_payload->'favoriteCharacterIds' @> jsonb_build_array(character.id)))
+                 ${reviewedCharacterIds.length ? `OR character.id IN (${reviewedCharacterIds.map(() => '?').join(',')})` : ''}
+             )`,
+            [...characterIds, retainedCardId, retainedCardId, ...reviewedCharacterIds],
         );
         const byId = new Map(rows.map((row) => [Number(row.character_id), row]));
         if (byId.size !== characterIds.length) {
@@ -1145,8 +1155,9 @@ export class SqlFudabaRepository implements FudabaRepository {
             `SELECT selected.card_id, selected.character_id, agency.code AS agency_code,
                     character.name_cn, selected.display_order
              FROM fudaba_card_favorite_characters selected
-             JOIN namecard_characters character ON character.id=selected.character_id
-             JOIN agencies agency ON agency.id=character.agency_id
+             JOIN catalog_characters identity ON identity.id=selected.character_id
+             JOIN catalog_character_project_profiles character ON character.id=identity.default_profile_id
+             JOIN projects agency ON agency.id=character.project_id
              WHERE selected.card_id IN (${placeholders})
              ORDER BY selected.card_id, selected.display_order`,
             cardIds,
@@ -1183,7 +1194,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                 if (!card) return null;
                 let characters: CardFavoriteSelectionRecord[];
                 try {
-                    characters = await this.validateCardFavorites(database, characterIds);
+                    characters = await this.validateCardFavorites(database, characterIds, cardId);
                 } catch (error) {
                     if (error instanceof InvalidCardFavoriteSelectionError)
                         return null;
@@ -1314,8 +1325,9 @@ export class SqlFudabaRepository implements FudabaRepository {
                     agency.code AS agency_code, character.name_cn,
                     selected.display_order
              FROM fudaba_card_claim_favorite_characters selected
-             JOIN namecard_characters character ON character.id=selected.character_id
-             JOIN agencies agency ON agency.id=character.agency_id
+             JOIN catalog_characters identity ON identity.id=selected.character_id
+             JOIN catalog_character_project_profiles character ON character.id=identity.default_profile_id
+             JOIN projects agency ON agency.id=character.project_id
              WHERE selected.claim_id IN (${placeholders})
              ORDER BY selected.claim_id, selected.display_order`,
             claimIds,
@@ -3553,6 +3565,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     characters = await this.validateCardFavorites(
                         database,
                         input.favoriteCharacterIds ?? [],
+                        input.cardId,
                     );
                 } catch (error) {
                     if (error instanceof InvalidCardFavoriteSelectionError) {
@@ -5218,6 +5231,8 @@ export class SqlFudabaRepository implements FudabaRepository {
             const characters = await this.validateCardFavorites(
                 database,
                 payload.favorite_character_ids ?? [],
+                reviewed.id,
+                payload.favorite_character_ids ?? [],
             );
             await this.replaceCardFavorites(database, reviewed.id, characters);
         } catch (error) {
@@ -5929,6 +5944,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                             await this.validateCardFavorites(
                                 database,
                                 locked.payload.favoriteCharacterIds,
+                                updated.id,
                             ),
                         );
                     }

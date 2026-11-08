@@ -9,6 +9,18 @@ import {
 } from "@imsweb/contracts/wiki"
 
 import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
+import { catalogBirthdaysSchema } from "@imsweb/contracts/catalog"
+import { createCatalogBirthdays } from "../../../mocks/data/catalog"
+
+export function installBirthdaysMock(api: ApiDispatcher, times: ApiTimes = 1) {
+  api.expect({
+    method: "GET",
+    path: apiPath("/birthdays"),
+    responses: { 200: catalogBirthdaysSchema },
+    times,
+    handle: () => ({ json: createCatalogBirthdays() }),
+  })
+}
 
 export const browserIconUrls = [
   "/brand/series/wall/765pro.webp",
@@ -165,6 +177,7 @@ export function installHomepageLinksMock(
 export function installPublicShellMocks(api: ApiDispatcher, times: ApiTimes) {
   installEmptyWikiCatalogMock(api, times)
   installHomepageLinksMock(api, times)
+  installBirthdaysMock(api, times)
   api.mockRoute(
     "/api/wiki/random_idol",
     (route) => route.fulfill({ status: 500, json: { error: "Unavailable" } }),

@@ -70,6 +70,7 @@ type AdminNavChild = {
    * is a prefix of a sibling's, otherwise both light up at once.
    */
   end?: boolean
+  opOnly?: boolean
 }
 
 const navigation: Array<{
@@ -145,14 +146,12 @@ const navigation: Array<{
   {
     to: "/admin/cards",
     label: "名片管理",
-    description: "名片审核与资料维护",
+    description: "名片审核与反馈处理",
     icon: ContactRoundIcon,
     accent: "bg-franchise-765",
     children: [
       { to: "/admin/cards", label: "名片审核", end: true },
       { to: "/admin/cards/manage", label: "反馈处理" },
-      { to: "/admin/cards/characters", label: "角色列表" },
-      { to: "/admin/cards/units", label: "组合列表" },
       { label: "标签管理" },
     ],
   },
@@ -165,13 +164,25 @@ const navigation: Array<{
   },
   {
     to: "/admin/idols",
-    label: "偶像管理",
-    description: "企划、栏目与条目资料",
+    label: "角色档案",
+    description: "人物、组合与完整企划档案",
     icon: UserRoundIcon,
     accent: "bg-franchise-sc",
     editorOnly: true,
     children: [
+      { to: "/admin/idols", label: "角色档案", end: true },
+      { to: "/admin/idols/units", label: "组合列表", opOnly: true },
       { to: "/admin/idols/agencies", label: "企划管理" },
+    ],
+  },
+  {
+    to: "/admin/idols/entries",
+    label: "Wiki 内容",
+    description: "独立实例、资料关联与收录",
+    icon: BookOpenTextIcon,
+    accent: "bg-franchise-sc",
+    editorOnly: true,
+    children: [
       { to: "/admin/idols/groups", label: "栏目管理" },
       { to: "/admin/idols/entries", label: "条目管理" },
     ],
@@ -441,7 +452,9 @@ function isExpiredSession(error: unknown): boolean {
 }
 
 function isEditorContentRoute(pathname: string): boolean {
+  if (pathname === "/admin/idols/units") return false
   return (
+    pathname === "/admin/cards/characters" ||
     pathname === "/admin/community" ||
     pathname === "/admin/idols" ||
     pathname.startsWith("/admin/idols/") ||
@@ -632,7 +645,9 @@ export default function AdminLayout() {
                     : !item.superOnly || data.user.adminRole === "super_admin"
                 )
                 .map((item) => {
-                  const children = item.children ?? []
+                  const children = (item.children ?? []).filter(
+                    (child) => !child.opOnly || !isEditor
+                  )
                   const hasChildren = children.length > 0
                   const childActive =
                     hasChildren &&

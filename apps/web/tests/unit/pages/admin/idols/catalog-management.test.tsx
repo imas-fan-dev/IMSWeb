@@ -142,7 +142,14 @@ describe("independent idol catalog management", () => {
     ).toBeVisible()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     const requests = fetchMock.mock.calls.map(requestDetails)
-    expect(requests.filter(({ method }) => method === "GET")).toHaveLength(2)
+    expect(
+      requests.filter(
+        ({ method, url }) =>
+          method === "GET" &&
+          new URL(url, window.location.origin).pathname ===
+            "/api/admin/wiki/catalog"
+      )
+    ).toHaveLength(2)
     const patch = requests.find(({ method }) => method === "PATCH")!
     expect(new URL(patch.url, window.location.origin).pathname).toBe(
       "/api/admin/wiki/idols/10"

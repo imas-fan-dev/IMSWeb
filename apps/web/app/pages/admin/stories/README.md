@@ -14,6 +14,7 @@
 | --- | --- | --- |
 | 编辑者进入内容工作台 | [wiki-workbench](components/wiki-workbench.tsx)、[sections](components/wiki-workbench-sections.tsx) | 工作台编排、移动端浏览器承载与操作入口 |
 | 编辑者选择企划和内容页 | [层级浏览](components/wiki-hierarchy-explorer.tsx)、[剧情大纲](components/story-outline.tsx) | 按目录定位内容页，展示与选择剧情分类和卡片 |
+| 编辑者直接使用角色档案 | [角色选择器](components/story-character-selector.tsx) | 按企划档案 ID 复用或建立剧情关联，刷新后用内容条目 ID 定位，不复制人物资料 |
 | 工作台状态维护 | [hooks](components/wiki-workbench-hooks.ts)、[model](components/wiki-workbench-model.ts) | 目录与剧情加载、选择状态、刷新、编辑状态与纯模型 |
 | 编辑者维护剧情卡片与来源 | [剧情编辑器](components/story-editor-dialog.tsx) | 新建或修改卡片、来源信息与图片，关联共享封面 |
 | 编辑者维护分类 | [分类编辑器](components/story-category-editor-dialog.tsx) | 分类资料、归属与编辑反馈 |
@@ -27,6 +28,8 @@
 - 企划、栏目和内容页的实体资料与归档关系由
   [idols 目录后台](../idols/README.md) 维护；本目录消费该层级并维护其剧情内容。
   跨页面定位与返回需要保留当前选择上下文。
+- 人物可直接从角色档案进入，名称、图片和代表色通过同企划档案关联读取；名片从同一身份的默认档案读取。
+  剧情卡名、来源、封面和分类保持业务归属。已有剧情后不能解除或改绑角色关联，同名独立条目须先明确绑定。
 - 公开消费端见 [Wiki 阅读](../../wiki/README.md)。分类、来源目录、图片或封面关联变更时，
   需核对公开卡片和阅读展示，不能只检查编辑器。
 - 请求通过 [API facade](../../../lib/api/index.ts) 调用，实现在
@@ -41,7 +44,7 @@
 - 单元测试：[stories](../../../../tests/unit/pages/admin/stories/)，
   [工作台页面](../../../../tests/unit/pages/admin/stories/story-management-page.test.tsx)
   与 [组件测试](../../../../tests/unit/pages/admin/stories/components/) 按职责定位。
-- 浏览器流程：[封面素材](../../../../tests/e2e/story-cover-assets.spec.ts)。
+- 浏览器流程：[角色剧情关联](../../../../tests/e2e/admin-catalog.spec.ts)、[封面素材](../../../../tests/e2e/story-cover-assets.spec.ts)。
 - 关联阅读回归入口见 [Wiki 阅读测试](../../wiki/README.md)，目录维护流程见
   [idols 测试入口](../idols/README.md)。
 

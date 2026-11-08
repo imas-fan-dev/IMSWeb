@@ -30,6 +30,10 @@
 当前纪年页面使用 `editorial` 请求实现；不能根据同名旧请求模块推断页面依赖。
 制作人分布与下方社区交换地图是不同业务。
 
+首页生日由[生日请求状态](pages/home/hooks/use-home-birthdays.tsx) 统一加载
+[角色档案生日投影](lib/api/endpoints/catalog.ts)，供日历和当天提示共用；不读取本地生日 JSON。
+数据筛选、同身份档案选择和计数归 API；日历保留原有月份、年份、今日导航和样式。
+
 ## 社区与平台帐号
 
 | 业务用途               | 页面入口与主要协作                                                                                                                 | 请求归属                                                                                                                                                            | 代表测试定位                                                                                                                        |
@@ -78,6 +82,13 @@
 
 ## App 与共享基础设施
 
+「角色档案」的[工作区](pages/admin/idols/index.tsx) 完整显示人物与组合的企划档案，
+角色列表和完整档案是一体的页面，原角色列表地址直接转入该工作区；组合成员归 [idols](pages/admin/idols/README.md) 维护。原名片目录地址保留跳转，名片管理
+只负责自己的业务记录。工作区和临时编辑使用同一个[企划档案编辑器](components/admin/catalog-profiles-dialog.tsx)。
+Wiki 实体编辑器通过[资料绑定控件](components/admin/catalog-binding-control.tsx) 选择继承或独立维护。
+请求归属为 [catalog endpoints](lib/api/endpoints/catalog.ts)，代表测试见
+[工作区测试](../tests/unit/pages/admin/idols/catalog-workspace.test.tsx)、[兼容地址测试](../tests/unit/pages/admin/idols/catalog-characters-page.test.tsx) 与[管理组件测试](../tests/unit/components/admin/catalog-management.test.tsx)。公开页面沿用原有请求与交互。
+
 App 是构建目标，不是统一的 `/app` 路由前缀；多数业务页面与 Web 共用。
 [apps](pages/apps/) 是 App 专属资料聚合入口。目标注册逻辑见
 [routes.ts](routes.ts)，App 不注册后台和经典 Wiki/剧情。
@@ -98,7 +109,7 @@ App 是构建目标，不是统一的 `/app` 路由前缀；多数业务页面�
 - [帐号与个人页](pages/account/README.md)：认证、安全和个人工作区。
 - [Wiki 阅读](pages/wiki/README.md)：现代阅读、经典外壳与展示模型。
 - [Wiki 剧情后台](pages/admin/stories/README.md)：内容工作台、来源与素材。
-- [Wiki 目录后台](pages/admin/idols/README.md)：企划、栏目、内容页与编辑草稿。
+- [偶像资料库与 Wiki 业务实例](pages/admin/idols/README.md)：共享企划档案、稳定身份及独立内容实例。
 
 移动页面或改变能力归属时，同步更新总索引、所属局部索引与相邻协作链接。
 页面私有组件、hooks 和纯模型留在所属页面，共享业务 UI 放 components，跨页非 UI 能力放 lib；

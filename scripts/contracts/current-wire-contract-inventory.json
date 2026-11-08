@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "3e7023406056c210bc73e0208e759564323c92b6b836a9e21b7b4d5ad8787f29",
+    "semanticDigest": "5a4e19bdec5865d208811f4d46789034bac62bfaa29dfaba4e875f5ba80883a4",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,19 +16,19 @@
     "nonObjectApplicable": 85
   },
   "counts": {
-    "mountedRegistrations": 397,
-    "mountedMethodPaths": 301,
-    "noInputRoutes": 96,
-    "requestCarriers": 401,
+    "mountedRegistrations": 407,
+    "mountedMethodPaths": 308,
+    "noInputRoutes": 99,
+    "requestCarriers": 408,
     "policies": {
-      "reject": 83,
-      "accept-and-project": 216,
+      "reject": 89,
+      "accept-and-project": 217,
       "passthrough": 17,
       "non-object-applicable": 85
     },
     "responses": {
-      "total": 849,
-      "json": 767,
+      "total": 865,
+      "json": 783,
       "nonJson": 82
     },
     "unresolved": 0
@@ -120,9 +120,82 @@
         ]
       }
     ],
+    "explicitAdminAdditions": [
+      {
+        "module": "@imsweb/contracts/catalog",
+        "symbol": "adminCatalogStoryTargetRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/catalog/story-target",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/catalog",
+        "symbol": "adminCatalogCreateCharacterRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/catalog/characters",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/catalog",
+        "symbol": "adminCatalogDefaultProfileRequestSchema",
+        "kind": "json",
+        "method": "PUT",
+        "path": "/api/admin/catalog/default-profile",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/catalog",
+        "symbol": "adminCatalogProfileRequestSchema",
+        "kind": "json",
+        "method": "PUT",
+        "path": "/api/admin/catalog/profiles",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/catalog",
+        "symbol": "adminCatalogGroupKindRequestSchema",
+        "kind": "json",
+        "method": "PUT",
+        "path": "/api/admin/catalog/group-kind",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/catalog",
+        "symbol": "adminCatalogBindingRequestSchema",
+        "kind": "json",
+        "method": "PUT",
+        "path": "/api/admin/catalog/wiki-bindings",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/catalog",
+        "symbol": "adminCatalogProfileImageParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/admin/catalog/profile-images/:kind/:id",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      }
+    ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 171,
+      "/api/admin": 180,
+      "/api/birthdays": 1,
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
@@ -1911,7 +1984,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/media/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/delete-idol-media.ts#anonymous:45b393b994d6e50c:6a9bb084:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/delete-idol-media.ts#anonymous:1055340630f1bbc2:6a9bb084:0",
       "carriers": [
         {
           "kind": "json",
@@ -2473,6 +2546,70 @@
           "file": "apps/api/src/domains/admin/namecard-units/handlers/list-units.ts",
           "kind": "json",
           "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/catalog",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminCatalog",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/list-catalog.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u65E0\\u6743\\u8BFB\\u53D6\\u8D44\\u6599\\u5E93\\u7BA1\\u7406\\u6570\\u636E\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/list-catalog.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/catalog/profile-images/:kind/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleServeAdminCatalogProfileImage",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": "adminCatalogProfileImageParamsSchema",
+          "schemaModule": "@imsweb/contracts/catalog",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/serve-profile-image.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u56FE\\u7247\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
         }
       ]
     },
@@ -3824,6 +3961,34 @@
         }
       ],
       "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/birthdays",
+      "registration": {
+        "file": "apps/api/src/domains/content/birthdays/routes.ts"
+      },
+      "handlerSymbol": "handleListBirthdays",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/content/birthdays/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/birthdays/handlers/list-birthdays.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
     },
     {
       "method": "GET",
@@ -8975,6 +9140,11 @@
         {
           "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
           "kind": "json",
+          "expression": "{ success : false , message : \"\\u8BE5\\u4F01\\u5212\\u6863\\u6848\\u4ECD\\u88AB Wiki \\u5F15\\u7528\\uFF0C\\u8BF7\\u5148\\u89E3\\u9664\\u7ED1\\u5B9A\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+          "kind": "json",
           "expression": "{ success : false , code : \"NAMECARD_UNIT_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardUnitConflict"
         },
         {
@@ -9962,6 +10132,73 @@
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
           "kind": "json",
           "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/catalog/characters",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleCreateAdminCatalogCharacter",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": "adminCatalogCreateCharacterRequestSchema",
+          "schemaModule": "@imsweb/contracts/catalog",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/create-character.ts",
+          "kind": "json",
+          "expression": "{ success : true , ... result , } satisfies AdminCatalogCreateCharacterResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/catalog/story-target",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleEnsureCharacterStoryTarget",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": "adminCatalogStoryTargetRequestSchema",
+          "schemaModule": "@imsweb/contracts/catalog",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/ensure-story-target.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u65E0\\u6743\\u7EF4\\u62A4\\u89D2\\u8272\\u5267\\u60C5\\u5173\\u8054\" , } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/ensure-story-target.ts",
+          "kind": "json",
+          "expression": "result"
         }
       ]
     },
@@ -13396,7 +13633,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/media/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/upload-idol-media.ts#anonymous:01d7f10030a24a8f:14c2fb7e:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/upload-idol-media.ts#anonymous:3a992589c4200098:14c2fb7e:0",
       "carriers": [
         {
           "kind": "no-input",
@@ -13660,6 +13897,173 @@
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
           "kind": "json",
           "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/default-profile",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleSetAdminCatalogDefaultProfile",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": "adminCatalogDefaultProfileRequestSchema",
+          "schemaModule": "@imsweb/contracts/catalog",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/set-default-profile.ts",
+          "kind": "json",
+          "expression": "{ success : true } satisfies AdminCatalogMutation"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/group-kind",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleSaveAdminCatalogGroupKind",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": "adminCatalogGroupKindRequestSchema",
+          "schemaModule": "@imsweb/contracts/catalog",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/save-group-kind.ts",
+          "kind": "json",
+          "expression": "{ success : true } satisfies AdminCatalogMutation"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/profile-image",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleSaveAdminCatalogProfileImage",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/save-profile-image.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u6863\\u6848\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/save-profile-image.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u56FE\\u7247\\u5DF2\\u53D8\\u66F4\\uFF0C\\u8BF7\\u5237\\u65B0\\u540E\\u91CD\\u8BD5\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/save-profile-image.ts",
+          "kind": "json",
+          "expression": "{ success : true } satisfies AdminCatalogMutation"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/profiles",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleSaveAdminCatalogProfile",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": "adminCatalogProfileRequestSchema",
+          "schemaModule": "@imsweb/contracts/catalog",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/save-profile.ts",
+          "kind": "json",
+          "expression": "{ success : true } satisfies AdminCatalogMutation"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/wiki-bindings",
+      "registration": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "handlerSymbol": "handleSaveAdminCatalogWikiBinding",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "schemaSymbol": "adminCatalogBindingRequestSchema",
+          "schemaModule": "@imsweb/contracts/catalog",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/catalog/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/save-wiki-binding.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u65E0\\u6743\\u7F16\\u8F91 Wiki \\u7ED1\\u5B9A\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/admin/catalog/handlers/save-wiki-binding.ts",
+          "kind": "json",
+          "expression": "{ success : true } satisfies AdminCatalogMutation"
         }
       ]
     },
@@ -14846,7 +15250,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/media/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:bcfe94548068c1be:786bda2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:39205395b292ab0f:786bda2d:0",
       "carriers": [
         {
           "kind": "param",
@@ -14910,7 +15314,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/media/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:bcfe94548068c1be:0c0c652a:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:39205395b292ab0f:0c0c652a:0",
       "carriers": [
         {
           "kind": "param",
@@ -14935,7 +15339,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/media/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:bcfe94548068c1be:0723b32c:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:39205395b292ab0f:0723b32c:0",
       "carriers": [
         {
           "kind": "param",
@@ -16554,7 +16958,7 @@
     {
       "method": "DELETE",
       "path": "/api/wiki/idol-media",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/delete-idol-media.ts#anonymous:45b393b994d6e50c:6a9bb084:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/delete-idol-media.ts#anonymous:1055340630f1bbc2:6a9bb084:0",
       "kind": "json",
       "source": "validated",
       "location": {
@@ -16753,6 +17157,23 @@
         "file": "apps/api/src/domains/admin/namecard-units/routes.ts"
       },
       "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/catalog/profile-images/:kind/:id",
+      "handlerSymbol": "handleServeAdminCatalogProfileImage",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "schemaSymbol": "adminCatalogProfileImageParamsSchema",
+      "schemaModule": "@imsweb/contracts/catalog",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "policy": "accept-and-project",
       "syntaxPolicy": "reject"
     },
     {
@@ -19918,6 +20339,40 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/catalog/characters",
+      "handlerSymbol": "handleCreateAdminCatalogCharacter",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "schemaSymbol": "adminCatalogCreateCharacterRequestSchema",
+      "schemaModule": "@imsweb/contracts/catalog",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/catalog/story-target",
+      "handlerSymbol": "handleEnsureCharacterStoryTarget",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "schemaSymbol": "adminCatalogStoryTargetRequestSchema",
+      "schemaModule": "@imsweb/contracts/catalog",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/chronicle",
       "handlerSymbol": "handleCreateChronicleEntry",
       "kind": "json",
@@ -21497,6 +21952,74 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/catalog/default-profile",
+      "handlerSymbol": "handleSetAdminCatalogDefaultProfile",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "schemaSymbol": "adminCatalogDefaultProfileRequestSchema",
+      "schemaModule": "@imsweb/contracts/catalog",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/group-kind",
+      "handlerSymbol": "handleSaveAdminCatalogGroupKind",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "schemaSymbol": "adminCatalogGroupKindRequestSchema",
+      "schemaModule": "@imsweb/contracts/catalog",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/profiles",
+      "handlerSymbol": "handleSaveAdminCatalogProfile",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "schemaSymbol": "adminCatalogProfileRequestSchema",
+      "schemaModule": "@imsweb/contracts/catalog",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/wiki-bindings",
+      "handlerSymbol": "handleSaveAdminCatalogWikiBinding",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "schemaSymbol": "adminCatalogBindingRequestSchema",
+      "schemaModule": "@imsweb/contracts/catalog",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/catalog/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/chronicle/:id",
       "handlerSymbol": "handleUpdateChronicleEntry",
       "kind": "param",
@@ -22076,7 +22599,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/agencies/:agencyId/icon",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:bcfe94548068c1be:786bda2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:39205395b292ab0f:786bda2d:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -22127,7 +22650,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/groups/:groupId/icon",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:bcfe94548068c1be:0c0c652a:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:39205395b292ab0f:0c0c652a:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -22144,7 +22667,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/idols/:idolId/avatar",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:bcfe94548068c1be:0723b32c:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/save-entity-image.ts#anonymous:39205395b292ab0f:0723b32c:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -23493,6 +24016,30 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/catalog",
+      "handlerSymbol": "handleListAdminCatalog",
+      "file": "apps/api/src/domains/admin/catalog/handlers/list-catalog.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u65E0\\u6743\\u8BFB\\u53D6\\u8D44\\u6599\\u5E93\\u7BA1\\u7406\\u6570\\u636E\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/catalog",
+      "handlerSymbol": "handleListAdminCatalog",
+      "file": "apps/api/src/domains/admin/catalog/handlers/list-catalog.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/catalog/profile-images/:kind/:id",
+      "handlerSymbol": "handleServeAdminCatalogProfileImage",
+      "file": "apps/api/src/domains/admin/catalog/handlers/serve-profile-image.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u56FE\\u7247\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/chronicle",
       "handlerSymbol": "handleListAdminChronicleEntries",
       "file": "apps/api/src/domains/content/editorial/chronicle/handlers/list-admin-entries.ts",
@@ -24074,6 +24621,14 @@
       "file": "apps/api/src/domains/delivery/site-packages/handlers/manage-site-packages.ts",
       "kind": "json",
       "expression": "{ packages : packages . map ( ( sitePackage ) => ( { id : sitePackage . id , slug : sitePackage . slug , title : sitePackage . title , description : sitePackage . description , publishedRevisionId : sitePackage . published_revision_id , createdBy : sitePackage . created_by , updatedBy : sitePackage . updated_by , createdAt : sitePackage . created_at , updatedAt : sitePackage . updated_at , contentOrigin : origin , revisions : sitePackage . revisions . map ( revisionDto ) } ) ) } satisfies ListSitePackagesResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/birthdays",
+      "handlerSymbol": "handleListBirthdays",
+      "file": "apps/api/src/domains/content/birthdays/handlers/list-birthdays.ts",
+      "kind": "json",
+      "expression": "payload"
     },
     {
       "method": "GET",
@@ -25737,6 +26292,14 @@
       "handlerSymbol": "handleUpdateAdminNamecardUnit",
       "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
       "kind": "json",
+      "expression": "{ success : false , message : \"\\u8BE5\\u4F01\\u5212\\u6863\\u6848\\u4ECD\\u88AB Wiki \\u5F15\\u7528\\uFF0C\\u8BF7\\u5148\\u89E3\\u9664\\u7ED1\\u5B9A\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/cards/units/:id",
+      "handlerSymbol": "handleUpdateAdminNamecardUnit",
+      "file": "apps/api/src/domains/admin/namecard-units/handlers/update-unit.ts",
+      "kind": "json",
       "expression": "{ success : false , code : \"NAMECARD_UNIT_STATE_CONFLICT\" , revision : result . revision } satisfies NamecardUnitConflict"
     },
     {
@@ -26122,6 +26685,30 @@
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/unlock-namecard.ts",
       "kind": "json",
       "expression": "{ success : true , revision : result . card . revision } satisfies NamecardMutationResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/catalog/characters",
+      "handlerSymbol": "handleCreateAdminCatalogCharacter",
+      "file": "apps/api/src/domains/admin/catalog/handlers/create-character.ts",
+      "kind": "json",
+      "expression": "{ success : true , ... result , } satisfies AdminCatalogCreateCharacterResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/catalog/story-target",
+      "handlerSymbol": "handleEnsureCharacterStoryTarget",
+      "file": "apps/api/src/domains/admin/catalog/handlers/ensure-story-target.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u65E0\\u6743\\u7EF4\\u62A4\\u89D2\\u8272\\u5267\\u60C5\\u5173\\u8054\" , } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/catalog/story-target",
+      "handlerSymbol": "handleEnsureCharacterStoryTarget",
+      "file": "apps/api/src/domains/admin/catalog/handlers/ensure-story-target.ts",
+      "kind": "json",
+      "expression": "result"
     },
     {
       "method": "POST",
@@ -28034,6 +28621,70 @@
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
       "kind": "json",
       "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/default-profile",
+      "handlerSymbol": "handleSetAdminCatalogDefaultProfile",
+      "file": "apps/api/src/domains/admin/catalog/handlers/set-default-profile.ts",
+      "kind": "json",
+      "expression": "{ success : true } satisfies AdminCatalogMutation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/group-kind",
+      "handlerSymbol": "handleSaveAdminCatalogGroupKind",
+      "file": "apps/api/src/domains/admin/catalog/handlers/save-group-kind.ts",
+      "kind": "json",
+      "expression": "{ success : true } satisfies AdminCatalogMutation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/profile-image",
+      "handlerSymbol": "handleSaveAdminCatalogProfileImage",
+      "file": "apps/api/src/domains/admin/catalog/handlers/save-profile-image.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u6863\\u6848\\u4E0D\\u5B58\\u5728\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/profile-image",
+      "handlerSymbol": "handleSaveAdminCatalogProfileImage",
+      "file": "apps/api/src/domains/admin/catalog/handlers/save-profile-image.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u56FE\\u7247\\u5DF2\\u53D8\\u66F4\\uFF0C\\u8BF7\\u5237\\u65B0\\u540E\\u91CD\\u8BD5\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/profile-image",
+      "handlerSymbol": "handleSaveAdminCatalogProfileImage",
+      "file": "apps/api/src/domains/admin/catalog/handlers/save-profile-image.ts",
+      "kind": "json",
+      "expression": "{ success : true } satisfies AdminCatalogMutation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/profiles",
+      "handlerSymbol": "handleSaveAdminCatalogProfile",
+      "file": "apps/api/src/domains/admin/catalog/handlers/save-profile.ts",
+      "kind": "json",
+      "expression": "{ success : true } satisfies AdminCatalogMutation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/wiki-bindings",
+      "handlerSymbol": "handleSaveAdminCatalogWikiBinding",
+      "file": "apps/api/src/domains/admin/catalog/handlers/save-wiki-binding.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u65E0\\u6743\\u7F16\\u8F91 Wiki \\u7ED1\\u5B9A\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/catalog/wiki-bindings",
+      "handlerSymbol": "handleSaveAdminCatalogWikiBinding",
+      "file": "apps/api/src/domains/admin/catalog/handlers/save-wiki-binding.ts",
+      "kind": "json",
+      "expression": "{ success : true } satisfies AdminCatalogMutation"
     },
     {
       "method": "PUT",

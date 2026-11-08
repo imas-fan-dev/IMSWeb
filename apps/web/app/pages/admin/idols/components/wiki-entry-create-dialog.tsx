@@ -258,7 +258,8 @@ export function WikiEntryCreateDialog({
           <DialogHeader className="border-b p-4 pr-12">
             <DialogTitle>新增内容页</DialogTitle>
             <DialogDescription>
-              先选择所属企划，再填写资料并选择栏目。
+              为 Wiki
+              创建独立内容实例。先选择企划、填写资料与栏目，创建后可关联偶像资料库的企划档案。
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="p-4">

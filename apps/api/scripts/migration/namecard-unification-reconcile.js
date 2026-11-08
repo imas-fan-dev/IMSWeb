@@ -150,6 +150,19 @@ async function reconcile(client) {
         ORDER BY legacy.id, reaction.emoji
     `);
 
+    // Cleanup receipts describe counters verified before retiring a source row.
+    // Live counters may change afterwards; receipts only explain its absence.
+    const hasCleanupReceipts = Boolean(
+        (await client.query("SELECT to_regclass('legacy_cleanup.emoji_receipts') AS name"))
+            .rows[0]?.name
+    );
+    const retiredReaction = hasCleanupReceipts
+        ? `AND NOT EXISTS (
+            SELECT 1 FROM legacy_cleanup.emoji_receipts receipt
+            WHERE receipt.legacy_card_id=legacy.id AND receipt.canonical_card_id=unified.id
+              AND receipt.emoji=unified_reaction.emoji
+        )`
+        : '';
     const reactionOnlyOnUnifiedSide = await client.query(`
         SELECT legacy.id AS legacy_id, unified_reaction.emoji,
                unified_reaction.count
@@ -162,6 +175,7 @@ async function reconcile(client) {
             WHERE reaction.card_id = legacy.id
               AND reaction.emoji = unified_reaction.emoji
         )
+        ${retiredReaction}
         ORDER BY legacy.id, unified_reaction.emoji
     `);
 

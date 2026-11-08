@@ -5,8 +5,7 @@
 business domain，第三层是 capability。`admin/` 承载管理后台专属能力，后续可独立维护。`handlers/`、`request.ts` 和 `response.ts` 是
 capability 内的技术角色。
 
-当前快照：5 个板块、26 个 domain、412 个 TypeScript 模块、215 个 handler 模块。数量只用于
-发现规模，能力边界以本索引、各 domain 的 `README.md` 与
+能力边界以本索引、各 domain 的 `README.md` 与
 `apps/api/scripts/checks/hono-architecture.js` 的注册表为准。
 
 结构原则是“整体偏扁平”：domain 默认扁平（`routes.ts` + `handlers/` + 命名模型文件）；
@@ -27,6 +26,7 @@ capability 内的技术角色。
 | Admin | `platform-users` | 平台用户检索、状态处置与登录方式管理 | 扁平 |
 | Admin | `namecard-characters` | 名片角色目录管理 | 扁平 |
 | Admin | `namecard-units` | 名片企划与组合目录管理 | 扁平 |
+| Admin | `catalog` | 统一角色与组合企划档案、图片和 Wiki 可选绑定 | 扁平 |
 | Content | `wiki` | 企划、内容页、剧情、来源目录和素材 | `catalog` `stories` `media` |
 | Content | `information` | 资讯公开阅读、后台编排与素材 | 扁平 |
 | Content | `news` | 新闻发布和公开列表 | `news` |
@@ -38,6 +38,7 @@ capability 内的技术角色。
 | Content | `producer-map` | 制作人地图和图片 | `map` `media` |
 | Content | `live-schedule` | 直播日程读取 | `schedule` |
 | Content | `homepage-links` | 首页链接编排 | `links` |
+| Content | `birthdays` | 角色档案生日公开投影 | `catalog` |
 | Content | `brand-assets` | 品牌静态资源 | `assets` |
 | Community | `fudaba` | 社区交换站目录、卡片、办公室、位置和审核 | `directory` `cards` `offices` `locations` `claims` `moderation` |
 | Community | `namecards` | 名片投稿、公开名片、表情反应和审核 | `public-cards` `submissions` `moderation` `reactions` |
@@ -54,6 +55,7 @@ capability 内的技术角色。
 - `community/fudaba/README.md`：社区交换能力拆分。
 - `identity/platform-auth/README.md`：平台认证能力拆分。
 - `content/wiki/README.md`：Wiki 目录、剧情、媒体和素材能力。
+- `admin/catalog/README.md`：共享资料维护与公开契约兼容。
 - 完整原则、目录模板、迁移顺序和验证门槛：`docs/architecture/domain-capabilities.md`。
 
 ## 编写规则

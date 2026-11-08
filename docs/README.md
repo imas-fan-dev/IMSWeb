@@ -39,7 +39,8 @@ Issue、release record 或私有运维记录中。
 - [平台账号安全中心架构](architecture/platform-account-security.md)：已登录身份能力的 domain 边界、各决策的实现状态、软删约束和验证码模型。
 - [Wiki 管理架构](architecture/wiki-management.md)：Wiki 数据模型、公开/后台 API 和媒体关系。
 - [名片交换设计](architecture/namecard-exchange.md)：交换的四种入口、名片册数据模型、链接与扫码、离线重放和退役清单。
-- [名片墙界面与数据](architecture/namecard-surfaces.md)：墙/编辑/审核的组件与接口、双轴状态、免审路径、媒体键约定。
+- [名片墙界面与数据](architecture/namecard-surfaces.md)：墙/编辑/审核的组件与接口、双轴状态、免审路径、媒体约定。
+- [统一偶像资料库](architecture/idol-catalog.md)：角色企划档案、组合标签、名片与 Wiki 引用及资料扩充的目标架构。
 - [URL 与公共路径架构](architecture/url-paths.md)：共享路径 builders、路由所有权和变更流程。
 - [玻璃折射的平台策略](architecture/glass-refraction-platform-strategy.md)：伪折射地板、Chromium 真折射封顶和跨引擎降级。
 - [地图渲染与当地语言策略](architecture/map-rendering.md)：底图资源分工、当地原名优先、Mapbox 样式兼容与多文字系统验收。
@@ -49,6 +50,7 @@ Issue、release record 或私有运维记录中。
 
 - [AI 开发环境](development/ai-environment.md)：安装、启动器、端口覆盖、R2 模式和验证边界。
 - [测试规范](development/testing.md)：按风险选择测试、测试位置和提交前门禁。
+- [名片图片验收映射](testing/namecard-media-acceptance-map.md)：七个观测面的链路归并、复审通过/驳回矩阵与最小用例集。
 - [静态站点包编写规范](development/static-site-package-authoring.md)：归档、manifest、预览和发布约束。
 - [Tauri 移动端基础设施](development/tauri-mobile.md)：移动外壳、前置条件、跨源 API 与媒体契约、设备验收边界。
 - [App 设备安装与前置依赖](development/app-device-delivery.md)：设备体检、安装命令矩阵、产物定位和签名边界。
@@ -64,6 +66,7 @@ Issue、release record 或私有运维记录中。
 - [OpenMap S3 发布规范](operations/openmap-s3-publication.md)
 - [Platform OAuth Provider 运维](operations/platform-oauth-providers.md)
 - [Fudaba Platform 数据迁移合同](migrations/fudaba-platform.md)
+- [统一偶像资料库迁移与回放](migrations/idol-catalog.md)
 - [Producer Map 数据迁移与对账](migrations/producer-map-online.md)
 
 ## 治理

@@ -12,7 +12,7 @@ import {
   setCsrfCookie,
 } from "@/tests/unit/support/auth-cookies"
 import { renderPage } from "@/tests/unit/support/harness"
-import AdminCardsUnitsPage from "~/pages/admin/cards/units"
+import AdminCardsUnitsPage from "~/pages/admin/idols/units"
 
 const toasts = vi.hoisted(() => ({
   success: vi.fn(),

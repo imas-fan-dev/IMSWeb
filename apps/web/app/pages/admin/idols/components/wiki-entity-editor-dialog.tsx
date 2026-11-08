@@ -34,6 +34,7 @@ import {
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import { ImageCompositionEditor } from "~/components/admin/image-composition-editor"
+import { CatalogBindingControl } from "~/components/admin/catalog-binding-control"
 import {
   createWikiAgency,
   createWikiGroup,
@@ -176,6 +177,7 @@ function WikiEntityEditorDialogContent({
     currentTransform ?? defaultWikiImageTransform
   )
   const [saving, setSaving] = useState(false)
+  const [inheritedPresentation, setInheritedPresentation] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false)
   const initialTransformKey = useMemo(
@@ -341,6 +343,7 @@ function WikiEntityEditorDialogContent({
                   <Input
                     id="wiki-entity-name"
                     required
+                    disabled={inheritedPresentation}
                     value={form.name}
                     onChange={(event) => update("name", event.target.value)}
                   />
@@ -417,7 +420,9 @@ function WikiEntityEditorDialogContent({
                     id="wiki-entity-color"
                     label="主题色"
                     value={form.color}
-                    onChange={(value) => update("color", value)}
+                    onChange={(value) => {
+                      if (!inheritedPresentation) update("color", value)
+                    }}
                   />
                   {target.kind === "idol" ? (
                     <ColorField
@@ -454,6 +459,19 @@ function WikiEntityEditorDialogContent({
                   />
                 ) : null}
 
+                {target.kind !== "agency" && target.entity ? (
+                  <CatalogBindingControl
+                    kind={target.kind === "idol" ? "entry" : "navigation"}
+                    id={target.entity.id}
+                    projectId={target.agency.id}
+                    onBindingState={setInheritedPresentation}
+                    onSaved={() => {
+                      onOpenChange(false)
+                      onSaved()
+                    }}
+                  />
+                ) : null}
+
                 <FieldSet>
                   <FieldLegend>
                     {target.kind === "idol" ? "页面图片与构图" : "图标与构图"}
@@ -466,7 +484,7 @@ function WikiEntityEditorDialogContent({
                     file={file}
                     currentUrl={currentImageUrl}
                     transform={transform}
-                    disabled={saving}
+                    disabled={saving || inheritedPresentation}
                     onFileChange={setFile}
                     onTransformChange={setTransform}
                   />

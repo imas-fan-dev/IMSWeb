@@ -26,7 +26,7 @@ it("requests retina pixels without changing the tile's coordinate or published s
 
 it("uses official published-style raster tiles, wraps world copies and shares bounded view-local requests without portal credentials", async () => {
   const fetch = vi.fn().mockResolvedValue(
-    new Response(new Blob(["image"]), {
+    new Response("image", {
       headers: { "content-type": "image/png" },
     })
   )
@@ -57,7 +57,10 @@ it("does not retain failed requests or leak vendor bodies and aborts before requ
     kind: "authorization",
     message: "海外地图未获授权，请联系管理员检查 Mapbox Token 和发布样式。",
   })
-  await expect(source(1, 1, 3)).resolves.toBeInstanceOf(Blob)
+  const tile = await source(1, 1, 3)
+  expect(tile.type).toBe("image/png")
+  expect(tile.size).toBe(5)
+  await expect(tile.text()).resolves.toBe("image")
   controller.abort()
   await expect(source(2, 1, 3)).rejects.toMatchObject({ name: "AbortError" })
   expect(fetch).toHaveBeenCalledTimes(2)

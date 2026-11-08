@@ -6,7 +6,7 @@ import {
   emptyUnitDraft,
   isUnitDraftValid,
   unitDraftFrom,
-} from "~/pages/admin/cards/namecard-unit-model"
+} from "~/pages/admin/idols/identity/namecard-unit-model"
 import type { NamecardUnit } from "~/lib/api"
 
 const unit: NamecardUnit = {

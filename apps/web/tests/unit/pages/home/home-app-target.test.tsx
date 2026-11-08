@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from "vitest"
 import { HomePortal } from "~/pages/home/index"
 
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
+vi.mock("~/pages/home/hooks/use-home-birthdays", () => ({
+  HomeBirthdaysProvider: ({ children }: { children: ReactNode }) => children,
+}))
 vi.mock("~/pages/home/hooks/use-homepage-links", () => ({
   HomepageLinksProvider: ({ children }: { children: ReactNode }) => children,
 }))
