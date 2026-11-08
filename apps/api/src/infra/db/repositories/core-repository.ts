@@ -1253,6 +1253,32 @@ export class SqlCoreRepository implements NamecardRepository {
                     page.object_version
                 );
             }
+            // 统一页面布局的正面/背面使用稳定的 page-* 行；管理员入口仍按
+            // front/back 取图，缺少同名行时按页序解析首/末页。
+            if (!draft) {
+                const pages = await queryAll<{
+                    page_id: string;
+                    object_version: string;
+                }>(
+                    this.database,
+                    `SELECT page_id, object_version
+                       FROM public.fudaba_card_pages
+                      WHERE card_id=? AND queue='live'
+                      ORDER BY display_order ASC`,
+                    [row.internal_id]
+                );
+                const edge = side === 'front'
+                    ? pages[0]
+                    : pages[pages.length - 1];
+                if (pages.length >= 2 && edge) {
+                    return cardPageObjectKey(
+                        row.internal_id,
+                        'live',
+                        edge.page_id,
+                        edge.object_version
+                    );
+                }
+            }
         }
         // A row may still carry the public alias of its art. Storage only knows
         // object keys, so map it before anyone asks for the bytes.
@@ -1482,6 +1508,99 @@ export class SqlCoreRepository implements NamecardRepository {
     }
 
     /**
+     * Rebinds the live page rows to the surface the reviewer approved. A staged
+     * revision only stores the pages it touched, so rebuilding from the pending
+     * queue alone would drop untouched front/back rows.
+     */
+    private async promoteNamecardPages(
+        database: SqlDatabase,
+        row: NamecardCardRow
+    ): Promise<void> {
+        const pending = await queryAll<{
+            page_id: string;
+            display_order: number;
+            object_version: string;
+            width: number;
+            height: number;
+        }>(
+            database,
+            `SELECT page_id, display_order, object_version, width, height
+               FROM public.fudaba_card_pages
+              WHERE card_id=? AND queue='pending'`,
+            [row.internal_id]
+        );
+        if (pending.length === 0) return;
+        const orderedKeys = [
+            row.pending_front_object_key ?? row.front_object_key,
+            ...(row.pending_middle_object_keys ?? []),
+            row.pending_back_object_key ?? row.back_object_key
+        ].filter((key): key is string => typeof key === 'string' && key.length > 0);
+        const parsed = orderedKeys
+            .map((key) => parseCardPageObjectKey(key))
+            .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+        if (parsed.length === 0) return;
+        const live = await queryAll<{
+            page_id: string;
+            object_version: string;
+            width: number;
+            height: number;
+        }>(
+            database,
+            `SELECT page_id, object_version, width, height
+               FROM public.fudaba_card_pages
+              WHERE card_id=? AND queue='live'`,
+            [row.internal_id]
+        );
+        const pendingByPage = new Map(pending.map((page) => [page.page_id, page]));
+        const liveByPage = new Map(live.map((page) => [page.page_id, page]));
+        await executeSql(
+            database,
+            `UPDATE public.fudaba_card_pages
+                SET display_order = display_order + 1000
+              WHERE card_id=? AND queue='live'`,
+            [row.internal_id]
+        );
+        const ids = parsed.map((entry) => entry.pageId);
+        await executeSql(
+            database,
+            `DELETE FROM public.fudaba_card_pages
+              WHERE card_id=? AND queue='live'
+                AND page_id NOT IN (${ids.map(() => '?').join(',')})`,
+            [row.internal_id, ...ids]
+        );
+        for (const [index, entry] of parsed.entries()) {
+            const next = pendingByPage.get(entry.pageId) ?? liveByPage.get(entry.pageId);
+            if (!next) continue;
+            await executeSql(
+                database,
+                `INSERT INTO public.fudaba_card_pages
+                 (card_id, queue, page_id, display_order, object_version,
+                  width, height, created_at, updated_at)
+                 VALUES (?, 'live', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 ON CONFLICT (card_id, queue, page_id) DO UPDATE SET
+                   display_order=EXCLUDED.display_order,
+                   object_version=EXCLUDED.object_version,
+                   width=EXCLUDED.width, height=EXCLUDED.height,
+                   updated_at=CURRENT_TIMESTAMP`,
+                [
+                    row.internal_id,
+                    entry.pageId,
+                    index + 1,
+                    next.object_version,
+                    next.width,
+                    next.height
+                ]
+            );
+        }
+        await executeSql(
+            database,
+            `DELETE FROM public.fudaba_card_pages
+              WHERE card_id=? AND queue='pending'`,
+            [row.internal_id]
+        );
+    }
+
+    /**
      * Promotes the submitted revision into the live columns. Favourites are
      * rewritten from the submitted ids; a character deleted in the meantime
      * drops out instead of blocking the publication.
@@ -1533,6 +1652,9 @@ export class SqlCoreRepository implements NamecardRepository {
                 row.internal_id
             ]
         );
+        // 已发布卡的修订可能只暂存新增/替换的页，live 页仍要保留。按修订的
+        // 完整面序列重建 live 页集：pending 行提供新版本，其余沿用 live 行。
+        await this.promoteNamecardPages(database, row);
         if (payload) {
             await this.replaceNamecardCredits(
                 database,

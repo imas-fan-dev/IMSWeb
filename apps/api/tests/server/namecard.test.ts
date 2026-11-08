@@ -300,6 +300,33 @@ import { describe, onTestFinished, test } from 'vitest';
                     '22222222-2222-4222-8222-222222222222'
                 )
             );
+            // 统一页面布局没有 front/back 同名行，管理入口仍要按页序取首/末页。
+            await executeSql(database,
+                `DELETE FROM public.fudaba_card_pages WHERE card_id=?`,
+                [internalId]
+            );
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      width, height, created_at, updated_at)
+                 VALUES (?, 'live', 'page-aaaaaaaa', 1,
+                         '11111111-1111-4111-8111-111111111111'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'live', 'page-bbbbbbbb', 2,
+                         '22222222-2222-4222-8222-222222222222'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'live', 'page-cccccccc', 3,
+                         '33333333-3333-4333-8333-333333333333'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [internalId, internalId, internalId]
+            );
+            assert.equal(
+                await repository.findCardMediaKey(id, 'front', false),
+                cardPageObjectKey(internalId, 'live', 'page-aaaaaaaa',
+                    '11111111-1111-4111-8111-111111111111')
+            );
+            assert.equal(
+                await repository.findCardMediaKey(id, 'back', false),
+                cardPageObjectKey(internalId, 'live', 'page-cccccccc',
+                    '33333333-3333-4333-8333-333333333333')
+            );
         });
 
         postgresTest('persist ordered cross-series character metadata atomically', async () => {
@@ -702,6 +729,115 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(promoted.front_object_key, staged('front'));
             assert.equal(promoted.review_status, null);
             assert.deepEqual(promoted.pending_middle_object_keys, []);
+        });
+
+        postgresTest('approval promotes staged pages without dropping untouched live ones', async () => {
+            const database = await createPostgresTestDatabase('namecard-approve-preserve-pages');
+            await seedCanonicalFudabaAgencies(database);
+            const repository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await repository.initialize();
+            const ownerId = 'approve-preserve-owner';
+            await executeSql(database,
+                `INSERT INTO platform_accounts (id, status, created_at, updated_at)
+                 VALUES (?, 'active', 1, 1)`,
+                [ownerId]
+            );
+            await executeSql(database,
+                `INSERT INTO platform_profiles (account_id, display_name, updated_at)
+                 VALUES (?, '保留页测试', 1)`,
+                [ownerId]
+            );
+            const id = await repository.insertPendingCard(guestInput('approve-preserve'));
+            const cardId = (await queryOne<{ id: string }>(database,
+                'SELECT id FROM fudaba_cards WHERE card_number=?',
+                [id]
+            ))!.id;
+            const liveFront = cardPageObjectKey(cardId, 'live', 'front',
+                '11111111-1111-4111-8111-111111111111');
+            const liveBack = cardPageObjectKey(cardId, 'live', 'back',
+                '66666666-6666-4666-8666-666666666666');
+            const newMiddle = cardPageObjectKey(cardId, 'pending', 'page-aaaaaaaa',
+                '88888888-8888-4888-8888-888888888888');
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                 SET owner_account_id=?, producer_name=?, trade_note='',
+                     publication_status='published', front_object_key=?,
+                     back_object_key=?
+                 WHERE card_number=?`,
+                [ownerId, '保留页测试', liveFront, liveBack, id]
+            );
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      width, height, created_at, updated_at)
+                 VALUES (?, 'live', 'front', 1,
+                         '11111111-1111-4111-8111-111111111111'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'live', 'page-dddddddd', 2,
+                         '77777777-7777-4777-8777-777777777777'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'live', 'back', 3,
+                         '66666666-6666-4666-8666-666666666666'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'page-aaaaaaaa', 1,
+                         '88888888-8888-4888-8888-888888888888'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [cardId, cardId, cardId, cardId]
+            );
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                 SET review_status='pending', pending_payload=CAST(? AS jsonb),
+                     pending_front_object_key=?, pending_back_object_key=?,
+                     pending_middle_object_keys=CAST(? AS text[])
+                 WHERE card_number=?`,
+                [
+                    JSON.stringify({
+                        producer_name: '保留页测试',
+                        trade_note: '',
+                        exchange_mode: 'none',
+                        series_codes: ['cg'],
+                        favorite_character_ids: [],
+                        visible: true,
+                        is_original: false,
+                        made_with_ai: false
+                    }),
+                    liveFront,
+                    liveBack,
+                    `{${newMiddle}}`,
+                    id
+                ]
+            );
+            const revision = Number((await queryOne<{ revision: number }>(database,
+                'SELECT revision FROM fudaba_cards WHERE card_number=?',
+                [id]
+            ))!.revision);
+            const claim = await repository.beginCardApproval(id, revision);
+            assert.equal(claim.status, 'claimed');
+            const completed = await repository.completeCardApproval(
+                id,
+                claim.status === 'claimed' ? claim.card.revision : 0
+            );
+            assert.equal(completed.status, 'updated');
+            const rows: { page_id: string; display_order: number }[] = [];
+            for (let index = 1; index <= 3; index += 1) {
+                const row = await queryOne<{ page_id: string; display_order: number }>(
+                    database,
+                    `SELECT page_id, display_order FROM public.fudaba_card_pages
+                      WHERE card_id=? AND queue='live' AND display_order=?`,
+                    [cardId, index]
+                );
+                if (row) rows.push(row);
+            }
+            assert.deepEqual(rows.map((row) => row.page_id), [
+                'front', 'page-aaaaaaaa', 'back'
+            ]);
+            assert.equal(
+                await queryOne(database,
+                    `SELECT 1 FROM public.fudaba_card_pages
+                      WHERE card_id=? AND queue='pending'`,
+                    [cardId]
+                ),
+                null
+            );
         });
 
         postgresTest('the review diff shows the staged pages instead of the live ones', async () => {
