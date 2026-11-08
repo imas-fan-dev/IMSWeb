@@ -147,7 +147,14 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
                 parsed.pageId,
                 parsed.version
             );
-            await storage.move(key, liveKey);
+            // 审批失败后按设计会保留 approving 行并允许重试；已经搬过的对象
+            // 不能再次 move。
+            if (!await storage.exists(liveKey)) {
+                if (!await storage.exists(key)) {
+                    throw new Error(`Staged card page object not found: ${key}`);
+                }
+                await storage.move(key, liveKey);
+            }
             if (!storage.publish) {
                 throw new Error('Object storage publication is unavailable');
             }
