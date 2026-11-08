@@ -78,12 +78,18 @@ export async function handleServeFudabaOwnerCardMedia(
     }
     let key: string | null =
         side === 'front'
-            ? (stagedArtwork ? card.pending_front_object_key : card.front_object_key)
+            ? (stagedArtwork
+                  ? (card.pending_front_object_key ?? card.front_object_key)
+                  : card.front_object_key)
             : side === 'back'
-              ? (stagedArtwork ? card.pending_back_object_key : card.back_object_key)
+              ? (stagedArtwork
+                    ? (card.pending_back_object_key ?? card.back_object_key)
+                    : card.back_object_key)
               : (keys[Number(middle![1]) - 1] ?? null);
     // 统一页面布局的列可能为空或落后；正/背面必须按页面行首/末页解析。
-    if (side === 'front' || side === 'back') {
+    // draft 有完整 pending 列时不能改用 pending 页行：staged 页行只含本次
+    // 新增/替换的页，首/末页会被误判。
+    if ((side === 'front' || side === 'back') && !(draft && stagedArtwork)) {
         const allPages = await fudabaRepository(c).listCardPages(cardId);
         const queue = draft ? allPages.pending : allPages.live;
         const pages = queue.length > 0 ? queue : allPages.live;
