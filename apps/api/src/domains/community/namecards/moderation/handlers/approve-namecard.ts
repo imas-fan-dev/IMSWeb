@@ -83,7 +83,8 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
                     throw new Error('Object storage publication is unavailable');
                 }
                 await storage.publish(value);
-                canonicalUrls.push(namecardOriginalUrlFromObjectKey(value));
+                // 页面对象没有 legacy 公开别名，后续 publishNamecardMedia 只收
+                // canonical/original URL，因此这里不能再走 key 反推。
                 continue;
             }
             if (
