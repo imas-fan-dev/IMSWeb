@@ -164,15 +164,15 @@ const navigation: Array<{
   },
   {
     to: "/admin/idols",
-    label: "角色档案",
-    description: "人物、组合与完整企划档案",
+    label: "偶像数据库",
+    description: "企划、组合与角色资料维护",
     icon: UserRoundIcon,
     accent: "bg-franchise-sc",
     editorOnly: true,
     children: [
-      { to: "/admin/idols", label: "角色档案", end: true },
-      { to: "/admin/idols/units", label: "组合列表", opOnly: true },
-      { to: "/admin/idols/agencies", label: "企划管理" },
+      { to: "/admin/idols/agencies", label: "企划" },
+      { to: "/admin/idols/units", label: "组合", opOnly: true },
+      { to: "/admin/idols", label: "角色", end: true },
     ],
   },
   {

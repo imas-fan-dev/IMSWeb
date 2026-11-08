@@ -301,7 +301,7 @@ describe("AdminLayout", () => {
       expect(
         screen.getByRole("heading", { name: "偶像管理入口" })
       ).toBeVisible()
-      expect(screen.getByRole("link", { name: "角色档案" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "角色" })).toHaveAttribute(
         "aria-current",
         "page"
       )
@@ -507,10 +507,17 @@ describe("AdminLayout", () => {
 
     renderAdminLayout("/admin/idols/characters")
 
-    expect(screen.getByRole("link", { name: "角色档案" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "角色" })).toHaveAttribute(
       "aria-current",
       "page"
     )
+    expect(screen.getByRole("button", { name: /偶像数据库/ })).toBeVisible()
+    expect(
+      screen
+        .getAllByRole("link")
+        .map((link) => link.textContent?.trim())
+        .filter((label) => ["企划", "组合", "角色"].includes(label ?? ""))
+    ).toEqual(["企划", "组合", "角色"])
     expect(
       screen.queryByRole("link", { name: "角色列表" })
     ).not.toBeInTheDocument()

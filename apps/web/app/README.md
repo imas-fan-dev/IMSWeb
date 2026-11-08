@@ -83,8 +83,8 @@
 
 ## App 与共享基础设施
 
-「角色档案」的[工作区](pages/admin/idols/index.tsx) 完整显示人物与组合的企划档案，
-角色列表和完整档案是一体的页面，原角色列表地址直接转入该工作区；组合成员归 [idols](pages/admin/idols/README.md) 维护。原名片目录地址保留跳转，名片管理
+「偶像数据库」按企划、组合、角色提供管理入口；[角色工作区](pages/admin/idols/index.tsx) 完整显示人物的企划档案，
+角色列表和完整档案是一体的页面，原角色列表地址直接转入该工作区；组合档案与成员统一从 [组合入口](pages/admin/idols/units.tsx) 维护。原名片目录
 只负责自己的业务记录。工作区和临时编辑使用同一个[企划档案编辑器](components/admin/catalog-profiles-dialog.tsx)。
 Wiki 实体编辑器通过[资料绑定控件](components/admin/catalog-binding-control.tsx) 选择继承或独立维护。
 请求归属为 [catalog endpoints](lib/api/endpoints/catalog.ts)，代表测试见

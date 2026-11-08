@@ -84,12 +84,12 @@ const workspaces = [
     scope: ["隔离预览", "版本发布", "历史回滚"],
   },
   {
-    title: "角色档案",
-    description: "角色共用资料与企划档案维护",
+    title: "偶像数据库",
+    description: "企划、组合与角色资料维护",
     to: "/admin/idols",
     icon: UserRoundIcon,
     accent: "bg-franchise-sc",
-    scope: ["人物资料", "企划关联", "图片构图"],
+    scope: ["企划", "组合", "角色"],
   },
   {
     title: "剧情内容",
