@@ -1422,8 +1422,14 @@ import { test } from 'vitest';
 
 
         test.describe('namecard approval', () => {
-            test('publishes originals and thumbnails before the final CAS transition', async () => {
+            test('publishes boundary and middle artwork before the final CAS transition', async () => {
                 const fixture = createCompatibilityFixture({
+                    async findAdminCardArtwork() {
+                        return { cardId: 'card-19', staged: false,
+                            frontObjectKey: 'community/namecards/assets/front/image.webp',
+                            backObjectKey: 'community/namecards/assets/back/image.webp',
+                            middleObjectKeys: ['community/fudaba/cards/card-19/live/page-aaaaaaa1.11111111-1111-4111-8111-111111111111.webp'] };
+                    },
                     async findCardMediaKey(_id, side) {
                         return side === 'front'
                             ? 'community/namecards/assets/front/image.webp'
@@ -1447,6 +1453,7 @@ import { test } from 'vitest';
                     async completeCardApproval(id, approvingRevision) {
                         assert.equal(id, 19);
                         assert.equal(approvingRevision, 3);
+                        assert.equal(fixture.calls.storageWrites, 5);
                         return {
                             status: 'updated',
                             card: {
@@ -1471,7 +1478,7 @@ import { test } from 'vitest';
 
                 assert.equal(response.status, 200);
                 assert.deepEqual(await responseJson(response), { success: true, revision: 4 });
-                assert.equal(fixture.calls.storageWrites, 4);
+                assert.equal(fixture.calls.storageWrites, 5);
                 assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
                     action: '审核图片通过',
                     target: 'card_id=19;revision=4'

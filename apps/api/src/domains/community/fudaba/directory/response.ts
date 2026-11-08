@@ -17,6 +17,7 @@ import type {
 } from "@/ports/repositories";
 import { requirePublicObjectUrl } from "@/utils/storage/public-object-url";
 import type { CardPageView } from '@/domains/community/fudaba/cards/artwork-view';
+import { parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function fudabaPublicOfficeView(
     storage: ObjectStorage | undefined,
@@ -65,7 +66,20 @@ export async function fudabaPublicCardView(
             status: 503,
         });
     }
-    const [frontImageUrl, middleImageUrls, backImageUrl] = await Promise.all([
+    const hasPageLayout = [card.front_object_key, ...(card.back_object_key ? [card.back_object_key] : [])]
+        .every(key => {
+            const parsed = parseCardPageObjectKey(key);
+            return parsed?.cardId === card.id && parsed.queue === 'live';
+        });
+    const completePages = pages?.length && (hasPageLayout || pages.length === 1 + card.middle_object_keys.length + (card.back_object_key ? 1 : 0))
+        ? pages : null;
+    const [frontImageUrl, middleImageUrls, backImageUrl] = completePages
+        ? [
+            completePages[0]!.url,
+            completePages.filter(page => page.role === 'middle').map(page => page.url),
+            completePages.find(page => page.role === 'back')?.url ?? null
+        ] as const
+        : await Promise.all([
         requirePublicObjectUrl(storage, card.front_object_key),
         Promise.all(
             card.middle_object_keys.map((key) =>
@@ -113,9 +127,10 @@ export async function fudabaPublicCardView(
 export async function fudabaPublicPlacedCardView(
     storage: ObjectStorage | undefined,
     card: FudabaPublicPlacedCardRecord,
+    pages?: CardPageView[],
 ): Promise<FudabaPlacedCard> {
     return {
-        ...(await fudabaPublicCardView(storage, card)),
+        ...(await fudabaPublicCardView(storage, card, pages)),
         viewerOwned: card.viewer_owned,
         placement: {
             pinnedAt: card.pinned_at,

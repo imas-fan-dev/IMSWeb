@@ -11,6 +11,8 @@ import { useMemo, useState } from "react"
 import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
 import { useHomeBirthdays } from "../hooks/use-home-birthdays"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { birthdayStoryHref } from "../birthday-data"
 
 const weekdays = ["一", "二", "三", "四", "五", "六", "日"]
 
@@ -272,7 +274,17 @@ export function BirthdayCalendar({
                       />
                       <span className="min-w-0">
                         <span className="block text-sm font-medium">
-                          {idol.name}
+                          {idol.story ? (
+                            <NavigationLink
+                              href={birthdayStoryHref(idol)!}
+                              className="text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                              aria-label={`${idol.name}的剧情`}
+                            >
+                              {idol.name}
+                            </NavigationLink>
+                          ) : (
+                            idol.name
+                          )}
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
                           {idol.agency}

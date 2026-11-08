@@ -136,6 +136,7 @@ describe.skipIf(!postgresIntegrationEnabled())(
                     color: '#123456',
                     month: 4,
                     day: 3,
+                    story: null,
                 },
             ]);
             const owner = (await catalog.snapshot()).characters.find(
@@ -157,6 +158,27 @@ describe.skipIf(!postgresIntegrationEnabled())(
                 month: 2,
                 day: 29,
             });
+        });
+
+        test('birthday story targets require a visible bound entry in an enabled project', async () => {
+            const primary = (await catalog.snapshot()).characters.find(c => c.id === characterId)!.profiles[0];
+            await catalog.saveProfile({ ...profile(), revision: primary.revision });
+            const read = async () => assertContractJson(
+                await testRequest(fixture.app, apiPath('/birthdays')), 200, catalogBirthdaysSchema
+            );
+            expect((await read()).items[0]).toMatchObject({ story: null });
+            const target = await entry('生日入口');
+            await catalog.saveBinding({ kind: 'entry', id: target.id, revision: 0, source: 'character', profileId: primary.id });
+            await fixture.connection.prepare('UPDATE wiki_project_settings SET is_enabled=TRUE WHERE project_id=?').bind(projectId).run();
+            expect((await read()).items[0]).toMatchObject({ story: { agency: 'catalog-one', idol: '企划人物' } });
+            await fixture.connection.prepare('UPDATE wiki_entries SET is_visible=FALSE WHERE id=?').bind(target.id).run();
+            expect((await read()).items[0]).toMatchObject({ story: null });
+            await fixture.connection.prepare('UPDATE wiki_entries SET is_visible=TRUE WHERE id=?').bind(target.id).run();
+            await fixture.connection.prepare('UPDATE wiki_project_settings SET is_enabled=FALSE WHERE project_id=?').bind(projectId).run();
+            expect((await read()).items[0]).toMatchObject({ story: null });
+            await fixture.connection.prepare('UPDATE wiki_project_settings SET is_enabled=TRUE WHERE project_id=?').bind(projectId).run();
+            await fixture.connection.prepare('UPDATE wiki_entries SET deleted_at=CURRENT_TIMESTAMP WHERE id=?').bind(target.id).run();
+            expect((await read()).items[0]).toMatchObject({ story: null });
         });
 
         test('birthdays exclude non-idols, missing dates, retired identities and fallback options', async () => {

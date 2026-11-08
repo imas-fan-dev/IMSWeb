@@ -137,10 +137,18 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
                 )
             )
         ];
-        for (const key of stagedKeys) {
+        const artwork = await repository.findAdminCardArtwork?.(id);
+        const middleKeys = new Set(artwork?.middleObjectKeys ?? []);
+        for (const key of new Set([...stagedKeys, ...middleKeys])) {
             if (typeof key !== 'string') continue;
             const parsed = parseCardPageObjectKey(key);
-            if (!parsed || parsed.queue !== 'pending') continue;
+            if (!parsed || parsed.queue !== 'pending') {
+                if (middleKeys.has(key)) {
+                    if (!storage.publish) throw new Error('Object storage publication is unavailable');
+                    await storage.publish(key);
+                }
+                continue;
+            }
             const liveKey = cardPageObjectKey(
                 parsed.cardId,
                 'live',

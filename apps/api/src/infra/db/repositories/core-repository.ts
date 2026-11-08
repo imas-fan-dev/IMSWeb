@@ -2139,10 +2139,6 @@ export class SqlCoreRepository implements NamecardRepository {
                 };
             }
             const orderedKeys = slotIndexes.map((index) => liveSlots[index]!);
-            const orderedMiddles = orderedKeys.slice(
-                1,
-                Math.max(1, orderedKeys.length - 1)
-            );
 
             const previousOwner = current.owner_account_id ?? null;
             const nextOwner =
@@ -2197,13 +2193,24 @@ export class SqlCoreRepository implements NamecardRepository {
             // lands on the staged columns and the live artwork stays untouched.
             // Clearing it publishes the arrangement into the live columns.
             const keepsStagedArtwork = reviewStatus !== null;
+            const writtenPages = new Map((input.pages ?? []).map(page => [page.pageId, page]));
+            const rotatedKey = (key: string) => {
+                const parsed = parseCardPageObjectKey(key);
+                const written = parsed && writtenPages.get(parsed.pageId);
+                return written ? cardPageObjectKey(
+                    cardId, keepsStagedArtwork ? 'pending' : 'live', written.pageId, written.objectVersion
+                ) : key;
+            };
+            const orderedMiddles = orderedKeys.slice(
+                1, Math.max(1, orderedKeys.length - 1)
+            ).map(rotatedKey);
             const rotatedFrontKey =
-                input.nextFrontObjectKey ?? orderedKeys[0]!;
+                input.nextFrontObjectKey ?? rotatedKey(orderedKeys[0]!);
             const rotatedBackKey =
                 input.nextBackObjectKey !== undefined
                     ? input.nextBackObjectKey
                     : orderedKeys.length > 1
-                      ? orderedKeys[orderedKeys.length - 1]!
+                      ? rotatedKey(orderedKeys[orderedKeys.length - 1]!)
                       : null;
             const frontKey = keepsStagedArtwork
                 ? current.front_object_key
@@ -2312,7 +2319,8 @@ export class SqlCoreRepository implements NamecardRepository {
 
             const rotated =
                 input.nextFrontObjectKey !== undefined ||
-                input.nextBackObjectKey !== undefined;
+                input.nextBackObjectKey !== undefined ||
+                writtenPages.size > 0;
             const reason = input.reason?.trim() ?? '';
             // 旋转不算内容变更：不要理由、不发通知，但必须落库。
             if (changes.length > 0 && !reason.length) {
@@ -2397,7 +2405,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 ]
             );
             if (!updatedRow) return { status: 'conflict', revision };
-            if (input.pages?.length) {
+            {
                 const queue = keepsStagedArtwork ? 'pending' : 'live';
                 const surface = keepsStagedArtwork
                     ? [pendingFrontKey, ...pendingMiddleKeys, pendingBackKey]
@@ -2407,7 +2415,7 @@ export class SqlCoreRepository implements NamecardRepository {
                     cardId,
                     queue,
                     surface,
-                    input.pages,
+                    input.pages ?? [],
                     input.updatedAt.toISOString()
                 );
             }

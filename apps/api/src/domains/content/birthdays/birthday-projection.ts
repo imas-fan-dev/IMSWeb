@@ -41,6 +41,7 @@ export function birthdayProjection(
                         : '#e684a8',
                 month: p.birthMonth!,
                 day: p.birthDay!,
+                story: p.story,
             })),
     };
 }

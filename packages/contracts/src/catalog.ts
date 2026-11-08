@@ -21,6 +21,7 @@ export const catalogBirthdaysSchema = successEnvelope({
     name: z.string().min(1), agency: z.string().min(1),
     color: z.string().regex(/^#[0-9a-f]{6}$/i),
     month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31),
+    story: exactJsonResponse({ agency: z.string().min(1), idol: z.string().min(1) }).nullable(),
   })),
 });
 export type CatalogBirthdays = z.infer<typeof catalogBirthdaysSchema>;
