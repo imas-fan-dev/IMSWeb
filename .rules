@@ -64,6 +64,16 @@ Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and
 
 JS/TS unit, HTTP contract, migration, and repository-contract tests run under Vitest; browser flows under Playwright; repository boundary, deployment, and rule checks under Python `unittest`; `node:test` is reserved for standalone checkers that need no build. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. Coverage gates are domain-level only (`apps/api/vitest.config.mts`, `apps/web/vitest.config.ts`); there is no repository-wide threshold. API persistence changes must cover the active Node runtime.
 
+
+### Manual UI acceptance (mandatory)
+
+- An acceptance case passes only when the **actual user-visible surface** was exercised: the same actor, the same UI operation, and every entry listed for that case. API requests may prepare state, but MUST NOT replace the required browser operation or observation.
+- An image counts as displayed only when the browser rendered it: inspect the live DOM `<img>` (`complete`, `naturalWidth`, `naturalHeight`) or a screenshot. HTTP 200, a URL string, a `src`, or object existence is not proof that the image is visible.
+- Every case must check its required surfaces explicitly (L1–L7), including negative assertions for surfaces where the card must not appear. Do not infer a surface from API payloads.
+- Record each case immediately in `data/verification/<run>/execution.md`: fixture, operation, entry URLs, decoded dimensions, negative checks, and status. Missing any required entry means `partial`, never `passed`.
+- Verify the fixture is in the required lifecycle state before applying the operation; do not use a pending card to test a published-card rule.
+- Local-only environment failures are local environment issues: record and isolate them; do not modify upstream code/tests for them. Acceptance still requires the target deployed SHA.
+
 ## Documentation
 
 Repository-level documentation lives under `docs/` and follows [`docs/README.md`](docs/README.md):
