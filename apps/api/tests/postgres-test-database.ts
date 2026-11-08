@@ -23,7 +23,9 @@ const allocations = new WeakMap<PostgresConnection, PostgresTestDatabase>();
 export function postgresTest(
     name: string,
     body: () => void | Promise<void>,
-    timeout?: number
+    // CI runs the full database suite in parallel; 5s is a flake source for
+    // migration replay tests that create and drop entire databases.
+    timeout = 30_000
 ): void {
     test(name, { timeout }, async (context) => {
         if (!postgresIntegrationEnabled()) {
