@@ -2372,6 +2372,18 @@ export class SqlCoreRepository implements NamecardRepository {
                 input.nextFrontObjectKey !== undefined ||
                 input.nextBackObjectKey !== undefined ||
                 (input.pages?.length ?? 0) > 0;
+            // 已有待审版本时，管理端只允许改版本状态（通过/驳回/锁定/丢弃）；
+            // 资料、图片、归属和整卡状态都必须由复审流程处理。
+            if (
+                currentReviewStatus === 'pending' &&
+                (rotated ||
+                    changes.some((change) => change.label !== '版本状态'))
+            ) {
+                return {
+                    status: 'blocked',
+                    message: '这张名片有待审版本，只能修改版本状态'
+                };
+            }
             const reason = input.reason?.trim() ?? '';
             // 旋转不算内容变更：不要理由、不发通知，但必须落库。
             if (changes.length > 0 && !reason.length) {

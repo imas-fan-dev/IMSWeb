@@ -614,6 +614,7 @@ export function CardMediaGallery({
               variant="secondary"
               className="size-8 shadow-sm"
               aria-label="向左旋转 90 度"
+              disabled={disabled}
               onClick={(event) => {
                 event.stopPropagation()
                 onRotate(position, "left")
@@ -627,6 +628,7 @@ export function CardMediaGallery({
               variant="secondary"
               className="size-8 shadow-sm"
               aria-label="向右旋转 90 度"
+              disabled={disabled}
               onClick={(event) => {
                 event.stopPropagation()
                 onRotate(position, "right")

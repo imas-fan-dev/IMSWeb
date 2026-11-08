@@ -526,7 +526,7 @@ export function NamecardManageDialog({
 
               <CardMediaGallery
                 slots={slots}
-                disabled={busy}
+                disabled={busy || queued}
                 allowUpload={false}
                 rotations={rotations}
                 onRotate={(position, direction) =>
@@ -565,7 +565,7 @@ export function NamecardManageDialog({
                         variant="ghost"
                         size="icon-xs"
                         aria-label="取消归属账号"
-                        disabled={busy}
+                        disabled={busy || queued}
                         onClick={() => {
                           setOwnerAccountId("")
                           setOwnerName(null)
@@ -584,6 +584,7 @@ export function NamecardManageDialog({
                     <Input
                       id="manage-owner"
                       className="pl-8"
+                      disabled={busy || queued}
                       value={ownerQuery}
                       placeholder={
                         ownerAccountId
@@ -656,8 +657,8 @@ export function NamecardManageDialog({
                     <Select
                       value={status}
                       items={NAMECARD_STATUS_OPTIONS}
-                      disabled={busy}
                       onValueChange={(value) => setStatus(String(value))}
+                      disabled={busy || queued}
                     >
                       <SelectTrigger
                         id="manage-status"
@@ -755,7 +756,7 @@ export function NamecardManageDialog({
                 required={false}
                 draft={draft}
                 series={series}
-                disabled={busy}
+                disabled={busy || queued}
                 onChange={setDraft}
               />
             </div>
