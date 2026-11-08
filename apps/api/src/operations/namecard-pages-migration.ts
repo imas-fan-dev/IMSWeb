@@ -238,28 +238,35 @@ export async function runNamecardPagesMigration(
                 queue: 'live' | 'pending',
                 page: { page_id: string; object_version: string }
             ) => cardPageObjectKey(card.id, queue, page.page_id, page.object_version);
-            // 已经在新布局里的卡以页面行为准；旧列/旧中间页表只补页面集里缺的槽位，
-            // 否则重跑迁移会把新建卡的多页集合缩成正反面两张。
             const existingLiveKeys = existing.live.map((page) =>
                 keyOfPage('live', page)
             );
             const existingPendingKeys = existing.pending.map((page) =>
                 keyOfPage('pending', page)
             );
+            const usesPageLayout = (queue: 'live' | 'pending', key: string) => {
+                const parsed = parseCardPageObjectKey(key);
+                return parsed?.cardId === card.id && parsed.queue === queue;
+            };
+            // Once the compatibility boundaries use page keys, that queue
+            // owns its full order and membership. Old columns/tables can omit
+            // pages added since migration or retain pages that were removed.
+            const reuseLive = existingLiveKeys.length > 0 &&
+                [card.front_object_key, ...(card.back_object_key ? [card.back_object_key] : [])]
+                    .every((key) => usesPageLayout('live', key));
+            const pendingCompatibilityKeys = [
+                card.pending_front_object_key,
+                ...(card.pending_middle_object_keys ?? []),
+                card.pending_back_object_key
+            ].filter((key): key is string => key !== null);
+            const reusePending = existingPendingKeys.length > 0 &&
+                pendingCompatibilityKeys.every((key) => usesPageLayout('pending', key));
             const legacyLiveKeys = [
                 card.front_object_key,
                 ...(middlesByCard.get(card.id) ?? []),
                 ...(card.back_object_key ? [card.back_object_key] : [])
             ];
-            const liveKeys =
-                existingLiveKeys.length > 0
-                    ? [
-                          ...existingLiveKeys,
-                          ...legacyLiveKeys.filter(
-                              (key) => !existingLiveKeys.includes(key)
-                          )
-                      ]
-                    : legacyLiveKeys;
+            const liveKeys = reuseLive ? existingLiveKeys : legacyLiveKeys;
             const pendingArtwork =
                 card.pending_front_object_key !== null ||
                 card.pending_back_object_key !== null ||
@@ -278,15 +285,7 @@ export async function runNamecardPagesMigration(
                           : [])
                   ]
                 : [];
-            const pendingKeys =
-                existingPendingKeys.length > 0
-                    ? [
-                          ...existingPendingKeys,
-                          ...legacyPendingKeys.filter(
-                              (key) => !existingPendingKeys.includes(key)
-                          )
-                      ]
-                    : legacyPendingKeys;
+            const pendingKeys = reusePending ? existingPendingKeys : legacyPendingKeys;
 
             const livePages: FudabaCardPageWrite[] = [];
             const pendingPages: FudabaCardPageWrite[] = [];
@@ -316,8 +315,10 @@ export async function runNamecardPagesMigration(
             }
             if (!dryRun) {
                 const now = new Date().toISOString();
-                await repository.replaceCardPages(card.id, 'live', livePages, now);
-                if (pendingKeys.length > 0) {
+                if (!reuseLive) {
+                    await repository.replaceCardPages(card.id, 'live', livePages, now);
+                }
+                if (pendingKeys.length > 0 && !reusePending) {
                     await repository.replaceCardPages(
                         card.id,
                         'pending',
@@ -339,19 +340,21 @@ export async function runNamecardPagesMigration(
                 const liveKeysNext = livePages.map((page) =>
                     keyOf('live', page)
                 );
-                await client.query(
-                    `UPDATE fudaba_cards
-                        SET front_object_key=$1, back_object_key=$2
-                      WHERE id=$3`,
-                    [
-                        liveKeysNext[0],
-                        liveKeysNext.length > 1
-                            ? liveKeysNext[liveKeysNext.length - 1]
-                            : null,
-                        card.id
-                    ]
-                );
-                if (pendingKeys.length > 0) {
+                if (!reuseLive) {
+                    await client.query(
+                        `UPDATE fudaba_cards
+                            SET front_object_key=$1, back_object_key=$2
+                          WHERE id=$3`,
+                        [
+                            liveKeysNext[0],
+                            liveKeysNext.length > 1
+                                ? liveKeysNext[liveKeysNext.length - 1]
+                                : null,
+                            card.id
+                        ]
+                    );
+                }
+                if (pendingKeys.length > 0 && !reusePending) {
                     const pendingKeysNext = pendingPages.map((page) =>
                         keyOf('pending', page)
                     );

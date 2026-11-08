@@ -661,11 +661,19 @@ it("uses the camera only after the explicit keyboard alternative and retains the
     />
   )
   await screen.findByLabelText("测试地图")
+  // The renderer publishes its initial camera in an effect. Wait for that
+  // initialization before moving it, so it cannot overwrite the keyboard move.
+  await waitFor(() => expect(screen.getByText("使用地图中心")).toBeEnabled())
   fireEvent.keyDown(screen.getByLabelText("测试地图"), { key: "ArrowRight" })
   expect(screen.getByText("确认位置并填写地址")).toBeDisabled()
   await userEvent.click(screen.getByText("使用地图中心"))
-  expect(screen.getByText("确认位置并填写地址")).toBeEnabled()
-  const { act } = await import("@testing-library/react")
+  await waitFor(() =>
+    expect(screen.getByText("确认位置并填写地址")).toBeEnabled()
+  )
+  expect(mocks.reverse).toHaveBeenCalledWith({
+    longitude: 139.8,
+    latitude: 35.7,
+  })
   act(() => mocks.props?.onCameraChange?.([120, 30]))
   expect(screen.getByText("确认位置并填写地址")).toBeEnabled()
   await userEvent.click(
