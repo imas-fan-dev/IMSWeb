@@ -20,7 +20,10 @@ import {
     deleteObjectWithCompensation,
     deleteOwnedObjectWithCompensation
 } from '@/utils/storage/delete-object';
-import { fudabaCardMediaVersionObjectKey } from '@/utils/storage/business-object-keys';
+import {
+    cardPageObjectKey,
+    fudabaCardMediaVersionObjectKey
+} from '@/utils/storage/business-object-keys';
 
 const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
 // Twenty 8 MiB originals would be a 160 MiB body; the editor downscales and the
@@ -121,23 +124,48 @@ function exactFields(fields: Record<string, string>, allowed: readonly string[])
  * the live one per field while a legacy partial staging exists), otherwise the
  * live set.
  */
-function editableSlots(card: FudabaCardRecord): string[] {
+type PageRow = { page_id: string; object_version: string };
+
+function pageKeys(
+    cardId: string,
+    queue: 'live' | 'pending',
+    pages: readonly PageRow[]
+): string[] {
+    return pages.map((page) =>
+        cardPageObjectKey(cardId, queue, page.page_id, page.object_version)
+    )
+}
+
+function editableSlots(
+    card: FudabaCardRecord,
+    pages: { live: readonly PageRow[]; pending: readonly PageRow[] }
+): string[] {
     const staged = card.publication_status === 'published';
-    const front = staged
-        ? (card.pending_front_object_key ?? card.front_object_key)
-        : card.front_object_key;
-    const back = staged
-        ? (card.pending_back_object_key ?? card.back_object_key)
-        : card.back_object_key;
-    const middles =
-        staged && card.pending_middle_object_keys.length > 0
-            ? card.pending_middle_object_keys
-            : card.middle_object_keys;
-    // The back closes the list, so the editor's slot order matches the order the
-    // picker shows: front, middle pages, back.
-    return [front, ...middles, back].filter(
-        (key): key is string => typeof key === 'string' && key.length > 0
-    );
+    // pending columns are the full ordered surface when a revision stages art;
+    // a text-only revision leaves them empty and must fall back to live pages.
+    const stagedArtwork =
+        staged &&
+        (card.pending_front_object_key !== null ||
+            card.pending_back_object_key !== null ||
+            card.pending_middle_object_keys.length > 0);
+    if (stagedArtwork) {
+        return [
+            card.pending_front_object_key ?? card.front_object_key,
+            ...card.pending_middle_object_keys,
+            card.pending_back_object_key ?? card.back_object_key
+        ].filter(
+            (key): key is string => typeof key === 'string' && key.length > 0
+        );
+    }
+    const livePageKeys = pageKeys(card.id, 'live', pages.live);
+    if (!staged && pages.pending.length > 0) {
+        // An unpublished submission edits its own pending page set.
+        return pageKeys(card.id, 'pending', pages.pending);
+    }
+    if (livePageKeys.length > 0) return livePageKeys;
+    // Legacy cards without page rows keep their columns.
+    return [card.front_object_key, ...card.middle_object_keys, card.back_object_key]
+        .filter((key): key is string => typeof key === 'string' && key.length > 0);
 }
 
 export async function handleReplaceFudabaOwnedMedia(
@@ -187,7 +215,8 @@ export async function handleReplaceFudabaOwnedMedia(
                 revision: current.revision
             }, 409);
         }
-        const surface = editableSlots(current);
+        const pages = await repository.listCardPages(cardId);
+        const surface = editableSlots(current, pages);
         const order = resolveOrder(
             upload.fields.order ??
                 JSON.stringify(files.map((_file, index) => `@${index}`)),
