@@ -482,6 +482,8 @@ type FudabaOfficeLocationReviewRow = FudabaOfficePublicLocationRow & {
 
 type FudabaPublicCardRow = Omit<
     FudabaPublicCardRecord,
+    | "accent"
+    | "bio"
     | "favorite_characters"
     | "middle_object_keys"
     | "credits"
@@ -494,6 +496,8 @@ type FudabaPublicCardRow = Omit<
     | "viewer_liked"
     | "viewer_favorited"
 > & {
+    accent: string | null;
+    bio: string | null;
     is_original: boolean | number | string;
     made_with_ai: boolean | number | string;
     visible: boolean | number | string;
@@ -872,8 +876,8 @@ function publicCardRecord(row: FudabaPublicCardRow): FudabaPublicCardRecord {
         credits: [],
         front_object_key: row.front_object_key,
         back_object_key: row.back_object_key,
-        accent: row.accent,
-        bio: row.bio,
+        accent: row.accent ?? NAMECARD_ACCENT_FALLBACK,
+        bio: row.bio ?? '',
         trade_note: row.trade_note,
         exchange_mode: row.exchange_mode as FudabaExchangeMode,
         made_on: row.made_on,

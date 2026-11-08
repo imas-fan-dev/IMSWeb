@@ -43,6 +43,7 @@ import { FUDABA_MAP_DELIVERY_OBJECT_KEY, namecardOriginalUrlFromObjectKey } from
 import { fudabaCardDeleteResponseSchema, fudabaCardInteractionResponseSchema, fudabaCardMutationResponseSchema, fudabaCardPageSchema, fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema, fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOfficeDetailSchema, fudabaOfficeMutationResponseSchema, fudabaOfficePageSchema, fudabaOwnerCardDetailSchema, fudabaOwnerCardListSchema, fudabaOwnerLocationDetailSchema, fudabaOwnerLocationMutationResponseSchema, fudabaOwnerLocationWithdrawalResponseSchema, fudabaOwnerOfficeListSchema, fudabaPlaceSearchResponseSchema, fudabaSeriesListSchema } from '@imsweb/contracts/fudaba';
 import { fudabaCardClaimErrorSchema, ownerClaimListSchema, reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
 import { namecardCharacterCatalogSchema } from '@imsweb/contracts/fudaba/characters';
+import { NAMECARD_ACCENT_FALLBACK } from '@imsweb/contracts/fudaba/runtime';
 import { fudabaLocationReviewErrorSchema, fudabaLocationReviewListSchema, fudabaLocationReviewMutationSchema } from '@imsweb/contracts/fudaba/location-review';
 import { fudabaMapDeliveryErrorSchema, fudabaMapDeliveryMutationSchema, fudabaMapDeliverySnapshotSchema } from '@imsweb/contracts/fudaba/map-delivery';
 import { Hono } from 'hono';
@@ -10921,6 +10922,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         for (const input of cardInputs) {
             await fixture.repository.createCard(input);
         }
+        await fixture.database.prepare("UPDATE fudaba_cards SET accent=NULL,bio=NULL WHERE id='card-z-new'").run();
         await placeCard(fixture, "office-b-open", "card-y-new", 1);
         await placeCard(fixture, "office-b-open", "card-z-new", 2);
         await placeCard(fixture, "office-b-open", "card-unavailable", 3);
@@ -11018,6 +11020,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             [1, 2, 3, 7],
         );
         const likedCard = detail.cards.find((item) => item.id === "card-z-new");
+        assert.equal(likedCard?.accent, NAMECARD_ACCENT_FALLBACK);
+        assert.equal(likedCard?.bio, '');
         assert.ok(likedCard);
         assert.equal(likedCard.like_count, 2);
         assert.equal(likedCard.favorite_count, 1);
@@ -11070,6 +11074,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             ["card-z-new"],
         );
         assert.equal(firstCardPage[0].viewer_liked, false);
+        assert.equal(firstCardPage[0].accent, NAMECARD_ACCENT_FALLBACK);
+        assert.equal(firstCardPage[0].bio, '');
         assert.equal(firstCardPage[0].viewer_favorited, false);
         assert.equal(firstCardPage[0].like_count, 2);
         assert.equal("owner_account_id" in firstCardPage[0], false);
