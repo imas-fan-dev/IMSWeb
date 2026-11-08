@@ -17,6 +17,9 @@ import {
     parseCardPageObjectKey
 } from '@/utils/storage/business-object-keys';
 
+/** 历史投稿里存在超过默认 40MP 的扫描图；迁移一次性处理，放大到 100MP。 */
+const LEGACY_IMAGE_MAX_PIXELS = 100_000_000;
+
 interface CardRow {
     id: string;
     card_number: number;
@@ -167,12 +170,14 @@ export async function runNamecardPagesMigration(
                 try {
                     sourceInfo = await images!.validate!(
                         object.body,
-                        sourceType
+                        sourceType,
+                        { maxInputPixels: LEGACY_IMAGE_MAX_PIXELS }
                     );
                 } catch {
                     sourceInfo = await images!.validate!(
                         object.body,
-                        'image/webp'
+                        'image/webp',
+                        { maxInputPixels: LEGACY_IMAGE_MAX_PIXELS }
                     );
                 }
                 if (dryRun) {
@@ -189,11 +194,17 @@ export async function runNamecardPagesMigration(
                 const body =
                     sourceType === 'image/webp'
                         ? object.body
-                        : await images!.toWebp!(object.body, 85);
+                        : await images!.toWebp!(object.body, 85, {
+                              maxInputPixels: LEGACY_IMAGE_MAX_PIXELS,
+                              // 历史扫描图转码后可能仍有几十 MP，限制输出体积。
+                              maxOutputPixels: 25_000_000
+                          });
                 const info =
                     sourceType === 'image/webp'
                         ? sourceInfo
-                        : await images!.validate!(body, 'image/webp');
+                        : await images!.validate!(body, 'image/webp', {
+                          maxInputPixels: LEGACY_IMAGE_MAX_PIXELS
+                      });
                 const stored = await storeCardPage(
                     { storage, images },
                     {
@@ -250,15 +261,28 @@ export async function runNamecardPagesMigration(
             const livePages: FudabaCardPageWrite[] = [];
             const pendingPages: FudabaCardPageWrite[] = [];
             let copied = 0;
-            for (const key of liveKeys) {
-                const resolved = await resolve('live', key);
-                livePages.push(resolved.page);
-                if (resolved.copied) copied += 1;
-            }
-            for (const key of pendingKeys) {
-                const resolved = await resolve('pending', key);
-                pendingPages.push(resolved.page);
-                if (resolved.copied) copied += 1;
+            try {
+                for (const key of liveKeys) {
+                    const resolved = await resolve('live', key);
+                    livePages.push(resolved.page);
+                    if (resolved.copied) copied += 1;
+                }
+                for (const key of pendingKeys) {
+                    const resolved = await resolve('pending', key);
+                    pendingPages.push(resolved.page);
+                    if (resolved.copied) copied += 1;
+                }
+            } catch (error) {
+                // 超大/损坏的历史图先跳过整张卡，交给管理员后续处理；
+                // 不阻断部署，也不写出半套页面行。
+                results.push({
+                    cardNumber: card.card_number,
+                    live: 0,
+                    pending: 0,
+                    copied: 0,
+                    skipped: [error instanceof Error ? error.message : String(error)]
+                });
+                continue;
             }
             if (!dryRun) {
                 const now = new Date().toISOString();
