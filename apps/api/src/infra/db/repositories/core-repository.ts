@@ -1253,6 +1253,32 @@ export class SqlCoreRepository implements NamecardRepository {
                     page.object_version
                 );
             }
+            // 统一页面布局的正面/背面使用稳定的 page-* 行；管理员入口仍按
+            // front/back 取图，缺少同名行时按页序解析首/末页。
+            if (!draft) {
+                const pages = await queryAll<{
+                    page_id: string;
+                    object_version: string;
+                }>(
+                    this.database,
+                    `SELECT page_id, object_version
+                       FROM public.fudaba_card_pages
+                      WHERE card_id=? AND queue='live'
+                      ORDER BY display_order ASC`,
+                    [row.internal_id]
+                );
+                const edge = side === 'front'
+                    ? pages[0]
+                    : pages[pages.length - 1];
+                if (pages.length >= 2 && edge) {
+                    return cardPageObjectKey(
+                        row.internal_id,
+                        'live',
+                        edge.page_id,
+                        edge.object_version
+                    );
+                }
+            }
         }
         // A row may still carry the public alias of its art. Storage only knows
         // object keys, so map it before anyone asks for the bytes.

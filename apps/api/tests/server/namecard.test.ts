@@ -300,6 +300,33 @@ import { describe, onTestFinished, test } from 'vitest';
                     '22222222-2222-4222-8222-222222222222'
                 )
             );
+            // 统一页面布局没有 front/back 同名行，管理入口仍要按页序取首/末页。
+            await executeSql(database,
+                `DELETE FROM public.fudaba_card_pages WHERE card_id=?`,
+                [internalId]
+            );
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      width, height, created_at, updated_at)
+                 VALUES (?, 'live', 'page-aaaaaaaa', 1,
+                         '11111111-1111-4111-8111-111111111111'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'live', 'page-bbbbbbbb', 2,
+                         '22222222-2222-4222-8222-222222222222'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'live', 'page-cccccccc', 3,
+                         '33333333-3333-4333-8333-333333333333'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [internalId, internalId, internalId]
+            );
+            assert.equal(
+                await repository.findCardMediaKey(id, 'front', false),
+                cardPageObjectKey(internalId, 'live', 'page-aaaaaaaa',
+                    '11111111-1111-4111-8111-111111111111')
+            );
+            assert.equal(
+                await repository.findCardMediaKey(id, 'back', false),
+                cardPageObjectKey(internalId, 'live', 'page-cccccccc',
+                    '33333333-3333-4333-8333-333333333333')
+            );
         });
 
         postgresTest('persist ordered cross-series character metadata atomically', async () => {
