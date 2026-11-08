@@ -76,12 +76,35 @@ export async function handleServeFudabaOwnerCardMedia(
         );
         return pageResponse ?? c.text('Not Found', 404);
     }
-    const key =
+    let key: string | null =
         side === 'front'
             ? (stagedArtwork ? card.pending_front_object_key : card.front_object_key)
             : side === 'back'
               ? (stagedArtwork ? card.pending_back_object_key : card.back_object_key)
               : (keys[Number(middle![1]) - 1] ?? null);
+    // 统一页面布局的列可能为空或落后；正/背面必须按页面行首/末页解析。
+    if (side === 'front' || side === 'back') {
+        const allPages = await fudabaRepository(c).listCardPages(cardId);
+        const queue = draft ? allPages.pending : allPages.live;
+        const pages = queue.length > 0 ? queue : allPages.live;
+        const edge =
+            side === 'front'
+                ? pages[0]
+                : pages.length > 1
+                  ? pages[pages.length - 1]
+                  : null;
+        if (edge) {
+            const found = await fudabaRepository(c).findCardPageKeyForOwner(
+                cardId,
+                c.get('platformUser')!.id,
+                edge.page_id,
+                queue.length > 0 && queue === allPages.pending
+            );
+            if (found) key = found.key;
+        } else if (side === 'back') {
+            key = null;
+        }
+    }
     if (!key) return c.text('Not Found', 404);
     const response = await objectReadResponse(c.req.raw, storage, key, {
         'Cache-Control': 'private, no-store',

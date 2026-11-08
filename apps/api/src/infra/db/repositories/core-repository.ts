@@ -814,6 +814,7 @@ export class SqlCoreRepository implements NamecardRepository {
         const rows = await queryAll<NamecardCardRow>(this.database,
             `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
              WHERE publication_status='published'
+               AND visible=TRUE
                AND ${NAMECARD_PUBLIC_ORIGIN}
                AND deleted_at IS NULL
              ORDER BY card_number DESC LIMIT ? OFFSET ?`,
@@ -835,6 +836,7 @@ export class SqlCoreRepository implements NamecardRepository {
             `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
              WHERE card_number=?
                AND publication_status='published'
+               AND visible=TRUE
                AND ${NAMECARD_PUBLIC_ORIGIN}
                AND deleted_at IS NULL`,
             [cardNumber]
@@ -1529,7 +1531,11 @@ export class SqlCoreRepository implements NamecardRepository {
               WHERE card_id=? AND queue='pending'`,
             [row.internal_id]
         );
-        if (pending.length === 0) return;
+        const hasPendingArtwork =
+            row.pending_front_object_key !== null ||
+            row.pending_back_object_key !== null ||
+            (row.pending_middle_object_keys?.length ?? 0) > 0;
+        if (!hasPendingArtwork && pending.length === 0) return;
         const orderedKeys = [
             row.pending_front_object_key ?? row.front_object_key,
             ...(row.pending_middle_object_keys ?? []),
@@ -1973,23 +1979,53 @@ export class SqlCoreRepository implements NamecardRepository {
             [cardNumber]
         );
         if (!row) return null;
-        const middles = await this.listMiddleKeys(row.internal_id);
         const staged =
             row.pending_front_object_key !== null ||
             row.pending_back_object_key !== null ||
             (row.pending_middle_object_keys?.length ?? 0) > 0;
+        if (staged) {
+            return {
+                cardId: row.internal_id,
+                staged,
+                frontObjectKey: row.pending_front_object_key ?? row.front_object_key,
+                backObjectKey: row.pending_back_object_key ?? row.back_object_key,
+                middleObjectKeys: row.pending_middle_object_keys ?? []
+            };
+        }
+        // 页面布局卡的列可能为空；管理窗旋转必须以稳定的 live 页行为准。
+        const pages = await queryAll<{
+            page_id: string;
+            object_version: string;
+        }>(
+            this.database,
+            `SELECT page_id, object_version
+               FROM public.fudaba_card_pages
+              WHERE card_id=? AND queue='live'
+              ORDER BY display_order ASC`,
+            [row.internal_id]
+        );
+        if (pages.length > 0) {
+            const key = (page: { page_id: string; object_version: string }) =>
+                cardPageObjectKey(
+                    row.internal_id,
+                    'live',
+                    page.page_id,
+                    page.object_version
+                );
+            return {
+                cardId: row.internal_id,
+                staged: false,
+                frontObjectKey: key(pages[0]!),
+                backObjectKey: pages.length > 1 ? key(pages[pages.length - 1]!) : null,
+                middleObjectKeys: pages.slice(1, -1).map(key)
+            };
+        }
         return {
             cardId: row.internal_id,
-            staged,
-            frontObjectKey: staged
-                ? (row.pending_front_object_key ?? row.front_object_key)
-                : row.front_object_key,
-            backObjectKey: staged
-                ? (row.pending_back_object_key ?? row.back_object_key)
-                : row.back_object_key,
-            middleObjectKeys: staged
-                ? (row.pending_middle_object_keys ?? [])
-                : middles
+            staged: false,
+            frontObjectKey: row.front_object_key,
+            backObjectKey: row.back_object_key,
+            middleObjectKeys: await this.listMiddleKeys(row.internal_id)
         };
     }
 
@@ -2052,7 +2088,7 @@ export class SqlCoreRepository implements NamecardRepository {
                     queue,
                     entry.pageId,
                     index + 1,
-                    entry.version,
+                    page.objectVersion,
                     page.width,
                     page.height,
                     updatedAt,
@@ -2119,11 +2155,33 @@ export class SqlCoreRepository implements NamecardRepository {
                 ? (current.pending_middle_object_keys ?? [])
                 : middleKeys;
             const surfaceBack = stagedArtwork ? stagedBack : current.back_object_key;
-            const liveSlots = [
-                surfaceFront,
-                ...surfaceMiddles,
-                ...(surfaceBack ? [surfaceBack] : [])
-            ];
+            const livePages = stagedArtwork
+                ? []
+                : await queryAll<{
+                      page_id: string;
+                      object_version: string;
+                  }>(
+                      database,
+                      `SELECT page_id, object_version
+                         FROM public.fudaba_card_pages
+                        WHERE card_id=? AND queue='live'
+                        ORDER BY display_order ASC`,
+                      [cardId]
+                  );
+            const liveSlots = livePages.length > 0
+                ? livePages.map((page) =>
+                      cardPageObjectKey(
+                          cardId,
+                          'live',
+                          page.page_id,
+                          page.object_version
+                      )
+                  )
+                : [
+                      surfaceFront,
+                      ...surfaceMiddles,
+                      ...(surfaceBack ? [surfaceBack] : [])
+                  ];
             const slotIndexes = input.mediaOrder.map((token) => Number(token.slice(1)));
             const slotsAreValid =
                 slotIndexes.length > 0 &&
@@ -2312,7 +2370,8 @@ export class SqlCoreRepository implements NamecardRepository {
 
             const rotated =
                 input.nextFrontObjectKey !== undefined ||
-                input.nextBackObjectKey !== undefined;
+                input.nextBackObjectKey !== undefined ||
+                (input.pages?.length ?? 0) > 0;
             const reason = input.reason?.trim() ?? '';
             // 旋转不算内容变更：不要理由、不发通知，但必须落库。
             if (changes.length > 0 && !reason.length) {
@@ -2397,7 +2456,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 ]
             );
             if (!updatedRow) return { status: 'conflict', revision };
-            if (input.pages?.length) {
+            if (input.mediaOrder.length > 0) {
                 const queue = keepsStagedArtwork ? 'pending' : 'live';
                 const surface = keepsStagedArtwork
                     ? [pendingFrontKey, ...pendingMiddleKeys, pendingBackKey]
@@ -2407,7 +2466,7 @@ export class SqlCoreRepository implements NamecardRepository {
                     cardId,
                     queue,
                     surface,
-                    input.pages,
+                    input.pages ?? [],
                     input.updatedAt.toISOString()
                 );
             }

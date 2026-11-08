@@ -270,7 +270,7 @@
 
 | 界面 | 可见条件 |
 | --- | --- |
-| 名片墙（`GET /api/cards`、随机补充、贡献榜） | `publication_status='published'` 且 `deleted_at IS NULL`；复审中的卡展示**线上版本** |
+| 名片墙（`GET /api/cards`、随机补充、贡献榜） | `publication_status='published'`、`visible=true` 且 `deleted_at IS NULL`；复审中的卡展示**线上版本** |
 | 用户主页（`GET /users/:handle/cards`） | 同上，再加 `visible=true` |
 | 详情窗（墙/主页打开） | 只有上面两类卡能打开；「编辑」按 `canEdit`，「认领/补充」只在无主卡上渲染 |
 | 属主名片列表 | `owner_account_id=本人`、`deleted_at IS NULL`、`publication_status<>'hidden'` |

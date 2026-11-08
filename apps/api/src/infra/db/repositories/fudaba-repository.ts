@@ -3397,7 +3397,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                         queue,
                         entry.pageId,
                         index + 1,
-                        entry.version,
+                        page.objectVersion,
                         page.width,
                         page.height,
                         updatedAt,
@@ -3652,6 +3652,14 @@ export class SqlFudabaRepository implements FudabaRepository {
                             input.expectedRevision,
                         );
                     }
+                    // 撤回修订也必须清掉 pending 页行，否则属主再打开编辑窗
+                    // 仍会看到已经放弃的页。
+                    await executeSql(
+                        database,
+                        `DELETE FROM public.fudaba_card_pages
+                          WHERE card_id=? AND queue='pending'`,
+                        [input.cardId],
+                    );
                     const restoredResult = await this.savedCardResult(
                         restored,
                         null,
