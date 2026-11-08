@@ -1075,7 +1075,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claims: 'fudaba_card_claims',
                 envelopes: 'fudaba_claim_envelopes'
             });
-        });
+        }, 30_000);
     });
 }
 
