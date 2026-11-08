@@ -66,6 +66,11 @@ test.skipIf(!postgresIntegrationEnabled())(
             expect(first.executed).toEqual([
                 '20261105190000_character_profile_authority',
                 '20261105200000_catalog_public_facts',
+        '20261106120000_namecard_exchange_system',
+                '20261107120000_namecard_media_key_normalization',
+                '20261107160000_namecard_group_card',
+                '20261107180000_fudaba_card_pages',
+
             ]);
             const current = (
                 await client.query(
