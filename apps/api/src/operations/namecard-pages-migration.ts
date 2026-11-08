@@ -234,16 +234,37 @@ export async function runNamecardPagesMigration(
                 };
             };
 
-            const liveKeys = [
+            const keyOfPage = (
+                queue: 'live' | 'pending',
+                page: { page_id: string; object_version: string }
+            ) => cardPageObjectKey(card.id, queue, page.page_id, page.object_version);
+            // 已经在新布局里的卡以页面行为准；旧列/旧中间页表只补页面集里缺的槽位，
+            // 否则重跑迁移会把新建卡的多页集合缩成正反面两张。
+            const existingLiveKeys = existing.live.map((page) =>
+                keyOfPage('live', page)
+            );
+            const existingPendingKeys = existing.pending.map((page) =>
+                keyOfPage('pending', page)
+            );
+            const legacyLiveKeys = [
                 card.front_object_key,
                 ...(middlesByCard.get(card.id) ?? []),
                 ...(card.back_object_key ? [card.back_object_key] : [])
             ];
+            const liveKeys =
+                existingLiveKeys.length > 0
+                    ? [
+                          ...existingLiveKeys,
+                          ...legacyLiveKeys.filter(
+                              (key) => !existingLiveKeys.includes(key)
+                          )
+                      ]
+                    : legacyLiveKeys;
             const pendingArtwork =
                 card.pending_front_object_key !== null ||
                 card.pending_back_object_key !== null ||
                 (card.pending_middle_object_keys?.length ?? 0) > 0;
-            const pendingKeys = pendingArtwork
+            const legacyPendingKeys = pendingArtwork
                 ? [
                       card.pending_front_object_key ?? card.front_object_key,
                       ...((card.pending_middle_object_keys?.length ?? 0) > 0
@@ -257,6 +278,15 @@ export async function runNamecardPagesMigration(
                           : [])
                   ]
                 : [];
+            const pendingKeys =
+                existingPendingKeys.length > 0
+                    ? [
+                          ...existingPendingKeys,
+                          ...legacyPendingKeys.filter(
+                              (key) => !existingPendingKeys.includes(key)
+                          )
+                      ]
+                    : legacyPendingKeys;
 
             const livePages: FudabaCardPageWrite[] = [];
             const pendingPages: FudabaCardPageWrite[] = [];
