@@ -109,6 +109,8 @@ export function WallInsightsPanel({
   const [insights, setInsights] = useState<WallInsights | null>(null)
   const [failed, setFailed] = useState(false)
   const [picking, setPicking] = useState(false)
+  // Apply initial preferences instantly so hydration cannot scroll the wall.
+  const [animate, setAnimate] = useState(false)
   const hydrated = useSyncExternalStore(
     subscribeToHydration,
     () => true,
@@ -141,6 +143,7 @@ export function WallInsightsPanel({
   }, [])
 
   function changeOpen(open: boolean) {
+    setAnimate(true)
     setCollapsedPreference(!open)
     window.localStorage.setItem(STORAGE_KEY, open ? "0" : "1")
   }
@@ -192,7 +195,8 @@ export function WallInsightsPanel({
               data-icon="inline-start"
               aria-hidden="true"
               className={cn(
-                "transition-transform duration-(--duration-ui) ease-(--ease-ui) motion-reduce:transition-none",
+                animate &&
+                  "transition-transform duration-(--duration-ui) ease-(--ease-ui) motion-reduce:transition-none",
                 !collapsed && "rotate-90"
               )}
             />
@@ -202,7 +206,11 @@ export function WallInsightsPanel({
 
         <CollapsibleContent
           id="wall-insights-content"
-          className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-(--duration-ui) ease-(--ease-ui) data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none"
+          className={cn(
+            "h-(--collapsible-panel-height) overflow-hidden data-ending-style:h-0 data-starting-style:h-0",
+            animate &&
+              "transition-[height] duration-(--duration-ui) ease-(--ease-ui) motion-reduce:transition-none"
+          )}
         >
           <div className="grid border-t lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <div className="flex min-w-0 flex-col px-4 py-5 sm:px-6">
