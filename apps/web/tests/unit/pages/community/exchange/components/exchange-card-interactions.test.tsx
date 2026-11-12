@@ -40,7 +40,6 @@ const card: FudabaCard = {
   seriesCodes: ["765"],
   favoriteCharacters: [],
   frontImageUrl: "/brand/series/wall/765pro.webp",
-  middleImageUrls: [],
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
   bio: "",

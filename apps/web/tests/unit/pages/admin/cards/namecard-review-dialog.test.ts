@@ -8,6 +8,24 @@ import type { AdminNamecardDiff } from "~/lib/api"
 
 type DiffSide = AdminNamecardDiff["live"]
 
+function sidePage(
+  pageId: string,
+  order: number,
+  role: "front" | "middle" | "back",
+  url: string
+) {
+  return {
+    pageId,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
+}
+
 function side(overrides: Partial<DiffSide> = {}): DiffSide {
   return {
     producerName: "ZheiZhei",
@@ -26,9 +44,10 @@ function side(overrides: Partial<DiffSide> = {}): DiffSide {
       { accountId: null, displayName: "甲", url: null, roles: ["design"] },
     ],
     favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765as" }],
-    frontImageUrl: "front.webp",
-    backImageUrl: "back.webp",
-    middleImageUrls: [],
+    pages: [
+      sidePage("front", 1, "front", "front.webp"),
+      sidePage("back", 2, "back", "back.webp"),
+    ],
     ...overrides,
   }
 }
@@ -43,7 +62,12 @@ describe("namecard review diff", () => {
   it("shows the replaced image before the new one", () => {
     const slots = diffImageSlots(
       side(),
-      side({ frontImageUrl: "front-new.webp" })
+      side({
+        pages: [
+          sidePage("front", 1, "front", "front-new.webp"),
+          sidePage("back", 2, "back", "back.webp"),
+        ],
+      })
     )
     expect(slots.map((slot) => [slot.state, slot.url])).toEqual([
       ["removed", "front.webp"],
@@ -55,12 +79,82 @@ describe("namecard review diff", () => {
   it("marks an appended middle page as added", () => {
     const slots = diffImageSlots(
       side(),
-      side({ middleImageUrls: ["middle-1.webp"] })
+      side({
+        pages: [
+          sidePage("front", 1, "front", "front.webp"),
+          sidePage("middle-1", 2, "middle", "middle-1.webp"),
+          sidePage("back", 3, "back", "back.webp"),
+        ],
+      })
     )
     expect(slots.map((slot) => [slot.state, slot.label])).toEqual([
       ["same", "正面"],
       ["added", "中间页 1"],
       ["same", "背面"],
+    ])
+  })
+
+  it("ignores the admin scope segment when the page object is unchanged", () => {
+    const adminUrl = (
+      variant: "live" | "draft",
+      page: string,
+      version: string
+    ) => `/api/admin/cards/823/media/${variant}/${page}?w=800&v=${version}`
+    const slots = diffImageSlots(
+      side({
+        pages: [
+          sidePage("page-front", 1, "front", adminUrl("live", "page-front", "v1")),
+          sidePage("page-mid", 2, "middle", adminUrl("live", "page-mid", "v2")),
+          sidePage("page-back", 3, "back", adminUrl("live", "page-back", "v3")),
+        ],
+      }),
+      side({
+        pages: [
+          sidePage(
+            "page-front-new",
+            1,
+            "front",
+            adminUrl("draft", "page-front-new", "v9")
+          ),
+          sidePage("page-mid", 2, "middle", adminUrl("draft", "page-mid", "v2")),
+          sidePage("page-back", 3, "back", adminUrl("live", "page-back", "v3")),
+        ],
+      })
+    )
+    expect(slots.map((slot) => [slot.state, slot.label])).toEqual([
+      ["removed", "正面"],
+      ["added", "正面"],
+      ["same", "中间页 1"],
+      ["same", "背面"],
+    ])
+  })
+
+  it("marks the same slot as changed once its object version moves", () => {
+    const slots = diffImageSlots(
+      side({
+        pages: [
+          sidePage(
+            "page-mid",
+            1,
+            "front",
+            "/api/admin/cards/823/media/live/page-mid?w=800&v=old"
+          ),
+        ],
+      }),
+      side({
+        pages: [
+          sidePage(
+            "page-mid",
+            1,
+            "front",
+            "/api/admin/cards/823/media/draft/page-mid?w=800&v=new"
+          ),
+        ],
+      })
+    )
+    expect(slots.map((slot) => [slot.state, slot.label])).toEqual([
+      ["removed", "正面"],
+      ["added", "正面"],
     ])
   })
 

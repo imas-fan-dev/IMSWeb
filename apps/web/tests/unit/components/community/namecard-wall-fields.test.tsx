@@ -103,7 +103,6 @@ function wallCard(overrides: Partial<Namecard> = {}): Namecard {
     seriesCodes: [],
     favoriteCharacters: [],
     credits: [],
-    middleImageUrls: [],
     canEdit: false,
     hasOwner: false,
     claimStatus: "unclaimed",
@@ -111,10 +110,6 @@ function wallCard(overrides: Partial<Namecard> = {}): Namecard {
     claimerName: null,
     claimerUid: null,
     supplementPending: false,
-    image1_url: "https://ims.test/front.webp",
-    image2_url: null,
-    image1_thumbnail_url: "https://ims.test/front-thumb.webp",
-    image2_thumbnail_url: null,
     ...overrides,
   } as Namecard
 }
@@ -366,7 +361,9 @@ describe("NamecardClaimDialog required fields", () => {
     await userEvent.click(
       await screen.findByRole("checkbox", { name: /团体名片/ })
     )
-    expect(screen.getByRole("textbox", { name: "制作人名称" })).not.toBeRequired()
+    expect(
+      screen.getByRole("textbox", { name: "制作人名称" })
+    ).not.toBeRequired()
     expect(screen.getByRole("textbox", { name: "团体名称" })).toBeRequired()
     expect(screen.getByRole("button", { name: /提交认领审核/ })).toBeDisabled()
   })

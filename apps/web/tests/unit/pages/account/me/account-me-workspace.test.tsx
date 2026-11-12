@@ -148,8 +148,29 @@ const card = {
   seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
-  middleImageUrls: [],
   backImageUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
+  pages: [
+    {
+      pageId: "page-front",
+      role: "front",
+      order: 1,
+      url: "/api/community/exchange/me/cards/card-1/media/front?v=3",
+      previewUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
+      thumbUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
+      width: 960,
+      height: 640,
+    },
+    {
+      pageId: "page-back",
+      role: "back",
+      order: 2,
+      url: "/api/community/exchange/me/cards/card-1/media/back?v=3",
+      previewUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
+      thumbUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
+      width: 960,
+      height: 640,
+    },
+  ],
   accent: "#f34e6c",
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
@@ -916,7 +937,9 @@ describe("AccountMeWorkspace", () => {
     expect(
       await screen.findByRole("button", { name: "第 1 张（正面）" })
     ).toBeVisible()
-    expect(screen.getByRole("button", { name: "第 2 张（背面）" })).toBeVisible()
+    expect(
+      screen.getByRole("button", { name: "第 2 张（背面）" })
+    ).toBeVisible()
 
     await user.click(screen.getByRole("button", { name: "第 2 张（背面）" }))
     await user.click(screen.getByRole("button", { name: "更换" }))

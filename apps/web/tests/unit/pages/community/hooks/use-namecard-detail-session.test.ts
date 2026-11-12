@@ -22,7 +22,28 @@ function card(id: number): Namecard {
     accent: null,
     seriesCodes: ["765"],
     credits: [],
-    middleImageUrls: [],
+    pages: [
+      {
+        pageId: `front-${id}`,
+        role: "front",
+        order: 1,
+        url: `/front-${id}.jpg`,
+        previewUrl: `/front-${id}.jpg`,
+        thumbUrl: `/front-${id}.jpg`,
+        width: 900,
+        height: 500,
+      },
+      {
+        pageId: `back-${id}`,
+        role: "back",
+        order: 2,
+        url: `/back-${id}.jpg`,
+        previewUrl: `/back-${id}.jpg`,
+        thumbUrl: `/back-${id}.jpg`,
+        width: 900,
+        height: 500,
+      },
+    ],
     canEdit: false,
     hasOwner: false,
     seriesCode: null,
@@ -32,10 +53,6 @@ function card(id: number): Namecard {
     viewerClaimState: null,
     claimerName: null,
     claimerUid: null,
-    image1_url: `/front-${id}.jpg`,
-    image2_url: `/back-${id}.jpg`,
-    image1_thumbnail_url: `/front-${id}-thumbnail.jpg`,
-    image2_thumbnail_url: `/back-${id}-thumbnail.jpg`,
   }
 }
 

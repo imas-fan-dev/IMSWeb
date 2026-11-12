@@ -93,7 +93,6 @@ const card = {
   seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
-  middleImageUrls: [],
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
   bio: "上海地区制作人",

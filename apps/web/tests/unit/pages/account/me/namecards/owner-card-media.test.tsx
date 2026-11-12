@@ -26,7 +26,7 @@ vi.mock("~/lib/api/platform-client", () => ({
 }))
 
 import { ownerCardMediaPath } from "~/lib/api/endpoints/fudaba/owner-card-media"
-import { useOwnerCardMedia } from "~/pages/account/me/namecards/use-owner-card-media"
+import { useOwnerCardMedia } from "~/components/shared/use-owner-card-media"
 
 const front =
   "https://api.ims.test/api/community/exchange/me/cards/card-1/media/front?v=3"

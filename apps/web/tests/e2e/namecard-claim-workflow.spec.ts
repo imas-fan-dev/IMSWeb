@@ -10,6 +10,32 @@ const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs="
 
+/** 墙与详情只认页面行：正/反/中间由页序推导。 */
+function namecardPages(front: string, back: string) {
+  return [
+    {
+      pageId: "page-front",
+      role: "front" as const,
+      order: 1,
+      url: front,
+      previewUrl: front,
+      thumbUrl: front,
+      width: 900,
+      height: 500,
+    },
+    {
+      pageId: "page-back",
+      role: "back" as const,
+      order: 2,
+      url: back,
+      previewUrl: back,
+      thumbUrl: back,
+      width: 900,
+      height: 500,
+    },
+  ]
+}
+
 async function waitForNextPaint(page: Page) {
   await page.evaluate(
     () =>
@@ -158,7 +184,7 @@ test.describe("namecard claim workflow", () => {
                 accent: null,
                 seriesCodes: ["765"],
                 credits: [],
-                middleImageUrls: [],
+                pages: namecardPages(FRONT_IMAGE, BACK_IMAGE),
                 canEdit: false,
                 hasOwner: false,
                 seriesCode: "765",
@@ -168,10 +194,6 @@ test.describe("namecard claim workflow", () => {
                 viewerClaimState: null,
                 claimerName: null,
                 claimerUid: null,
-                image1_url: FRONT_IMAGE,
-                image2_url: BACK_IMAGE,
-                image1_thumbnail_url: FRONT_IMAGE,
-                image2_thumbnail_url: BACK_IMAGE,
                 status: "approved",
                 created_at: "2026-08-16T19:30:00.000Z",
               },
@@ -195,9 +217,7 @@ test.describe("namecard claim workflow", () => {
     await expect(
       page.getByRole("button", { name: "查看制作人名片 42 正面" })
     ).toBeVisible()
-    await expect(
-      page.getByRole("button", { name: "认领" })
-    ).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "认领" })).toHaveCount(0)
   })
 
   test("registered user submits a legacy-card claim from the public wall", async ({
@@ -254,7 +274,7 @@ test.describe("namecard claim workflow", () => {
                 accent: null,
                 seriesCodes: ["765"],
                 credits: [],
-                middleImageUrls: [],
+                pages: namecardPages(FRONT_IMAGE, BACK_IMAGE),
                 canEdit: false,
                 hasOwner: false,
                 seriesCode: "765",
@@ -264,10 +284,6 @@ test.describe("namecard claim workflow", () => {
                 viewerClaimState: null,
                 claimerName: null,
                 claimerUid: null,
-                image1_url: FRONT_IMAGE,
-                image2_url: BACK_IMAGE,
-                image1_thumbnail_url: FRONT_IMAGE,
-                image2_thumbnail_url: BACK_IMAGE,
                 status: "approved",
                 created_at: "2026-08-16T19:30:00.000Z",
               },
@@ -463,7 +479,7 @@ test.describe("namecard claim workflow", () => {
                 accent: null,
                 seriesCodes: ["765"],
                 credits: [],
-                middleImageUrls: [],
+                pages: namecardPages(FRONT_IMAGE, BACK_IMAGE),
                 canEdit: false,
                 hasOwner: false,
                 seriesCode: "765",
@@ -473,10 +489,6 @@ test.describe("namecard claim workflow", () => {
                 viewerClaimState: null,
                 claimerName: null,
                 claimerUid: null,
-                image1_url: FRONT_IMAGE,
-                image2_url: BACK_IMAGE,
-                image1_thumbnail_url: FRONT_IMAGE,
-                image2_thumbnail_url: BACK_IMAGE,
                 status: "approved",
                 created_at: "2026-08-16T19:30:00.000Z",
               },
@@ -619,8 +631,6 @@ test.describe("namecard claim workflow", () => {
 
   const pendingSubmission = {
     id: 42,
-    image1_url: FRONT_IMAGE,
-    image2_url: BACK_IMAGE,
     status: "pending",
     revision: 1,
     producerName: "注册制作人",
@@ -673,130 +683,124 @@ test.describe("namecard claim workflow", () => {
     test("links a same-ID match straight to the wall card", async ({
       page,
     }) => {
-    await mockPlatformSession(page)
-    installEmptyWikiCatalogMock(api)
-    // 消息页属于帐号工作台，进来时会并行读会话资料与几份「我的」列表。
-    await api.mockRoute(
-      "/api/platform/me",
-      async (route) => {
-        await route.fulfill({
-          json: {
-            success: true,
-            account: { id: "platform-claimant", status: "active" },
-            profile: {
-              uid: 1,
-              displayName: "认领测试制作人",
-              avatarUrl: null,
-              homeCity: "上海",
-              bio: "",
-              updatedAt: 1,
-              pageSlug: null,
-            },
-            capabilities: { fudabaWrite: true },
-          },
-        })
-      },
-      "GET",
-      { min: 0, max: 12 }
-    )
-    for (const path of [
-      "/api/community/exchange/me/series",
-      "/api/community/exchange/me/cards",
-      "/api/community/exchange/me/offices",
-    ]) {
+      await mockPlatformSession(page)
+      installEmptyWikiCatalogMock(api)
+      // 消息页属于帐号工作台，进来时会并行读会话资料与几份「我的」列表。
       await api.mockRoute(
-        path,
+        "/api/platform/me",
         async (route) => {
-          await route.fulfill({ json: { items: [] } })
+          await route.fulfill({
+            json: {
+              success: true,
+              account: { id: "platform-claimant", status: "active" },
+              profile: {
+                uid: 1,
+                displayName: "认领测试制作人",
+                avatarUrl: null,
+                homeCity: "上海",
+                bio: "",
+                updatedAt: 1,
+                pageSlug: null,
+              },
+              capabilities: { fudabaWrite: true },
+            },
+          })
         },
         "GET",
         { min: 0, max: 12 }
       )
-    }
-    await api.mockRoute(
-      "**/api/community/exchange/me/notifications/read",
-      async (route) => {
-        await route.fulfill({ json: { success: true, updated: 1 } })
-      },
-      "POST",
-      { min: 0, max: 12 }
-    )
-    await api.mockRoute(
-      "**/api/community/exchange/me/favorites?**",
-      async (route) => {
-        const response = {
-          items: [],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        } satisfies FudabaCardPage
-        await route.fulfill({ status: 200, json: response })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/cards**",
-      async (route) => {
-        await route.fulfill({
-          json: {
-            list: [
-              {
-                id: 42,
-                cardId: "card-42",
-                cardNumber: 42,
-                revision: 1,
-                producerName: "认领测试制作人",
-                producerReading: null,
-                groupName: null,
-                madeOn: null,
-                isOriginal: false,
-                madeWithAi: false,
-                bio: null,
-                tradeNote: null,
-                exchangeMode: "manual",
-                accent: null,
-                seriesCodes: ["765"],
-                credits: [],
-                middleImageUrls: [],
-                canEdit: false,
-                hasOwner: false,
-                seriesCode: "765",
-                favoriteCharacters: [favoriteCharacter],
-                claimStatus: "unclaimed",
-                supplementPending: false,
-                viewerClaimState: null,
-                claimerName: null,
-                claimerUid: null,
-                image1_url: FRONT_IMAGE,
-                image2_url: BACK_IMAGE,
-                image1_thumbnail_url: FRONT_IMAGE,
-                image2_thumbnail_url: BACK_IMAGE,
-                status: "approved",
-                created_at: "2026-08-16T19:30:00.000Z",
-              },
-            ],
-            total: 1,
-            totalPage: 1,
+      for (const path of [
+        "/api/community/exchange/me/series",
+        "/api/community/exchange/me/cards",
+        "/api/community/exchange/me/offices",
+      ]) {
+        await api.mockRoute(
+          path,
+          async (route) => {
+            await route.fulfill({ json: { items: [] } })
           },
-        })
-      },
-      "GET"
-    )
-    await api.mockRoute(
-      "**/api/reactions**",
-      async (route) => {
-        await route.fulfill({ json: {} })
-      },
-      "GET"
-    )
+          "GET",
+          { min: 0, max: 12 }
+        )
+      }
+      await api.mockRoute(
+        "**/api/community/exchange/me/notifications/read",
+        async (route) => {
+          await route.fulfill({ json: { success: true, updated: 1 } })
+        },
+        "POST",
+        { min: 0, max: 12 }
+      )
+      await api.mockRoute(
+        "**/api/community/exchange/me/favorites?**",
+        async (route) => {
+          const response = {
+            items: [],
+            pageInfo: { hasNextPage: false, nextCursor: null },
+          } satisfies FudabaCardPage
+          await route.fulfill({ status: 200, json: response })
+        },
+        "GET"
+      )
+      await api.mockRoute(
+        "**/api/cards**",
+        async (route) => {
+          await route.fulfill({
+            json: {
+              list: [
+                {
+                  id: 42,
+                  cardId: "card-42",
+                  cardNumber: 42,
+                  revision: 1,
+                  producerName: "认领测试制作人",
+                  producerReading: null,
+                  groupName: null,
+                  madeOn: null,
+                  isOriginal: false,
+                  madeWithAi: false,
+                  bio: null,
+                  tradeNote: null,
+                  exchangeMode: "manual",
+                  accent: null,
+                  seriesCodes: ["765"],
+                  credits: [],
+                  pages: namecardPages(FRONT_IMAGE, BACK_IMAGE),
+                  canEdit: false,
+                  hasOwner: false,
+                  seriesCode: "765",
+                  favoriteCharacters: [favoriteCharacter],
+                  claimStatus: "unclaimed",
+                  supplementPending: false,
+                  viewerClaimState: null,
+                  claimerName: null,
+                  claimerUid: null,
+                  status: "approved",
+                  created_at: "2026-08-16T19:30:00.000Z",
+                },
+              ],
+              total: 1,
+              totalPage: 1,
+            },
+          })
+        },
+        "GET"
+      )
+      await api.mockRoute(
+        "**/api/reactions**",
+        async (route) => {
+          await route.fulfill({ json: {} })
+        },
+        "GET"
+      )
 
-    await page.goto("/account/me/claims")
-    await expect(
-      page.getByRole("heading", { name: /^消息/ })
-    ).toBeVisible()
-    await expect(page.getByText("这张旧名片是您的吗？")).toBeVisible()
+      await page.goto("/account/me/claims")
+      await expect(page.getByRole("heading", { name: /^消息/ })).toBeVisible()
+      await expect(page.getByText("这张旧名片是您的吗？")).toBeVisible()
 
-    await page.getByRole("link", { name: "去认领" }).click()
-    await page.waitForURL(/\/community\/cards\?card=42$/)
-    // The deep link opens the detail dialog for that card on the wall.
+      await page.getByRole("link", { name: "去认领" }).click()
+      await page.waitForURL(/\/community\/cards\?card=42$/)
+      // The deep link opens the detail dialog for that card on the wall.
       await expect(
         page.getByRole("dialog", { name: /制作人名片/ })
       ).toBeVisible()

@@ -1,3 +1,4 @@
+import type { CardPage } from "@imsweb/contracts/fudaba"
 import { iconPath, imagePath, publicAssetsPath } from "@imsweb/contracts/paths"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -123,6 +124,29 @@ const adminCardClaims = { items: [makeFudabaAdminCardClaim()] }
 // The grid's images pass through resolvePublicMediaUrl, which leaves the path
 // alone on local disk and returns an absolute object-storage URL otherwise.
 const namecardPage = makeNamecardPage()
+
+function gridPage(
+  role: "front" | "middle" | "back",
+  order: number,
+  url: string
+): CardPage {
+  return {
+    pageId: `page-${order}`,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
+}
+
+/** One grid card whose page rows carry the given URLs. */
+function gridCard(pages: readonly CardPage[]): NamecardPage {
+  const [first] = namecardPage.list
+  return { ...namecardPage, list: [{ ...first!, pages: [...pages] }] }
+}
 
 const session = makePlatformSession()
 
@@ -475,28 +499,19 @@ describe("media URL normalisation with a configured origin", () => {
     expect(content.communities[0].imageUrl).toBe(null)
   })
 
-  it("absolutises the community namecard grid, thumbnails included", async () => {
+  it("absolutises the community namecard grid", async () => {
     const media = await loadMediaUrls(PACKAGED_ORIGIN)
     const page = media.normalizeNamecardPage(namecardPage)
 
-    expect(page.list[0].image1_url).toBe(
+    expect(page.list[0].pages?.[0]?.url).toBe(
       `${PACKAGED_ORIGIN}/uploads/namecard/original/abc.webp`
     )
-    expect(page.list[0].image2_url).toBe(
+    expect(page.list[0].pages?.[1]?.url).toBe(
       `${PACKAGED_ORIGIN}/uploads/namecard/original/def.webp`
     )
-    expect(page.list[0].image1_thumbnail_url).toBe(
-      `${PACKAGED_ORIGIN}/uploads/namecard/thumbnail/abc.webp.jpg`
-    )
-    expect(page.list[0].image2_thumbnail_url).toBe(
-      `${PACKAGED_ORIGIN}/uploads/namecard/thumbnail/def.webp.jpg`
-    )
-    // Object storage already hands back absolute URLs for the same fields.
-    expect(page.list[1].image1_url).toBe(
+    // Object storage already hands back absolute URLs for the same pages.
+    expect(page.list[1].pages?.[0]?.url).toBe(
       "https://objects.example.com/namecards/2-front.webp"
-    )
-    expect(page.list[1].image1_thumbnail_url).toBe(
-      "https://objects.example.com/namecards/2-front.jpg"
     )
   })
 
@@ -515,10 +530,10 @@ describe("media URL normalisation with a configured origin", () => {
     expect(reviews.items[0].owner.displayName).toBe("制作人")
 
     const claims = media.normalizeFudabaAdminCardClaimList(adminCardClaims)
-    expect(claims.items[0].legacyCard.frontImageUrl).toBe(
+    expect(claims.items[0].legacyCard.pages?.[0]?.url).toBe(
       `${PACKAGED_ORIGIN}/uploads/namecard/original/abc.webp`
     )
-    expect(claims.items[0].legacyCard.backImageUrl).toBe(
+    expect(claims.items[0].legacyCard.pages?.[1]?.url).toBe(
       `${PACKAGED_ORIGIN}/uploads/namecard/original/def.webp`
     )
     expect(claims.items[0].state).toBe("pending")
@@ -526,45 +541,28 @@ describe("media URL normalisation with a configured origin", () => {
 
   it("keeps bundle-owned paths relative in the namecard grid too", async () => {
     const media = await loadMediaUrls(PACKAGED_ORIGIN)
-    const bundled: NamecardPage = {
-      ...namecardPage,
-      list: [
-        {
-          ...namecardPage.list[0],
-          image1_url: "/brand/namecard-placeholder.png",
-          image1_thumbnail_url: "/brand/namecard-placeholder.png",
-        },
-      ],
-    }
+    const bundled = gridCard([
+      gridPage("front", 1, "/brand/namecard-placeholder.png"),
+      gridPage("back", 2, "/uploads/namecard/original/def.webp"),
+    ])
     const page = media.normalizeNamecardPage(bundled)
 
-    expect(page.list[0].image1_url).toBe("/brand/namecard-placeholder.png")
-    expect(page.list[0].image1_thumbnail_url).toBe(
-      "/brand/namecard-placeholder.png"
-    )
-    expect(page.list[0].image2_url).toBe(
+    expect(page.list[0].pages?.[0]?.url).toBe("/brand/namecard-placeholder.png")
+    expect(page.list[0].pages?.[1]?.url).toBe(
       `${PACKAGED_ORIGIN}/uploads/namecard/original/def.webp`
     )
   })
 
-  it("passes namecard data URIs and protocol-relative thumbnails through", async () => {
+  it("passes namecard data URIs and protocol-relative URLs through", async () => {
     const media = await loadMediaUrls(PACKAGED_ORIGIN)
-    const mixed: NamecardPage = {
-      ...namecardPage,
-      list: [
-        {
-          ...namecardPage.list[0],
-          image1_url: "data:image/png;base64,AAAA",
-          image1_thumbnail_url: "//cdn.example.com/thumb.jpg",
-        },
-      ],
-    }
+    const mixed = gridCard([
+      gridPage("front", 1, "data:image/png;base64,AAAA"),
+      gridPage("back", 2, "//cdn.example.com/back.jpg"),
+    ])
     const page = media.normalizeNamecardPage(mixed)
 
-    expect(page.list[0].image1_url).toBe("data:image/png;base64,AAAA")
-    expect(page.list[0].image1_thumbnail_url).toBe(
-      "//cdn.example.com/thumb.jpg"
-    )
+    expect(page.list[0].pages?.[0]?.url).toBe("data:image/png;base64,AAAA")
+    expect(page.list[0].pages?.[1]?.url).toBe("//cdn.example.com/back.jpg")
   })
 
   it("passes protocol-relative URLs and data URIs through untouched", async () => {

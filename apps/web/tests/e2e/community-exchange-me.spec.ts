@@ -35,15 +35,16 @@ const card = {
   seriesCodes: ["765"],
   favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
-  middleImageUrls: [],
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
   exchangeMode: "manual",
   madeOn: null,
-  groupName: null,
-  isGroupCard: false,
+  groupName: null,
+
+  isGroupCard: false,
+
   producerReading: null,
   isOriginal: false,
   madeWithAi: false,
@@ -512,9 +513,7 @@ test.describe("account personal workspace", () => {
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page.getByRole("textbox", { name: "显示名称" })).toBeVisible()
     await expect(
-      page
-        .getByLabel("我的名片清单")
-        .getByText("浏览器制作人", { exact: true })
+      page.getByLabel("我的名片清单").getByText("浏览器制作人", { exact: true })
     ).toBeHidden()
     await page.screenshot({
       path: `/tmp/imsweb-profile-workspace-profile-${testInfo.project.name}.png`,
@@ -680,13 +679,9 @@ test.describe("account personal workspace", () => {
     await page.getByRole("link", { name: /^交换名片/ }).click()
     await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
     await expect(
-      page
-        .getByLabel("我的名片清单")
-        .getByText("浏览器制作人", { exact: true })
+      page.getByLabel("我的名片清单").getByText("浏览器制作人", { exact: true })
     ).toBeVisible()
-    await page
-      .getByRole("button", { name: /^浏览器制作人/ })
-      .click()
+    await page.getByRole("button", { name: /^浏览器制作人/ }).click()
     // 标题区在 dialog-header 里，副标题不在编辑器 section 内。
     await expect(
       page
@@ -712,9 +707,12 @@ test.describe("account personal workspace", () => {
     await page.getByRole("button", { name: "保存并提交" }).click()
     await expect(page.getByText("名片资料已保存。")).toBeVisible()
 
-    await page.getByLabel("名片图片顺序").getByRole("button", {
-      name: "第 2 张（背面）",
-    }).click()
+    await page
+      .getByLabel("名片图片顺序")
+      .getByRole("button", {
+        name: "第 2 张（背面）",
+      })
+      .click()
     await expect(
       page.getByLabel("名片图片").getByAltText("名片背面")
     ).toBeVisible()

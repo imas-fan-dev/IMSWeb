@@ -127,7 +127,28 @@ function card(overrides: Partial<Namecard> = {}): Namecard {
     accent: null,
     seriesCodes: ["765as"],
     credits: [],
-    middleImageUrls: [],
+    pages: [
+      {
+        pageId: "front-101",
+        role: "front",
+        order: 1,
+        url: "/cards/front-101.jpg",
+        previewUrl: "/cards/front-101.jpg",
+        thumbUrl: "/cards/front-101.jpg",
+        width: 900,
+        height: 500,
+      },
+      {
+        pageId: "back-101",
+        role: "back",
+        order: 2,
+        url: "/cards/back-101.jpg",
+        previewUrl: "/cards/back-101.jpg",
+        thumbUrl: "/cards/back-101.jpg",
+        width: 900,
+        height: 500,
+      },
+    ],
     canEdit: false,
     hasOwner: true,
     seriesCode: null,
@@ -137,10 +158,6 @@ function card(overrides: Partial<Namecard> = {}): Namecard {
     viewerClaimState: null,
     claimerName: null,
     claimerUid: null,
-    image1_url: "/cards/front-101.jpg",
-    image2_url: "/cards/back-101.jpg",
-    image1_thumbnail_url: "/cards/front-101-thumb.jpg",
-    image2_thumbnail_url: "/cards/back-101-thumb.jpg",
     status: "approved",
     created_at: "2026-08-06T06:30:00.000Z",
     ...overrides,
@@ -176,7 +193,9 @@ function renderProfile(accountId = "acct-1") {
 
 beforeEach(() => {
   sessionMocks.useOptionalPlatformSession.mockReturnValue(anonymousSession())
-  apiMocks.getNamecardReactions.mockReturnValue({ send: apiMocks.sendReactions })
+  apiMocks.getNamecardReactions.mockReturnValue({
+    send: apiMocks.sendReactions,
+  })
   apiMocks.sendReactions.mockResolvedValue({})
   apiMocks.getPublicProfile.mockReturnValue({ send: apiMocks.sendProfile })
   apiMocks.getProfileCards.mockImplementation(() => ({
@@ -257,9 +276,10 @@ describe("UserProfilePage", () => {
     expect(
       screen.getByText("主页地址可能拼错了，或者这个帐号已经注销。")
     ).toBeTruthy()
-    expect(
-      screen.getByRole("link", { name: "去名片墙看看" })
-    ).toHaveAttribute("href", "/community/cards")
+    expect(screen.getByRole("link", { name: "去名片墙看看" })).toHaveAttribute(
+      "href",
+      "/community/cards"
+    )
     expect(screen.queryByText("名片")).toBeNull()
   })
 
@@ -268,9 +288,7 @@ describe("UserProfilePage", () => {
     apiMocks.sendCards.mockResolvedValue(page())
     renderProfile()
 
-    expect(
-      await screen.findByText("这位制作人还没有公开的名片。")
-    ).toBeTruthy()
+    expect(await screen.findByText("这位制作人还没有公开的名片。")).toBeTruthy()
     expect(screen.getByText(/共 0 张/)).toBeTruthy()
     expect(screen.getByText(/公开名片 0/)).toBeTruthy()
   })
@@ -306,9 +324,9 @@ describe("UserProfilePage", () => {
       screen.getByRole("button", { name: "查看制作人名片 202 正面" })
     ).toBeTruthy()
     expect(screen.getByText(/共 2 张/)).toBeTruthy()
-    expect(
-      screen.getByAltText("制作人名片 101 正面").getAttribute("src")
-    ).toBe("/cards/front-101.jpg")
+    expect(screen.getByAltText("制作人名片 101 正面").getAttribute("src")).toBe(
+      "/cards/front-101.jpg"
+    )
 
     await waitFor(() =>
       expect(apiMocks.getProfileCards).toHaveBeenCalledTimes(2)
@@ -380,8 +398,6 @@ describe("UserProfilePage", () => {
     apiMocks.sendCards.mockRejectedValue(new Error("FUDABA_CARDS_UNAVAILABLE"))
     renderProfile()
 
-    expect(
-      await screen.findByText("这位制作人还没有公开的名片。")
-    ).toBeTruthy()
+    expect(await screen.findByText("这位制作人还没有公开的名片。")).toBeTruthy()
   })
 })

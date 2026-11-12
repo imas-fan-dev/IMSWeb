@@ -5,18 +5,39 @@ import { NamecardMediaPreview } from "~/pages/admin/cards/namecard-media-preview
 import { renderPage } from "@/tests/unit/support/harness"
 
 function setNaturalSize(element: HTMLElement, width: number, height: number) {
-  Object.defineProperty(element, "naturalWidth", { configurable: true, value: width })
-  Object.defineProperty(element, "naturalHeight", { configurable: true, value: height })
+  Object.defineProperty(element, "naturalWidth", {
+    configurable: true,
+    value: width,
+  })
+  Object.defineProperty(element, "naturalHeight", {
+    configurable: true,
+    value: height,
+  })
+}
+
+function page(role: "front" | "middle" | "back", order: number, url: string) {
+  return {
+    pageId: `page-${order}`,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
 }
 
 function renderPreview() {
   renderPage(
     <NamecardMediaPreview
-      frontImageUrl="/uploads/namecard/original/front.webp"
-      backImageUrl="/uploads/namecard/original/back.webp"
+      pages={[
+        page("front", 1, "/uploads/namecard/original/front.webp"),
+        page("back", 2, "/uploads/namecard/original/back.webp"),
+      ]}
       altBase="名片 #1"
     />,
-    { route: "/admin/cards" },
+    { route: "/admin/cards" }
   )
   const [front, back] = screen.getAllByRole("img")
   const container = front?.parentElement?.parentElement ?? null

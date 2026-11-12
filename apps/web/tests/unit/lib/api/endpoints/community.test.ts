@@ -8,21 +8,16 @@ describe("community API contracts", () => {
     expect(() =>
       namecardSchema.parse({
         id: "12",
-        image1_url: "/uploads/front.webp",
-        image2_url: "/uploads/back.webp",
-        image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
-        image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
         status: "approved",
         created_at: null,
       })
     ).toThrow()
   })
 
-  it("rejects incomplete card media", () => {
+  it("rejects an incomplete card", () => {
     expect(() =>
       namecardSchema.parse({
         id: 1,
-        image1_url: "/uploads/front.webp",
       })
     ).toThrow()
   })
@@ -51,16 +46,10 @@ describe("community API contracts", () => {
               accent: "#ff74b8",
               seriesCodes: [],
               credits: [],
-              middleImageUrls: [],
               canEdit: false,
               hasOwner: false,
               seriesCode: null,
               favoriteCharacters: [],
-              image1_url: "/uploads/front.webp",
-              image2_url: "/uploads/back.webp",
-              image1_thumbnail_url:
-                "/uploads/namecard/thumbnail/front.webp.jpg",
-              image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
               claimStatus: requestCount === 1 ? "unclaimed" : "pending",
               supplementPending: false,
               viewerClaimState: requestCount === 1 ? null : "pending",
@@ -81,5 +70,4 @@ describe("community API contracts", () => {
     expect(first.list[0]?.viewerClaimState).toBeNull()
     expect(second.list[0]?.viewerClaimState).toBe("pending")
   })
-
 })

@@ -21,6 +21,32 @@ import { installAdminAuthMock } from "./admin-auth"
 import type { ApiDispatcher, ApiResponse, ApiTimes } from "./api-dispatcher"
 import { installEmptyWikiCatalogMock } from "./homepage"
 
+/** 列表瓦片只认页面行：正/反/中间由页序推导。 */
+function namecardPages(front: string, back: string) {
+  return [
+    {
+      pageId: "page-front",
+      role: "front" as const,
+      order: 1,
+      url: front,
+      previewUrl: front,
+      thumbUrl: front,
+      width: 900,
+      height: 500,
+    },
+    {
+      pageId: "page-back",
+      role: "back" as const,
+      order: 2,
+      url: back,
+      previewUrl: back,
+      thumbUrl: back,
+      width: 900,
+      height: 500,
+    },
+  ]
+}
+
 const defaultNamecardReactions = {
   2: { "👍": 2, "🎮": 4, "🌹": 3, "🍔": 5, "🍭": 6, "🔨": 7 },
 }
@@ -108,6 +134,7 @@ export async function mockNamecardBrowsing(
         return { status: 503, json: { msg: "Unavailable" } }
       }
       const offset = (currentPage - 1) * size
+      // 列表瓦片只认页面行：正/反/中间由页序推导。
       return {
         status: 200,
         json: {
@@ -132,7 +159,10 @@ export async function mockNamecardBrowsing(
                 accent: null,
                 seriesCodes: [],
                 credits: [],
-                middleImageUrls: [],
+                pages: namecardPages(
+                  `/__namecard-qa/front-${id}.png`,
+                  `/__namecard-qa/back-${id}.png`
+                ),
                 canEdit: false,
                 hasOwner: false,
                 seriesCode: null,
@@ -142,10 +172,6 @@ export async function mockNamecardBrowsing(
                 claimerName: null,
                 claimerUid: null,
                 supplementPending: false,
-                image1_url: `/__namecard-qa/front-${id}.png`,
-                image2_url: `/__namecard-qa/back-${id}.png`,
-                image1_thumbnail_url: `/__namecard-qa/front-thumb-${id}.png`,
-                image2_thumbnail_url: `/__namecard-qa/back-thumb-${id}.png`,
                 status: "approved",
                 created_at: "2026-09-01T08:00:00.000Z",
               }

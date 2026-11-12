@@ -11,6 +11,24 @@ import type { AdminNamecardDiff, FudabaCardFields } from "~/lib/api"
 
 type DiffSide = AdminNamecardDiff["live"]
 
+function sidePage(
+  pageId: string,
+  order: number,
+  role: "front" | "middle" | "back",
+  url: string
+) {
+  return {
+    pageId,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
+}
+
 function side(overrides: Partial<DiffSide> = {}): DiffSide {
   return {
     producerName: "ZheiZhei",
@@ -29,9 +47,10 @@ function side(overrides: Partial<DiffSide> = {}): DiffSide {
       { accountId: null, displayName: "甲", url: null, roles: ["design"] },
     ],
     favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765as" }],
-    frontImageUrl: "front.webp",
-    backImageUrl: "back.webp",
-    middleImageUrls: [],
+    pages: [
+      sidePage("front", 1, "front", "front.webp"),
+      sidePage("back", 2, "back", "back.webp"),
+    ],
     ...overrides,
   }
 }
@@ -40,7 +59,9 @@ function fields(overrides: Partial<FudabaCardFields> = {}): FudabaCardFields {
   return { ...fieldsFromSide(side()), ...overrides }
 }
 
-function gate(overrides: Partial<Parameters<typeof manageChangeNeedsReason>[0]> = {}) {
+function gate(
+  overrides: Partial<Parameters<typeof manageChangeNeedsReason>[0]> = {}
+) {
   return manageChangeNeedsReason({
     draft: fields(),
     original: fields(),
@@ -64,7 +85,15 @@ describe("namecard management window", () => {
   })
 
   it("writes the reordered slots as the new page order", () => {
-    const slots = slotsFromSide(side({ middleImageUrls: ["middle-1.webp"] }))
+    const slots = slotsFromSide(
+      side({
+        pages: [
+          sidePage("front", 1, "front", "front.webp"),
+          sidePage("middle-1", 2, "middle", "middle-1.webp"),
+          sidePage("back", 3, "back", "back.webp"),
+        ],
+      })
+    )
     const reordered = [slots[2]!, slots[0]!, slots[1]!]
     expect(adminMediaOrder(reordered)).toEqual(["#2", "#0", "#1"])
   })
@@ -73,20 +102,35 @@ describe("namecard management window", () => {
     expect(gate()).toBe(false)
   })
 
-  it("asks for a reason for content, status, version and owner changes", () => {
+  it("requires a reason for content, owner and most status changes", () => {
     expect(gate({ draft: fields({ bio: "新简介" }) })).toBe(true)
     expect(gate({ status: "locked" })).toBe(true)
     expect(gate({ reviewStatus: "rejected" })).toBe(true)
     expect(gate({ ownerTouched: true })).toBe(true)
   })
 
-  it("treats a stored queue entry as unchanged until it is edited", () => {
-    expect(gate({ storedReviewStatus: "pending", reviewStatus: "pending" })).toBe(
+  it("exempts only hidden-to-locked and pending-to-approved", () => {
+    expect(gate({ publicationStatus: "hidden", status: "locked" })).toBe(false)
+    expect(
+      gate({ storedReviewStatus: "pending", reviewStatus: "approved" })
+    ).toBe(false)
+    expect(gate({ publicationStatus: "pending", status: "published" })).toBe(
       false
     )
+  })
+
+  it("asks for a reason when artwork or rotation changes", () => {
+    expect(gate({ artworkChanged: true })).toBe(true)
+    expect(gate({ rotationChanged: true })).toBe(true)
+  })
+
+  it("treats an unchanged stored queue entry as no change", () => {
     expect(
-      gate({ storedReviewStatus: "pending", reviewStatus: "none" })
-    ).toBe(true)
+      gate({ storedReviewStatus: "pending", reviewStatus: "pending" })
+    ).toBe(false)
+    expect(gate({ storedReviewStatus: "pending", reviewStatus: "none" })).toBe(
+      true
+    )
   })
 
   it("keeps the reading, group and credits the row carries", () => {

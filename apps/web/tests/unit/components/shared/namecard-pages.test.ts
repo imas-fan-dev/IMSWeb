@@ -2,14 +2,6 @@ import { describe, expect, test } from "vitest"
 
 import { namecardPages } from "~/components/shared/namecard-pages"
 
-const legacy = {
-  image1_url: "/api/cards/801/media/front",
-  middleImageUrls: [],
-  image2_url: "/api/cards/801/media/back",
-  image1_thumbnail_url: "/api/cards/801/media/front?thumb=1",
-  image2_thumbnail_url: "/api/cards/801/media/back?thumb=1",
-}
-
 function page(pageId: string, order: number) {
   return {
     pageId,
@@ -24,21 +16,29 @@ function page(pageId: string, order: number) {
 }
 
 describe("namecardPages", () => {
-  test("uses the unified pages when the set is complete", () => {
+  test("renders every page from the unified rows", () => {
     const pages = namecardPages({
-      ...legacy,
       pages: [page("page-a", 1), page("page-b", 2)],
     })
+    expect(pages.map((entry) => entry.url)).toEqual([
+      "/api/cards/801/media/page-a?w=800",
+      "/api/cards/801/media/page-b?w=800",
+    ])
     expect(pages.map((entry) => entry.thumb)).toEqual([
       "/api/cards/801/media/page-a?w=400",
       "/api/cards/801/media/page-b?w=400",
     ])
   })
 
-  test("falls back to legacy artwork when only some pages are migrated", () => {
-    const pages = namecardPages({ ...legacy, pages: [page("page-a", 1)] })
-    expect(pages).toHaveLength(2)
-    expect(pages[0]!.url).toBe(legacy.image1_url)
-    expect(pages[1]!.url).toBe(legacy.image2_url)
+  test("labels a single page as the front", () => {
+    const pages = namecardPages({ pages: [page("page-a", 1)] })
+    expect(pages).toHaveLength(1)
+    expect(pages[0]!.url).toBe("/api/cards/801/media/page-a?w=800")
+    expect(pages[0]!.thumb).toBe("/api/cards/801/media/page-a?w=400")
+    expect(pages[0]!.label).toBe("正面")
+  })
+
+  test("has no pages when the card carries none", () => {
+    expect(namecardPages({})).toEqual([])
   })
 })

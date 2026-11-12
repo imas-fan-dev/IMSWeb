@@ -21,8 +21,6 @@ vi.mock("sonner", () => ({ toast: toasts }))
 function card(overrides: Record<string, unknown> = {}) {
   return {
     id: 793,
-    image1_url: "https://cdn.test/front.webp",
-    image2_url: null,
     status: "pending",
     revision: 5,
     producerName: "ZheiZhei",
@@ -182,7 +180,9 @@ describe("AdminNamecardManagePage", () => {
     expect(within(dialog).getByText("驳回新版本")).toBeInTheDocument()
     await user.click(within(dialog).getByRole("button", { name: "信息缺失" }))
     await user.click(within(dialog).getByLabelText("标记为违规"))
-    await user.click(within(dialog).getByRole("button", { name: "确认删除" }))
+    await user.click(
+      within(dialog).getByRole("button", { name: "确认标记违规" })
+    )
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(
@@ -216,7 +216,9 @@ describe("AdminNamecardManagePage", () => {
     renderPage(<AdminNamecardManagePage />, {
       route: "/admin/cards/manage?tab=advanced",
     })
-    await user.click(await screen.findByRole("button", { name: "删除名片 #793" }))
+    await user.click(
+      await screen.findByRole("button", { name: "删除名片 #793" })
+    )
 
     const dialog = await screen.findByRole("alertdialog")
     expect(within(dialog).getByText("删除名片 #793？")).toBeInTheDocument()

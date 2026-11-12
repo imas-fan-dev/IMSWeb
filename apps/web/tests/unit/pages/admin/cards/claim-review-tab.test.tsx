@@ -27,7 +27,27 @@ vi.mock("sonner", () => ({ toast: toasts }))
 
 const submittedAt = "2026-10-01T08:00:00.000Z"
 
-function claim(overrides: Partial<FudabaAdminCardClaim> = {}): FudabaAdminCardClaim {
+function page(
+  pageId: string,
+  order: number,
+  role: "front" | "middle" | "back",
+  url: string
+) {
+  return {
+    pageId,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
+}
+
+function claim(
+  overrides: Partial<FudabaAdminCardClaim> = {}
+): FudabaAdminCardClaim {
   return {
     id: "claim-1",
     legacyCardId: 101,
@@ -46,8 +66,10 @@ function claim(overrides: Partial<FudabaAdminCardClaim> = {}): FudabaAdminCardCl
     claimant: { id: "acct-1", displayName: "春香P" },
     legacyCard: {
       id: 101,
-      frontImageUrl: "https://cdn.test/101-front.webp",
-      backImageUrl: "https://cdn.test/101-back.webp",
+      pages: [
+        page("front", 1, "front", "https://cdn.test/101-front.webp"),
+        page("back", 2, "back", "https://cdn.test/101-back.webp"),
+      ],
     },
     ...overrides,
   }
@@ -71,7 +93,9 @@ function supplement(
   }
 }
 
-function claimRow(overrides: Partial<FudabaAdminCardClaim> = {}): ReviewQueueRow {
+function claimRow(
+  overrides: Partial<FudabaAdminCardClaim> = {}
+): ReviewQueueRow {
   return { type: "claim", submittedAt, claim: claim(overrides) }
 }
 
@@ -83,9 +107,7 @@ function supplementRow(): ReviewQueueRow {
       id: "card-202",
       cardNumber: 202,
       producerName: "如月千早P",
-      frontImageUrl: "https://cdn.test/202-front.webp",
-      middleImageUrls: [],
-      backImageUrl: null,
+      pages: [page("front", 1, "front", "https://cdn.test/202-front.webp")],
       pageCount: 1,
     },
     supplement: supplement(),
@@ -172,7 +194,9 @@ describe("ClaimReviewTab", () => {
     await screen.findByText("名片 #101")
 
     await user.click(screen.getByRole("checkbox", { name: "信息补充" }))
-    await waitFor(() => expect(lastQueueQuery()).toMatchObject({ type: "claim" }))
+    await waitFor(() =>
+      expect(lastQueueQuery()).toMatchObject({ type: "claim" })
+    )
 
     await user.click(screen.getByRole("checkbox", { name: "名片认领" }))
     await waitFor(() => expect(lastQueueQuery()).toMatchObject({ type: "all" }))
@@ -302,9 +326,7 @@ describe("ClaimReviewTab", () => {
     expect(
       screen.getByText("名片墙上的认领与补充提交后会显示在这里。")
     ).toBeInTheDocument()
-    expect(
-      screen.queryByLabelText("正在加载认领队列")
-    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("正在加载认领队列")).not.toBeInTheDocument()
   })
 
   it("shows the retry state when the queue reload after a review fails", async () => {

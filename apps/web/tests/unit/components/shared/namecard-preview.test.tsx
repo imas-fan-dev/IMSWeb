@@ -7,6 +7,24 @@ import { namecardPages } from "~/components/shared/namecard-pages"
 import { NamecardPreview } from "~/components/shared/namecard-preview"
 import type { Namecard } from "~/lib/api"
 
+function page(
+  pageId: string,
+  order: number,
+  role: "front" | "middle" | "back",
+  url: string
+) {
+  return {
+    pageId,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
+}
+
 const card: Namecard = {
   id: 42,
   revision: 1,
@@ -25,7 +43,10 @@ const card: Namecard = {
   accent: null,
   seriesCodes: ["765"],
   credits: [],
-  middleImageUrls: [],
+  pages: [
+    page("front", 1, "front", "/uploads/front.webp"),
+    page("back", 2, "back", "/uploads/back.webp"),
+  ],
   canEdit: false,
   hasOwner: false,
   seriesCode: "765",
@@ -35,10 +56,6 @@ const card: Namecard = {
   claimerName: null,
   claimerUid: null,
   supplementPending: false,
-  image1_url: "/uploads/front.webp",
-  image2_url: "/uploads/back.webp",
-  image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
-  image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
   status: "approved",
   created_at: null,
 }
@@ -97,8 +114,12 @@ describe("NamecardPreview", () => {
 
   it("numbers every page so cards with middle pages stay reachable", () => {
     const pages = namecardPages({
-      ...card,
-      middleImageUrls: ["/uploads/middle-1.webp", "/uploads/middle-2.webp"],
+      pages: [
+        page("front", 1, "front", "/uploads/front.webp"),
+        page("middle-1", 2, "middle", "/uploads/middle-1.webp"),
+        page("middle-2", 3, "middle", "/uploads/middle-2.webp"),
+        page("back", 4, "back", "/uploads/back.webp"),
+      ],
     })
     render(
       <NamecardPreview
@@ -153,9 +174,7 @@ describe("NamecardPreview", () => {
     fireEvent.keyDown(dialog, { key: "ArrowRight" })
     const viewport = screen.getByLabelText("名片查看区域")
     fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 20, clientY: 20 })
-    rerender(
-      <NamecardPreview card={{ ...card, id: 43 }} {...props} />
-    )
+    rerender(<NamecardPreview card={{ ...card, id: 43 }} {...props} />)
     expect(screen.getByRole("dialog")).toBe(dialog)
     expect(dialog).toHaveAccessibleName("制作人名片 43 · 正面")
     expect(
@@ -185,7 +204,7 @@ describe("NamecardPreview", () => {
     )
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
-    ).toHaveAttribute("src", card.image2_url)
+    ).toHaveAttribute("src", "/uploads/back.webp")
     expect(screen.getByRole("button", { name: frontThumb })).toBeEnabled()
     expect(
       screen.queryByRole("button", { name: "上一张名片" })

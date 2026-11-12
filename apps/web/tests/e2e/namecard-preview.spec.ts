@@ -7,22 +7,37 @@ import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 const FRONT = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK =
   "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs="
-const FRONT_THUMBNAIL =
-  "data:image/gif;base64,R0lGODlhAQABAIABAP///wAAACwAAAAAAQABAAACAkQBADs="
-const BACK_THUMBNAIL =
-  "data:image/gif;base64,R0lGODlhAQABAIABAP8AAP///ywAAAAAAQABAAACAkQBADs="
+
+function pages(front: string, back: string) {
+  return [
+    {
+      pageId: "page-front",
+      role: "front" as const,
+      order: 1,
+      url: front,
+      previewUrl: front,
+      thumbUrl: front,
+      width: 900,
+      height: 500,
+    },
+    {
+      pageId: "page-back",
+      role: "back" as const,
+      order: 2,
+      url: back,
+      previewUrl: back,
+      thumbUrl: back,
+      width: 900,
+      height: 500,
+    },
+  ]
+}
 
 test.beforeEach(async ({ page, api }) => {
   installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, { state: "anonymous" })
   const response = makeNamecardPage([
-    makeNamecard({
-      id: 42,
-      image1_url: FRONT,
-      image2_url: BACK,
-      image1_thumbnail_url: FRONT_THUMBNAIL,
-      image2_thumbnail_url: BACK_THUMBNAIL,
-    }),
+    makeNamecard({ id: 42, pages: pages(FRONT, BACK) }),
   ])
   await api.mockRoute(
     "/api/cards",
