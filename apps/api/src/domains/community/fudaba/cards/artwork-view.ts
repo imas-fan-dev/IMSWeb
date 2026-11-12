@@ -4,7 +4,7 @@ import {
     exchangeCardPageMediaPath,
     ownerCardPageMediaPath
 } from '@imsweb/contracts/paths';
-import type { FudabaCardPageRecord } from '@/ports/repositories';
+import type { FudabaCardPageRecord, FudabaCardRecord } from '@/ports/repositories';
 
 export type CardPageScope = 'public' | 'admin' | 'owner';
 
@@ -40,6 +40,8 @@ export function cardPageMediaUrl(input: {
     cardId: string;
     queue: 'live' | 'pending';
     pageId: string;
+    /** Object version; included in the URL to bust browser caches after rotation. */
+    version?: string;
     width?: number;
     /** 公开墙的地址族：交换墙按 UUID，名片墙按编号。 */
     publicRoute?: 'exchange' | 'cards';
@@ -49,6 +51,7 @@ export function cardPageMediaUrl(input: {
     const page = encodeURIComponent(input.pageId);
     const params: string[] = [];
     if (!input.original) params.push(`w=${input.width ?? DEFAULT_WIDTH}`);
+    if (input.version) params.push(`v=${encodeURIComponent(input.version)}`);
     if (input.scope === 'owner' && input.queue === 'pending') {
         params.push('draft=1');
     }
@@ -87,11 +90,21 @@ function pages(
                   ? ('back' as const)
                   : ('middle' as const),
         order: row.display_order,
-        url: cardPageMediaUrl({ ...input, pageId: row.page_id, original: true }),
-        previewUrl: cardPageMediaUrl({ ...input, pageId: row.page_id }),
+        url: cardPageMediaUrl({
+            ...input,
+            pageId: row.page_id,
+            version: row.object_version,
+            original: true
+        }),
+        previewUrl: cardPageMediaUrl({
+            ...input,
+            pageId: row.page_id,
+            version: row.object_version
+        }),
         thumbUrl: cardPageMediaUrl({
             ...input,
             pageId: row.page_id,
+            version: row.object_version,
             width: 400
         }),
         width: row.width,
@@ -103,15 +116,25 @@ function pages(
  * 页面行 → 对外视图。URL 由作用域决定，顺序由 `display_order` 决定；
  * 队列隔离在数据层，视图只负责拼地址。
  */
+interface CardArtworkViewCommon {
+    cardNumber: number;
+    cardId: string;
+    live: readonly FudabaCardPageRecord[];
+    pending: readonly FudabaCardPageRecord[];
+}
+
+export type CardArtworkViewInput =
+    | (CardArtworkViewCommon & {
+          scope: 'public';
+          publicRoute: 'exchange' | 'cards';
+      })
+    | (CardArtworkViewCommon & {
+          scope: 'admin' | 'owner';
+          publicRoute?: undefined;
+      });
+
 export function cardArtworkView(
-    input: {
-        scope: CardPageScope;
-        cardNumber: number;
-        cardId: string;
-        publicRoute?: 'exchange' | 'cards';
-        live: readonly FudabaCardPageRecord[];
-        pending: readonly FudabaCardPageRecord[];
-    }
+    input: CardArtworkViewInput
 ): CardArtworkView {
     return {
         live: pages(input.live, {
@@ -132,4 +155,24 @@ export function cardArtworkView(
                   })
                 : null
     };
+}
+
+/**
+ * 属主写接口（新建 / 保存 / 换图）的响应要和列表、详情一样带页面视图：
+ * 前端保存后会用响应里的卡刷新画廊，缺 `pages` 会把刚提交的图清空。
+ */
+export function ownerCardArtwork(
+    card: Pick<FudabaCardRecord, 'id' | 'card_number'>,
+    rows: {
+        live: readonly FudabaCardPageRecord[];
+        pending: readonly FudabaCardPageRecord[];
+    }
+): CardArtworkView {
+    return cardArtworkView({
+        scope: 'owner',
+        cardNumber: card.card_number,
+        cardId: card.id,
+        live: rows.live,
+        pending: rows.pending
+    });
 }

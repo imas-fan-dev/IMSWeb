@@ -22,6 +22,10 @@ export interface StoreCardPageInput {
     width: number;
     height: number;
     accountId: string;
+    /** Optional ownership token so a failed claim/supplement copy can be compensated. */
+    ownerToken?: string;
+    /** Called before the put so a failed write can still be compensated. */
+    onBeforePut?: (key: string) => void;
 }
 
 export interface StoredCardPage {
@@ -49,10 +53,12 @@ export async function storeCardPage(
         input.pageId,
         version
     );
+    input.onBeforePut?.(key);
     await storage.put(key, input.body, {
         contentType: 'image/webp',
         // 所有页面先私有落盘；上线时由 publish 决定可见性。
         protectedAccess: true,
+        ...(input.ownerToken ? { ownerToken: input.ownerToken } : {}),
         metadata: {
             kind: 'fudaba-card-image',
             page: input.pageId,

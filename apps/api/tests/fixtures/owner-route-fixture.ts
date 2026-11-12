@@ -36,6 +36,8 @@ import type {
     CreateNamecardFeedbackInput,
     CreateOwnedFudabaCardInput,
     FudabaCardMutationResult,
+    FudabaCardPageRecord,
+    FudabaCardPageWrite,
     FudabaCardRecord,
     FudabaRepository,
     NamecardFeedbackRecord,
@@ -50,6 +52,7 @@ import type {
     UpdatePlatformProfileTextInput
 } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import { cardPageObjectKey, parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
 
 export const ACCOUNT_ID = 'platform-owner';
 export const OTHER_ACCOUNT_ID = 'platform-other';
@@ -68,9 +71,84 @@ export function uploadedFile(
     return { filename, contentType, body };
 }
 
-export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCardRecord {
+/**
+ * 固定对象版本：页面行的 key 由 cardId + 槽位 + 版本拼出，测试里必须可复现。
+ * `object_version` 是 uuid 列，所以版本本身就是完整的 UUID 文本。
+ */
+export const LIVE_PAGE_VERSION = '11111111-1111-4111-8111-111111111111';
+export const PENDING_PAGE_VERSION = '22222222-2222-4222-8222-222222222222';
+
+export function cardPageRow(
+    pageId: string,
+    displayOrder: number,
+    version = LIVE_PAGE_VERSION
+): FudabaCardPageRecord {
     return {
-        id: 'owner-card',
+        page_id: pageId,
+        display_order: displayOrder,
+        object_version: version,
+        width: 1000,
+        height: 700
+    };
+}
+
+/**
+ * 提交的页面写入 → 页面行。`object_queue` 说明对象落在哪个队列：待审快照里
+ * 未改动的页仍指向线上对象。
+ */
+export function pageRowsFromWrites(
+    pages: readonly FudabaCardPageWrite[],
+    queue: 'live' | 'pending' = 'live'
+): FudabaCardPageRecord[] {
+    return pages.map((page, index) => ({
+        page_id: page.pageId,
+        display_order: index + 1,
+        object_version: page.objectVersion,
+        object_queue: page.objectQueue ?? (queue === 'live' ? 'live' : 'pending'),
+        width: page.width,
+        height: page.height
+    }));
+}
+
+/** 一行页面写入：输入形状用 camelCase，与仓库接口一致。 */
+export function cardPageWrite(
+    pageId: string,
+    version = LIVE_PAGE_VERSION
+): FudabaCardPageWrite {
+    return { pageId, objectVersion: version, width: 1000, height: 700 };
+}
+
+/** 单个槽位的对象 key，规则与仓库派生的完全一致。 */
+export function pageObjectKey(
+    cardId: string,
+    pageId: string,
+    queue: 'live' | 'pending' = 'live',
+    version = LIVE_PAGE_VERSION
+): string {
+    return cardPageObjectKey(cardId, queue, pageId, version);
+}
+
+/** 已落库名片某一页的 key；页面行缺失时说明测试写错了槽位。 */
+export function storedPageKey(
+    card: FudabaCardRecord,
+    pageId: string,
+    queue: 'live' | 'pending' = 'live'
+): string {
+    const rows = queue === 'pending' ? card.pending_pages : card.pages;
+    const row = rows.find((page) => page.page_id === pageId);
+    if (!row) throw new Error(`card ${card.id} has no ${queue} page ${pageId}`);
+    return cardPageObjectKey(
+        card.id,
+        row.object_queue ?? queue,
+        row.page_id,
+        row.object_version
+    );
+}
+
+export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCardRecord {
+    const id = overrides.id ?? 'owner-card';
+    const card: FudabaCardRecord = {
+        id,
         card_number: 1,
         owner_account_id: ACCOUNT_ID,
         producer_name: 'Owner Producer',
@@ -78,8 +156,9 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         producer_reading: null,
         series_codes: ['765'],
         favorite_characters: [],
+        pages: overrides.pages ?? [cardPageRow('front', 1), cardPageRow('back', 2)],
+        pending_pages: [],
         middle_object_keys: [],
-        pending_middle_object_keys: [],
         credits: [],
         exchange_mode: 'manual',
         made_on: null,
@@ -88,8 +167,6 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         made_with_ai: false,
         visible: true,
         legacy_card_id: null,
-        front_object_key: 'protected/fudaba/cards/owner-card/front.webp',
-        back_object_key: 'protected/fudaba/cards/owner-card/back.webp',
         accent: '#4f64dd',
         bio: 'Owner bio',
         trade_note: 'Owner trade note',
@@ -98,8 +175,6 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         review_reason: null,
         review_submitted_at: null,
         pending_payload: null,
-        pending_front_object_key: null,
-        pending_back_object_key: null,
         revision: 1,
         created_at: CREATED_AT,
         updated_at: CREATED_AT,
@@ -107,6 +182,18 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         ...overrides,
         origin: overrides.origin ?? 'exchange'
     };
+    // 中间页 key 由线上页面行派生，与仓库读取出的形状保持一致。
+    card.middle_object_keys = card.pages
+        .slice(1, -1)
+        .map((page) =>
+            cardPageObjectKey(
+                card.id,
+                page.object_queue ?? 'live',
+                page.page_id,
+                page.object_version
+            )
+        );
+    return card;
 }
 
 export function cardFields(): Record<string, string> {
@@ -424,16 +511,15 @@ export class OwnerRouteFixture {
         const card = ownerCard();
         const other = ownerCard({
             id: 'other-card',
-            owner_account_id: OTHER_ACCOUNT_ID,
-            front_object_key: 'protected/fudaba/cards/other-card/front.webp',
-            back_object_key: 'protected/fudaba/cards/other-card/back.webp'
+            owner_account_id: OTHER_ACCOUNT_ID
         });
         this.cards.set(card.id, card);
         this.cards.set(other.id, other);
-        this.storage.seed(card.front_object_key);
-        if (card.back_object_key) this.storage.seed(card.back_object_key);
-        this.storage.seed(other.front_object_key);
-        if (other.back_object_key) this.storage.seed(other.back_object_key);
+        for (const stored of [card, other]) {
+            for (const page of stored.pages) {
+                this.storage.seed(storedPageKey(stored, page.page_id));
+            }
+        }
         this.app = createHonoApp(() => this.runtime());
     }
 
@@ -552,6 +638,45 @@ export class OwnerRouteFixture {
                 ? { ...card }
                 : null;
         },
+        listCardPages: async (cardId: string) => {
+            const card = this.cards.get(cardId);
+            return card
+                ? {
+                      live: [...card.pages],
+                      pending: [...card.pending_pages]
+                  }
+                : { live: [], pending: [] };
+        },
+        findCardPageKeyForOwner: async (
+            cardId: string,
+            ownerAccountId: string,
+            pageId: string,
+            draft: boolean
+        ) => {
+            const card = this.cards.get(cardId);
+            if (
+                !card ||
+                card.owner_account_id !== ownerAccountId ||
+                card.deleted_at !== null ||
+                card.publication_status === 'hidden'
+            )
+                return null;
+            const queue: 'live' | 'pending' =
+                draft && card.pending_pages.length > 0 ? 'pending' : 'live';
+            const row = (queue === 'pending' ? card.pending_pages : card.pages).find(
+                (page) => page.page_id === pageId
+            );
+            if (!row) return null;
+            return {
+                key: cardPageObjectKey(
+                    card.id,
+                    row.object_queue ?? queue,
+                    row.page_id,
+                    row.object_version
+                ),
+                queue
+            };
+        },
         createCardForOwner: async (
             input: CreateOwnedFudabaCardInput
         ): Promise<FudabaCardMutationResult> => {
@@ -564,8 +689,9 @@ export class OwnerRouteFixture {
                 producer_name: input.producerName,
                 producer_reading: input.producerReading,
                 series_codes: [...input.seriesCodes],
-                front_object_key: input.frontObjectKey,
-                back_object_key: input.backObjectKey,
+                pages: input.pages
+                    ? pageRowsFromWrites(input.pages, 'live')
+                    : undefined,
                 bio: input.bio,
                 trade_note: input.tradeNote,
                 exchange_mode: input.exchangeMode,
@@ -641,14 +767,47 @@ export class OwnerRouteFixture {
                 return { status: 'conflict', revision: current.revision };
             }
             const published = current.publication_status === 'published';
-            // Slots 2.. are the middle pages, so the same ordered submit covers
-            // every role and a page can move between them.
+            // 页面行是唯一媒体来源：未发布的编辑落在线上那一套，已发布的卡落在
+            // 待审那一套，等待审核把整套页序提升为线上。
+            const queue: 'live' | 'pending' = published ? 'pending' : 'live';
+            // 被替换的是「这一套」页面：有暂存页时是暂存那一套，否则是线上那一套。
+            const displaced = published && current.pending_pages.length > 0
+                ? { queue: 'pending' as const, rows: current.pending_pages }
+                : { queue: 'live' as const, rows: current.pages };
+            const previousObjectKeys = displaced.rows.map((page) =>
+                cardPageObjectKey(
+                    current.id,
+                    page.object_queue ?? displaced.queue,
+                    page.page_id,
+                    page.object_version
+                )
+            );
+            const written = new Map(
+                (input.pages ?? []).map((page) => [page.pageId, page])
+            );
+            // 提交的是完整页序：只有能解析成统一布局的槽位才有页面行，旧槽位缺席。
+            const rows: FudabaCardPageRecord[] = [];
+            for (const key of [
+                input.frontObjectKey,
+                ...input.middleObjectKeys,
+                ...(input.backObjectKey ? [input.backObjectKey] : [])
+            ]) {
+                const parsed = parseCardPageObjectKey(key);
+                if (!parsed) continue;
+                const page = written.get(parsed.pageId);
+                rows.push({
+                    page_id: parsed.pageId,
+                    display_order: rows.length + 1,
+                    object_version: parsed.version,
+                    object_queue: queue === 'live' ? 'live' : parsed.queue,
+                    width: page?.width ?? 1000,
+                    height: page?.height ?? 700
+                });
+            }
             const card: FudabaCardRecord = published
                 ? {
                       ...current,
-                      pending_front_object_key: input.frontObjectKey,
-                      pending_back_object_key: input.backObjectKey,
-                      pending_middle_object_keys: [...input.middleObjectKeys],
+                      pending_pages: rows,
                       review_status: 'pending' as const,
                       review_reason: null,
                       revision: current.revision + 1,
@@ -656,31 +815,26 @@ export class OwnerRouteFixture {
                   }
                 : {
                       ...current,
-                      front_object_key: input.frontObjectKey,
-                      back_object_key: input.backObjectKey,
-                      middle_object_keys: [...input.middleObjectKeys],
+                      pages: rows,
                       accent: input.accent ?? current.accent,
                       revision: current.revision + 1,
                       updated_at: input.updatedAt
                   };
+            card.middle_object_keys = card.pages
+                .slice(1, -1)
+                .map((page) =>
+                    cardPageObjectKey(
+                        card.id,
+                        page.object_queue ?? 'live',
+                        page.page_id,
+                        page.object_version
+                    )
+                );
             this.cards.set(card.id, card);
             if (this.updateMediaMode === 'mutate-then-throw') {
                 this.cardMutationCommitted = true;
                 throw new Error('media connection lost after commit');
             }
-            const previousObjectKeys = published
-                ? [
-                      current.pending_front_object_key ?? current.front_object_key,
-                      current.pending_back_object_key ?? current.back_object_key,
-                      ...(current.pending_middle_object_keys.length > 0
-                          ? current.pending_middle_object_keys
-                          : current.middle_object_keys)
-                  ].filter((key): key is string => key !== null)
-                : [
-                      current.front_object_key,
-                      current.back_object_key,
-                      ...current.middle_object_keys
-                  ].filter((key): key is string => key !== null);
             return {
                 status: 'saved',
                 card: { ...card },

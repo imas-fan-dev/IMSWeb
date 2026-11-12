@@ -25,8 +25,7 @@ async function quickSettings(
             );
             return {
                 cardNumber: card.card_number ?? card.id,
-                image1_url: resolved.image1_url,
-                image1_thumbnail_url: resolved.image1_thumbnail_url,
+                pages: resolved.pages ?? [],
                 exchangeMode:
                     card.exchange_mode === 'auto' ||
                     card.exchange_mode === 'manual'

@@ -16,7 +16,6 @@ import type {
     // pi-lens-ignore: ts:2305
     SupplementMutationResponse
 } from '@imsweb/contracts/fudaba/card-claims';
-import { adminNamecardMediaPath } from '@imsweb/contracts/paths';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import {
@@ -40,13 +39,10 @@ import type {
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { objectReadResponse } from '@/utils/http/object-read-response';
-import {
-    fudabaCardMediaVersionObjectKey,
-    namecardClaimMediaObjectKey,
-    namecardMediaObjectKeys
-} from '@/utils/storage/business-object-keys';
+import { fudabaCardMediaVersionObjectKey } from '@/utils/storage/business-object-keys';
 import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
 import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { cardPageObjectKeys } from '@/domains/community/fudaba/cards/card-media-resolver';
 import { parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
 import { randomUUID } from 'node:crypto';
 import {
@@ -85,6 +81,7 @@ async function rotateReviewedArtwork(
     if (!object) throw new Error('Artwork image is unavailable');
     const rotated = await runtime.images.rotate(object.body, turn * 90);
     const info = await runtime.images.validate(rotated, 'image/webp');
+    const ownerToken = randomHex(32);
     const stored = await storeCardPage(runtime, {
         cardId: input.cardId,
         queue: 'live',
@@ -94,9 +91,10 @@ async function rotateReviewedArtwork(
         body: rotated,
         width: info.width,
         height: info.height,
-        accountId: input.accountId
+        accountId: input.accountId,
+        ownerToken,
+        onBeforePut: (key) => created.push({ key, ownerToken })
     });
-    created.push({ key: stored.key, ownerToken: randomHex(32) });
     pages.push({
         pageId: stored.pageId,
         objectVersion: stored.version,
@@ -104,15 +102,6 @@ async function rotateReviewedArtwork(
         height: stored.height
     });
     return stored.key;
-}
-
-/** 旧卡片的媒体统一走后台路由；key 只用于判断该面是否存在。 */
-function legacyMediaUrl(
-    key: string | null,
-    legacyCardId: number,
-    side: 'front' | 'back'
-): string | null {
-    return key ? adminNamecardMediaPath(legacyCardId, 'live', side) : null;
 }
 
 /** The queue merges three lists in memory, so each one is read in full. */
@@ -160,9 +149,26 @@ export async function handleListFudabaRegisteredCardReviews(
     c: Context<AppEnvironment>
 ): Promise<Response> {
     try {
-        const cards = await fudabaRepository(c).listAdminPendingCards(100);
+        const repository = fudabaRepository(c);
+        const cards = await repository.listAdminPendingCards(100);
+        const pagesByNumber =
+            (await repository.listCardPagesBatchByNumbers?.(
+                cards.map((card) => Number(card.card_number))
+            )) ?? new Map();
         return c.json({
-            items: cards.map(fudabaRegisteredCardReviewView)
+            items: cards.map((card) => {
+                const rows = pagesByNumber.get(Number(card.card_number));
+                return fudabaRegisteredCardReviewView(
+                    card,
+                    cardArtworkView({
+                        scope: 'admin',
+                        cardNumber: Number(card.card_number),
+                        cardId: card.id,
+                        live: rows?.live ?? [],
+                        pending: []
+                    }).live
+                );
+            })
         } satisfies FudabaRegisteredCardReviewListResponse);
     } catch (error) {
         console.error('Failed to list registered card reviews', error);
@@ -201,33 +207,17 @@ export async function handleReviewFudabaRegisteredCard(
         approvingRevision = claimed.card.revision;
         /*
           公开墙按「公开对象」取图，所以这里必须发布批准之后真正上线的那一套：
-          有暂存图片时是待审那套（正反面缺省回落到线上，与 publishStagedRevision
-          一致），否则就是线上那套。只发布线上会漏掉新版本，墙整页取图失败。
+          有暂存页面行时是完整的待审快照（未改动的页仍指向线上对象），否则就是
+          线上那套。只发布线上会漏掉新版本，墙整页取图失败。
         */
-        const stagedArtwork =
-            claimed.card.pending_front_object_key !== null ||
-            claimed.card.pending_back_object_key !== null ||
-            claimed.card.pending_middle_object_keys.length > 0;
-        const nextMiddleKeys = stagedArtwork
-            ? claimed.card.pending_middle_object_keys.length > 0
-                ? claimed.card.pending_middle_object_keys
-                : claimed.card.middle_object_keys
-            : claimed.card.middle_object_keys;
-        reviewMediaKeys = (
-            stagedArtwork
-                ? [
-                      claimed.card.pending_front_object_key ??
-                          claimed.card.front_object_key,
-                      ...nextMiddleKeys,
-                      claimed.card.pending_back_object_key ??
-                          claimed.card.back_object_key
-                  ]
-                : [
-                      claimed.card.front_object_key,
-                      ...nextMiddleKeys,
-                      claimed.card.back_object_key
-                  ]
-        ).filter((key): key is string => typeof key === 'string' && key.length > 0);
+        reviewMediaKeys =
+            claimed.card.pending_pages.length > 0
+                ? cardPageObjectKeys(
+                      claimed.card.id,
+                      'pending',
+                      claimed.card.pending_pages
+                  )
+                : cardPageObjectKeys(claimed.card.id, 'live', claimed.card.pages);
         if (review.decision === 'approve') {
             const storage = services(c).storage;
             if (!storage?.publish || !storage.protect) {
@@ -326,32 +316,6 @@ export async function handleReviewFudabaRegisteredCard(
     }
 }
 
-export async function handleServeFudabaRegisteredCardReviewMedia(
-    c: Context<AppEnvironment>
-): Promise<Response> {
-    const cardId = c.req.param('cardId') || '';
-    const side = c.req.param('side') || '';
-    if (!validFudabaCardId(cardId) || !['front', 'back'].includes(side)) {
-        return c.text('Not Found', 404);
-    }
-    const card = await fudabaRepository(c).findRegisteredCardForAdmin(cardId);
-    if (!card) return c.text('Not Found', 404);
-    const storage = services(c).storage;
-    if (!storage) throw new Error('Object storage unavailable');
-    // Reviewers have to see the submitted artwork, so a staged revision wins
-    // over the published copy; an untouched side keeps serving the live file.
-    const key =
-        side === 'front'
-            ? (card.pending_front_object_key ?? card.front_object_key)
-            : (card.pending_back_object_key ?? card.back_object_key);
-    if (!key) return c.text('Not Found', 404);
-    const response = await objectReadResponse(c.req.raw, storage, key, {
-        'Cache-Control': 'private, no-store',
-        'Vary': 'Authorization, Cookie'
-    });
-    return response ?? c.text('Not Found', 404);
-}
-
 export async function handleListFudabaCardSupplements(
     c: Context<AppEnvironment>
 ): Promise<Response> {
@@ -437,6 +401,12 @@ export async function handleReviewFudabaCardSupplement(
                 const created: CreatedObject[] = [];
                 const pages: FudabaCardPageWrite[] = [];
                 rotatedArtwork = created;
+                // 线上页面行是正反面的唯一来源：首页正面，末页背面。
+                const liveKeys = cardPageObjectKeys(
+                    pending.live.id,
+                    'live',
+                    pending.live.pages
+                );
                 try {
                     media = {
                         frontObjectKey: await rotateReviewedArtwork(
@@ -444,27 +414,28 @@ export async function handleReviewFudabaCardSupplement(
                             {
                                 cardId: pending.live.id,
                                 side: 'front',
-                                key: pending.live.front_object_key,
+                                key: liveKeys[0]!,
                                 turns: turnFront,
                                 accountId: pending.supplement.submitter_account_id
                             },
                             created,
                             pages
                         ),
-                        backObjectKey: pending.live.back_object_key
-                            ? await rotateReviewedArtwork(
-                                  runtime,
-                                  {
-                                      cardId: pending.live.id,
-                                      side: 'back',
-                                      key: pending.live.back_object_key,
-                                      turns: turnBack,
-                                      accountId: pending.supplement.submitter_account_id
-                                  },
-                                  created,
-                                  pages
-                              )
-                            : null,
+                        backObjectKey:
+                            liveKeys.length > 1
+                                ? await rotateReviewedArtwork(
+                                      runtime,
+                                      {
+                                          cardId: pending.live.id,
+                                          side: 'back',
+                                          key: liveKeys[liveKeys.length - 1]!,
+                                          turns: turnBack,
+                                          accountId: pending.supplement.submitter_account_id
+                                      },
+                                      created,
+                                      pages
+                                  )
+                                : null,
                         accent: null,
                         pages
                     };
@@ -566,21 +537,9 @@ export async function handleListFudabaReviewQueue(
                     submittedAt: claim.created_at,
                     claim: {
                         ...view,
-                        // The claim still stores the legacy object keys; the
-                        // admin console needs deliverable URLs.
+                        // 老卡预览统一走页面行（后台作用域），正/反由页序推导。
                         legacyCard: {
                             id: view.legacyCard.id,
-                            frontImageUrl: adminNamecardMediaPath(
-                                view.legacyCard.id,
-                                'live',
-                                'front'
-                            ),
-                            // 背面缺 key 就是单面名片，不能给一个必 404 的兜底路径。
-                            backImageUrl: legacyMediaUrl(
-                                view.legacyCard.backImageUrl,
-                                view.legacyCard.id,
-                                'back'
-                            ),
                             ...(await adminPages(view.legacyCard.id).then((pages) =>
                                 pages.length > 0 ? { pages } : {}
                             ))
@@ -598,28 +557,6 @@ export async function handleListFudabaReviewQueue(
                         id: supplement.card_id,
                         cardNumber: supplement.card_number,
                         producerName: supplement.card_producer_name,
-                        // The media route addresses cards by number, not by id.
-                        frontImageUrl: adminNamecardMediaPath(
-                            supplement.card_number,
-                            'live',
-                            'front'
-                        ),
-                        middleImageUrls: Array.from(
-                            { length: supplement.card_middle_count },
-                            (_, index) =>
-                                adminNamecardMediaPath(
-                                    supplement.card_number,
-                                    'live',
-                                    `middle-${index + 1}`
-                                )
-                        ),
-                        backImageUrl: supplement.card_has_back
-                            ? adminNamecardMediaPath(
-                                  supplement.card_number,
-                                  'live',
-                                  'back'
-                              )
-                            : null,
                         pageCount: supplement.card_page_count,
                         ...(await adminPages(supplement.card_number).then((pages) =>
                             pages.length > 0 ? { pages } : {}
@@ -679,53 +616,63 @@ export async function handleListFudabaCardClaimReviews(
     }
 }
 
-/**
- * Legacy rows either keep the object key the importer wrote or the older
- * `/uploads/namecard/original/...` public path; both have to resolve to a key
- * before the artwork can be copied.
- */
-function legacyMediaObjectKey(value: string | null): string | null {
-    const trimmed = value?.trim();
-    if (!trimmed) return null;
-    if (!trimmed.startsWith('/') && !trimmed.startsWith('http')) return trimmed;
-    return namecardMediaObjectKeys(trimmed)[0];
-}
-
-/** Copies the ownerless row's artwork next to the claimant's card. */
+/** Copies the ownerless row's artwork into unified live page objects. */
 async function copyLegacyMedia(
-    storage: ObjectStorage,
+    runtime: ReturnType<typeof services>,
     claim: FudabaAdminCardClaimRecord,
     cardId: string,
-    created: CreatedObject[]
+    turns: { front: number; back: number },
+    created: CreatedObject[],
+    pages: FudabaCardPageWrite[],
 ): Promise<{ frontObjectKey: string; backObjectKey: string | null }> {
+    const storage = runtime.storage;
+    const images = runtime.images;
+    if (!storage) throw new Error('Object storage is unavailable');
+    if (!images?.validate) throw new Error('Image validation is unavailable');
+    // The claim row lists the guest card's live page keys, so the sources are
+    // already object keys.
     const sources = [
-        legacyMediaObjectKey(claim.legacy_image1_url),
-        legacyMediaObjectKey(claim.legacy_image2_url)
+        claim.legacy_front_key.trim() || null,
+        claim.legacy_back_key?.trim() || null,
     ];
     if (!sources[0]) throw new Error('Legacy namecard media is unavailable');
-    const keys: string[] = [];
+    let frontObjectKey: string | null = null;
+    let backObjectKey: string | null = null;
     for (const [index, sourceKey] of sources.entries()) {
         if (!sourceKey) continue;
         const side = index === 0 ? 'front' : 'back';
         const source = await storage.get(sourceKey);
         if (!source) throw new Error('Legacy namecard media is unavailable');
+        let body = source.body;
+        const turn = (((turns[side] % 4) + 4) % 4);
+        if (turn > 0) {
+            if (!images.rotate) throw new Error('Image rotation is unavailable');
+            body = await images.rotate(body, turn * 90);
+        }
+        const info = await images.validate(body, 'image/webp');
         const ownerToken = randomHex(32);
-        const key = namecardClaimMediaObjectKey(sourceKey, cardId, side);
-        created.push({ key, ownerToken });
-        await storage.put(key, source.body, {
-            contentType: source.contentType,
-            protectedAccess: true,
+        const stored = await storeCardPage(runtime, {
+            cardId,
+            queue: 'live',
+            pageId: side,
+            body,
+            width: info.width,
+            height: info.height,
+            accountId: claim.claimant_account_id,
             ownerToken,
-            metadata: {
-                kind: 'fudaba-card-image',
-                side,
-                account: claim.claimant_account_id,
-                legacyCardId: String(claim.legacy_card_id)
-            }
+            onBeforePut: (key) => created.push({ key, ownerToken }),
         });
-        keys.push(key);
+        pages.push({
+            pageId: stored.pageId,
+            objectVersion: stored.version,
+            width: stored.width,
+            height: stored.height,
+        });
+        if (side === 'front') frontObjectKey = stored.key;
+        else backObjectKey = stored.key;
     }
-    return { frontObjectKey: keys[0]!, backObjectKey: keys[1] ?? null };
+    if (!frontObjectKey) throw new Error('Legacy namecard media is unavailable');
+    return { frontObjectKey, backObjectKey };
 }
 
 export async function handleReviewFudabaCardClaim(
@@ -803,33 +750,40 @@ export async function handleReviewFudabaCardClaim(
                 const target = await repository.findCardById(context.target_card_id);
                 if (!target) throw new Error('认领目标不可用');
                 const runtime = services(c);
+                // 线上页面行是正反面的唯一来源：首页正面，末页背面。
+                const liveKeys = cardPageObjectKeys(
+                    target.id,
+                    'live',
+                    target.pages
+                );
                 media = {
                     frontObjectKey: await rotateReviewedArtwork(
                         runtime,
                         {
                             cardId: target.id,
                             side: 'front',
-                            key: target.front_object_key,
+                            key: liveKeys[0]!,
                             turns: turnFront,
                             accountId: context.claimant_account_id
                         },
                         created,
                         pages
                     ),
-                    backObjectKey: target.back_object_key
-                        ? await rotateReviewedArtwork(
-                              runtime,
-                              {
-                                  cardId: target.id,
-                                  side: 'back',
-                                  key: target.back_object_key,
-                                  turns: turnBack,
-                                  accountId: context.claimant_account_id
-                              },
-                              created,
-                              pages
-                          )
-                        : null,
+                    backObjectKey:
+                        liveKeys.length > 1
+                            ? await rotateReviewedArtwork(
+                                  runtime,
+                                  {
+                                      cardId: target.id,
+                                      side: 'back',
+                                      key: liveKeys[liveKeys.length - 1]!,
+                                      turns: turnBack,
+                                      accountId: context.claimant_account_id
+                                  },
+                                  created,
+                                  pages
+                              )
+                            : null,
                     accent: null,
                     pages
                 };
@@ -853,35 +807,18 @@ export async function handleReviewFudabaCardClaim(
             // to owner-owned objects because the owner media route serves
             // protected keys.
             const boundCardId = `legacy-${context.legacy_card_id}`;
-            const copied = await copyLegacyMedia(storage, context, boundCardId, created);
+            const copied = await copyLegacyMedia(
+                services(c),
+                context,
+                boundCardId,
+                { front: turnFront, back: turnBack },
+                created,
+                pages,
+            );
             const media = {
-                frontObjectKey: await rotateReviewedArtwork(
-                    services(c),
-                    {
-                        cardId: boundCardId,
-                        side: 'front',
-                        key: copied.frontObjectKey,
-                        turns: turnFront,
-                        accountId: context.claimant_account_id
-                    },
-                    created,
-                    pages
-                ),
-                backObjectKey: copied.backObjectKey
-                    ? await rotateReviewedArtwork(
-                          services(c),
-                          {
-                              cardId: boundCardId,
-                              side: 'back',
-                              key: copied.backObjectKey,
-                              turns: turnBack,
-                              accountId: context.claimant_account_id
-                          },
-                          created,
-                          pages
-                      )
-                    : null,
-                pages
+                frontObjectKey: copied.frontObjectKey,
+                backObjectKey: copied.backObjectKey,
+                pages,
             };
             await Promise.all(created.map(({ key }) => storage.publish!(key)));
             completionAttempted = true;

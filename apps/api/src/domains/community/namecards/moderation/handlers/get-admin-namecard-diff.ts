@@ -4,8 +4,8 @@ import {
     type AdminNamecardDiffResponse,
     type NamecardErrorResponse
 } from '@/domains/community/namecards/response';
-import { namecardRepository, services } from '@/middleware/hono-context';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardRepository } from '@/middleware/hono-context';
+import { withAdminNamecardPages } from '@/domains/community/namecards/moderation/admin-namecard-diff-pages';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 export async function handleGetAdminNamecardDiff(
@@ -21,37 +21,12 @@ export async function handleGetAdminNamecardDiff(
             );
         }
         const response = toAdminNamecardDiffResponse(diff);
-        const pagesByNumber =
-            (await services(c).fudaba?.listCardPagesBatchByNumbers?.([id])) ??
-            new Map();
-        const rows = pagesByNumber.get(id);
-        const live = cardArtworkView({
-            scope: 'admin',
-            cardNumber: id,
-            cardId: String(id),
-            live: rows?.live ?? [],
-            pending: []
-        }).live;
-        const pendingRows = rows?.pending ?? [];
-        const pending =
-            pendingRows.length > 0
-                ? cardArtworkView({
-                      scope: 'admin',
-                      cardNumber: id,
-                      cardId: String(id),
-                      live: [],
-                      pending: pendingRows
-                  }).pending ?? []
-                : null;
         return c.json(
-            {
-                ...response,
-                live: { ...response.live, ...(live.length > 0 ? { pages: live } : {}) },
-                pending:
-                    response.pending && pending
-                        ? { ...response.pending, pages: pending }
-                        : response.pending
-            } satisfies AdminNamecardDiffResponse
+            (await withAdminNamecardPages(
+                c,
+                id,
+                response
+            )) satisfies AdminNamecardDiffResponse
         );
     } catch (error) {
         console.error('[admin-namecard-diff]', error);

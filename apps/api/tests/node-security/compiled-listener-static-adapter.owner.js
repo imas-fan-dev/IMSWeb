@@ -62,10 +62,10 @@ function rawDotSegments(fixture) {
 
 function mediaRangeMatrix(fixture) {
     return async () => {
-        const { APPROVED_FRONT_URL, baseUrl, validPng } = fixture;
+        const { baseUrl, EVENT_POSTER_URL, validPng } = fixture;
         await assertMediaRangeContract({
             runtime: 'Node',
-            path: APPROVED_FRONT_URL,
+            path: EVENT_POSTER_URL,
             body: new Uint8Array(validPng),
             contentType: 'image/png',
             etag: `"${nodeCrypto.createHash('sha256').update(validPng).digest('hex')}"`,

@@ -28,6 +28,7 @@ export async function handleListFudabaPublicCards(
         const rows = pagesByCard.get(card.id);
         const pages = cardArtworkView({
             scope: 'public',
+            publicRoute: 'exchange',
             cardNumber: 0,
             cardId: card.id,
             live: rows?.live ?? [],

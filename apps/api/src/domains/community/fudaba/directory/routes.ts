@@ -1,6 +1,8 @@
 import {
     fudabaCardIdParamsSchema,
+    fudabaCardMediaParamsSchema,
     fudabaCardQuerySchema,
+    fudabaMediaQuerySchema,
     fudabaEmptyQuerySchema,
     fudabaMapQuerySchema,
     fudabaOfficeQuerySchema,
@@ -22,6 +24,7 @@ import { handleGetFudabaPublicOffice } from '@/domains/community/fudaba/director
 import { handleListFudabaFavoriteCards } from '@/domains/community/fudaba/directory/handlers/list-favorite-cards';
 import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory/handlers/list-map-offices';
 import { handleListFudabaPublicCards } from '@/domains/community/fudaba/directory/handlers/list-public-cards';
+import { handleServeExchangeCardMedia } from '@/domains/community/fudaba/directory/handlers/serve-public-card-media';
 import { handleListFudabaPublicOffices } from '@/domains/community/fudaba/directory/handlers/list-public-offices';
 import { handleListFudabaOwnerSeries, handleListFudabaPublicSeries } from '@/domains/community/fudaba/directory/handlers/list-public-series';
 import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
@@ -60,6 +63,13 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         querySchemaValidator(fudabaCardQuerySchema),
         handleListFudabaPublicCards
+    );
+    routes.get(
+        '/cards/:cardId/media/:side',
+        requireFudabaPublicRead,
+        paramSchemaValidator(fudabaCardMediaParamsSchema),
+        querySchemaValidator(fudabaMediaQuerySchema),
+        handleServeExchangeCardMedia
     );
     routes.get(
         '/cards/:cardId/reactions',

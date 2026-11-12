@@ -12,6 +12,7 @@ import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy'
 import type { NewFudabaCardInput } from '@/ports/repositories/fudaba';
 import { queryAll } from '@/infra/db/sql/query';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+import { cardPageWrite } from '../fixtures/owner-route-fixture';
 import { createPostgresTestDatabase, postgresTest } from '../postgres-test-database';
 
 const AT = '2026-11-06T00:00:00.000Z';
@@ -37,10 +38,9 @@ function card(
         producerName: `Producer ${ownerAccountId}`,
         seriesCodes: ['765'],
         favoriteCharacterIds: [900_001],
-        // 名片墙只认 `origin IN ('guest','legacy')` 或 `community/namecards/assets/`
-        // 前缀的键（NAMECARD_PUBLIC_ORIGIN），夹具照这个布局放图。
-        frontObjectKey: `community/namecards/assets/${id}/image.webp`,
-        backObjectKey: null,
+        // 名片墙只认 `origin IN ('guest','legacy')` 或线上页面行
+        // （NAMECARD_PUBLIC_ORIGIN），夹具照这个布局放一张单面卡。
+        pages: [cardPageWrite('front')],
         bio: '',
         tradeNote: '',
         exchangeMode,

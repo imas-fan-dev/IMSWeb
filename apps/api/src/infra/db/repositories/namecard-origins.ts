@@ -15,7 +15,8 @@ export const NAMECARD_COMPAT_ORIGIN = "origin IN ('guest', 'legacy')";
 
 export const NAMECARD_PUBLIC_ORIGIN =
     "(origin IN ('guest', 'legacy')" +
-    " OR front_object_key LIKE 'community/namecards/assets/%'" +
-    // 属主改图后线上图是 fudaba 版本对象（审核时才复制进 canonical 布局），
-    // 这两种布局都必须算进墙，否则改过图的名片会整张从墙上消失。
-    " OR front_object_key LIKE 'community/fudaba/cards/%')";
+    // 统一布局的卡片以线上页面行为准；没有线上页面的旧布局不再参与可见性判断。
+    " OR EXISTS (" +
+    "SELECT 1 FROM public.fudaba_card_pages public_page" +
+    " WHERE public_page.card_id = id AND public_page.queue = 'live'" +
+    "))";

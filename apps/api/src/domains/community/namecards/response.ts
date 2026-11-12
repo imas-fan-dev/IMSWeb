@@ -3,7 +3,6 @@ import type { FudabaCardClaimState } from '@/ports/repositories';
 import type { NamecardDiffRecord, NamecardDiffSide } from '@/ports/repositories/namecards';
 import type { CardFavoriteSelectionRecord } from '@/ports/repositories';
 import type { NamecardCredit } from '@imsweb/contracts/fudaba';
-import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
 import { namecardPageCount } from '@/domains/community/namecards/page-count';
 import type {
     AdminNamecard,
@@ -22,7 +21,6 @@ import type {
     NamecardListErrorResponse,
     NamecardMutationResponse,
     NamecardPage,
-    NamecardDetailResponse,
     PublicProfile as PublicProfileContract,
     RandomOwnerlessCard as RandomOwnerlessCardContract,
     RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
@@ -50,7 +48,7 @@ export const NAMECARD_MEDIA_NOT_FOUND = 'Not Found';
 /** 平台图标读取路由与媒体路由一样，只有「有图」和「没有图」两种结果。 */
 export const PLATFORM_ICON_NOT_FOUND = '图标不可用';
 
-export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
+export type { NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
 export type NamecardPageResponse = NamecardPage;
 export type AdminNamecardListResponse = AdminNamecardListContractResponse;
 export type AdminNamecardFeedbackResponse = AdminNamecardFeedback;
@@ -84,8 +82,6 @@ export type NamecardCollectionVisibilityResponse =
 
 interface NamecardRow {
     id?: unknown;
-    image1_url?: unknown;
-    image2_url?: unknown;
     status?: unknown;
     created_at?: unknown;
     revision?: unknown;
@@ -116,7 +112,6 @@ interface NamecardRow {
     accent?: unknown;
     series_codes?: unknown;
     credits?: unknown;
-    middle_image_urls?: unknown;
     owner_account_id?: unknown;
 }
 
@@ -210,26 +205,11 @@ function responseClaimerName(value: unknown): string | null {
     return name ? name : null;
 }
 
-/**
- * Thumbnails only exist for the canonical asset layout. Editor uploads are
- * served by the card media route, which has no thumbnail variant, so the
- * original page stands in rather than failing the whole response.
- */
-function namecardThumbnailUrl(imageUrl: string): string {
-    try {
-        return namecardThumbnailPublicUrl(imageUrl);
-    } catch {
-        return imageUrl;
-    }
-}
-
 export function toPublicNamecardResponse(
     row: NamecardRow,
     viewerAccountId: string | null = null,
     pages?: readonly CardPageView[]
 ): PublicNamecardResponse {
-    const image1Url = responseString(row.image1_url, 'image1_url');
-    const image2Url = responseOptionalString(row.image2_url);
     const response = {
         id: responseId(row.id),
         cardId:
@@ -250,7 +230,6 @@ export function toPublicNamecardResponse(
         accent: responseOptionalString(row.accent),
         seriesCodes: responseStringList(row.series_codes),
         credits: responseCredits(row.credits),
-        middleImageUrls: responseStringList(row.middle_image_urls),
         canEdit:
             typeof row.owner_account_id === 'string' &&
             row.owner_account_id === viewerAccountId,
@@ -261,11 +240,7 @@ export function toPublicNamecardResponse(
         claimStatus: responseClaimStatus(row.claim_status),
         supplementPending: row.supplement_pending === true,
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
-        image1_url: image1Url,
-        image2_url: image2Url,
         ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
-        image1_thumbnail_url: namecardThumbnailUrl(image1Url),
-        image2_thumbnail_url: image2Url === null ? null : namecardThumbnailUrl(image2Url),
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };
@@ -306,9 +281,6 @@ function diffSide(side: NamecardDiffSide): NamecardDiffSideResponse {
                 display_order: character.display_order
             }))
         ),
-        frontImageUrl: side.frontImageUrl,
-        backImageUrl: side.backImageUrl,
-        middleImageUrls: side.middleImageUrls
     };
 }
 
@@ -337,8 +309,6 @@ export function toAdminNamecardResponse(
     return {
         ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
         id: responseId(row.id),
-        image1_url: responseString(row.image1_url, 'image1_url'),
-        image2_url: responseOptionalString(row.image2_url),
         status: responseString(row.status, 'status'),
         revision: responseRevision(row.revision),
         producerReading: responseOptionalString(row.producer_reading),
@@ -347,10 +317,7 @@ export function toAdminNamecardResponse(
         lockReason: responseOptionalString(row.lockReason),
         reviewStatus: responseReviewStatus(row.reviewStatus),
         reviewReason: responseOptionalString(row.reviewReason),
-        pageCount: namecardPageCount({
-            hasBack: Boolean(row.image2_url),
-            middleCount: responseStringList(row.middle_image_urls).length
-        })
+        pageCount: Math.max(pages?.length ?? 0, 1)
     };
 }
 

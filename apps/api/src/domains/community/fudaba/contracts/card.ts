@@ -36,6 +36,8 @@ export function fudabaOwnerCardView(
     pages?: readonly CardPageView[],
     pendingPages?: readonly CardPageView[]
 ): FudabaOwnerCard {
+    // 页序就是版面：首页是正面，末页是背面，中间是其余页；单面卡只有正面。
+    const livePageCount = pages?.length || card.pages.length;
     return {
         ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
         ...(pendingPages && pendingPages.length > 0
@@ -47,10 +49,7 @@ export function fudabaOwnerCardView(
         seriesCodes: card.series_codes,
         favoriteCharacters: card.favorite_characters.map(characterView),
         frontImageUrl: cardMediaUrl(card, 'front'),
-        middleImageUrls: card.middle_object_keys.map((_key, index) =>
-            cardMediaUrl(card, `middle-${index + 1}`)
-        ),
-        backImageUrl: card.back_object_key === null ? null : cardMediaUrl(card, 'back'),
+        backImageUrl: livePageCount > 1 ? cardMediaUrl(card, 'back') : null,
         accent: card.accent,
         bio: card.bio,
         tradeNote: card.trade_note,
@@ -67,7 +66,7 @@ export function fudabaOwnerCardView(
         reviewStatus: card.review_status,
         reviewReason: card.review_reason,
         reviewSubmittedAt: card.review_submitted_at,
-        pendingContent: pendingContentView(card),
+        pendingContent: pendingContentView(card, pendingPages),
         revision: card.revision,
         createdAt: card.created_at,
         updatedAt: card.updated_at
@@ -79,23 +78,23 @@ export function fudabaOwnerCardView(
  * route with `draft=1` so it cannot be confused with the live images.
  */
 function pendingContentView(
-    card: FudabaCardRecord
+    card: FudabaCardRecord,
+    pendingPages?: readonly CardPageView[]
 ): FudabaPendingCardContent | null {
     const payload = card.pending_payload;
     if (!payload || card.review_status === null) return null;
+    /*
+      待审版本自带完整的页面快照；只改文案的修订没有页面行，图与线上一致。
+    */
+    const submittedPageCount =
+        pendingPages?.length || card.pending_pages.length || card.pages.length;
     const mediaUrl = (side: string) => cardMediaUrl(card, side, '&draft=1');
     return {
         producerName: payload.producer_name,
         seriesCodes: payload.series_codes,
         favoriteCharacterIds: payload.favorite_character_ids,
         frontImageUrl: mediaUrl('front'),
-        middleImageUrls: card.pending_middle_object_keys.map((_key, index) =>
-            mediaUrl(`middle-${index + 1}`)
-        ),
-        backImageUrl:
-            (card.pending_back_object_key ?? card.back_object_key) === null
-                ? null
-                : mediaUrl('back'),
+        backImageUrl: submittedPageCount > 1 ? mediaUrl('back') : null,
         bio: payload.bio,
         tradeNote: payload.trade_note,
         exchangeMode: payload.exchange_mode,

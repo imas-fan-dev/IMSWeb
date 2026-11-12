@@ -194,27 +194,36 @@ async function createFixture(): Promise<NodeFixture> {
     );
     await executeSql(connection,
         `INSERT INTO fudaba_cards
-            (id, card_number, origin, front_object_key, back_object_key,
+            (id, card_number, origin,
              trade_note, exchange_mode, publication_status,
              revision, created_at, updated_at)
          VALUES (?, ?, 'legacy',
-                 'community/namecards/assets/contract-seed-front/image.webp',
-                 'community/namecards/assets/contract-seed-back/image.webp',
                  NULL, 'none', 'published', 0,
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [`legacy-${APPROVED_CARD_ID}`, APPROVED_CARD_ID]
     );
     await executeSql(connection,
         `INSERT INTO fudaba_cards
-            (id, card_number, origin, front_object_key, back_object_key,
+            (id, card_number, origin,
              trade_note, exchange_mode, publication_status,
              revision, created_at, updated_at)
          VALUES (?, ?, 'legacy',
-                 'community/namecards/assets/contract-seed-pending-front/image.webp',
-                 'community/namecards/assets/contract-seed-pending-back/image.webp',
                  NULL, 'none', 'pending', 0,
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [`legacy-${PENDING_CARD_ID}`, PENDING_CARD_ID]
+    );
+    // 公开墙只认线上页面行：已公开的那张必须有 live 页，待审的不需要。
+    await executeSql(connection,
+        `INSERT INTO public.fudaba_card_pages
+            (card_id, queue, page_id, display_order, object_version,
+             width, height, created_at, updated_at)
+         VALUES (?, 'live', 'front', 1,
+                 '11111111-1111-4111-8111-111111111111'::uuid, 100, 50,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                (?, 'live', 'back', 2,
+                 '22222222-2222-4222-8222-222222222222'::uuid, 100, 50,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [`legacy-${APPROVED_CARD_ID}`, `legacy-${APPROVED_CARD_ID}`]
     );
 
     const parser = new ControlledUploadParser();

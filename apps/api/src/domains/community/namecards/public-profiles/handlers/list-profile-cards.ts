@@ -7,7 +7,6 @@ import {
 } from "@/domains/community/namecards/response";
 import { services } from "@/middleware/hono-context";
 import type { ValidatedRequestContext } from "@/middleware/request-validation";
-import { resolvePublicMediaUrl } from "@/utils/storage/public-object-url";
 
 /**
  * 用户主页下半部分：这个人自己持有的、已发布且允许展示的名片。
@@ -42,57 +41,26 @@ export async function handleListProfileCards(
         size,
         (page - 1) * size,
     );
-    const storage = services(c).storage;
     const pagesByNumber =
         (await services(c).fudaba?.listCardPagesBatchByNumbers?.(
             rows.map((card) => Number(card.card_number))
         )) ?? new Map();
-    const list = await Promise.all(
-        rows.map(async (card) => {
-            const pageRows = pagesByNumber.get(Number(card.card_number));
-            const pages = cardArtworkView({
-                scope: 'public',
-                publicRoute: 'cards',
-                cardNumber: Number(card.card_number),
-                cardId: String(card.cardId ?? card.card_number),
-                live: pageRows?.live ?? [],
-                pending: []
-            }).live;
-            const response = toPublicNamecardResponse(
-                card,
-                c.get("platformUser")?.id ?? null,
-                pages,
-            );
-            const image1Url = storage
-                ? await resolvePublicMediaUrl(storage, response.image1_url)
-                : response.image1_url;
-            // 单面名片的背面是 undefined 而不是 null；按 null 判断会让整页
-            // 解析到 undefined 的图而抛错，主页就一张都显示不出来。
-            const image2Url =
-                response.image2_url == null
-                    ? null
-                    : storage
-                      ? await resolvePublicMediaUrl(storage, response.image2_url)
-                      : response.image2_url;
-            const thumb = async (_source: string, url: string) => url;
-            return {
-                ...response,
-                image1_url: image1Url,
-                image2_url: image2Url,
-                image1_thumbnail_url: await thumb(
-                    response.image1_url,
-                    image1Url,
-                ),
-                image2_thumbnail_url:
-                    image2Url === null
-                        ? null
-                        : await thumb(
-                              response.image2_url as string,
-                              image2Url,
-                          ),
-            };
-        }),
-    );
+    const list = rows.map((card) => {
+        const pageRows = pagesByNumber.get(Number(card.card_number));
+        const pages = cardArtworkView({
+            scope: 'public',
+            publicRoute: 'cards',
+            cardNumber: Number(card.card_number),
+            cardId: String(card.cardId ?? card.card_number),
+            live: pageRows?.live ?? [],
+            pending: []
+        }).live;
+        return toPublicNamecardResponse(
+            card,
+            c.get("platformUser")?.id ?? null,
+            pages,
+        );
+    });
     return c.json({
         list,
         total,

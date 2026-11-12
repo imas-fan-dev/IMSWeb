@@ -8,7 +8,6 @@ import { publicMediaObjectKey } from "@/utils/storage/business-object-keys";
 const BUSINESS_DIRECTORIES = [
     "event",
     "information",
-    "namecard",
     "news",
 ] as const;
 

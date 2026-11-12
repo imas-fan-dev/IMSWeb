@@ -12,10 +12,9 @@ function publicCardProjection(fixture) {
         const page = await listResponse.json();
         assert.equal(page.total, 1);
         assert.equal(page.list.length, 1);
-        assert.equal(page.list[0].image1_url, APPROVED_FRONT_ROUTE_URL);
-        assert.equal(page.list[0].image1_thumbnail_url, APPROVED_FRONT_ROUTE_URL);
-        assert.equal(page.list[0].image2_url, APPROVED_BACK_ROUTE_URL);
-        assert.equal(page.list[0].image2_thumbnail_url, APPROVED_BACK_ROUTE_URL);
+        const [front, back] = page.list[0].pages;
+        assert.equal(front.url.startsWith(`${APPROVED_FRONT_ROUTE_URL}`), true);
+        assert.equal(back.url.startsWith(`${APPROVED_BACK_ROUTE_URL}`), true);
 
         for (const privateField of ['ip', 'hash1', 'hash2']) {
             assert.equal(Object.hasOwn(page.list[0], privateField), false, privateField);
@@ -43,38 +42,27 @@ async function namecardMediaAccess(fixture) {
         baseUrl,
         getOpToken,
         PENDING_FRONT_THUMBNAIL_URL,
-        PENDING_FRONT_URL,
-        validPng
+        PENDING_FRONT_URL
     } = fixture;
-        const approved = await fetch(`${baseUrl}${APPROVED_FRONT_URL}`);
-        assert.equal(approved.status, 200);
-        assert.equal(approved.headers.get('content-type'), 'image/png');
-        assert.deepEqual(Buffer.from(await approved.arrayBuffer()), validPng);
-
-        const pending = await fetch(`${baseUrl}${PENDING_FRONT_URL}`);
-        assert.equal(pending.status, 401);
-
-        const token = await getOpToken();
-        const pendingForOp = await fetch(`${baseUrl}${PENDING_FRONT_URL}`, {
+    // 旧上传/缩略图路由已退役：这些地址对匿名与 op 一律 404，
+    // 公开媒体只经统一的名片页面路由提供。
+    const retiredPaths = [
+        APPROVED_FRONT_URL,
+        APPROVED_FRONT_THUMBNAIL_URL,
+        PENDING_FRONT_URL,
+        PENDING_FRONT_THUMBNAIL_URL
+    ];
+    for (const requestPath of retiredPaths) {
+        const anonymous = await fetch(`${baseUrl}${requestPath}`);
+        assert.equal(anonymous.status, 404, requestPath);
+    }
+    const token = await getOpToken();
+    for (const requestPath of retiredPaths) {
+        const forOp = await fetch(`${baseUrl}${requestPath}`, {
             headers: { authorization: token }
         });
-        assert.equal(pendingForOp.status, 200);
-        assert.equal(pendingForOp.headers.get('content-type'), 'image/png');
-        assert.equal(pendingForOp.headers.get('cache-control'), 'private, no-store');
-        assert.deepEqual(Buffer.from(await pendingForOp.arrayBuffer()), validPng);
-
-        const approvedThumbnail = await fetch(`${baseUrl}${APPROVED_FRONT_THUMBNAIL_URL}`);
-        assert.equal(approvedThumbnail.status, 200);
-        assert.match(approvedThumbnail.headers.get('content-type'), /^image\/jpeg/);
-
-        const privateThumbnail = await fetch(`${baseUrl}${PENDING_FRONT_THUMBNAIL_URL}`);
-        assert.equal(privateThumbnail.status, 401);
-
-        const privateThumbnailForOp = await fetch(`${baseUrl}${PENDING_FRONT_THUMBNAIL_URL}`, {
-            headers: { authorization: token }
-        });
-        assert.equal(privateThumbnailForOp.status, 200);
-        assert.equal(privateThumbnailForOp.headers.get('cache-control'), 'private, no-store');
+        assert.equal(forOp.status, 404, requestPath);
+    }
 
     const removedDynamicThumbnail = await fetch(`${baseUrl}/api/thumbnail`);
     assert.equal(removedDynamicThumbnail.status, 404);

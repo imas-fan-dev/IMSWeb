@@ -33,7 +33,7 @@ export async function handleListAdminNamecards(
             data: rows.map((row) => {
                 const rowsForCard = pagesByNumber.get(Number(row.id));
                 const pending =
-                    row.reviewStatus === 'pending' &&
+                    row.reviewStatus !== null &&
                     (rowsForCard?.pending.length ?? 0) > 0;
                 const pages = cardArtworkView({
                     scope: 'admin',
@@ -43,20 +43,9 @@ export async function handleListAdminNamecards(
                     pending: pending ? (rowsForCard?.pending ?? []) : []
                 });
                 const pageViews = pending ? (pages.pending ?? []) : pages.live;
-                // A staged revision only stores touched pages. Passing that
-                // partial set to the tile makes a lone new page look like both
-                // front and back. Only expose page views when they cover the
-                // full column-derived page count; otherwise fall back to the
-                // authoritative image1/image2 URLs.
-                const expectedPageCount =
-                    1 +
-                    (row.middle_image_urls?.length ?? 0) +
-                    (row.image2_url ? 1 : 0);
                 return toAdminNamecardResponse(
                     row,
-                    pageViews.length === expectedPageCount
-                        ? pageViews
-                        : undefined
+                    pageViews.length > 0 ? pageViews : undefined
                 );
             }),
             pageInfo: {

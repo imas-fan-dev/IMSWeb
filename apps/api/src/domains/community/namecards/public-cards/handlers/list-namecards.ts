@@ -8,7 +8,6 @@ import {
 } from '@/domains/community/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
-import { resolvePublicMediaUrl } from '@/utils/storage/public-object-url';
 
 export async function handleListNamecards(
     c: ValidatedRequestContext<AppEnvironment, 'query', NamecardListQuery>
@@ -61,35 +60,8 @@ export async function handleListNamecards(
                 pages
             );
         });
-        const storage = services(c).storage;
         return c.json({
-            list: storage
-                ? await Promise.all(cards.map(async (card) => {
-                    const image1Url = await resolvePublicMediaUrl(
-                        storage,
-                        card.image1_url
-                    );
-                    const image2Url =
-                        card.image2_url === null
-                            ? null
-                            : await resolvePublicMediaUrl(storage, card.image2_url);
-                    const image1ThumbnailUrl = image1Url;
-                    const image2ThumbnailUrl = image2Url;
-                    const middleImageUrls = await Promise.all(
-                        card.middleImageUrls.map((url) =>
-                            resolvePublicMediaUrl(storage, url)
-                        )
-                    );
-                    return {
-                        ...card,
-                        image1_url: image1Url,
-                        image2_url: image2Url,
-                        image1_thumbnail_url: image1ThumbnailUrl,
-                        image2_thumbnail_url: image2ThumbnailUrl,
-                        middleImageUrls
-                    };
-                }))
-                : cards,
+            list: cards,
             total,
             totalPage: Math.ceil(total / size)
         } satisfies NamecardPageResponse);

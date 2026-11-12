@@ -11,10 +11,7 @@ import type {
     NamecardErrorResponse,
 } from '@/domains/community/namecards/response';
 import { toPublicNamecardResponse } from '@/domains/community/namecards/response';
-import {
-    resolveExchangeCardMedia,
-    resolveSnapshotMedia,
-} from '@/domains/community/namecards/exchange/media';
+import { resolveExchangeCardMedia } from '@/domains/community/namecards/exchange/media';
 import { namecardRepository } from '@/middleware/hono-context';
 
 /** 名片册：原卡还在就给最新投影，删掉了就只剩交换当时留下的快照。 */
@@ -43,7 +40,7 @@ export async function handleListCollection(
                           toPublicNamecardResponse(row.card, accountId),
                       )
                     : null,
-                snapshot: await resolveSnapshotMedia(c, row.snapshot),
+                snapshot: row.snapshot,
             };
             return entry;
         }),

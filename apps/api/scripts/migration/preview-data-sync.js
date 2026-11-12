@@ -17,7 +17,7 @@ const TABLES = [
     'wiki_story_content_types', 'wiki_story_source_platforms', 'wiki_story_cover_assets',
     'wiki_story_cards', 'wiki_story_links', 'news', 'articles', 'events',
     'homepage_links', 'site_packages', 'site_package_revisions',
-    'fudaba_cards', 'namecard_guest_attributes', 'namecard_reactions'
+    'fudaba_cards', 'fudaba_card_pages', 'namecard_guest_attributes', 'namecard_reactions'
 ];
 const IGNORED = {
     wiki_project_settings: ['layout_revision'],
@@ -33,7 +33,6 @@ const IGNORED = {
     fudaba_cards: ['legacy_card_id', 'owner_account_id', 'producer_name', 'producer_reading',
         'accent', 'bio', 'trade_note', 'group_name', 'made_on', 'is_original', 'made_with_ai',
         'visible', 'exchange_mode', 'revision', 'created_at', 'updated_at', 'pending_payload',
-        'pending_front_object_key', 'pending_back_object_key', 'pending_middle_object_keys',
         'review_status', 'review_reason', 'review_submitted_at'],
     namecard_guest_attributes: ['submitted_ip', 'withdrawal_token_hash'],
     s3_object_versions: ['owner_token'],
@@ -303,15 +302,6 @@ async function mergeTable(source, target, table, options) {
                     await options.verifyMedia(table, row.payload);
                 }
                 if (['insert', 'update'].includes(action)) {
-                    if (table === 'fudaba_cards') {
-                        const media = await target.query(`SELECT count(DISTINCT i.logical_key)::int AS count
-                            FROM public.s3_object_index i JOIN public.s3_object_versions v ON v.object_id=i.object_id
-                            WHERE i.state='ready' AND v.storage_scope='public' AND i.logical_key IN (
-                                $1::jsonb->>'front_object_key',$1::jsonb->>'back_object_key')`, [row.payload]);
-                        if (media.rows[0].count !== 2) {
-                            throw Object.assign(new Error('Namecard media is not ready'), { code: '23503' });
-                        }
-                    }
                     if (action === 'insert') {
                         const extra = JSON.parse(row.insert_values);
                         if (['site_packages', 'site_package_revisions'].includes(table)) {

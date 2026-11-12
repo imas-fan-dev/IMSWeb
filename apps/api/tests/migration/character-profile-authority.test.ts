@@ -70,6 +70,9 @@ test.skipIf(!postgresIntegrationEnabled())(
                 '20261107120000_namecard_media_key_normalization',
                 '20261107160000_namecard_group_card',
                 '20261107180000_fudaba_card_pages',
+                '20261112120000_namecard_media_retire',
+                '20261112130000_namecard_page_object_queue',
+                '20261112140000_namecard_retire_card_key_columns',
 
             ]);
             const current = (

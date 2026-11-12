@@ -361,6 +361,18 @@ function targetUrl(filename) {
     return `/uploads/namecard/original/${filename}`;
 }
 
+/**
+ * Object key this import has always written for a staged file. The runtime
+ * helper that used to mint it retired with the legacy upload path, so the
+ * historical layout is pinned here to keep re-runs reproducible.
+ */
+function targetObjectKey(filename) {
+    const separator = filename.lastIndexOf(".");
+    const stem = filename.slice(0, separator);
+    const extension = filename.slice(separator + 1).toLowerCase();
+    return `community/namecards/assets/${stem}/image.${extension}`;
+}
+
 async function cachedMedia(mediaDirectory, cardId, side, expectedMd5) {
     let names = [];
     try {
@@ -711,9 +723,6 @@ async function main() {
 
     const { Client } = require("pg");
     const {
-        namecardImageObjectKey,
-    } = require("../../src/utils/storage/business-object-keys.ts");
-    const {
         closeNodeServices,
         resolveNodeServices,
     } = require("../../src/runtime/node-services.ts");
@@ -738,7 +747,7 @@ async function main() {
             services.storage,
             media,
             options.apply,
-            namecardImageObjectKey,
+            targetObjectKey,
         );
         if (options.apply) {
             await reconcileDatabase(client, cards, reactions, mediaByCard);

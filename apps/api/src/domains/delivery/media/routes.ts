@@ -1,25 +1,6 @@
-import { namecardMediaParamsSchema } from '@imsweb/contracts/media';
 import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
-import { handleServeNamecard } from '@/domains/delivery/media/handlers/serve-namecard';
 import { handleServePublicUpload } from '@/domains/delivery/media/handlers/serve-public-upload';
-import {
-    validateNamecardMediaParams,
-    validateNamecardThumbnailMediaParams
-} from '@/domains/delivery/media/request';
-import { fudabaMediaQuerySchema } from '@imsweb/contracts/fudaba';
-import { paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
-
-const namecardMediaValidator = paramSchemaValidator(
-    namecardMediaParamsSchema,
-    {},
-    validateNamecardMediaParams
-);
-const namecardThumbnailMediaValidator = paramSchemaValidator(
-    namecardMediaParamsSchema,
-    {},
-    validateNamecardThumbnailMediaParams
-);
 
 export function registerMediaRoutes(app: ImsHonoApp): void {
     for (const route of [
@@ -37,31 +18,4 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
         app.get(route, handleServePublicUpload);
         app.on('HEAD', route, handleServePublicUpload);
     }
-
-    app.get(
-        publicUploadsPath('/namecard/original/:filename'),
-        namecardMediaValidator,
-        querySchemaValidator(fudabaMediaQuerySchema),
-        handleServeNamecard
-    );
-    app.on(
-        'HEAD',
-        publicUploadsPath('/namecard/original/:filename'),
-        namecardMediaValidator,
-        querySchemaValidator(fudabaMediaQuerySchema),
-        handleServeNamecard
-    );
-    app.get(
-        publicUploadsPath('/namecard/thumbnail/:filename'),
-        namecardThumbnailMediaValidator,
-        querySchemaValidator(fudabaMediaQuerySchema),
-        handleServeNamecard
-    );
-    app.on(
-        'HEAD',
-        publicUploadsPath('/namecard/thumbnail/:filename'),
-        namecardThumbnailMediaValidator,
-        querySchemaValidator(fudabaMediaQuerySchema),
-        handleServeNamecard
-    );
 }

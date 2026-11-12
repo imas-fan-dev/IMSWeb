@@ -34,7 +34,6 @@ SQL 或对象存储 provider。
 fudaba/
   access-policy.ts          # 公开读/写/地图门控与私有响应头
   routes.ts                 # 只用 app.route(prefix, factory()) 组合 capability
-  card-media-assets.ts      # guest/legacy 卡片对象与缩略图策略
   contracts/
     card.ts                 # 卡片 ID/revision 解析与 owner 卡片视图（跨能力共享）
     office.ts               # 办公室 ID 校验

@@ -169,8 +169,8 @@ test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflict
             INSERT INTO public.s3_object_index(logical_key,object_id,state,incarnation,updated_at)
             VALUES ('front','front','ready',1,1),('back','back','ready',1,1)`);
         await source.query(`INSERT INTO public.fudaba_cards
-            (id,card_number,origin,front_object_key,back_object_key,exchange_mode,trade_note,publication_status,revision,created_at,updated_at)
-            VALUES ('legacy-import',9000,'legacy','front','back','none',NULL,'published',0,'2026-01-01','2026-01-02')`);
+            (id,card_number,origin,exchange_mode,trade_note,publication_status,revision,created_at,updated_at)
+            VALUES ('legacy-import',9000,'legacy','none',NULL,'published',0,'2026-01-01','2026-01-02')`);
         await target.query('BEGIN');
         assert.equal((await mergeTable(source, target, 'fudaba_cards', options)).insert, 1);
         await target.query('COMMIT');

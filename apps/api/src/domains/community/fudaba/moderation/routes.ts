@@ -36,7 +36,6 @@ import {
     handleReviewFudabaCardClaim,
     handleReviewFudabaCardSupplement,
     handleReviewFudabaRegisteredCard,
-    handleServeFudabaRegisteredCardReviewMedia,
 } from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
 import {
     jsonSchemaValidator,
@@ -100,19 +99,6 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         currentBackofficeOp,
         handleListFudabaRegisteredCardReviews,
-    );
-    routes.get(
-        '/card-reviews/:cardId/media/:side',
-        backofficeAuth,
-        currentBackofficeOp,
-        handleServeFudabaRegisteredCardReviewMedia,
-    );
-    routes.on(
-        'HEAD',
-        '/card-reviews/:cardId/media/:side',
-        backofficeAuth,
-        currentBackofficeOp,
-        handleServeFudabaRegisteredCardReviewMedia,
     );
     routes.put(
         '/card-reviews/:cardId',

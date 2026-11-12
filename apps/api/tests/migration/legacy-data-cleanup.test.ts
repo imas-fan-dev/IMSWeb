@@ -87,7 +87,7 @@ test.skipIf(!postgresIntegrationEnabled())(
             await client.query('COMMIT');
             const canonical = (
                 await client.query(
-                    "INSERT INTO fudaba_cards(id,card_number,legacy_card_id,origin,producer_name,exchange_mode,trade_note,front_object_key,back_object_key,created_at,updated_at) VALUES ('cleanup-legacy',$1,$1,'legacy',NULL,'none',NULL,'front.png','back.png',now(),now()) RETURNING id",
+                    "INSERT INTO fudaba_cards(id,card_number,legacy_card_id,origin,producer_name,exchange_mode,trade_note,created_at,updated_at) VALUES ('cleanup-legacy',$1,$1,'legacy',NULL,'none',NULL,now(),now()) RETURNING id",
                     [archived],
                 )
             ).rows[0].id;

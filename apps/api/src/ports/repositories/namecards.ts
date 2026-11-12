@@ -25,8 +25,6 @@ export interface PendingCardInput {
 
 export interface CardMediaRecord {
     id?: number;
-    image1_url: string;
-    image2_url: string | null;
     status?: string;
     revision?: number;
     series_code?: string | null;
@@ -50,7 +48,6 @@ export interface CardMediaRecord {
     accent?: string | null;
     owner_account_id?: string | null;
     series_codes?: string[];
-    middle_image_urls?: string[];
     credits?: FudabaCardCredit[];
 }
 
@@ -70,9 +67,6 @@ export interface NamecardDiffSide {
     seriesCodes: string[];
     credits: FudabaCardCredit[];
     favoriteCharacters: CardFavoriteSelectionRecord[];
-    frontImageUrl: string;
-    backImageUrl: string | null;
-    middleImageUrls: string[];
 }
 
 export interface NamecardDiffRecord {
@@ -136,6 +130,8 @@ export interface NamecardAdminUpdateInput {
     nextBackObjectKey?: string | null;
     /** 旋转写出的页面（对象已落盘），用于同步统一布局的页面行。 */
     pages?: FudabaCardPageWrite[];
+    /** Version-status-only update: ignore content/media/owner fields. */
+    versionOnly?: boolean;
     updatedAt: Date;
 }
 
@@ -401,9 +397,6 @@ export interface NamecardCollectionSnapshotRecord {
     exchangeMode: 'auto' | 'manual' | 'none';
     accent: string | null;
     seriesCodes: string[];
-    image1_url: string;
-    image2_url: string | null;
-    middleImageUrls: string[];
     credits: FudabaCardCredit[];
 }
 
@@ -577,10 +570,6 @@ export interface NamecardRepository {
         cardNumber: number,
         pageId: string
     ): Promise<string | null>;
-    findPublishedCardMediaKey(
-        cardNumber: number,
-        side: string
-    ): Promise<string | null>;
     listAdminCards(
         limit: number,
         offset: number,
@@ -595,12 +584,6 @@ export interface NamecardRepository {
         approvingRevision: number,
     ): Promise<NamecardMutationResult>;
     /** Returns a card to `pending` when approval aborts before completion. */
-    /** Rewrites an approved upload's media into the canonical namecard layout. */
-    attachCanonicalMedia(
-        cardId: string,
-        frontObjectKey: string,
-        backObjectKey: string
-    ): Promise<void>;
     findCardMedia(id: number): Promise<CardMediaRecord | null>;
     /**
      * Backoffice moderation state: the card leaves every public surface but
@@ -669,7 +652,7 @@ export interface NamecardRepository {
     ): Promise<number>;
     purgeTerminalCards(
         cutoff: Date,
-    ): Promise<Array<{ id: number; image1_url: string; image2_url: string | null }>>;
+    ): Promise<Array<{ id: number; objectKeys: string[] }>>;
     findSubmissionByTokenHash(
         id: number,
         tokenHash: string,
@@ -683,20 +666,11 @@ export interface NamecardRepository {
         id: number,
         tokenHash: string,
     ): Promise<NamecardSubmissionWithHashesRecord | null>;
-    replaceSubmissionImage(
-        id: number,
-        tokenHash: string,
-        expectedRevision: number,
-        side: "front" | "back",
-        imageUrl: string,
-        hash: string,
-    ): Promise<NamecardEditResult>;
     resubmitSubmission(
         id: number,
         tokenHash: string,
         expectedRevision: number,
     ): Promise<NamecardEditResult>;
-    findCardByMediaUrl(url: string): Promise<CardMediaRecord | null>;
 }
 
 export interface ReactionRepository {

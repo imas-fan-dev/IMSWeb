@@ -15,7 +15,6 @@ import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import type { ListedObject, ObjectReadUrlOptions, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
 import type { NamecardRepository, SitePackageRepository } from '@/ports/repositories';
-import { mediaHttpErrorSchema } from '@imsweb/contracts/media';
 import { publicSitePackageSchema, sitePackageCreateResultSchema, sitePackageCreateRevisionResultSchema, sitePackageDeleteRevisionResultSchema, sitePackageErrorResponseSchema, sitePackageListSchema, sitePackagePreviewResultSchema, sitePackagePublishResultSchema } from '@imsweb/contracts/site-packages';
 import assert from 'node:assert/strict';
 import crypto, { createHash } from 'node:crypto';
@@ -976,9 +975,7 @@ import { ZipFile } from 'yazl';
 
             const runtimeServices = {
                 sitePackages: repository,
-                namecards: {
-                    findCardByMediaUrl: async () => null
-                } as unknown as NamecardRepository,
+                namecards: {} as unknown as NamecardRepository,
                 audit,
                 storage,
                 objectDeletions: new PostgresqlObjectDeletionWorker(database, storage),
@@ -1056,34 +1053,22 @@ import { ZipFile } from 'yazl';
                 }
             }));
 
-            const invalidNamecardMedia = await app.request(
-                'http://main.test/uploads/namecard/original/invalid%5Cname.png'
-            );
-            assert.equal(invalidNamecardMedia.status, 400);
-            assertWireContract(mediaHttpErrorSchema, await invalidNamecardMedia.json());
-
-            const unauthenticatedNamecardMedia = await app.request(
-                'http://main.test/uploads/namecard/original/missing.png'
-            );
-            assert.equal(unauthenticatedNamecardMedia.status, 401);
-            assertWireContract(
-                mediaHttpErrorSchema,
-                await unauthenticatedNamecardMedia.json()
-            );
-
-            const forbiddenNamecardMedia = await app.request(
-                'http://main.test/uploads/namecard/original/missing.png',
-                { headers: { authorization: 'Bearer editor-token' } }
-            );
-            assert.equal(forbiddenNamecardMedia.status, 403);
-            assertWireContract(mediaHttpErrorSchema, await forbiddenNamecardMedia.json());
-
-            const missingNamecardMedia = await app.request(
-                'http://main.test/uploads/namecard/original/missing.png',
-                { headers: { authorization: 'Bearer op-token' } }
-            );
-            assert.equal(missingNamecardMedia.status, 404);
-            assert.equal(await missingNamecardMedia.text(), 'Not Found');
+            // The legacy namecard upload routes retired, so every shape falls
+            // through to the application 404.
+            for (const namecardMediaRequest of [
+                app.request('http://main.test/uploads/namecard/original/invalid%5Cname.png'),
+                app.request('http://main.test/uploads/namecard/original/missing.png'),
+                app.request('http://main.test/uploads/namecard/original/missing.png', {
+                    headers: { authorization: 'Bearer editor-token' }
+                }),
+                app.request('http://main.test/uploads/namecard/thumbnail/missing.webp.jpg', {
+                    headers: { authorization: 'Bearer op-token' }
+                })
+            ]) {
+                const response = await namecardMediaRequest;
+                assert.equal(response.status, 404);
+                assert.equal(await response.text(), 'Not Found');
+            }
 
             const forwardedHeaders = {
                 'x-forwarded-proto': 'http',

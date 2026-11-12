@@ -1,4 +1,3 @@
-import { PUBLIC_UPLOADS_PATH_PREFIX, publicUploadsPath } from '@imsweb/contracts/paths';
 function normalizeObjectKey(value: string): string {
     const key = value.replace(/^\/+/, '').replace(/\\/g, '/');
     const segments = key.split('/');
@@ -86,80 +85,6 @@ export function aboutMemberAvatarObjectKey(filename: string): string {
 export function informationAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `editorial/information/assets/${file.stem}/cover.${file.extension}`;
-}
-
-export function namecardImageObjectKey(filename: string): string {
-    const file = fileParts(filename);
-    return `community/namecards/assets/${file.stem}/image.${file.extension}`;
-}
-
-export function namecardThumbnailObjectKey(filename: string): string {
-    const file = fileParts(filename);
-    return `community/namecards/assets/${file.stem}/thumbnail.jpg`;
-}
-
-export function namecardThumbnailPublicUrl(originalUrl: string): string {
-    const legacyKey = normalizeObjectKey(originalUrl);
-    const segments = legacyKey.split('/');
-    const filename = segments.at(-1)!;
-    const prefix = segments.slice(0, -1).join('/').toLowerCase();
-    if (prefix !== 'uploads/namecard/original') {
-        throw new Error(`Unsupported namecard media path: ${legacyKey}`);
-    }
-    return publicUploadsPath(`/namecard/thumbnail/${filename}.jpg`);
-}
-
-export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
-    const thumbnailUrl = namecardThumbnailPublicUrl(originalUrl);
-    return [publicMediaObjectKey(originalUrl), publicMediaObjectKey(thumbnailUrl)];
-}
-
-const NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN =
-    /^community\/namecards\/assets\/([^/]+)\/image\.([a-z0-9]+)$/;
-
-
-// Reverses namecardImageObjectKey so unified fudaba_cards rows (which only
-// store the object key) can hand the legacy /uploads/namecard/original/...
-// shape back to response and media-resolution code that still expects it.
-export function namecardOriginalUrlFromObjectKey(key: string): string {
-    // A row that already stores the public path (older guest approvals did)
-    // must not blow up the whole list: the value is its own answer.
-    if (key.startsWith(`${PUBLIC_UPLOADS_PATH_PREFIX}/namecard/original/`)) {
-        return key;
-    }
-    const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(key);
-    if (!match) throw new Error(`Unsupported namecard object key: ${key}`);
-    return publicUploadsPath(`/namecard/original/${match[1]}.${match[2]}`);
-}
-
-// A claimed guest/legacy row must keep the canonical namecards layout: the
-// public namecard wall reverses namecardImageObjectKey to address a card's
-// media, so a Fudaba-layout key has no readable public form there. The stem is
-// derived from the card rather than from the source so a claim never collides
-// with, or silently reuses, the legacy object it copied from.
-// A compatibility row (guest/legacy) must keep the canonical namecards layout,
-// because the namecard readers reverse the stored key back into a public path
-// and they do so for every status except withdrawn and rejected -- including
-// rows awaiting review. The stem is derived from the card rather than from any
-// source object so it is stable for that card and never collides with, or
-// silently reuses, an object it copied from.
-export function namecardCardMediaObjectKey(
-    cardId: string,
-    side: 'front' | 'back',
-    extension: string = 'webp'
-): string {
-    return namecardImageObjectKey(
-        `${fudabaEntitySegment(cardId)}-${side}.${fudabaImageExtension(extension)}`
-    );
-}
-
-export function namecardClaimMediaObjectKey(
-    sourceObjectKey: string,
-    cardId: string,
-    side: 'front' | 'back'
-): string {
-    const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(sourceObjectKey);
-    return namecardCardMediaObjectKey(cardId, side, match ? match[2]! : 'webp');
 }
 
 export function communityContentAssetObjectKey(filename: string): string {
@@ -377,15 +302,6 @@ export function publicMediaObjectKey(value: string): string {
             return aboutHeroObjectKey(filename);
         case 'uploads/about/member-avatars':
             return aboutMemberAvatarObjectKey(filename);
-        case 'uploads/namecard/original':
-            return namecardImageObjectKey(filename);
-        case 'uploads/namecard/thumbnail': {
-            const suffix = '.jpg';
-            if (!filename.toLowerCase().endsWith(suffix) || filename.length === suffix.length) {
-                throw new Error(`Unsupported namecard thumbnail path: ${legacyKey}`);
-            }
-            return namecardThumbnailObjectKey(filename.slice(0, -suffix.length));
-        }
         case 'uploads/community-content':
             return communityContentAssetObjectKey(filename);
         case 'uploads/producer-map':

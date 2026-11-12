@@ -165,7 +165,10 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261106120000_namecard_exchange_system', phase: 'pre-data' },
                 { version: '20261107120000_namecard_media_key_normalization', phase: 'post-data' },
                 { version: '20261107160000_namecard_group_card', phase: 'post-data' },
-                { version: '20261107180000_fudaba_card_pages', phase: 'post-data' }
+                { version: '20261107180000_fudaba_card_pages', phase: 'post-data' },
+                { version: '20261112120000_namecard_media_retire', phase: 'post-data' },
+                { version: '20261112130000_namecard_page_object_queue', phase: 'post-data' },
+                { version: '20261112140000_namecard_retire_card_key_columns', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -671,6 +674,27 @@ test.describe('PostgreSQL migration', () => {
             emailRequestCooldowns.sql,
             /recipient_email|verification_code|code_hash|delivery_token|smtp_|payload/i
         );
+        const retireCardKeyColumns = migrations.find(
+            ({ version }) => version === '20261112140000_namecard_retire_card_key_columns'
+        );
+        assert.match(retireCardKeyColumns.sql, /DROP COLUMN IF EXISTS front_object_key/);
+        assert.match(retireCardKeyColumns.sql, /DROP COLUMN IF EXISTS back_object_key/);
+        assert.match(
+            retireCardKeyColumns.sql,
+            /DROP COLUMN IF EXISTS pending_front_object_key/
+        );
+        assert.match(
+            retireCardKeyColumns.sql,
+            /DROP COLUMN IF EXISTS pending_back_object_key/
+        );
+        assert.match(
+            retireCardKeyColumns.sql,
+            /DROP COLUMN IF EXISTS pending_middle_object_keys/
+        );
+        assert.match(
+            retireCardKeyColumns.sql,
+            /DROP TRIGGER IF EXISTS fudaba_cards_normalize_media/
+        );
     });
 
     test('arguments require one PostgreSQL database URL', () => {
@@ -694,11 +718,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 98);
+        assert.equal(catalog.count, 101);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261107180000_fudaba_card_pages'
+            '20261112140000_namecard_retire_card_key_columns'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1076,7 +1100,10 @@ test.describe('PostgreSQL migration', () => {
         '20261106120000_namecard_exchange_system',
         '20261107120000_namecard_media_key_normalization',
         '20261107160000_namecard_group_card',
-        '20261107180000_fudaba_card_pages'
+        '20261107180000_fudaba_card_pages',
+        '20261112120000_namecard_media_retire',
+        '20261112130000_namecard_page_object_queue',
+        '20261112140000_namecard_retire_card_key_columns'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

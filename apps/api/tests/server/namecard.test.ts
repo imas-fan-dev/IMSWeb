@@ -8,8 +8,8 @@ import { createPostgresTestHarness } from '../integration/postgres-harness';
 import { createPostgresTestDatabase, postgresTest } from '../postgres-test-database';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { executeSql, queryOne } from '@/infra/db/sql/query';
-import { cardPageObjectKey, namecardCardMediaObjectKey, namecardClaimMediaObjectKey, namecardMediaObjectKeys, namecardOriginalUrlFromObjectKey, namecardThumbnailObjectKey, namecardThumbnailPublicUrl, publicMediaObjectKey } from '@/utils/storage/business-object-keys';
+import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
+import { cardPageObjectKey, publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { describe, onTestFinished, test } from 'vitest';
@@ -17,128 +17,17 @@ import { describe, onTestFinished, test } from 'vitest';
 // namecard-media-keys.test.ts
 {
     test.describe('namecard media keys', () => {
-        test('namecard thumbnail keys share the original stem under a thumbnail role', () => {
-            assert.equal(
-                namecardThumbnailObjectKey('card-front.webp'),
-                'community/namecards/assets/card-front/thumbnail.jpg'
-            );
-            assert.equal(
-                namecardThumbnailObjectKey('card-front.png'),
-                'community/namecards/assets/card-front/thumbnail.jpg'
-            );
-        });
-
-        test('namecard thumbnail public URLs keep the original filename identity', () => {
-            assert.equal(
-                namecardThumbnailPublicUrl('/uploads/namecard/original/card-front.webp'),
-                '/uploads/namecard/thumbnail/card-front.webp.jpg'
+        test('legacy namecard upload paths are no longer media keys', () => {
+            assert.throws(
+                () => publicMediaObjectKey('uploads/namecard/original/card-front.webp'),
+                /Unsupported public media object path/
             );
             assert.throws(
-                () => namecardThumbnailPublicUrl('/uploads/namecard/original/../escape.webp'),
-                /Invalid business object key/
-            );
-            assert.throws(
-                () => namecardThumbnailPublicUrl('/uploads/news/original/card-front.webp'),
-                /Unsupported namecard media path/
+                () => publicMediaObjectKey('uploads/namecard/thumbnail/card-front.webp.jpg'),
+                /Unsupported public media object path/
             );
         });
 
-        test('namecard media key pairs cover the original and its stored thumbnail', () => {
-            assert.deepEqual(
-                namecardMediaObjectKeys('/uploads/namecard/original/card-front.webp'),
-                [
-                    'community/namecards/assets/card-front/image.webp',
-                    'community/namecards/assets/card-front/thumbnail.jpg'
-                ]
-            );
-        });
-
-        test('legacy thumbnail paths map back to the canonical thumbnail key', () => {
-            assert.equal(
-                publicMediaObjectKey('uploads/namecard/thumbnail/card-front.webp.jpg'),
-                'community/namecards/assets/card-front/thumbnail.jpg'
-            );
-            assert.throws(
-                () => publicMediaObjectKey('uploads/namecard/thumbnail/card-front.webp.png'),
-                /Unsupported namecard thumbnail path/
-            );
-            assert.throws(
-                () => publicMediaObjectKey('uploads/namecard/thumbnail/.jpg'),
-                /Unsupported namecard thumbnail path/
-            );
-        });
-
-        // A claim copies a legacy card's media onto a row that the public wall still
-        // publishes (`origin` is immutable provenance, so it stays 'legacy'). Writing a
-        // Fudaba-layout key there has no public form, so the wall's key reversal threw
-        // and took the entire card list down with it. These tests pin the layout.
-        test('claimed legacy media keeps the canonical namecards layout', () => {
-            const sourceKey = 'community/namecards/assets/legacy-original/image.webp';
-            const front = namecardClaimMediaObjectKey(sourceKey, 'legacy-12', 'front');
-            const back = namecardClaimMediaObjectKey(sourceKey, 'legacy-12', 'back');
-            assert.equal(front, 'community/namecards/assets/legacy-12-front/image.webp');
-            assert.equal(back, 'community/namecards/assets/legacy-12-back/image.webp');
-            assert.equal(
-                namecardOriginalUrlFromObjectKey(front),
-                '/uploads/namecard/original/legacy-12-front.webp'
-            );
-            assert.equal(
-                namecardOriginalUrlFromObjectKey(back),
-                '/uploads/namecard/original/legacy-12-back.webp'
-            );
-        });
-
-        test('a row that already stores the public path still reads back', () => {
-            // Older guest approvals kept `/uploads/...` in the column. Reversing
-            // it threw and took the owner's whole card list down with it.
-            assert.equal(
-                namecardOriginalUrlFromObjectKey(
-                    '/uploads/namecard/original/stem-front.webp'
-                ),
-                '/uploads/namecard/original/stem-front.webp'
-            );
-        });
-
-        test('claimed media round-trips through the public media chain', () => {
-            const key = namecardClaimMediaObjectKey(
-                'community/namecards/assets/legacy-original/image.webp',
-                'legacy-12',
-                'front'
-            );
-            const publicUrl = namecardOriginalUrlFromObjectKey(key);
-            assert.equal(publicMediaObjectKey(publicUrl), key);
-            assert.deepEqual(namecardMediaObjectKeys(publicUrl), [
-                key,
-                'community/namecards/assets/legacy-12-front/thumbnail.jpg'
-            ]);
-        });
-
-        test('claimed media keeps the source extension and never reuses the source', () => {
-            const sourceKey = 'community/namecards/assets/legacy-original/image.png';
-            assert.equal(
-                namecardClaimMediaObjectKey(sourceKey, 'legacy-7', 'front'),
-                'community/namecards/assets/legacy-7-front/image.png'
-            );
-            for (const side of ['front', 'back'] as const) {
-                assert.notEqual(
-                    namecardClaimMediaObjectKey(sourceKey, 'legacy-7', side),
-                    sourceKey
-                );
-            }
-        });
-
-        // Every writer that targets a compatibility row goes through this one builder,
-        // so pin its output against the readers that will reverse it back. A key the
-        // reversal cannot read takes down the whole listing that contains it.
-        test('card media keys stay readable by the namecard readers', () => {
-            const key = namecardCardMediaObjectKey('legacy-42', 'front');
-            assert.equal(key, 'community/namecards/assets/legacy-42-front/image.webp');
-            assert.equal(
-                namecardOriginalUrlFromObjectKey(key),
-                '/uploads/namecard/original/legacy-42-front.webp'
-            );
-            assert.equal(publicMediaObjectKey(namecardOriginalUrlFromObjectKey(key)), key);
-        });
     });
 
     function stubThumbnailRuntime(overrides: {
@@ -197,31 +86,11 @@ import { describe, onTestFinished, test } from 'vitest';
             await repository.initialize();
 
             const id = await repository.insertPendingCard(guestInput('editor'));
-            // Editor uploads sit outside the reversible namecard layout, so the
-            // row has to fall back to the card media route instead of throwing
-            // and taking the whole queue listing down with it.
-            await executeSql(
-                database,
-                `UPDATE public.fudaba_cards
-                 SET front_object_key='community/fudaba/cards/card-id/versions/v1/media.webp',
-                     back_object_key=NULL
-                 WHERE card_number=?`,
-                [id]
-            );
-
+            // 页面行是唯一来源：还没有页面行时队列与媒体路由都给不出地址，也不会
+            // 退回旧 key 列去反推（旧编辑器 key 列已随迁移删除）。
             const [row] = await repository.listAdminCards(20, 0);
             assert.equal(row?.id, id);
-            // A first submission has no published copy, so the queue shows the
-            // live slot; the draft variant only exists for staged revisions.
-            assert.equal(row?.image1_url, `/api/admin/cards/${id}/media/live/front`);
-            assert.equal(row?.image2_url, null);
-
-            // The media routes read the stored page instead of reverse
-            // engineering a public URL out of the editor object key.
-            assert.equal(
-                await repository.findCardMediaKey(id, 'front', false),
-                'community/fudaba/cards/card-id/versions/v1/media.webp'
-            );
+            assert.equal(await repository.findCardMediaKey(id, 'front', false), null);
             assert.equal(await repository.findCardMediaKey(id, 'middle-1', false), null);
 
             // 页面行是唯一来源：正反面 + 两张中间页。
@@ -248,10 +117,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 [id, id, id, id]
             );
             const [withPages] = await repository.listAdminCards(20, 0);
-            assert.deepEqual(withPages?.middle_image_urls, [
-                `/api/admin/cards/${id}/media/live/middle-1`,
-                `/api/admin/cards/${id}/media/live/middle-2`,
-            ]);
+            assert.equal(withPages?.id, id);
             const internalId = (await queryOne<{ id: string }>(
                 database,
                 'SELECT id FROM public.fudaba_cards WHERE card_number=?',
@@ -266,7 +132,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     '33333333-3333-4333-8333-333333333333'
                 )
             );
-            assert.equal(await repository.findPublishedCardMediaKey(id, 'front'), null);
+            assert.equal(await repository.findPublishedCardPageKey(id, 'front'), null);
 
             await executeSql(
                 database,
@@ -274,7 +140,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 [id]
             );
             assert.equal(
-                await repository.findPublishedCardMediaKey(id, 'front'),
+                await repository.findPublishedCardPageKey(id, 'front'),
                 cardPageObjectKey(
                     internalId,
                     'live',
@@ -283,7 +149,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 )
             );
             assert.equal(
-                await repository.findPublishedCardMediaKey(id, 'back'),
+                await repository.findPublishedCardPageKey(id, 'back'),
                 cardPageObjectKey(
                     internalId,
                     'live',
@@ -292,7 +158,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 )
             );
             assert.equal(
-                await repository.findPublishedCardMediaKey(id, 'middle-1'),
+                await repository.findPublishedCardPageKey(id, 'page-aaaaaaaa'),
                 cardPageObjectKey(
                     internalId,
                     'live',
@@ -326,6 +192,39 @@ import { describe, onTestFinished, test } from 'vitest';
                 await repository.findCardMediaKey(id, 'back', false),
                 cardPageObjectKey(internalId, 'live', 'page-cccccccc',
                     '33333333-3333-4333-8333-333333333333')
+            );
+
+            // A complete pending snapshot can use page-* rows for front/back.
+            // Admin draft front/back must resolve first/last page and respect
+            // object_queue instead of looking only for page_id='front'/'back'.
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      object_queue, width, height, created_at, updated_at)
+                 VALUES
+                   (?, 'pending', 'page-aaaaaaaa', 1,
+                    '11111111-1111-4111-8111-111111111111'::uuid, 'live',
+                    100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                   (?, 'pending', 'page-bbbbbbbb', 2,
+                    '22222222-2222-4222-8222-222222222222'::uuid, 'pending',
+                    100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                   (?, 'pending', 'page-cccccccc', 3,
+                    '33333333-3333-4333-8333-333333333333'::uuid, 'pending',
+                    100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                   (?, 'pending', 'page-dddddddd', 4,
+                    '44444444-4444-4444-8444-444444444444'::uuid, 'live',
+                    100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [internalId, internalId, internalId, internalId]
+            );
+            assert.equal(
+                await repository.findCardMediaKey(id, 'front', true),
+                cardPageObjectKey(internalId, 'live', 'page-aaaaaaaa',
+                    '11111111-1111-4111-8111-111111111111')
+            );
+            assert.equal(
+                await repository.findCardMediaKey(id, 'back', true),
+                cardPageObjectKey(internalId, 'live', 'page-dddddddd',
+                    '44444444-4444-4444-8444-444444444444')
             );
         });
 
@@ -377,9 +276,19 @@ import { describe, onTestFinished, test } from 'vitest';
             // 否则这张卡会从墙上整张消失（注册卡只会被复制进 canonical 布局一次）。
             await executeSql(database,
                 `UPDATE fudaba_cards
-                 SET origin='exchange',
-                     front_object_key='community/fudaba/cards/version-card/versions/v1/media.webp'
+                 SET origin='exchange'
                  WHERE card_number=?`,
+                [id]
+            );
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      width, height, created_at, updated_at)
+                 SELECT id, 'live', 'page-aaaaaaaa', 1,
+                        '11111111-1111-4111-8111-111111111111'::uuid,
+                        100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z',
+                        TIMESTAMPTZ '2026-01-01T00:00:00Z'
+                   FROM public.fudaba_cards WHERE card_number=?`,
                 [id]
             );
             const wallCards = await repository.listApprovedCards(20, 0);
@@ -389,8 +298,7 @@ import { describe, onTestFinished, test } from 'vitest';
             );
             await executeSql(database,
                 `UPDATE fudaba_cards
-                 SET origin='guest',
-                     front_object_key='community/namecards/assets/guest/image.webp'
+                 SET origin='guest'
                  WHERE card_number=?`,
                 [id]
             );
@@ -652,15 +560,12 @@ import { describe, onTestFinished, test } from 'vitest';
                 [ownerId]
             );
             const id = await repository.insertPendingCard(guestInput('approve-pages'));
-            const live = (name: string) => `media/live-${name}.webp`;
-            const staged = (name: string) => `media/staged-${name}.webp`;
             await executeSql(database,
                 `UPDATE fudaba_cards
                  SET owner_account_id=?, producer_name=?, trade_note='',
-                     publication_status='published',
-                     front_object_key=?, back_object_key=?
+                     publication_status='published'
                  WHERE card_number=?`,
-                [ownerId, '待审名称', live('front'), live('back'), id]
+                [ownerId, '待审名称', id]
             );
             const cardId = (await queryOne<{ id: string }>(database,
                 'SELECT id FROM fudaba_cards WHERE card_number=?',
@@ -679,14 +584,12 @@ import { describe, onTestFinished, test } from 'vitest';
                 [cardId, cardId, cardId]
             );
             // The author replaces the single middle page with two new ones and
-            // resubmits: the pages only exist in the staging columns until a
-            // reviewer approves that revision.
+            // resubmits: the whole revised page set waits in the pending queue
+            // until a reviewer approves that revision.
             await executeSql(database,
                 `UPDATE fudaba_cards
                  SET review_status='pending',
-                     pending_payload=CAST(? AS jsonb),
-                     pending_front_object_key=?, pending_back_object_key=?,
-                     pending_middle_object_keys=CAST(? AS text[])
+                     pending_payload=CAST(? AS jsonb)
                  WHERE card_number=?`,
                 [
                     JSON.stringify({
@@ -699,11 +602,22 @@ import { describe, onTestFinished, test } from 'vitest';
                         is_original: false,
                         made_with_ai: false
                     }),
-                    staged('front'),
-                    staged('back'),
-                    `{${staged('page-a')},${staged('page-b')}}`,
                     id
                 ]
+            );
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      object_queue, width, height, created_at, updated_at)
+                 VALUES (?, 'pending', 'front', 1,
+                         '11111111-1111-4111-8111-111111111111'::uuid, 'live', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'page-aaaaaaaa', 2,
+                         'aaaaaaaa-0000-4000-8000-000000000001'::uuid, 'pending', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'page-bbbbbbbb', 3,
+                         'bbbbbbbb-0000-4000-8000-000000000002'::uuid, 'pending', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'back', 4,
+                         '66666666-6666-4666-8666-666666666666'::uuid, 'live', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [cardId, cardId, cardId, cardId]
             );
             const revision = Number((await queryOne<{ revision: number }>(database,
                 'SELECT revision FROM fudaba_cards WHERE card_number=?',
@@ -717,18 +631,34 @@ import { describe, onTestFinished, test } from 'vitest';
             );
             assert.equal(completed.status, 'updated');
 
-            const promoted = (await queryOne<{
-                front_object_key: string;
-                pending_middle_object_keys: string[];
-                review_status: string | null;
-            }>(database,
-                `SELECT front_object_key, pending_middle_object_keys, review_status
-                 FROM fudaba_cards WHERE card_number=?`,
-                [id]
-            ))!;
-            assert.equal(promoted.front_object_key, staged('front'));
-            assert.equal(promoted.review_status, null);
-            assert.deepEqual(promoted.pending_middle_object_keys, []);
+            assert.equal(
+                (
+                    await queryOne<{ review_status: string | null }>(database,
+                        'SELECT review_status FROM fudaba_cards WHERE card_number=?',
+                        [id]
+                    )
+                )?.review_status,
+                null
+            );
+            // 页面行整批换血：待审的两张新中间页成为线上页。
+            assert.deepEqual(
+                (
+                    await queryAll<{ page_id: string }>(database,
+                        `SELECT page_id FROM public.fudaba_card_pages
+                          WHERE card_id=? AND queue='live' ORDER BY display_order`,
+                        [cardId]
+                    )
+                ).map((row) => row.page_id),
+                ['front', 'page-aaaaaaaa', 'page-bbbbbbbb', 'back']
+            );
+            assert.equal(
+                await queryOne(database,
+                    `SELECT 1 FROM public.fudaba_card_pages
+                      WHERE card_id=? AND queue='pending'`,
+                    [cardId]
+                ),
+                null
+            );
         });
 
         postgresTest('approval promotes staged pages without dropping untouched live ones', async () => {
@@ -755,19 +685,12 @@ import { describe, onTestFinished, test } from 'vitest';
                 'SELECT id FROM fudaba_cards WHERE card_number=?',
                 [id]
             ))!.id;
-            const liveFront = cardPageObjectKey(cardId, 'live', 'front',
-                '11111111-1111-4111-8111-111111111111');
-            const liveBack = cardPageObjectKey(cardId, 'live', 'back',
-                '66666666-6666-4666-8666-666666666666');
-            const newMiddle = cardPageObjectKey(cardId, 'pending', 'page-aaaaaaaa',
-                '88888888-8888-4888-8888-888888888888');
             await executeSql(database,
                 `UPDATE fudaba_cards
                  SET owner_account_id=?, producer_name=?, trade_note='',
-                     publication_status='published', front_object_key=?,
-                     back_object_key=?
+                     publication_status='published'
                  WHERE card_number=?`,
-                [ownerId, '保留页测试', liveFront, liveBack, id]
+                [ownerId, '保留页测试', id]
             );
             await executeSql(database,
                 `INSERT INTO public.fudaba_card_pages
@@ -778,16 +701,26 @@ import { describe, onTestFinished, test } from 'vitest';
                         (?, 'live', 'page-dddddddd', 2,
                          '77777777-7777-4777-8777-777777777777'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
                         (?, 'live', 'back', 3,
-                         '66666666-6666-4666-8666-666666666666'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
-                        (?, 'pending', 'page-aaaaaaaa', 1,
-                         '88888888-8888-4888-8888-888888888888'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
-                [cardId, cardId, cardId, cardId]
+                         '66666666-6666-4666-8666-666666666666'::uuid, 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [cardId, cardId, cardId]
+            );
+            // 待审页集是完整快照：未改动的正反面仍指向线上对象（object_queue
+            // 留在 live），只有新中间页真正落在 pending 队列。
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      object_queue, width, height, created_at, updated_at)
+                 VALUES (?, 'pending', 'front', 1,
+                         '11111111-1111-4111-8111-111111111111'::uuid, 'live', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'page-aaaaaaaa', 2,
+                         '88888888-8888-4888-8888-888888888888'::uuid, 'pending', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'back', 3,
+                         '66666666-6666-4666-8666-666666666666'::uuid, 'live', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [cardId, cardId, cardId]
             );
             await executeSql(database,
                 `UPDATE fudaba_cards
-                 SET review_status='pending', pending_payload=CAST(? AS jsonb),
-                     pending_front_object_key=?, pending_back_object_key=?,
-                     pending_middle_object_keys=CAST(? AS text[])
+                 SET review_status='pending', pending_payload=CAST(? AS jsonb)
                  WHERE card_number=?`,
                 [
                     JSON.stringify({
@@ -800,9 +733,6 @@ import { describe, onTestFinished, test } from 'vitest';
                         is_original: false,
                         made_with_ai: false
                     }),
-                    liveFront,
-                    liveBack,
-                    `{${newMiddle}}`,
                     id
                 ]
             );
@@ -861,15 +791,12 @@ import { describe, onTestFinished, test } from 'vitest';
                 [ownerId]
             );
             const id = await repository.insertPendingCard(guestInput('diff-pages'));
-            const live = (name: string) => `media/live-${name}.webp`;
-            const staged = (name: string) => `media/staged-${name}.webp`;
             await executeSql(database,
                 `UPDATE fudaba_cards
                  SET owner_account_id=?, producer_name=?, trade_note='',
-                     publication_status='published',
-                     front_object_key=?, back_object_key=?
+                     publication_status='published'
                  WHERE card_number=?`,
-                [ownerId, '待审名称', live('front'), live('back'), id]
+                [ownerId, '待审名称', id]
             );
             const cardId = (await queryOne<{ id: string }>(database,
                 'SELECT id FROM fudaba_cards WHERE card_number=?',
@@ -896,9 +823,7 @@ import { describe, onTestFinished, test } from 'vitest';
             await executeSql(database,
                 `UPDATE fudaba_cards
                  SET review_status='pending',
-                     pending_payload=CAST(? AS jsonb),
-                     pending_front_object_key=?, pending_back_object_key=?,
-                     pending_middle_object_keys=CAST(? AS text[])
+                     pending_payload=CAST(? AS jsonb)
                  WHERE card_number=?`,
                 [
                     JSON.stringify({
@@ -911,22 +836,30 @@ import { describe, onTestFinished, test } from 'vitest';
                         is_original: false,
                         made_with_ai: false
                     }),
-                    staged('front'),
-                    staged('back'),
-                    `{${staged('page-a')},${staged('page-b')}}`,
                     id
                 ]
             );
-            const diff = await repository.findCardDiff(id);
-            assert.ok(diff);
+            // 待审页集是完整快照：正反面换了图，另加两张新中间页。
+            await executeSql(database,
+                `INSERT INTO public.fudaba_card_pages
+                     (card_id, queue, page_id, display_order, object_version,
+                      object_queue, width, height, created_at, updated_at)
+                 VALUES (?, 'pending', 'front', 1,
+                         'aaaaaaaa-0000-4000-8000-000000000001'::uuid, 'pending', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'page-aaaaaaaa', 2,
+                         'aaaaaaaa-0000-4000-8000-000000000002'::uuid, 'pending', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'page-bbbbbbbb', 3,
+                         'bbbbbbbb-0000-4000-8000-000000000003'::uuid, 'pending', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                        (?, 'pending', 'back', 4,
+                         'bbbbbbbb-0000-4000-8000-000000000004'::uuid, 'pending', 100, 50, TIMESTAMPTZ '2026-01-01T00:00:00Z', TIMESTAMPTZ '2026-01-01T00:00:00Z')`,
+                [cardId, cardId, cardId, cardId]
+            );
             // The reviewer sees the submitted pages, never the live ones: a
             // fallback here turned a staged middle page into the back.
-            assert.equal(diff.live.middleImageUrls.length, 1);
-            assert.equal(diff.pending?.middleImageUrls.length, 2);
-            assert.notEqual(
-                diff.pending?.middleImageUrls[1],
-                diff.live.middleImageUrls[0]
-            );
+            const artwork = await repository.findAdminCardArtwork(id);
+            assert.ok(artwork);
+            assert.equal(artwork.staged, true);
+            assert.equal(artwork.middleObjectKeys.length, 2);
         });
 
         postgresTest('may carry optional profile text', async () => {
@@ -1240,18 +1173,18 @@ import { describe, onTestFinished, test } from 'vitest';
 
             await migratePostgres({ connectionString: harness.databaseUrl });
 
+            // 旧 key 列已在 20261112140000 迁移里删除，这里只核对统一后的行身份；
+            // 媒体 key 搬进页面行是由 ops:namecards:migrate-pages 回填的，迁移本身
+            // 不再写它们。
             const migratedApproved = await harness.connection.prepare(
                 `SELECT card_number, origin, publication_status,
-                front_object_key, back_object_key, revision,
-                owner_account_id, producer_name
+                revision, owner_account_id, producer_name
          FROM fudaba_cards WHERE id=?`
             ).bind(`legacy-${approved.id}`).first<Record<string, unknown>>();
             assert.deepEqual(migratedApproved, {
                 card_number: approved.id,
                 origin: 'legacy',
                 publication_status: 'published',
-                front_object_key: 'community/namecards/assets/card-7-front/image.png',
-                back_object_key: 'community/namecards/assets/card-7-back/image.jpg',
                 revision: 3,
                 owner_account_id: null,
                 producer_name: null,
@@ -1304,11 +1237,10 @@ import { describe, onTestFinished, test } from 'vitest';
             await assert.rejects(
                 harness.connection.prepare(
                     `INSERT INTO fudaba_cards
-                (id, origin, front_object_key, back_object_key, producer_name,
+                (id, origin, producer_name,
                  publication_status, created_at, updated_at)
-             VALUES ('half-filled', 'guest', 'half/front.webp', 'half/back.webp',
-                     'Producer', 'pending', CURRENT_TIMESTAMP,
-                     CURRENT_TIMESTAMP)`
+             VALUES ('half-filled', 'guest', 'Producer', 'pending',
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
                 ).run(),
                 /fudaba_cards_owner_layer_check/,
                 'a card without an owner must not carry owner-only fields'

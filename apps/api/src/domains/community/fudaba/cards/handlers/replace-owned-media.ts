@@ -8,7 +8,6 @@ import {
 } from '@/domains/community/fudaba/contracts/card';
 import { fudabaRepository, services } from '@/middleware/hono-context';
 import type { UploadedFile } from '@/ports/http';
-import type { FudabaCardRecord } from '@/ports/repositories';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { convertUserImageToWebp } from '@/utils/media/user-image';
@@ -20,10 +19,8 @@ import {
     deleteObjectWithCompensation,
     deleteOwnedObjectWithCompensation
 } from '@/utils/storage/delete-object';
-import {
-    cardPageObjectKey,
-    fudabaCardMediaVersionObjectKey
-} from '@/utils/storage/business-object-keys';
+import { cardPageObjectKeys } from '@/domains/community/fudaba/cards/card-media-resolver';
+import { ownerCardArtwork } from '@/domains/community/fudaba/cards/artwork-view';
 
 const MAX_CARD_IMAGE_BYTES = 8 * 1024 * 1024;
 // Twenty 8 MiB originals would be a 160 MiB body; the editor downscales and the
@@ -119,55 +116,6 @@ function exactFields(fields: Record<string, string>, allowed: readonly string[])
     }
 }
 
-/**
- * The slots the owner edits: the staged set of a published card (falling back to
- * the live one per field while a legacy partial staging exists), otherwise the
- * live set.
- */
-type PageRow = { page_id: string; object_version: string };
-
-function pageKeys(
-    cardId: string,
-    queue: 'live' | 'pending',
-    pages: readonly PageRow[]
-): string[] {
-    return pages.map((page) =>
-        cardPageObjectKey(cardId, queue, page.page_id, page.object_version)
-    )
-}
-
-function editableSlots(
-    card: FudabaCardRecord,
-    pages: { live: readonly PageRow[]; pending: readonly PageRow[] }
-): string[] {
-    const staged = card.publication_status === 'published';
-    // pending columns are the full ordered surface when a revision stages art;
-    // a text-only revision leaves them empty and must fall back to live pages.
-    const stagedArtwork =
-        staged &&
-        (card.pending_front_object_key !== null ||
-            card.pending_back_object_key !== null ||
-            card.pending_middle_object_keys.length > 0);
-    if (stagedArtwork) {
-        return [
-            card.pending_front_object_key ?? card.front_object_key,
-            ...card.pending_middle_object_keys,
-            card.pending_back_object_key ?? card.back_object_key
-        ].filter(
-            (key): key is string => typeof key === 'string' && key.length > 0
-        );
-    }
-    const livePageKeys = pageKeys(card.id, 'live', pages.live);
-    if (!staged && pages.pending.length > 0) {
-        // An unpublished submission edits its own pending page set.
-        return pageKeys(card.id, 'pending', pages.pending);
-    }
-    if (livePageKeys.length > 0) return livePageKeys;
-    // Legacy cards without page rows keep their columns.
-    return [card.front_object_key, ...card.middle_object_keys, card.back_object_key]
-        .filter((key): key is string => typeof key === 'string' && key.length > 0);
-}
-
 export async function handleReplaceFudabaOwnedMedia(
     c: Context<AppEnvironment>
 ): Promise<Response> {
@@ -216,7 +164,14 @@ export async function handleReplaceFudabaOwnedMedia(
             }, 409);
         }
         const pages = await repository.listCardPages(cardId);
-        const surface = editableSlots(current, pages);
+        /*
+          属主编辑的是完整的一套页面：有暂存版本时是完整的待审快照（未改动的页
+          仍指向线上对象），否则就是线上那套。
+        */
+        const surface =
+            pages.pending.length > 0
+                ? cardPageObjectKeys(cardId, 'pending', pages.pending)
+                : cardPageObjectKeys(cardId, 'live', pages.live);
         const order = resolveOrder(
             upload.fields.order ??
                 JSON.stringify(files.map((_file, index) => `@${index}`)),
@@ -305,11 +260,9 @@ export async function handleReplaceFudabaOwnedMedia(
             });
             return stored.key;
         };
+        // 已发布的卡有了待审页面行，这次改动就落在待审那一套上。
         const staged =
-            current.publication_status === 'published' &&
-            (current.pending_front_object_key !== null ||
-                current.pending_back_object_key !== null ||
-                current.pending_middle_object_keys.length > 0);
+            current.publication_status === 'published' && pages.pending.length > 0;
         const rotatedPages: FudabaCardPageWrite[] = [];
         if (rotationOnly) {
             /*
@@ -372,13 +325,36 @@ export async function handleReplaceFudabaOwnedMedia(
                     console.error('Failed to publish rotated card media', error);
                 });
             }
+            /*
+              暂存版本的页面行里，未改动的页仍指向线上对象，所以保留集要同时收下
+              线上与待审两套页面：只按这次旋转出来的 key 删会删掉线上图。
+            */
+            const kept = new Set<string>([
+                ...cardPageObjectKeys(result.card.id, 'live', result.card.pages),
+                ...cardPageObjectKeys(
+                    result.card.id,
+                    'pending',
+                    result.card.pending_pages
+                ),
+            ]);
             for (const previous of result.previousObjectKeys ?? []) {
-                if (rotated.includes(previous)) continue;
+                if (rotated.includes(previous) || kept.has(previous)) continue;
                 await deleteObjectWithCompensation(runtime, previous).catch(
                     () => undefined
                 );
             }
-            return c.json({ success: true, card: fudabaOwnerCardView(result.card) });
+            const artwork = ownerCardArtwork(result.card, {
+                live: result.card.pages,
+                pending: result.card.pending_pages ?? []
+            });
+            return c.json({
+                success: true,
+                card: fudabaOwnerCardView(
+                    result.card,
+                    artwork.live,
+                    artwork.pending ?? undefined
+                )
+            });
         }
         const replaceQueue =
             current.publication_status === 'published' ? 'pending' : 'live';
@@ -433,21 +409,16 @@ export async function handleReplaceFudabaOwnedMedia(
                 : c.json({ success: false, code: 'FUDABA_CARD_NOT_FOUND' }, 404);
         }
         committed = true;
-        // Retain everything the saved card now points at; only the objects this
-        // request made irrelevant are deleted. Live artwork of a published card
-        // is not part of the edited surface, so it never appears here.
+        // 只保留保存后的卡仍然指向的对象：线上与待审两套页面行都要收下，
+        // 其余这次请求不再引用的对象才安排删除。
         const kept = new Set<string>([
-            result.card.front_object_key,
-            result.card.back_object_key,
-            ...result.card.middle_object_keys,
-            ...(result.card.pending_front_object_key
-                ? [result.card.pending_front_object_key]
-                : []),
-            ...(result.card.pending_back_object_key
-                ? [result.card.pending_back_object_key]
-                : []),
-            ...result.card.pending_middle_object_keys
-        ].filter((key): key is string => typeof key === 'string' && key.length > 0));
+            ...cardPageObjectKeys(result.card.id, 'live', result.card.pages),
+            ...cardPageObjectKeys(
+                result.card.id,
+                'pending',
+                result.card.pending_pages
+            ),
+        ]);
         for (const previous of result.previousObjectKeys ?? []) {
             if (kept.has(previous)) continue;
             await deleteObjectWithCompensation(runtime, previous).catch((error) => {
@@ -457,7 +428,18 @@ export async function handleReplaceFudabaOwnedMedia(
                 );
             });
         }
-        return c.json({ success: true, card: fudabaOwnerCardView(result.card) });
+        const artwork = ownerCardArtwork(result.card, {
+            live: result.card.pages,
+            pending: result.card.pending_pages ?? []
+        });
+        return c.json({
+            success: true,
+            card: fudabaOwnerCardView(
+                result.card,
+                artwork.live,
+                artwork.pending ?? undefined
+            )
+        });
     } catch (error) {
         if (!committed) {
             for (const key of createdKeys) {

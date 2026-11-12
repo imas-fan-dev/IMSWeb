@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView } from '@/domains/community/fudaba/contracts/card';
+import { ownerCardArtwork } from '@/domains/community/fudaba/cards/artwork-view';
 import {
     parseFudabaCardCreateFields,
     parseMediaRotations
@@ -82,6 +83,14 @@ export async function handleCreateFudabaCard(
                 : rawBack.body
             : null;
         const backImage = rawBack ? { ...rawBack, body: rotatedBack! } : null;
+        const frontInfo =
+            rotations.front && frontImage
+                ? await runtime.images.validate(rotatedFront, 'image/webp')
+                : frontImage;
+        const backInfo =
+            rawBack && rotations.back
+                ? await runtime.images.validate(rotatedBack!, 'image/webp')
+                : rawBack;
         // The picker marks the second slot of a multi-image submission as the
         // back, so middle pages cannot exist without one: a card with two or
         // more images always has a back, and anything else is a client bug.
@@ -110,15 +119,10 @@ export async function handleCreateFudabaCard(
                     MAX_CARD_IMAGE_BYTES
                 );
                 const turns = rotations.middles[index] ?? 0;
-                return turns
-                    ? {
-                          ...converted,
-                          body: await images.rotate!(
-                              converted.body,
-                              turns * 90
-                          )
-                      }
-                    : converted;
+                if (!turns) return converted;
+                const body = await images.rotate!(converted.body, turns * 90);
+                const info = await images.validate(body, 'image/webp');
+                return { ...converted, body, width: info.width, height: info.height };
             }),
         );
         const accent = (await runtime.images.dominantColor?.(rotatedFront)) ?? null;
@@ -130,7 +134,7 @@ export async function handleCreateFudabaCard(
             body: Uint8Array,
             width: number,
             height: number
-        ) => {
+        ): Promise<void> => {
             const stored = await storeCardPage(runtime, {
                 cardId,
                 queue: 'live',
@@ -147,32 +151,29 @@ export async function handleCreateFudabaCard(
                 width,
                 height
             });
-            return stored.key;
         };
-        const frontKey = await store(
+        await store(
             `page-${randomUUID()}`,
             rotatedFront,
-            frontImage.width,
-            frontImage.height
+            frontInfo!.width,
+            frontInfo!.height
         );
-        let backKey: string | null = null;
-        if (backImage) {
-            backKey = await store(
+        for (const image of middleImages) {
+            await store(
                 `page-${randomUUID()}`,
-                backImage.body,
-                rawBack!.width,
-                rawBack!.height
+                image.body,
+                image.width,
+                image.height
             );
         }
-        const middleKeys: string[] = [];
-        for (const [index, image] of middleImages.entries()) {
-            middleKeys.push(
-                await store(
-                    `page-${randomUUID()}`,
-                    image.body,
-                    image.width,
-                    image.height
-                )
+        // Page rows are the display order: front, middle pages, back.
+        // The back must be stored after the middles or it becomes page 2.
+        if (backImage) {
+            await store(
+                `page-${randomUUID()}`,
+                backImage.body,
+                backInfo!.width,
+                backInfo!.height
             );
         }
         const now = new Date().toISOString();
@@ -184,9 +185,6 @@ export async function handleCreateFudabaCard(
                 id: cardId,
                 ownerAccountId,
                 ...fields,
-                frontObjectKey: frontKey,
-                backObjectKey: backKey,
-                middleObjectKeys: middleKeys,
                 pages,
                 accent,
                 createdAt: now,
@@ -202,13 +200,31 @@ export async function handleCreateFudabaCard(
                     recoveryError
                 );
             }
+            // 幂等恢复：创建其实已经落库时，页面行与本次写入逐页一致。
+            const recoveredPages = recovered?.pages ?? [];
             if (
-                recovered?.front_object_key === frontKey &&
-                recovered.back_object_key === backKey
+                recovered &&
+                recoveredPages.length === pages.length &&
+                pages.every((page, index) => {
+                    const saved = recoveredPages[index];
+                    return (
+                        saved !== undefined &&
+                        saved.page_id === page.pageId &&
+                        saved.object_version === page.objectVersion
+                    );
+                })
             ) {
+                const recoveredArtwork = ownerCardArtwork(recovered, {
+                    live: recovered.pages,
+                    pending: recovered.pending_pages ?? []
+                });
                 return c.json({
                     success: true,
-                    card: fudabaOwnerCardView(recovered)
+                    card: fudabaOwnerCardView(
+                        recovered,
+                        recoveredArtwork.live,
+                        recoveredArtwork.pending ?? undefined
+                    )
                 }, 201);
             }
             throw error;
@@ -221,7 +237,18 @@ export async function handleCreateFudabaCard(
             return c.json({ success: false, code: 'FUDABA_CARD_UNAVAILABLE' }, 409);
         }
         cleanupCreatedObjects = false;
-        return c.json({ success: true, card: fudabaOwnerCardView(result.card) }, 201);
+        const savedArtwork = ownerCardArtwork(result.card, {
+            live: result.card.pages,
+            pending: result.card.pending_pages ?? []
+        });
+        return c.json({
+            success: true,
+            card: fudabaOwnerCardView(
+                result.card,
+                savedArtwork.live,
+                savedArtwork.pending ?? undefined
+            )
+        }, 201);
     } catch (error) {
         if (cleanupCreatedObjects) {
             await Promise.all(createdKeys.map((key) =>

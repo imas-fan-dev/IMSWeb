@@ -5,7 +5,7 @@
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex, fixtureSha256Hex as hash } from '../fixtures/auth-request';
 import { CANONICAL_FUDABA_AGENCIES, projectCanonicalFudabaAgencies } from '../fixtures/fudaba-agency-catalog';
-import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, PNG_BYTES, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, uploadedFile } from '../fixtures/owner-route-fixture';
+import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardPageRow, cardPageWrite, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, pageObjectKey, pageRowsFromWrites, PNG_BYTES, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, storedPageKey, uploadedFile } from '../fixtures/owner-route-fixture';
 import { insertBackofficeAccount, insertFudabaOfficePublicLocation, insertPlatformAccount } from '../fixtures/rows';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createMigrationCatalogBefore } from '../integration/migration-catalog';
@@ -39,7 +39,7 @@ import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
 import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaCardMetadataInput, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
-import { FUDABA_MAP_DELIVERY_OBJECT_KEY, namecardOriginalUrlFromObjectKey } from '@/utils/storage/business-object-keys';
+import { FUDABA_MAP_DELIVERY_OBJECT_KEY } from '@/utils/storage/business-object-keys';
 import { fudabaCardDeleteResponseSchema, fudabaCardInteractionResponseSchema, fudabaCardMutationResponseSchema, fudabaCardPageSchema, fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema, fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOfficeDetailSchema, fudabaOfficeMutationResponseSchema, fudabaOfficePageSchema, fudabaOwnerCardDetailSchema, fudabaOwnerCardListSchema, fudabaOwnerLocationDetailSchema, fudabaOwnerLocationMutationResponseSchema, fudabaOwnerLocationWithdrawalResponseSchema, fudabaOwnerOfficeListSchema, fudabaPlaceSearchResponseSchema, fudabaSeriesListSchema } from '@imsweb/contracts/fudaba';
 import { fudabaCardClaimErrorSchema, ownerClaimListSchema, reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
 import { namecardCharacterCatalogSchema } from '@imsweb/contracts/fudaba/characters';
@@ -370,8 +370,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         test('namecard and claim views expose structured character and claim metadata', () => {
             const publicCard = toPublicNamecardResponse({
                 id: 7,
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: '/uploads/namecard/original/back.webp',
                 status: 'approved',
                 created_at: '2026-08-16T19:30:00.000Z',
                 series_code: '765',
@@ -398,8 +396,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
             const historicalCard = toPublicNamecardResponse({
                 id: 8,
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: '/uploads/namecard/original/back.webp',
                 status: 'approved',
                 created_at: null
             });
@@ -410,8 +406,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
             const claimedCard = toPublicNamecardResponse({
                 id: 9,
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: '/uploads/namecard/original/back.webp',
                 status: 'approved',
                 created_at: null,
                 claim_status: 'claimed',
@@ -515,9 +509,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producer_name: 'Producer A',
             series_codes: ['765'],
             favorite_characters: [],
-            front_object_key: 'public/cards/card-a/front.webp',
+            pages: [cardPageRow('front', 1), cardPageRow('back', 2)],
             middle_object_keys: [],
-            back_object_key: 'public/cards/card-a/back.webp',
             accent: '#4f64dd',
             bio: 'Public bio',
             trade_note: 'Trade note',
@@ -943,8 +936,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producerName: `Producer ${ownerAccountId}`,
             seriesCodes: ['765'],
             favoriteCharacterIds: [900_001],
-            frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
-            backObjectKey: `community/fudaba/cards/${id}/back.webp`,
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
             bio: '',
             tradeNote: '',
             exchangeMode: 'manual',
@@ -1915,8 +1907,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             credits: [],
             legacy_card_id: null,
             origin: 'exchange',
-            front_object_key: 'community/fudaba/cards/registered-review/front.webp',
-            back_object_key: 'community/fudaba/cards/registered-review/back.webp',
+            pages: [cardPageRow('front', 1), cardPageRow('back', 2)],
+            pending_pages: [],
             accent: '#f34e6c',
             bio: '',
             trade_note: '',
@@ -1931,9 +1923,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             review_reason: null,
             review_submitted_at: null,
             pending_payload: null,
-            pending_front_object_key: null,
-            pending_middle_object_keys: [],
-            pending_back_object_key: null,
             revision: 1,
             created_at: CREATED_AT,
             updated_at: CREATED_AT,
@@ -1969,8 +1958,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             revision: 0,
             claimant_display_name: 'Claimant',
             target_card_number: null,
-            legacy_image1_url: '/uploads/namecard/original/legacy-front.webp',
-            legacy_image2_url: '/uploads/namecard/original/legacy-back.webp'
+            legacy_front_key: 'community/fudaba/cards/legacy-1/live/front.webp',
+            legacy_back_key: 'community/fudaba/cards/legacy-1/live/back.webp'
         };
     }
 
@@ -2040,380 +2029,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         } as RuntimeServices;
     }
 
-    test.describe('Fudaba card review handlers', () => {
-        test('registered-card publish failure re-protects both objects before rollback', async () => {
-            const card = registeredCard();
-            const published: string[] = [];
-            const protectedKeys: string[] = [];
-            const rollbacks: Array<[string, number]> = [];
-            const repository: Partial<FudabaRepository> = {
-                async beginRegisteredCardReview() {
-                    return { status: 'claimed', card };
-                },
-                async completeRegisteredCardReview() {
-                    throw new Error('must not complete after publication failure');
-                },
-                async rollbackRegisteredCardReview(cardId, revision) {
-                    rollbacks.push([cardId, revision]);
-                    return true;
-                }
-            };
-            const objectStorage = storage({
-                async publish(key) {
-                    published.push(key);
-                    if (key === card.back_object_key) throw new Error('second publish failed');
-                },
-                async protect(key) {
-                    protectedKeys.push(key);
-                }
-            });
-
-            const response = await app(runtime(repository, objectStorage)).request(
-                'http://ims.test/registered/registered-review',
-                {
-                    method: 'PUT',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                        decision: 'approve',
-                        expectedRevision: 0,
-                        note: ''
-                    })
-                }
-            );
-
-            assert.equal(response.status, 500);
-            assert.deepEqual(new Set(published), new Set([
-                card.front_object_key,
-                card.back_object_key
-            ]));
-            assert.deepEqual(new Set(protectedKeys), new Set([
-                card.front_object_key,
-                card.back_object_key
-            ]));
-            assert.deepEqual(rollbacks, [['registered-review', 1]]);
-        });
-
-        test('partial legacy-media copy cleans the first object and rolls the claim back', async () => {
-            const claim = adminClaim();
-            const created: Array<{ key: string; ownerToken: string }> = [];
-            const deleted: Array<{ key: string; ownerToken: string }> = [];
-            let reads = 0;
-            const repository: Partial<FudabaRepository> = {
-                async findAdminCardClaim() { return claim; },
-                async beginCardClaimReview() {
-                    return { status: 'claimed', claim: claimRecord() };
-                },
-                async rollbackCardClaimReview() { return true; }
-            };
-            const objectStorage = storage({
-                async get() {
-                    reads += 1;
-                    return reads === 1 ? stored(1) : null;
-                },
-                async put(key, body, options) {
-                    created.push({ key, ownerToken: options?.ownerToken ?? '' });
-                    return stored(body[0] ?? 0);
-                },
-                async publish() {},
-                async deleteIfOwned(key, ownerToken) {
-                    deleted.push({ key, ownerToken });
-                    return true;
-                }
-            });
-
-            const response = await app(runtime(repository, objectStorage)).request(
-                'http://ims.test/claims/claim-review',
-                {
-                    method: 'PUT',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                        decision: 'approve',
-                        expectedRevision: 0,
-                        note: 'verified'
-                    })
-                }
-            );
-
-            assert.equal(response.status, 500);
-            assert.equal(created.length, 1);
-            assert.deepEqual(deleted, created);
-        });
-
-        test('new claimed-card media is public before the final database transition', async () => {
-            const claim = adminClaim();
-            const published: string[] = [];
-            let completeCalls = 0;
-            const savedClaim = { ...claimRecord(), state: 'approved' as const, revision: 2 };
-            const repository: Partial<FudabaRepository> = {
-                async findAdminCardClaim() { return claim; },
-                async beginCardClaimReview() {
-                    return { status: 'claimed', claim: claimRecord() };
-                },
-                async completeCardClaimReview() {
-                    completeCalls += 1;
-                    assert.equal(published.length, 2);
-                    return { status: 'saved', claim: savedClaim, card: null };
-                },
-                async rollbackCardClaimReview() {
-                    throw new Error('successful claim must not roll back');
-                }
-            };
-            const objectStorage = storage({
-                async get(key) {
-                    return stored(key.includes('front') ? 1 : 2);
-                },
-                async publish(key) {
-                    published.push(key);
-                }
-            });
-
-            const response = await app(runtime(repository, objectStorage)).request(
-                'http://ims.test/claims/claim-review',
-                {
-                    method: 'PUT',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                        decision: 'approve',
-                        expectedRevision: 0,
-                        note: 'verified'
-                    })
-                }
-            );
-
-            assert.equal(response.status, 200);
-            assert.equal(completeCalls, 1);
-            assert.equal(published.length, 2);
-        });
-
-        // The claimed row keeps `origin='legacy'`, so the public namecard wall still
-        // publishes it and addresses its media by reversing the stored object key. A
-        // Fudaba-layout key (`community/fudaba/cards/...`) has no public form, so that
-        // reversal threw and returned an opaque `查询失败` for the entire wall.
-        test('claimed media lands where the public namecard wall can read it', async () => {
-            const claim = adminClaim();
-            const destinations: string[] = [];
-            const published: string[] = [];
-            const repository: Partial<FudabaRepository> = {
-                async findAdminCardClaim() { return claim; },
-                async beginCardClaimReview() {
-                    return { status: 'claimed', claim: claimRecord() };
-                },
-                async completeCardClaimReview() {
-                    return {
-                        status: 'saved',
-                        claim: { ...claimRecord(), state: 'approved' as const, revision: 2 },
-                        card: null
-                    };
-                },
-                async rollbackCardClaimReview() {
-                    throw new Error('successful claim must not roll back');
-                }
-            };
-            const objectStorage = storage({
-                async get(key) { return stored(key.includes('front') ? 1 : 2); },
-                async put(key, body) {
-                    destinations.push(key);
-                    return stored(body[0] ?? 0);
-                },
-                async publish(key) { published.push(key); }
-            });
-
-            const response = await app(runtime(repository, objectStorage)).request(
-                'http://ims.test/claims/claim-review',
-                {
-                    method: 'PUT',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                        decision: 'approve',
-                        expectedRevision: 0,
-                        note: 'verified'
-                    })
-                }
-            );
-
-            assert.equal(response.status, 200);
-            assert.deepEqual(destinations, [
-                'community/namecards/assets/legacy-42-front/image.webp',
-                'community/namecards/assets/legacy-42-back/image.webp'
-            ]);
-            assert.deepEqual(published, destinations);
-            for (const key of destinations) {
-                assert.match(
-                    namecardOriginalUrlFromObjectKey(key),
-                    /^\/uploads\/namecard\/original\//
-                );
-            }
-            assert.notEqual(destinations[0], claim.legacy_image1_url);
-        });
-
-        test('uncertain registered-card completion reconciles committed state without protection', async () => {
-            const card = registeredCard();
-            const protectedKeys: string[] = [];
-            let rollbackCalls = 0;
-            const repository: Partial<FudabaRepository> = {
-                async beginRegisteredCardReview() {
-                    return { status: 'claimed', card };
-                },
-                async completeRegisteredCardReview() {
-                    throw new Error('connection lost after commit');
-                },
-                async findRegisteredCardForAdmin() {
-                    return {
-                        ...card,
-                        publication_status: 'published',
-                        revision: 2
-                    };
-                },
-                async rollbackRegisteredCardReview() {
-                    rollbackCalls += 1;
-                    return true;
-                }
-            };
-            const objectStorage = storage({
-                async publish() {},
-                async protect(key) { protectedKeys.push(key); }
-            });
-
-            const response = await app(runtime(repository, objectStorage)).request(
-                'http://ims.test/registered/registered-review',
-                {
-                    method: 'PUT',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                        decision: 'approve',
-                        expectedRevision: 0,
-                        note: ''
-                    })
-                }
-            );
-
-            assert.equal(response.status, 200);
-            assert.deepEqual(await contractJson(response, reviewMutationSchema),
-                { success: true, revision: 2 });
-            assert.deepEqual(protectedKeys, []);
-            assert.equal(rollbackCalls, 0);
-        });
-
-        test('uncertain claimed-card completion preserves committed public media', async () => {
-            const pending = adminClaim();
-            const approved = {
-                ...pending,
-                state: 'approved' as const,
-                revision: 2,
-                target_card_id: 'created-after-commit'
-            };
-            let claimReads = 0;
-            let rollbackCalls = 0;
-            let deletedCalls = 0;
-            let createdCardId = '';
-            const repository: Partial<FudabaRepository> = {
-                async findAdminCardClaim() {
-                    claimReads += 1;
-                    return claimReads === 1 ? pending : approved;
-                },
-                async beginCardClaimReview() {
-                    return { status: 'claimed', claim: claimRecord() };
-                },
-                async completeCardClaimReview(input) {
-                    if (input.decision === 'approve' && input.media) {
-                        createdCardId = input.media.frontObjectKey;
-                    }
-                    throw new Error('connection lost after commit');
-                },
-                async findCardById(cardId) {
-                    return {
-                        ...registeredCard(),
-                        id: cardId,
-                        legacy_card_id: 42,
-                        publication_status: 'published',
-                        revision: 0
-                    };
-                },
-                async rollbackCardClaimReview() {
-                    rollbackCalls += 1;
-                    return true;
-                }
-            };
-            const objectStorage = storage({
-                async get(key) { return stored(key.includes('front') ? 1 : 2); },
-                async publish() {},
-                async deleteIfOwned() {
-                    deletedCalls += 1;
-                    return true;
-                }
-            });
-
-            const response = await app(runtime(repository, objectStorage)).request(
-                'http://ims.test/claims/claim-review',
-                {
-                    method: 'PUT',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                        decision: 'approve',
-                        expectedRevision: 0,
-                        note: 'verified'
-                    })
-                }
-            );
-
-            assert.equal(response.status, 200);
-            assert.deepEqual(await contractJson(response, reviewMutationSchema),
-                { success: true, revision: 2 });
-            assert.ok(createdCardId);
-            assert.equal(deletedCalls, 0);
-            assert.equal(rollbackCalls, 0);
-        });
-
-        test('put-after-write failure cleans the uncertain destination and prior copy', async () => {
-            const claim = adminClaim();
-            const destinations: Array<{ key: string; ownerToken: string }> = [];
-            const deleted: Array<{ key: string; ownerToken: string }> = [];
-            let puts = 0;
-            let rollbackCalls = 0;
-            const repository: Partial<FudabaRepository> = {
-                async findAdminCardClaim() { return claim; },
-                async beginCardClaimReview() {
-                    return { status: 'claimed', claim: claimRecord() };
-                },
-                async rollbackCardClaimReview() {
-                    rollbackCalls += 1;
-                    return true;
-                }
-            };
-            const objectStorage = storage({
-                async get(key) { return stored(key.includes('front') ? 1 : 2); },
-                async put(key, body, options) {
-                    puts += 1;
-                    destinations.push({ key, ownerToken: options?.ownerToken ?? '' });
-                    if (puts === 2) throw new Error('connection lost after object write');
-                    return stored(body[0] ?? 0);
-                },
-                async publish() {},
-                async deleteIfOwned(key, ownerToken) {
-                    deleted.push({ key, ownerToken });
-                    return true;
-                }
-            });
-
-            const response = await app(runtime(repository, objectStorage)).request(
-                'http://ims.test/claims/claim-review',
-                {
-                    method: 'PUT',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({
-                        decision: 'approve',
-                        expectedRevision: 0,
-                        note: 'verified'
-                    })
-                }
-            );
-
-            assert.equal(response.status, 500);
-            assert.equal(destinations.length, 2);
-            assert.deepEqual(deleted, destinations);
-            assert.equal(rollbackCalls, 1);
-        });
-    });
 }
 
 // fudaba-claim-review-repository.test.ts
@@ -2452,8 +2067,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producerName: `Producer ${ownerAccountId}`,
             seriesCodes: ['765'],
             favoriteCharacterIds: [900_001],
-            frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
-            backObjectKey: `community/fudaba/cards/${id}/back.webp`,
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
             bio: '',
             tradeNote: '',
             exchangeMode: 'manual',
@@ -2479,8 +2093,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producerName: card.producerName,
             seriesCodes: card.seriesCodes,
             favoriteCharacterIds: card.favoriteCharacterIds,
-            frontObjectKey: card.frontObjectKey,
-            backObjectKey: card.backObjectKey,
+            pages: card.pages,
             bio: card.bio,
             tradeNote: card.tradeNote,
             exchangeMode: card.exchangeMode,
@@ -2567,16 +2180,30 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         await database.prepare(
             `INSERT INTO fudaba_cards
             (id, card_number, origin, producer_name, bio, trade_note,
-             front_object_key, back_object_key, exchange_mode,
-             publication_status, revision,
+             exchange_mode, publication_status, revision,
              created_at, updated_at)
-         VALUES (?, ?, 'legacy', ?, NULL, NULL, ?, ?, 'none', 'published', 0, ?, ?)`
+         VALUES (?, ?, 'legacy', ?, NULL, NULL, 'none', 'published', 0, ?, ?)`
         ).bind(
             `legacy-${row.id}`,
             row.id,
             `Legacy ${suffix}`,
-            `legacy/${suffix}/front.webp`,
-            `legacy/${suffix}/back.webp`,
+            CREATED_AT,
+            CREATED_AT
+        ).run();
+        // 旧 key 列已退役：这张卡的版面由线上页面行给出。
+        await database.prepare(
+            `INSERT INTO public.fudaba_card_pages
+            (card_id, queue, page_id, display_order, object_version,
+             width, height, created_at, updated_at)
+         VALUES (?, 'live', 'front', 1,
+                 '11111111-1111-4111-8111-111111111111'::uuid, 100, 50, ?, ?),
+                (?, 'live', 'back', 2,
+                 '22222222-2222-4222-8222-222222222222'::uuid, 100, 50, ?, ?)`
+        ).bind(
+            `legacy-${row.id}`,
+            CREATED_AT,
+            CREATED_AT,
+            `legacy-${row.id}`,
             CREATED_AT,
             CREATED_AT
         ).run();
@@ -2962,7 +2589,14 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             }]);
             const adminClaim = await fudaba.findAdminCardClaim(claimId);
             assert.equal(adminClaim?.claimant_display_name, 'Producer claim-owner-a');
-            assert.equal(adminClaim?.legacy_image1_url, 'legacy/a/front.webp');
+            assert.match(
+                adminClaim?.legacy_front_key ?? '',
+                /^community\/fudaba\/cards\/legacy-\d+\/live\/front\.11111111-1111-4111-8111-111111111111\.webp$/
+            );
+            assert.match(
+                adminClaim?.legacy_back_key ?? '',
+                /^community\/fudaba\/cards\/legacy-\d+\/live\/back\.22222222-2222-4222-8222-222222222222\.webp$/
+            );
 
             const beginResults = await Promise.all([
                 fudaba.beginCardClaimReview(claimId, 0),
@@ -3263,8 +2897,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 approvingRevision: 1,
                 decision: 'approve',
                 media: {
-                    frontObjectKey: `community/fudaba/cards/${boundCreateCardId}/front.webp`,
-                    backObjectKey: `community/fudaba/cards/${boundCreateCardId}/back.webp`,
+                    frontObjectKey: pageObjectKey(boundCreateCardId, 'front'),
+                    backObjectKey: pageObjectKey(boundCreateCardId, 'back'),
+                    pages: [cardPageWrite('front'), cardPageWrite('back')],
                     accent: '#4f64dd'
                 },
                 reviewedBy,
@@ -3295,9 +2930,14 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 ),
                 [900_001, 900_002]
             );
+            // 审核写入的媒体以页面行为准：槽位与对象版本来自提交的页面。
+            assert.deepEqual(
+                createdCardResult.card?.pages.map((page) => page.page_id),
+                ['front', 'back']
+            );
             assert.equal(
-                createdCardResult.card?.front_object_key,
-                `community/fudaba/cards/${boundCreateCardId}/front.webp`
+                storedPageKey(createdCardResult.card!, 'front'),
+                pageObjectKey(boundCreateCardId, 'front')
             );
             // 早期绑定认领会把「升级后的同一张卡」记成自己的合并目标，审核队列
             // 的排除条件因此把一张真实名片藏了起来；自合并不能再隐藏它。
@@ -3359,8 +2999,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 approvingRevision: 1,
                 decision: 'approve',
                 media: {
-                    frontObjectKey: `community/fudaba/cards/legacy-${secondInPlaceLegacyId}/front.webp`,
-                    backObjectKey: `community/fudaba/cards/legacy-${secondInPlaceLegacyId}/back.webp`,
+                    frontObjectKey: pageObjectKey(`legacy-${secondInPlaceLegacyId}`, 'front'),
+                    backObjectKey: pageObjectKey(`legacy-${secondInPlaceLegacyId}`, 'back'),
+                    pages: [cardPageWrite('front'), cardPageWrite('back')],
                     accent: null
                 },
                 reviewedBy,
@@ -3371,6 +3012,46 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 audit: { ...audit, action: 'approve namecard claim' }
             });
             assert.equal(secondInPlace.status, 'saved');
+
+            // 老卡行自身已经带着 legacy_card_id = card_number（历史脏值/迁移遗留）时，
+            // 就地升级的 NOT EXISTS 不能把它读成「已被别的卡占用」——那是自比较，
+            // 会让所有处于该状态的老卡永远无法通过认领。
+            const staleLegacyId = await insertLegacyCard(database, 'y');
+            await database.prepare(
+                `UPDATE fudaba_cards SET legacy_card_id=? WHERE card_number=?`
+            ).bind(String(staleLegacyId), String(staleLegacyId)).run();
+            assert.equal((await fudaba.createCardClaimForOwner({
+                id: 'stale-legacy-id-claim',
+                legacyCardId: staleLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            })).status, 'created');
+            assert.equal(
+                (await fudaba.beginCardClaimReview('stale-legacy-id-claim', 0)).status,
+                'claimed'
+            );
+            const staleInPlace = await fudaba.completeCardClaimReview({
+                claimId: 'stale-legacy-id-claim',
+                approvingRevision: 1,
+                decision: 'approve',
+                media: {
+                    frontObjectKey: pageObjectKey(`legacy-${staleLegacyId}`, 'front'),
+                    backObjectKey: pageObjectKey(`legacy-${staleLegacyId}`, 'back'),
+                    pages: [cardPageWrite('front'), cardPageWrite('back')],
+                    accent: null
+                },
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '老卡自带 legacy_card_id 时就地升级',
+                notificationTitle: '旧名片认领已通过',
+                notificationBody: '旧名片已绑定到您的账号。',
+                audit: { ...audit, action: 'approve namecard claim' }
+            });
+            assert.equal(staleInPlace.status, 'saved');
 
             const rejectedLegacyId = await insertLegacyCard(database, 'j');
             const rejectedClaim = await fudaba.createCardClaimForOwner({
@@ -3612,8 +3293,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producerName: `Producer ${ownerAccountId}`,
             seriesCodes: ['765'],
             favoriteCharacterIds: [900_001],
-            frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
-            backObjectKey: `community/fudaba/cards/${id}/back.webp`,
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
             bio: '',
             tradeNote: '',
             exchangeMode: 'manual',
@@ -4518,8 +4198,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261105200000_catalog_public_facts',
                 '20261106120000_namecard_exchange_system',
                 '20261107120000_namecard_media_key_normalization',
-                '20261107160000_namecard_group_card',
+                '20261107160000_namecard_group_card',
+
                 '20261107180000_fudaba_card_pages',
+                '20261112120000_namecard_media_retire',
+                '20261112130000_namecard_page_object_queue',
+                '20261112140000_namecard_retire_card_key_columns',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
@@ -8461,8 +8145,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 id: 7,
                 cardNumber: 42,
                 producerName: '天海春香',
-                image1_url: '/api/admin/cards/42/media/live/front',
-                image2_url: null,
                 pageCount: 3,
                 reporterName: '调试用户',
                 reason: 'info-error',
@@ -8517,15 +8199,21 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
         test('one ordered submit replaces an image and moves another across roles', async () => {
             const fixture = new OwnerRouteFixture();
-            const base = 'protected/fudaba/cards/owner-card/versions';
+            // 四页卡：正面、两张中间页、背面；槽位稳定，版面由 display_order 决定。
             const live = ownerCard({
                 publication_status: 'published',
                 review_status: null,
-                middle_object_keys: [`${base}/a/middle-1.webp`, `${base}/b/middle-2.webp`]
+                pages: [
+                    cardPageRow('front', 1),
+                    cardPageRow('page-aaaaaaaa', 2),
+                    cardPageRow('page-bbbbbbbb', 3),
+                    cardPageRow('back', 4)
+                ]
             });
             fixture.cards.set('owner-card', live);
-            fixture.storage.seed(live.middle_object_keys[0]!);
-            fixture.storage.seed(live.middle_object_keys[1]!);
+            for (const page of live.pages) {
+                fixture.storage.seed(storedPageKey(live, page.page_id));
+            }
             fixture.uploads.next = {
                 // The slots are front, middle pages, then the back: keeping the
                 // front, uploading one image, keeping both middle pages and
@@ -8551,12 +8239,16 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 uploadedKey,
                 /\/pending\/page-[0-9a-f-]{8,}\.[0-9a-f-]{8,}\.webp$/
             );
+            const frontKey = storedPageKey(live, 'front');
+            const middleAKey = storedPageKey(live, 'page-aaaaaaaa');
+            const middleBKey = storedPageKey(live, 'page-bbbbbbbb');
             const input = fixture.mediaSetInputs.at(-1)!;
-            assert.equal(input.frontObjectKey, live.front_object_key);
-            assert.equal(input.backObjectKey, live.middle_object_keys[1]);
+            assert.equal(input.frontObjectKey, frontKey);
+            // 第二张中间页接替背面：同一张图可以在一次提交里换角色。
+            assert.equal(input.backObjectKey, middleBKey);
             assert.deepEqual(input.middleObjectKeys, [
                 uploadedKey,
-                live.middle_object_keys[0]
+                middleAKey
             ]);
             assert.equal(input.accent, null);
             // The live artwork of a published card is still on display, so
@@ -8569,18 +8261,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
         test('the ordered submit drops artwork the card no longer points at', async () => {
             const fixture = new OwnerRouteFixture();
-            const live = fixture.cards.get('owner-card')!;
-            const unrelated = 'protected/fudaba/cards/owner-card/versions/draft/middle-2.webp';
-            fixture.cards.set('owner-card', {
-                ...live,
+            const live = ownerCard({
                 publication_status: 'pending',
                 review_status: null,
-                middle_object_keys: [
-                    'protected/fudaba/cards/owner-card/versions/draft/middle-1.webp',
-                    unrelated
+                pages: [
+                    cardPageRow('front', 1),
+                    cardPageRow('page-aaaaaaaa', 2),
+                    cardPageRow('page-bbbbbbbb', 3),
+                    cardPageRow('back', 4)
                 ]
             });
-            fixture.storage.seed(unrelated);
+            fixture.cards.set('owner-card', live);
+            for (const page of live.pages) {
+                fixture.storage.seed(storedPageKey(live, page.page_id));
+            }
             fixture.uploads.next = {
                 fields: {
                     order: JSON.stringify(['#0', '@0', '#1', '#2']),
@@ -8595,9 +8289,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
             );
             assert.equal(response.status, 200);
-            // Only the old back drops out: the two middle pages stay referenced
-            // and the second one now closes the list as the back.
-            assert.deepEqual(fixture.storage.deletes, [live.back_object_key]);
+            // Only the object the card stopped referencing drops out: both
+            // middle pages stay (one remains a middle page, the other closes
+            // the list as the back).
+            assert.deepEqual(fixture.storage.deletes, [storedPageKey(live, 'back')]);
         });
 
         test('the ordered submit refuses slots the card does not have', async () => {
@@ -8658,8 +8353,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             // and the owner simply stops seeing it.
             assert.equal(fixture.cards.get('owner-card')?.publication_status, 'hidden');
             assert.equal(fixture.cards.get('owner-card')?.deleted_at, null);
-            assert.equal(fixture.storage.objects.has(current.front_object_key), true);
-            assert.equal(fixture.storage.objects.has(current.back_object_key!), true);
+            assert.equal(fixture.storage.objects.has(storedPageKey(current, 'front')), true);
+            assert.equal(fixture.storage.objects.has(storedPageKey(current, 'back')), true);
             assert.equal(fixture.storage.ownedDeletes.length, 0);
             assert.equal((await fixture.app.request(
                 'http://ims.test/api/community/exchange/me/cards/owner-card',
@@ -8745,10 +8440,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.match(response.headers.get('vary') || '', /Authorization/);
             assert.equal(response.headers.get('content-type'), 'image/webp');
             assert.equal(response.headers.get('content-length'), '4');
-            assert.equal(response.headers.get('etag'), `seed-${ownerCard().front_object_key}`);
+            assert.equal(response.headers.get('etag'), `seed-${storedPageKey(ownerCard(), 'front')}`);
             assert.deepEqual(new Uint8Array(await response.arrayBuffer()),
                 new Uint8Array([0x52, 0x49, 0x46, 0x46]));
-            assert.deepEqual(reads, [ownerCard().front_object_key]);
+            assert.deepEqual(reads, [storedPageKey(ownerCard(), 'front')]);
             assert.deepEqual(fixture.storage.readUrls, []);
 
             const head = await fixture.app.request(
@@ -8817,7 +8512,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     return getSignedUrl(client, command, { expiresIn });
                 }, state);
                 const fixture = new OwnerRouteFixture();
-                const key = ownerCard().front_object_key;
+                const key = storedPageKey(ownerCard(), 'front');
                 const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"/>');
                 let owned = false;
                 onTestFinished(async () => {
@@ -8970,8 +8665,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producerName: `Producer ${ownerAccountId}`,
             seriesCodes: [seriesCode],
             favoriteCharacterIds: [900_001],
-            frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
-            backObjectKey: `community/fudaba/cards/${id}/back.webp`,
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
             bio: 'Profile',
             tradeNote: 'Available for trade',
             exchangeMode: 'manual',
@@ -9338,27 +9032,46 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(created.status, 'saved');
             if (created.status !== 'saved') return;
 
-            const media = (name: string): string => `community/fudaba/cards/${cardId}/${name}.webp`;
+            // 页面行是唯一媒体来源：槽位 + 对象版本决定对象 key。
+            const pageId = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (name: string) =>
+                `${name.repeat(8).slice(0, 8)}-0000-4000-8000-000000000000`;
+            const key = (name: string, queue: 'live' | 'pending' = 'live'): string =>
+                pageObjectKey(cardId, pageId(name), queue, version(name));
+            const pageWrite = (name: string) => ({
+                pageId: pageId(name),
+                objectVersion: version(name),
+                width: 1000,
+                height: 700
+            });
             const postgres = fixture.database as PostgresConnection;
 
             const first = await fixture.fudaba.replaceCardMediaForOwner({
                 cardId,
                 ownerAccountId: ownerId,
-                frontObjectKey: media('a'),
+                frontObjectKey: key('a'),
                 backObjectKey: null,
                 middleObjectKeys: [],
                 accent: '#112233',
+                pages: [pageWrite('a')],
                 expectedRevision: created.card.revision,
                 updatedAt: MEDIA_UPDATED_AT
             });
             assert.equal(first.status, 'saved');
             if (first.status !== 'saved') return;
-            assert.equal(first.card.front_object_key, media('a'));
-            assert.equal(first.card.back_object_key, null);
+            assert.deepEqual(
+                first.card.pages.map((page) => page.page_id),
+                [pageId('a')]
+            );
+            assert.equal(
+                storedPageKey(first.card, pageId('a')),
+                key('a')
+            );
             assert.equal(first.card.accent, '#112233');
             assert.deepEqual(first.previousObjectKeys, [
-                created.card.front_object_key,
-                created.card.back_object_key
+                storedPageKey(created.card, 'front'),
+                storedPageKey(created.card, 'back')
             ]);
             assert.deepEqual(
                 (await postgres.pool.query(
@@ -9375,10 +9088,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const staged = await fixture.fudaba.replaceCardMediaForOwner({
                 cardId,
                 ownerAccountId: ownerId,
-                frontObjectKey: media('b'),
-                backObjectKey: media('c'),
-                middleObjectKeys: [media('d')],
+                frontObjectKey: key('b', 'pending'),
+                backObjectKey: key('c', 'pending'),
+                middleObjectKeys: [key('d', 'pending')],
                 accent: null,
+                pages: [pageWrite('b'), pageWrite('d'), pageWrite('c')],
                 expectedRevision: first.card.revision,
                 updatedAt: MEDIA_UPDATED_AT
             });
@@ -9386,11 +9100,14 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             if (staged.status !== 'saved') return;
             // A published card only stages the new set: the public surface keeps
             // the live images until a review approves the submission.
-            assert.equal(staged.card.front_object_key, media('a'));
-            assert.equal(staged.card.back_object_key, null);
-            assert.equal(staged.card.pending_front_object_key, media('b'));
-            assert.equal(staged.card.pending_back_object_key, media('c'));
-            assert.deepEqual(staged.card.pending_middle_object_keys, [media('d')]);
+            assert.deepEqual(
+                staged.card.pages.map((page) => page.page_id),
+                [pageId('a')]
+            );
+            assert.deepEqual(
+                staged.card.pending_pages.map((page) => page.page_id),
+                [pageId('b'), pageId('d'), pageId('c')]
+            );
             assert.equal(staged.card.review_status, 'pending');
             assert.equal(staged.card.accent, '#112233');
             assert.deepEqual(
@@ -9404,10 +9121,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const stale = await fixture.fudaba.replaceCardMediaForOwner({
                 cardId,
                 ownerAccountId: ownerId,
-                frontObjectKey: media('e'),
+                frontObjectKey: key('e'),
                 backObjectKey: null,
                 middleObjectKeys: [],
                 accent: null,
+                pages: [pageWrite('e')],
                 expectedRevision: created.card.revision,
                 updatedAt: MEDIA_UPDATED_AT
             });
@@ -9524,14 +9242,22 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 assert.equal(withdrawn.card.producer_reading, 'ぷろでゅーさー');
                 assert.deepEqual(
                     (await postgres.pool.query(
-                        'SELECT pending_payload, review_submitted_at, pending_middle_object_keys FROM public.fudaba_cards WHERE id = $1',
+                        'SELECT pending_payload, review_submitted_at FROM public.fudaba_cards WHERE id = $1',
                         [cardId]
                     )).rows[0],
                     {
                         pending_payload: null,
-                        review_submitted_at: null,
-                        pending_middle_object_keys: []
+                        review_submitted_at: null
                     }
+                );
+                // 撤回的修订把暂存的页面行一起丢掉。
+                assert.equal(
+                    (await postgres.pool.query(
+                        `SELECT COUNT(*)::int AS total FROM public.fudaba_card_pages
+                          WHERE card_id = $1 AND queue = 'pending'`,
+                        [cardId]
+                    )).rows[0]?.total,
+                    0
                 );
             }
         );
@@ -9591,10 +9317,17 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(reordered.card.publication_status, 'published');
             assert.equal(reordered.card.review_status ?? null, null);
             assert.equal(reordered.card.review_submitted_at ?? null, null);
-            assert.equal(reordered.card.pending_front_object_key, null);
-            assert.deepEqual(reordered.card.pending_middle_object_keys, []);
-            assert.equal(reordered.card.front_object_key, key('aaaaaaa1', 1));
-            assert.equal(reordered.card.back_object_key, key('aaaaaaa4', 4));
+            assert.deepEqual(reordered.card.pending_pages, []);
+            // 纯换序只改 display_order：槽位与对象版本都不动。
+            assert.deepEqual(
+                reordered.card.pages.map((page) => page.page_id),
+                [
+                    page('aaaaaaa1'),
+                    page('aaaaaaa3'),
+                    page('aaaaaaa2'),
+                    page('aaaaaaa4')
+                ]
+            );
             assert.deepEqual(reordered.card.middle_object_keys, [
                 key('aaaaaaa3', 3),
                 key('aaaaaaa2', 2)
@@ -9685,16 +9418,22 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(reviewed.status, 'updated');
             if (reviewed.status !== 'updated') return;
             const judged = (await postgres.pool.query(
-                'SELECT review_status, review_reason, pending_front_object_key, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
+                'SELECT review_status, review_reason, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
                 [cardNumber]
             )).rows as Array<Record<string, unknown>>;
             assert.equal(judged[0]?.review_status, 'rejected');
             assert.equal(judged[0]?.review_reason, '复核不通过');
-            assert.equal(
-                judged[0]?.pending_front_object_key,
-                `community/fudaba/cards/${cardId}/front.webp`
-            );
             assert.ok(judged[0]?.pending_payload !== null);
+            // 待审页集是完整快照：被判拒的修订仍带着这一版的页面行。
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    `SELECT page_id FROM public.fudaba_card_pages
+                      WHERE card_id = $1 AND queue = 'pending'
+                      ORDER BY display_order`,
+                    [cardId]
+                )).rows.map((page) => page.page_id),
+                ['front', 'back']
+            );
 
             // Rewriting nothing needs no reason; rewriting something does.
             const unchanged = await core.updateCardAsAdmin({
@@ -9763,22 +9502,40 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.match(String(notices[0]!.body), /修正录入错误/);
 
             // 后台旋转：不要求理由、不产生字段改动、不通知属主，但必须落库。
+            const rotatedVersion = 'abcdef12-0000-4000-8000-000000000001';
             const rotated = await core.updateCardAsAdmin({
                 ...submission,
                 cardNumber,
                 expectedRevision: moved.revision,
                 reason: null,
-                nextFrontObjectKey: `community/fudaba/cards/${cardId}/versions/rotated/media.webp`
+                nextFrontObjectKey: pageObjectKey(
+                    cardId,
+                    'front',
+                    'live',
+                    rotatedVersion
+                ),
+                pages: [
+                    {
+                        pageId: 'front',
+                        objectVersion: rotatedVersion,
+                        width: 1000,
+                        height: 700
+                    }
+                ]
             });
             assert.equal(rotated.status, 'updated');
             if (rotated.status !== 'updated') return;
             assert.deepEqual(rotated.changedFields, []);
             assert.equal(rotated.revision, moved.revision + 1);
             const rotatedRow = (await postgres.pool.query(
-                'SELECT front_object_key FROM public.fudaba_cards WHERE card_number = $1',
-                [cardNumber]
-            )).rows[0] as { front_object_key: string } | undefined;
-            assert.match(rotatedRow?.front_object_key ?? '', /versions\/rotated\/media\.webp$/);
+                `SELECT page_id, object_version FROM public.fudaba_card_pages
+                  WHERE card_id = $1 AND queue = 'live' AND display_order = 1`,
+                [cardId]
+            )).rows[0] as
+                | { page_id: string; object_version: string }
+                | undefined;
+            assert.equal(rotatedRow?.page_id, 'front');
+            assert.equal(rotatedRow?.object_version, rotatedVersion);
             const noticesAfterRotation = (await postgres.pool.query(
                 'SELECT COUNT(*)::int AS total FROM public.namecard_notifications'
             )).rows[0] as { total: number };
@@ -9906,13 +9663,43 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
             assert.equal(created.status, 'saved');
             if (created.status !== 'saved') return;
+            const pageId = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (name: string) =>
+                `${name.repeat(8).slice(0, 8)}-0000-4000-8000-000000000000`;
+            const initial = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId: 'postgresql-queue-card',
+                ownerAccountId: ownerId,
+                frontObjectKey: `community/fudaba/cards/postgresql-queue-card/live/${pageId('queuefront')}.${version('6a6a6a6a')}.webp`,
+                backObjectKey: `community/fudaba/cards/postgresql-queue-card/live/${pageId('queueback')}.${version('6b6b6b6b')}.webp`,
+                middleObjectKeys: [],
+                accent: null,
+                pages: [
+                    {
+                        pageId: pageId('queuefront'),
+                        objectVersion: version('6a6a6a6a'),
+                        width: 1000,
+                        height: 700
+                    },
+                    {
+                        pageId: pageId('queueback'),
+                        objectVersion: version('6b6b6b6b'),
+                        width: 1000,
+                        height: 700
+                    }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(initial.status, 'saved');
+            if (initial.status !== 'saved') return;
             const core = new SqlCoreRepository(
                 fixture.database,
                 new PostgresqlSchemaStrategy()
             );
             await core.initialize();
             const postgres = fixture.database as PostgresConnection;
-            const cardNumber = created.card.card_number;
+            const cardNumber = initial.card.card_number;
             const content = {
                 producerName: '队列制作人',
                 producerReading: 'きれつ',
@@ -9937,7 +9724,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const published = await core.updateCardAsAdmin({
                 ...base,
                 cardNumber,
-                expectedRevision: created.card.revision,
+                expectedRevision: initial.card.revision,
                 reason: '首次发布',
                 status: 'published',
                 reviewStatus: null
@@ -9976,8 +9763,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(queuedRow.publication_status, 'published');
             assert.equal(queuedRow.review_status, 'pending');
 
-            // A card that is off the wall cannot jump over its own queue.
-            const rejected = await core.updateCardAsAdmin({
+            // Pending revisions may only change version status, not the card status.
+            const blocked = await core.updateCardAsAdmin({
                 ...base,
                 cardNumber,
                 expectedRevision: queued.revision,
@@ -9986,49 +9773,40 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 reviewStatus: null,
                 content: { ...content, bio: '待审简介' }
             });
-            assert.equal(rejected.status, 'updated');
-            if (rejected.status !== 'updated') return;
-            const requeued = await core.updateCardAsAdmin({
-                ...base,
-                cardNumber,
-                expectedRevision: rejected.revision,
-                reason: '用户重新提交',
-                status: 'rejected',
-                reviewStatus: 'pending',
-                content: { ...content, bio: '再试一次' }
-            });
-            assert.equal(requeued.status, 'updated');
-            if (requeued.status !== 'updated') return;
-            const blocked = await core.updateCardAsAdmin({
-                ...base,
-                cardNumber,
-                expectedRevision: requeued.revision,
-                reason: '越过审核',
-                status: 'published',
-                reviewStatus: 'pending',
-                content: { ...content, bio: '再试一次' }
-            });
             assert.equal(blocked.status, 'blocked');
             if (blocked.status !== 'blocked') return;
-            assert.match(blocked.message, /先在名片审核里通过/);
+            assert.match(blocked.message, /只能修改版本状态/);
+
+            // Reject the pending version itself, then reject the whole card.
+            const rejectedVersion = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: queued.revision,
+                reason: '内容不合规',
+                status: 'published',
+                reviewStatus: 'rejected',
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(rejectedVersion.status, 'updated');
+            if (rejectedVersion.status !== 'updated') return;
 
             const retired = await core.updateCardAsAdmin({
                 ...base,
                 cardNumber,
-                expectedRevision: requeued.revision,
+                expectedRevision: rejectedVersion.revision,
                 reason: '内容不合规',
                 status: 'rejected',
                 reviewStatus: null,
-                content: { ...content, bio: '再试一次' }
+                content: { ...content, bio: '待审简介' }
             });
             assert.equal(retired.status, 'updated');
             if (retired.status !== 'updated') return;
             assert.deepEqual(
                 retired.changedFields.map((change) => change.label),
-                ['版本状态']
+                ['名片状态', '版本状态']
             );
             const row = (await postgres.pool.query(
-                'SELECT publication_status, review_status, review_reason, pending_payload, pending_front_object_key FROM public.fudaba_cards WHERE card_number = $1',
+                'SELECT publication_status, review_status, review_reason, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
                 [cardNumber]
             )).rows[0] as Record<string, unknown>;
             assert.equal(row.publication_status, 'rejected');
@@ -10037,7 +9815,15 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             // the owner without opening the review history.
             assert.equal(row.review_reason, '内容不合规');
             assert.equal(row.pending_payload, null);
-            assert.equal(row.pending_front_object_key, null);
+            // 清掉版本状态时暂存的页面行也要一起消失。
+            assert.equal(
+                (await postgres.pool.query(
+                    `SELECT COUNT(*)::int AS total FROM public.fudaba_card_pages
+                      WHERE card_id = $1 AND queue = 'pending'`,
+                    ['postgresql-queue-card']
+                )).rows[0]?.total,
+                0
+            );
 
             const removed = await core.deleteCardAsAdmin(cardNumber, retired.revision);
             assert.equal(removed.status, 'updated');
@@ -10249,15 +10035,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.equal(staged.status, 'saved');
             if (staged.status !== 'saved') return;
             assert.equal(staged.card.review_status, 'pending');
-            // A metadata-only revision still carries the reviewed middle pages,
-            // so approving it cannot silently drop them.
-            assert.deepEqual(
-                (await postgres.pool.query(
-                    'SELECT pending_middle_object_keys AS keys FROM public.fudaba_cards WHERE id = $1',
-                    [cardId]
-                )).rows[0],
-                { keys: middleKeys }
-            );
+            // 只改文案的修订不写页面行：线上页集（含中间页）原样保留，审核通过
+            // 时不会把它们丢掉。
+            assert.deepEqual(staged.card.middle_object_keys, middleKeys);
+            assert.deepEqual(staged.card.pending_pages, []);
         });
 
         postgresTest('real PostgreSQL keeps page rows stable across reorder, add and delete', async () => {
@@ -10537,8 +10318,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producerName: `Producer ${id}`,
             seriesCodes: ["765"],
             favoriteCharacterIds: [900_001],
-            frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
-            backObjectKey: `community/fudaba/cards/${id}/back.webp`,
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
             bio: `Bio ${id}`,
             tradeNote: `Trade ${id}`,
             exchangeMode: "manual",
@@ -11261,7 +11041,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
     class PublicMediaStorage implements ObjectStorage {
         async createPublicReadUrl(key: string): Promise<string | null> {
-            return key.startsWith("public/")
+            // 统一布局的页面 key 与旧公开目录同属可公开读取的对象；其余一律拒绝。
+            return key.startsWith("public/") ||
+                key.startsWith("community/fudaba/cards/")
                 ? `https://media.example.test/${key}`
                 : null;
         }
@@ -11300,9 +11082,8 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             producer_name: "Producer A",
             series_codes: ["765"],
             favorite_characters: [],
-            front_object_key: "public/cards/card-a/front.webp",
+            pages: [cardPageRow("front", 1), cardPageRow("back", 2)],
             middle_object_keys: [],
-            back_object_key: "public/cards/card-a/back.webp",
             accent: "#4f64dd",
             bio: "Public bio",
             trade_note: "Trade note",
@@ -11804,7 +11585,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 400,
             );
 
-            fudaba.card = publicCard({ front_object_key: "private/card-a/front.webp" });
+            // 页面行是公开媒体地址的唯一来源：没有页面行时只能失败关闭，
+            // 不能退回旧的 key 列去拼一个地址。
+            fudaba.card = publicCard({ pages: [] });
             const unavailable = await testRequest(
                 app,
                 "/api/community/exchange/cards",

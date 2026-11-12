@@ -1,9 +1,8 @@
-import { publicAssetsPath, publicUploadsPath, siteContentPath } from '@imsweb/contracts/paths';
+import { publicAssetsPath, siteContentPath } from '@imsweb/contracts/paths';
 
 const PROTECTED_CHRONICLE_UPLOAD_PATH = publicAssetsPath('/images/eventchronicle/events/upload')
     .slice(1)
     .toLowerCase();
-const NAMECARD_UPLOAD_PATH = publicUploadsPath('/namecard/original').slice(1).toLowerCase();
 const SITE_CONTENT_PATH = siteContentPath().slice(1).toLowerCase();
 const CHRONICLE_EVENTS_META_PATH = publicAssetsPath('/images/eventchronicle/events/meta')
     .slice(1)
@@ -34,13 +33,6 @@ export function isProtectedChronicleUploadPath(requestUrl: unknown): boolean {
     if (!segments) return false;
     return segments.slice(0, 5).map((segment) => segment.toLowerCase()).join('/') ===
         PROTECTED_CHRONICLE_UPLOAD_PATH;
-}
-
-export function isNamecardUploadPath(requestUrl: unknown): boolean {
-    const segments = getRequestPathSegments(requestUrl);
-    if (!segments) return false;
-    return segments.slice(0, 3).map((segment) => segment.toLowerCase()).join('/') ===
-        NAMECARD_UPLOAD_PATH;
 }
 
 export function isManifestControlledSiteContentPath(requestUrl: unknown): boolean {

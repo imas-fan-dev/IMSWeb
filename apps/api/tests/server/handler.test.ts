@@ -134,7 +134,7 @@ import { test } from 'vitest';
             'handleUploadArticleAsset'
         ],
         'live-schedule': ['handleListLiveSchedule'],
-        media: ['handleServeNamecard', 'handleServePublicUpload'],
+        media: ['handleServePublicUpload'],
         namecards: [
             'createHandleAddReaction',
             'createHandleDeleteReaction',
@@ -516,7 +516,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 171);
+            assert.equal(Object.values(actual).flat().length, 170);
         });
 
 
@@ -771,10 +771,6 @@ import { test } from 'vitest';
                 calls.namecardMediaKey.push([cardNumber, side, draft]);
                 return null;
             },
-            async findPublishedCardMediaKey(cardNumber, side) {
-                calls.namecardPublishedMediaKey.push([cardNumber, side]);
-                return null;
-            },
             async findCardDiff(id) {
                 calls.namecardDiff.push(id);
                 return null;
@@ -790,9 +786,6 @@ import { test } from 'vitest';
                 return { status: 'not-found' };
             },
             async completeCardApproval() { return { status: 'not-found' }; },
-            async attachCanonicalMedia() {
-                throw new Error('unexpected canonical media attach');
-            },
             async findCardMedia(id) {
                 calls.namecardFindMedia.push(id);
                 return null;
@@ -816,9 +809,7 @@ import { test } from 'vitest';
             async markNamecardNotificationsRead() { return 0; },
             async purgeTerminalCards() { return []; },
             async findSubmissionWithHashesByTokenHash() { return null; },
-            async replaceSubmissionImage() { return { status: 'not-found' }; },
             async resubmitSubmission() { return { status: 'not-found' }; },
-            async findCardByMediaUrl() { return null; },
             async updateCardAsAdmin() { return { status: 'not-found' }; },
             async deleteCardAsAdmin() { return { status: 'not-found' }; },
             async listNamecardLockAudit(filter) {
@@ -1258,8 +1249,6 @@ import { test } from 'vitest';
                 card_number: 19,
                 cardId: 'card-19',
                 revision: 1,
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: null,
                 status: 'approved',
                 created_at: '2026-08-11T00:00:00.000Z',
                 exchange_mode: 'manual',
@@ -1276,10 +1265,10 @@ import { test } from 'vitest';
             const found = await fixture.request('/api/cards/19');
             assert.equal(found.status, 200);
             const foundBody = (await responseJson(found)) as {
-                card: { id: number; cardNumber: number; image1_url: string };
+                card: { id: number; cardNumber: number; exchangeMode: string } | null;
             };
-            assert.equal(foundBody.card.cardNumber, 19);
-            assert.match(foundBody.card.image1_url, /front\.webp/);
+            assert.equal(foundBody.card?.cardNumber, 19);
+            assert.equal(foundBody.card?.exchangeMode, 'manual');
 
             const missing = await fixture.request('/api/cards/404');
             assert.equal(missing.status, 200);
@@ -1347,7 +1336,7 @@ import { test } from 'vitest';
             const response = await fixture.request('/api/cards/19/media/middle-1');
             assert.equal(response.status, 404);
             assert.equal(await response.text(), 'Not Found');
-            assert.deepEqual(fixture.calls.namecardPublishedMediaKey, [[19, 'middle-1']]);
+            assert.deepEqual(fixture.calls.namecardPublishedMediaKey, []);
         });
 
         test('the moderator artwork route reads both variants through the repository', async () => {
@@ -1422,12 +1411,13 @@ import { test } from 'vitest';
 
 
         test.describe('namecard approval', () => {
-            test('publishes originals and thumbnails before the final CAS transition', async () => {
+            test('publishes canonical page keys before the final CAS transition', async () => {
                 const fixture = createCompatibilityFixture({
                     async findCardMediaKey(_id, side) {
+                        const version = '11111111-1111-4111-8111-111111111111';
                         return side === 'front'
-                            ? 'community/namecards/assets/front/image.webp'
-                            : 'community/namecards/assets/back/image.webp';
+                            ? `community/fudaba/cards/card-id/live/front.${version}.webp`
+                            : `community/fudaba/cards/card-id/live/back.${version}.webp`;
                     },
                     async beginCardApproval(id, expectedRevision) {
                         assert.equal(id, 19);
@@ -1436,8 +1426,6 @@ import { test } from 'vitest';
                             status: 'claimed',
                             card: {
                                 id,
-                                image1_url: '/uploads/namecard/original/front.webp',
-                                image2_url: '/uploads/namecard/original/back.webp',
                                 status: 'approving',
                                 created_at: null,
                                 revision: 3
@@ -1451,8 +1439,6 @@ import { test } from 'vitest';
                             status: 'updated',
                             card: {
                                 id,
-                                image1_url: '/uploads/namecard/original/front.webp',
-                                image2_url: '/uploads/namecard/original/back.webp',
                                 status: 'approved',
                                 created_at: null,
                                 revision: 4
@@ -1471,7 +1457,7 @@ import { test } from 'vitest';
 
                 assert.equal(response.status, 200);
                 assert.deepEqual(await responseJson(response), { success: true, revision: 4 });
-                assert.equal(fixture.calls.storageWrites, 4);
+                assert.equal(fixture.calls.storageWrites, 2);
                 assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
                     action: '审核图片通过',
                     target: 'card_id=19;revision=4'
@@ -1482,8 +1468,6 @@ import { test } from 'vitest';
         test('reject namecard soft-rejects a pending submission and audits it', async () => {
             const pending = {
                 id: 19,
-                image1_url: '/uploads/namecard/original/front.webp',
-                image2_url: '/uploads/namecard/original/back.webp',
                 status: 'pending' as const,
                 created_at: '2026-08-11T00:00:00.000Z',
                 revision: 2
@@ -1545,8 +1529,7 @@ import { test } from 'vitest';
 
         test('guest namecard image replacement and resubmission routes are not exposed', async () => {
             const fixture = createCompatibilityFixture({
-                async resubmitSubmission() { throw new Error('must not resubmit'); },
-                async replaceSubmissionImage() { throw new Error('must not replace'); }
+                async resubmitSubmission() { throw new Error('must not resubmit'); }
             });
             for (const pathname of [
                 '/api/namecards/submissions/19/resubmit',
@@ -2122,10 +2105,7 @@ import { test } from 'vitest';
                             exchangeMode: 'auto',
                             seriesCodes: ['765'],
                             credits: [{ accountId: null, displayName: '画师', url: null, roles: ['design'] }],
-                            favoriteCharacters: [{ character_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 1 }],
-                            frontImageUrl: '/api/admin/cards/12/media/live/front',
-                            backImageUrl: '/api/admin/cards/12/media/live/back',
-                            middleImageUrls: []
+                            favoriteCharacters: [{ character_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 1 }]
                         },
                         pending: null
                     };
@@ -2255,10 +2235,7 @@ import { test } from 'vitest';
                             exchangeMode: 'none',
                             seriesCodes: ['765'],
                             credits: [],
-                            favoriteCharacters: [],
-                            frontImageUrl: '/api/admin/cards/12/media/live/front',
-                            backImageUrl: '/api/admin/cards/12/media/live/back',
-                            middleImageUrls: ['/api/admin/cards/12/media/live/middle-1']
+                            favoriteCharacters: []
                         },
                         pending: null
                     };

@@ -141,20 +141,10 @@ function cookieWritesRequireCsrf(fixture) {
 
 function sharedAuthContract(fixture) {
     return async () => {
-        const { baseUrl, fixturePool, get, namecardObjectPath, namecardThumbnailObjectPath, run, seedLegacyNamecard, TEST_FILE_PREFIX, validJpeg, validPng } = fixture;
+        const { baseUrl, fixturePool, get, run, seedLegacyNamecard } = fixture;
         const userRow = await get(fixturePool, "SELECT id, username, dept FROM users WHERE username='security-test-op'");
         const user = { ...userRow, id: Number(userRow.id) };
-        const contractFrontUrl = `/uploads/namecard/original/${TEST_FILE_PREFIX}-contract-front.png`;
-        const contractBackUrl = `/uploads/namecard/original/${TEST_FILE_PREFIX}-contract-back.png`;
-        for (const mediaUrl of [contractFrontUrl, contractBackUrl]) {
-            const target = namecardObjectPath(mediaUrl);
-            fs.mkdirSync(path.dirname(target), { recursive: true });
-            fs.writeFileSync(target, validPng);
-            fs.writeFileSync(namecardThumbnailObjectPath(mediaUrl), validJpeg);
-        }
         const contractCardId = await seedLegacyNamecard(fixturePool, {
-            frontUrl: contractFrontUrl,
-            backUrl: contractBackUrl,
             hash1: 'contract-front',
             hash2: 'contract-back',
             ip: '127.0.0.1',
@@ -212,11 +202,6 @@ function sharedAuthContract(fixture) {
             });
         } finally {
             await run(fixturePool, 'DELETE FROM fudaba_cards WHERE card_number=?', [contractCardId]);
-            await run(fixturePool, 'DELETE FROM cards WHERE id=?', [contractCardId]);
-            for (const mediaUrl of [contractFrontUrl, contractBackUrl]) {
-                const target = namecardObjectPath(mediaUrl);
-                fs.rmSync(path.dirname(target), { recursive: true, force: true });
-            }
         }
     };
 }

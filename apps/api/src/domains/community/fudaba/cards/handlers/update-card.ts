@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView, validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
+import { ownerCardArtwork } from '@/domains/community/fudaba/cards/artwork-view';
 import { parseFudabaCardUpdate } from '@/domains/community/fudaba/cards/request';
 import { fudabaRepository } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -33,7 +34,16 @@ export async function handleUpdateFudabaCard(
                 revision: result.revision
             }, 409);
         }
-        return c.json({ success: true, card: fudabaOwnerCardView(result.card) });
+        const pages = await fudabaRepository(c).listCardPages(cardId);
+        const artwork = ownerCardArtwork(result.card, pages);
+        return c.json({
+            success: true,
+            card: fudabaOwnerCardView(
+                result.card,
+                artwork.live,
+                artwork.pending ?? undefined
+            )
+        });
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to update Fudaba card', error);

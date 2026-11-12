@@ -12,6 +12,7 @@
 import { Client } from 'pg';
 
 import { createNodeServices } from '@/runtime/node-services';
+import { cardPageObjectKey } from '@/utils/storage/business-object-keys';
 
 async function main(): Promise<void> {
     const dryRun = process.argv.includes('--dry-run');
@@ -22,24 +23,29 @@ async function main(): Promise<void> {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
     try {
-        const cards = await client.query<{
-            front_object_key: string;
-            back_object_key: string | null;
-        }>(`SELECT front_object_key, back_object_key
-            FROM fudaba_cards
-            WHERE publication_status='published' AND deleted_at IS NULL`);
-        const middles = await client.query<{ object_key: string }>(
-            `SELECT media.object_key
-             FROM fudaba_card_media media
-             JOIN fudaba_cards card ON card.id=media.card_id
-             WHERE card.publication_status='published' AND card.deleted_at IS NULL`
-        );
+        const pages = await client.query<{
+            card_id: string;
+            page_id: string;
+            object_version: string;
+            object_queue: 'live' | 'pending';
+        }>(`SELECT page.card_id, page.page_id, page.object_version,
+                  page.object_queue
+             FROM fudaba_card_pages page
+             JOIN fudaba_cards card ON card.id=page.card_id
+            WHERE page.queue='live'
+              AND card.publication_status='published'
+              AND card.deleted_at IS NULL`);
         const keys = new Set<string>();
-        for (const row of cards.rows) {
-            if (row.front_object_key) keys.add(row.front_object_key);
-            if (row.back_object_key) keys.add(row.back_object_key);
+        for (const row of pages.rows) {
+            keys.add(
+                cardPageObjectKey(
+                    row.card_id,
+                    row.object_queue,
+                    row.page_id,
+                    row.object_version
+                )
+            );
         }
-        for (const row of middles.rows) keys.add(row.object_key);
 
         let published = 0;
         const failures: Array<{ key: string; message: string }> = [];
@@ -57,7 +63,7 @@ async function main(): Promise<void> {
         }
         console.log(JSON.stringify({
             dryRun,
-            cards: cards.rowCount,
+            cards: new Set(pages.rows.map((row) => row.card_id)).size,
             keys: keys.size,
             published,
             failures

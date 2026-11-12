@@ -1,9 +1,9 @@
 import type { AppEnvironment } from '@/app';
 import { NAMECARD_MEDIA_NOT_FOUND } from '@/domains/community/namecards/response';
-import { namecardRepository, services } from '@/middleware/hono-context';
+import { namecardRepository } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
-import { objectReadResponse } from '@/utils/http/object-read-response';
-import { readSizedCardPage } from '@/domains/community/fudaba/cards/artwork-store';
+import { respondCardMedia } from '@/domains/community/fudaba/cards/card-media-response';
+import { resolveAdminCardMediaKey } from '@/domains/community/fudaba/cards/card-media-resolver';
 
 /**
  * Serves the artwork a moderator is comparing. `draft=1` prefers the submitted
@@ -22,30 +22,18 @@ export async function handleServeAdminNamecardMedia(
 ): Promise<Response> {
     const { id, side, variant } = c.req.valid('param');
     const { w } = c.req.valid('query');
-    const storage = services(c).storage;
-    if (!storage) throw new Error('Object storage unavailable');
-    const key = await namecardRepository(c).findCardMediaKey(
+    const key = await resolveAdminCardMediaKey(
+        namecardRepository(c),
         id,
         side,
         variant === 'draft'
     );
     if (!key) return c.text(NAMECARD_MEDIA_NOT_FOUND, 404);
-    if (w) {
-        const sized = await readSizedCardPage(
-            { storage, images: services(c).images },
-            { key, width: Number(w) }
-        );
-        if (!sized) return c.text(NAMECARD_MEDIA_NOT_FOUND, 404);
-        const bytes = sized.body.slice();
-        return c.body(bytes.buffer as ArrayBuffer, 200, {
-            'Content-Type': sized.contentType,
-            'Cache-Control': 'private, no-store',
-            Vary: 'Cookie'
-        });
-    }
-    const response = await objectReadResponse(c.req.raw, storage, key, {
-        'Cache-Control': 'private, no-store',
-        Vary: 'Cookie'
+    return respondCardMedia(c, {
+        key,
+        width: w,
+        cacheControl: 'private, no-store',
+        vary: 'Cookie',
+        notFound: NAMECARD_MEDIA_NOT_FOUND
     });
-    return response ?? c.text(NAMECARD_MEDIA_NOT_FOUND, 404);
 }

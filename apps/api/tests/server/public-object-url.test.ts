@@ -32,16 +32,17 @@ test.describe('public object url', () => {
             return `https://cdn.example.test/${key}`;
         });
 
+        // The retired namecard upload path is no longer a known business path,
+        // so the raw value survives untouched.
         assert.equal(
             await resolvePublicMediaUrl(storage, '/uploads/namecard/original/card-7-front.webp'),
-            'https://cdn.example.test/community/namecards/assets/card-7-front/image.webp'
+            '/uploads/namecard/original/card-7-front.webp'
         );
         assert.equal(
             await resolvePublicMediaUrl(storage, '/uploads/news/thumb/news_thumb.png'),
             'https://cdn.example.test/editorial/news/assets/news/thumbnail.png'
         );
         assert.deepEqual(keys, [
-            'community/namecards/assets/card-7-front/image.webp',
             'editorial/news/assets/news/thumbnail.png'
         ]);
     });
@@ -108,8 +109,8 @@ test.describe('public object url', () => {
         const storage = storageWithPublicUrls((key) => `https://cdn.example.test/${key}`);
         const source = {
             id: 8,
-            image1_url: '/uploads/namecard/original/front.webp',
-            image2_url: '/uploads/namecard/original/back.webp',
+            image1_url: '/uploads/news/original/front.png',
+            image2_url: '/uploads/news/thumb/back_thumb.png',
             status: 'approved'
         };
         const result = await resolvePublicMediaFields(
@@ -118,10 +119,10 @@ test.describe('public object url', () => {
             ['image1_url', 'image2_url']
         );
         assert.notEqual(result, source);
-        assert.equal(source.image1_url, '/uploads/namecard/original/front.webp');
+        assert.equal(source.image1_url, '/uploads/news/original/front.png');
         assert.equal(
             result.image1_url,
-            'https://cdn.example.test/community/namecards/assets/front/image.webp'
+            'https://cdn.example.test/editorial/news/assets/front/original.png'
         );
         assert.equal(result.status, 'approved');
     });
