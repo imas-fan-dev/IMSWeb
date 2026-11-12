@@ -74,17 +74,20 @@
 | U5 | 后台认领队列 | `fudabaAdminCardClaimView` + `legacyMediaUrl` | L2 反推或兜底路径 |
 | U6 | 后台投稿队列 | `fudabaRegisteredCardReviewView` → `adminNamecardMediaPath` | `admin` 路由 |
 
-### 4.3 前端渲染点（5 个 `<img>` 实现，15 处调用）
+### 4.3 前端渲染点（统一 `CardImage`）
 
-| 组件 | 取图方式 | 调用处 |
-| --- | --- | --- |
-| `NamecardPreview` | 原图 `page.url`、缩略图 `page.thumb`（来自 U1/U3 字段） | 名片墙瓦片、详情窗、用户主页、分享预览 |
-| `CardMediaGallery` → `SlotImage` | `withThumbnail(url)`；非 direct 且私有则 `getOwnerCardMedia`（Bearer blob） | 属主编辑器、管理窗、审核窗（`CardMediaPreview`）、认领/补充窗、详情窗 |
-| `OwnerCardImage` | 纯 Bearer blob | 属主管理页多处小图 |
-| `NamecardMediaPreview` | 直接 `<img src>`，URL 由调用方预先 `withThumbnail` | 后台投稿列表、认领列表、管理页 |
-| `DiffArtwork` | `withThumbnail(slot.url)` | 审核 diff |
+所有名片图片只通过 `CardImage` 渲染；它按 URL 自动选择取图方式：
 
-`withThumbnail` 会给绝对存储地址也追加 `?thumb=1`（被 MinIO 忽略），说明「谁负责缩略图」没有契约。
+| 调用方 | 传给 `CardImage` 的 URL | 实际行为 | 调用处 |
+| --- | --- | --- | --- |
+| `NamecardPreview` | 原图 `page.url`、缩略图 `page.thumb` | 公开 URL 直接 `<img>` | 名片墙瓦片、详情窗、用户主页、分享预览 |
+| `CardMediaGallery` → `SlotImage` | `slot.url` | 属主私有 URL 走 `useOwnerCardMedia`（Bearer blob），其余直接 `<img>` | 属主编辑器、管理窗、审核窗（`CardMediaPreview`）、认领/补充窗、详情窗 |
+| `OwnerCardImage` | 属主图片 URL | `useOwnerCardMedia`（Bearer blob） | 属主管理页多处小图 |
+| `NamecardMediaPreview` | 后台 `live\|draft` URL | Cookie 后台 URL 直接 `<img>` | 后台投稿列表、认领列表、管理页 |
+| `DiffArtwork` | 审核 `slot.url` | 后台 Cookie URL 直接 `<img>` | 审核 diff |
+
+`CardImage` 不再拼 `?w=`，也不把 admin/review 当成不同渲染类型；尺寸档位由列表契约的
+`url/previewUrl/thumbUrl` 预先决定。
 
 ## 5. 操作之间的覆盖关系（谁会改掉谁的路由）
 

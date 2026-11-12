@@ -60,7 +60,7 @@ CREATE TABLE fudaba_card_pages (
   - 后台：`GET /api/admin/cards/:id/media/:live|draft/:side?w=`（Cookie）
   - 审核：`GET /api/admin/community/exchange/card-reviews/:cardId/media/:side?w=`，取消视觉改版前先与后台路由共用实现。
 - 尺寸：`w ∈ {160, 400, 800, 1400}`（渲染宽度 × DPR），默认 800；命中缓存直接返回，未命中 sharp 生成并写回同作用域缓存。版本化 key 的响应带 `immutable`；旧 key 只缓存 5 分钟。
-- 前端：一个 `CardImage` 组件（`page` + `scope`），其余 5 个 `<img>` 实现全部改为调用它。
+- 前端：一个 `CardImage` 组件（传 `src`，自动识别属主 Bearer blob；公开/后台/审核 URL 直接渲染），其余 5 个 `<img>` 实现全部改为调用它。
 
 ## 2. 阶段与任务（与实际执行同步）
 
@@ -84,7 +84,7 @@ CREATE TABLE fudaba_card_pages (
 - 私有页面（`pending`）的缓存对象同样是私有作用域；未登录访问属主/后台路由被拒。
 - 现有读取路径不受影响：旧 key 的 307 行为、列表与详情不变。
 
-### P1 写入切换（进行中）
+### P1 写入切换（已完成）
 
 | 写入点 | 状态 | 实际实现 |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ CREATE TABLE fudaba_card_pages (
 | 保存整套（上传） | 完成 | 已发布 → `pending`，否则 `live`；`replaceCardMediaForOwner.pages` + `syncCardPages` |
 | 旋转（属主保存） | 完成 | `rotateSlot` 读旧对象 → 旋转 → `storeCardPage`；旧布局槽位首次旋转即迁移到稳定槽位 |
 | 后台旋转 | 完成 | `updateCardAsAdmin.pages` + `syncAdminCardPages`，队列由 `review_status` 决定 |
-| 认领复制 | 待做 | 仍写 `namecardClaimMediaObjectKey` 的 canonical 布局（P3/P4 处理） |
+| 认领复制 | 完成 | 通过 `storeCardPage` 写统一页面对象与 `fudaba_card_pages`，不再写 canonical 旧布局；审批时同步完整 live 页集 |
 | 认领/补充旋转 | 完成 | `rotateReviewedArtwork` 改用 `storeCardPage`（`live` 队列）；`ClaimedCardMediaInput.pages` 让两个完成事务顺手同步页面行 |
 | 单面上传 | 保留到 P4 | 前端无调用者，但现有测试覆盖它的媒体权限重置与对账，删除与测试一起做 |
 
@@ -115,7 +115,7 @@ CREATE TABLE fudaba_card_pages (
 - 认领/补充审核带旋转：批准后正反面行同步、对象发布；驳回不动行。
 - 失败路径：对象写入失败或事务回滚后，页面行与列指向的版本一致，孤儿对象可被 GC 识别。
 
-### P2 读取切换（未开始）
+### P2 读取切换（已完成）
 
 | 任务 | 说明 |
 | --- | --- |
@@ -133,8 +133,8 @@ CREATE TABLE fudaba_card_pages (
 | 已完成 | 删除 `withThumbnail` 与 `?thumb=1`（P4）；剩余 V11 六列表截图与顺序/加页/删页抽检 |
 | 已完成 | 删除 key 反推：`namecardMediaUrl`、`adminMediaUrl`、`legacyMediaUrl`、`resolveNamecardThumbnailUrl` 的布局分支 |
 | 已完成 | 缩略图拼接层整体删除；媒体小图统一 `?w=160|400|800|1400` |
-| `CardImage` | 收敛 5 个 `<img>` 实现（`NamecardPreview`、`SlotImage`、`OwnerCardImage`、`NamecardMediaPreview`、`DiffArtwork`） |
-| 去重页面同步 | `syncCardPages` 目前在 `fudaba-repository` 与 `core-repository` 各一份，P2 抽出共享实现（含排序临时偏移与旧页续排） |
+| `CardImage` | **完成**。`apps/web/app/components/shared/card-image.tsx` 统一 5 个 `<img>` 实现（`NamecardPreview`、`SlotImage`、`OwnerCardImage`、`NamecardMediaPreview`、`DiffArtwork`）；属主 URL 自动走 `useOwnerCardMedia` blob，其余直接渲染。 |
+| 去重页面同步 | **完成**。`fudaba-repository` 与 `core-repository` 已统一调用 `namecard-page-sync.ts` 的 `syncNamecardPages`；排序偏移、页集删除、写入与旧行续排共用一份实现。 |
 
 **P2 验收标准**
 
@@ -167,6 +167,21 @@ CREATE TABLE fudaba_card_pages (
 - 迁移后，即便旧列被忽略，六个列表也完全可用（以页面行为唯一来源）。
 - 专门覆盖：迁移期间发生**调换顺序 / 加页 / 删页 / 旋转**的卡片，迁移脚本以页面行为准，不覆盖新改动。
 
+### P3 路径决策
+
+P3 只决策对外路径，不执行退役。结论：
+
+| 项 | 决策 |
+| --- | --- |
+| 公开读取 | 保留 `cards` 与 `exchange` 两个活跃路径；不合并成单一路径 |
+| exchange 媒体 | 保留 `/api/community/exchange/cards/:cardId/media/:side`；交换墙/收藏仍按 UUID |
+| owner 媒体 | 保留 `/api/community/exchange/me/cards/:cardId/media/:side`；不改卡号 |
+| admin 媒体 | 保留 `/api/admin/cards/:cardNumber/media/:variant/:side` |
+| review 媒体 alias | 不删除；按 P4 剩余任务先迁移 `fudabaRegisteredCardReviewView` 输出，再退役 |
+| `publicRoute` | 继续强制显式；URL ↔ 路由对账在 P4 完成 |
+
+本轮不新增媒体路由，不改 owner/公开路径，也不删除兼容路径。P3 完成后进入 P4 退役准备。
+
 ### P4 退役（代码层完成，物理删除待观察一版）
 
 已完成：
@@ -186,6 +201,17 @@ CREATE TABLE fudaba_card_pages (
   驳回/锁定只改审核状态，待审页清理由验收用例 C19/C21 跟踪。
 - 旧名片交付的 `image*_url` / `middle_image_urls` / 认领审核预览改为直接输出媒体路由地址，
   不再反推对象 key。
+- P4 第一刀：
+  - review 媒体 alias `/card-reviews/:cardId/media/:side` 已从路由删除；
+  - `fudabaRegisteredCardReviewView` 改为输出 `/api/admin/cards/:cardNumber/media/live/...`；
+  - `legacyMediaUrl` helper 已删除；
+  - 新增并执行 `20261112120000_namecard_media_retire.sql`，`fudaba_card_media` 已 DROP；
+  - 最终 migration dry-run `copied=0`（报告见 `data/verification` 下的 P4 dry-run 记录）；
+  - public 媒体 resolver 已移除 `findPublishedCardMediaKey` 回退，公开图只用页面行；
+  - `approve-namecard` 删除旧布局拷贝/重写，只接受 `community/fudaba/cards/...` 页面键；
+  - admin `cardMediaKey` 删除旧列回退，正/反/中间页只查 `fudaba_card_pages`；
+  - `fudaba_card_pages` 增加 `object_queue`；属主暂存写完整 pending 页集，未变化页指向 live、变化页指向 pending；owner resolver 页面行 only；
+  - 剩余：`fudaba_cards` 旧 key 列、旧 URL 字段/生成器的最终清理。
 
 观察一版后执行（需先确认迁移报告 0 缺失、媒体无异常 404）：
 
@@ -193,13 +219,117 @@ CREATE TABLE fudaba_card_pages (
 - 删除兼容读取 `community/namecards/assets/<stem>/image.webp`（`approve-namecard` 的拷贝重写、
   `ttl-purge` 的 key 反推需要一并改为页面行）。
 
+#### P4 剩余任务：兼容 API/URL 退役
+
+这部分属于 P4 的“代码/兼容面退役”，不属于 P5；P5 只做对象 GC。
+
+| 任务 | 具体落点 | 完成条件 | 当前状态 |
+| --- | --- | --- | --- |
+| review 媒体 alias 退役 | 先保留 `/api/admin/community/exchange/card-reviews/:cardId/media/:side` 作为 Moderator handler 的薄 alias；确认 `fudabaRegisteredCardReviewView` 不再把 `frontImageUrl/backImageUrl` 覆盖成该路径、前端全部消费 `pages[]` 后删除路由 | 路由清单、契约测试、L4/L5/L6/L7 队列与弹窗无 404 | **done**：响应改 admin 媒体路径，GET/HEAD alias 已删；L4–L7 回归待随下一刀执行 |
+| 旧媒体 URL 生成器退役 | 删除 `legacyMediaUrl`、仅用于旧正/反/中间字段的 `adminNamecardMediaPath` 拼接；有页面行时统一走 `cardArtworkView` | 无页面行回退是唯一使用场景，测试覆盖旧卡回退 | **done**：`legacyMediaUrl` 与旧侧路由构造器 `namecardMediaPath`/`adminNamecardMediaPath` 已删，全仓无生产引用；有页面行时统一走 `cardArtworkView`，保留 `cardPageMediaPath`/`adminCardPageMediaPath` 等真实页面媒体路由构造器 |
+| 旧 key helper 清理 | 删除 `namecardClaimMediaObjectKey`、旧布局 key 反推和对应测试 | 全仓无生产引用；仅剩迁移历史测试的显式断言 | **done**：`namecardCardMediaObjectKey`、`namecardClaimMediaObjectKey`、`namecardOriginalUrlFromObjectKey` 及测试已删除，无生产引用 |
+| 完整 pending 页集 / object_queue | 属主暂存写完整 pending 页行；每行记录 `object_queue`（未变化页指向 live，变化页指向 pending）；owner 媒体按页集解析 | pending 预览不依赖旧列；审批提升后 object_queue=live | **done**：`object_queue` migration 已加；`syncNamecardPages` 写完整 pending 快照；owner resolver 页面行 only；审批提升写入 live object_queue |
+| 旧列/旧表读取退役 | `findPublishedCardMediaKey`、`findCardMediaKey`、owner/review 的旧列分支、`fudaba_card_media` 解析全部移除；删除 `fudaba_cards` 的五个 key 列及仓储/迁移脚本列回退 | 页面行是唯一读源；历史卡无 404/花图 | **done**：生产代码已无旧列引用；drop-column migration 已执行，五个列已从本地 DB 删除；API/web typecheck + namecard/handler/fudaba/migration tests pass。仅 `scripts/migration/fudaba-metadata.js` 作为历史迁移存档保留旧 schema 文本，不再可执行 |
+| 旧 URL 字段兼容退役 | `image*_url` / `middle_image_urls` / `image*_thumbnail_url` 不再作为主图来源；只保留契约兼容值 | 六个列表、L1–L7 全部优先 `pages[]` | **done**：contracts/API/web 已无 `image1_url`/`image2_url`/`middleImageUrls`/`middle_image_urls`/`image*_thumbnail_url` 生产引用（仅历史文档与生成清单保留旧文本）；六个列表、L1–L7 统一消费 `pages[]`，typecheck 通过 |
+| 旧布局对象 key 兼容读取退役 | 删除 `community/namecards/assets/<stem>/image.webp` 兼容读取；`approve-namecard` 的拷贝重写、`ttl-purge` 的 key 反推改为页面行 | 全仓无该旧布局 key 的生产读取；审批/清理仍覆盖历史对象 | **done**：生产旧 upload key/thumbnail helpers 与 delivery routes 已删；node-security fixture 已改为页面行，旧 URL 仅保留 404 断言 |
+| URL ↔ 路由对账 | 为每个 `(audience, route)` 组合生成路径，断言路由清单中存在；`cardArtworkView` 的 `publicRoute` 显式必填 | 契约测试覆盖 public/owner/admin/review 和 exchange alias | **done**：route inventory 已更新并通过 19 项 compiler test；publicRoute 仍显式必填 |
+| 旧 Fudaba 迁移脚本族退役 | `scripts/migration/fudaba-command|extract|import|media|metadata|media-sync|reconcile.js`；同步删 `syntax` / `migration:fudaba` 入口 | 不再可执行；历史说明归档到文档而非运行入口 | **done**：`migration:fudaba*` 入口已删；脚本仅作历史归档，无 package 入口 |
+| 旧页面迁移 CLI 退役 | `scripts/operations/namecards/migrate-card-pages.ts`、`scripts/migration/namecard-card-pages.js` 及 package entry | 五列已 drop 后不再需要回填工具；保留只读审计或删除 | **done**：文件、package entries 和 deploy 自动执行步骤均已删除 |
+| node-security 历史上传夹具收窄 | `tests/node-security/fixture.js` 的旧 upload URL 常量/文件生成；保留纯页面路由 404 断言 | 测试只覆盖当前页面路由权限，不再构造旧 upload | **done**：旧 upload 文件目录/写入与 path helpers 已删；旧 URL 常量只用于“已退役路由 404”断言 |
+| 旧 thumb/契约残留 | `?thumb=1` / `preferThumbnail` / `.thumbnail.jpg` 文档与测试；旧 image URL 断言 | 全仓无旧 thumb 生成/消费；测试不保留旧字段快照 | **done**：production 无旧 thumb 生成；剩余 `thumbnail.jpg` 仅 P5 GC 模式和历史迁移测试使用 |
+| 验收覆盖记录 | 受影响观测面写完 `covered-by <surface>`；旧路径删除后重新跑受影响 required entries | acceptance 记录不依赖已删除 URL | **plan ready**：P4 最小回归方案已写入文档；六条 UI 链与自动门禁待执行 |
+
+执行顺序：
+
+1. 先完成 P4 观察期与 C1–C22/L1–L7 验证；
+2. 迁移报告 0 缺失后删除旧列/旧表读取；
+3. 旧表/旧列删除后再删除 review alias 与旧 URL 生成器；
+4. 最后跑 URL/路由对账、全量 API/Web/浏览器测试和预览 SHA 核对。
+
+#### P4 最小回归测试方案
+
+P4 不重跑 T1–T10 全量。按改动面拆成自动门禁、六条 UI 链和 P5 dry-run。
+
+**L7 / L8 是独立观测面，不互相覆盖：**
+
+- L7：`/admin/cards/manage` 默认反馈队列 + 反馈管理窗；只验证反馈绑定、单页无幽灵背面。
+- L8：`/admin/cards/manage?tab=advanced` 信息修改 tab + `NamecardManageDialog`；验证完整字段、媒体、状态与版本状态。
+
+| 链 | 夹具 | 操作 | 必看入口 | 覆盖 |
+| --- | --- | --- | --- | --- |
+| R1 媒体生命周期 | #823 已发布 | 属主替换正面、新增中间页、旋转中间页 → pending | L1 编辑画廊、L4 diff、L1/L2/L3 | T2、T3、C5–C7 |
+| R2 L8 信息修改 | #823 | `?tab=advanced` 打开，旋转/删除页并保存 | L8-tile、L8-dialog、L4、L1/L2/L3 | T9、L8 独立面 |
+| R3 L7 反馈 | 新建单页卡 + fresh feedback | 提交反馈 → L7 队列打开反馈窗 → 保存/结掉 | L7-tile、L7 管理窗、L2 | T7、C13、L7 绑定 |
+| R4 T4 可见性与删除 | #821 已发布 | visible false/true；属主删除；后台恢复 | L1、L2、L3、L4 | T4、C9/C10 |
+| R5 T10 生命周期 | #823 | 文本 pending 通过；图片 pending 驳回/锁定；恢复 live 集合撤回；重提通过 | L1、L4、L2/L3、L8 | T10、C17–C22、完整 pending/object_queue |
+| R6 L5/L6 单页 | 单页老卡 + 单页补充卡 | L2 认领/补充提交 → L5/L6 审核通过 | L5、L6、L2 | T5、T6、无幽灵背面 |
+
+当前夹具状态：
+
+- #823：published，3 个 live 页面，无 pending，可用于 R1/R2/R5。
+- #821：published、visible，2 个 live 页面，无 pending；可用于 R4，但不满足 R3 的单页要求。
+- L7 反馈 #17 已 accepted，队列为空；R3 需新建单页卡并提交 fresh feedback。
+- R6 需要另备单页老卡与单页补充卡。
+
+自动门禁：
+
+```text
+contracts build
+API typecheck
+Web typecheck
+check:rules
+route inventory
+
+API: namecard.test.ts, fudaba.test.ts, handler.test.ts,
+     namecard-public-routes.test.ts, postgres-migrations.test.js,
+     namecard-media-gc.test.ts
+Web: media-urls, namecard-pages, namecard-preview, claim-review-tab,
+     namecard-manage-dialog, namecard-review-dialog, admin-cards-manage-page,
+     namecard-feedback-queue, community-cards-page, account-me-workspace
+```
+
+每条 UI 链的判定：
+
+- 图片必须 `<img complete=true>` 且 `naturalWidth>0`；不能只看接口 200/src。
+- L2/L3 检查页数、顺序、front/back 角色；L3 图片可由 L2 覆盖。
+- L4 tile/review、L7 tile/window、L8 tile/dialog 分别记录。
+- pending 版本：draft 页集完整，未变化页 `object_queue='live'`，变化页 `object_queue='pending'`。
+- 删除/驳回/锁定后，L2/L3 不出现待审图，L4 不再有待审入口。
+- 文本修订通过时，页面行数和 object_version 不变。
+
+P5 dry-run（Postgres 可用后）：
+
+```bash
+pnpm --filter @imsweb/api ops:namecards:media-gc -- --dry-run --older-than=7d --json
+```
+
+检查引用 key 不进入 deletion、`approving` 卡片 skipped、只列旧布局/旧 thumb/孤儿缓存；报告留存后才考虑 `--apply`。
+
+#### P4 启动状态
+
+- P3 路径决策已完成：保留 public `cards`/`exchange`、owner UUID、admin 卡号；review alias 留到 P4。
+- 人工验收 T1–T10 已完成并记录在验收任务的 `execution.md`。
+- P4 开始前必须保留可回滚版本，并确认迁移报告 0 缺失、媒体无异常 404。
+- **迁移基线已确认**：P3 迁移完成时为 `copied=0`；后续 dry-run 的 `copied=2` 是 T9/T10
+  前端删除页面留下的 `fudaba_card_media` 残留，不是迁移漏项。
+- **P4 第一刀已完成**：`fudaba_card_media` 已 DROP；删除表后最终 dry-run 为 `copied=0`
+  review 媒体 alias 和
+  `legacyMediaUrl` 已删除，review 视图改用 `/api/admin/cards/:cardNumber/media/live/...`。
+- 剩余退役：`fudaba_cards` 旧 key 列、旧列读取回退、旧 URL 字段/生成器的最终清理。
+- 退役回归按受影响入口执行，不重跑无变化链路：
+  - 删除旧列/旧表读取：L1/L2/L3/L4/L5/L6/L7 的媒体读取与历史卡访问；
+  - 删除 review alias：L4/L5/L6/L7 队列与弹窗；
+  - 删除旧 URL 生成器：六个列表、L1–L7 的 `pages[]` 优先与旧卡回退；
+  - URL ↔ 路由对账：所有 public/owner/admin/review、exchange/cards 组合。
+- 每一步删除后在同一阶段完成对应回归；不得以 API 200、对象存在或源码无引用代替 UI 检查。
+
 **P4 验收标准**
 
 - 删除旧列与 `fudaba_card_media` 后，新建、保存、旋转、审核、认领、补充全部通过既有测试。
 - 删除 `PUT /uploads/:side` 与 `updateCardMediaForOwner` 及其测试，无残留引用。
 - 兼容读取移除后，历史卡片仍可访问（对象已迁移）；迁移未覆盖的卡片会被脚本报告而不是静默 404。
 
-### P5 清理（未开始，随时可跑）
+### P5 清理（GC 脚本已实现，待 dry-run/接入部署）
 
 目标：迁移完成、观察一个版本后，随时可以把旧布局、旧缩略图、无引用的缓存和孤儿对象清干净。清理脚本按「引用集 + 年龄」工作，不依赖执行时间点，可重复运行。
 
@@ -223,7 +353,13 @@ CREATE TABLE fudaba_card_pages (
 - 安全规则：引用集内绝不删除；`publication_status='approving'` 的卡片整卡跳过；删除走既有的 `deleteObjectWithCompensation`（失败进补偿队列）；
 - 幂等、可断点续跑，输出 `{scanned, kept, deleted, failed, skipped}`。
 
-**执行顺序**：P3 完成并核对通过后即可运行；先 `--dry-run --json` 人工过一遍清单，再实际删除。
+**执行顺序**：P3 迁移、T1–T10 验收与观察一版均已完成；`ops:namecards:media-gc` 已实现并通过 21 项单元测试，先 `--dry-run --json` 人工过清单，再实际删除。
+
+**P5 当前状态**：
+
+- 观察期：按 P4 启动条件视为已满足；
+- `ops:namecards:media-gc`：**已实现**（`src/operations/namecard-media-gc.ts` + CLI + 21 tests）；
+- 部署：**不会**自动执行 P5；GC 需要独立 job 或手动运行。
 
 **P5 验收标准**
 
@@ -244,7 +380,7 @@ CREATE TABLE fudaba_card_pages (
 | V5 | 旋转（正/背/中间页） | `revision` 只 +1、不进复审、行版本与尺寸更新、live 发布后删旧对象 | P1 | 既有旋转用例 + 实机 `rev 45→46→47` | 已通过 |
 | V6 | 有待审时保存 | live 列/行不变，pending 行更新 | P1 | `fudaba.test.ts` 暂存用例 | 已通过 |
 | V7 | 审核通过 / 驳回 | pending 行提升或丢弃，对象发布或不发布 | P1 | `fudaba.test.ts` 审核用例 | 已通过 |
-| V8 | 认领复制 / 补充旋转 | 新行生成、旧布局不再被读取 | P1 | `fudaba.test.ts` 认领/补充用例 | 部分（补充旋转已过，认领复制待 P3） |
+| V8 | 认领复制 / 补充旋转 | 新行生成、旧布局不再被读取 | P1 | `fudaba.test.ts` 认领/补充用例 | 已通过（认领无旋转/部分复制测试） |
 | V9 | 私有访问 | 未登录不可读 owner/admin；公开只服务已发布 | P0/P2 | 路由测试 + curl 401/404 | 部分（公开 `?w` 已验，属主/后台待接线后验） |
 | V10 | 缩略图/尺寸 | 四档 200、越界 400、命中缓存、私有缓存不公开 | P0 | 实机 curl + 缓存对象检查 | 部分（四档与越界已验；缓存需新布局数据） |
 | V11 | 六个列表一致性 | 数量、顺序、角色与切换前一致；详情原图 | P2 | 逐列表截图对比 + 抽检三张做过 V2/V3/V4 的卡 | 待 P2 |
@@ -290,5 +426,9 @@ CREATE TABLE fudaba_card_pages (
 | 认领 / 补充的旋转写入 | 已完成：`rotateReviewedArtwork` 写页面对象并回传 `pages`；`completeCardClaimReview` / `completeCardSupplementReview` 收到 `pages` 后同步页面行 |
 | 删除 `PUT /uploads/:side` 与 `updateCardMediaForOwner` | 已完成（P4） |
 | 契约 `cardPageSchema` 与六个接口的 `pages[]` | 待做（P2） |
+| 路由/URL 整合 P0：exchange UUID 媒体路由与 URL 对账 | 完成：新增 `/api/community/exchange/cards/:cardId/media/:side`，`cardArtworkView.publicRoute` 显式化 |
+| 路由/URL 整合 P1：resolver / response / review handler | 完成：`card-media-resolver.ts`、`card-media-response.ts`，review 支持页面行与 `?w` |
+| 路由/URL 整合 P2：L5/L6/L7 `pages[]` 优先 | 完成：L5/L6 队列保留页面视图；L7 反馈队列返回页面行，`NamecardMediaPreview` 优先消费 `pages` |
+| 待审版本的媒体管理规则 | 完成：`review_status='pending'` 时管理端只允许改版本状态，整卡状态/资料/图片/归属由后端拒绝 |
 | P1 写入切换、P2 读取切换、P3 迁移脚本、P4 代码层退役 | 已完成 |
 | P4 物理删除（DROP 表/列、兼容读取）与 P5 清理 | 待观察一版后执行 |

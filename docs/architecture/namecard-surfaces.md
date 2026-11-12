@@ -12,8 +12,9 @@
 
 | 来源 | 内容 | 现状 |
 | --- | --- | --- |
-| `fudaba_cards` | 名片主体：正反面对象 key、暂存版本（`pending_*`）、制作人名称/读音、团体、**团体标记 `is_group_card`**、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表** |
-| `fudaba_card_media` | 中间页（按 `display_order`） | 在用 |
+| `fudaba_cards` | 名片主体：复审暂存 `pending_payload`、制作人名称/读音、团体、**团体标记 `is_group_card`**、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表**；旧图片 key 列已在 P4 删除 |
+| `fudaba_card_pages` | 每张卡的 live/pending 页面：`queue`、`page_id`、`display_order`、`object_version`、`object_queue`、`width`、`height` | **媒体唯一来源** |
+| `fudaba_card_media` | 中间页旧表 | **P4 已删除**（`20261112120000_namecard_media_retire.sql`） |
 | `fudaba_card_series` / `fudaba_card_favorite_characters` / `fudaba_card_credits` | 企划、担当角色、制作人员 | 在用 |
 | `fudaba_card_claims` | 认领申请；`legacy_card_id` 存老卡编号，`payload` 只带改动 | 在用 |
 | `fudaba_card_supplements` | 补充申请；`payload` 只带改动键，同一张卡同时只允许一份 | 在用 |
@@ -26,12 +27,13 @@
 - 认领/补充各有自己的 `revision`，与名片 revision 无关。
 - 公开读取只看 `publication_status='published'` 且 `deleted_at IS NULL`。
 - **页面行是媒体唯一来源**：`fudaba_card_pages(card_id, queue, page_id, display_order,
-  object_version, width, height)` 保存每张卡的 live/pending 页序，`page_id` 为稳定槽位
-  （`front`、`back`、`page-<uuid>`）。`fudaba_cards` 的 `front_object_key` / `back_object_key` /
-  `pending_*` 与 `fudaba_card_media` 只作为迁移兼容缓存保留：媒体路由页面优先、缺口才回退旧列，
-  兼容缓存与列在观察一版后删除。
-- **响应只给路由地址**：列表与详情返回 `pages[]`（`url` 原图、`previewUrl` 800、`thumbUrl` 400），
-  旧字段 `image1_url` / `image2_url` 也已是 `/api/cards/<编号>/media/…` 或后台媒体路由；
+  object_version, object_queue, width, height)` 保存每张卡的 live/pending 页序，`page_id` 为稳定槽位
+  （`front`、`back`、`page-<uuid>`），`object_queue` 标记该页对象属于 live 还是 pending 存储。
+  P4 已删除 `fudaba_cards` 的 `front_object_key` / `back_object_key` / `pending_front_object_key` /
+  `pending_back_object_key` / `pending_middle_object_keys`（`20261112140000_namecard_retire_card_key_columns.sql`）
+  与旧表 `fudaba_card_media`（`20261112120000_namecard_media_retire.sql`）；媒体读取没有任何旧列回退。
+- **响应只给路由地址**：列表与详情返回 `pages[]`（`url` 原图、`previewUrl` 800、`thumbUrl` 400）；
+  旧字段 `image1_url` / `image2_url` / `image*_thumbnail_url` 与 `middle_image_urls` 已从契约删除，
   浏览器不再拿到对象键，读侧也不再反推存储路径。
 
 ## 2. 页面与组件
@@ -78,14 +80,13 @@
 | --- | --- | --- |
 | 名片墙列表 / 单卡 | `GET /api/cards`、`GET /api/cards/:id` | 单卡用于深链与随机补充 |
 | 名片媒体 | `GET /api/cards/:id/media/:side` | `side` 支持 `front`/`back`/`middle-N`/`page-<uuid>`；`?w=160\|400\|800\|1400`，不带 `w` 返回原图 |
-| 旧上传路径媒体 | `GET /uploads/namecard/original|thumbnail/:filename` | 仅历史对象的直链；列表与详情已改用上面两条路由 |
 | 属主编辑 | `/community/exchange/me/cards…` | 创建为 multipart，更新为 JSON，图片单独 PUT |
 | 属主媒体 | `GET /community/exchange/me/cards/:id/media/:side?w=&draft=1` | 受保护对象；`v` 只做缓存破坏，`draft=1` 取待审页 |
 | 认领申请 | `POST /community/exchange/legacy-cards/:cardNumber/claims` | 以老卡编号定位 |
 | 补充申请 | `POST /community/exchange/cards/:cardId/supplements` | 必须真的改动 |
 | 反馈 | `POST /community/exchange/cards/:n/feedback` | 读者提交，后台处理后结掉 |
 | 后台审核 | `/admin/exchange/card-reviews…`、`/admin/exchange/claims…`、`/admin/exchange/supplements…` | 复核窗用 `diff` 与媒体路由 |
-| 后台投稿/管理 | `/admin/api/cards…` | 列表、diff、通过/驳回/锁定/解锁、改名/删除/反馈 |
+| 后台投稿/管理 | `/api/admin/cards…` | 列表、diff、通过/驳回/锁定/解锁、改名/删除/反馈 |
 | 反应 | `POST /api/reactions` | 名片墙与用户主页都可写 |
 
 ## 4. 行为规则
@@ -118,13 +119,13 @@
 
 | 免审动作 | 触发位置 | 免审条件 | 直接写入 | 结果 |
 | --- | --- | --- | --- | --- |
-| **撤回待审版本** | 属主保存（`updateCardMetadataForOwner`） | 整卡已 `published` 且存在 `pending_payload`；提交的字段与线上一致（`sameCardSubmission`），暂存图片与线上图片也一致（`sameArtworkOrder`，顺序在内） | 清空 `pending_payload`、三个图片暂存列与 `review_status` | 待审版本（含页序改动）整体回退；不发通知 |
-| **纯页序调整** | 属主图片保存（`replaceCardMediaForOwner`） | 整卡已 `published` 且**没有待审版本**，提交集合与线上集合逐个 key 相同、仅顺序不同（`isArtworkReorder`） | 直写 `front/back_object_key` 并重排 `fudaba_card_pages.display_order` | 新顺序立即生效，不进队列 |
-| **旋转 90°** | 新建 / 图片保存（`rotations: {front,back}`） | 属主本人、revision 匹配；页数与页序都没变 | 写入时先旋转再落盘，生成新版本对象与缩略图，整次保存只加一个 `revision`；有暂存图时改暂存那套，否则直接改线上 | 需要点保存，但不进复审（与页序同档） |
+| **撤回待审版本** | 属主保存（`updateCardMetadataForOwner`） | 整卡已 `published` 且存在 `pending_payload`；提交的字段与线上一致（`sameCardSubmission`），暂存图片与线上图片也一致（`sameArtworkOrder`，顺序在内） | 清空 `pending_payload`、pending 页面行与 `review_status` | 待审版本（含页序改动）整体回退；不发通知 |
+| **纯页序调整** | 属主图片保存（`replaceCardMediaForOwner`） | 整卡已 `published` 且**没有待审版本**，提交集合与线上集合逐个 key 相同、仅顺序不同（`isArtworkReorder`） | 只重排 `fudaba_card_pages.display_order` | 新顺序立即生效，不进队列 |
+| **旋转 90°** | 新建 / 图片保存（`rotations: {front,back}`） | 属主本人、revision 匹配；页数与页序都没变 | 写入时先旋转再落盘，生成新版本对象与缩略图，整次保存只加一个 `revision`；有 pending 页时改 pending 那套，否则直接改线上 | 需要点保存，但不进复审（与页序同档） |
 | 管理窗保存 | `updateAdminNamecard` | 理由必填（资料/状态/归属任一变动） | 按所选状态直接写 `publication_status` / `review_status` / 归属，并落审计 | 立即生效；通知 `card-admin-edited`，归属变更另发 `card-transferred-*` |
-| 属主删除 | `softDeleteCardForOwner` | 不在 `approving` / `locked` / `hidden` | `publication_status='hidden'`，清空暂存与版本状态 | 立即从墙与主页消失 |
+| 属主删除 | `softDeleteCardForOwner` | 不在 `approving` / `locked` / `hidden` | `publication_status='hidden'`；清空 `review_status`、`pending_payload` 与 pending 页面行；live 页与对象保留 | 立即从墙与主页消失；后台管理列表仍可见，状态“已隐藏”，默认排在最后；待审版本不再出现在 L4 |
 | 后台删除 | `deleteCardAsAdmin` | 理由 + revision 匹配 | 写 `deleted_at`，清空暂存 | 所有读取路径同时不可见 |
-| 锁定 / 解锁 | `lockCard` / `unlockCard` | 锁定需理由 | `publication_status` 切换，锁定清空暂存三件套 | 锁定立即下架；解锁回到 `pending` 等重新审核 |
+| 锁定 / 解锁 | `lockCard` / `unlockCard` | 锁定需理由 | `publication_status` 切换，锁定清空 `pending_payload` 与 pending 页面行 | 锁定立即下架；解锁回到 `pending` 等重新审核 |
 | 认领通过 | `completeCardClaimReview` | 申请人 active、目标卡归属申请人（绑定时）、企划可用 | 升级老卡或软删无主行 | 内容由申请承载，不过版本复审 |
 | 补充通过 | `completeCardSupplementReview` | 申请行 `pending` | 逐字段写回名片 | 立即反映；发 `card-supplement-approved` 与贡献值 |
 | 反应 / 反馈 | `POST /api/reactions`、`…/feedback` | 已发布卡 | 独立的反应与反馈表 | 不改名片内容 |
@@ -144,7 +145,7 @@
 1. 快照当前线上内容与图片集合；
 2. 若与线上完全一致 → **撤回**待审版本，不写内容；
 3. 若只有免审字段变化 → 直写线上，并把同批值同步进已有的 `pending_payload`；
-4. 若复审字段有变化 → 写 `pending_*` 并把 `review_status` 置 `pending`；
+4. 若复审字段有变化 → 写 `pending_payload` 与 pending 页面行并把 `review_status` 置 `pending`；
 5. 图片单独提交时先走 `replaceCardMediaForOwner`：仅顺序不同 → 免审重排，否则写暂存。
 
 ## 5. 图片使用要求
@@ -185,7 +186,6 @@
 
 | 路由 | 谁能读 | 缓存头 |
 | --- | --- | --- |
-| `/uploads/namecard/original|thumbnail/*` | 已发布名片公开可读；未发布要求登录 | 与静态资源一致 |
 | `/api/cards/:id/media/:side` | 公开（仅已发布） | `public, max-age=300`，302 到存储 |
 | `/community/exchange/me/cards/:id/media/:side` | 属主本人（`platformAuth`） | `private, no-store`，`Vary: Authorization, Cookie` |
 | `/api/admin/cards/:id/media/:variant/:side` | 后台（`backofficeAuth`） | `private, no-store`，`Vary: Cookie` |
@@ -195,16 +195,14 @@
 
 - 新路径：`community/fudaba/cards/<cardId>/<live|pending>/<pageId>.<version>.webp`，`pageId` 为
   `front` / `back` / `page-<uuid>`；不再写缩略图副本。
-- 旧路径：`/uploads/namecard/original/<file>.webp` 只是历史对象的公开别名，按需由媒体路由折回键。
+- 旧路径 `/uploads/namecard/...` 的读取路由已删除；历史对象仍在存储中等待 P5 GC，媒体读路径不再折回键。
 
 键与别名的关系（排查媒体问题先看这一条）：
 
 - 页面行存 `page_id` + `object_version`，对象键由 `cardPageObjectKey()` 生成；正/反/中间页按
   `display_order` 定位。
-- 旧列仍可能是**对象键**（`community/namecards/...`）或公开别名
-  （`/uploads/namecard/original/<stem>.webp`）；页面行命中时不会读旧列。别名写进列会让旧列
-  回退路径反推失败，历史数据由 `20261107120000_namecard_media_key_normalization.sql` 修过。
-- 数据库触发器 `fudaba_cards_normalize_media` 在 INSERT/UPDATE 时把别名改写成键。
+- 旧 key 列与 `fudaba_card_media` 已删除，媒体读取只认页面行；历史对象键/别名只作为存储里的旧对象存在。
+- 历史别名归一化由 `20261107120000_namecard_media_key_normalization.sql` 完成；对应触发器随旧列在 P4 删除。
 - 只为已发布卡出图；`?w=160|400|800|1400` 由媒体路由按需生成并缓存。
 
 ## 8. 公开名片上的状态投影
@@ -240,7 +238,7 @@
 | 属主把待审内容改回线上版本（撤回） | 整卡 `published` 且已有 `pending_payload`，提交与线上完全一致 | 不变 | 清空 | 旧版本 | 无 |
 | 属主只调整页序（无待审版本） | 整卡 `published`，集合相同仅顺序不同 | 不变 | 不变 | 立即换成新顺序 | 无 |
 | 属主修改未发布卡（`pending` / `rejected`） | 有属主且未锁定 | 不变（`rejected` 保持 `rejected` 直到重新审核通过） | 不变 | 无 | 无 |
-| 属主删除（`softDeleteCardForOwner`） | 不在 `approving` / `locked` / `hidden` | `hidden` | 清空 | 立即从墙/主页消失 | 无 |
+| 属主删除（`softDeleteCardForOwner`） | 不在 `approving` / `locked` / `hidden` | `hidden` | 清空 | 立即从墙/主页消失；后台管理列表仍显示“已隐藏”并排最后；待审版本被丢弃 | 无 |
 | 审核开始（`beginCardApproval`） | `pending` 或 `review_status='pending'` | `pending` → `approving` | 不变 | 已发布卡仍显示旧版 | 无 |
 | 审核通过（首审） | 状态 `approving` | `published` | 清空 | 新版本上线 | `card-approved`「已通过审核」 |
 | 审核通过（复审） | `review_status='pending'` | `published` | 清空 | 新版本替换旧版本 | `card-approved` |
@@ -257,12 +255,11 @@
 
 补充：
 
-- 复审通过时，暂存的中间页（`pending_middle_object_keys`）会整体写回 `fudaba_card_media` 并清空暂存列；
-  这一步曾漏掉，导致「新加的页在通过后消失」。历史脏数据由
-  `20261107120000_namecard_media_key_normalization.sql` 回填。
+- 复审通过时，整组 pending 页面行（`fudaba_card_pages.queue='pending'`）提升为 live 行并清空 pending 集；
+  这一步曾漏掉，导致「新加的页在通过后消失」。
 - 待审版本的图片集合是**权威**的：预览、`draft=1` 媒体路由、逐页取图都按暂存集合索引，绝不回落到线上页；
   只有整卡没有暂存图片时（纯文字复审）才看线上页。
-- 锁定会清空暂存三件套（payload + 前后图 + 中间页），解锁后的卡从干净的 `pending` 重新开始。
+- 锁定会清空 `pending_payload` 与整组 pending 页面行，解锁后的卡从干净的 `pending` 重新开始。
 - 管理窗的图片顺序索引的是**弹窗里显示的那一面**（有复审版本时是暂存集合，否则是线上集合）；
   按下标跨面混用会把背面写成中间页。
 
@@ -275,7 +272,7 @@
 | 详情窗（墙/主页打开） | 只有上面两类卡能打开；「编辑」按 `canEdit`，「认领/补充」只在无主卡上渲染 |
 | 属主名片列表 | `owner_account_id=本人`、`deleted_at IS NULL`、`publication_status<>'hidden'` |
 | 后台投稿审核列表 | `publication_status IN ('pending','approving')` 或 `review_status='pending'`；状态筛选另有全部/已通过/已驳回/已锁定/已隐藏 |
-| 后台管理 / 反馈列表 | 全部状态，包含 `locked` 与 `hidden` |
+| 后台管理 / 反馈列表 | 全部状态，包含 `locked` 与 `hidden`；`hidden` 默认排最后，仍可打开查看 live 页 |
 | 认领 / 补充审核列表 | 只看申请行的 `state`，与整卡状态无关 |
 | 徽标文案 | 整卡：待审核/已通过/已驳回/已锁定/已隐藏；复审中/复审驳回/复审违规在 `published` 上**覆盖**整卡标签；`hidden` 显示「已隐藏」 |
 
@@ -302,6 +299,7 @@
 | 需要 | 用这个 | 不要再造 |
 | --- | --- | --- |
 | 图片画廊 / 只读预览 | `CardMediaGallery` / `CardMediaPreview` | 手写 `<img>` 轮播 |
+| 名片图片渲染 | `CardImage`（属主 blob 自动处理） | 在组件里手写 `<img>`/重复 owner blob 逻辑 |
 | 按编号取一张只读预览 | `ReviewCardPreview`（取数壳，内部就是 `CardMediaPreview`） | 再写一个「拉 diff + 映射槽位」的预览 |
 | 全屏看名片 | `NamecardPreview` + `namecardPages` | 正反面切换按钮 |
 | 列表瓦片 | `NamecardMediaPreview` | 另一套正反面拼合 |
@@ -341,15 +339,14 @@
   `scripts/contracts/tests/compile-route-inventory.test.mjs` 的 approved totals；`handler.test.ts` 另有两道门禁
   （handler 清单与数量、每个 `c.json` 首参的 `satisfies …Response`）。
 - **线上图必须是公开对象。** 墙与主页按 `createPublicReadUrl` 取图，一个 key 解析失败会让整页
-  列表连带失败。审核发布的是「批准后真正上线」的那一套（有暂存图时取 `pending_*`）；任何直接
-  改写线上图列的写入方（属主保存、补充审核、认领绑定）都要自己 `publish` 新 key。
+  列表连带失败。审核发布的是「批准后真正上线」的那一套（有 pending 页时提升 pending 页行）；
+  任何写入方（属主保存、补充审核、认领绑定）都要把对象发布到 live 作用域。
 - 单面名片的背面在响应里可能是 `null`，也可能整个字段缺席（`undefined`）。判断一律用
   `== null`，写 `=== null` 会让整条列表 500。
 - 审核窗口按 id 从当前列表取行（`activeReviewCard` / `activeClaim` / `activeSupplement`）：
   用打开时的快照提交，revision 一变就永远 409。
-- 墙的公开集合由 `NAMECARD_PUBLIC_ORIGIN` 决定：`guest`/`legacy`、canonical 布局
-  （`community/namecards/assets/…`）、`community/fudaba/cards/…` 版本布局。新的
-  `front_object_key` 写入路径必须落在其中，否则整张卡从墙上消失。
+- 墙的公开集合由 `NAMECARD_PUBLIC_ORIGIN` 决定：`origin IN ('guest','legacy')`，或该卡存在
+  `fudaba_card_pages.queue='live'` 页面行；统一布局的卡以线上页面行为准，不再按 key 前缀判断。
 - 缩略图不再写入：需要小图时一律请求 `?w=`，由媒体路由按页面版本生成缓存；历史
   `.thumbnail.jpg` 只等 P5 引用集 GC 清理。
 - 已上线图未发布的历史数据用 `ops:namecards:republish` 修复（`-- --dry-run` 先看数量）。
