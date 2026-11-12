@@ -444,10 +444,6 @@ elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
     node apps/api/scripts/migration/postgres-migrations.js; then
     deployment_error="candidate PostgreSQL migration failed"
 elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
-    "$image_ref" run --rm --no-deps api \
-    node apps/api/scripts/migration/namecard-card-pages.js; then
-    deployment_error="candidate namecard page migration failed"
-elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
     "$image_ref" up -d --no-build --no-deps \
     --scale "email-worker=$worker_replicas" email-worker; then
     deployment_error="candidate email worker startup failed"
