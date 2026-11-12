@@ -47,22 +47,6 @@ export function namecardPath(cardNumber: string | number): string {
   return apiPath(`cards/${cardNumber}`)
 }
 
-/** Artwork routes: the public wall reads published pages, moderators read both. */
-export function namecardMediaPath(
-  cardNumber: string | number,
-  side: string,
-): string {
-  return apiPath(`cards/${cardNumber}/media/${side}`)
-}
-
-export function adminNamecardMediaPath(
-  cardNumber: string | number,
-  variant: "live" | "draft",
-  side: string,
-): string {
-  return adminApiPath(`cards/${cardNumber}/media/${variant}/${side}`)
-}
-
 /** 统一页面布局：公开墙、交换区、后台与属主各有一条页面媒体路由。 */
 export function cardPageMediaPath(
   cardNumber: string | number,

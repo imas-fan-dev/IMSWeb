@@ -60,21 +60,6 @@
       }
     },
     {
-      "id": "DELIVERY-MEDIA-01",
-      "sourceFile": "apps/api/src/domains/delivery/media/handlers/serve-namecard.ts",
-      "symbol": "handleServeNamecard",
-      "responseKind": "binary",
-      "reason": "Approved and private namecard files support binary, range, and HEAD delivery.",
-      "jsonErrorSchema": {
-        "sourceFile": "packages/contracts/src/media.ts",
-        "symbol": "mediaHttpErrorSchema"
-      },
-      "test": {
-        "file": "apps/api/tests/node-security/fudaba.owner.js",
-        "symbol": "namecard originals and stored thumbnails enforce approval or op access"
-      }
-    },
-    {
       "id": "DELIVERY-MEDIA-02",
       "sourceFile": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts",
       "symbol": "handleServePublicUpload",
@@ -225,23 +210,6 @@
       "test": {
         "file": "apps/api/tests/server/fudaba.test.ts",
         "symbol": "cover upload is active-only, reserves before put, and serves private previews"
-      }
-    },
-    {
-      "id": "FUDABA-REVIEW-MEDIA-01",
-      "sourceFile": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "symbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "responseKind": "binary",
-      "reason": "Backoffice registered-card review media remains private object delivery.",
-      "compatibilityTextError": {
-        "body": "Not Found",
-        "status": 404,
-        "contentType": "text/plain; charset=UTF-8",
-        "justification": "C5 retains the anti-enumeration plain-text 404."
-      },
-      "test": {
-        "file": "apps/api/tests/server/fudaba.test.ts",
-        "symbol": "registered-card publish failure re-protects both objects before rollback"
       }
     },
     {
@@ -528,6 +496,21 @@
       "test": {
         "file": "apps/web/tests/unit/lib/api/bundle-client.test.ts",
         "symbol": "keeps the exchange boundary source in the bundle"
+      }
+    },
+    {
+      "id": "NAMECARD-EXCHANGE-MEDIA-01",
+      "sourceFile": "apps/api/src/domains/community/fudaba/directory/handlers/serve-public-card-media.ts",
+      "symbol": "handleServeExchangeCardMedia",
+      "responseKind": "binary",
+      "reason": "Published exchange-wall artwork pages stream as binary through the UUID page route.",
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/media.ts",
+        "symbol": "mediaHttpErrorSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/server/namecard-public-routes.test.ts",
+        "symbol": "the exchange media route serves page rows by card UUID"
       }
     },
     {

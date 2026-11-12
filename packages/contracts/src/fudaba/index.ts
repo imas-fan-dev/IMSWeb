@@ -261,9 +261,6 @@ export const fudabaCardSchema = exactJsonResponse({
     .array(fudabaCharacterSelectionSchema)
     .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
   frontImageUrl: publicMediaUrlSchema,
-  middleImageUrls: z
-    .array(publicMediaUrlSchema)
-    .max(NAMECARD_MIDDLE_IMAGE_LIMIT),
   /** Single-sided cards are allowed, so this can be absent. */
   backImageUrl: publicMediaUrlSchema.nullable(),
   /** Derived from the artwork, never submitted. */
@@ -391,9 +388,6 @@ export const fudabaPendingCardContentSchema = z
     /** Character ids; the editor already holds the catalogue to name them. */
     favoriteCharacterIds: z.array(z.number().int().positive()),
     frontImageUrl: publicMediaUrlSchema,
-    middleImageUrls: z
-      .array(publicMediaUrlSchema)
-      .max(NAMECARD_MIDDLE_IMAGE_LIMIT),
     backImageUrl: publicMediaUrlSchema.nullable(),
     bio: ownerCardTextSchema(2000),
     tradeNote: ownerCardTextSchema(1000),
@@ -425,9 +419,6 @@ export const fudabaOwnerCardSchema = z
       .array(fudabaCharacterSelectionSchema)
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
     frontImageUrl: publicMediaUrlSchema,
-    middleImageUrls: z
-      .array(publicMediaUrlSchema)
-      .max(NAMECARD_MIDDLE_IMAGE_LIMIT),
     /** Single-sided cards leave this null. */
     backImageUrl: publicMediaUrlSchema.nullable(),
     /** Derived from the artwork; the editor only displays it. */

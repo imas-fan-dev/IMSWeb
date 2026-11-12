@@ -80,8 +80,6 @@ export const namecardPublicDetailSchema = {
   accent: z.string().min(1).nullable(),
   seriesCodes: z.array(z.string().min(1)).max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
   credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
-  /** Ordered middle pages; the wall renders them after the back image. */
-  middleImageUrls: z.array(z.string().min(1)),
   /** True when the signed-in viewer owns the row; drives the edit action. */
   canEdit: z.boolean(),
   /** False keeps the claim/complete actions visible on the detail dialog. */
@@ -110,10 +108,7 @@ export const namecardDiffSideSchema = z
     favoriteCharacters: z
       .array(namecardFavoriteCharacterSchema)
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
-    frontImageUrl: z.string().min(1),
-    backImageUrl: z.string().min(1).nullable(),
-    middleImageUrls: z.array(z.string().min(1)),
-    /** 统一布局的页面（后台作用域）；旧字段保留一个版本。 */
+    /** 统一布局的页面（后台作用域），正/反/中间由顺序推导。 */
     pages: z.array(cardPageSchema).optional(),
   })
   .strict()
@@ -161,15 +156,10 @@ export const adminNamecardDiffSchema = exactJsonResponse({
 
 export const namecardSchema = exactJsonResponse({
   id: cardIdSchema,
-  /** 统一布局的页面；旧图片字段保留一个版本。 */
+  /** 统一布局的页面：正面在前、背面在后，中间页按顺序排在中间。 */
   pages: z.array(cardPageSchema).optional(),
   ...namecardMetadataSchema,
   ...namecardPublicDetailSchema,
-  image1_url: z.string().min(1),
-  /** A single-sided card has no back image. */
-  image2_url: z.string().min(1).nullable(),
-  image1_thumbnail_url: z.string().min(1),
-  image2_thumbnail_url: z.string().min(1).nullable(),
   status: z.string().optional(),
   created_at: z.string().nullable().optional(),
 })
@@ -238,9 +228,6 @@ export type NamecardReactions = z.infer<typeof reactionSchema>
 
 export const adminNamecardSchema = exactJsonResponse({
   id: z.number().int().positive(),
-  image1_url: z.string().min(1),
-  /** A single-sided card has no back image. */
-  image2_url: z.string().min(1).nullable(),
   status: z.string(),
   revision: z.number().int().nonnegative(),
   producerName: z.string().nullable(),
@@ -339,6 +326,8 @@ export const adminNamecardUpdateRequestSchema = adminNamecardFieldsSchema
       })
       .strict()
       .optional(),
+    /** Only the review-status axis; content/media/owner fields are ignored. */
+    version_only: z.boolean().optional(),
   })
   .strict()
 
@@ -370,8 +359,6 @@ export const adminNamecardFeedbackSchema = exactJsonResponse({
   id: z.number().int().positive(),
   cardNumber: z.number().int().positive(),
   producerName: z.string().nullable(),
-  image1_url: z.string().min(1),
-  image2_url: z.string().min(1).nullable(),
   pageCount: z.number().int().positive(),
   /** 统一布局的页面（后台作用域）。 */
   pages: z.array(cardPageSchema).optional(),
@@ -538,10 +525,6 @@ export const adminNamecardDeleteRequestSchema = z
     expected_revision: z.number().int().nonnegative(),
   })
   .strict()
-export const namecardDetailResponseSchema = exactJsonResponse({
-  image1_url: z.string().min(1),
-  image2_url: z.string().min(1).nullable(),
-}).strict()
 export const namecardEmptyResponseSchema = exactJsonResponse({})
 export const namecardListErrorResponseSchema = exactJsonError({ msg: z.string() })
 export const namecardMutationResponseSchema = z.union([
@@ -638,7 +621,6 @@ export type NamecardLifecycleStatus = z.infer<
   typeof namecardLifecycleStatusSchema
 >
 export type NamecardReviewStatus = z.infer<typeof namecardReviewStatusSchema>
-export type NamecardDetailResponse = z.infer<typeof namecardDetailResponseSchema>
 export type NamecardEmptyResponse = z.infer<typeof namecardEmptyResponseSchema>
 export type NamecardListErrorResponse = z.infer<typeof namecardListErrorResponseSchema>
 export type NamecardMutationResponse = z.infer<typeof namecardMutationResponseSchema>
@@ -778,8 +760,8 @@ export const namecardQuickExchangeSchema = exactJsonResponse({
 /** 我一侧的快速交换清单；`cards` 只含当前仍可交换的名片。 */
 export const namecardQuickCandidateSchema = exactJsonResponse({
   cardNumber: cardIdSchema,
-  image1_url: z.string().min(1),
-  image1_thumbnail_url: z.string().min(1),
+  /** 统一布局的页面，正面在首、背面在末。 */
+  pages: z.array(cardPageSchema),
   exchangeMode: z.enum(["auto", "manual", "none"]),
   selected: z.boolean(),
 })
@@ -826,9 +808,6 @@ export const namecardCollectionSnapshotSchema = exactJsonResponse({
   exchangeMode: z.enum(["auto", "manual", "none"]),
   accent: z.string().min(1).nullable(),
   seriesCodes: z.array(z.string().min(1)),
-  image1_url: z.string().min(1),
-  image2_url: z.string().min(1).nullable(),
-  middleImageUrls: z.array(z.string().min(1)),
   credits: z.array(namecardCreditSchema),
 })
 

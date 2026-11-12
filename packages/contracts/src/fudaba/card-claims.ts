@@ -134,9 +134,6 @@ export const fudabaAdminCardClaimSchema = fudabaCardClaimSchema
     legacyCard: z
       .object({
         id: legacyCardIdSchema,
-        frontImageUrl: z.string().min(1),
-        /** 单面名片没有背面，队列里就是 null。 */
-        backImageUrl: z.string().min(1).nullable(),
         /** 统一布局的页面（后台作用域）。 */
         pages: z.array(cardPageSchema).optional(),
       })
@@ -205,10 +202,7 @@ const supplementCardSchema = z
     id: ownerCardIdSchema,
     cardNumber: z.number().int().positive(),
     producerName: z.string().nullable(),
-    frontImageUrl: z.string().min(1),
-    /** Empty for single-sided cards without middle pages. */
-    middleImageUrls: z.array(z.string().min(1)),
-    backImageUrl: z.string().min(1).nullable(),
+    /** 统一布局的页面（后台作用域）。 */
     pages: z.array(cardPageSchema).optional(),
     pageCount: z.number().int().positive(),
   })

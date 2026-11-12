@@ -9,13 +9,13 @@ const ts = createRequire(new URL("../../packages/contracts/package.json", import
 const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
-const BASELINE = { mountedMethodPaths: 294, carriers: 372, reject: 82, acceptAndProject: 188, passthrough: 17, nonObjectApplicable: 85 };
+const BASELINE = { mountedMethodPaths: 289, carriers: 367, reject: 82, acceptAndProject: 184, passthrough: 17, nonObjectApplicable: 84 };
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },
   { module: "@imsweb/contracts/fudaba/map-delivery", symbol: "fudabaMapDeliveryQuerySchema", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/fudaba", symbol: "fudabaIgnoredQuerySchema", carriers: 6, policy: "accept-and-project" },
-  { module: "@imsweb/contracts/fudaba", symbol: "fudabaMediaQuerySchema", carriers: 12, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/fudaba", symbol: "fudabaMediaQuerySchema", carriers: 9, policy: "accept-and-project" },
 ];
 // New management capabilities are reconciled separately; the existing baseline,
 // including all public routes and their unknown-key policies, stays frozen.

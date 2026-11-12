@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "5a4e19bdec5865d208811f4d46789034bac62bfaa29dfaba4e875f5ba80883a4",
+    "semanticDigest": "48ed487d8eb8189812c18b136b2cab3620eea9768c300dfa7ae5c31115bad0ec",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 294,
-    "carriers": 372,
+    "mountedMethodPaths": 289,
+    "carriers": 367,
     "reject": 82,
-    "acceptAndProject": 188,
+    "acceptAndProject": 184,
     "passthrough": 17,
-    "nonObjectApplicable": 85
+    "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 407,
-    "mountedMethodPaths": 308,
+    "mountedRegistrations": 402,
+    "mountedMethodPaths": 303,
     "noInputRoutes": 99,
-    "requestCarriers": 408,
+    "requestCarriers": 400,
     "policies": {
       "reject": 89,
-      "accept-and-project": 217,
+      "accept-and-project": 210,
       "passthrough": 17,
-      "non-object-applicable": 85
+      "non-object-applicable": 84
     },
     "responses": {
-      "total": 865,
-      "json": 783,
-      "nonJson": 82
+      "total": 841,
+      "json": 782,
+      "nonJson": 59
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 294,
-      "requestCarriers": 372,
+      "mountedMethodPaths": 289,
+      "requestCarriers": 367,
       "policies": {
         "reject": 82,
-        "accept-and-project": 188,
+        "accept-and-project": 184,
         "passthrough": 17,
-        "non-object-applicable": 85
+        "non-object-applicable": 84
       }
     },
     "explicitQueryAdditions": [
@@ -101,22 +101,19 @@
       {
         "module": "@imsweb/contracts/fudaba",
         "symbol": "fudabaMediaQuerySchema",
-        "carriers": 12,
+        "carriers": 9,
         "policy": "accept-and-project",
-        "actualCarriers": 12,
+        "actualCarriers": 9,
         "routes": [
           "GET /api/admin/cards/:id/media/:variant/:side",
           "GET /api/cards/:id/media/:side",
+          "GET /api/community/exchange/cards/:cardId/media/:side",
           "GET /api/community/exchange/me/cards/:cardId/media/:side",
           "GET /api/community/exchange/me/offices/:officeId/media/cover",
           "GET /api/community/exchange/me/offices/:officeId/media/pending-cover",
-          "GET /uploads/namecard/original/:filename",
-          "GET /uploads/namecard/thumbnail/:filename",
           "HEAD /api/community/exchange/me/cards/:cardId/media/:side",
           "HEAD /api/community/exchange/me/offices/:officeId/media/cover",
-          "HEAD /api/community/exchange/me/offices/:officeId/media/pending-cover",
-          "HEAD /uploads/namecard/original/:filename",
-          "HEAD /uploads/namecard/thumbnail/:filename"
+          "HEAD /api/community/exchange/me/offices/:officeId/media/pending-cover"
         ]
       }
     ],
@@ -194,12 +191,12 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 180,
+      "/api/admin": 178,
       "/api/birthdays": 1,
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 61,
+      "/api/community": 62,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -237,7 +234,6 @@
       "/uploads/community-content": 2,
       "/uploads/event": 2,
       "/uploads/information": 4,
-      "/uploads/namecard": 4,
       "/uploads/news": 4,
       "/uploads/producer-map": 2
     }
@@ -2241,7 +2237,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-namecards.ts",
           "kind": "json",
-          "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus === \"pending\" && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) , live : rowsForCard ?. live ?? [ ] , pending : pending ? rowsForCard ?. pending ?? [ ] : [ ] } ) ; return toAdminNamecardResponse ( row , pending ? pages . pending ?? [ ] : pages . live ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
+          "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus !== null && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) , live : rowsForCard ?. live ?? [ ] , pending : pending ? rowsForCard ?. pending ?? [ ] : [ ] } ) ; const pageViews = pending ? pages . pending ?? [ ] : pages . live ; return toAdminNamecardResponse ( row , pageViews . length > 0 ? pageViews : undefined ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-namecards.ts",
@@ -2282,7 +2278,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
           "kind": "json",
-          "expression": "{ ... response , live : { ... response . live , ... live . length > 0 ? { pages : live } : { } } , pending : response . pending && pending ? { ... response . pending , pages : pending } : response . pending } satisfies AdminNamecardDiffResponse"
+          "expression": "await withAdminNamecardPages ( c , id , response ) satisfies AdminNamecardDiffResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
@@ -2329,21 +2325,6 @@
         }
       ],
       "responses": [
-        {
-          "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
-          "kind": "non-json",
-          "expression": "NAMECARD_MEDIA_NOT_FOUND"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
-          "kind": "non-json",
-          "expression": "NAMECARD_MEDIA_NOT_FOUND"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
-          "kind": "non-json",
-          "expression": "bytes . buffer as ArrayBuffer"
-        },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
           "kind": "non-json",
@@ -2509,7 +2490,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
           "kind": "json",
-          "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+          "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => { const rows = pagesByNumber . get ( item . cardNumber ) ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : item . cardNumber , cardId : String ( item . cardNumber ) , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ; return { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , pageCount : pages . length > 0 ? pages . length : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , ... pages . length > 0 ? { pages } : { } , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ; } ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
@@ -2860,56 +2841,12 @@
         {
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
           "kind": "json",
-          "expression": "{ items : cards . map ( fudabaRegisteredCardReviewView ) } satisfies FudabaRegisteredCardReviewListResponse"
+          "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByNumber . get ( Number ( card . card_number ) ) ; return fudabaRegisteredCardReviewView ( card , cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( card . card_number ) , cardId : card . id , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ) ; } ) } satisfies FudabaRegisteredCardReviewListResponse"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
           "kind": "json",
           "expression": "{ success : false , code : \"FUDABA_CARD_REVIEW_LIST_FAILED\" , message : \"\\u6CE8\\u518C\\u540D\\u7247\\u5BA1\\u6838\\u5217\\u8868\\u52A0\\u8F7D\\u5931\\u8D25\" }"
-        }
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
-      },
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "raw-param",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
-          },
-          "schemaSymbol": null,
-          "schemaModule": null,
-          "schemaLocation": null,
-          "policy": "non-object-applicable",
-          "syntaxPolicy": null
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
         }
       ]
     },
@@ -4017,7 +3954,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
           "kind": "json",
-          "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = image1Url ; const image2ThumbnailUrl = image2Url ; const middleImageUrls = await Promise . all ( card . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl , middleImageUrls } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
+          "expression": "{ list : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
@@ -4059,11 +3996,6 @@
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
           "kind": "json",
           "expression": "{ card : response } satisfies PublicCardResponse"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
-          "kind": "json",
-          "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1Url , image2_thumbnail_url : image2Url , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicCardResponse"
         }
       ]
     },
@@ -4105,21 +4037,6 @@
         }
       ],
       "responses": [
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
-          "kind": "non-json",
-          "expression": "NAMECARD_MEDIA_NOT_FOUND"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
-          "kind": "non-json",
-          "expression": "NAMECARD_MEDIA_NOT_FOUND"
-        },
-        {
-          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
-          "kind": "non-json",
-          "expression": "bytes . buffer as ArrayBuffer"
-        },
         {
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
           "kind": "non-json",
@@ -4475,6 +4392,51 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/cards/:cardId/media/:side",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleServeExchangeCardMedia",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaCardMediaParamsSchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaMediaQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/serve-public-card-media.ts",
+          "kind": "non-json",
+          "expression": "NAMECARD_MEDIA_NOT_FOUND"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/cards/:cardId/reactions",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
@@ -4782,31 +4744,6 @@
         }
       ],
       "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "bytes . buffer as ArrayBuffer"
-        },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
           "kind": "non-json",
@@ -7605,84 +7542,6 @@
     },
     {
       "method": "GET",
-      "path": "/uploads/namecard/original/:filename",
-      "registration": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "handlerSymbol": "handleServeNamecard",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "namecardMediaParamsSchema",
-          "schemaModule": "@imsweb/contracts/media",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        },
-        {
-          "kind": "query",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "fudabaMediaQuerySchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": []
-    },
-    {
-      "method": "GET",
-      "path": "/uploads/namecard/thumbnail/:filename",
-      "registration": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "handlerSymbol": "handleServeNamecard",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "namecardMediaParamsSchema",
-          "schemaModule": "@imsweb/contracts/media",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        },
-        {
-          "kind": "query",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "fudabaMediaQuerySchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": []
-    },
-    {
-      "method": "GET",
       "path": "/uploads/news/original/:filename",
       "registration": {
         "file": "apps/api/src/domains/delivery/media/routes.ts"
@@ -7774,50 +7633,6 @@
     },
     {
       "method": "HEAD",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
-      },
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "raw-param",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
-          },
-          "schemaSymbol": null,
-          "schemaModule": null,
-          "schemaLocation": null,
-          "policy": "non-object-applicable",
-          "syntaxPolicy": null
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        }
-      ]
-    },
-    {
-      "method": "HEAD",
       "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/moderation/routes.ts"
@@ -7898,31 +7713,6 @@
         }
       ],
       "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-          "kind": "non-json",
-          "expression": "bytes . buffer as ArrayBuffer"
-        },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
           "kind": "non-json",
@@ -8858,84 +8648,6 @@
           "schemaLocation": null,
           "policy": "non-object-applicable",
           "syntaxPolicy": null
-        }
-      ],
-      "responses": []
-    },
-    {
-      "method": "HEAD",
-      "path": "/uploads/namecard/original/:filename",
-      "registration": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "handlerSymbol": "handleServeNamecard",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "namecardMediaParamsSchema",
-          "schemaModule": "@imsweb/contracts/media",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        },
-        {
-          "kind": "query",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "fudabaMediaQuerySchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": []
-    },
-    {
-      "method": "HEAD",
-      "path": "/uploads/namecard/thumbnail/:filename",
-      "registration": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "handlerSymbol": "handleServeNamecard",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "namecardMediaParamsSchema",
-          "schemaModule": "@imsweb/contracts/media",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
-        },
-        {
-          "kind": "query",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "schemaSymbol": "fudabaMediaQuerySchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/delivery/media/routes.ts"
-          },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
         }
       ],
       "responses": []
@@ -11900,7 +11612,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( recovered , recoveredArtwork . live , recoveredArtwork . pending ?? undefined ) }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
@@ -11910,7 +11622,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , savedArtwork . live , savedArtwork . pending ?? undefined ) }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
@@ -13896,7 +13608,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
           "kind": "json",
-          "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
+          "expression": "await withAdminNamecardPages ( c , id , response ) satisfies AdminNamecardDiffResponse"
         }
       ]
     },
@@ -15469,7 +15181,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , artwork . live , artwork . pending ?? undefined ) }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
@@ -15530,7 +15242,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , artwork . live , artwork . pending ?? undefined ) }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
@@ -15545,7 +15257,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
           "kind": "json",
-          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+          "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , artwork . live , artwork . pending ?? undefined ) }"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
@@ -17246,21 +16958,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "kind": "param",
-      "source": "raw-param",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
-      },
-      "schemaSymbol": null,
-      "schemaModule": null,
-      "schemaLocation": null,
-      "policy": "non-object-applicable",
-      "syntaxPolicy": null
-    },
-    {
-      "method": "GET",
       "path": "/api/admin/community/exchange/card-supplements/:supplementId",
       "handlerSymbol": "handleGetFudabaCardSupplement",
       "kind": "param",
@@ -17749,6 +17446,40 @@
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/cards/:cardId/media/:side",
+      "handlerSymbol": "handleServeExchangeCardMedia",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaCardMediaParamsSchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/cards/:cardId/media/:side",
+      "handlerSymbol": "handleServeExchangeCardMedia",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaMediaQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "GET",
@@ -18994,74 +18725,6 @@
     },
     {
       "method": "GET",
-      "path": "/uploads/namecard/original/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "namecardMediaParamsSchema",
-      "schemaModule": "@imsweb/contracts/media",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
-      "path": "/uploads/namecard/original/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "query",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "fudabaMediaQuerySchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
-      "path": "/uploads/namecard/thumbnail/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "namecardMediaParamsSchema",
-      "schemaModule": "@imsweb/contracts/media",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
-      "path": "/uploads/namecard/thumbnail/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "query",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "fudabaMediaQuerySchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
       "path": "/uploads/news/original/:filename",
       "handlerSymbol": "handleServePublicUpload",
       "kind": "param",
@@ -19098,21 +18761,6 @@
       "source": "raw-param",
       "location": {
         "file": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts"
-      },
-      "schemaSymbol": null,
-      "schemaModule": null,
-      "schemaLocation": null,
-      "policy": "non-object-applicable",
-      "syntaxPolicy": null
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "kind": "param",
-      "source": "raw-param",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts"
       },
       "schemaSymbol": null,
       "schemaModule": null,
@@ -19628,74 +19276,6 @@
       "schemaLocation": null,
       "policy": "non-object-applicable",
       "syntaxPolicy": null
-    },
-    {
-      "method": "HEAD",
-      "path": "/uploads/namecard/original/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "namecardMediaParamsSchema",
-      "schemaModule": "@imsweb/contracts/media",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "HEAD",
-      "path": "/uploads/namecard/original/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "query",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "fudabaMediaQuerySchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "HEAD",
-      "path": "/uploads/namecard/thumbnail/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "namecardMediaParamsSchema",
-      "schemaModule": "@imsweb/contracts/media",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "HEAD",
-      "path": "/uploads/namecard/thumbnail/:filename",
-      "handlerSymbol": "handleServeNamecard",
-      "kind": "query",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "schemaSymbol": "fudabaMediaQuerySchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/delivery/media/routes.ts"
-      },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
     },
     {
       "method": "HEAD",
@@ -23876,7 +23456,7 @@
       "handlerSymbol": "handleListAdminNamecards",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-namecards.ts",
       "kind": "json",
-      "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus === \"pending\" && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) , live : rowsForCard ?. live ?? [ ] , pending : pending ? rowsForCard ?. pending ?? [ ] : [ ] } ) ; return toAdminNamecardResponse ( row , pending ? pages . pending ?? [ ] : pages . live ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
+      "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus !== null && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) , live : rowsForCard ?. live ?? [ ] , pending : pending ? rowsForCard ?. pending ?? [ ] : [ ] } ) ; const pageViews = pending ? pages . pending ?? [ ] : pages . live ; return toAdminNamecardResponse ( row , pageViews . length > 0 ? pageViews : undefined ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
     },
     {
       "method": "GET",
@@ -23900,7 +23480,7 @@
       "handlerSymbol": "handleGetAdminNamecardDiff",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
       "kind": "json",
-      "expression": "{ ... response , live : { ... response . live , ... live . length > 0 ? { pages : live } : { } } , pending : response . pending && pending ? { ... response . pending , pages : pending } : response . pending } satisfies AdminNamecardDiffResponse"
+      "expression": "await withAdminNamecardPages ( c , id , response ) satisfies AdminNamecardDiffResponse"
     },
     {
       "method": "GET",
@@ -23909,30 +23489,6 @@
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/get-admin-namecard-diff.ts",
       "kind": "json",
       "expression": "{ error : \"Unable to read the namecard revisions\" } satisfies NamecardErrorResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/cards/:id/media/:variant/:side",
-      "handlerSymbol": "handleServeAdminNamecardMedia",
-      "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
-      "kind": "non-json",
-      "expression": "NAMECARD_MEDIA_NOT_FOUND"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/cards/:id/media/:variant/:side",
-      "handlerSymbol": "handleServeAdminNamecardMedia",
-      "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
-      "kind": "non-json",
-      "expression": "NAMECARD_MEDIA_NOT_FOUND"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/cards/:id/media/:variant/:side",
-      "handlerSymbol": "handleServeAdminNamecardMedia",
-      "file": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
-      "kind": "non-json",
-      "expression": "bytes . buffer as ArrayBuffer"
     },
     {
       "method": "GET",
@@ -23996,7 +23552,7 @@
       "handlerSymbol": "handleListAdminNamecardFeedback",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
       "kind": "json",
-      "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => ( { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , image1_url : adminNamecardMediaPath ( item . cardNumber , \"live\" , \"front\" ) , image2_url : item . backObjectKey ? adminNamecardMediaPath ( item . cardNumber , \"live\" , \"back\" ) : null , pageCount : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ) ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+      "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => { const rows = pagesByNumber . get ( item . cardNumber ) ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : item . cardNumber , cardId : String ( item . cardNumber ) , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ; return { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , pageCount : pages . length > 0 ? pages . length : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , ... pages . length > 0 ? { pages } : { } , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ; } ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
     },
     {
       "method": "GET",
@@ -24124,7 +23680,7 @@
       "handlerSymbol": "handleListFudabaRegisteredCardReviews",
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
       "kind": "json",
-      "expression": "{ items : cards . map ( fudabaRegisteredCardReviewView ) } satisfies FudabaRegisteredCardReviewListResponse"
+      "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByNumber . get ( Number ( card . card_number ) ) ; return fudabaRegisteredCardReviewView ( card , cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( card . card_number ) , cardId : card . id , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ) ; } ) } satisfies FudabaRegisteredCardReviewListResponse"
     },
     {
       "method": "GET",
@@ -24133,38 +23689,6 @@
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
       "kind": "json",
       "expression": "{ success : false , code : \"FUDABA_CARD_REVIEW_LIST_FAILED\" , message : \"\\u6CE8\\u518C\\u540D\\u7247\\u5BA1\\u6838\\u5217\\u8868\\u52A0\\u8F7D\\u5931\\u8D25\" }"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
     },
     {
       "method": "GET",
@@ -24636,7 +24160,7 @@
       "handlerSymbol": "handleListNamecards",
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/list-namecards.ts",
       "kind": "json",
-      "expression": "{ list : storage ? await Promise . all ( cards . map ( async ( card ) => { const image1Url = await resolvePublicMediaUrl ( storage , card . image1_url ) ; const image2Url = card . image2_url === null ? null : await resolvePublicMediaUrl ( storage , card . image2_url ) ; const image1ThumbnailUrl = image1Url ; const image2ThumbnailUrl = image2Url ; const middleImageUrls = await Promise . all ( card . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) ; return { ... card , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1ThumbnailUrl , image2_thumbnail_url : image2ThumbnailUrl , middleImageUrls } ; } ) ) : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
+      "expression": "{ list : cards , total , totalPage : Math . ceil ( total / size ) } satisfies NamecardPageResponse"
     },
     {
       "method": "GET",
@@ -24661,38 +24185,6 @@
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
       "kind": "json",
       "expression": "{ card : response } satisfies PublicCardResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/cards/:id",
-      "handlerSymbol": "handleGetPublicCard",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-public-card.ts",
-      "kind": "json",
-      "expression": "{ card : { ... response , image1_url : image1Url , image2_url : image2Url , image1_thumbnail_url : image1Url , image2_thumbnail_url : image2Url , middleImageUrls : await Promise . all ( response . middleImageUrls . map ( ( url ) => resolvePublicMediaUrl ( storage , url ) ) ) } } satisfies PublicCardResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/cards/:id/media/:side",
-      "handlerSymbol": "handleServePublicCardMedia",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
-      "kind": "non-json",
-      "expression": "NAMECARD_MEDIA_NOT_FOUND"
-    },
-    {
-      "method": "GET",
-      "path": "/api/cards/:id/media/:side",
-      "handlerSymbol": "handleServePublicCardMedia",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
-      "kind": "non-json",
-      "expression": "NAMECARD_MEDIA_NOT_FOUND"
-    },
-    {
-      "method": "GET",
-      "path": "/api/cards/:id/media/:side",
-      "handlerSymbol": "handleServePublicCardMedia",
-      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/serve-card-media.ts",
-      "kind": "non-json",
-      "expression": "bytes . buffer as ArrayBuffer"
     },
     {
       "method": "GET",
@@ -24824,6 +24316,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/cards/:cardId/media/:side",
+      "handlerSymbol": "handleServeExchangeCardMedia",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/serve-public-card-media.ts",
+      "kind": "non-json",
+      "expression": "NAMECARD_MEDIA_NOT_FOUND"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/cards/:cardId/reactions",
       "handlerSymbol": "handleListFudabaCardReactions",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/card-reactions.ts",
@@ -24941,46 +24441,6 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/get-owner-card.ts",
       "kind": "json",
       "expression": "{ card : fudabaOwnerCardView ( card , live , pending ) }"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "bytes . buffer as ArrayBuffer"
     },
     {
       "method": "GET",
@@ -25928,38 +25388,6 @@
     },
     {
       "method": "HEAD",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/admin/community/exchange/card-reviews/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaRegisteredCardReviewMedia",
-      "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
       "path": "/api/admin/community/exchange/offices/:officeId/media/:slot",
       "handlerSymbol": "handleServeAdminFudabaOfficeMedia",
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
@@ -25989,46 +25417,6 @@
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-offices.ts",
       "kind": "json",
       "expression": "{ success : false , code : \"FUDABA_OFFICE_MEDIA_UNAVAILABLE\" }"
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/community/exchange/me/cards/:cardId/media/:side",
-      "handlerSymbol": "handleServeFudabaOwnerCardMedia",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
-      "kind": "non-json",
-      "expression": "bytes . buffer as ArrayBuffer"
     },
     {
       "method": "HEAD",
@@ -27412,7 +26800,7 @@
       "handlerSymbol": "handleCreateFudabaCard",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( recovered ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( recovered , recoveredArtwork . live , recoveredArtwork . pending ?? undefined ) }"
     },
     {
       "method": "POST",
@@ -27428,7 +26816,7 @@
       "handlerSymbol": "handleCreateFudabaCard",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/create-card.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , savedArtwork . live , savedArtwork . pending ?? undefined ) }"
     },
     {
       "method": "POST",
@@ -28620,7 +28008,7 @@
       "handlerSymbol": "handleUpdateAdminNamecard",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/update-admin-namecard.ts",
       "kind": "json",
-      "expression": "toAdminNamecardDiffResponse ( diff ) satisfies AdminNamecardDiffResponse"
+      "expression": "await withAdminNamecardPages ( c , id , response ) satisfies AdminNamecardDiffResponse"
     },
     {
       "method": "PUT",
@@ -29388,7 +28776,7 @@
       "handlerSymbol": "handleUpdateFudabaCard",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , artwork . live , artwork . pending ?? undefined ) }"
     },
     {
       "method": "PUT",
@@ -29444,7 +28832,7 @@
       "handlerSymbol": "handleReplaceFudabaOwnedMedia",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , artwork . live , artwork . pending ?? undefined ) }"
     },
     {
       "method": "PUT",
@@ -29468,7 +28856,7 @@
       "handlerSymbol": "handleReplaceFudabaOwnedMedia",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/replace-owned-media.ts",
       "kind": "json",
-      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card ) }"
+      "expression": "{ success : true , card : fudabaOwnerCardView ( result . card , artwork . live , artwork . pending ?? undefined ) }"
     },
     {
       "method": "PUT",
