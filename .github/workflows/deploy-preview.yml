@@ -152,7 +152,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve existing preview image
+        id: existing-image
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          tagged_image="${IMAGE_NAME}:preview-sha-${RELEASE_SHA}"
+          inspection_error="$(mktemp "$RUNNER_TEMP/imsweb-preview-inspect.XXXXXX")"
+          trap 'rm -f "$inspection_error"' EXIT
+          if inspection="$(docker buildx imagetools inspect "$tagged_image" 2>"$inspection_error")"; then
+            digest="$(awk '$1 == "Digest:" { print $2; exit }' <<< "$inspection")"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Could not resolve the existing preview image digest." >&2
+              exit 1
+            fi
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          elif grep -Fxq "ERROR: ${tagged_image}: not found" "$inspection_error"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$inspection_error" >&2
+            echo "Could not determine whether the preview image already exists." >&2
+            exit 1
+          fi
+
       - name: Build clean preview image
+        if: steps.existing-image.outputs.exists == 'false'
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -177,9 +203,15 @@ jobs:
       - name: Publish immutable preview image
         id: publish-image
         env:
+          EXISTING_DIGEST: ${{ steps.existing-image.outputs.digest }}
           RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
         run: |
           set -euo pipefail
+          if [[ -n "$EXISTING_DIGEST" ]]; then
+            [[ "$EXISTING_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+            echo "digest=$EXISTING_DIGEST" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           tagged_image="${IMAGE_NAME}:preview-sha-${RELEASE_SHA}"
           docker push "$tagged_image"
           digest="$(docker buildx imagetools inspect "$tagged_image" | awk '$1 == "Digest:" { print $2; exit }')"
@@ -187,6 +219,7 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Attest preview image provenance
+        if: steps.existing-image.outputs.exists == 'false'
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-name: ${{ env.IMAGE_NAME }}

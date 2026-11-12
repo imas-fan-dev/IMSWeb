@@ -332,6 +332,11 @@ preview 流程同样只部署不可变 digest，并把 base Compose、preview ov
 成功后原子更新，发布记录写入 `$PREVIEW_DEPLOY_ROOT/deployments/`。首次 CI 发布可以从已准备的
 本地构建 preview 接管；后续发布使用前一个 CI digest 作为代码回滚目标。
 
+同一 commit 的后续 push 运行复用 GHCR 中已有的 `preview-sha-<full-commit>` 镜像，继续校验其
+digest 和原始 provenance，不重新构建、覆盖标签或签名。只有 registry 明确返回镜像不存在时才
+执行干净构建；认证、网络或 digest 解析失败均中止发布。这样重复运行仍与远端已有的不可变
+metadata 一致。已有镜像缺少有效 provenance 时也会被拒绝，不通过重建绕过校验。
+
 ## 5. 回滚与恢复边界
 
 候选容器启动、内部健康检查或生产机公网检查失败时，脚本会先恢复并验证 `current` 指向的上一

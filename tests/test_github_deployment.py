@@ -858,6 +858,104 @@ class AuthenticatedDeploymentWrapperTests(unittest.TestCase):
         self.assertFalse(self.deployment_log.exists())
 
 
+class PreviewImagePublicationTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="ims-preview-publish-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.docker_log = self.root / "docker.log"
+        self.output = self.root / "output"
+        self.image = "ghcr.io/imas-fan-dev/imsweb-api"
+        self.commit = "1" * 40
+        write_executable(self.root / "docker", r'''#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
+if [[ "$1" == push ]]; then
+    exit 0
+fi
+[[ "$1 $2 $3" == "buildx imagetools inspect" ]]
+case "$FAKE_IMAGE_STATE" in
+    existing|built) printf 'Digest: sha256:%s\n' "$FAKE_IMAGE_DIGEST" ;;
+    missing) echo "ERROR: $4: not found" >&2; exit 1 ;;
+    denied) echo "ERROR: $4: unauthorized" >&2; exit 1 ;;
+    network) echo "ERROR: $4: TLS handshake timeout" >&2; exit 1 ;;
+    malformed) echo 'Digest: invalid' ;;
+esac
+''')
+
+    def step_script(self, name):
+        workflow = PREVIEW_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+        marker = f"      - name: {name}\n"
+        self.assertIn(marker, workflow)
+        step = workflow.split(marker, maxsplit=1)[1].split(
+            "\n      - name:", maxsplit=1
+        )[0]
+        script = step.split("        run: |\n", maxsplit=1)[1]
+        return "\n".join(line[10:] for line in script.splitlines())
+
+    def run_step(self, name, state, *, existing_digest=""):
+        self.output.write_text("", encoding="utf-8")
+        environment = os.environ.copy()
+        environment.update({
+            "PATH": f"{self.root}:{environment['PATH']}",
+            "IMAGE_NAME": self.image,
+            "RELEASE_SHA": self.commit,
+            "EXISTING_DIGEST": existing_digest,
+            "GITHUB_OUTPUT": str(self.output),
+            "RUNNER_TEMP": str(self.root),
+            "FAKE_DOCKER_LOG": str(self.docker_log),
+            "FAKE_IMAGE_STATE": state,
+            "FAKE_IMAGE_DIGEST": "a" * 64 if state == "existing" else "b" * 64,
+        })
+        result = subprocess.run(
+            ("bash", "-c", self.step_script(name)),
+            env=environment, text=True, capture_output=True, check=False,
+        )
+        outputs = dict(
+            line.split("=", maxsplit=1)
+            for line in self.output.read_text(encoding="utf-8").splitlines()
+        )
+        return result, outputs
+
+    def test_existing_commit_image_is_reused_without_republishing(self):
+        resolved, outputs = self.run_step("Resolve existing preview image", "existing")
+        self.assertEqual(resolved.returncode, 0, resolved.stderr)
+        digest = f"sha256:{'a' * 64}"
+        self.assertEqual(outputs, {"exists": "true", "digest": digest})
+        published, outputs = self.run_step(
+            "Publish immutable preview image", "existing", existing_digest=digest,
+        )
+        self.assertEqual(published.returncode, 0, published.stderr)
+        self.assertEqual(outputs, {"digest": digest})
+        commands = self.docker_log.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(commands), 1)
+        self.assertNotIn("push", commands[0])
+        workflow = PREVIEW_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+        for step in ("Build clean preview image", "Attest preview image provenance"):
+            block = workflow.split(f"      - name: {step}\n", maxsplit=1)[1]
+            block = block.split("\n      - name:", maxsplit=1)[0]
+            self.assertIn("if: steps.existing-image.outputs.exists == 'false'", block)
+
+    def test_only_missing_images_are_published(self):
+        resolved, outputs = self.run_step("Resolve existing preview image", "missing")
+        self.assertEqual(resolved.returncode, 0, resolved.stderr)
+        self.assertEqual(outputs, {"exists": "false"})
+        published, outputs = self.run_step("Publish immutable preview image", "built")
+        self.assertEqual(published.returncode, 0, published.stderr)
+        self.assertEqual(outputs, {"digest": f"sha256:{'b' * 64}"})
+        self.assertIn(
+            f"push {self.image}:preview-sha-{self.commit}",
+            self.docker_log.read_text(encoding="utf-8").splitlines(),
+        )
+
+    def test_registry_errors_do_not_allow_a_rebuild(self):
+        for state in ("denied", "network", "malformed"):
+            with self.subTest(state=state):
+                result, outputs = self.run_step("Resolve existing preview image", state)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(outputs, {})
+
+
 class ComposePreviewDeploymentTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="ims-preview-deploy-")
@@ -1042,6 +1140,28 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         self.assertNotIn("local-storage", command_log)
         self.assertNotIn("--build", command_log)
         self.assertIn("Preview deployment completed.\n", result.stdout)
+
+    def test_redeploy_preserves_the_commits_immutable_image(self):
+        commit = "1" * 40
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+        rebuilt_image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'b' * 64}"
+        for _ in range(2):
+            result = self.deploy(commit, image)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        current = self.deploy_root / "current"
+        metadata = (current / "metadata").read_bytes()
+        commands = self.container_log.read_bytes()
+
+        result = self.deploy(commit, rebuilt_image)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "existing preview metadata differs from the requested immutable release",
+            result.stderr,
+        )
+        self.assertEqual((current / "metadata").read_bytes(), metadata)
+        new_commands = self.container_log.read_bytes()[len(commands):].decode()
+        self.assertNotIn("compose --project-name", new_commands)
 
     def test_backup_failure_prevents_migration_and_candidate_startup(self):
         for failure in ("dump", "empty", "restore", "checksum"):
