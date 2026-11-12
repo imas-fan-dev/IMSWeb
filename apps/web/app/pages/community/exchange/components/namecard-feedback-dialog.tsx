@@ -101,7 +101,9 @@ export function NamecardFeedbackDialog({
           </DialogHeader>
           <DialogBody className="space-y-5">
             <Field>
-              <FieldLabel htmlFor="namecard-feedback-detail">反馈理由</FieldLabel>
+              <FieldLabel htmlFor="namecard-feedback-detail">
+                反馈理由
+              </FieldLabel>
               <div className="flex flex-wrap gap-1.5">
                 {FUDABA_FEEDBACK_PRESETS.map((preset) => (
                   <button
@@ -109,7 +111,11 @@ export function NamecardFeedbackDialog({
                     type="button"
                     className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     disabled={busy}
-                    onClick={() => setReason(preset.reason)}
+                    onClick={() => {
+                      setReason(preset.reason)
+                      setDetail(preset.label)
+                      setDetailMissing(false)
+                    }}
                   >
                     {preset.label}
                   </button>
@@ -128,9 +134,7 @@ export function NamecardFeedbackDialog({
                 }}
               />
               <FieldDescription>
-                {detailMissing
-                  ? "请先说明这条反馈的具体问题。"
-                  : `必填，最多 ${FUDABA_FEEDBACK_REASON_LIMIT} 字；预设标签只切换反馈理由，说明需要你自己写。`}
+                必填，最多 {FUDABA_FEEDBACK_REASON_LIMIT} 字。
               </FieldDescription>
             </Field>
           </DialogBody>

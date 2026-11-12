@@ -1,6 +1,7 @@
 import { RotateCcwIcon, XIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
+import { CardImage } from "~/components/shared/card-image"
 import type { NamecardPage } from "~/components/shared/namecard-pages"
 import { Button } from "~/components/ui/button"
 import {
@@ -233,8 +234,7 @@ export function NamecardPreview({
         <header className="flex min-h-[calc(3.5rem+var(--safe-area-top))] min-w-0 items-center gap-3 pt-(--safe-area-top) pr-[calc(0.75rem+var(--safe-area-right))] pl-[calc(0.75rem+var(--safe-area-left))]">
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-sm text-foreground">
-              制作人名片 <span className="sr-only">{card?.id}</span> ·{" "}
-              {label}
+              制作人名片 <span className="sr-only">{card?.id}</span> · {label}
             </DialogTitle>
           </div>
           <DialogDescription className="sr-only">
@@ -317,7 +317,7 @@ export function NamecardPreview({
             </div>
           ) : null}
           {card ? (
-            <img
+            <CardImage
               key={`${identity}:${retry}`}
               src={src}
               alt={`制作人名片 ${card.id} ${label}`}
@@ -358,7 +358,7 @@ export function NamecardPreview({
                 )}
                 onClick={() => selectPage(entryIndex)}
               >
-                <img
+                <CardImage
                   src={entry.thumb}
                   alt=""
                   className="size-full object-cover"

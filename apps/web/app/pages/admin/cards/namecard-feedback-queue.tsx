@@ -42,9 +42,9 @@ export function NamecardFeedbackQueue({
   const page =
     Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const [items, setItems] = useState<AdminNamecardFeedback[]>([])
-  const [pageInfo, setPageInfo] = useState<AdminNamecardFeedbackList["pageInfo"]>(
-    { page: 1, pageSize: 12, total: 0, totalPages: 0, hasNextPage: false }
-  )
+  const [pageInfo, setPageInfo] = useState<
+    AdminNamecardFeedbackList["pageInfo"]
+  >({ page: 1, pageSize: 12, total: 0, totalPages: 0, hasNextPage: false })
   const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [localToken, setLocalToken] = useState(0)
   const [error, setError] = useState(false)
@@ -120,9 +120,8 @@ export function NamecardFeedbackQueue({
                   aria-label={`处理反馈 #${item.id}`}
                   onClick={() => setOpenItem(item)}
                 >
-                                    <NamecardMediaPreview
-                    frontImageUrl={item.image1_url}
-                    backImageUrl={item.image2_url ? item.image2_url : null}
+                  <NamecardMediaPreview
+                    pages={item.pages}
                     altBase={`名片 #${item.cardNumber}`}
                     pageCount={item.pageCount}
                   />

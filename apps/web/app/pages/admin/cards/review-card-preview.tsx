@@ -12,7 +12,13 @@ import { slotsFromSide } from "./namecard-manage-dialog"
  * 审核窗里的只读名片预览：与名片编辑窗用同一个画廊，
  * 但禁用上传、删除与拖动，只负责「看清这张卡长什么样」。
  */
-export function ReviewCardPreview({ cardNumber }: { cardNumber: number }) {
+export function ReviewCardPreview({
+  cardNumber,
+  rotations,
+}: {
+  cardNumber: number
+  rotations?: Readonly<{ front?: number; back?: number }>
+}) {
   const [slots, setSlots] = useState<MediaSlot[] | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -24,10 +30,8 @@ export function ReviewCardPreview({ cardNumber }: { cardNumber: number }) {
         if (!active) return
         // 审核只看版式与差异，600px 副本足够，省掉原图的传输。
         setSlots(
-          slotsFromSide(detail.pending ?? detail.live).map((slot) =>
-            slot.kind === "existing"
-              ? { ...slot, url: slot.url }
-              : slot
+          slotsFromSide(detail.live).map((slot) =>
+            slot.kind === "existing" ? { ...slot, url: slot.url } : slot
           )
         )
       })
@@ -60,7 +64,10 @@ export function ReviewCardPreview({ cardNumber }: { cardNumber: number }) {
       </div>
     )
   }
-  return (
-    <CardMediaPreview slots={slots} />
-  )
+  const previewRotations: Record<number, number> = {}
+  if (rotations?.front) previewRotations[0] = rotations.front
+  if (rotations?.back && slots.length > 1) {
+    previewRotations[slots.length - 1] = rotations.back
+  }
+  return <CardMediaPreview slots={slots} rotations={previewRotations} />
 }

@@ -149,17 +149,11 @@ function NamecardItem({
       <div className="grid gap-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
         {(["front", "back"] as const).flatMap((side) => {
           const page = side === "front" ? pageFront : pageBack
-          const original =
-            page?.url ??
-            (side === "front" ? card.image1_url : card.image2_url)
           // 单面名片没有背面：不渲染空格子，让正面占满整行。
-          if (!original) return []
-          const thumbnail =
-            page?.thumbUrl ??
-            (side === "front"
-              ? card.image1_thumbnail_url
-              : card.image2_thumbnail_url) ??
-            original
+          if (!page) return []
+          // 页面行自带 400 档缩略图，原图留作全屏预览。
+          const original = page.url
+          const thumbnail = page.thumbUrl
           return [
             <button
               key={side}
@@ -167,9 +161,7 @@ function NamecardItem({
               className="relative aspect-3/2 min-h-11 w-full overflow-hidden rounded-none bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
               aria-label={`查看制作人名片 ${card.id} ${side === "front" ? "正面" : "背面"}`}
               title="查看名片详情"
-              onClick={(event) =>
-                onOpenDetail(card, event.currentTarget, side)
-              }
+              onClick={(event) => onOpenDetail(card, event.currentTarget, side)}
             >
               <NamecardThumbnail
                 key={`${thumbnail}:${original}`}
@@ -203,9 +195,7 @@ function NamecardItem({
             <Badge
               variant="outline"
               className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
-              render={
-                <NavigationLink to={`/user/${card.claimerUid}`} />
-              }
+              render={<NavigationLink to={`/user/${card.claimerUid}`} />}
             >
               <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
               {card.claimerName ?? "已由注册用户认领"}
@@ -222,9 +212,16 @@ function NamecardItem({
         ) : card.claimStatus === "pending" ? (
           <Badge
             variant="outline"
-            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap"
+            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
           >
             认领审核中
+          </Badge>
+        ) : card.supplementPending ? (
+          <Badge
+            variant="outline"
+            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
+          >
+            补充审核中
           </Badge>
         ) : null}
       </CardHeader>
@@ -324,7 +321,8 @@ export default function CommunityCardsPage() {
     if (!wanted) return
     const found = result.list.find(
       (item) =>
-        String(item.cardNumber ?? item.id) === wanted || String(item.id) === wanted
+        String(item.cardNumber ?? item.id) === wanted ||
+        String(item.id) === wanted
     )
     if (found) {
       detail.open(found)

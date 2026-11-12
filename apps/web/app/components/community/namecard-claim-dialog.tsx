@@ -62,15 +62,7 @@ export function NamecardClaimDialog({
   // 提交前只改预览；审核通过时服务端才真正旋转。
   const [rotations, setRotations] = useState<Record<number, number>>({})
   const mediaSlots = useMemo(
-    () =>
-      card
-        ? publicMediaSlotsFromCard({
-            frontImageUrl: card.image1_url,
-            middleImageUrls: card.middleImageUrls,
-            backImageUrl: card.image2_url,
-            pages: card.pages,
-          })
-        : [],
+    () => (card ? publicMediaSlotsFromCard({ pages: card.pages }) : []),
     [card]
   )
   const [ownerCards, setOwnerCards] = useState<FudabaOwnerCard[]>([])
@@ -123,6 +115,10 @@ export function NamecardClaimDialog({
   const restricted = platform.status === "restricted"
   const ready = Boolean(card && draft && authenticated && catalog)
   const binding = existingTarget !== undefined
+  // Binding uses the target card as-is; there is no photo rotation to submit.
+  useEffect(() => {
+    if (binding) setRotations({})
+  }, [binding])
   // 可绑定名片多时占满宽度会把表单顶下去，所以按详情窗口的字段样式折叠成滚动区。
   const { ref: bindScrollRef, fade: bindScrollFade } = useCardFieldFade(
     bindable.length
@@ -131,10 +127,10 @@ export function NamecardClaimDialog({
   // 团体名片的必填项是团体名称，制作人名称可以留空。
   const requiredReady = Boolean(
     filled &&
-      (filled.isGroupCard
-        ? (filled.groupName ?? "").trim()
-        : filled.producerName.trim()) &&
-      filled.seriesCodes.length > 0
+    (filled.isGroupCard
+      ? (filled.groupName ?? "").trim()
+      : filled.producerName.trim()) &&
+    filled.seriesCodes.length > 0
   )
   const canSubmit = ready && !submitting && (binding || requiredReady)
 
@@ -198,17 +194,20 @@ export function NamecardClaimDialog({
           {card ? (
             <CardMediaPreview
               slots={mediaSlots}
-              rotations={rotations}
-              onRotate={(position, direction) =>
-                setRotations((current) => ({
-                  ...current,
-                  [position]:
-                    (((current[position] ?? 0) +
-                      (direction === "right" ? 1 : 3)) %
-                      4 +
-                      4) %
-                    4,
-                }))
+              rotations={binding ? {} : rotations}
+              onRotate={
+                binding
+                  ? undefined
+                  : (position, direction) =>
+                      setRotations((current) => ({
+                        ...current,
+                        [position]:
+                          ((((current[position] ?? 0) +
+                            (direction === "right" ? 1 : 3)) %
+                            4) +
+                            4) %
+                          4,
+                      }))
               }
             />
           ) : null}

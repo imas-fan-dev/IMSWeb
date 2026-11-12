@@ -1,8 +1,4 @@
-import {
-  CircleAlertIcon,
-  LoaderCircleIcon,
-  PlusIcon,
-} from "lucide-react"
+import { CircleAlertIcon, LoaderCircleIcon, PlusIcon } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -64,23 +60,16 @@ export function NamecardSupplementDialog({
   // 提交前只改预览；审核通过时服务端才真正旋转。
   const [rotations, setRotations] = useState<Record<number, number>>({})
   const mediaSlots = useMemo(
-    () =>
-      card
-        ? publicMediaSlotsFromCard({
-            frontImageUrl: card.image1_url,
-            middleImageUrls: card.middleImageUrls,
-            backImageUrl: card.image2_url,
-            pages: card.pages,
-          })
-        : [],
+    () => (card ? publicMediaSlotsFromCard({ pages: card.pages }) : []),
     [card]
   )
-  const turns = (position: number) =>
-    (((rotations[position] ?? 0) % 4) + 4) % 4
+  const turns = (position: number) => (((rotations[position] ?? 0) % 4) + 4) % 4
   const lastPosition = Math.max(mediaSlots.length - 1, 0)
   const rotationPatch = {
     ...(turns(0) ? { front: turns(0) } : {}),
-    ...(lastPosition > 0 && turns(lastPosition) ? { back: turns(lastPosition) } : {}),
+    ...(lastPosition > 0 && turns(lastPosition)
+      ? { back: turns(lastPosition) }
+      : {}),
   }
 
   useEffect(() => {
@@ -135,9 +124,7 @@ export function NamecardSupplementDialog({
       onOpenChange(false)
       toast.success("补充已提交审核")
     } catch (error) {
-      toast.error(
-        isApiError(error) ? error.message : "补充提交失败，请重试"
-      )
+      toast.error(isApiError(error) ? error.message : "补充提交失败，请重试")
     } finally {
       setSubmitting(false)
     }
@@ -162,9 +149,9 @@ export function NamecardSupplementDialog({
                 setRotations((current) => ({
                   ...current,
                   [position]:
-                    (((current[position] ?? 0) +
+                    ((((current[position] ?? 0) +
                       (direction === "right" ? 1 : 3)) %
-                      4 +
+                      4) +
                       4) %
                     4,
                 }))
@@ -174,7 +161,9 @@ export function NamecardSupplementDialog({
           {!authenticated ? (
             <Alert>
               <CircleAlertIcon aria-hidden="true" />
-              <AlertTitle>{restricted ? "帐号当前受限" : "请先登录"}</AlertTitle>
+              <AlertTitle>
+                {restricted ? "帐号当前受限" : "请先登录"}
+              </AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>
                   {restricted
@@ -236,7 +225,11 @@ export function NamecardSupplementDialog({
           >
             取消
           </Button>
-          <Button type="button" disabled={!canSubmit} onClick={() => void submit()}>
+          <Button
+            type="button"
+            disabled={!canSubmit}
+            onClick={() => void submit()}
+          >
             {submitting ? (
               <LoaderCircleIcon
                 data-icon="inline-start"

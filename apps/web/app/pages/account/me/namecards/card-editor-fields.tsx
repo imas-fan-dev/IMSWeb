@@ -42,7 +42,13 @@ const EXCHANGE_MODE_OPTIONS = [
 ] as const
 
 /** 字数进度，例如「(12/2000)」；标题右侧的小字提示。 */
-export function FieldCounter({ value, limit }: { value: number; limit: number }) {
+export function FieldCounter({
+  value,
+  limit,
+}: {
+  value: number
+  limit: number
+}) {
   return (
     <span className="ml-1 text-xs font-normal text-muted-foreground">
       ({value}/{limit})
@@ -68,7 +74,9 @@ export function CardFields({
   onChange: (draft: FudabaCardFields) => void
 }) {
   const { catalog, loading, failed } = useNamecardCharacterCatalog()
-  const [modeDirection, setModeDirection] = useState<"next" | "previous">("next")
+  const [modeDirection, setModeDirection] = useState<"next" | "previous">(
+    "next"
+  )
   // 担当角色所属的企划必须勾选且不可取消，否则角色与企划会互相矛盾。
   const lockedSeriesCodes = Array.from(
     new Set(
@@ -222,7 +230,9 @@ export function CardFields({
             maxLength={1000}
             disabled={disabled}
             className="min-h-20 resize-y"
-            onChange={(event) => patch({ tradeNote: event.currentTarget.value })}
+            onChange={(event) =>
+              patch({ tradeNote: event.currentTarget.value })
+            }
           />
         </Field>
       </CardModule>
@@ -251,7 +261,9 @@ export function CardFields({
                   key={option.value}
                   value={option.value}
                   // 团体名片只能是自动交换，其他选项置灰。
-                  disabled={disabled || (draft.isGroupCard && option.value !== "auto")}
+                  disabled={
+                    disabled || (draft.isGroupCard && option.value !== "auto")
+                  }
                 >
                   {option.label}
                 </TabsTrigger>
@@ -261,7 +273,7 @@ export function CardFields({
           {/* 换模式时说明横向滑入，方向跟随点击顺序。 */}
           <p
             key={draft.exchangeMode}
-            className={`mt-2 text-sm text-muted-foreground motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200 ${
+            className={`mt-2 text-sm text-muted-foreground motion-safe:animate-in motion-safe:duration-200 motion-safe:fade-in ${
               modeDirection === "next"
                 ? "motion-safe:slide-in-from-right-2"
                 : "motion-safe:slide-in-from-left-2"

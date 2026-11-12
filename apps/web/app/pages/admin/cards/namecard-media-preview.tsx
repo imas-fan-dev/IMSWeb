@@ -1,17 +1,25 @@
 import { ImagesIcon } from "lucide-react"
 import { useState } from "react"
+import type { CSSProperties } from "react"
 
+import { CardImage } from "~/components/shared/card-image"
 import { Badge } from "~/components/ui/badge"
 import { cn } from "~/lib/utils"
 
+interface NamecardMediaPreviewPage {
+  role: "front" | "middle" | "back"
+  thumbUrl: string
+}
+
 interface NamecardMediaPreviewProps {
-  frontImageUrl: string
-  /** 单面名片没有背面，此时只画一张并占满容器。 */
-  backImageUrl?: string | null
   /** 用作 alt 前缀，例如「名片 #792」。 */
   altBase: string
+  /** 统一页面行：正/反/中间由页序推导，是唯一的图片来源。 */
+  pages?: readonly NamecardMediaPreviewPage[]
   /** 总页数；超过两张（有中间页）时在角落标出，预览本身只画正反面。 */
   pageCount?: number
+  /** Draft rotation proposal; CSS-only preview, front/back by role. */
+  rotations?: Readonly<{ front?: number; back?: number }>
 }
 
 /**
@@ -29,39 +37,65 @@ interface NamecardMediaPreviewProps {
  * 缩略图自身另有一圈描边（`border-foreground/25`），避免名片主色与卡片底色接近时看不出边界。
  */
 export function NamecardMediaPreview({
-  frontImageUrl,
-  backImageUrl,
   altBase,
+  pages,
   pageCount,
+  rotations,
 }: NamecardMediaPreviewProps) {
   const [portrait, setPortrait] = useState(false)
-  const images = backImageUrl ? [frontImageUrl, backImageUrl] : [frontImageUrl]
+  const resolvedFront =
+    pages?.find((page) => page.role === "front")?.thumbUrl ?? ""
+  const resolvedBack =
+    pages?.find((page) => page.role === "back")?.thumbUrl ?? null
+  const images = resolvedBack ? [resolvedFront, resolvedBack] : [resolvedFront]
+  const resolvedPageCount = pages?.length ?? pageCount
+  const rotationTurns = (index: number) => {
+    const raw =
+      index === 0
+        ? (rotations?.front ?? 0)
+        : index === images.length - 1
+          ? (rotations?.back ?? 0)
+          : 0
+    return ((raw % 4) + 4) % 4
+  }
+  const rotationStyle = (index: number): CSSProperties | undefined => {
+    const turns = rotationTurns(index)
+    if (!turns) return undefined
+    return {
+      transform: `rotate(${turns * 90}deg) scale(${turns % 2 === 1 ? 0.72 : 1})`,
+    }
+  }
 
   return (
     <div
       className={cn(
         "relative grid aspect-13/10 gap-px border border-border bg-border",
-        images.length === 1 ? "grid-rows-1" : portrait ? "grid-cols-2" : "grid-rows-2",
+        images.length === 1
+          ? "grid-rows-1"
+          : portrait
+            ? "grid-cols-2"
+            : "grid-rows-2"
       )}
       data-namecard-orientation={portrait ? "portrait" : "landscape"}
     >
-      {pageCount && pageCount > 2 ? (
+      {resolvedPageCount && resolvedPageCount > 2 ? (
         <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
           <ImagesIcon aria-hidden="true" />
-          {pageCount}
+          {resolvedPageCount}
         </Badge>
       ) : null}
       {[...images].map((image, index) => (
         <div
           key={`${image}-${index}`}
-          className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden"
+          className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden"
         >
-          <img
+          <CardImage
             src={image}
             alt={`${altBase}${index === 0 ? "正面" : "背面"}`}
             loading="lazy"
             decoding="async"
             className="block max-h-full max-w-full border border-foreground/25 object-contain"
+            style={rotationStyle(index)}
             onLoad={(event) => {
               if (index !== 0) return
               const { naturalWidth, naturalHeight } = event.currentTarget

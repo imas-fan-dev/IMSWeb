@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react"
 import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { ReviewRowAction } from "./review-row-action"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -350,7 +351,9 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
                 const label =
                   row.type === "claim"
                     ? `名片 #${row.claim.legacyCardId}`
-                    : row.card.producerName || `名片 #${row.card.cardNumber}`
+                    : row.supplement.payload.producerName ||
+                      row.card.producerName ||
+                      `名片 #${row.card.cardNumber}`
                 return (
                   <article
                     key={key}
@@ -367,34 +370,18 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
                     >
                       {row.type === "claim" ? (
                         <NamecardMediaPreview
-                          frontImageUrl={
-                            row.claim.legacyCard.pages?.find(
-                              (page) => page.role === "front"
-                            )?.thumbUrl ?? row.claim.legacyCard.frontImageUrl
-                          }
-                          backImageUrl={
-                            row.claim.legacyCard.pages?.find(
-                              (page) => page.role === "back"
-                            )?.thumbUrl ??
-                            (row.claim.legacyCard.backImageUrl
-                              ? row.claim.legacyCard.backImageUrl
-                              : null)
+                          pages={row.claim.legacyCard.pages}
+                          rotations={
+                            row.claim.targetCardId === null
+                              ? row.claim.payload.rotations
+                              : undefined
                           }
                           altBase={label}
                         />
                       ) : (
                         <NamecardMediaPreview
-                          frontImageUrl={
-                            row.card.pages?.find((page) => page.role === "front")
-                              ?.thumbUrl ?? row.card.frontImageUrl
-                          }
-                          backImageUrl={
-                            row.card.pages?.find((page) => page.role === "back")
-                              ?.thumbUrl ??
-                            (row.card.backImageUrl
-                              ? row.card.backImageUrl
-                              : null)
-                          }
+                          pages={row.card.pages}
+                          rotations={row.supplement.payload.rotations}
                           altBase={label}
                         />
                       )}
@@ -418,67 +405,47 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
                           ) : null}
                         </div>
                       </div>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        aria-label="通过"
-                        title="通过"
-                        disabled={submitting}
-                        onClick={(event) =>
+                      <ReviewRowAction
+                        label="通过"
+                        icon={<CheckIcon />}
+                        pending={
                           row.type === "claim"
-                            ? claimApprove.requestAction(
-                                row.claim,
-                                event.currentTarget
-                              )
+                            ? claimApprove.submitting &&
+                              claimApprove.target?.id === row.claim.id
+                            : supplementApprove.submitting &&
+                              supplementApprove.target?.id === row.supplement.id
+                        }
+                        disabled={submitting}
+                        onRequest={(trigger) =>
+                          row.type === "claim"
+                            ? claimApprove.requestAction(row.claim, trigger)
                             : supplementApprove.requestAction(
                                 row.supplement,
-                                event.currentTarget
+                                trigger
                               )
                         }
-                      >
-                        {row.type === "claim" &&
-                        claimApprove.submitting &&
-                        claimApprove.target?.id === row.claim.id ? (
-                          <LoaderCircleIcon className="animate-spin" />
-                        ) : row.type === "supplement" &&
-                          supplementApprove.submitting &&
-                          supplementApprove.target?.id === row.supplement.id ? (
-                          <LoaderCircleIcon className="animate-spin" />
-                        ) : (
-                          <CheckIcon />
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon-sm"
+                      />
+                      <ReviewRowAction
+                        label="驳回"
+                        icon={<XIcon />}
                         variant="outline"
-                        aria-label="驳回"
-                        title="驳回"
-                        disabled={submitting}
-                        onClick={(event) =>
+                        pending={
                           row.type === "claim"
-                            ? claimReject.requestAction(
-                                row.claim,
-                                event.currentTarget
-                              )
+                            ? claimReject.submitting &&
+                              claimReject.target?.id === row.claim.id
+                            : supplementReject.submitting &&
+                              supplementReject.target?.id === row.supplement.id
+                        }
+                        disabled={submitting}
+                        onRequest={(trigger) =>
+                          row.type === "claim"
+                            ? claimReject.requestAction(row.claim, trigger)
                             : supplementReject.requestAction(
                                 row.supplement,
-                                event.currentTarget
+                                trigger
                               )
                         }
-                      >
-                        {row.type === "claim" &&
-                        claimReject.submitting &&
-                        claimReject.target?.id === row.claim.id ? (
-                          <LoaderCircleIcon className="animate-spin" />
-                        ) : row.type === "supplement" &&
-                          supplementReject.submitting &&
-                          supplementReject.target?.id === row.supplement.id ? (
-                          <LoaderCircleIcon className="animate-spin" />
-                        ) : (
-                          <XIcon />
-                        )}
-                      </Button>
+                      />
                     </div>
                   </article>
                 )

@@ -18,6 +18,24 @@ export function makeNamecardFavoriteCharacter(
   }
 }
 
+/** One artwork page: the grid renders the whole set in page order. */
+function cardPage(
+  role: "front" | "middle" | "back",
+  order: number,
+  url: string
+): NonNullable<Namecard["pages"]>[number] {
+  return {
+    pageId: `page-${order}`,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
+}
+
 export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
   return {
     id: 1,
@@ -37,7 +55,10 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     accent: null,
     seriesCodes: ["765"],
     credits: [],
-    middleImageUrls: [],
+    pages: [
+      cardPage("front", 1, "/uploads/namecard/original/abc.webp"),
+      cardPage("back", 2, "/uploads/namecard/original/def.webp"),
+    ],
     canEdit: false,
     hasOwner: false,
     seriesCode: "765",
@@ -47,13 +68,6 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     claimerName: null,
     claimerUid: null,
     supplementPending: false,
-    // The grid's images pass through resolvePublicMediaUrl, which leaves the
-    // path alone on local disk and returns an absolute object-storage URL
-    // otherwise.
-    image1_url: "/uploads/namecard/original/abc.webp",
-    image2_url: "/uploads/namecard/original/def.webp",
-    image1_thumbnail_url: "/uploads/namecard/thumbnail/abc.webp.jpg",
-    image2_thumbnail_url: "/uploads/namecard/thumbnail/def.webp.jpg",
     status: "approved",
     created_at: "2026-01-01T00:00:00+08:00",
     ...overrides,
@@ -69,12 +83,18 @@ export function makeNamecardPage(
       makeNamecard({
         id: 2,
         seriesCode: null,
-        image1_url: "https://objects.example.com/namecards/2-front.webp",
-        image2_url: "https://objects.example.com/namecards/2-back.webp",
-        image1_thumbnail_url:
-          "https://objects.example.com/namecards/2-front.jpg",
-        image2_thumbnail_url:
-          "https://objects.example.com/namecards/2-back.jpg",
+        pages: [
+          cardPage(
+            "front",
+            1,
+            "https://objects.example.com/namecards/2-front.webp"
+          ),
+          cardPage(
+            "back",
+            2,
+            "https://objects.example.com/namecards/2-back.webp"
+          ),
+        ],
         created_at: null,
       }),
     ],

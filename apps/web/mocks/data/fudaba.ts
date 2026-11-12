@@ -1,4 +1,5 @@
 import type {
+  CardPage,
   FudabaCard,
   FudabaCardPage,
   FudabaOffice,
@@ -32,6 +33,24 @@ import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
  * `makeFudabaOwnerCardList().items[0]` is both obscure and wasteful. The item
  * shapes are therefore part of the exported surface.
  */
+/** One artwork page: pages are the only media source the UI renders. */
+function mockPage(
+  role: "front" | "middle" | "back",
+  order: number,
+  url: string
+): CardPage {
+  return {
+    pageId: `page-${order}`,
+    role,
+    order,
+    url,
+    previewUrl: url,
+    thumbUrl: url,
+    width: 900,
+    height: 500,
+  }
+}
+
 export function makeFudabaOwnerCard(
   overrides: Partial<FudabaOwnerCard> = {}
 ): FudabaOwnerCard {
@@ -43,8 +62,11 @@ export function makeFudabaOwnerCard(
     seriesCodes: ["765"],
     favoriteCharacters: [],
     frontImageUrl: "/api/exchange/me/cards/card-1/media/front?v=3",
-    middleImageUrls: [],
     backImageUrl: "/api/exchange/me/cards/card-1/media/back?v=3",
+    pages: [
+      mockPage("front", 1, "/api/exchange/me/cards/card-1/media/page-1?v=3"),
+      mockPage("back", 2, "/api/exchange/me/cards/card-1/media/page-2?v=3"),
+    ],
     accent: "#f54798",
     bio: "",
     tradeNote: "",
@@ -212,8 +234,11 @@ export function makeFudabaCard(
     favoriteCharacters: [],
     // The public directory hands back absolute object-storage URLs already.
     frontImageUrl: "https://objects.example.com/cards/1-front.webp",
-    middleImageUrls: [],
     backImageUrl: "https://objects.example.com/cards/1-back.webp",
+    pages: [
+      mockPage("front", 1, "https://objects.example.com/cards/1-front.webp"),
+      mockPage("back", 2, "https://objects.example.com/cards/1-back.webp"),
+    ],
     accent: "#f54798",
     bio: "",
     tradeNote: "",
@@ -347,12 +372,13 @@ export function makeFudabaAdminCardClaim(
     updatedAt: "2026-01-01T00:00:00+08:00",
     reviewedAt: null,
     claimant: { id: "acct-1", displayName: "制作人" },
-    // legacyCard comes straight out of the namecards table and skips the API's
-    // public-media resolution, so it is always root-relative.
+    // legacyCard 的预览走后台页面行，正/反由页序推导。
     legacyCard: {
       id: 42,
-      frontImageUrl: "/uploads/namecard/original/abc.webp",
-      backImageUrl: "/uploads/namecard/original/def.webp",
+      pages: [
+        mockPage("front", 1, "/uploads/namecard/original/abc.webp"),
+        mockPage("back", 2, "/uploads/namecard/original/def.webp"),
+      ],
     },
     ...overrides,
   }

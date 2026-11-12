@@ -40,6 +40,7 @@ import {
 } from "~/pages/account/me/namecards/card-media-gallery"
 import {
   deleteAdminNamecard,
+  approveAdminNamecard,
   getAdminNamecardDiff,
   getAdminPlatformUsers,
   getPublicFudabaSeries,
@@ -57,6 +58,7 @@ import { feedbackReasonLabel } from "~/pages/community/exchange/components/namec
 import { NAMECARD_STATUS_OPTIONS } from "./namecard-status-options"
 
 const REVIEW_OPTIONS = [
+  { value: "approved", label: "已通过（提升待审版本）" },
   { value: "none", label: "无（丢弃待审版本）" },
   { value: "pending", label: "待审核" },
   { value: "rejected", label: "已驳回" },
@@ -64,6 +66,19 @@ const REVIEW_OPTIONS = [
 ] as const
 
 const REASON_LIMIT = 400
+
+function manageDisplaySide(card: AdminNamecardDiff): NamecardDiffSide {
+  return card.reviewStatus !== null && card.pending ? card.pending : card.live
+}
+
+function manageDisplaySlots(card: AdminNamecardDiff): MediaSlot[] {
+  const display = manageDisplaySide(card)
+  // Pending artwork is authoritative whenever a revision exists. A partial
+  // pending page-row set is still a deletion (e.g. #799 removed its middle
+  // page); falling back to live here showed the deleted page again. The
+  // legacy pending columns are the complete fallback inside slotsFromSide.
+  return slotsFromSide(display)
+}
 
 export function fieldsFromSide(side: NamecardDiffSide): FudabaCardFields {
   return {
@@ -88,23 +103,12 @@ export function fieldsFromSide(side: NamecardDiffSide): FudabaCardFields {
 
 /** Front, middle pages, then back — the same order the server stores. */
 export function slotsFromSide(side: NamecardDiffSide): MediaSlot[] {
-  // 统一布局的页面优先；index 用页面顺序，保证 media_order 的 `#i` 语义不变。
-  // 页面只覆盖部分面（迁移期）时整套回退，避免丢掉未迁移的那一面。
-  const legacyCount =
-    1 + side.middleImageUrls.length + (side.backImageUrl ? 1 : 0)
-  if (side.pages && side.pages.length === legacyCount) {
-    return side.pages.map((page) => ({
-      kind: "existing" as const,
-      index: page.order - 1,
-      url: page.previewUrl,
-    }))
-  }
-  const urls = [
-    side.frontImageUrl,
-    ...side.middleImageUrls,
-    ...(side.backImageUrl ? [side.backImageUrl] : []),
-  ]
-  return urls.map((url, index) => ({ kind: "existing" as const, index, url }))
+  // 页面行是唯一来源；index 用页面顺序，保证 media_order 的 `#i` 语义不变。
+  return (side.pages ?? []).map((page) => ({
+    kind: "existing" as const,
+    index: page.order - 1,
+    url: page.previewUrl,
+  }))
 }
 
 /** The management window may only reorder or drop pages, never add one. */
@@ -128,7 +132,10 @@ const FIELD_LABELS: Record<string, string> = {
 }
 
 /** `zod` is not a direct dependency here, so the issues are read structurally. */
-type SchemaIssues = { name?: string; issues?: readonly { path: readonly (string | number)[] }[] }
+type SchemaIssues = {
+  name?: string
+  issues?: readonly { path: readonly (string | number)[] }[]
+}
 
 function schemaIssues(error: unknown): SchemaIssues | null {
   if (typeof error !== "object" || error === null) return null
@@ -159,13 +166,38 @@ export function manageChangeNeedsReason(input: {
   reviewStatus: string
   storedReviewStatus: string | null
   ownerTouched: boolean
+  artworkChanged?: boolean
+  rotationChanged?: boolean
 }): boolean {
   if (!input.draft || !input.original) return false
+  const contentChanged =
+    JSON.stringify(input.draft) !== JSON.stringify(input.original)
+  const otherChange =
+    contentChanged ||
+    input.ownerTouched ||
+    Boolean(input.artworkChanged) ||
+    Boolean(input.rotationChanged)
+  const publicationChanged = input.status !== input.publicationStatus
+  const storedReview = input.storedReviewStatus ?? "none"
+  const reviewChanged = input.reviewStatus !== storedReview
+  const onlyHiddenToLocked =
+    publicationChanged &&
+    !reviewChanged &&
+    input.publicationStatus === "hidden" &&
+    input.status === "locked"
+  const onlyPendingToApproved =
+    (publicationChanged &&
+      !reviewChanged &&
+      input.publicationStatus === "pending" &&
+      input.status === "published") ||
+    (reviewChanged &&
+      input.storedReviewStatus === "pending" &&
+      input.reviewStatus === "approved")
   return (
-    JSON.stringify(input.draft) !== JSON.stringify(input.original) ||
-    input.status !== input.publicationStatus ||
-    input.reviewStatus !== (input.storedReviewStatus ?? "none") ||
-    input.ownerTouched
+    otherChange ||
+    ((publicationChanged || reviewChanged) &&
+      !onlyHiddenToLocked &&
+      !onlyPendingToApproved)
   )
 }
 
@@ -197,8 +229,7 @@ export function adminRotationPayload(
   slotCount: number,
   rotations: Readonly<Record<number, number>>
 ): { front?: number; back?: number; middles?: number[] } | undefined {
-  const turns = (position: number) =>
-    (((rotations[position] ?? 0) % 4) + 4) % 4
+  const turns = (position: number) => (((rotations[position] ?? 0) % 4) + 4) % 4
   const last = Math.max(slotCount - 1, 0)
   const middles = Array.from({ length: Math.max(last - 1, 0) }, (_, index) =>
     turns(index + 1)
@@ -260,13 +291,14 @@ export function NamecardManageDialog({
     ])
       .then(([card, catalog]) => {
         if (!active) return
-        const fields = fieldsFromSide(card.live)
+        const display = manageDisplaySide(card)
+        const fields = fieldsFromSide(display)
         setDiff(card)
         setSeries(catalog.items)
         setDraft(fields)
         setOriginal(fields)
-        setSlots(slotsFromSide(card.live))
-    setRotations({})
+        setSlots(manageDisplaySlots(card))
+        setRotations({})
         setStatus(card.publicationStatus)
         setReviewStatus(card.reviewStatus ?? "none")
         setOwnerAccountId(card.ownerAccountId ?? "")
@@ -303,6 +335,29 @@ export function NamecardManageDialog({
   // A cleared query hides the previous hits without writing state in an effect.
   const visibleOwnerResults = ownerQuery.trim() ? ownerResults : []
 
+  const draftChanged =
+    draft !== null &&
+    original !== null &&
+    JSON.stringify(draft) !== JSON.stringify(original)
+  const reviewOverride =
+    diff?.reviewStatus === "rejected" || diff?.reviewStatus === "locked"
+  const publicationOverride =
+    diff?.publicationStatus === "rejected" ||
+    diff?.publicationStatus === "locked"
+  const artworkChanged = useMemo(() => {
+    if (!diff) return false
+    const baseline = manageDisplaySlots(diff)
+    return (
+      slots.length !== baseline.length ||
+      slots.some(
+        (slot, index) =>
+          slot.kind !== "existing" || slot.url !== baseline[index]?.url
+      )
+    )
+  }, [diff, slots])
+  const rotationChanged = Object.values(rotations).some(
+    (turns) => ((turns % 4) + 4) % 4 !== 0
+  )
   const needsReason = useMemo(
     () =>
       manageChangeNeedsReason({
@@ -313,16 +368,31 @@ export function NamecardManageDialog({
         reviewStatus,
         storedReviewStatus: diff?.reviewStatus ?? null,
         ownerTouched,
+        artworkChanged,
+        rotationChanged,
       }),
-    [diff, draft, original, ownerTouched, reviewStatus, status]
+    [
+      artworkChanged,
+      diff,
+      draft,
+      original,
+      ownerTouched,
+      reviewStatus,
+      rotationChanged,
+      status,
+    ]
   )
 
   function applyCard(card: AdminNamecardDiff) {
-    const fields = fieldsFromSide(card.live)
+    const display = manageDisplaySide(card)
+    const fields = fieldsFromSide(display)
     setDiff(card)
     setDraft(fields)
     setOriginal(fields)
-    setSlots(slotsFromSide(card.live))
+    setSlots(manageDisplaySlots(card))
+    // The saved card already contains the rotation; keeping the old preview
+    // turns would rotate the new object a second time.
+    setRotations({})
     setStatus(card.publicationStatus)
     setReviewStatus(card.reviewStatus ?? "none")
     setOwnerAccountId(card.ownerAccountId ?? "")
@@ -361,16 +431,50 @@ export function NamecardManageDialog({
     setMessage(null)
     setReasonRequired(false)
     try {
+      const approving = effectiveReviewStatus === "approved"
+      const contentChanged =
+        draft !== null &&
+        original !== null &&
+        JSON.stringify(draft) !== JSON.stringify(original)
+      const versionOnly =
+        diff.reviewStatus !== null &&
+        !approving &&
+        status === diff.publicationStatus &&
+        !contentChanged &&
+        !artworkChanged &&
+        !rotationChanged &&
+        !ownerTouched &&
+        (reviewStatus === "none" ||
+          reviewStatus === "pending" ||
+          reviewStatus === "rejected" ||
+          reviewStatus === "locked")
+      if (
+        approving &&
+        diff.reviewStatus === "pending" &&
+        !contentChanged &&
+        !artworkChanged &&
+        !rotationChanged &&
+        !ownerTouched
+      ) {
+        await approveAdminNamecard(cardNumber, diff.revision).send()
+        onSaved()
+        onClose()
+        return true
+      }
       const next = await updateAdminNamecard(cardNumber, {
         ...draft,
         credits: draft.credits.filter((credit) => credit.displayName.trim()),
         expected_revision: diff.revision,
         reason: reason.trim() ? reason.trim() : null,
         ...(ownerTouched ? { ownerAccountId: ownerAccountId || null } : {}),
-        status,
-        review_status: reviewStatus === "none" ? null : reviewStatus,
+        status: approving ? "published" : status,
+        review_status:
+          approving || effectiveReviewStatus === "none"
+            ? null
+            : effectiveReviewStatus,
         media_order: adminMediaOrder(slots),
         ...(rotationPayload ? { rotations: rotationPayload } : {}),
+        ...(versionOnly ? { version_only: true } : {}),
       }).send()
       applyCard(next)
       return true
@@ -473,6 +577,31 @@ export function NamecardManageDialog({
 
   const busy = saving || deleting || resolving
   const queued = diff?.reviewStatus === "pending"
+  const statusEdited =
+    draftChanged || artworkChanged || rotationChanged || ownerTouched
+  const statusLocked = (reviewOverride || publicationOverride) && statusEdited
+  const autoReviewLocked = reviewOverride && statusEdited
+  const effectiveReviewStatus = autoReviewLocked ? "approved" : reviewStatus
+  const canChangeReview = (queued || reviewOverride) && !autoReviewLocked
+  const reviewOptions =
+    diff?.reviewStatus === "rejected" || diff?.reviewStatus === "locked"
+      ? [
+          { value: "approved", label: "已通过（提升待审版本）" },
+          { value: "rejected", label: "已驳回" },
+          { value: "locked", label: "违规锁定" },
+        ]
+      : REVIEW_OPTIONS
+
+  useEffect(() => {
+    if (queued) setRotations({})
+  }, [queued])
+
+  useEffect(() => {
+    if (!reviewOverride && !publicationOverride) return
+    if (statusEdited) {
+      setStatus((current) => (current === "published" ? current : "published"))
+    }
+  }, [publicationOverride, reviewOverride, statusEdited])
 
   return (
     <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
@@ -519,26 +648,30 @@ export function NamecardManageDialog({
                 <Alert>
                   <AlertTitle>这张名片有 1 个待审版本</AlertTitle>
                   <AlertDescription>
-                    名片状态不能直接改为已通过，通过请回到名片审核。把版本状态设为「无」，保存会丢弃这个版本。
+                    待审期间资料、图片和归属不可编辑。可直接把版本状态设为「已通过」提升待审版本，或设为「无」丢弃这个版本。
                   </AlertDescription>
                 </Alert>
               ) : null}
 
               <CardMediaGallery
+                key={diff?.revision ?? "initial"}
                 slots={slots}
                 disabled={busy || queued}
                 allowUpload={false}
-                rotations={rotations}
-                onRotate={(position, direction) =>
-                  setRotations((current) => ({
-                    ...current,
-                    [position]:
-                      (((current[position] ?? 0) +
-                        (direction === "right" ? 1 : 3)) %
-                        4 +
-                        4) %
-                      4,
-                  }))
+                rotations={queued ? {} : rotations}
+                onRotate={
+                  queued
+                    ? undefined
+                    : (position, direction) =>
+                        setRotations((current) => ({
+                          ...current,
+                          [position]:
+                            ((((current[position] ?? 0) +
+                              (direction === "right" ? 1 : 3)) %
+                              4) +
+                              4) %
+                            4,
+                        }))
                 }
                 onChange={setSlots}
                 onError={setMessage}
@@ -576,73 +709,74 @@ export function NamecardManageDialog({
                       </Button>
                     </div>
                   ) : (
-                  <div className="relative">
-                    <SearchIcon
-                      className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    <Input
-                      id="manage-owner"
-                      className="pl-8"
-                      disabled={busy || queued}
-                      value={ownerQuery}
-                      placeholder={
-                        ownerAccountId
-                          ? (ownerName ?? ownerAccountId)
-                          : "无主名片 · 输入昵称检索账号"
-                      }
-                      onChange={(event) => setOwnerQuery(event.target.value)}
-                    />
-                    {visibleOwnerResults.length ? (
-                      <ul
-                        role="listbox"
-                        aria-label="账号检索结果"
-                        className="absolute top-full left-0 z-20 mt-1 flex w-full flex-col divide-y overflow-hidden rounded-md border bg-popover text-sm shadow-md"
-                      >
-                        {visibleOwnerResults.map((account) => {
-                          const current = account.id === ownerAccountId
-                          const usable = account.status === "active" && !current
-                          return (
-                            <li
-                              key={account.id}
-                              role="option"
-                              aria-selected={false}
-                              aria-disabled={!usable}
-                            >
-                              <button
-                                type="button"
-                                className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                                disabled={!usable}
-                                onClick={() => {
-                                  setOwnerAccountId(account.id)
-                                  setOwnerName(account.displayName)
-                                  setOwnerTouched(true)
-                                  setOwnerQuery("")
-                                  setOwnerResults([])
-                                }}
+                    <div className="relative">
+                      <SearchIcon
+                        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <Input
+                        id="manage-owner"
+                        className="pl-8"
+                        disabled={busy || queued}
+                        value={ownerQuery}
+                        placeholder={
+                          ownerAccountId
+                            ? (ownerName ?? ownerAccountId)
+                            : "无主名片 · 输入昵称检索账号"
+                        }
+                        onChange={(event) => setOwnerQuery(event.target.value)}
+                      />
+                      {visibleOwnerResults.length ? (
+                        <ul
+                          role="listbox"
+                          aria-label="账号检索结果"
+                          className="absolute top-full left-0 z-20 mt-1 flex w-full flex-col divide-y overflow-hidden rounded-md border bg-popover text-sm shadow-md"
+                        >
+                          {visibleOwnerResults.map((account) => {
+                            const current = account.id === ownerAccountId
+                            const usable =
+                              account.status === "active" && !current
+                            return (
+                              <li
+                                key={account.id}
+                                role="option"
+                                aria-selected={false}
+                                aria-disabled={!usable}
                               >
-                                <span className="min-w-0">
-                                  <span className="truncate">
-                                    {account.displayName}
+                                <button
+                                  type="button"
+                                  className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={!usable}
+                                  onClick={() => {
+                                    setOwnerAccountId(account.id)
+                                    setOwnerName(account.displayName)
+                                    setOwnerTouched(true)
+                                    setOwnerQuery("")
+                                    setOwnerResults([])
+                                  }}
+                                >
+                                  <span className="min-w-0">
+                                    <span className="truncate">
+                                      {account.displayName}
+                                    </span>
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      {account.id}
+                                    </span>
                                   </span>
-                                  <span className="ml-2 text-xs text-muted-foreground">
-                                    {account.id}
+                                  <span className="shrink-0 text-xs text-muted-foreground">
+                                    {current
+                                      ? "当前"
+                                      : account.status === "active"
+                                        ? "可选"
+                                        : "禁用"}
                                   </span>
-                                </span>
-                                <span className="shrink-0 text-xs text-muted-foreground">
-                                  {current
-                                    ? "当前"
-                                    : account.status === "active"
-                                      ? "可选"
-                                      : "禁用"}
-                                </span>
-                              </button>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    ) : null}
-                  </div>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
                   )}
                   {ownerAccountId ? null : (
                     <p className="text-xs text-muted-foreground">
@@ -652,13 +786,13 @@ export function NamecardManageDialog({
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field data-disabled={busy || undefined}>
+                  <Field data-disabled={busy || statusLocked || undefined}>
                     <FieldLabel htmlFor="manage-status">名片状态</FieldLabel>
                     <Select
                       value={status}
                       items={NAMECARD_STATUS_OPTIONS}
                       onValueChange={(value) => setStatus(String(value))}
-                      disabled={busy || queued}
+                      disabled={busy || queued || statusLocked}
                     >
                       <SelectTrigger
                         id="manage-status"
@@ -679,18 +813,13 @@ export function NamecardManageDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                    {queued ? (
-                      <FieldDescription>
-                        有待审版本时不能直接改为已通过，请先在名片审核里通过。
-                      </FieldDescription>
-                    ) : null}
                   </Field>
-                  <Field data-disabled={busy || !queued || undefined}>
+                  <Field data-disabled={busy || !canChangeReview || undefined}>
                     <FieldLabel htmlFor="manage-review">版本状态</FieldLabel>
                     <Select
-                      value={reviewStatus}
-                      items={REVIEW_OPTIONS}
-                      disabled={busy || !queued}
+                      value={effectiveReviewStatus}
+                      items={reviewOptions}
+                      disabled={busy || !canChangeReview}
                       onValueChange={(value) => setReviewStatus(String(value))}
                     >
                       <SelectTrigger
@@ -701,14 +830,22 @@ export function NamecardManageDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent align="start">
-                        {REVIEW_OPTIONS.map((option) => (
+                        {reviewOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {queued ? null : (
+                    {reviewOverride ? (
+                      <FieldDescription>
+                        编辑被驳回或锁定的版本后只能通过审核。
+                      </FieldDescription>
+                    ) : queued ? (
+                      <FieldDescription>
+                        可直接选择“已通过”提升待审版本，或选择“无”丢弃。
+                      </FieldDescription>
+                    ) : (
                       <FieldDescription>
                         没有待审版本时不能修改版本状态。
                       </FieldDescription>
@@ -834,9 +971,7 @@ export function NamecardManageDialog({
           <div className="space-y-2">
             <p>
               这条反馈会被标记为未受理，理由会原样写进发给反馈人的通知。
-              {needsReason
-                ? " 这里尚未保存的资料改动会一并丢弃。"
-                : null}
+              {needsReason ? " 这里尚未保存的资料改动会一并丢弃。" : null}
             </p>
             <textarea
               aria-label="驳回理由"

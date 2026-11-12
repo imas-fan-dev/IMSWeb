@@ -42,10 +42,7 @@ import {
 } from "./card-media-gallery"
 import { PublicationBadge } from "./card-inventory"
 import { CardFields } from "./card-editor-fields"
-import {
-  CardModule,
-  type CardModuleModes,
-} from "./card-module"
+import { CardModule, type CardModuleModes } from "./card-module"
 import {
   apiMessage,
   isFeatureClosed,
@@ -95,14 +92,7 @@ export function CardEditor({
   const [aspectWarning, setAspectWarning] = useState(false)
   const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null)
   const [slots, setSlots] = useState<MediaSlot[]>(() =>
-    card
-      ? mediaSlotsFromCard({
-          frontImageUrl: card.pendingContent?.frontImageUrl ?? card.frontImageUrl,
-          middleImageUrls:
-            card.pendingContent?.middleImageUrls ?? card.middleImageUrls,
-          backImageUrl: card.pendingContent?.backImageUrl ?? card.backImageUrl,
-        })
-      : []
+    card ? mediaSlotsFromCard({ pages: card.pendingPages ?? card.pages }) : []
   )
   const [mediaDirty, setMediaDirty] = useState(false)
   /** 待保存的旋转：位置 → 圈数。只在预览里用 CSS 体现，保存时才写服务器。 */
@@ -116,7 +106,9 @@ export function CardEditor({
     ...(readOnlyReason
       ? [{ key: "read-only", title: "名片暂时只读", body: readOnlyReason }]
       : []),
-    ...(feedback ? [feedbackNotice(feedback, reloadLatest, () => setFeedback(null))] : []),
+    ...(feedback
+      ? [feedbackNotice(feedback, reloadLatest, () => setFeedback(null))]
+      : []),
   ]
 
   useEffect(
@@ -138,7 +130,9 @@ export function CardEditor({
     setRotations((current) => ({
       ...current,
       [position]:
-        (((current[position] ?? 0) + (direction === "right" ? 1 : 3)) % 4 + 4) % 4,
+        ((((current[position] ?? 0) + (direction === "right" ? 1 : 3)) % 4) +
+          4) %
+        4,
     }))
   }
 
@@ -153,7 +147,9 @@ export function CardEditor({
       (((rotations[position] ?? 0) % 4) + 4) % 4
     const last = Math.max(slots.length - 1, 0)
     // 中间页按页序提交；全为 0 时不带这个字段。
-    const middles = slots.slice(1, Math.max(1, last)).map((_slot, index) => turns(index + 1))
+    const middles = slots
+      .slice(1, Math.max(1, last))
+      .map((_slot, index) => turns(index + 1))
     const payload = {
       ...(turns(0) ? { front: turns(0) } : {}),
       ...(last > 0 && turns(last) ? { back: turns(last) } : {}),
@@ -181,14 +177,7 @@ export function CardEditor({
 
   function seedSlots(next: FudabaOwnerCard) {
     for (const slot of slots) releaseMediaSlot(slot)
-    setSlots(
-      mediaSlotsFromCard({
-        frontImageUrl: next.pendingContent?.frontImageUrl ?? next.frontImageUrl,
-        middleImageUrls:
-          next.pendingContent?.middleImageUrls ?? next.middleImageUrls,
-        backImageUrl: next.pendingContent?.backImageUrl ?? next.backImageUrl,
-      })
-    )
+    setSlots(mediaSlotsFromCard({ pages: next.pendingPages ?? next.pages }))
     setMediaDirty(false)
   }
 
@@ -301,7 +290,8 @@ export function CardEditor({
       onSaved(result.card)
       // Saving exactly what is on the wall again drops the waiting revision
       // instead of queueing an identical one.
-      const withdrawn = card.reviewStatus === "pending" && !result.card.reviewStatus
+      const withdrawn =
+        card.reviewStatus === "pending" && !result.card.reviewStatus
       setFeedback({
         kind: "success",
         message: withdrawn
@@ -446,33 +436,33 @@ export function CardEditor({
         />
 
         <CardModule mode={modes?.actions}>
-        <div className="mt-6 flex min-w-0 flex-wrap items-center justify-end gap-2">
-          <Button type="submit" disabled={editDisabled}>
-            {saving ? (
-              <LoaderCircleIcon
-                data-icon="inline-start"
-                className="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-            ) : creating ? (
-              <PlusIcon data-icon="inline-start" aria-hidden="true" />
-            ) : (
-              <SaveIcon data-icon="inline-start" aria-hidden="true" />
-            )}
-            {saving ? "正在保存" : "保存并提交"}
-          </Button>
-          {!creating && card ? (
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={editDisabled}
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2Icon data-icon="inline-start" aria-hidden="true" />
-              删除名片
+          <div className="mt-6 flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <Button type="submit" disabled={editDisabled}>
+              {saving ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+              ) : creating ? (
+                <PlusIcon data-icon="inline-start" aria-hidden="true" />
+              ) : (
+                <SaveIcon data-icon="inline-start" aria-hidden="true" />
+              )}
+              {saving ? "正在保存" : "保存并提交"}
             </Button>
-          ) : null}
-        </div>
+            {!creating && card ? (
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={editDisabled}
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2Icon data-icon="inline-start" aria-hidden="true" />
+                删除名片
+              </Button>
+            ) : null}
+          </div>
         </CardModule>
       </form>
 
@@ -496,7 +486,8 @@ export function CardEditor({
         open={deleteOpen}
         deleting={deleting}
         displayName={
-          (card?.isGroupCard ? card.groupName : card?.producerName) ?? "当前名片"
+          (card?.isGroupCard ? card.groupName : card?.producerName) ??
+          "当前名片"
         }
         onOpenChange={setDeleteOpen}
         onConfirm={() => void removeCard()}

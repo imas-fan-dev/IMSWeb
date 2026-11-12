@@ -10,7 +10,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "react-router"
 
-import { AdminEmptyState, AdminPageHeader, AdminPanel } from "~/components/admin/admin-ui"
+import {
+  AdminEmptyState,
+  AdminPageHeader,
+  AdminPanel,
+} from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
 import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
@@ -44,7 +48,10 @@ import { NamecardManageDialog } from "./namecard-manage-dialog"
 import { NAMECARD_STATUS_FILTERS } from "./namecard-status-options"
 import { ReviewRowAction } from "./review-row-action"
 import { NamecardMediaPreview } from "./namecard-media-preview"
-import { REJECT_REASON_PRESETS, VIOLATION_REASON_PRESETS } from "./reason-presets"
+import {
+  REJECT_REASON_PRESETS,
+  VIOLATION_REASON_PRESETS,
+} from "./reason-presets"
 
 export function meta() {
   return [{ title: "名片管理 | IMSWeb" }]
@@ -257,18 +264,19 @@ export default function AdminNamecardManagePage() {
       <div className="space-y-2">
         <p>名片 #{card.id} 将被驳回，不会显示在名片墙上；投稿人可重新提交。</p>
         <div className="flex flex-wrap gap-1.5">
-          {(rejectFlagged ? VIOLATION_REASON_PRESETS : REJECT_REASON_PRESETS).map(
-            (preset) => (
-              <button
-                key={preset}
-                type="button"
-                className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={() => setRejectReason(preset)}
-              >
-                {preset}
-              </button>
-            )
-          )}
+          {(rejectFlagged
+            ? VIOLATION_REASON_PRESETS
+            : REJECT_REASON_PRESETS
+          ).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={() => setRejectReason(preset)}
+            >
+              {preset}
+            </button>
+          ))}
         </div>
         <textarea
           aria-label="驳回理由"
@@ -290,7 +298,9 @@ export default function AdminNamecardManagePage() {
               aria-label="标记为违规"
               className="mt-0.5 size-4 accent-destructive"
               checked={rejectFlagged}
-              onChange={(event) => setRejectFlagged(event.currentTarget.checked)}
+              onChange={(event) =>
+                setRejectFlagged(event.currentTarget.checked)
+              }
             />
             <span className="text-xs/relaxed">
               标记为违规：本次提交会记入违规记录用于后续审计，已公开的版本不受影响。
@@ -465,14 +475,7 @@ export default function AdminNamecardManagePage() {
                           onClick={() => setOpenCard(card.id)}
                         >
                           <NamecardMediaPreview
-                            frontImageUrl={
-                              card.pages?.find((page) => page.role === "front")?.thumbUrl ??
-                              card.image1_url
-                            }
-                            backImageUrl={
-                              card.pages?.find((page) => page.role === "back")?.thumbUrl ??
-                              card.image2_url ? card.image2_url : null
-                            }
+                            pages={card.pages}
                             altBase={`名片 #${card.id}`}
                             pageCount={card.pageCount}
                           />
@@ -502,27 +505,19 @@ export default function AdminNamecardManagePage() {
                             />
                           ) : null}
                           {card.status === "pending" ? (
-                            <Button
-                              type="button"
-                              size="icon-sm"
+                            <ReviewRowAction
+                              label="驳回"
+                              icon={<XIcon />}
                               variant="outline"
-                              aria-label="驳回"
-                              title="驳回"
-                              disabled={submitting}
-                              onClick={(event) =>
-                                rejectConfirm.requestAction(
-                                  card,
-                                  event.currentTarget
-                                )
+                              pending={
+                                rejectConfirm.submitting &&
+                                rejectConfirm.target?.id === card.id
                               }
-                            >
-                              {rejectConfirm.submitting &&
-                              rejectConfirm.target?.id === card.id ? (
-                                <LoaderCircleIcon className="animate-spin" />
-                              ) : (
-                                <XIcon />
-                              )}
-                            </Button>
+                              disabled={submitting}
+                              onRequest={(trigger) =>
+                                rejectConfirm.requestAction(card, trigger)
+                              }
+                            />
                           ) : null}
                           <Button
                             type="button"
@@ -586,6 +581,8 @@ export default function AdminNamecardManagePage() {
         title={approveConfirm.title}
         description={approveConfirm.description}
         submitting={approveConfirm.submitting}
+        confirmLabel="确认通过"
+        variant="default"
         onConfirm={() => void approveConfirm.confirmAction()}
       />
       <ConfirmActionDialog
@@ -594,6 +591,8 @@ export default function AdminNamecardManagePage() {
         title={rejectConfirm.title}
         description={rejectConfirm.description}
         submitting={rejectConfirm.submitting}
+        confirmLabel={rejectFlagged ? "确认标记违规" : "确认驳回"}
+        variant="default"
         onConfirm={() => void rejectConfirm.confirmAction()}
       />
       <ConfirmActionDialog

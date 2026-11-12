@@ -219,7 +219,6 @@ export default function AdminCardsPage() {
   const [lockReason, setLockReason] = useState("")
   const [reviewCard, setReviewCard] = useState<AdminNamecard | null>(null)
 
-
   const lockConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {
       try {
@@ -518,15 +517,8 @@ export default function AdminCardsPage() {
                           aria-label={`查看名片 #${card.id} 的审核详情`}
                           onClick={() => setReviewCard(card)}
                         >
-                                                    <NamecardMediaPreview
-                            frontImageUrl={
-                              card.pages?.find((page) => page.role === "front")?.thumbUrl ??
-                              card.image1_url
-                            }
-                            backImageUrl={
-                              card.pages?.find((page) => page.role === "back")?.thumbUrl ??
-                              card.image2_url ? card.image2_url : null
-                            }
+                          <NamecardMediaPreview
+                            pages={card.pages}
                             altBase={`名片 #${card.id}`}
                             pageCount={card.pageCount}
                           />

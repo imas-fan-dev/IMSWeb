@@ -1,11 +1,11 @@
 import { useState } from "react"
 
+import { CardImage } from "~/components/shared/card-image"
 import { cn } from "~/lib/utils"
 
 type DiffSide = {
-  frontImageUrl: string
-  middleImageUrls: string[]
-  backImageUrl: string | null
+  /** 统一布局的页面（后台作用域）：正/反/中间由页序推导。 */
+  pages?: readonly { url: string }[]
 }
 
 export interface ImageSlot {
@@ -16,14 +16,32 @@ export interface ImageSlot {
   label: string
 }
 
+/**
+ * 页面身份：后台 diff 两侧的 URL 只差作用域段（`/media/live/…` vs `/media/draft/…`），
+ * 同一个 `page_id` + 同一个 `object_version` 就是同一份图。`?w=` 只是渲染档位，
+ * 不参与身份比较，否则未改动的页会被当成「旧版 + 新版」。
+ */
+function slotIdentity(raw: string | null): string | null {
+  if (!raw) return null
+  try {
+    const url = new URL(raw, "http://local")
+    const path = url.pathname.replace(/\/media\/(?:live|draft)\//, "/media/")
+    return `${path}?v=${url.searchParams.get("v") ?? ""}`
+  } catch {
+    return raw
+  }
+}
+
 function pairSlots(
   before: string | null,
   after: string | null,
   label: string,
   key: string
 ): ImageSlot[] {
-  if (before === after) {
-    return before ? [{ key: `${key}-same`, url: before, state: "same", label }] : []
+  if (slotIdentity(before) === slotIdentity(after)) {
+    return before
+      ? [{ key: `${key}-same`, url: before, state: "same", label }]
+      : []
   }
   return [
     ...(before
@@ -35,6 +53,18 @@ function pairSlots(
   ]
 }
 
+/** 首页是正面、末页是背面，中间页按顺序排在两者之间。 */
+function faces(pages: DiffSide["pages"]): {
+  front: string | null
+  middles: string[]
+  back: string | null
+} {
+  const list = [...(pages ?? [])]
+  const front = list.shift()?.url ?? null
+  const back = list.length > 0 ? (list.pop()?.url ?? null) : null
+  return { front, middles: list.map((page) => page.url), back }
+}
+
 /**
  * 图片按页序比较：正面、中间页逐位、背面。位置不同就「旧的在前、新的在后」。
  */
@@ -43,26 +73,26 @@ export function diffImageSlots(
   pending: DiffSide | null
 ): ImageSlot[] {
   const next = pending ?? live
+  const liveFaces = faces(live.pages)
+  const nextFaces = faces(next.pages)
   const middles = Math.max(
-    live.middleImageUrls.length,
-    next.middleImageUrls.length
+    liveFaces.middles.length,
+    nextFaces.middles.length
   )
   const slots: ImageSlot[] = [
-    ...pairSlots(live.frontImageUrl, next.frontImageUrl, "正面", "front"),
+    ...pairSlots(liveFaces.front, nextFaces.front, "正面", "front"),
   ]
   for (let index = 0; index < middles; index += 1) {
     slots.push(
       ...pairSlots(
-        live.middleImageUrls[index] ?? null,
-        next.middleImageUrls[index] ?? null,
+        liveFaces.middles[index] ?? null,
+        nextFaces.middles[index] ?? null,
         `中间页 ${index + 1}`,
         `middle-${index}`
       )
     )
   }
-  slots.push(
-    ...pairSlots(live.backImageUrl, next.backImageUrl, "背面", "back")
-  )
+  slots.push(...pairSlots(liveFaces.back, nextFaces.back, "背面", "back"))
   return slots
 }
 
@@ -92,7 +122,7 @@ export function DiffArtwork({ slots }: { slots: readonly ImageSlot[] }) {
     <section aria-label="图片对比" className="space-y-3">
       {active ? (
         <div className="overflow-hidden rounded-xl border bg-muted">
-          <img
+          <CardImage
             src={active.url}
             alt={`${active.label}（${stateLabel(active.state)}）`}
             className={cn(
@@ -118,7 +148,11 @@ export function DiffArtwork({ slots }: { slots: readonly ImageSlot[] }) {
                 index === activeSlot && "ring-2 ring-primary"
               )}
             >
-              <img src={slot.url} alt="" className="size-full object-cover" />
+              <CardImage
+                src={slot.url}
+                alt=""
+                className="size-full object-cover"
+              />
               <span className="absolute inset-x-0 bottom-0 bg-background/85 text-[10px]/4">
                 {slot.label}
               </span>

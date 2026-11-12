@@ -14,6 +14,19 @@ import { cn } from "~/lib/utils"
 import { publicationLabels } from "./card-model"
 import { OwnerCardImage } from "./owner-card-image"
 
+/** The inventory tile follows the revision the owner is reviewing. */
+export function inventoryProducerName(card: FudabaOwnerCard): string {
+  return card.reviewStatus === "pending" && card.pendingContent
+    ? card.pendingContent.producerName
+    : card.producerName
+}
+
+export function inventoryCoverUrl(card: FudabaOwnerCard): string {
+  return card.reviewStatus === "pending" && card.pendingContent?.frontImageUrl
+    ? card.pendingContent.frontImageUrl
+    : card.frontImageUrl
+}
+
 export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
   const status = card.publicationStatus
   // A published card keeps serving the old copy while a revision is decided, so
@@ -27,7 +40,9 @@ export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
           : "secondary"
       }
       className={cn(
-        status === "published" && !review && "bg-success/20 text-success-foreground",
+        status === "published" &&
+          !review &&
+          "bg-success/20 text-success-foreground",
         review === "pending" && "bg-pending/20 text-pending-foreground"
       )}
     >
@@ -89,11 +104,11 @@ export function CardInventory({
               onClick={() => onSelect(card.id)}
             >
               <span className="aspect-3/2 overflow-hidden rounded-md border bg-muted">
-                <OwnerCardImage src={card.frontImageUrl} />
+                <OwnerCardImage src={inventoryCoverUrl(card)} />
               </span>
               <span className="min-w-0 self-center">
                 <span className="block truncate text-sm font-medium">
-                  {card.producerName}
+                  {inventoryProducerName(card)}
                 </span>
                 <span className="mt-1 flex min-w-0 flex-wrap gap-1">
                   <PublicationBadge card={card} />

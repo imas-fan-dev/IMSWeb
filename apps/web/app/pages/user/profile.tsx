@@ -11,6 +11,7 @@ import {
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
+import { CardImage } from "~/components/shared/card-image"
 import { namecardPages } from "~/components/shared/namecard-pages"
 import { NamecardPreview } from "~/components/shared/namecard-preview"
 import { PageShell } from "~/components/shared/page-shell"
@@ -70,7 +71,9 @@ export default function UserProfilePage() {
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const [busyReaction, setBusyReaction] = useState(false)
   const previewReturnRef = useRef<HTMLButtonElement | null>(null)
-  const [reactions, setReactions] = useState<Record<number, Record<string, number>>>({})
+  const [reactions, setReactions] = useState<
+    Record<number, Record<string, number>>
+  >({})
   const returnFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -129,7 +132,7 @@ export default function UserProfilePage() {
     void getNamecardReactions(openCard.id)
       .send()
       .then((next) =>
-        setReactions((current) => ({ ...current, [openCard.id]: next })),
+        setReactions((current) => ({ ...current, [openCard.id]: next }))
       )
       .catch(() => undefined)
   }, [openCard, reactions])
@@ -249,53 +252,56 @@ export default function UserProfilePage() {
           </div>
         ) : (
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] items-start gap-4">
-            {owned.map((card) => (
-              <li
-                key={card.id}
-                className="group flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md focus-within:shadow-md"
-              >
-                <button
-                  type="button"
-                  className="block w-full cursor-zoom-in overflow-hidden bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                  aria-label={`查看制作人名片 ${card.cardNumber} 正面`}
-                  onClick={(event) => {
-                    returnFocusRef.current = event.currentTarget
-                    setOpenCard(card)
-                  }}
+            {owned.map((card) => {
+              const cover = namecardPages(card)[0]?.thumb ?? ""
+              return (
+                <li
+                  key={card.id}
+                  className="group flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow focus-within:shadow-md hover:shadow-md"
                 >
-                  <img
-                    src={card.image1_url}
-                    alt={`制作人名片 ${card.cardNumber} 正面`}
-                    className="block h-auto w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
-                  />
-                </button>
-                <div className="flex items-center gap-2 border-t px-3 py-2">
-                  <span className="min-w-0 truncate text-xs text-muted-foreground">
-                    名片 #{card.cardNumber}
-                  </span>
-                  <Button
+                  <button
                     type="button"
-                    size="sm"
-                    className="ml-auto"
-                    disabled
-                    title={
-                      isSelf
-                        ? "分享功能暂未开放"
-                        : card.exchangeMode === "none"
-                          ? "这张名片不接受交换"
-                          : "暂未开放"
-                    }
+                    className="block w-full cursor-zoom-in overflow-hidden bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+                    aria-label={`查看制作人名片 ${card.cardNumber} 正面`}
+                    onClick={(event) => {
+                      returnFocusRef.current = event.currentTarget
+                      setOpenCard(card)
+                    }}
                   >
-                    {isSelf ? (
-                      <ShareIcon aria-hidden="true" />
-                    ) : (
-                      <ArrowLeftRightIcon aria-hidden="true" />
-                    )}
-                    {isSelf ? "分享" : "交换"}
-                  </Button>
-                </div>
-              </li>
-            ))}
+                    <CardImage
+                      src={cover}
+                      alt={`制作人名片 ${card.cardNumber} 正面`}
+                      className="block h-auto w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+                    />
+                  </button>
+                  <div className="flex items-center gap-2 border-t px-3 py-2">
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                      名片 #{card.cardNumber}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="ml-auto"
+                      disabled
+                      title={
+                        isSelf
+                          ? "分享功能暂未开放"
+                          : card.exchangeMode === "none"
+                            ? "这张名片不接受交换"
+                            : "暂未开放"
+                      }
+                    >
+                      {isSelf ? (
+                        <ShareIcon aria-hidden="true" />
+                      ) : (
+                        <ArrowLeftRightIcon aria-hidden="true" />
+                      )}
+                      {isSelf ? "分享" : "交换"}
+                    </Button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>

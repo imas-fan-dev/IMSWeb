@@ -74,7 +74,6 @@ function fieldRows(
   return rows
 }
 
-
 /**
  * 补充审核窗：只比对名片墙上的四项资料，通过后写回那张卡并给补充人发贡献值。
  * 裁决按钮与列表行上的 √ / × 走同一套二次确认窗（理由在确认窗里填）。
@@ -135,7 +134,10 @@ export function SupplementReviewDialog({
         </DialogHeader>
         <DialogBody className="grid gap-5 md:grid-cols-2">
           <div className="min-w-0">
-            <ReviewCardPreview cardNumber={cardNumber} />
+            <ReviewCardPreview
+              cardNumber={cardNumber}
+              rotations={supplement?.payload.rotations}
+            />
           </div>
           <div className="min-w-0 space-y-4">
             {failed ? (

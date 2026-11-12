@@ -548,7 +548,7 @@ export default function AdminPlatformUsersPage() {
                           </span>
                         ) : null}
                       </p>
-                      <p className="font-mono text-xs text-muted-foreground break-all">
+                      <p className="font-mono text-xs break-all text-muted-foreground">
                         {user.id}
                       </p>
                     </TableCell>

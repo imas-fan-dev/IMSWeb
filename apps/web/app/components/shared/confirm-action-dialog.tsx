@@ -40,7 +40,11 @@ export function ConfirmActionDialog({
       <AlertDialogContent aria-busy={submitting}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          {typeof description === "string" ? (
+            <AlertDialogDescription>{description}</AlertDialogDescription>
+          ) : (
+            <div className="text-sm text-muted-foreground">{description}</div>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={submitting}>

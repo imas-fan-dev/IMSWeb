@@ -46,6 +46,7 @@ import type {
 } from "@imsweb/contracts/chronicle"
 import type { EventPage } from "@imsweb/contracts/events"
 import type {
+  CardPage,
   FudabaCard,
   FudabaCardMutationResponse,
   FudabaCardPage,
@@ -269,12 +270,23 @@ export function normalizeWikiStoryCoverAssets(
  * uniform rule removes the asymmetry without needing to know which side a
  * given payload came from.
  */
+/** 页面行是唯一的主图来源，地址同样按运行时归属改写。 */
+function cardPages(pages: readonly CardPage[]): CardPage[] {
+  return pages.map((page) => ({
+    ...page,
+    url: apiMediaUrl(page.url),
+    previewUrl: apiMediaUrl(page.previewUrl),
+    thumbUrl: apiMediaUrl(page.thumbUrl),
+  }))
+}
+
 function fudabaCard<T extends FudabaCard>(card: T): T {
   return {
     ...card,
     frontImageUrl: apiMediaUrl(card.frontImageUrl),
     // A single-sided card has no back face at all.
     backImageUrl: card.backImageUrl ? apiMediaUrl(card.backImageUrl) : null,
+    ...(card.pages ? { pages: cardPages(card.pages) } : {}),
   }
 }
 
@@ -287,6 +299,10 @@ function fudabaOwnerCard(card: FudabaOwnerCard): FudabaOwnerCard {
     ...card,
     frontImageUrl: apiMediaUrl(card.frontImageUrl),
     backImageUrl: card.backImageUrl ? apiMediaUrl(card.backImageUrl) : null,
+    ...(card.pages ? { pages: cardPages(card.pages) } : {}),
+    ...(card.pendingPages
+      ? { pendingPages: cardPages(card.pendingPages) }
+      : {}),
   }
 }
 
@@ -408,11 +424,10 @@ export function normalizeFudabaAdminCardClaimList<
       ...item,
       legacyCard: {
         ...item.legacyCard,
-        frontImageUrl: apiMediaUrl(item.legacyCard.frontImageUrl),
-        // 单面名片没有背面，保持 null 让预览只画一张。
-        backImageUrl: item.legacyCard.backImageUrl
-          ? apiMediaUrl(item.legacyCard.backImageUrl)
-          : null,
+        // 老卡预览走后台页面行，正/反由页序推导。
+        ...(item.legacyCard.pages
+          ? { pages: cardPages(item.legacyCard.pages) }
+          : {}),
       },
     })),
   }
@@ -423,22 +438,14 @@ export function normalizeFudabaAdminCardClaimList<
 /* -------------------------------------------------------------------------- */
 
 /**
- * The public grid runs every image through `resolvePublicMediaUrl`, which
- * hands back an absolute object-storage URL when a public read URL is
- * configured and leaves the `/uploads/namecard/...` path untouched when it is
- * not. Both shapes therefore appear under the same field names, which is the
- * asymmetry `apiMediaUrl` already absorbs for fudaba.
+ * The public grid hands back one entry per page; each page carries the three
+ * size variants the renderer picks from, so all three run through
+ * `apiMediaUrl` for the same origin-correctness rule the other surfaces use.
  */
 function namecard(card: Namecard): Namecard {
   return {
     ...card,
-    image1_url: apiMediaUrl(card.image1_url),
-    image2_url: card.image2_url ? apiMediaUrl(card.image2_url) : null,
-    image1_thumbnail_url: apiMediaUrl(card.image1_thumbnail_url),
-    image2_thumbnail_url: card.image2_thumbnail_url
-      ? apiMediaUrl(card.image2_thumbnail_url)
-      : null,
-    middleImageUrls: card.middleImageUrls.map(apiMediaUrl),
+    ...(card.pages ? { pages: cardPages(card.pages) } : {}),
   }
 }
 
