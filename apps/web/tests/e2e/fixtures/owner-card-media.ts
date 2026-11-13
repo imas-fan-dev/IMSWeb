@@ -16,7 +16,7 @@ export async function installOwnerCardMediaRoutes(
     const mediaPath = `/api/community/exchange/me/cards/owner-card/media/${side}`
     // 画廊与预览都直接取带 `v` 的原图地址；拦截这条形态，避免请求打到
     // fixture 服务端（它没有这些对象），导致断言失败。
-    await page.route(`**${mediaPath}?v=1*`, async (route) => {
+    await page.route(`**${mediaPath}?v=*`, async (route) => {
       if (route.request().method() === "OPTIONS") {
         await route.fulfill({ status: 204, headers: cors })
         return

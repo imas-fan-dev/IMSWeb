@@ -660,8 +660,7 @@ test.describe("namecard claim workflow", () => {
     claimant: { id: "platform-claimant", displayName: "认领测试制作人" },
     legacyCard: {
       id: 42,
-      frontImageUrl: FRONT_IMAGE,
-      backImageUrl: BACK_IMAGE,
+      pages: namecardPages(FRONT_IMAGE, BACK_IMAGE),
     },
   }
 

@@ -35,12 +35,13 @@ import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
  */
 /** One artwork page: pages are the only media source the UI renders. */
 function mockPage(
+  pageId: string,
   role: "front" | "middle" | "back",
   order: number,
   url: string
 ): CardPage {
   return {
-    pageId: `page-${order}`,
+    pageId,
     role,
     order,
     url,
@@ -54,18 +55,22 @@ function mockPage(
 export function makeFudabaOwnerCard(
   overrides: Partial<FudabaOwnerCard> = {}
 ): FudabaOwnerCard {
+  const id = overrides.id ?? "card-1"
+  // 页面 URL 与 API 的属主作用域一致：ownerCardPageMediaPath(id, pageId)。
+  const pageUrl = (pageId: string) =>
+    `/api/community/exchange/me/cards/${id}/media/${pageId}?v=3`
   return {
-    id: "card-1",
+    id,
     cardNumber: 1,
     producerName: "P",
     isGroupCard: false,
     seriesCodes: ["765"],
     favoriteCharacters: [],
-    frontImageUrl: "/api/exchange/me/cards/card-1/media/front?v=3",
-    backImageUrl: "/api/exchange/me/cards/card-1/media/back?v=3",
+    frontImageUrl: `/api/exchange/me/cards/${id}/media/front?v=3`,
+    backImageUrl: `/api/exchange/me/cards/${id}/media/back?v=3`,
     pages: [
-      mockPage("front", 1, "/api/exchange/me/cards/card-1/media/page-1?v=3"),
-      mockPage("back", 2, "/api/exchange/me/cards/card-1/media/page-2?v=3"),
+      mockPage("front", "front", 1, pageUrl("front")),
+      mockPage("back", "back", 2, pageUrl("back")),
     ],
     accent: "#f54798",
     bio: "",
@@ -236,8 +241,8 @@ export function makeFudabaCard(
     frontImageUrl: "https://objects.example.com/cards/1-front.webp",
     backImageUrl: "https://objects.example.com/cards/1-back.webp",
     pages: [
-      mockPage("front", 1, "https://objects.example.com/cards/1-front.webp"),
-      mockPage("back", 2, "https://objects.example.com/cards/1-back.webp"),
+      mockPage("front", "front", 1, "https://objects.example.com/cards/1-front.webp"),
+      mockPage("back", "back", 2, "https://objects.example.com/cards/1-back.webp"),
     ],
     accent: "#f54798",
     bio: "",
@@ -376,8 +381,8 @@ export function makeFudabaAdminCardClaim(
     legacyCard: {
       id: 42,
       pages: [
-        mockPage("front", 1, "/uploads/namecard/original/abc.webp"),
-        mockPage("back", 2, "/uploads/namecard/original/def.webp"),
+        mockPage("front", "front", 1, "/uploads/namecard/original/abc.webp"),
+        mockPage("back", "back", 2, "/uploads/namecard/original/def.webp"),
       ],
     },
     ...overrides,
