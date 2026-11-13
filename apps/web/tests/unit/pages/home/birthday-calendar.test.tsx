@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
+import { renderPage as render } from "@/tests/unit/support/harness"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 import { createCatalogBirthdays } from "@/mocks/data/catalog"
@@ -21,6 +22,17 @@ describe("BirthdayCalendar", () => {
     )
     await screen.findByText("已收录 6 位偶像")
     expect(screen.getAllByText("相马夏美")).toHaveLength(2)
+    const links = screen.getAllByRole("link", { name: "相马夏美的剧情" })
+    expect(links).toHaveLength(2)
+    for (const link of links) {
+      const url = new URL(link.getAttribute("href")!, "https://example.test")
+      expect(url.pathname).toBe("/story")
+      expect(url.searchParams.get("agency")).toBe("cg")
+      expect(url.searchParams.get("idol")).toBe("相马夏美")
+    }
+    expect(
+      screen.queryByRole("link", { name: "舞滨步的剧情" })
+    ).not.toBeInTheDocument()
     expect(mock).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId("calendar-month")).toHaveTextContent(
       "2026 年 7 月"

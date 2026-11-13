@@ -73,7 +73,10 @@ import type {
 } from '@/infra/db/sql/database';
 import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 import { syncNamecardPages } from '@/infra/db/repositories/namecard-page-sync';
-import { cardPageObjectKey } from '@/utils/storage/business-object-keys';
+import {
+    cardPageObjectKey,
+    parseCardPageObjectKey
+} from '@/utils/storage/business-object-keys';
 import {
     NAMECARD_COMPAT_ORIGIN,
     NAMECARD_PUBLIC_ORIGIN
@@ -1921,10 +1924,6 @@ export class SqlCoreRepository implements NamecardRepository {
                 };
             }
             const orderedKeys = slotIndexes.map((index) => liveSlots[index]!);
-            const orderedMiddles = orderedKeys.slice(
-                1,
-                Math.max(1, orderedKeys.length - 1)
-            );
 
             const previousOwner = current.owner_account_id ?? null;
             const nextOwner =
@@ -1979,13 +1978,24 @@ export class SqlCoreRepository implements NamecardRepository {
             // lands on the staged page rows and the live artwork stays untouched.
             // Clearing it publishes the arrangement into the live rows.
             const keepsStagedArtwork = reviewStatus !== null;
+            const writtenPages = new Map((input.pages ?? []).map(page => [page.pageId, page]));
+            const rotatedKey = (key: string) => {
+                const parsed = parseCardPageObjectKey(key);
+                const written = parsed && writtenPages.get(parsed.pageId);
+                return written ? cardPageObjectKey(
+                    cardId, keepsStagedArtwork ? 'pending' : 'live', written.pageId, written.objectVersion
+                ) : key;
+            };
+            const orderedMiddles = orderedKeys.slice(
+                1, Math.max(1, orderedKeys.length - 1)
+            ).map(rotatedKey);
             const rotatedFrontKey =
-                input.nextFrontObjectKey ?? orderedKeys[0]!;
+                input.nextFrontObjectKey ?? rotatedKey(orderedKeys[0]!);
             const rotatedBackKey =
                 input.nextBackObjectKey !== undefined
                     ? input.nextBackObjectKey
                     : orderedKeys.length > 1
-                      ? orderedKeys[orderedKeys.length - 1]!
+                      ? rotatedKey(orderedKeys[orderedKeys.length - 1]!)
                       : null;
             // 目标队列的完整页面序列：旋转后的正面、重排后的中间页、旋转后的背面。
             const surface: Array<string | null> = [
@@ -2217,17 +2227,15 @@ export class SqlCoreRepository implements NamecardRepository {
                 ]
             );
             if (!updatedRow) return { status: 'conflict', revision };
-            if (input.mediaOrder.length > 0) {
-                const queue = keepsStagedArtwork ? 'pending' : 'live';
-                await syncNamecardPages(
-                    database,
-                    cardId,
-                    queue,
-                    surface,
-                    input.pages ?? [],
-                    input.updatedAt.toISOString()
-                );
-            }
+            const queue = keepsStagedArtwork ? 'pending' : 'live';
+            await syncNamecardPages(
+                database,
+                cardId,
+                queue,
+                surface,
+                input.pages ?? [],
+                input.updatedAt.toISOString()
+            );
             // Admin override approval promotes the displayed pending page set
             // into live; remove the now-discarded pending rows.
             if (currentReviewStatus !== null && reviewStatus === null) {

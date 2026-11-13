@@ -114,9 +114,10 @@ export async function fudabaPublicCardView(
 export async function fudabaPublicPlacedCardView(
     storage: ObjectStorage | undefined,
     card: FudabaPublicPlacedCardRecord,
+    pages?: CardPageView[],
 ): Promise<FudabaPlacedCard> {
     return {
-        ...(await fudabaPublicCardView(storage, card)),
+        ...(await fudabaPublicCardView(storage, card, pages)),
         viewerOwned: card.viewer_owned,
         placement: {
             pinnedAt: card.pinned_at,

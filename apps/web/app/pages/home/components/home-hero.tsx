@@ -4,6 +4,7 @@ import { cn } from "~/lib/utils"
 import { useHomeBirthdays } from "../hooks/use-home-birthdays"
 import { seriesItems } from "../home-content"
 import { NavigationLink } from "~/components/navigation/navigation-link"
+import { birthdayStoryHref } from "../birthday-data"
 
 export function SeriesWall() {
   return (
@@ -79,7 +80,17 @@ export function TodayBirthdayNotice({ today = new Date() }: { today?: Date }) {
                 style={{ backgroundColor: idol.color }}
                 aria-hidden="true"
               />
-              {idol.name}
+              {idol.story ? (
+                <NavigationLink
+                  href={birthdayStoryHref(idol)!}
+                  className="text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  aria-label={`${idol.name}的剧情`}
+                >
+                  {idol.name}
+                </NavigationLink>
+              ) : (
+                idol.name
+              )}
             </span>
           ))}
         </p>

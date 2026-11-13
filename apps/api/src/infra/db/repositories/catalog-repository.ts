@@ -58,9 +58,15 @@ export class SqlCatalogRepository implements CatalogRepository {
             `SELECT c.id AS "characterId",p.id AS "profileId",p.project_id AS "projectId",
                 c.default_profile_id AS "defaultProfileId",p.name_cn AS name,a.name_cn AS agency,
                 COALESCE(p.representative_color,a.color) AS color,p.birth_month AS "birthMonth",p.birth_day AS "birthDay",
-                p.category,p.is_fallback AS "isFallback"
+                p.category,p.is_fallback AS "isFallback",
+                CASE WHEN entry.id IS NOT NULL AND settings.is_enabled
+                    THEN json_build_object('agency',a.code,'idol',p.name_cn)
+                    ELSE NULL END AS story
              FROM catalog_characters c JOIN catalog_character_project_profiles p ON p.character_id=c.id
              JOIN projects a ON a.id=p.project_id
+             LEFT JOIN wiki_project_settings settings ON settings.project_id=p.project_id
+             LEFT JOIN wiki_entries entry ON entry.character_profile_id=p.id
+                AND entry.project_id=p.project_id AND entry.deleted_at IS NULL AND entry.is_visible
              WHERE c.deleted_at IS NULL AND p.category='idol' AND NOT p.is_fallback
                 AND p.birth_month IS NOT NULL AND p.birth_day IS NOT NULL
              ORDER BY a.display_order,a.id,p.display_order,c.id,p.id`,

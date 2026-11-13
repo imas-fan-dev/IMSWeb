@@ -185,12 +185,27 @@ test("both former character lists open the same full profile workspace @mobile",
       page.getByRole("link", { name: "角色列表", exact: true })
     ).toHaveCount(0)
     const workspaceLink = page.getByRole("link", {
-      name: "角色档案",
+      name: "角色",
       exact: true,
     })
     if (!(await workspaceLink.isVisible()))
-      await page.getByRole("button", { name: /角色档案/ }).click()
+      await page.getByRole("button", { name: /偶像数据库/ }).click()
     await expect(workspaceLink).toHaveAttribute("aria-current", "page")
+    await expect(
+      page.getByRole("link", { name: "组合身份管理", exact: true })
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "组合与分组", exact: true })
+    ).toHaveCount(0)
+    const project = await page
+      .getByRole("link", { name: "企划", exact: true })
+      .boundingBox()
+    const group = await page
+      .getByRole("link", { name: "组合", exact: true })
+      .boundingBox()
+    const character = await workspaceLink.boundingBox()
+    expect(project!.y).toBeLessThan(group!.y)
+    expect(group!.y).toBeLessThan(character!.y)
   }
 })
 

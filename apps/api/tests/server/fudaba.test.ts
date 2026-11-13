@@ -9552,6 +9552,54 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             );
         });
 
+        postgresTest('real PostgreSQL preserves the rotated middle version through admin reorder', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-admin-middle-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-admin-middle-card';
+            const created = await fixture.fudaba.createCardForOwner(ownedCard(cardId, ownerId));
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const page = (n: number) => `page-aaaaaaa${n}`;
+            const version = (n: number) => `abcdef12-0000-4000-8000-00000000000${n}`;
+            const key = (n: number, v = n) => `community/fudaba/cards/${cardId}/live/${page(n)}.${version(v)}.webp`;
+            const media = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId, ownerAccountId: ownerId, frontObjectKey: key(1), backObjectKey: key(3),
+                middleObjectKeys: [key(2)], accent: null, expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT,
+                pages: [1, 2, 3].map(n => ({ pageId: page(n), objectVersion: version(n), width: 900, height: 600 }))
+            });
+            assert.equal(media.status, 'saved');
+            if (media.status !== 'saved') return;
+            const postgres = fixture.database as PostgresConnection;
+            await postgres.pool.query("UPDATE fudaba_cards SET publication_status='published',review_status=NULL WHERE id=$1", [cardId]);
+            const core = new SqlCoreRepository(fixture.database, new PostgresqlSchemaStrategy());
+            await core.initialize();
+            const content = { producerName: `Producer ${ownerId}`, producerReading: null, groupName: null,
+                madeOn: null, bio: 'Profile', tradeNote: 'Available for trade', exchangeMode: 'manual' as const,
+                isOriginal: false, madeWithAi: false, visible: true, seriesCodes: ['765'], favoriteCharacterIds: [900_001], credits: [] };
+            const rotated = await core.updateCardAsAdmin({
+                cardNumber: created.card.card_number, expectedRevision: media.card.revision, reason: null,
+                status: 'published', reviewStatus: null, content, mediaOrder: ['#0', '#1', '#2'],
+                pages: [{ pageId: page(2), objectVersion: version(4), width: 600, height: 900 }],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(rotated.status, 'updated');
+            if (rotated.status !== 'updated') return;
+            const rows = await fixture.fudaba.listCardPages(cardId);
+            assert.equal(rows.live[1]!.object_version, version(4));
+            assert.equal(rows.live[1]!.width, 600);
+            assert.equal((await core.findAdminCardArtwork(created.card.card_number))!.middleObjectKeys[0], key(2, 4));
+            const reordered = await core.updateCardAsAdmin({
+                cardNumber: created.card.card_number, expectedRevision: rotated.revision, reason: '调整页序',
+                status: 'published', reviewStatus: null, content, mediaOrder: ['#0', '#2', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(reordered.status, 'updated');
+            assert.equal((await core.findAdminCardArtwork(created.card.card_number))!.backObjectKey, key(2, 4));
+            assert.deepEqual((await fixture.fudaba.listCardPages(cardId)).live.map(p => p.page_id), [page(1), page(3), page(2)]);
+        });
+
         postgresTest('real PostgreSQL queues one report per reader and answers it once', async () => {
             const fixture = await createFixture('postgresql');
             const ownerId = 'postgresql-feedback-owner';

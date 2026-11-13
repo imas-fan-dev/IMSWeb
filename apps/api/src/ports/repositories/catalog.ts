@@ -8,6 +8,7 @@ import type {
     AdminCatalogMediaRequest,
     AdminCatalogProfile,
     AdminCatalogProfileRequest,
+    CatalogBirthdays,
 } from '@imsweb/contracts/catalog';
 
 export type CatalogProfileRecord = Omit<AdminCatalogProfile, 'imageUrl'> & {
@@ -67,4 +68,5 @@ export interface BirthdayProfileRecord {
     birthDay: number | null;
     category: string;
     isFallback: boolean;
+    story: CatalogBirthdays['items'][number]['story'];
 }

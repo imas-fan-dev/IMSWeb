@@ -17,8 +17,7 @@ import {
   AdminPageHeader,
   AdminPanel,
 } from "~/components/admin/admin-ui"
-import { NavigationLink } from "~/components/navigation/navigation-link"
-import { Button, buttonVariants } from "~/components/ui/button"
+import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
@@ -167,29 +166,19 @@ function CatalogWorkspace() {
               <RefreshCwIcon data-icon="inline-start" />
               刷新资料库
             </Button>
-            {canWrite ? (
-              <>
-                {kind === "character" ? (
-                  <Button
-                    disabled={busy || loading || !project}
-                    onClick={() => setCreating(true)}
-                  >
-                    <PlusIcon data-icon="inline-start" />
-                    新建人物档案
-                  </Button>
-                ) : null}
-                <NavigationLink
-                  to="/admin/idols/units"
-                  className={buttonVariants({ variant: "outline" })}
-                >
-                  组合身份管理
-                </NavigationLink>
-              </>
+            {canWrite && kind === "character" ? (
+              <Button
+                disabled={busy || loading || !project}
+                onClick={() => setCreating(true)}
+              >
+                <PlusIcon data-icon="inline-start" />
+                新建人物档案
+              </Button>
             ) : null}
           </div>
         }
       />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field>
           <FieldLabel htmlFor="catalog-workspace-project">当前企划</FieldLabel>
           <Select
@@ -215,28 +204,6 @@ function CatalogWorkspace() {
             </SelectContent>
           </Select>
         </Field>
-        <div
-          role="group"
-          aria-label="资料类型"
-          className="flex items-end gap-1"
-        >
-          <Button
-            variant={kind === "character" ? "secondary" : "ghost"}
-            aria-pressed={kind === "character"}
-            disabled={busy}
-            onClick={() => filter("kind", "character")}
-          >
-            人物
-          </Button>
-          <Button
-            variant={kind === "group" ? "secondary" : "ghost"}
-            aria-pressed={kind === "group"}
-            disabled={busy}
-            onClick={() => filter("kind", "group")}
-          >
-            组合与分组
-          </Button>
-        </div>
         {kind === "character" ? (
           <Field>
             <FieldLabel htmlFor="catalog-workspace-category">

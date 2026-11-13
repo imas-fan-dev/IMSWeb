@@ -77,6 +77,12 @@ describe("central idol project workspace", () => {
         expect(screen.getByLabelText("企划内中文名")).toHaveValue("人物20")
       )
       expect(screen.getByText("第 2 / 2 页")).toBeVisible()
+      expect(
+        screen.queryByRole("link", { name: "组合身份管理" })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("button", { name: "组合与分组" })
+      ).not.toBeInTheDocument()
       await userEvent
         .setup()
         .click(screen.getByRole("button", { name: "上一页" }))

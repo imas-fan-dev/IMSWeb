@@ -394,9 +394,8 @@ pnpm --filter @imsweb/api ops:namecards:media-gc -- --dry-run --older-than=7d --
 - P1 阶段双写旧列：随时切回旧读取实现（保留一个开关常量），新表不影响旧逻辑；
 - P2 阶段每切换一个列表即独立提交，可单独回退；
 - P3 迁移只新增对象与行，不删旧数据，回滚只需切回旧读取；
-- 生产/preview 部署脚本在 schema 迁移之后自动执行
-  `node apps/api/scripts/migration/namecard-card-pages.js`（实现位于
-  `src/operations/namecard-pages-migration.ts`，构建进镜像，可重复运行）；
+- P3 的页面回填 CLI（`scripts/migration/namecard-card-pages.js` 与
+  `src/operations/namecard-pages-migration.ts`）已退役，部署脚本不再执行它；
 - P5 清理只在 P3 完成且观察期结束后执行。
 
 ## 5. 风险

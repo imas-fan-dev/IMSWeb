@@ -33,6 +33,7 @@
 首页生日由[生日请求状态](pages/home/hooks/use-home-birthdays.tsx) 统一加载
 [角色档案生日投影](lib/api/endpoints/catalog.ts)，供日历和当天提示共用；不读取本地生日 JSON。
 数据筛选、同身份档案选择和计数归 API；日历保留原有月份、年份、今日导航和样式。
+生日接口同时返回可公开访问的剧情目标；今日提示和日历名单仅为有目标的角色提供站内跳转。
 
 ## 社区与平台帐号
 
@@ -82,8 +83,8 @@
 
 ## App 与共享基础设施
 
-「角色档案」的[工作区](pages/admin/idols/index.tsx) 完整显示人物与组合的企划档案，
-角色列表和完整档案是一体的页面，原角色列表地址直接转入该工作区；组合成员归 [idols](pages/admin/idols/README.md) 维护。原名片目录地址保留跳转，名片管理
+「偶像数据库」按企划、组合、角色提供管理入口；[角色工作区](pages/admin/idols/index.tsx) 完整显示人物的企划档案，
+角色列表和完整档案是一体的页面，原角色列表地址直接转入该工作区；组合档案与成员统一从 [组合入口](pages/admin/idols/units.tsx) 维护。原名片目录
 只负责自己的业务记录。工作区和临时编辑使用同一个[企划档案编辑器](components/admin/catalog-profiles-dialog.tsx)。
 Wiki 实体编辑器通过[资料绑定控件](components/admin/catalog-binding-control.tsx) 选择继承或独立维护。
 请求归属为 [catalog endpoints](lib/api/endpoints/catalog.ts)，代表测试见

@@ -3,12 +3,12 @@ import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 
 export function createCatalogBirthdays(): CatalogBirthdays {
   return { success: true,items: [
-    { characterId: 1,profileId: 11,projectId: 1,name: "相马夏美",agency: "灰姑娘女孩",color: "#e684a8",month: 7,day: 23 },
-    { characterId: 2,profileId: 12,projectId: 2,name: "舞滨步",agency: "百万现场",color: "#e684a8",month: 7,day: 23 },
-    { characterId: 3,profileId: 13,projectId: 1,name: "栋方爱海",agency: "灰姑娘女孩",color: "#e684a8",month: 8,day: 1 },
-    { characterId: 4,profileId: 14,projectId: 3,name: "皮埃尔",agency: "SideM",color: "#e684a8",month: 8,day: 1 },
-    { characterId: 5,profileId: 15,projectId: 4,name: "仓本千奈",agency: "学园偶像大师",color: "#e684a8",month: 8,day: 1 },
-    { characterId: 6,profileId: 16,projectId: 4,name: "闰日偶像",agency: "学园偶像大师",color: "#e684a8",month: 2,day: 29 },
+    { characterId: 1,profileId: 11,projectId: 1,name: "相马夏美",agency: "灰姑娘女孩",color: "#e684a8",month: 7,day: 23,story: { agency: "cg", idol: "相马夏美" } },
+    { characterId: 2,profileId: 12,projectId: 2,name: "舞滨步",agency: "百万现场",color: "#e684a8",month: 7,day: 23,story: null },
+    { characterId: 3,profileId: 13,projectId: 1,name: "栋方爱海",agency: "灰姑娘女孩",color: "#e684a8",month: 8,day: 1,story: { agency: "cg", idol: "栋方爱海" } },
+    { characterId: 4,profileId: 14,projectId: 3,name: "皮埃尔",agency: "SideM",color: "#e684a8",month: 8,day: 1,story: null },
+    { characterId: 5,profileId: 15,projectId: 4,name: "仓本千奈",agency: "学园偶像大师",color: "#e684a8",month: 8,day: 1,story: null },
+    { characterId: 6,profileId: 16,projectId: 4,name: "闰日偶像",agency: "学园偶像大师",color: "#e684a8",month: 2,day: 29,story: null },
   ] }
 }
 

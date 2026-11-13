@@ -1,5 +1,4 @@
 import {
-  ChevronDownIcon,
   ChevronRightIcon,
   DicesIcon,
   LoaderCircleIcon,
@@ -12,6 +11,12 @@ import { toast } from "sonner"
 import type { WallInsights } from "@imsweb/contracts/namecards"
 
 import { Button } from "~/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "~/components/ui/collapsible"
+import { cn } from "~/lib/utils"
 import {
   WallContributorList,
   WallContributorsDialog,
@@ -104,6 +109,8 @@ export function WallInsightsPanel({
   const [insights, setInsights] = useState<WallInsights | null>(null)
   const [failed, setFailed] = useState(false)
   const [picking, setPicking] = useState(false)
+  // Apply initial preferences instantly so hydration cannot scroll the wall.
+  const [animate, setAnimate] = useState(false)
   const hydrated = useSyncExternalStore(
     subscribeToHydration,
     () => true,
@@ -135,10 +142,10 @@ export function WallInsightsPanel({
     }
   }, [])
 
-  function toggle() {
-    const next = !collapsed
-    setCollapsedPreference(next)
-    window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0")
+  function changeOpen(open: boolean) {
+    setAnimate(true)
+    setCollapsedPreference(!open)
+    window.localStorage.setItem(STORAGE_KEY, open ? "0" : "1")
   }
 
   async function pickRandom() {
@@ -166,136 +173,138 @@ export function WallInsightsPanel({
   return (
     <section
       aria-labelledby="wall-insights-title"
-      className="overflow-hidden rounded-xl border bg-card/90"
+      className="mb-6 overflow-hidden rounded-xl border bg-card/90 sm:mb-8"
     >
-      <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <IdCardIcon className="size-4" aria-hidden="true" />
-        </span>
-        <div>
-          <h2 id="wall-insights-title" className="text-sm font-semibold">
-            名片墙维护进度
-          </h2>
-          {!collapsed && (
+      <Collapsible open={!collapsed} onOpenChange={changeOpen}>
+        <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <IdCardIcon className="size-4" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 id="wall-insights-title" className="text-sm font-semibold">
+              名片墙维护进度
+            </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               一起让每张名片的信息更完整
             </p>
-          )}
+          </div>
+          <CollapsibleTrigger
+            render={<Button variant="ghost" size="sm" className="ml-auto" />}
+          >
+            <ChevronRightIcon
+              data-icon="inline-start"
+              aria-hidden="true"
+              className={cn(
+                animate &&
+                  "transition-transform duration-(--duration-ui) ease-(--ease-ui) motion-reduce:transition-none",
+                !collapsed && "rotate-90"
+              )}
+            />
+            {collapsed ? "展开" : "收起"}
+          </CollapsibleTrigger>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          aria-expanded={!collapsed}
-          aria-controls="wall-insights-content"
-          onClick={toggle}
-        >
-          {collapsed ? (
-            <ChevronRightIcon data-icon="inline-start" aria-hidden="true" />
-          ) : (
-            <ChevronDownIcon data-icon="inline-start" aria-hidden="true" />
-          )}
-          {collapsed ? "展开" : "收起"}
-        </Button>
-      </div>
 
-      {collapsed ? null : (
-        <div
+        <CollapsibleContent
           id="wall-insights-content"
-          className="grid border-t lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]"
+          className={cn(
+            "h-(--collapsible-panel-height) overflow-hidden data-ending-style:h-0 data-starting-style:h-0",
+            animate &&
+              "transition-[height] duration-(--duration-ui) ease-(--ease-ui) motion-reduce:transition-none"
+          )}
         >
-          <div className="flex min-w-0 flex-col px-4 py-5 sm:px-6">
-            {!insights ? (
-              <p role="status" className="py-6 text-sm text-muted-foreground">
-                正在加载维护进度…
-              </p>
-            ) : (
-              <div className="grid gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-1 lg:gap-5">
-                <ProgressRow
-                  label="认领进度"
-                  done={insights?.claimed ?? 0}
-                  total={guestTotal}
-                  pending={insights?.claimsPending ?? 0}
-                />
-                <ProgressRow
-                  label="信息补充进度"
-                  done={insights?.supplemented ?? 0}
-                  total={guestTotal}
-                  pending={insights?.supplementsPending ?? 0}
-                />
+          <div className="grid border-t lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div className="flex min-w-0 flex-col px-4 py-5 sm:px-6">
+              {!insights ? (
+                <p role="status" className="py-6 text-sm text-muted-foreground">
+                  正在加载维护进度…
+                </p>
+              ) : (
+                <div className="grid gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-1 lg:gap-5">
+                  <ProgressRow
+                    label="认领进度"
+                    done={insights?.claimed ?? 0}
+                    total={guestTotal}
+                    pending={insights?.claimsPending ?? 0}
+                  />
+                  <ProgressRow
+                    label="信息补充进度"
+                    done={insights?.supplemented ?? 0}
+                    total={guestTotal}
+                    pending={insights?.supplementsPending ?? 0}
+                  />
+                </div>
+              )}
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4 lg:mt-auto lg:pt-4">
+                <p className="text-xs text-muted-foreground">
+                  认领你的名片，或帮忙补充缺失的信息。
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={picking || !insights}
+                  onClick={() => void pickRandom()}
+                >
+                  {picking ? (
+                    <LoaderCircleIcon
+                      data-icon="inline-start"
+                      className="animate-spin motion-reduce:animate-none"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <DicesIcon data-icon="inline-start" aria-hidden="true" />
+                  )}
+                  随机补充一张
+                </Button>
               </div>
-            )}
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4 lg:mt-auto lg:pt-4">
-              <p className="text-xs text-muted-foreground">
-                认领你的名片，或帮忙补充缺失的信息。
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={picking || !insights}
-                onClick={() => void pickRandom()}
-              >
-                {picking ? (
-                  <LoaderCircleIcon
-                    data-icon="inline-start"
-                    className="animate-spin motion-reduce:animate-none"
+            </div>
+
+            <div className="min-w-0 border-t bg-muted/20 p-4 sm:px-6 lg:border-t-0 lg:border-l">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <TrophyIcon
+                    className="size-4 text-primary"
                     aria-hidden="true"
                   />
-                ) : (
-                  <DicesIcon data-icon="inline-start" aria-hidden="true" />
-                )}
-                随机补充一张
-              </Button>
-            </div>
-          </div>
-
-          <div className="min-w-0 border-t bg-muted/20 p-4 sm:px-6 lg:border-t-0 lg:border-l">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <TrophyIcon
-                  className="size-4 text-primary"
-                  aria-hidden="true"
+                  贡献榜{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    前 3 名
+                  </span>
+                </h3>
+                <WallContributorsDialog
+                  viewerAccountId={insights?.viewer?.accountId}
                 />
-                贡献榜{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  前 3 名
-                </span>
-              </h3>
-              <WallContributorsDialog
-                viewerAccountId={insights?.viewer?.accountId}
-              />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                贡献值对比，以榜首为基准
+              </p>
+              {!insights ? (
+                <p role="status" className="py-5 text-sm text-muted-foreground">
+                  正在加载贡献榜…
+                </p>
+              ) : insights.contributors.length ? (
+                <WallContributorList
+                  contributors={insights.contributors.slice(0, 3)}
+                  viewerAccountId={insights.viewer?.accountId}
+                  showComparison
+                />
+              ) : (
+                <p className="py-5 text-sm text-muted-foreground">
+                  暂无贡献记录，期待你的第一份贡献。
+                </p>
+              )}
+              <p className="mt-1 border-t pt-3 text-xs text-muted-foreground tabular-nums">
+                {insights?.viewer
+                  ? `我的贡献：${insights.viewer.points.toLocaleString()} 点${
+                      insights.viewer.rank
+                        ? ` · 第 ${insights.viewer.rank} 名`
+                        : " · 暂未上榜"
+                    }`
+                  : "登录后可以查看自己的贡献值。"}
+              </p>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              贡献值对比，以榜首为基准
-            </p>
-            {!insights ? (
-              <p role="status" className="py-5 text-sm text-muted-foreground">
-                正在加载贡献榜…
-              </p>
-            ) : insights.contributors.length ? (
-              <WallContributorList
-                contributors={insights.contributors.slice(0, 3)}
-                viewerAccountId={insights.viewer?.accountId}
-                showComparison
-              />
-            ) : (
-              <p className="py-5 text-sm text-muted-foreground">
-                暂无贡献记录，期待你的第一份贡献。
-              </p>
-            )}
-            <p className="mt-1 border-t pt-3 text-xs text-muted-foreground tabular-nums">
-              {insights?.viewer
-                ? `我的贡献：${insights.viewer.points.toLocaleString()} 点${
-                    insights.viewer.rank
-                      ? ` · 第 ${insights.viewer.rank} 名`
-                      : " · 暂未上榜"
-                  }`
-                : "登录后可以查看自己的贡献值。"}
-            </p>
           </div>
-        </div>
-      )}
+        </CollapsibleContent>
+      </Collapsible>
     </section>
   )
 }
