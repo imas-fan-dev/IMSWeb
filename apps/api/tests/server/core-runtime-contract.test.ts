@@ -14,6 +14,7 @@ import {
 } from '@/infra/cache/valkey/rate-limiter';
 import { FakeValkeyRateLimitServer } from './fake-valkey';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
+import { cardPageObjectKey } from '@/utils/storage/business-object-keys';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
@@ -50,6 +51,9 @@ const PASSWORD = 'contract-password';
 const PRODUCER = 'Node Contract Producer';
 const APPROVED_CARD_ID = 700;
 const PENDING_CARD_ID = 701;
+/** 待审卡片的线上页版本：夹具必须把这两个对象真实写进存储，审核的发布路径才会成功。 */
+const PENDING_FRONT_VERSION = '33333333-3333-4333-8333-333333333333';
+const PENDING_BACK_VERSION = '44444444-4444-4444-8444-444444444444';
 
 class ControlledUploadParser implements UploadParser {
     next?: ParsedUpload;
@@ -212,7 +216,8 @@ async function createFixture(): Promise<NodeFixture> {
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [`legacy-${PENDING_CARD_ID}`, PENDING_CARD_ID]
     );
-    // 公开墙只认线上页面行：已公开的那张必须有 live 页，待审的不需要。
+    // 公开墙只认线上页面行：已公开的那张必须有 live 页；待审的那张同样要有
+    // live 页，审核才会真正走到「发布页面对象」这一步（[STATE-01]）。
     await executeSql(connection,
         `INSERT INTO public.fudaba_card_pages
             (card_id, queue, page_id, display_order, object_version,
@@ -222,8 +227,15 @@ async function createFixture(): Promise<NodeFixture> {
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 (?, 'live', 'back', 2,
                  '22222222-2222-4222-8222-222222222222'::uuid, 100, 50,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                (?, 'live', 'front', 1,
+                 '${PENDING_FRONT_VERSION}'::uuid, 100, 50,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                (?, 'live', 'back', 2,
+                 '${PENDING_BACK_VERSION}'::uuid, 100, 50,
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [`legacy-${APPROVED_CARD_ID}`, `legacy-${APPROVED_CARD_ID}`]
+        [`legacy-${APPROVED_CARD_ID}`, `legacy-${APPROVED_CARD_ID}`,
+            `legacy-${PENDING_CARD_ID}`, `legacy-${PENDING_CARD_ID}`]
     );
 
     const parser = new ControlledUploadParser();
@@ -261,6 +273,16 @@ async function createFixture(): Promise<NodeFixture> {
     await delegate.put(
         'community/namecards/assets/contract-seed-pending-back/thumbnail.jpg',
         Uint8Array.of(8)
+    );
+    // 审核只发布页面行解析出的版本化对象键（community/fudaba/cards/...），
+    // 所以待审卡片的线上对象必须真实存在，否则发布与重试都无法通过。
+    await delegate.put(
+        cardPageObjectKey(`legacy-${PENDING_CARD_ID}`, 'live', 'front', PENDING_FRONT_VERSION),
+        Uint8Array.of(9)
+    );
+    await delegate.put(
+        cardPageObjectKey(`legacy-${PENDING_CARD_ID}`, 'live', 'back', PENDING_BACK_VERSION),
+        Uint8Array.of(10)
     );
     const compensationDelegate = new FilesystemCompensationService(compensationDir);
     let businessInsertFailure = false;

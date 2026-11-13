@@ -105,6 +105,10 @@ test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflict
     const target = new Client({ connectionString: targetDb.databaseUrl });
     try {
         await source.connect(); await target.connect();
+        // CI runs against a UTC cluster; the literal timestamps below are
+        // absolute values, so pin the session zone instead of inheriting the
+        // developer machine's local zone.
+        for (const client of [source, target]) await client.query("SET TIME ZONE 'UTC'");
         for (const client of [source, target]) await client.query(`CREATE TABLE public.sync_records (
             id bigint PRIMARY KEY, name text UNIQUE NOT NULL, body text NOT NULL)`);
         await ensureState(target);
@@ -162,15 +166,26 @@ test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflict
             [{ id: '1', parent_id: '4' }]);
         // Legacy rows need explicit timestamps and an unavailable ownerless
         // layer on insert; those fields remain preview-owned on later updates.
+        // The artwork is page-addressed: the card's live page rows resolve to
+        // versioned keys that must exist as ready public objects in preview.
         await target.query(`INSERT INTO public.s3_object_versions
             (object_id,byte_size,content_type,sha256,etag,created_at,physical_key,storage_scope)
-            VALUES ('front',1,'image/png',repeat('a',64),'front',1,'front','public'),
-                   ('back',1,'image/png',repeat('b',64),'back',1,'back','public');
+            VALUES ('page-front',1,'image/webp',repeat('a',64),'page-front',1,
+                    'community/fudaba/cards/legacy-import/live/front.11111111-1111-4111-8111-111111111111.webp','public'),
+                   ('page-back',1,'image/webp',repeat('b',64),'page-back',1,
+                    'community/fudaba/cards/legacy-import/live/back.22222222-2222-4222-8222-222222222222.webp','public');
             INSERT INTO public.s3_object_index(logical_key,object_id,state,incarnation,updated_at)
-            VALUES ('front','front','ready',1,1),('back','back','ready',1,1)`);
+            VALUES ('community/fudaba/cards/legacy-import/live/front.11111111-1111-4111-8111-111111111111.webp','page-front','ready',1,1),
+                   ('community/fudaba/cards/legacy-import/live/back.22222222-2222-4222-8222-222222222222.webp','page-back','ready',1,1)`);
         await source.query(`INSERT INTO public.fudaba_cards
             (id,card_number,origin,exchange_mode,trade_note,publication_status,revision,created_at,updated_at)
             VALUES ('legacy-import',9000,'legacy','none',NULL,'published',0,'2026-01-01','2026-01-02')`);
+        await source.query(`INSERT INTO public.fudaba_card_pages
+            (card_id,queue,page_id,display_order,object_version,object_queue,width,height,created_at,updated_at)
+            VALUES ('legacy-import','live','front',1,'11111111-1111-4111-8111-111111111111','live',100,50,
+                    TIMESTAMPTZ '2026-01-01T00:00:00Z',TIMESTAMPTZ '2026-01-01T00:00:00Z'),
+                   ('legacy-import','live','back',2,'22222222-2222-4222-8222-222222222222','live',100,50,
+                    TIMESTAMPTZ '2026-01-01T00:00:00Z',TIMESTAMPTZ '2026-01-01T00:00:00Z')`);
         await target.query('BEGIN');
         assert.equal((await mergeTable(source, target, 'fudaba_cards', options)).insert, 1);
         await target.query('COMMIT');

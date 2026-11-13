@@ -229,6 +229,41 @@ async function advanceWikiLayoutRevisions(target, projects) {
     return (await target.query('UPDATE wiki_project_settings SET layout_revision=layout_revision+1 WHERE project_id=ANY($1::bigint[])',[Array.from(projects)])).rowCount;
 }
 
+/**
+ * 页面对象 key：`community/fudaba/cards/<cardId>/<queue>/<pageId>.<version>.webp`。
+ * 本脚本是 CommonJS，无法直接 import TypeScript 的 `cardPageObjectKey`，因此这里
+ * 复刻同一套命名与校验规则；改动命名规则时必须同步 `src/utils/storage/business-object-keys.ts`。
+ */
+function cardPageObjectKey(cardId, queue, pageId, version) {
+    const segment = (value) => {
+        if (!value || value === '.' || value === '..' || /[\\/\u0000-\u001f\u007f]/.test(value)) {
+            throw new Error('Invalid Fudaba media entity ID');
+        }
+        return value;
+    };
+    if (!/^(?:live|pending)$/.test(queue)) throw new Error(`Unsupported card page queue: ${queue}`);
+    if (!/^(?:front|back|page-[0-9a-f-]{8,})$/.test(pageId)) throw new Error(`Unsupported card page id: ${pageId}`);
+    return `community/fudaba/cards/${segment(cardId)}/${queue}/${pageId}.${segment(version)}.webp`;
+}
+
+// Preview may only adopt a card once every live page resolves to a ready public
+// object. Page rows are the only media source now (the retired key columns are
+// not synced), so a card whose live pages cannot be resolved must surface as a
+// conflict instead of importing a row that silently loses its artwork.
+async function requireCardPageMedia(source, target, cardId) {
+    const pages = (await source.query(`SELECT COALESCE(object_queue,queue) AS object_queue,
+        page_id, object_version FROM public.fudaba_card_pages
+        WHERE card_id=$1 AND queue='live'`, [cardId])).rows;
+    const keys = pages.map((page) =>
+        cardPageObjectKey(cardId, page.object_queue, page.page_id, page.object_version));
+    const ready = keys.length ? Number((await target.query(`SELECT count(DISTINCT i.logical_key)::int AS count
+        FROM public.s3_object_index i JOIN public.s3_object_versions v ON v.object_id=i.object_id
+        WHERE i.state='ready' AND v.storage_scope='public' AND i.logical_key=ANY($1::text[])`, [keys])).rows[0].count) : 0;
+    if (!keys.length || ready !== keys.length) {
+        throw Object.assign(new Error('Namecard media is not ready'), { code: '23503' });
+    }
+}
+
 // Compare JSON inside PostgreSQL: bigint IDs and numeric values never round-trip
 // through JavaScript numbers. Baselines and business writes share one transaction.
 async function mergeTable(source, target, table, options) {
@@ -302,6 +337,9 @@ async function mergeTable(source, target, table, options) {
                     await options.verifyMedia(table, row.payload);
                 }
                 if (['insert', 'update'].includes(action)) {
+                    if (table === 'fudaba_cards') {
+                        await requireCardPageMedia(source, target, JSON.parse(row.key).id);
+                    }
                     if (action === 'insert') {
                         const extra = JSON.parse(row.insert_values);
                         if (['site_packages', 'site_package_revisions'].includes(table)) {
