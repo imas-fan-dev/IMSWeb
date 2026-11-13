@@ -592,13 +592,18 @@ export function NamecardManageDialog({
         ]
       : REVIEW_OPTIONS
 
+  // A pending version owns the artwork set, so stale local rotations must not
+  // leak into the preview or the next save.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (queued) setRotations({})
   }, [queued])
 
+  // Editing an overridden card always lands as published; the select follows.
   useEffect(() => {
     if (!reviewOverride && !publicationOverride) return
     if (statusEdited) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus((current) => (current === "published" ? current : "published"))
     }
   }, [publicationOverride, reviewOverride, statusEdited])

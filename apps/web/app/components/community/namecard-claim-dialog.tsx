@@ -115,10 +115,7 @@ export function NamecardClaimDialog({
   const restricted = platform.status === "restricted"
   const ready = Boolean(card && draft && authenticated && catalog)
   const binding = existingTarget !== undefined
-  // Binding uses the target card as-is; there is no photo rotation to submit.
-  useEffect(() => {
-    if (binding) setRotations({})
-  }, [binding])
+  // Binding uses the target card as-is; rotations are dropped where the target is chosen.
   // 可绑定名片多时占满宽度会把表单顶下去，所以按详情窗口的字段样式折叠成滚动区。
   const { ref: bindScrollRef, fade: bindScrollFade } = useCardFieldFade(
     bindable.length
@@ -255,7 +252,10 @@ export function NamecardClaimDialog({
                     selected={targetCardId === NEW_CARD_VALUE}
                     title="创建一张可管理的注册名片"
                     description="用下面的六项资料建一张属于你的名片。"
-                    onSelect={() => setTargetCardId(NEW_CARD_VALUE)}
+                    onSelect={() => {
+                      setTargetCardId(NEW_CARD_VALUE)
+                      setRotations({})
+                    }}
                   />
                   {bindable.map((ownerCard) => (
                     <TargetOption
@@ -266,7 +266,10 @@ export function NamecardClaimDialog({
                         .map((character) => character.name)
                         .join("、")}
                       thumbnail={ownerCard.frontImageUrl}
-                      onSelect={() => setTargetCardId(ownerCard.id)}
+                      onSelect={() => {
+                        setTargetCardId(ownerCard.id)
+                        setRotations({})
+                      }}
                     />
                   ))}
                 </div>

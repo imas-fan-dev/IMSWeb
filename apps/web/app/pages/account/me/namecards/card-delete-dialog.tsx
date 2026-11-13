@@ -39,7 +39,7 @@ export function CardDeleteDialog({
           </AlertDialogMedia>
           <AlertDialogTitle>删除这张名片？</AlertDialogTitle>
           <AlertDialogDescription>
-            此名片将从所有公开页面中移除，操作无法撤销。
+            「{displayName}」将从所有公开页面中移除，操作无法撤销。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
