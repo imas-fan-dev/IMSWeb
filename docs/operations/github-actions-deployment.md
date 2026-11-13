@@ -302,9 +302,8 @@ Workflow 会按以下顺序执行：
 7. 认证包装脚本从远端普通文件执行部署脚本；部署脚本 stdin 固定为 `/dev/null`，避免 Compose
    子进程消费令牌或尚未读取的脚本内容，退出时删除临时认证配置；
 8. 取得发布锁，验证生产配置，启动 PostgreSQL 并创建 custom-format `pg_dump`；
-9. 为 API 和邮件 Worker 拉取同一个 digest，使用候选镜像先执行 PostgreSQL migrations，
-   再执行名片页面数据迁移（`node apps/api/scripts/migration/namecard-card-pages.js`，
-   幂等，重复部署只补缺失对象）；任一步失败都会中止并用上一版本回滚；
+9. 为 API 和邮件 Worker 拉取同一个 digest，使用候选镜像执行 PostgreSQL migrations；
+   任一步失败都会中止并用上一版本回滚；
 10. 启动配置数量的邮件 Worker，逐个检查容器健康状态，全部就绪后才重建 API；
 11. 检查 `/api/wiki/test`、`/api/news` 和首页，要求远端输出 `Deployment completed.` 完成标记，
     再从 GitHub-hosted runner 验证正式 HTTPS 入口；
