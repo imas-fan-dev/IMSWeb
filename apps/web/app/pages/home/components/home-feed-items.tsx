@@ -36,9 +36,9 @@ export function HomeFeedSkeleton() {
 
 export function HomeEventRow({ event }: { event: HomeEvent }) {
   const imageUrl = resolveSafeMediaUrl(event.image_url)
-  const byline = `${event.name || "发布者未署名"} · ${formatDate(
-    event.created_at
-  )}`
+  const publisher = event.name?.trim()
+  const date = formatDate(event.created_at)
+  const byline = publisher ? `${publisher} · ${date}` : date
 
   return (
     <div className="group grid min-h-24 grid-cols-[5rem_minmax(0,1fr)] gap-3 py-4">
