@@ -1,0 +1,1246 @@
+import type { AuditLogInput } from "@/ports/repositories/admin";
+import type { WikiImageTransform } from "@/ports/repositories/wiki";
+
+export type FudabaOfficeStatus = "active" | "hidden" | "archived";
+
+export type FudabaCardOrigin = "exchange" | "guest" | "legacy";
+
+export type FudabaCardPublicationStatus =
+    | "draft"
+    | "pending"
+    | "approving"
+    | "published"
+    | "hidden"
+    | "rejected";
+
+
+export type FudabaCardClaimState =
+    | "pending"
+    | "approving"
+    | "approved"
+    | "rejected"
+    | "cancelled";
+
+export interface CardFavoriteSelectionRecord {
+    character_id: number;
+    agency_code: string;
+    name_cn: string;
+    display_order: number;
+}
+
+export type FudabaExchangeStatus =
+    | "pending"
+    | "accepted"
+    | "declined"
+    | "cancelled";
+
+export type FudabaModerationResourceKind =
+    | "account"
+    | "office"
+    | "card"
+    | "message"
+    | "exchange";
+
+export type FudabaModerationState =
+    | "open"
+    | "reviewing"
+    | "resolved"
+    | "dismissed"
+    | "appealed";
+
+export interface FudabaOfficeRecord {
+    id: string;
+    owner_account_id: string;
+    slug: string;
+    name: string;
+    intro: string;
+    city: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    accent: string;
+    cover_object_key: string | null;
+    pending_cover_object_key: string | null;
+    pending_cover_submitted_at: string | null;
+    is_open: boolean;
+    visitor_count: number;
+    status: FudabaOfficeStatus;
+    review_state: FudabaLocationReviewState;
+    review_submitted_at: string;
+    reviewed_at: string | null;
+    reviewed_by: number | null;
+    review_note: string;
+    review_operation_id: string | null;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+    archived_at: string | null;
+}
+
+export interface FudabaOwnerOfficeRecord extends FudabaOfficeRecord {
+    series_codes: string[];
+}
+
+export interface FudabaOfficeReviewRecord {
+    office: FudabaOwnerOfficeRecord;
+    owner_email: string | null;
+    owner_display_name: string | null;
+    reviewer_username: string | null;
+    reviewer_display_name: string | null;
+}
+
+export type FudabaOfficeReviewResult =
+    | { status: 'saved'; office: FudabaOwnerOfficeRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'unavailable' };
+
+export interface NewFudabaOfficeInput {
+    id: string;
+    ownerAccountId: string;
+    slug: string;
+    name: string;
+    intro: string;
+    city: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    accent: string;
+    coverObjectKey: string | null;
+    isOpen: boolean;
+    visitorCount: number;
+    status: FudabaOfficeStatus;
+    revision: number;
+    createdAt: string;
+    updatedAt: string;
+    archivedAt: string | null;
+    seriesCodes: string[];
+}
+
+export interface CreateOwnedFudabaOfficeInput extends NewFudabaOfficeInput {
+    idempotencyKeyHash: string;
+    requestHash: string;
+    receiptCreatedAt: number;
+}
+
+export interface UpdateOwnedFudabaOfficeInput {
+    officeId: string;
+    ownerAccountId: string;
+    name: string;
+    intro: string;
+    city: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    accent: string;
+    isOpen: boolean;
+    seriesCodes: string[];
+    expectedRevision: number;
+    updatedAt: string;
+    adminAudit?: AuditLogInput;
+}
+
+export type FudabaOfficeMutationResult =
+    | {
+          status: "saved";
+          office: FudabaOwnerOfficeRecord;
+          previousPendingObjectKey: string | null;
+      }
+    | { status: "conflict"; revision: number }
+    | { status: "pending-exists"; revision: number }
+    | {
+          status: "state-conflict";
+          revision: number;
+          officeStatus: FudabaOfficeStatus;
+      }
+    | { status: "unavailable" };
+
+export type FudabaOfficeCreateResult =
+    | FudabaOfficeMutationResult
+    | { status: "idempotency-conflict" };
+
+/** Roles a single credit may carry; one person can design and illustrate. */
+export type FudabaCardCreditRole = "design" | "illustration" | "other";
+
+/** A designer or illustrator credited for the artwork. */
+export interface FudabaCardCredit {
+    /** Site member the credit points at, when it points at one. */
+    accountId: string | null;
+    displayName: string;
+    /** Public profile elsewhere; optional. */
+    url: string | null;
+    roles: FudabaCardCreditRole[];
+}
+
+/** 交换模式: auto allows immediately, manual asks, none refuses. */
+export type FudabaExchangeMode = "auto" | "manual" | "none";
+
+/** The copy a submitter asks to publish; mirrors the live columns one to one. */
+export interface FudabaPendingCardPayload {
+    producer_name: string;
+    is_group_card: boolean;
+    /** Ordered series; the first entry is the one the legacy column mirrors. */
+    series_codes: string[];
+    favorite_character_ids: number[];
+    bio: string;
+    trade_note: string;
+    exchange_mode: FudabaExchangeMode;
+    made_on: string | null;
+    group_name: string | null;
+    producer_reading: string | null;
+    is_original: boolean;
+    made_with_ai: boolean;
+    visible: boolean;
+    credits: FudabaCardCredit[];
+}
+
+/** Verdict on the newest submission of an already published card. */
+export type FudabaCardReviewStatus = "pending" | "rejected" | "locked";
+
+/** 一面名片图在统一布局里的位置。 */
+export interface FudabaCardPageRecord {
+    page_id: string;
+    display_order: number;
+    object_version: string;
+    object_queue?: 'live' | 'pending';
+    width: number;
+    height: number;
+}
+
+export interface FudabaCardRecord {
+    id: string;
+    /** Public number the owner sees as 名片 #编号. */
+    card_number: number;
+    owner_account_id: string;
+    producer_name: string;
+    /** Ordered series; the first entry is the label shown by default. */
+    series_codes: string[];
+    favorite_characters: CardFavoriteSelectionRecord[];
+    legacy_card_id: number | null;
+    origin: FudabaCardOrigin;
+    /** 统一布局的线上页面行，按 display_order 排好。 */
+    pages: FudabaCardPageRecord[];
+    /** 完整待审页面快照；没有待审版本时为空数组。 */
+    pending_pages: FudabaCardPageRecord[];
+    /** Ordered middle pages; empty for a two-sided card. */
+    middle_object_keys: string[];
+    /** Derived from the artwork; never submitted by the owner. */
+    accent: string;
+    bio: string;
+    trade_note: string;
+    exchange_mode: FudabaExchangeMode;
+    made_on: string | null;
+    group_name: string | null;
+    /** 团体名片：制作人名称为空时由团体名称派生。 */
+    is_group_card: boolean;
+    producer_reading: string | null;
+    is_original: boolean;
+    made_with_ai: boolean;
+    visible: boolean;
+    credits: FudabaCardCredit[];
+    publication_status: FudabaCardPublicationStatus;
+    review_status: FudabaCardReviewStatus | null;
+    review_reason: string | null;
+    review_submitted_at: string | null;
+    pending_payload: FudabaPendingCardPayload | null;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+    deleted_at: string | null;
+}
+
+export interface NewFudabaCardInput {
+    id: string;
+    ownerAccountId: string;
+    producerName: string;
+    /** 团体名片：制作人名称为空时由团体名称派生。 */
+    isGroupCard?: boolean;
+    seriesCodes: string[];
+    favoriteCharacterIds?: number[];
+    legacyCardId?: number | null;
+    /** 统一布局的线上页面行，按 display_order 排好。 */
+    pages?: FudabaCardPageWrite[];
+    bio: string;
+    tradeNote: string;
+    exchangeMode: FudabaExchangeMode;
+    madeOn: string | null;
+    groupName: string | null;
+    producerReading: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    credits?: FudabaCardCredit[];
+    publicationStatus: FudabaCardPublicationStatus;
+    revision: number;
+    createdAt: string;
+    updatedAt: string;
+    deletedAt: string | null;
+}
+
+/** 一次写入的页面：对象已落盘，这里只记录版本与尺寸。 */
+export interface FudabaCardPageWrite {
+    pageId: string;
+    objectVersion: string;
+    objectQueue?: 'live' | 'pending';
+    width: number;
+    height: number;
+}
+
+export interface CreateOwnedFudabaCardInput {
+    /** 统一布局的页面行；与 front/back/middle 列同一事务写入。 */
+    pages?: FudabaCardPageWrite[];
+    id: string;
+    ownerAccountId: string;
+    producerName: string;
+    seriesCodes: string[];
+    favoriteCharacterIds?: number[];
+    /** Dominant colour sampled from the front artwork, when one was found. */
+    accent?: string | null;
+    bio: string;
+    tradeNote: string;
+    exchangeMode: FudabaExchangeMode;
+    madeOn: string | null;
+    groupName: string | null;
+    isGroupCard?: boolean;
+    producerReading: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    credits?: FudabaCardCredit[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface UpdateOwnedFudabaCardMetadataInput {
+    cardId: string;
+    ownerAccountId: string;
+    producerName: string;
+    seriesCodes: string[];
+    favoriteCharacterIds?: number[];
+    bio: string;
+    tradeNote: string;
+    exchangeMode: FudabaExchangeMode;
+    madeOn: string | null;
+    groupName: string | null;
+    isGroupCard?: boolean;
+    producerReading: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+    credits?: FudabaCardCredit[];
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+export interface ReplaceOwnedFudabaCardMediaInput {
+    cardId: string;
+    ownerAccountId: string;
+    /**
+     * Complete replacement of the card artwork: slot 0 is the front, slot 1 the
+     * back (null for a single-sided card) and the rest are the ordered middle
+     * pages. Positions are decided by the submitter, so one request can replace
+     * an image, reorder the set and move pages across roles at once.
+     */
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    middleObjectKeys: string[];
+    /** Accent sampled from a newly uploaded front image, if any. */
+    accent?: string | null;
+    /** 本次新写入的页面（对象已落盘），用于同步统一布局的页面行。 */
+    pages?: FudabaCardPageWrite[];
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+/**
+ * 服务端旋转一张图后，把新的对象键写回它所在的那一面。`staged` 表示这次要落在
+ * 待审版本上（卡上已有暂存图片），否则直接改线上。
+ */
+/** 只替换某一面/某几面的对象键：页序、页数与归属都不变。 */
+export interface RotateOwnedFudabaCardMediaInput {
+    cardId: string;
+    ownerAccountId: string;
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    middleObjectKeys: string[];
+    /** 有暂存图片时写待审那一套，否则写线上那一套。 */
+    staged: boolean;
+    /** 本次重写出来的页面（对象已落盘），用于同步页面行。 */
+    pages?: FudabaCardPageWrite[];
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+export interface SoftDeleteOwnedFudabaCardInput {
+    cardId: string;
+    ownerAccountId: string;
+    expectedRevision: number;
+    deletedAt: string;
+}
+
+export type FudabaCardMutationResult =
+    | {
+          status: "saved";
+          card: FudabaCardRecord;
+          previousObjectKey: string | null;
+          /** Ordered middle pages the write displaced, for object cleanup. */
+          previousObjectKeys?: string[];
+      }
+    | { status: "conflict"; revision: number }
+    | { status: "unavailable" };
+
+export interface FudabaCardClaimRecord {
+    id: string;
+    legacy_card_id: number;
+    claimant_account_id: string;
+    target_card_id: string | null;
+    series_code: string;
+    state: FudabaCardClaimState;
+    message: string;
+    payload: FudabaCardPayload;
+    review_note: string;
+    reviewed_by: number | null;
+    reviewed_at: string | null;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+    favorite_characters: CardFavoriteSelectionRecord[];
+}
+
+export interface FudabaRegisteredCardReviewRecord extends FudabaCardRecord {
+    owner_display_name: string;
+}
+
+export interface FudabaAdminCardClaimRecord extends FudabaCardClaimRecord {
+    claimant_display_name: string;
+    /** 老卡正面/背面的对象 key，认领审核通过时作为复制来源。 */
+    legacy_front_key: string;
+    legacy_back_key: string | null;
+    /** The owner card this claim binds to; null when it creates a new card. */
+    target_card_number: number | null;
+}
+
+export interface LegacyNamecardClaimStatusRecord {
+    legacy_card_id: number;
+    claim_status: "unclaimed" | "pending" | "claimed";
+    viewer_claim_state: FudabaCardClaimState | null;
+    claimer_name: string | null;
+    /** Links the wall badge to the claimant's public page. */
+    claimer_account_id: string | null;
+    /** The public handle the badge links to; /user/<uid> is the canonical URL. */
+    claimer_uid: number | null;
+    /** A visitor's supplement is waiting for review on this wall card. */
+    supplement_pending: boolean;
+}
+
+/** 名片墙顶部面板的一次性读数：进度、贡献榜与当前用户的名次。 */
+export interface WallInsightContributorRecord {
+    account_id: string;
+    display_name: string;
+    points: number;
+    cards: number;
+}
+
+export interface NamecardContributorsPageRecord {
+    items: WallInsightContributorRecord[];
+    total: number;
+}
+
+export interface WallInsightsRecord {
+    /** Every published guest submission; both progress bars share it. */
+    guest_total: number;
+    ownerless: number;
+    ownerless_missing_series: number;
+    claimed: number;
+    claims_pending: number;
+    supplemented: number;
+    supplements_pending: number;
+    contributors: WallInsightContributorRecord[];
+    viewer: (WallInsightContributorRecord & { rank: number | null }) | null;
+}
+
+/**
+ * The wall's claim and supplement forms send only the fields the visitor
+ * changed, so an absent key means "leave the live value alone" while an
+ * explicit `null` clears it.
+ */
+export interface FudabaCardPayload {
+    producerName?: string;
+    isGroupCard?: boolean;
+    /** 审核通过后要执行的旋转圈数（顺时针 90° 的次数）；只支持正反面。 */
+    rotations?: { front?: number; back?: number };
+    producerReading?: string | null;
+    groupName?: string | null;
+    madeOn?: string | null;
+    seriesCodes?: string[];
+    favoriteCharacterIds?: number[];
+}
+
+export interface CreateFudabaCardClaimInput {
+    id: string;
+    legacyCardId: number;
+    claimantAccountId: string;
+    targetCardId: string | null;
+    payload: FudabaCardPayload;
+    message: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreateFudabaCardSupplementInput {
+    id: string;
+    cardId: string;
+    submitterAccountId: string;
+    payload: FudabaCardPayload;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface FudabaCardSupplementRecord {
+    id: string;
+    card_id: string;
+    card_number: number;
+    card_producer_name: string | null;
+    card_page_count: number;
+    /** Middle pages the card stores today. */
+    card_middle_count: number;
+    card_has_back: boolean;
+    submitter_account_id: string;
+    submitter_display_name: string;
+    state: FudabaCardClaimState;
+    payload: FudabaCardPayload;
+    base_revision: number;
+    review_note: string;
+    reviewed_by: number | null;
+    reviewed_at: string | null;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export type FudabaSupplementCreateResult =
+    | { status: "created"; supplement: FudabaCardSupplementRecord }
+    | {
+          status: "conflict";
+          supplementId: string;
+          state: FudabaCardClaimState;
+      }
+    /** Every submitted field already matches the live card. */
+    | { status: "unchanged" }
+    | { status: "unavailable" };
+
+export type FudabaSupplementReviewResult =
+    | {
+          status: "saved";
+          supplement: FudabaCardSupplementRecord;
+          card: FudabaCardRecord | null;
+      }
+    | { status: "conflict"; revision: number; state: FudabaCardClaimState }
+    | { status: "unavailable" };
+
+export type FudabaClaimCreateResult =
+    | { status: "created"; claim: FudabaCardClaimRecord }
+    | { status: "conflict"; claimId: string; state: FudabaCardClaimState }
+    | { status: "series-required" }
+    | { status: "producer-required" }
+    | { status: "unavailable" };
+
+export type FudabaRegisteredCardReviewClaim =
+    | { status: "claimed"; card: FudabaRegisteredCardReviewRecord }
+    | {
+          status: "conflict";
+          revision: number;
+          publicationStatus: FudabaCardPublicationStatus;
+      }
+    | { status: "unavailable" };
+
+export type FudabaRegisteredCardReviewResult =
+    | {
+          status: "saved";
+          card: FudabaRegisteredCardReviewRecord;
+          /** Live objects replaced by the promoted pending pages. */
+          replacedObjectKeys: string[];
+      }
+    | {
+          status: "conflict";
+          revision: number;
+          publicationStatus: FudabaCardPublicationStatus;
+      }
+    | { status: "unavailable" };
+
+export type FudabaClaimReviewClaim =
+    | { status: "claimed"; claim: FudabaCardClaimRecord }
+    | { status: "conflict"; revision: number; state: FudabaCardClaimState }
+    | { status: "unavailable" };
+
+export interface CreateClaimedFudabaCardInput {
+    id: string;
+    producerName: string;
+    producerReading: string | null;
+    seriesCode: string;
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    accent: string;
+    bio: string;
+    tradeNote: string;
+    exchangeMode: "auto" | "manual" | "none";
+    madeOn: string | null;
+    groupName: string | null;
+    isGroupCard?: boolean;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    visible: boolean;
+}
+
+interface CompleteFudabaClaimReviewBaseInput {
+    claimId: string;
+    approvingRevision: number;
+    reviewedBy: number;
+    reviewedAt: string;
+    reviewNote: string;
+    notificationTitle: string;
+    notificationBody: string;
+    audit: AuditLogInput;
+}
+
+export interface ClaimedCardMediaInput {
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    /** `null` keeps the card's current accent. */
+    accent: string | null;
+    /** 审核时旋转出来的页面，用于同步统一布局的页面行。 */
+    pages?: FudabaCardPageWrite[];
+}
+
+export type CompleteFudabaClaimReviewInput =
+    | (CompleteFudabaClaimReviewBaseInput & {
+          decision: "approve";
+          /**
+           * Present when the reviewed claim becomes the wall card itself: the
+           * artwork has to move to owner-owned objects. Absent when the claim
+           * binds to a card the claimant already owns, whose artwork stays.
+           */
+          media: ClaimedCardMediaInput | null;
+      })
+    | (CompleteFudabaClaimReviewBaseInput & {
+          decision: "reject";
+      });
+
+export interface CompleteFudabaSupplementReviewInput {
+    supplementId: string;
+    /** The revision the reviewer read before deciding. */
+    expectedRevision: number;
+    decision: "approve" | "reject";
+    reviewNote: string;
+    reviewedBy: number;
+    reviewedAt: string;
+    audit: AuditLogInput;
+    /** Points awarded once per (account, card) when a supplement is approved. */
+    contributionPoints: number;
+    contributionId: string;
+    /** 批准时替换的正反面（补充里带着旋转时才会传）。 */
+    media?: ClaimedCardMediaInput | null;
+}
+
+export type FudabaClaimReviewResult =
+    | {
+          status: "saved";
+          claim: FudabaCardClaimRecord;
+          card: FudabaCardRecord | null;
+      }
+    | { status: "conflict"; revision: number; state: FudabaCardClaimState }
+    | { status: "unavailable" };
+
+export interface NewFudabaModerationCaseInput {
+    id: string;
+    resourceKind: FudabaModerationResourceKind;
+    resourceId: string;
+    reporterAccountId: string | null;
+    reason: string;
+    details: string;
+    state: FudabaModerationState;
+    backofficeActorId: number | null;
+    resolution: string;
+    createdAt: string;
+    updatedAt: string;
+    resolvedAt: string | null;
+}
+
+export interface FudabaModerationCaseRecord {
+    id: string;
+    resource_kind: FudabaModerationResourceKind;
+    resource_id: string;
+    reporter_account_id: string | null;
+    reason: string;
+    details: string;
+    state: FudabaModerationState;
+    backoffice_actor_id: number | null;
+    resolution: string;
+    created_at: string;
+    updated_at: string;
+    resolved_at: string | null;
+}
+
+export interface FudabaPublicSeriesRecord {
+    id: number;
+    code: string;
+    display_name: string;
+    color: string;
+    display_order: number;
+    icon_object_key: string | null;
+    image_transform: WikiImageTransform;
+    active_office_count: number;
+}
+
+export interface FudabaPublicOfficeRecord {
+    id: string;
+    slug: string;
+    name: string;
+    intro: string;
+    city: string;
+    address: string;
+    accent: string;
+    cover_object_key: string | null;
+    is_open: boolean;
+    visitor_count: number;
+    series_codes: string[];
+    public_latitude_e1?: number | null;
+    public_longitude_e1?: number | null;
+    public_precision?: 'regional' | 'exact' | null;
+    public_latitude_exact?: number | null;
+    public_longitude_exact?: number | null;
+}
+
+export interface FudabaPublicOfficeCursor {
+    visitorCount: number;
+    id: string;
+}
+
+export interface ListFudabaPublicOfficesInput {
+    q?: string;
+    city?: string;
+    seriesCodes?: string[];
+    isOpen?: boolean;
+    limit: number;
+    after?: FudabaPublicOfficeCursor;
+}
+
+export type FudabaLocationReviewState = "pending" | "published" | "rejected";
+
+export interface FudabaOfficePublicLocationRecord {
+    office_id: string;
+    precision: 'regional' | 'exact';
+    latitude_exact: number | null;
+    longitude_exact: number | null;
+    exact_location_consent_at: string | null;
+    latitude_e1: number;
+    longitude_e1: number;
+    review_state: FudabaLocationReviewState;
+    revision: number;
+    submitted_at: string;
+    reviewed_at: string | null;
+    reviewed_by: number | null;
+    review_note: string;
+}
+
+export interface FudabaPublicMapOfficeRecord {
+    id: string;
+    slug: string;
+    name: string;
+    city: string;
+    address: string;
+    accent: string;
+    is_open: boolean;
+    series_codes: string[];
+    latitude_e1: number;
+    longitude_e1: number;
+    precision: 'regional' | 'exact';
+    latitude_exact: number | null;
+    longitude_exact: number | null;
+}
+
+export interface ListFudabaPublicMapOfficesInput {
+    bbox: {
+        west: number;
+        south: number;
+        east: number;
+        north: number;
+        westE1: number;
+        southE1: number;
+        eastE1: number;
+        northE1: number;
+    };
+    city?: string;
+    seriesCodes?: string[];
+    isOpen?: boolean;
+    limit: number;
+}
+
+export interface FudabaOfficeLocationReviewRecord
+    extends FudabaOfficePublicLocationRecord {
+    office_name: string;
+    office_city: string;
+    owner_account_id: string;
+}
+
+export type FudabaOfficeLocationMutationResult =
+    | { status: "saved"; location: FudabaOfficePublicLocationRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "unavailable" };
+
+export interface FudabaPublicCardRecord {
+    id: string;
+    producer_name: string;
+    /** Ordered series; the first entry is the label shown by default. */
+    series_codes: string[];
+    favorite_characters: CardFavoriteSelectionRecord[];
+    /** 统一布局的线上页面行，按 display_order 排好。 */
+    pages: FudabaCardPageRecord[];
+    middle_object_keys: string[];
+    accent: string;
+    bio: string;
+    trade_note: string;
+    exchange_mode: FudabaExchangeMode;
+    made_on: string | null;
+    group_name: string | null;
+    producer_reading: string | null;
+    is_original: boolean;
+    made_with_ai: boolean;
+    visible: boolean;
+    credits: FudabaCardCredit[];
+    created_at: string;
+    like_count: number;
+    favorite_count: number;
+    viewer_liked: boolean;
+    viewer_favorited: boolean;
+}
+
+export interface FudabaCardReactionRecord {
+    emoji: string;
+    count: number;
+}
+
+export interface FudabaCardReactionInput {
+    cardId: string;
+    emoji: string;
+    delta: 1 | -1;
+}
+
+export interface FudabaCardInteractionStateRecord {
+    like_count: number;
+    favorite_count: number;
+    viewer_liked: boolean;
+    viewer_favorited: boolean;
+}
+
+export interface FudabaPublicPlacedCardRecord extends FudabaPublicCardRecord {
+    pinned_at: string;
+    position_x: number;
+    position_y: number;
+    rotation: number;
+    z_index: number;
+    revision: number;
+    updated_at: string;
+    viewer_owned: boolean;
+}
+
+export interface FudabaCardPlacementRecord {
+    office_id: string;
+    card_id: string;
+    pinned_at: string;
+    position_x: number;
+    position_y: number;
+    rotation: number;
+    z_index: number;
+    revision: number;
+    updated_at: string;
+}
+
+export type FudabaCardPlacementSaveResult =
+    | {
+          status: "saved";
+          placement: FudabaCardPlacementRecord;
+          created: boolean;
+      }
+    | { status: "conflict"; revision: number }
+    | { status: "unavailable" };
+
+export type FudabaCardPlacementRemovalResult =
+    | { status: "removed"; revision: number }
+    | { status: "conflict"; revision: number }
+    | { status: "unavailable" };
+
+export interface FudabaPublicOfficeDetailRecord
+    extends FudabaPublicOfficeRecord {
+    cards: FudabaPublicPlacedCardRecord[];
+}
+
+export interface FudabaPublicCardCursor {
+    createdAt: string;
+    id: string;
+}
+
+export interface ListFudabaPublicCardsInput {
+    seriesCodes?: string[];
+    /** True keeps cards offered for exchange, false keeps the closed ones. */
+    exchangeable?: boolean;
+    officeSlug?: string;
+    favoritedByAccountId?: string;
+    viewerAccountId: string | null;
+    limit: number;
+    after?: FudabaPublicCardCursor;
+}
+
+export interface FudabaRepository {
+    listOfficeReviews(input: { reviewState?: FudabaLocationReviewState; limit: number }): Promise<FudabaOfficeReviewRecord[]>;
+    findOfficeReview(officeId: string): Promise<FudabaOfficeReviewRecord | null>;
+    beginOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<FudabaOfficeReviewResult>;
+    completeOfficeReview(input: {
+        officeId: string; expectedRevision: number; operationId: string;
+        decision: 'publish' | 'reject' | 'withdraw'; reviewedAt: string; reviewedBy: number;
+        reviewNote: string; pendingCoverObjectKey: string | null; audit: AuditLogInput;
+    }): Promise<FudabaOfficeReviewResult>;
+    releaseOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<boolean>;
+    listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
+    /**
+     * Every taggable series, including ones without a wiki section: an owner
+     * must be able to file a card that belongs to no published branch under
+     * 「其他」 instead of picking a wrong one.
+     */
+    listOwnerSeries(): Promise<FudabaPublicSeriesRecord[]>;
+    listPublicOffices(
+        input: ListFudabaPublicOfficesInput,
+    ): Promise<FudabaPublicOfficeRecord[]>;
+    listPublicMapOffices(
+        input: ListFudabaPublicMapOfficesInput,
+    ): Promise<FudabaPublicMapOfficeRecord[]>;
+    findPublicOfficeBySlug(
+        slug: string,
+        viewerAccountId: string | null,
+    ): Promise<FudabaPublicOfficeDetailRecord | null>;
+    /** 统一布局下的页面：live 与 pending 两套队列，按 display_order 排好。 */
+    listCardPages(cardId: string): Promise<{
+        live: FudabaCardPageRecord[];
+        pending: FudabaCardPageRecord[];
+    }>;
+    /** 按名片编号批量读取页面行（名片墙使用）。 */
+    listCardPagesBatchByNumbers(cardNumbers: readonly number[]): Promise<
+        Map<number, { live: FudabaCardPageRecord[]; pending: FudabaCardPageRecord[] }>
+    >;
+    /** 属主读取某一页的 key（live/pending 由 draft 决定）。 */
+    findCardPageKeyForOwner(
+        cardId: string,
+        ownerAccountId: string,
+        pageId: string,
+        draft: boolean
+    ): Promise<{ key: string; queue: 'live' | 'pending' } | null>;
+    /** 批量读取页面行：公开列表一次查询，避免逐卡 N+1。 */
+    listCardPagesBatch(cardIds: readonly string[]): Promise<
+        Map<string, { live: FudabaCardPageRecord[]; pending: FudabaCardPageRecord[] }>
+    >;
+    /** 公开墙按卡片 UUID 取某一页的线上 key（统一布局）。 */
+    findPublishedCardPageKeyById(
+        cardId: string,
+        pageId: string
+    ): Promise<string | null>;
+    listPublicCards(
+        input: ListFudabaPublicCardsInput,
+    ): Promise<FudabaPublicCardRecord[]>;
+    findPublicCardInteractions(
+        cardId: string,
+        viewerAccountId: string | null,
+    ): Promise<FudabaCardInteractionStateRecord | null>;
+    listPublicCardReactions(cardId: string): Promise<FudabaCardReactionRecord[]>;
+    applyPublicCardReaction(input: FudabaCardReactionInput): Promise<boolean>;
+    /** Readers report a published card; one open report per reader per card. */
+    createCardFeedback(
+        input: CreateNamecardFeedbackInput,
+    ): Promise<'created' | 'duplicate' | 'not-found'>;
+    listPendingCardFeedback(
+        input: { page: number; pageSize: number },
+    ): Promise<{ items: NamecardFeedbackRecord[]; total: number }>;
+    /** Moves one report out of the queue; null when it was already handled. */
+    resolveCardFeedback(
+        input: ResolveNamecardFeedbackInput,
+    ): Promise<NamecardFeedbackRecord | null>;
+    createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
+    findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
+    listOfficesForOwner(
+        ownerAccountId: string,
+    ): Promise<FudabaOwnerOfficeRecord[]>;
+    findOfficeForOwner(
+        officeId: string,
+        ownerAccountId: string,
+    ): Promise<FudabaOwnerOfficeRecord | null>;
+    createOfficeForOwner(
+        input: CreateOwnedFudabaOfficeInput,
+    ): Promise<FudabaOfficeCreateResult>;
+    updateOfficeForOwner(
+        input: UpdateOwnedFudabaOfficeInput,
+    ): Promise<FudabaOfficeMutationResult>;
+    archiveOfficeForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+        archivedAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
+    restoreOfficeForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+        restoredAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
+    reservePendingOfficeCoverForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        objectKey: string;
+        expectedRevision: number;
+        submittedAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
+    clearPendingOfficeCoverForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        objectKey: string;
+        expectedRevision: number;
+        updatedAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
+    updateOfficeStatusForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        status: FudabaOfficeStatus;
+        archivedAt: string | null;
+        updatedAt: string;
+        expectedRevision: number;
+    }): Promise<boolean>;
+    findOfficePublicLocationForOwner(
+        officeId: string,
+        ownerAccountId: string,
+    ): Promise<FudabaOfficePublicLocationRecord | null>;
+    saveOfficePublicLocationForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        latitudeE1: number;
+        longitudeE1: number;
+        precision?: 'regional' | 'exact';
+        latitudeExact?: number | null;
+        longitudeExact?: number | null;
+        exactLocationConsentAt?: string | null;
+        expectedRevision: number | null;
+        submittedAt: string;
+    }): Promise<FudabaOfficeLocationMutationResult>;
+    withdrawOfficePublicLocationForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+    }): Promise<FudabaOfficeLocationMutationResult>;
+    listOfficeLocationReviews(input: {
+        reviewState?: FudabaLocationReviewState;
+        limit: number;
+    }): Promise<FudabaOfficeLocationReviewRecord[]>;
+    reviewOfficePublicLocation(input: {
+        officeId: string;
+        decision: "publish" | "reject";
+        expectedRevision: number;
+        reviewedAt: string;
+        reviewedBy: number;
+        reviewNote: string;
+        reviewOperationId: string;
+        audit: AuditLogInput;
+    }): Promise<FudabaOfficeLocationMutationResult>;
+    createCard(input: NewFudabaCardInput): Promise<FudabaCardRecord>;
+    findCardById(id: string): Promise<FudabaCardRecord | null>;
+    listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]>;
+    listCardFavorites(
+        cardIds: string[],
+    ): Promise<Map<string, CardFavoriteSelectionRecord[]>>;
+    attachCardFavorites(
+        cardId: string,
+        characterIds: number[],
+    ): Promise<CardFavoriteSelectionRecord[] | null>;
+    findCardForOwner(
+        cardId: string,
+        ownerAccountId: string,
+    ): Promise<FudabaCardRecord | null>;
+    createCardForOwner(
+        input: CreateOwnedFudabaCardInput,
+    ): Promise<FudabaCardMutationResult>;
+    updateCardMetadataForOwner(
+        input: UpdateOwnedFudabaCardMetadataInput,
+    ): Promise<FudabaCardMutationResult>;
+    /** Replaces the whole ordered middle-page set of one card. */
+    replaceCardMediaForOwner(
+        input: ReplaceOwnedFudabaCardMediaInput,
+    ): Promise<FudabaCardMutationResult>;
+    /**
+     * 旋转落库：只换图不改页序，与页序调整同档，不进复审。
+     */
+    rotateCardMediaForOwner(
+        input: RotateOwnedFudabaCardMediaInput,
+    ): Promise<FudabaCardMutationResult>;
+    softDeleteCardForOwner(
+        input: SoftDeleteOwnedFudabaCardInput,
+    ): Promise<FudabaCardMutationResult>;
+    /** Sends the "this wall card may be yours" notice to matching accounts. */
+    notifyLegacyCardMatchesForAccount(accountId: string): Promise<number>;
+    createCardClaimForOwner(
+        input: CreateFudabaCardClaimInput,
+    ): Promise<FudabaClaimCreateResult>;
+    listCardClaimsForOwner(
+        claimantAccountId: string,
+        limit: number,
+    ): Promise<FudabaCardClaimRecord[]>;
+    wallInsights(viewerAccountId: string | null): Promise<WallInsightsRecord>;
+    listNamecardContributors(input: {
+        page: number;
+        pageSize: number;
+    }): Promise<NamecardContributorsPageRecord>;
+    /**
+     * 随机挑一张缺少企划的无主名片，优先没人补充过的那些；没有可抽的返回 null。
+     */
+    randomOwnerlessCardMissingSeries(
+        viewerAccountId: string | null,
+    ): Promise<number | null>;
+    listLegacyNamecardClaimStatuses(
+        legacyCardIds: number[],
+        viewerAccountId: string | null,
+    ): Promise<LegacyNamecardClaimStatusRecord[]>;
+    findRegisteredCardForAdmin(
+        cardId: string,
+    ): Promise<FudabaCardRecord | null>;
+    listAdminPendingCards(
+        limit: number,
+    ): Promise<FudabaRegisteredCardReviewRecord[]>;
+    findAdminCardClaim(
+        claimId: string,
+    ): Promise<FudabaAdminCardClaimRecord | null>;
+    listAdminPendingClaims(
+        limit: number,
+    ): Promise<FudabaAdminCardClaimRecord[]>;
+    beginRegisteredCardReview(
+        cardId: string,
+        expectedRevision: number,
+    ): Promise<FudabaRegisteredCardReviewClaim>;
+    rollbackRegisteredCardReview(
+        cardId: string,
+        approvingRevision: number,
+    ): Promise<boolean>;
+    completeRegisteredCardReview(input: {
+        cardId: string;
+        approvingRevision: number;
+        /** `flag` marks the submission as a violation and leaves live content up. */
+        decision: "publish" | "reject" | "flag";
+        reviewedAt: string;
+        /** Reviewer note, forwarded as the rejection reason to the owner. */
+        note?: string | null;
+        audit: AuditLogInput;
+    }): Promise<FudabaRegisteredCardReviewResult>;
+    beginCardClaimReview(
+        claimId: string,
+        expectedRevision: number,
+    ): Promise<FudabaClaimReviewClaim>;
+    rollbackCardClaimReview(
+        claimId: string,
+        approvingRevision: number,
+    ): Promise<boolean>;
+    completeCardClaimReview(
+        input: CompleteFudabaClaimReviewInput,
+    ): Promise<FudabaClaimReviewResult>;
+    createCardSupplementForOwner(
+        input: CreateFudabaCardSupplementInput,
+    ): Promise<FudabaSupplementCreateResult>;
+    findCardSupplement(
+        supplementId: string,
+    ): Promise<{
+        supplement: FudabaCardSupplementRecord;
+        live: FudabaCardRecord;
+    } | null>;
+    listAdminPendingSupplements(
+        limit: number,
+    ): Promise<FudabaCardSupplementRecord[]>;
+    completeCardSupplementReview(
+        input: CompleteFudabaSupplementReviewInput,
+    ): Promise<FudabaSupplementReviewResult>;
+    placeOwnedCard(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        pinnedAt: string;
+        positionX: number;
+        positionY: number;
+        rotation: number;
+        zIndex: number;
+    }): Promise<boolean>;
+    saveCardPlacementForOwner(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        positionX: number;
+        positionY: number;
+        rotation: number;
+        zIndex: number;
+        expectedRevision: number | null;
+        updatedAt: string;
+    }): Promise<FudabaCardPlacementSaveResult>;
+    removeCardPlacementForOwner(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+    }): Promise<FudabaCardPlacementRemovalResult>;
+    createMessage(input: {
+        id: string;
+        officeId: string;
+        authorAccountId: string;
+        content: string;
+        createdAt: string;
+    }): Promise<boolean>;
+    setCardInteraction(input: {
+        kind: "like" | "favorite";
+        cardId: string;
+        accountId: string;
+        active: boolean;
+        createdAt: string;
+    }): Promise<boolean>;
+    createModerationCase(
+        input: NewFudabaModerationCaseInput,
+    ): Promise<FudabaModerationCaseRecord>;
+}
+
+export type NamecardFeedbackReason =
+    | 'info-error'
+    | 'ownership-error'
+    | 'content-violation';
+
+export type NamecardFeedbackStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface NamecardFeedbackRecord {
+    id: number;
+    cardId: string;
+    cardNumber: number;
+    producerName: string | null;
+    frontObjectKey: string;
+    backObjectKey: string | null;
+    middlePageCount: number;
+    reporterAccountId: string;
+    reporterName: string;
+    reason: NamecardFeedbackReason;
+    detail: string | null;
+    status: NamecardFeedbackStatus;
+    createdAt: string;
+}
+
+export interface CreateNamecardFeedbackInput {
+    cardId: string;
+    reporterAccountId: string;
+    reason: NamecardFeedbackReason;
+    detail: string;
+    createdAt: string;
+}
+
+export interface ResolveNamecardFeedbackInput {
+    id: number;
+    outcome: 'accepted' | 'rejected';
+    /** Required for a rejection: it is quoted back to the reporter. */
+    note: string | null;
+    handledBy: string;
+    updatedAt: string;
+}

@@ -9,10 +9,14 @@ function findApiWorkspaceRoot(startDirectory: string): string | undefined {
     while (true) {
         const packagePath = path.join(directory, 'package.json');
         if (fs.existsSync(packagePath)) {
-            const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8')) as {
-                name?: string;
-            };
-            if (packageJson.name === API_PACKAGE_NAME) return directory;
+            try {
+                const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8')) as {
+                    name?: string;
+                };
+                if (packageJson.name === API_PACKAGE_NAME) return directory;
+            } catch {
+                // Continue searching parent directories when a package file is incomplete.
+            }
         }
 
         const parent = path.dirname(directory);

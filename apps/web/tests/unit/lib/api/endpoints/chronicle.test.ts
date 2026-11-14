@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import {
   chronicleActivitySchema,
   chronicleActivitySummarySchema,
+  uploadChronicleImages,
 } from "~/lib/api/endpoints/chronicle"
 
 describe("chronicle API contracts", () => {
@@ -28,5 +30,25 @@ describe("chronicle API contracts", () => {
         images: [],
       })
     ).toThrow()
+  })
+
+  it("validates the legacy Chronicle upload error envelope", async () => {
+    const payload = { success: false as const, error: "图片格式不支持" }
+    installFetchMock().mockResolvedValue(
+      Response.json(payload, { status: 400 })
+    )
+
+    await expect(
+      uploadChronicleImages(
+        "activity-1",
+        "uploader",
+        [new File(["image"], "image.png")],
+        "chronicle-upload-key"
+      ).send()
+    ).rejects.toMatchObject({
+      kind: "http",
+      status: 400,
+      payload,
+    })
   })
 })

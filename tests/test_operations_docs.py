@@ -1,22 +1,61 @@
 import json
 from pathlib import Path
 import re
+import shlex
 import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RUNBOOK = PROJECT_ROOT / "docs/operations-runbook.md"
-DATABASE_CONFIGURATION = PROJECT_ROOT / "docs/database-configuration.md"
-OBJECT_STORAGE = PROJECT_ROOT / "docs/object-storage.md"
-AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/ai-development-environment.md"
+RUNBOOK = PROJECT_ROOT / "docs/operations/runbook.md"
+DATABASE_CONFIGURATION = PROJECT_ROOT / "docs/operations/database-configuration.md"
+OBJECT_STORAGE = PROJECT_ROOT / "docs/architecture/object-storage.md"
+AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/development/ai-environment.md"
 API_ENVIRONMENT = PROJECT_ROOT / "apps/api/.env.example"
 WEB_ENVIRONMENT = PROJECT_ROOT / "apps/web/.env.example"
 DEPLOY_ENVIRONMENT = PROJECT_ROOT / "deploy/.env.example"
 PNPM_WORKSPACE = PROJECT_ROOT / "pnpm-workspace.yaml"
-PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/producer-map-online-migration.md"
+PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/migrations/producer-map-online.md"
 PRODUCER_MAP_SQL = (
     PROJECT_ROOT / "deploy/migrations/producer-map-r2-control-plane.sql"
 )
+ENVIRONMENT_ASSIGNMENT = re.compile(
+    r"^\s*(?P<commented>#\s*)?(?P<key>[A-Z][A-Z0-9_]*)\s*=\s*(?P<value>.*)$"
+)
+
+
+def parse_environment_template(text):
+    """Split a dotenv template into active values and documented key names.
+
+    Commented assignments such as ``# IMS_JWT_SECRET=`` are recorded as
+    documented names, because the template keeps those lines on purpose.
+    """
+    values = {}
+    documented = set()
+    for line in text.splitlines():
+        match = ENVIRONMENT_ASSIGNMENT.match(line)
+        if match is None:
+            continue
+        if match.group("commented") is not None:
+            documented.add(match.group("key"))
+            continue
+        values[match.group("key")] = match.group("value").strip()
+    return values, documented
+
+
+def documented_shell_commands(text):
+    """Read documented shell invocations without executing them."""
+    for block in re.findall(r"^```sh\s*\n(.*?)^```", text, re.MULTILINE | re.DOTALL):
+        for line in re.sub(r"\\\r?\n", "", block).splitlines():
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|")
+            lexer.whitespace_split = True
+            command = []
+            for token in [*lexer, ";"]:
+                if re.fullmatch(r"[;&|]+", token):
+                    if command:
+                        yield command
+                    command = []
+                else:
+                    command.append(token)
 
 
 class OperationsDocumentationTests(unittest.TestCase):
@@ -29,22 +68,40 @@ class OperationsDocumentationTests(unittest.TestCase):
         cls.producer_map_migration = PRODUCER_MAP_MIGRATION.read_text(encoding="utf-8")
         cls.producer_map_sql = PRODUCER_MAP_SQL.read_text(encoding="utf-8")
 
+    def assert_guarded_producer_map_apply_examples(self, document):
+        prefix = ["pnpm", "run", "media:producer-map:sync", "--"]
+        commands = [
+            command[len(prefix):]
+            for command in documented_shell_commands(document)
+            if command[:len(prefix)] == prefix and "--apply" in command[len(prefix):]
+        ]
+        self.assertTrue(commands, "Document an executable Producer Map apply command")
+        for command in commands:
+            self.assertNotIn("--require-r2", command)
+            values = {}
+            for option in ("--source-base-url", "--confirm-source", "--confirm-bucket"):
+                self.assertEqual(command.count(option), 1, f"Require {option}: {command}")
+                index = command.index(option) + 1
+                self.assertLess(index, len(command), f"Missing value for {option}")
+                value = command[index]
+                self.assertTrue(value and not value.startswith("--"), option)
+                values[option] = value
+            self.assertEqual(values["--source-base-url"], values["--confirm-source"])
+
     def test_database_configuration_covers_postgresql_runtime_and_readiness(self):
         for token in (
             "DATABASE_URL",
-            "一个 PostgreSQL 物理数据库",
             "IMS_PG_POOL_MAX",
             "migration:postgresql",
             "Hono Node",
-            "自动读取 `apps/api/.env`",
             "/api/health/live",
             "/api/health/ready",
         ):
             self.assertIn(token, self.database_configuration)
 
         for readme in (
-            PROJECT_ROOT / "README.md",
             PROJECT_ROOT / "apps/api/README.md",
+            PROJECT_ROOT / "docs/README.md",
         ):
             self.assertIn("database-configuration.md", readme.read_text(encoding="utf-8"))
 
@@ -56,7 +113,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "pnpm run dev:down",
             "PostgreSQL",
             "RustFS",
-            "自动读取 `apps/api/.env`",
+            "Valkey",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:rustfs:up",
             "pnpm run dev:node",
@@ -65,13 +122,12 @@ class OperationsDocumentationTests(unittest.TestCase):
             "git status --short",
             "deploy/compose.yaml",
             "WSL2",
-            "远程 context",
         ):
             self.assertIn(token, self.ai_guide)
 
         for document in (PROJECT_ROOT / "AGENTS.md", PROJECT_ROOT / "README.md"):
             self.assertIn(
-                "docs/ai-development-environment.md",
+                "docs/development/ai-environment.md",
                 document.read_text(encoding="utf-8"),
             )
 
@@ -98,7 +154,8 @@ class OperationsDocumentationTests(unittest.TestCase):
             "node scripts/development/dev-environment.mjs --down",
         )
         self.assertIn(
-            "tests/development-environment.test.js", scripts["test:infra"]
+            "node scripts/testing/run-test-owner.mjs governance",
+            scripts["test:infra"],
         )
         self.assertIn(
             "scripts/development/dev-environment.mjs", scripts["check:root"]
@@ -146,7 +203,6 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "pnpm run dev:api:r2:config",
             "pnpm run dev:api:r2:up",
-            "不启用或依赖 RustFS",
             "`auto` region",
         ):
             self.assertIn(token, self.ai_guide)
@@ -156,20 +212,29 @@ class OperationsDocumentationTests(unittest.TestCase):
         api_environment = API_ENVIRONMENT.read_text(encoding="utf-8")
         web_environment = WEB_ENVIRONMENT.read_text(encoding="utf-8")
         deploy_environment = DEPLOY_ENVIRONMENT.read_text(encoding="utf-8")
+        api_values, api_documented = parse_environment_template(api_environment)
+        web_values, _ = parse_environment_template(web_environment)
+        deploy_values, _ = parse_environment_template(deploy_environment)
 
-        for token in (
-            "IMS_JWT_SECRET",
+        for key in (
+            "IMS_BACKOFFICE_JWT_SECRET",
             "IMS_SUPER_ADMIN_USERNAME",
             "IMS_OBJECT_STORAGE",
         ):
-            self.assertIn(token, api_environment)
-        self.assertNotIn("IMS_DATABASE", api_environment)
-        self.assertIn("IMS_OBJECT_STORAGE=s3", api_environment)
-        self.assertIn("DATABASE_URL=", api_environment)
-        for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
-            self.assertIn(token, web_environment)
-        for token in (
-            "COMPOSE_PROFILES=local-storage",
+            self.assertIn(key, api_values)
+        # The legacy Backoffice secret stays on a commented line on purpose, so
+        # the template documents its name without activating it.
+        self.assertIn("IMS_JWT_SECRET", set(api_values) | api_documented)
+        self.assertEqual(api_values["IMS_OBJECT_STORAGE"], "s3")
+        self.assertEqual(api_values["DATABASE_URL"], "")
+        for key in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
+            self.assertIn(key, web_values)
+        self.assertEqual(
+            deploy_values["COMPOSE_PROFILES"], "local-cache,local-storage"
+        )
+        for key in (
+            "IMS_VALKEY_IMAGE",
+            "IMS_CACHE_BACKEND",
             "IMS_POSTGRES_IMAGE",
             "IMS_RUSTFS_IMAGE",
             "IMS_RUSTFS_BUCKET",
@@ -177,11 +242,13 @@ class OperationsDocumentationTests(unittest.TestCase):
             "IMS_PUBLIC_READ_URL_BASE",
             "AWS_ACCESS_KEY_ID",
         ):
-            self.assertIn(token, deploy_environment)
+            self.assertIn(key, deploy_values)
 
+        self.assertNotIn("IMS_DATABASE", api_environment)
         self.assertNotIn("IMS_NGINX_IMAGE", api_environment)
         self.assertNotIn("IMS_NGINX_IMAGE", deploy_environment)
         self.assertNotIn("IMS_NODE_UPSTREAM", deploy_environment)
+        self.assertNotIn("IMS_BACKOFFICE_JWT_SECRET", web_environment)
         self.assertNotIn("IMS_JWT_SECRET", web_environment)
         self.assertNotIn("IMS_LEGACY", deploy_environment)
 
@@ -199,7 +266,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "GetObject",
             "PutObject",
             "DeleteObject",
-            "不会自动搬迁",
             "migration:public-objects",
             "migration:single-bucket",
             "migration:namecard-thumbnails",
@@ -223,7 +289,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "client-manifest.json",
             "/srv/ims/current",
             "pg_dump --format=custom",
-            "数据库与媒体必须在同一停写窗口",
         ):
             self.assertIn(token, self.runbook)
 
@@ -297,18 +362,67 @@ class OperationsDocumentationTests(unittest.TestCase):
             self.assertIn(token, self.producer_map_sql)
 
         for token in (
-            "imsweb-media-public-prod",
-            "test -z \"${IMS_S3_PREFIX:-}\"",
-            "pg_dump --format=custom",
+            "pnpm run media:producer-map:sync",
             "producer-map-r2-control-plane.sql",
-            "pnpm run test:r2:producer-map",
-            "参数层禁止 `--apply`",
-            "configStatus=unchanged",
-            "objects.unchanged=43",
-            "不要追加 `--apply`",
-            "禁止只删数据库或只删 R2",
+            "ObjectStorage",
+            "SHA-256",
         ):
             self.assertIn(token, self.producer_map_migration)
+        self.assert_guarded_producer_map_apply_examples(self.producer_map_migration)
+
+    def test_producer_map_apply_examples_allow_wrapping_and_option_order(self):
+        examples = (
+            "pnpm run media:producer-map:sync -- --apply "
+            "--source-base-url https://legacy.example.test "
+            "--confirm-source https://legacy.example.test --confirm-bucket approved-bucket",
+            "pnpm run media:producer-map:sync -- \\\n"
+            "  --confirm-bucket 'approved-bucket' \\\n"
+            "  --source-base-url https://legacy.example.test \\\n"
+            "  --apply --confirm-source https://legacy.example.test",
+        )
+        for command in examples:
+            with self.subTest(command=command):
+                self.assert_guarded_producer_map_apply_examples(f"```sh\n{command}\n```\n")
+
+    def test_producer_map_apply_examples_require_guards_in_the_same_command(self):
+        command = (
+            "pnpm run media:producer-map:sync -- --apply "
+            "--source-base-url https://legacy.example.test "
+            "--confirm-source https://legacy.example.test --confirm-bucket approved-bucket"
+        )
+        invalid_examples = {
+            "prose only": command,
+            "comment only": f"```sh\n# {command}\n```\n",
+        }
+        for option, value in (
+            ("--source-base-url", "https://legacy.example.test"),
+            ("--confirm-source", "https://legacy.example.test"),
+            ("--confirm-bucket", "approved-bucket"),
+        ):
+            invalid_examples[f"missing {option}"] = (
+                f"```sh\n{command.replace(f'{option} {value}', '')}\n```\n"
+            )
+        mismatched_source = command.replace(
+            "--confirm-source https://legacy.example.test",
+            "--confirm-source https://other.example.test",
+        )
+        invalid_examples["source mismatch"] = f"```sh\n{mismatched_source}\n```\n"
+        invalid_examples["read-only acceptance with apply"] = (
+            f"```sh\n{command} --require-r2\n```\n"
+        )
+        invalid_examples["missing bucket value"] = (
+            f"```sh\n{command.removesuffix(' approved-bucket')}\n```\n"
+        )
+        for separator in ("\n", "; ", "&& "):
+            separate_command = command.replace(
+                "--confirm-bucket", separator + "echo --confirm-bucket"
+            )
+            invalid_examples[f"separate command {separator!r}"] = (
+                f"```sh\n{separate_command}\n```\n"
+            )
+        for name, document in invalid_examples.items():
+            with self.subTest(case=name), self.assertRaises(AssertionError):
+                self.assert_guarded_producer_map_apply_examples(document)
 
 
 if __name__ == "__main__":

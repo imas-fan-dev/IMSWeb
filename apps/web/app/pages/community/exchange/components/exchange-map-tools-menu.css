@@ -1,0 +1,95 @@
+.exchange-map-tools-trigger {
+  --map-tools-icon-angle: 0deg;
+  --map-tools-icon-scale: 1;
+  transition: background-color var(--duration-fast) var(--ease-interactive);
+}
+
+.exchange-map-tools-trigger[data-popup-open] {
+  --map-tools-icon-angle: 90deg;
+  background-color: var(--accent);
+}
+
+.exchange-map-tools-trigger:active {
+  --map-tools-icon-scale: 0.88;
+}
+
+.exchange-map-tools-icon {
+  transform: rotate(var(--map-tools-icon-angle))
+    scale(var(--map-tools-icon-scale));
+  transition: transform var(--duration-fast) var(--ease-interactive);
+}
+
+.exchange-map-tools-menu {
+  --map-tools-distance: 6px;
+  --map-tools-enter-x: 0px;
+  --map-tools-enter-y: var(--map-tools-distance);
+  --map-tools-enter-scale: 0.98;
+  opacity: 1;
+  transform: translate(0, 0) scale(1);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--duration-fast) var(--ease-ui),
+    transform var(--duration-fast) var(--ease-emphasized);
+}
+
+.exchange-map-tools-menu[data-side="bottom"] {
+  --map-tools-enter-y: calc(-1 * var(--map-tools-distance));
+}
+
+.exchange-map-tools-menu[data-side="left"] {
+  --map-tools-enter-x: var(--map-tools-distance);
+  --map-tools-enter-y: 0px;
+}
+
+.exchange-map-tools-menu[data-side="right"] {
+  --map-tools-enter-x: calc(-1 * var(--map-tools-distance));
+  --map-tools-enter-y: 0px;
+}
+
+.exchange-map-tools-menu[data-starting-style],
+.exchange-map-tools-menu[data-ending-style] {
+  opacity: 0;
+  transform: translate(var(--map-tools-enter-x), var(--map-tools-enter-y))
+    scale(var(--map-tools-enter-scale));
+}
+
+.exchange-map-tools-menu[data-ending-style] {
+  pointer-events: none;
+}
+
+.exchange-map-tools-menu[data-instant] {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.exchange-map-tools-menu.exchange-map-app-surface {
+  --map-tools-distance: 4px;
+  --map-tools-enter-scale: 1;
+}
+
+@media (max-width: 1023px) {
+  .exchange-map-tools-menu {
+    --map-tools-distance: 4px;
+    --map-tools-enter-scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exchange-map-tools-trigger,
+  .exchange-map-tools-icon {
+    transition: none;
+  }
+
+  .exchange-map-tools-trigger:active {
+    --map-tools-icon-scale: 1;
+  }
+
+  .exchange-map-tools-menu,
+  .exchange-map-tools-menu[data-starting-style],
+  .exchange-map-tools-menu[data-ending-style] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

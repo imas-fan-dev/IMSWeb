@@ -1,9 +1,9 @@
 import { RefreshCwIcon, SearchIcon, XIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { WikiGlobalSearchResults } from "~/components/wiki/wiki-global-search-results"
 import type { WikiRandomBackground } from "~/lib/api"
 import type { WikiPublicSearchEntry } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 interface ClassicWikiToolsProps {
   background: WikiRandomBackground | null
@@ -27,7 +27,7 @@ export function ClassicWikiTools({
   return (
     <>
       {background?.url ? (
-        <Link
+        <NavigationLink
           to={`/story/classic?agency=${encodeURIComponent(background.agency_name ?? "")}&idol=${encodeURIComponent(background.idol_name ?? "")}`}
           className="wiki-classic-background-source"
         >
@@ -36,7 +36,7 @@ export function ClassicWikiTools({
             {background.idol_name || "剧情视觉"}
             {background.card_name ? ` · ${background.card_name}` : ""}
           </span>
-        </Link>
+        </NavigationLink>
       ) : null}
       <button
         type="button"

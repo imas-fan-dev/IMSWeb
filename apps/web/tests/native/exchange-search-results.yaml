@@ -1,0 +1,11 @@
+appId: top.idol-master.imsweb
+---
+- tapOn: "查找"
+- assertVisible:
+    id: "ims-native-search-result-native-place:1"
+- assertNotVisible:
+    id: "inputView"
+- assertNotVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- takeScreenshot:
+    path: "NativeSearchResultsLarge"

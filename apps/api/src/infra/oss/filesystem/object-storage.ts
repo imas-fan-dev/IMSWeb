@@ -70,7 +70,8 @@ export class FilesystemObjectStorage implements ObjectStorage {
         let relative = normalized;
         if (
             normalized.startsWith('editorial/') ||
-            normalized.startsWith('community/')
+            normalized.startsWith('community/') ||
+            normalized.startsWith('catalog/')
         ) {
             root = this.roots.uploadsDir;
         } else if (normalized.startsWith('chronicle/')) {
@@ -183,6 +184,10 @@ export class FilesystemObjectStorage implements ObjectStorage {
     }
 
     async publish(key: string): Promise<void> {
+        if (!await this.exists(key)) throw new Error('Object not found');
+    }
+
+    async protect(key: string): Promise<void> {
         if (!await this.exists(key)) throw new Error('Object not found');
     }
 

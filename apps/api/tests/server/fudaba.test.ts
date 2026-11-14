@@ -1,0 +1,11753 @@
+// Merged from 19 sibling files that each keep their own describe block.
+// The block around every contribution gives it its own scope, so identically
+// named fixtures from different files cannot clash.
+
+import { readContractJson as contractJson } from '../contracts/contract-json';
+import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex, fixtureSha256Hex as hash } from '../fixtures/auth-request';
+import { CANONICAL_FUDABA_AGENCIES, projectCanonicalFudabaAgencies } from '../fixtures/fudaba-agency-catalog';
+import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardPageRow, cardPageWrite, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, pageObjectKey, pageRowsFromWrites, PNG_BYTES, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, storedPageKey, uploadedFile } from '../fixtures/owner-route-fixture';
+import { insertBackofficeAccount, insertFudabaOfficePublicLocation, insertPlatformAccount } from '../fixtures/rows';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+import { createMigrationCatalogBefore } from '../integration/migration-catalog';
+import { createPostgresTestHarness, type PostgresTestHarness } from '../integration/postgres-harness';
+import { connectPostgresTestDatabase, createPostgresTestDatabase, postgresTest } from '../postgres-test-database';
+import { createTestApp, testRequest } from './test-app';
+import { createHonoApp } from '@/app';
+import type { AppEnvironment } from '@/app';
+import { BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_CSRF_TOKEN_COOKIE } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
+import { parseFudabaCardCreateFields } from '@/domains/community/fudaba/cards/request';
+import { parseLegacyCardClaim } from '@/domains/community/fudaba/claims/request';
+import { fudabaCardClaimView } from '@/domains/community/fudaba/contracts/claim';
+import { parseFudabaMapQuery } from '@/domains/community/fudaba/directory/request';
+import { fudabaPublicMapOfficeView, fudabaPublicOfficeView } from '@/domains/community/fudaba/directory/response';
+import { handleReviewFudabaCardClaim, handleReviewFudabaRegisteredCard } from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
+import { toPublicNamecardResponse } from '@/domains/community/namecards/response';
+import { PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_CSRF_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';
+import type { PostgresConnection } from '@/infra/db/postgresql/connection';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
+import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
+import { SqlNamecardNotificationRepository } from '@/infra/db/repositories/namecard-notification-repository';
+import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
+import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
+import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
+import type { ManagedSqlDatabase, SqlDatabase, SqlResult, SqlSchemaStrategy, SqlStatement } from '@/infra/db/sql/database';
+import type { CacheStore, RateLimiter } from '@/ports/cache';
+import type { ParsedUpload, UploadedFile, UploadParser } from '@/ports/http';
+import type { ImageInfo, ImageProcessor } from '@/ports/media';
+import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
+import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaCardMetadataInput, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
+import type { RuntimeServices } from '@/ports/runtime-services';
+import { FUDABA_MAP_DELIVERY_OBJECT_KEY } from '@/utils/storage/business-object-keys';
+import { fudabaCardDeleteResponseSchema, fudabaCardInteractionResponseSchema, fudabaCardMutationResponseSchema, fudabaCardPageSchema, fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema, fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOfficeDetailSchema, fudabaOfficeMutationResponseSchema, fudabaOfficePageSchema, fudabaOwnerCardDetailSchema, fudabaOwnerCardListSchema, fudabaOwnerLocationDetailSchema, fudabaOwnerLocationMutationResponseSchema, fudabaOwnerLocationWithdrawalResponseSchema, fudabaOwnerOfficeListSchema, fudabaPlaceSearchResponseSchema, fudabaSeriesListSchema } from '@imsweb/contracts/fudaba';
+import { fudabaCardClaimErrorSchema, ownerClaimListSchema, reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
+import { namecardCharacterCatalogSchema } from '@imsweb/contracts/fudaba/characters';
+import { fudabaLocationReviewErrorSchema, fudabaLocationReviewListSchema, fudabaLocationReviewMutationSchema } from '@imsweb/contracts/fudaba/location-review';
+import { fudabaMapDeliveryErrorSchema, fudabaMapDeliveryMutationSchema, fudabaMapDeliverySnapshotSchema } from '@imsweb/contracts/fudaba/map-delivery';
+import { Hono } from 'hono';
+import { S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { describe, onTestFinished, test } from 'vitest';
+
+/** Explicit approved baseline for tests about public ownership/filtering, not submissions. */
+async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId?: string): Promise<void> {
+    const reviewerId = await insertBackofficeAccount(database, `office-fixture-${randomUUID()}`);
+    await database.prepare(`UPDATE fudaba_offices SET review_state='published',
+        review_submitted_at=created_at, reviewed_at=updated_at, reviewed_by=?, review_note='',
+        review_operation_id=NULL, review_audit_id=? ${officeId ? 'WHERE id=?' : ''}`)
+        .bind(reviewerId, randomUUID(), ...(officeId ? [officeId] : [])).run();
+}
+
+// fudaba-agency-catalog.test.ts
+{
+    test.describe('canonical Fudaba agency data', () => {
+        test('keeps IDs, ordering, names, colors, and icons', () => {
+            assert.deepEqual(CANONICAL_FUDABA_AGENCIES, [
+                { id: 1, code: '765', name: '765PRO', color: '#f34f6d', order: 0,
+                    iconObjectKey: 'wiki/shared/static/icon/765pro.webp' },
+                { id: 2, code: '876', name: '876PRO', color: '#656a75', order: 1,
+                    iconObjectKey: 'wiki/shared/static/icon/876pro.webp' },
+                { id: 3, code: 'cg', name: '灰姑娘女孩', color: '#2681c8', order: 2,
+                    iconObjectKey: 'wiki/shared/static/icon/cg.webp' },
+                { id: 4, code: 'ml', name: '百万现场', color: '#ffc30b', order: 3,
+                    iconObjectKey: 'wiki/shared/static/icon/ml.webp' },
+                { id: 5, code: 'sidem', name: 'SideM', color: '#0fbe94', order: 4,
+                    iconObjectKey: 'wiki/shared/static/icon/sidem.webp' },
+                { id: 6, code: 'sc', name: '闪耀色彩', color: '#8dbbff', order: 5,
+                    iconObjectKey: 'wiki/shared/static/icon/sc.webp' },
+                { id: 7, code: 'gk', name: '学园偶像大师', color: '#f39800', order: 6,
+                    iconObjectKey: 'wiki/shared/static/icon/gk.webp' }
+            ]);
+        });
+
+        test('is frozen and projections are fresh', () => {
+            assert.equal(Object.isFrozen(CANONICAL_FUDABA_AGENCIES), true);
+            assert.equal(CANONICAL_FUDABA_AGENCIES.every(Object.isFrozen), true);
+
+            const first = projectCanonicalFudabaAgencies();
+            const second = projectCanonicalFudabaAgencies();
+            assert.notEqual(first, second);
+            assert.notEqual(first[0], second[0]);
+            first[0]!.name = 'mutated projection';
+            assert.equal(second[0]!.name, '765PRO');
+            assert.equal(CANONICAL_FUDABA_AGENCIES[0]!.name, '765PRO');
+        });
+    });
+}
+
+// fudaba-agency-migration.test.ts
+{
+    const require = createRequire(__filename);
+    const { migratePostgres } = require(
+        '../../scripts/migration/postgres-migrations.js'
+    ) as {
+        migratePostgres(options: {
+            connectionString: string;
+            migrationsPath?: string;
+        }): Promise<unknown>;
+    };
+
+    const AGENCY_CATALOG_MIGRATION = '0027_fudaba_agency_catalog.sql';
+
+    async function createLegacyHarness(): Promise<PostgresTestHarness> {
+        const harness = await createPostgresTestHarness({
+            migrationsPath: await createMigrationCatalogBefore(onTestFinished, AGENCY_CATALOG_MIGRATION),
+            seedCanonicalAgencies: false
+        });
+        onTestFinished(() => harness.close());
+        await seedCanonicalFudabaAgencies(harness.connection);
+        await harness.connection.prepare(
+            `INSERT INTO platform_accounts
+            (id, status, token_version, created_at, updated_at, deleted_at)
+         VALUES ('agency-migration-owner', 'active', 0, 1700000000000,
+                 1700000000000, NULL)`
+        ).run();
+        await harness.connection.prepare(
+            `INSERT INTO fudaba_offices
+            (id, owner_account_id, slug, name, intro, city, address,
+             latitude, longitude, accent, cover_object_key, is_open,
+             visitor_count, status, revision, created_at, updated_at,
+             archived_at)
+         VALUES
+            ('agency-migration-office', 'agency-migration-owner',
+             'agency-migration-office', 'Migration Office', '', 'Shanghai',
+             'Migration Street', 31.23, 121.47, '#ef5b6c', NULL, TRUE,
+             0, 'active', 0, '2026-08-03T00:00:00.000Z',
+             '2026-08-03T00:00:00.000Z', NULL)`
+        ).run();
+        return harness;
+    }
+
+    describe('PostgreSQL 0027', () => {
+        postgresTest('maps associated Fudaba series to canonical agencies', async () => {
+            const harness = await createLegacyHarness();
+            const mappings = [
+                ['765as', '765'],
+                ['cinderella', 'cg'],
+                ['million-live', 'ml'],
+                ['sidem', 'sidem'],
+                ['shiny-colors', 'sc'],
+                ['gakuen', 'gk']
+            ] as const;
+            for (const [index, [legacyCode]] of mappings.entries()) {
+                await harness.connection.prepare(
+                    `INSERT INTO fudaba_office_series_tags
+                (office_id, series_code, display_order)
+             VALUES ('agency-migration-office', ?, ?)`
+                ).bind(legacyCode, index).run();
+                await harness.connection.prepare(
+                    `INSERT INTO fudaba_cards
+                (id, owner_account_id, producer_name, display_name,
+                 series_code, favorite_idol, front_object_key,
+                 back_object_key, accent, bio, trade_note, available,
+                 source_url, source_label, source_credit, media_rights_status,
+                 publication_status, revision, created_at,
+                 updated_at, deleted_at)
+             VALUES (?, 'agency-migration-owner', 'Producer', ?, ?, '', ?, ?,
+                     '#4f64dd', '', '', TRUE, NULL, NULL, NULL, 'approved',
+                     'published', 0, '2026-08-03T00:00:00.000Z',
+                     '2026-08-03T00:00:00.000Z', NULL)`
+                ).bind(
+                    `agency-card-${index}`,
+                    `Agency Card ${index}`,
+                    legacyCode,
+                    `cards/agency-card-${index}/front.webp`,
+                    `cards/agency-card-${index}/back.webp`
+                ).run();
+            }
+
+            await migratePostgres({ connectionString: harness.databaseUrl });
+
+            const expectedCodes = mappings.map(([, code]) => code).sort();
+            const officeCodes = await harness.connection.prepare(
+                `SELECT series_code
+         FROM fudaba_office_series_tags
+         WHERE office_id='agency-migration-office'
+         ORDER BY series_code`
+            ).all<{ series_code: string }>();
+            const cardCodes = await harness.connection.prepare(
+                `SELECT series_code
+         FROM fudaba_card_series
+         WHERE card_id IN (
+             SELECT id FROM fudaba_cards
+             WHERE owner_account_id='agency-migration-owner'
+         )
+         ORDER BY series_code`
+            ).all<{ series_code: string }>();
+            assert.deepEqual(
+                officeCodes.results.map(({ series_code }) => series_code),
+                expectedCodes
+            );
+            assert.deepEqual(
+                cardCodes.results.map(({ series_code }) => series_code),
+                expectedCodes
+            );
+            assert.equal(await harness.connection.prepare(
+                `SELECT to_regclass('public.fudaba_series_tags') AS table_name`
+            ).first<string>('table_name'), null);
+
+            const foreignKeys = await harness.connection.prepare(
+                `SELECT source.relname AS source_table,
+                target.relname AS target_table
+         FROM pg_constraint constraint_record
+         JOIN pg_class source ON source.oid=constraint_record.conrelid
+         JOIN pg_class target ON target.oid=constraint_record.confrelid
+         WHERE constraint_record.contype='f'
+           AND constraint_record.conname IN (
+               'fudaba_office_series_tags_series_code_fkey',
+               'fudaba_card_series_series_code_fkey'
+           )
+         ORDER BY source.relname`
+            ).all<{ source_table: string; target_table: string }>();
+            assert.deepEqual(foreignKeys.results, [
+                {
+                    source_table: 'fudaba_card_series',
+                    target_table: 'projects'
+                },
+                {
+                    source_table: 'fudaba_office_series_tags',
+                    target_table: 'projects'
+                }
+            ]);
+        });
+
+        postgresTest('blocks associated valiv instead of mapping it to 876', async () => {
+            const harness = await createLegacyHarness();
+            await harness.connection.prepare(
+                `INSERT INTO fudaba_office_series_tags
+            (office_id, series_code, display_order)
+         VALUES ('agency-migration-office', 'valiv', 0)`
+            ).run();
+
+            await assert.rejects(
+                migratePostgres({ connectionString: harness.databaseUrl }),
+                /FUDABA_VALIV_AGENCY_RECONCILIATION_REQUIRED/
+            );
+            assert.equal(await harness.connection.prepare(
+                `SELECT series_code
+         FROM fudaba_office_series_tags
+         WHERE office_id='agency-migration-office'`
+            ).first<string>('series_code'), 'valiv');
+            assert.notEqual(await harness.connection.prepare(
+                `SELECT to_regclass('public.fudaba_series_tags') AS table_name`
+            ).first<string>('table_name'), null);
+        });
+    });
+}
+
+// fudaba-card-claim-contract.test.ts
+{
+    function registeredFields(favoriteCharacterIds: string) {
+        return {
+            producerName: 'Producer',
+            seriesCodes: '["765"]',
+            favoriteCharacterIds,
+            bio: '',
+            tradeNote: '',
+            exchangeMode: 'manual'
+        };
+    }
+
+    test.describe('Fudaba card claims', () => {
+        test('registered card fields accept ordered multi-character JSON and reject invalid sets', () => {
+            assert.deepEqual(
+                parseFudabaCardCreateFields(registeredFields('[3,1,2]')).favoriteCharacterIds,
+                [3, 1, 2]
+            );
+            // 担当角色是可选项，空集合与缺省一样合法。
+            assert.deepEqual(
+                parseFudabaCardCreateFields(registeredFields('[]')).favoriteCharacterIds,
+                []
+            );
+            for (const favoriteCharacterIds of ['[1,1]', '[0]', 'not-json']) {
+                assert.throws(
+                    () => parseFudabaCardCreateFields(registeredFields(favoriteCharacterIds)),
+                    /favoriteCharacterIds/
+                );
+            }
+            assert.throws(
+                () => parseFudabaCardCreateFields({
+                    ...registeredFields('[1]'),
+                    favoriteCharacter: 'legacy scalar'
+                }),
+                /未知字段/
+            );
+        });
+
+        test('legacy card claims accept cross-series selections and enforce 0..20 unique characters', () => {
+            assert.deepEqual(parseLegacyCardClaim({
+                targetCardId: null,
+                payload: {
+                    seriesCodes: ['765'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    producerName: '同一位制作人',
+                    producerReading: 'おなじ',
+                    groupName: '本家',
+                    madeOn: '2026-10'
+                },
+                message: 'same producer'
+            }), {
+                targetCardId: null,
+                payload: {
+                    seriesCodes: ['765'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    producerName: '同一位制作人',
+                    producerReading: 'おなじ',
+                    groupName: '本家',
+                    madeOn: '2026-10'
+                },
+                message: 'same producer'
+            });
+            // 企划 and 担当角色 are optional: an absent series and an empty character
+            // list reach the repository, which then derives the series itself.
+            assert.deepEqual(parseLegacyCardClaim({
+                targetCardId: null,
+                payload: { favoriteCharacterIds: [] },
+                message: ''
+            }), {
+                targetCardId: null,
+                payload: { favoriteCharacterIds: [] },
+                message: ''
+            });
+            assert.deepEqual(parseLegacyCardClaim({
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [], groupName: null },
+                message: ''
+            }), {
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [], groupName: null },
+                message: ''
+            });
+            for (const favoriteCharacterIds of [
+                [1, 1],
+                [0],
+                Array.from({ length: 201 }, (_, index) => index + 1)
+            ]) {
+                assert.throws(() => parseLegacyCardClaim({
+                    targetCardId: null,
+                    payload: { seriesCodes: ['765'], favoriteCharacterIds },
+                    message: ''
+                }), /favoriteCharacterIds/);
+            }
+            assert.throws(() => parseLegacyCardClaim({
+                targetCardId: null,
+                payload: { seriesCodes: ['Not A Series'], favoriteCharacterIds: [] },
+                message: ''
+            }), /seriesCodes/);
+            // An empty payload now means "no change": the card may already have
+            // been completed by someone else, so only the required fields gate it.
+            assert.deepEqual(parseLegacyCardClaim({
+                targetCardId: null,
+                payload: {},
+                message: ''
+            }), { targetCardId: null, payload: {}, message: '' });
+        });
+
+        test('namecard and claim views expose structured character and claim metadata', () => {
+            const publicCard = toPublicNamecardResponse({
+                id: 7,
+                status: 'approved',
+                created_at: '2026-08-16T19:30:00.000Z',
+                series_code: '765',
+                favorite_characters: [{
+                    character_id: 900_001,
+                    agency_code: '765',
+                    name_cn: '测试春香',
+                    display_order: 0
+                }],
+                claim_status: 'pending',
+                viewer_claim_state: 'pending',
+                claimer_name: null,
+                claimer_account_id: null
+            });
+            assert.equal(publicCard.seriesCode, '765');
+            assert.deepEqual(publicCard.favoriteCharacters, [{
+                id: 900_001,
+                name: '测试春香',
+                seriesCode: '765'
+            }]);
+            assert.equal(publicCard.claimStatus, 'pending');
+            assert.equal(publicCard.viewerClaimState, 'pending');
+            assert.equal(publicCard.claimerName, null);
+
+            const historicalCard = toPublicNamecardResponse({
+                id: 8,
+                status: 'approved',
+                created_at: null
+            });
+            assert.equal(historicalCard.seriesCode, null);
+            assert.deepEqual(historicalCard.favoriteCharacters, []);
+            assert.equal(historicalCard.claimStatus, 'unclaimed');
+            assert.equal(historicalCard.claimerName, null);
+
+            const claimedCard = toPublicNamecardResponse({
+                id: 9,
+                status: 'approved',
+                created_at: null,
+                claim_status: 'claimed',
+                claimer_name: '  Producer primary  ',
+                claimer_account_id: 'account-1'
+            });
+            assert.equal(claimedCard.claimerName, 'Producer primary');
+
+            const claim: FudabaCardClaimRecord = {
+                id: 'claim-1',
+                legacy_card_id: 7,
+                claimant_account_id: 'account-1',
+                target_card_id: null,
+                payload: {},
+                series_code: '765',
+                state: 'pending',
+                message: '',
+                review_note: '',
+                reviewed_by: null,
+                reviewed_at: null,
+                revision: 0,
+                created_at: '2026-08-16T19:30:00.000Z',
+                updated_at: '2026-08-16T19:30:00.000Z',
+                favorite_characters: [{
+                    character_id: 900_001,
+                    agency_code: '765',
+                    name_cn: '测试春香',
+                    display_order: 0
+                }]
+            };
+            assert.deepEqual(fudabaCardClaimView(claim).favoriteCharacters, [{
+                id: 900_001,
+                name: '测试春香',
+                seriesCode: '765'
+            }]);
+        });
+    });
+}
+
+// fudaba-card-interaction-routes.test.ts
+{
+    const ACCOUNT_ID = 'interaction-account';
+    const TOKEN = 'interaction-access-token';
+    const CSRF = 'interaction-csrf-secret';
+    const CARD_ID = 'interaction-card';
+    const CREATED_AT = '2026-08-02T00:00:00.000Z';
+
+    class PublicMediaStorage implements ObjectStorage {
+        async createPublicReadUrl(key: string): Promise<string | null> {
+            return `https://media.example.test/${key}`;
+        }
+        async get(): Promise<StoredObject | null> {
+            return null;
+        }
+        async put(
+            _key: string,
+            body: Uint8Array,
+            options: PutObjectOptions = {}
+        ): Promise<StoredObject> {
+            return {
+                body,
+                size: body.byteLength,
+                contentType: options.contentType || 'application/octet-stream',
+                etag: 'unused'
+            };
+        }
+        async delete(): Promise<void> {}
+        async exists(): Promise<boolean> {
+            return false;
+        }
+        async copy(): Promise<void> {}
+        async move(): Promise<void> {}
+        async list(): Promise<ListedObject[]> {
+            return [];
+        }
+        async deletePrefix(): Promise<void> {}
+    }
+
+    class ControlledRateLimiter implements RateLimiter {
+        readonly deniedBuckets = new Set<string>();
+
+        async consume(
+            bucket: string,
+            _key: string,
+            limit: number
+        ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+            const denied = this.deniedBuckets.has(bucket);
+            return {
+                allowed: !denied,
+                remaining: denied ? 0 : limit - 1,
+                resetAt: Date.now() + 60_000
+            };
+        }
+    }
+
+    function publicCard(
+        overrides: Partial<FudabaPublicCardRecord> = {}
+    ): FudabaPublicCardRecord {
+        return {
+            id: CARD_ID,
+            producer_name: 'Producer A',
+            series_codes: ['765'],
+            favorite_characters: [],
+            pages: [cardPageRow('front', 1), cardPageRow('back', 2)],
+            middle_object_keys: [],
+            accent: '#4f64dd',
+            bio: 'Public bio',
+            trade_note: 'Trade note',
+            exchange_mode: 'manual',
+            made_on: null,
+            group_name: null,
+            producer_reading: null,
+            is_original: false,
+            made_with_ai: false,
+            visible: true,
+            credits: [],
+            created_at: CREATED_AT,
+            like_count: 2,
+            favorite_count: 1,
+            viewer_liked: false,
+            viewer_favorited: false,
+            ...overrides
+        };
+    }
+
+    interface FixtureOptions {
+        accountStatus?: PlatformAccountStatus;
+        writeEnabled?: boolean;
+    }
+
+    class InteractionFixture {
+        readonly accountStatus: PlatformAccountStatus;
+        readonly writeEnabled: boolean;
+        readonly rateLimiter = new ControlledRateLimiter();
+        readonly interactionInputs: Array<
+            Parameters<FudabaRepository['setCardInteraction']>[0]
+        > = [];
+        readonly cardListInputs: ListFudabaPublicCardsInput[] = [];
+        readonly likes = new Set<string>();
+        readonly favorites = new Set<string>();
+        readonly app: ReturnType<typeof createHonoApp>;
+
+        constructor(options: FixtureOptions = {}) {
+            this.accountStatus = options.accountStatus ?? 'active';
+            this.writeEnabled = options.writeEnabled ?? true;
+            this.app = createHonoApp(() => this.runtime());
+        }
+
+        private state(): FudabaCardInteractionStateRecord {
+            return {
+                like_count: 2 + (this.likes.has(ACCOUNT_ID) ? 1 : 0),
+                favorite_count: 1 + (this.favorites.has(ACCOUNT_ID) ? 1 : 0),
+                viewer_liked: this.likes.has(ACCOUNT_ID),
+                viewer_favorited: this.favorites.has(ACCOUNT_ID)
+            };
+        }
+
+        readonly fudaba = {
+            setCardInteraction: async (
+                input: Parameters<FudabaRepository['setCardInteraction']>[0]
+            ) => {
+                this.interactionInputs.push(input);
+                if (input.cardId !== CARD_ID) return false;
+                const set = input.kind === 'like' ? this.likes : this.favorites;
+                if (input.active) return !set.has(input.accountId) &&
+                    Boolean(set.add(input.accountId));
+                return set.delete(input.accountId);
+            },
+            findPublicCardInteractions: async (
+                cardId: string,
+                viewerAccountId: string | null
+            ) => {
+                if (cardId !== CARD_ID) return null;
+                assert.equal(viewerAccountId, ACCOUNT_ID);
+                return this.state();
+            },
+            listPublicCards: async (input: ListFudabaPublicCardsInput) => {
+                this.cardListInputs.push(input);
+                if (input.favoritedByAccountId !== ACCOUNT_ID) return [];
+                return this.favorites.has(ACCOUNT_ID)
+                    ? [
+                          publicCard({
+                              viewer_favorited: true,
+                              favorite_count: 2
+                          })
+                      ]
+                    : [];
+            }
+        } as unknown as FudabaRepository;
+
+        private runtime(): RuntimeServices {
+            const now = Date.now();
+            return {
+                fudaba: this.fudaba,
+                storage: new PublicMediaStorage(),
+                rateLimiter: this.rateLimiter,
+                platformTokens: {
+                    async sign() {
+                        return TOKEN;
+                    },
+                    async verify(token: string) {
+                        if (token !== TOKEN) throw new Error('invalid token');
+                        return {
+                            iss: 'imsweb' as const,
+                            aud: 'ims-platform' as const,
+                            kind: 'platform' as const,
+                            id: ACCOUNT_ID,
+                            tokenVersion: 0,
+                            sessionId: 'interaction-session',
+                            csrfSecret: CSRF,
+                            jti: 'interaction-access',
+                            iat: Math.floor(now / 1000),
+                            exp: Math.floor(now / 1000) + 900
+                        };
+                    }
+                },
+                platformAccounts: {
+                    findRefreshSessionById: async (id: string) =>
+                        id === 'interaction-session'
+                            ? {
+                                  id,
+                                  account_id: ACCOUNT_ID,
+                                  token_hash: 'hash',
+                                  previous_token_hash: null,
+                                  csrf_hash: fixtureSha256Hex(CSRF),
+                                  expires_at: now + 60_000,
+                                  created_at: now,
+                                  updated_at: now,
+                                  revoked_at: null
+                              }
+                            : null,
+                    findAccountWithProfileById: async (id: string) =>
+                        id === ACCOUNT_ID
+                            ? {
+                                  account: {
+                                      id,
+                                      status: this.accountStatus,
+                                      token_version: 0,
+                                      created_at: now,
+                                      updated_at: now,
+                                      deleted_at: null
+                                  },
+                                  profile: {
+                                      account_id: id,
+                                      display_name: 'Interaction Account',
+                                      avatar_object_key: null,
+                                      avatar_external_url: null,
+                                      home_city: null,
+                                      bio: '',
+                                      updated_at: now
+                                  }
+                              }
+                            : null,
+                    revokeRefreshSession: async () => true
+                } as unknown as NonNullable<RuntimeServices['platformAccounts']>,
+                config: {
+                    fudabaWriteEnabled: this.writeEnabled,
+                    fudabaPublicReadEnabled: true
+                }
+            };
+        }
+    }
+
+    function bearerHeaders(): Record<string, string> {
+        return bearerTokenHeaders(TOKEN);
+    }
+
+    function cookieHeaders(includeCsrfHeader: boolean): Record<string, string> {
+        return cookieCsrfHeaders([
+            [PLATFORM_ACCESS_TOKEN_COOKIE, TOKEN],
+            [PLATFORM_CSRF_TOKEN_COOKIE, CSRF]
+        ], includeCsrfHeader ? CSRF : null);
+    }
+
+    function interactionPath(kind: 'like' | 'favorite', cardId = CARD_ID): string {
+        return `http://ims.test/api/community/exchange/cards/${cardId}/${kind}`;
+    }
+
+    test.describe('card interaction routes', () => {
+        test('enforce the write gate, auth, CSRF, and rate limit',
+            async () => {
+                const disabled = new InteractionFixture({ writeEnabled: false });
+                assert.equal((await disabled.app.request(interactionPath('like'), {
+                    method: 'PUT',
+                    headers: bearerHeaders()
+                })).status, 404);
+
+                const fixture = new InteractionFixture();
+                assert.equal((await fixture.app.request(interactionPath('like'), {
+                    method: 'PUT'
+                })).status, 401);
+                assert.equal((await fixture.app.request(interactionPath('like'), {
+                    method: 'PUT',
+                    headers: cookieHeaders(false)
+                })).status, 403);
+
+                const restricted = new InteractionFixture({
+                    accountStatus: 'restricted'
+                });
+                assert.equal((await restricted.app.request(interactionPath('favorite'), {
+                    method: 'PUT',
+                    headers: bearerHeaders()
+                })).status, 403);
+
+                const limited = new InteractionFixture();
+                limited.rateLimiter.deniedBuckets.add('platform-write-account');
+                assert.equal((await limited.app.request(interactionPath('like'), {
+                    method: 'PUT',
+                    headers: bearerHeaders()
+                })).status, 429);
+
+                assert.deepEqual(fixture.interactionInputs, []);
+            });
+
+        test('liking and unliking a card round-trips through the repository',
+            async () => {
+                const fixture = new InteractionFixture();
+                const liked = await fixture.app.request(interactionPath('like'), {
+                    method: 'PUT',
+                    headers: cookieHeaders(true)
+                });
+                assert.equal(liked.status, 200);
+                const likedBody = await contractJson(
+                    liked,
+                    fudabaCardInteractionResponseSchema
+                );
+                assert.deepEqual(likedBody, {
+                    success: true,
+                    cardId: CARD_ID,
+                    interactions: {
+                        likes: 3,
+                        favorites: 1,
+                        viewerLiked: true,
+                        viewerFavorited: false
+                    }
+                });
+
+                const unliked = await fixture.app.request(interactionPath('like'), {
+                    method: 'DELETE',
+                    headers: cookieHeaders(true)
+                });
+                assert.equal(unliked.status, 200);
+                assert.deepEqual(await contractJson(unliked, fudabaCardInteractionResponseSchema), {
+                    success: true,
+                    cardId: CARD_ID,
+                    interactions: {
+                        likes: 2,
+                        favorites: 1,
+                        viewerLiked: false,
+                        viewerFavorited: false
+                    }
+                });
+
+                assert.deepEqual(
+                    fixture.interactionInputs.map(({ kind, active, cardId, accountId }) =>
+                        ({ kind, active, cardId, accountId })),
+                    [
+                        {
+                            kind: 'like',
+                            active: true,
+                            cardId: CARD_ID,
+                            accountId: ACCOUNT_ID
+                        },
+                        {
+                            kind: 'like',
+                            active: false,
+                            cardId: CARD_ID,
+                            accountId: ACCOUNT_ID
+                        }
+                    ]
+                );
+                for (const input of fixture.interactionInputs) {
+                    assert.equal(
+                        new Date(input.createdAt).toISOString(),
+                        input.createdAt
+                    );
+                }
+            });
+
+        test('interactions on unknown cards stay 404 and never leak repository state',
+            async () => {
+                const fixture = new InteractionFixture();
+                const missing = await fixture.app.request(
+                    interactionPath('favorite', 'other-card'),
+                    { method: 'PUT', headers: cookieHeaders(true) }
+                );
+                assert.equal(missing.status, 404);
+                assert.deepEqual(await contractJson(missing, fudabaErrorResponseSchema), {
+                    success: false,
+                    code: 'FUDABA_CARD_INTERACTION_NOT_FOUND'
+                });
+
+                const invalid = await fixture.app.request(
+                    interactionPath('favorite', 'bad%2Fcard'),
+                    { method: 'PUT', headers: cookieHeaders(true) }
+                );
+                assert.equal(invalid.status, 404);
+            });
+
+        test('the favourite collection lists only cards the viewer favourited',
+            async () => {
+                const fixture = new InteractionFixture();
+                const empty = await fixture.app.request(
+                    'http://ims.test/api/community/exchange/me/favorites?limit=12',
+                    { headers: bearerHeaders() }
+                );
+                assert.equal(empty.status, 200);
+                assert.deepEqual(await empty.json(), {
+                    items: [],
+                    pageInfo: { hasNextPage: false, nextCursor: null }
+                });
+
+                assert.equal((await fixture.app.request(
+                    interactionPath('favorite'),
+                    { method: 'PUT', headers: cookieHeaders(true) }
+                )).status, 200);
+
+                const collection = await fixture.app.request(
+                    'http://ims.test/api/community/exchange/me/favorites?limit=12',
+                    { headers: bearerHeaders() }
+                );
+                assert.equal(collection.status, 200);
+                const body = await contractJson(collection, fudabaCardPageSchema);
+                assert.equal(body.items.length, 1);
+                assert.equal(body.items[0].id, CARD_ID);
+                assert.deepEqual(body.items[0].interactions, {
+                    likes: 2,
+                    favorites: 2,
+                    viewerLiked: false,
+                    viewerFavorited: true
+                });
+                assert.equal(
+                    fixture.cardListInputs.at(-1)?.favoritedByAccountId,
+                    ACCOUNT_ID
+                );
+                assert.equal(fixture.cardListInputs.at(-1)?.viewerAccountId, ACCOUNT_ID);
+
+                const anonymous = await fixture.app.request(
+                    'http://ims.test/api/community/exchange/me/favorites'
+                );
+                assert.equal(anonymous.status, 401);
+            });
+    });
+}
+
+// fudaba-card-placement-repository.test.ts
+{
+    const CREATED_AT = '2026-08-03T00:00:00.000Z';
+    const UPDATED_AT = '2026-08-03T00:01:00.000Z';
+    const ARCHIVED_AT = '2026-08-03T00:02:00.000Z';
+
+    const initializedPostgresSchema: SqlSchemaStrategy = {
+        initializeCore: async () => undefined,
+        initializePlatform: async () => undefined,
+        initializeFudaba: async () => undefined,
+        initializeStory: async () => undefined
+    };
+
+    interface Fixture {
+        database: ManagedSqlDatabase;
+        repository: SqlFudabaRepository;
+        dialect: 'postgresql';
+    }
+
+    async function createFixture(
+        dialect: Fixture['dialect']
+    ): Promise<Fixture> {
+        const harness = await createPostgresTestHarness();
+        const repository = new SqlFudabaRepository(
+            harness.connection,
+            initializedPostgresSchema
+        );
+        onTestFinished(() => harness.close());
+        await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
+        return { database: harness.connection, repository, dialect };
+    }
+
+    async function seedAccount(
+        fixture: Fixture,
+        id: string,
+        status: PlatformAccountStatus = 'active'
+    ): Promise<void> {
+        await fixture.database.prepare(
+            `INSERT INTO platform_accounts
+            (id, status, token_version, created_at, updated_at, deleted_at)
+         VALUES (?, ?, 0, 1700000000000, 1700000000000, ?)`
+        ).bind(id, status, status === 'deleted' ? 1700000000000 : null).run();
+    }
+
+    function office(
+        id: string,
+        ownerAccountId: string,
+        overrides: Partial<NewFudabaOfficeInput> = {}
+    ): NewFudabaOfficeInput {
+        return {
+            id,
+            ownerAccountId,
+            slug: id,
+            name: `Office ${id}`,
+            intro: '',
+            city: 'Shanghai',
+            address: 'Private address',
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: '#ef5b6c',
+            coverObjectKey: null,
+            isOpen: true,
+            visitorCount: 0,
+            status: 'active',
+            revision: 0,
+            createdAt: CREATED_AT,
+            updatedAt: CREATED_AT,
+            archivedAt: null,
+            seriesCodes: ['765'],
+            ...overrides
+        };
+    }
+
+    function card(
+        id: string,
+        ownerAccountId: string,
+        overrides: Partial<NewFudabaCardInput> = {}
+    ): NewFudabaCardInput {
+        return {
+            id,
+            ownerAccountId,
+            producerName: `Producer ${ownerAccountId}`,
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001],
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
+            bio: '',
+            tradeNote: '',
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            publicationStatus: 'published',
+            revision: 0,
+            createdAt: CREATED_AT,
+            updatedAt: CREATED_AT,
+            deletedAt: null,
+            ...overrides
+        };
+    }
+
+    function placementInput(
+        officeId: string,
+        cardId: string,
+        ownerAccountId: string,
+        expectedRevision: number | null,
+        updatedAt = CREATED_AT
+    ) {
+        return {
+            officeId,
+            cardId,
+            ownerAccountId,
+            positionX: 12.5,
+            positionY: 87.25,
+            rotation: -4.5,
+            zIndex: 8,
+            expectedRevision,
+            updatedAt
+        };
+    }
+
+    async function assertCardPlacementRepository(
+        dialect: Fixture['dialect']
+    ): Promise<void> {
+        const fixture = await createFixture(dialect);
+        const ownerId = `${dialect}-placement-owner`;
+        const otherId = `${dialect}-placement-other`;
+        const officeId = `${dialect}-placement-office`;
+        const cardId = `${dialect}-placement-card`;
+        const removableCardId = `${dialect}-removable-card`;
+        const closedRemovalCardId = `${dialect}-closed-removal-card`;
+        const closedCreateCardId = `${dialect}-closed-create-card`;
+        const closedOfficeId = `${dialect}-closed-office`;
+        const restrictedOfficeId = `${dialect}-restricted-owner-office`;
+        const restrictedOfficeOwnerId = `${dialect}-restricted-office-owner`;
+        const suspendedOfficeId = `${dialect}-suspended-owner-office`;
+        const suspendedOfficeOwnerId = `${dialect}-suspended-office-owner`;
+        await seedAccount(fixture, ownerId);
+        await seedAccount(fixture, otherId);
+        await seedAccount(fixture, restrictedOfficeOwnerId, 'restricted');
+        await seedAccount(fixture, suspendedOfficeOwnerId, 'suspended');
+        await fixture.repository.createOffice(office(officeId, ownerId));
+        await fixture.repository.createOffice(office(closedOfficeId, otherId, {
+            isOpen: false
+        }));
+        await fixture.repository.createOffice(office(
+            restrictedOfficeId,
+            restrictedOfficeOwnerId
+        ));
+        await fixture.repository.createOffice(office(
+            suspendedOfficeId,
+            suspendedOfficeOwnerId
+        ));
+        await seedPublishedOfficeFixture(fixture.database);
+        await fixture.repository.createCard(card(cardId, ownerId));
+        await fixture.repository.createCard(card(removableCardId, ownerId));
+        await fixture.repository.createCard(card(closedRemovalCardId, ownerId));
+        await fixture.repository.createCard(card(closedCreateCardId, ownerId));
+        await fixture.repository.createCard(card(`${dialect}-other-card`, otherId));
+        await fixture.repository.createCard(card(`${dialect}-pending-card`, ownerId, {
+            publicationStatus: 'pending'
+        }));
+        await fixture.repository.createCard(card(`${dialect}-deleted-card`, ownerId, {
+            publicationStatus: 'pending',
+            updatedAt: UPDATED_AT,
+            deletedAt: UPDATED_AT
+        }));
+        await fixture.repository.createCard(card(`${dialect}-disabled-card`, ownerId, {
+            seriesCodes: ['sidem']
+        }));
+
+        const created = await fixture.repository.saveCardPlacementForOwner(
+            placementInput(officeId, cardId, ownerId, null)
+        );
+        assert.equal(created.status, 'saved');
+        if (created.status !== 'saved') return;
+        assert.equal(created.created, true);
+        assert.deepEqual(created.placement, {
+            office_id: officeId,
+            card_id: cardId,
+            pinned_at: CREATED_AT,
+            position_x: 12.5,
+            position_y: 87.25,
+            rotation: -4.5,
+            z_index: 8,
+            revision: 0,
+            updated_at: CREATED_AT
+        });
+
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(officeId, cardId, ownerId, null)
+            ),
+            { status: 'conflict', revision: 0 }
+        );
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(officeId, cardId, ownerId, 3, UPDATED_AT)
+            ),
+            { status: 'conflict', revision: 0 }
+        );
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(officeId, cardId, otherId, 0, UPDATED_AT)
+            ),
+            { status: 'unavailable' }
+        );
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(closedOfficeId, cardId, ownerId, null)
+            ),
+            { status: 'unavailable' }
+        );
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(suspendedOfficeId, cardId, ownerId, null)
+            ),
+            { status: 'unavailable' }
+        );
+        const restrictedOwnerPlacement =
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(restrictedOfficeId, cardId, ownerId, null)
+            );
+        assert.equal(restrictedOwnerPlacement.status, 'saved');
+
+        const updated = await fixture.repository.saveCardPlacementForOwner({
+            ...placementInput(officeId, cardId, ownerId, 0, UPDATED_AT),
+            positionX: 100,
+            positionY: 0,
+            rotation: 12,
+            zIndex: 999
+        });
+        assert.equal(updated.status, 'saved');
+        if (updated.status !== 'saved') return;
+        assert.equal(updated.created, false);
+        assert.deepEqual(updated.placement, {
+            office_id: officeId,
+            card_id: cardId,
+            pinned_at: CREATED_AT,
+            position_x: 100,
+            position_y: 0,
+            rotation: 12,
+            z_index: 999,
+            revision: 1,
+            updated_at: UPDATED_AT
+        });
+
+        const ownerView = await fixture.repository.findPublicOfficeBySlug(
+            officeId,
+            ownerId
+        );
+        const placedCard = ownerView?.cards.find(({ id }) => id === cardId);
+        assert.ok(placedCard);
+        assert.equal(placedCard.viewer_owned, true);
+        assert.equal(placedCard.revision, 1);
+        assert.equal(placedCard.updated_at, UPDATED_AT);
+        assert.equal(
+            (await fixture.repository.findPublicOfficeBySlug(officeId, otherId))
+                ?.cards.find(({ id }) => id === cardId)?.viewer_owned,
+            false
+        );
+
+        await fixture.database.prepare(
+            'UPDATE agencies SET wiki_enabled=? WHERE code=?'
+        ).bind(false, 'sidem').run();
+        for (const unavailable of [
+            placementInput(officeId, `${dialect}-other-card`, ownerId, null),
+            placementInput(officeId, `${dialect}-pending-card`, ownerId, null),
+            placementInput(officeId, `${dialect}-deleted-card`, ownerId, null),
+            placementInput(officeId, `${dialect}-disabled-card`, ownerId, null),
+            placementInput(`${dialect}-missing-office`, cardId, ownerId, null)
+        ]) {
+            assert.deepEqual(
+                await fixture.repository.saveCardPlacementForOwner(unavailable),
+                { status: 'unavailable' }
+            );
+        }
+
+        assert.deepEqual(await fixture.repository.removeCardPlacementForOwner({
+            officeId,
+            cardId,
+            ownerAccountId: ownerId,
+            expectedRevision: 0
+        }), { status: 'conflict', revision: 1 });
+        assert.deepEqual(await fixture.repository.removeCardPlacementForOwner({
+            officeId,
+            cardId,
+            ownerAccountId: otherId,
+            expectedRevision: 1
+        }), { status: 'unavailable' });
+
+        const removable = await fixture.repository.saveCardPlacementForOwner(
+            placementInput(officeId, removableCardId, ownerId, null)
+        );
+        assert.equal(removable.status, 'saved');
+        const closedRemoval = await fixture.repository.saveCardPlacementForOwner(
+            placementInput(officeId, closedRemovalCardId, ownerId, null)
+        );
+        assert.equal(closedRemoval.status, 'saved');
+        await fixture.database.prepare(
+            'UPDATE fudaba_offices SET is_open=? WHERE id=?'
+        ).bind(false, officeId).run();
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(officeId, cardId, ownerId, 1, ARCHIVED_AT)
+            ),
+            { status: 'unavailable' }
+        );
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(officeId, closedCreateCardId, ownerId, null, ARCHIVED_AT)
+            ),
+            { status: 'unavailable' }
+        );
+        assert.deepEqual(await fixture.repository.removeCardPlacementForOwner({
+            officeId,
+            cardId: closedRemovalCardId,
+            ownerAccountId: ownerId,
+            expectedRevision: 0
+        }), { status: 'removed', revision: 1 });
+        await fixture.database.prepare(
+            'UPDATE fudaba_offices SET is_open=? WHERE id=?'
+        ).bind(true, officeId).run();
+        assert.equal(await fixture.repository.updateOfficeStatusForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            status: 'archived',
+            archivedAt: ARCHIVED_AT,
+            updatedAt: ARCHIVED_AT,
+            expectedRevision: 0
+        }), true);
+        assert.deepEqual(
+            await fixture.repository.saveCardPlacementForOwner(
+                placementInput(officeId, removableCardId, ownerId, 0, ARCHIVED_AT)
+            ),
+            { status: 'unavailable' }
+        );
+        await fixture.database.prepare(
+            `UPDATE fudaba_cards
+         SET publication_status='hidden', revision=revision+1, updated_at=?
+         WHERE id=?`
+        ).bind(ARCHIVED_AT, removableCardId).run();
+        assert.deepEqual(await fixture.repository.removeCardPlacementForOwner({
+            officeId,
+            cardId: removableCardId,
+            ownerAccountId: ownerId,
+            expectedRevision: 0
+        }), { status: 'removed', revision: 1 });
+        assert.equal(await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM fudaba_office_cards
+         WHERE office_id=? AND card_id=?`
+        ).bind(officeId, removableCardId).first<number>('count'), 0);
+    }
+
+    describe('Fudaba card placement repository', () => {
+        postgresTest('real PostgreSQL enforces the same Fudaba card placement contract', async () => {
+            await assertCardPlacementRepository('postgresql');
+        }, 30_000);
+    });
+}
+
+// fudaba-card-placement-routes.test.ts
+{
+    const ACCOUNT_ID = 'placement-owner';
+    const TOKEN = 'placement-access-token';
+    const CSRF = 'placement-csrf-secret';
+    const OFFICE_ID = 'placement-office';
+    const CARD_ID = 'placement-card';
+
+    class ControlledRateLimiter implements RateLimiter {
+        readonly deniedBuckets = new Set<string>();
+        readonly calls: Array<{
+            bucket: string;
+            key: string;
+            limit: number;
+            windowSeconds: number;
+        }> = [];
+
+        async consume(
+            bucket: string,
+            key: string,
+            limit: number,
+            windowSeconds: number
+        ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+            this.calls.push({ bucket, key, limit, windowSeconds });
+            const denied = this.deniedBuckets.has(bucket);
+            return {
+                allowed: !denied,
+                remaining: denied ? 0 : limit - 1,
+                resetAt: Date.now() + 60_000
+            };
+        }
+    }
+
+    interface FixtureOptions {
+        accountStatus?: PlatformAccountStatus;
+        officeOpen?: boolean;
+        officeOwnerStatus?: PlatformAccountStatus;
+        writeEnabled?: boolean;
+    }
+
+    class PlacementRouteFixture {
+        readonly accountStatus: PlatformAccountStatus;
+        readonly writeEnabled: boolean;
+        officeOpen: boolean;
+        officeOwnerStatus: PlatformAccountStatus;
+        readonly rateLimiter = new ControlledRateLimiter();
+        readonly placements = new Map<string, FudabaCardPlacementRecord>();
+        readonly saveInputs: Array<Parameters<
+            FudabaRepository['saveCardPlacementForOwner']
+        >[0]> = [];
+        readonly removeInputs: Array<Parameters<
+            FudabaRepository['removeCardPlacementForOwner']
+        >[0]> = [];
+        readonly app: ReturnType<typeof createHonoApp>;
+
+        constructor(options: FixtureOptions = {}) {
+            this.accountStatus = options.accountStatus ?? 'active';
+            this.officeOpen = options.officeOpen ?? true;
+            this.officeOwnerStatus = options.officeOwnerStatus ?? 'active';
+            this.writeEnabled = options.writeEnabled ?? true;
+            this.app = createHonoApp(() => this.runtime());
+        }
+
+        private key(officeId: string, cardId: string): string {
+            return `${officeId}\u0000${cardId}`;
+        }
+
+        readonly fudaba = {
+            saveCardPlacementForOwner: async (
+                input: Parameters<FudabaRepository['saveCardPlacementForOwner']>[0]
+            ) => {
+                this.saveInputs.push(input);
+                if (
+                    input.ownerAccountId !== ACCOUNT_ID ||
+                    input.officeId !== OFFICE_ID || input.cardId === 'other-card' ||
+                    !this.officeOpen ||
+                    !['active', 'restricted'].includes(this.officeOwnerStatus)
+                ) {
+                    return { status: 'unavailable' as const };
+                }
+                const key = this.key(input.officeId, input.cardId);
+                const current = this.placements.get(key);
+                if (input.expectedRevision === null) {
+                    if (current) {
+                        return {
+                            status: 'conflict' as const,
+                            revision: current.revision
+                        };
+                    }
+                    const placement: FudabaCardPlacementRecord = {
+                        office_id: input.officeId,
+                        card_id: input.cardId,
+                        pinned_at: input.updatedAt,
+                        position_x: input.positionX,
+                        position_y: input.positionY,
+                        rotation: input.rotation,
+                        z_index: input.zIndex,
+                        revision: 0,
+                        updated_at: input.updatedAt
+                    };
+                    this.placements.set(key, placement);
+                    return { status: 'saved' as const, placement, created: true };
+                }
+                if (!current) return { status: 'unavailable' as const };
+                if (current.revision !== input.expectedRevision) {
+                    return {
+                        status: 'conflict' as const,
+                        revision: current.revision
+                    };
+                }
+                const placement: FudabaCardPlacementRecord = {
+                    ...current,
+                    position_x: input.positionX,
+                    position_y: input.positionY,
+                    rotation: input.rotation,
+                    z_index: input.zIndex,
+                    revision: current.revision + 1,
+                    updated_at: input.updatedAt
+                };
+                this.placements.set(key, placement);
+                return { status: 'saved' as const, placement, created: false };
+            },
+            removeCardPlacementForOwner: async (
+                input: Parameters<FudabaRepository['removeCardPlacementForOwner']>[0]
+            ) => {
+                this.removeInputs.push(input);
+                if (
+                    input.ownerAccountId !== ACCOUNT_ID ||
+                    input.officeId !== OFFICE_ID || input.cardId === 'other-card'
+                ) {
+                    return { status: 'unavailable' as const };
+                }
+                const key = this.key(input.officeId, input.cardId);
+                const current = this.placements.get(key);
+                if (!current) return { status: 'unavailable' as const };
+                if (current.revision !== input.expectedRevision) {
+                    return {
+                        status: 'conflict' as const,
+                        revision: current.revision
+                    };
+                }
+                this.placements.delete(key);
+                return {
+                    status: 'removed' as const,
+                    revision: current.revision + 1
+                };
+            }
+        } as unknown as FudabaRepository;
+
+        private runtime(): RuntimeServices {
+            const now = Date.now();
+            return {
+                fudaba: this.fudaba,
+                rateLimiter: this.rateLimiter,
+                platformTokens: {
+                    async sign() { return TOKEN; },
+                    async verify(token: string) {
+                        if (token !== TOKEN) throw new Error('invalid placement token');
+                        return {
+                            iss: 'imsweb' as const,
+                            aud: 'ims-platform' as const,
+                            kind: 'platform' as const,
+                            id: ACCOUNT_ID,
+                            tokenVersion: 0,
+                            sessionId: 'placement-session',
+                            csrfSecret: CSRF,
+                            jti: 'placement-access',
+                            iat: Math.floor(now / 1000),
+                            exp: Math.floor(now / 1000) + 900
+                        };
+                    }
+                },
+                platformAccounts: {
+                    findRefreshSessionById: async (id: string) => id === 'placement-session'
+                        ? {
+                            id,
+                            account_id: ACCOUNT_ID,
+                            token_hash: 'hash',
+                            previous_token_hash: null,
+                            csrf_hash: csrfHash(CSRF),
+                            expires_at: now + 60_000,
+                            created_at: now,
+                            updated_at: now,
+                            revoked_at: null
+                        }
+                        : null,
+                    findAccountWithProfileById: async (id: string) => id === ACCOUNT_ID
+                        ? {
+                            account: {
+                                id,
+                                status: this.accountStatus,
+                                token_version: 0,
+                                created_at: now,
+                                updated_at: now,
+                                deleted_at: this.accountStatus === 'deleted' ? now : null
+                            },
+                            profile: {
+                                account_id: id,
+                                display_name: 'Placement Owner',
+                                avatar_object_key: null,
+                                avatar_external_url: null,
+                                home_city: null,
+                                bio: '',
+                                updated_at: now
+                            }
+                        }
+                        : null,
+                    revokeRefreshSession: async () => true
+                } as unknown as NonNullable<RuntimeServices['platformAccounts']>,
+                config: { fudabaWriteEnabled: this.writeEnabled }
+            };
+        }
+    }
+
+    function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> {
+        return bearerTokenHeaders(TOKEN, extra);
+    }
+
+    function cookieHeaders(includeHeader: boolean): Record<string, string> {
+        return cookieCsrfHeaders([
+            [PLATFORM_ACCESS_TOKEN_COOKIE, TOKEN],
+            [PLATFORM_CSRF_TOKEN_COOKIE, CSRF]
+        ], includeHeader ? CSRF : null);
+    }
+
+    function placementBody(expectedRevision: number | null): Record<string, unknown> {
+        return {
+            x: 25.5,
+            y: 74.5,
+            rotation: -3,
+            zIndex: 12,
+            expectedRevision
+        };
+    }
+
+    function path(cardId = CARD_ID): string {
+        return `/api/community/exchange/offices/${OFFICE_ID}` +
+            `/cards/${cardId}/placement`;
+    }
+
+    test.describe('card placement', () => {
+        test('routes enforce write gate, Platform auth, active status, CSRF, and rate limit',
+            async () => {
+                const disabled = new PlacementRouteFixture({ writeEnabled: false });
+                assert.equal((await disabled.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                })).status, 404);
+
+                const fixture = new PlacementRouteFixture();
+                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify(placementBody(null))
+                })).status, 401);
+                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: {
+                        ...cookieHeaders(false),
+                        'content-type': 'application/json'
+                    },
+                    body: JSON.stringify(placementBody(null))
+                })).status, 403);
+
+                const restricted = new PlacementRouteFixture({ accountStatus: 'restricted' });
+                assert.equal((await restricted.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                })).status, 403);
+
+                const limited = new PlacementRouteFixture();
+                limited.rateLimiter.deniedBuckets.add('platform-write-account');
+                assert.equal((await limited.app.request(`http://ims.test${path()}`, {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: 0 })
+                })).status, 429);
+                assert.ok(limited.rateLimiter.calls.some((call) =>
+                    call.bucket === 'platform-write-account' &&
+                    call.key === ACCOUNT_ID && call.limit === 120 &&
+                    call.windowSeconds === 3600
+                ));
+            });
+
+        test('routes strictly validate geometry and expose create/update CAS DTOs',
+            async () => {
+                const fixture = new PlacementRouteFixture();
+                const created = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                });
+                assert.equal(created.status, 201);
+                const createdBody = await contractJson(
+                    created,
+                    fudabaCardPlacementSaveResponseSchema
+                );
+                const pinnedAt = String(createdBody.placement.pinnedAt);
+                assert.equal(new Date(pinnedAt).toISOString(), pinnedAt);
+                assert.deepEqual(createdBody, {
+                    success: true,
+                    placement: {
+                        pinnedAt,
+                        x: 25.5,
+                        y: 74.5,
+                        rotation: -3,
+                        zIndex: 12,
+                        revision: 0,
+                        updatedAt: pinnedAt
+                    }
+                });
+
+                const duplicate = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                });
+                assert.equal(duplicate.status, 409);
+                assert.equal((await duplicate.json() as { revision: number }).revision, 0);
+
+                for (const invalid of [
+                    { ...placementBody(0), x: -0.01 },
+                    { ...placementBody(0), y: 100.01 },
+                    { ...placementBody(0), rotation: 12.01 },
+                    { ...placementBody(0), zIndex: 1.5 },
+                    { ...placementBody(0), expectedRevision: '0' },
+                    { ...placementBody(0), expectedRevision: 2_147_483_648 },
+                    { ...placementBody(0), unexpected: true }
+                ]) {
+                    const response = await fixture.app.request(`http://ims.test${path()}`, {
+                        method: 'PUT',
+                        headers: bearerHeaders({ 'content-type': 'application/json' }),
+                        body: JSON.stringify(invalid)
+                    });
+                    assert.equal(response.status, 400);
+                    if (
+                        ('expectedRevision' in invalid &&
+                            invalid.expectedRevision === 2_147_483_648) ||
+                        'unexpected' in invalid
+                    ) {
+                        await contractJson(response, fudabaErrorResponseSchema);
+                    }
+                }
+
+                const updated = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({
+                        x: 0,
+                        y: 100,
+                        rotation: 12,
+                        zIndex: 999,
+                        expectedRevision: 0
+                    })
+                });
+                assert.equal(updated.status, 200);
+                const updatedBody = await contractJson(
+                    updated,
+                    fudabaCardPlacementSaveResponseSchema
+                );
+                assert.equal(updatedBody.placement.pinnedAt, pinnedAt);
+                assert.equal(updatedBody.placement.revision, 1);
+                assert.equal(updatedBody.placement.x, 0);
+                assert.equal(updatedBody.placement.y, 100);
+
+                const stale = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(0))
+                });
+                assert.equal(stale.status, 409);
+                assert.deepEqual(await contractJson(stale, fudabaErrorResponseSchema), {
+                    success: false,
+                    code: 'FUDABA_CARD_PLACEMENT_CONFLICT',
+                    revision: 1
+                });
+                assert.equal((await fixture.app.request(`http://ims.test${path('other-card')}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                })).status, 404);
+                assert.equal((await fixture.app.request(
+                    `http://ims.test${path('x'.repeat(129))}`,
+                    {
+                        method: 'PUT',
+                        headers: bearerHeaders({ 'content-type': 'application/json' }),
+                        body: JSON.stringify(placementBody(null))
+                    }
+                )).status, 404);
+            });
+
+        test('saves hide closed or non-public offices while deletion remains available',
+            async () => {
+                const notFound = {
+                    success: false,
+                    code: 'FUDABA_CARD_PLACEMENT_NOT_FOUND'
+                };
+                const closed = new PlacementRouteFixture({ officeOpen: false });
+                const closedCreate = await closed.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                });
+                assert.equal(closedCreate.status, 404);
+                assert.deepEqual(await closedCreate.json(), notFound);
+
+                const suspendedOwner = new PlacementRouteFixture({
+                    officeOwnerStatus: 'suspended'
+                });
+                const suspendedCreate = await suspendedOwner.app.request(
+                    `http://ims.test${path()}`,
+                    {
+                        method: 'PUT',
+                        headers: bearerHeaders({ 'content-type': 'application/json' }),
+                        body: JSON.stringify(placementBody(null))
+                    }
+                );
+                assert.equal(suspendedCreate.status, 404);
+                assert.deepEqual(await suspendedCreate.json(), notFound);
+
+                const fixture = new PlacementRouteFixture();
+                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                })).status, 201);
+                fixture.officeOpen = false;
+                const closedUpdate = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(0))
+                });
+                assert.equal(closedUpdate.status, 404);
+                assert.deepEqual(await closedUpdate.json(), notFound);
+
+                const removed = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: 0 })
+                });
+                assert.equal(removed.status, 200);
+                assert.deepEqual(await contractJson(removed, fudabaCardPlacementDeleteResponseSchema), {
+                    success: true,
+                    revision: 1
+                });
+            });
+
+        test('DELETE enforces CAS, reports in-use state, and advances revision',
+            async () => {
+                const fixture = new PlacementRouteFixture();
+                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(placementBody(null))
+                })).status, 201);
+
+                const stale = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: 2 })
+                });
+                assert.equal(stale.status, 409);
+                assert.equal((await stale.json() as { revision: number }).revision, 0);
+                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: '0' })
+                })).status, 400);
+
+                const removed = await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'DELETE',
+                    headers: {
+                        ...cookieHeaders(true),
+                        'content-type': 'application/json'
+                    },
+                    body: JSON.stringify({ expectedRevision: 0 })
+                });
+                assert.equal(removed.status, 200);
+                assert.deepEqual(await contractJson(removed, fudabaCardPlacementDeleteResponseSchema), {
+                    success: true,
+                    revision: 1
+                });
+                assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: 1 })
+                })).status, 404);
+            });
+    });
+}
+
+// fudaba-card-reaction-routes.test.ts
+{
+    const CARD_ID = 'card-reaction-1';
+    const PATH = `http://ims.test/api/community/exchange/cards/${CARD_ID}/reactions`;
+
+    class ControlledRateLimiter implements RateLimiter {
+        private denied: string | null = null;
+
+        denyBucket(bucket: string | null): void {
+            this.denied = bucket;
+        }
+
+        async consume(
+            bucket: string,
+            _key: string,
+            limit: number
+        ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+            const allowed = this.denied !== bucket;
+            return {
+                allowed,
+                remaining: allowed ? limit - 1 : 0,
+                resetAt: Date.now() + 60_000
+            };
+        }
+    }
+
+    class ReactionFixture {
+        readonly rateLimiter = new ControlledRateLimiter();
+        readonly reactions = new Map<string, number>();
+        publicReadEnabled = true;
+        eligible = true;
+        applyCalls: FudabaCardReactionInput[] = [];
+
+        private repository(): FudabaRepository {
+            return {
+                listPublicCardReactions: async (
+                    cardId: string
+                ): Promise<FudabaCardReactionRecord[]> => {
+                    if (cardId !== CARD_ID || !this.eligible) return [];
+                    return [...this.reactions.entries()]
+                        .map(([emoji, count]) => ({ emoji, count }))
+                        .sort((left, right) => right.count - left.count);
+                },
+                applyPublicCardReaction: async (
+                    input: FudabaCardReactionInput
+                ): Promise<boolean> => {
+                    this.applyCalls.push(input);
+                    if (input.cardId !== CARD_ID || !this.eligible) return false;
+                    const current = this.reactions.get(input.emoji) ?? 0;
+                    const next = current + input.delta;
+                    if (next <= 0) this.reactions.delete(input.emoji);
+                    else this.reactions.set(input.emoji, next);
+                    return true;
+                }
+            } as unknown as FudabaRepository;
+        }
+
+        runtime() {
+            return {
+                fudaba: this.repository(),
+                rateLimiter: this.rateLimiter,
+                config: {
+                    fudabaPublicReadEnabled: this.publicReadEnabled
+                }
+            };
+        }
+
+        app() {
+            return createHonoApp(() => this.runtime() as never);
+        }
+    }
+
+    test.describe('exchange card reactions', () => {
+        test('are listed for anonymous visitors', async () => {
+            const fixture = new ReactionFixture();
+            fixture.reactions.set('❤️', 3);
+            fixture.reactions.set('🎉', 1);
+
+            const response = await fixture.app().request(PATH);
+
+            assert.equal(response.status, 200);
+            const body = await contractJson(response, fudabaCardReactionsResponseSchema);
+            assert.deepEqual(body.reactions, [
+                { emoji: '❤️', count: 3 },
+                { emoji: '🎉', count: 1 }
+            ]);
+        });
+
+        test('increment and decrement anonymously', async () => {
+            const fixture = new ReactionFixture();
+
+            const added = await fixture.app().request(PATH, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ emoji: '❤️' })
+            });
+            assert.equal(added.status, 200);
+            assert.deepEqual(
+                (await contractJson(added, fudabaCardReactionsResponseSchema)).reactions,
+                [{ emoji: '❤️', count: 1 }]
+            );
+
+            const removed = await fixture.app().request(PATH, {
+                method: 'DELETE',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ emoji: '❤️' })
+            });
+            assert.equal(removed.status, 200);
+            assert.deepEqual(
+                (await contractJson(removed, fudabaCardReactionsResponseSchema)).reactions,
+                []
+            );
+            assert.deepEqual(fixture.applyCalls.map((call) => call.delta), [1, -1]);
+        });
+
+        test('reject unsupported emoji and unknown cards', async () => {
+            const fixture = new ReactionFixture();
+
+            const unsupported = await fixture.app().request(PATH, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ emoji: 'not-an-emoji' })
+            });
+            assert.equal(unsupported.status, 400);
+            assert.deepEqual(
+                await contractJson(unsupported, fudabaCardReactionErrorSchema),
+                {
+                    success: false,
+                    code: 'FUDABA_CARD_REACTION_INVALID',
+                    message: '表情不受支持'
+                }
+            );
+            assert.deepEqual(fixture.applyCalls, []);
+
+            fixture.eligible = false;
+            const missing = await fixture.app().request(PATH, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ emoji: '❤️' })
+            });
+            assert.equal(missing.status, 404);
+            assert.deepEqual(
+                await contractJson(missing, fudabaCardReactionErrorSchema),
+                { success: false, code: 'FUDABA_CARD_REACTION_NOT_FOUND' }
+            );
+        });
+
+        test('share the namecard reaction rate limit', async () => {
+            const fixture = new ReactionFixture();
+            fixture.rateLimiter.denyBucket('reactions');
+
+            const limited = await fixture.app().request(PATH, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ emoji: '❤️' })
+            });
+
+            assert.equal(limited.status, 429);
+            assert.deepEqual(fixture.applyCalls, []);
+        });
+
+        test('stay hidden when public read is disabled', async () => {
+            const fixture = new ReactionFixture();
+            fixture.publicReadEnabled = false;
+
+            const response = await fixture.app().request(PATH);
+
+            assert.equal(response.status, 404);
+        });
+    });
+}
+
+// fudaba-card-review-handlers.test.ts
+{
+    const CREATED_AT = '2026-08-16T19:30:00.000Z';
+
+    function character() {
+        return {
+            character_id: 1,
+            agency_code: '765',
+            name_cn: '天海春香',
+            display_order: 0
+        };
+    }
+
+    function registeredCard(): FudabaRegisteredCardReviewRecord {
+        return {
+            id: 'registered-review',
+            card_number: 1,
+            owner_account_id: 'owner-1',
+            producer_name: 'Owner',
+            is_group_card: false,
+            producer_reading: null,
+            series_codes: ['765'],
+            favorite_characters: [character()],
+            middle_object_keys: [],
+            credits: [],
+            legacy_card_id: null,
+            origin: 'exchange',
+            pages: [cardPageRow('front', 1), cardPageRow('back', 2)],
+            pending_pages: [],
+            accent: '#f34e6c',
+            bio: '',
+            trade_note: '',
+            exchange_mode: 'manual',
+            made_on: null,
+            group_name: null,
+            is_original: false,
+            made_with_ai: false,
+            visible: true,
+            publication_status: 'approving',
+            review_status: null,
+            review_reason: null,
+            review_submitted_at: null,
+            pending_payload: null,
+            revision: 1,
+            created_at: CREATED_AT,
+            updated_at: CREATED_AT,
+            deleted_at: null,
+            owner_display_name: 'Owner'
+        };
+    }
+
+    function claimRecord(): FudabaCardClaimRecord {
+        return {
+            id: 'claim-review',
+            legacy_card_id: 42,
+            claimant_account_id: 'claimant-1',
+            target_card_id: null,
+            payload: {},
+            series_code: '765',
+            state: 'approving',
+            message: 'same owner',
+            review_note: '',
+            reviewed_by: null,
+            reviewed_at: null,
+            revision: 1,
+            created_at: CREATED_AT,
+            updated_at: CREATED_AT,
+            favorite_characters: [character()]
+        };
+    }
+
+    function adminClaim(): FudabaAdminCardClaimRecord {
+        return {
+            ...claimRecord(),
+            state: 'pending',
+            revision: 0,
+            claimant_display_name: 'Claimant',
+            target_card_number: null,
+            legacy_front_key: 'community/fudaba/cards/legacy-1/live/front.webp',
+            legacy_back_key: 'community/fudaba/cards/legacy-1/live/back.webp'
+        };
+    }
+
+    function stored(body: number): StoredObject {
+        return {
+            body: Uint8Array.of(body),
+            size: 1,
+            contentType: 'image/webp',
+            etag: `etag-${body}`
+        };
+    }
+
+    function storage(overrides: Partial<ObjectStorage>): ObjectStorage {
+        return {
+            async get() { return null; },
+            async put(_key, body, options) {
+                return {
+                    body,
+                    size: body.byteLength,
+                    contentType: options?.contentType ?? 'application/octet-stream',
+                    etag: 'etag'
+                };
+            },
+            async delete() {},
+            async exists() { return false; },
+            async copy() {},
+            async move() {},
+            async list() { return []; },
+            async deletePrefix() {},
+            ...overrides
+        };
+    }
+
+    function app(runtime: RuntimeServices) {
+        const application = new Hono<AppEnvironment>();
+        application.use('*', async (c, next) => {
+            c.set('services', runtime);
+            c.set('backofficeUser', {
+                iss: 'imsweb',
+                aud: 'ims-backoffice',
+                kind: 'backoffice',
+                id: 1,
+                username: 'reviewer',
+                producername: 'Review Admin',
+                dept: 'op',
+                csrfSecret: 'csrf'
+            });
+            await next();
+        });
+        application.put('/registered/:cardId', handleReviewFudabaRegisteredCard);
+        application.put('/claims/:claimId', handleReviewFudabaCardClaim);
+        return application;
+    }
+
+    function runtime(
+        repository: Partial<FudabaRepository>,
+        objectStorage: ObjectStorage
+    ): RuntimeServices {
+        return {
+            fudaba: repository as FudabaRepository,
+            storage: objectStorage,
+            compensation: {
+                async enqueue() { return 'compensation-job'; },
+                async run() {}
+            },
+            config: { clientAddressSource: 'direct' }
+        } as RuntimeServices;
+    }
+
+}
+
+// fudaba-claim-review-repository.test.ts
+{
+    const CREATED_AT = '2026-08-16T19:30:00.000Z';
+    const REVIEWED_AT = '2026-08-16T20:00:00.000Z';
+    const PROFILE_AT = 1_776_000_000_000;
+
+    function account(id: string): NewPlatformAccountInput {
+        return {
+            id,
+            status: 'active',
+            tokenVersion: 0,
+            createdAt: PROFILE_AT,
+            updatedAt: PROFILE_AT,
+            deletedAt: null,
+            profile: {
+                displayName: `Producer ${id}`,
+                avatarObjectKey: null,
+                avatarExternalUrl: null,
+                homeCity: null,
+                bio: '',
+                updatedAt: PROFILE_AT
+            }
+        };
+    }
+
+    function registeredCard(
+        id: string,
+        ownerAccountId: string,
+        publicationStatus: NewFudabaCardInput['publicationStatus'] = 'published'
+    ): NewFudabaCardInput {
+        return {
+            id,
+            ownerAccountId,
+            producerName: `Producer ${ownerAccountId}`,
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001],
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
+            bio: '',
+            tradeNote: '',
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            publicationStatus,
+            revision: 0,
+            createdAt: CREATED_AT,
+            updatedAt: CREATED_AT,
+            deletedAt: null
+        };
+    }
+
+    function ownerCard(id: string, ownerAccountId: string): CreateOwnedFudabaCardInput {
+        const card = registeredCard(id, ownerAccountId, 'pending');
+        return {
+            id: card.id,
+            ownerAccountId: card.ownerAccountId,
+            producerName: card.producerName,
+            seriesCodes: card.seriesCodes,
+            favoriteCharacterIds: card.favoriteCharacterIds,
+            pages: card.pages,
+            bio: card.bio,
+            tradeNote: card.tradeNote,
+            exchangeMode: card.exchangeMode,
+            madeOn: card.madeOn,
+            groupName: card.groupName,
+            producerReading: card.producerReading,
+            isOriginal: card.isOriginal,
+            madeWithAi: card.madeWithAi,
+            visible: card.visible,
+            credits: card.credits,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt
+        };
+    }
+
+    const audit: AuditLogInput = {
+        username: 'reviewer',
+        producername: 'Review Admin',
+        action: 'review namecard claim',
+        target: 'namecard',
+        ip: '127.0.0.1',
+        time: REVIEWED_AT
+    };
+
+    /** 补充审核写企划的真实表；认领兜底必须和名片墙读同一份数据。 */
+    async function attachCardSeries(
+        database: ManagedSqlDatabase,
+        cardNumber: number,
+        seriesCode: string
+    ) {
+        const card = await database
+            .prepare(`SELECT id FROM fudaba_cards WHERE card_number=?`)
+            .bind(cardNumber)
+            .first<{ id: string }>();
+        if (!card) throw new Error('Missing fudaba card for series fixture');
+        await database
+            .prepare(
+                `INSERT INTO public.fudaba_card_series
+                 (card_id, series_code, display_order)
+                 VALUES (?, ?, 1)
+                 ON CONFLICT (card_id, series_code) DO NOTHING`
+            )
+            .bind(card.id, seriesCode)
+            .run();
+    }
+
+    async function insertLegacyCard(
+        database: ManagedSqlDatabase,
+        suffix: string
+    ): Promise<number> {
+        // A legacy id also becomes a fudaba_cards.card_number below. Exchange
+        // cards created earlier in the same test draw card_number from
+        // namecard_number_seq independently of cards_id_seq, so without this the
+        // two counters can hand out the same number from opposite directions.
+        // The real migration keeps them disjoint the same way (advance whichever
+        // sequence is behind); mirror that here instead of relying on call order.
+        await database.prepare(
+            `SELECT setval(
+            'public.cards_id_seq',
+            GREATEST(
+                (SELECT COALESCE(max(card_number), 0) FROM public.fudaba_cards),
+                (SELECT last_value FROM public.cards_id_seq)
+            )
+        )`
+        ).run();
+        const row = await database.prepare(
+            `INSERT INTO cards
+            (image1_url, image2_url, hash1, hash2, ip, status,
+             withdrawal_token_hash, series_code, submission_kind, revision)
+         VALUES (?, ?, ?, ?, '127.0.0.1', 'approved', ?, NULL, 'legacy', 0)
+         RETURNING id`
+        ).bind(
+            `legacy/${suffix}/front.webp`,
+            `legacy/${suffix}/back.webp`,
+            `legacy-${suffix}-front`,
+            `legacy-${suffix}-back`,
+            suffix.repeat(64).slice(0, 64)
+        ).first<{ id: number }>();
+        if (!row) throw new Error('Legacy card fixture insert failed');
+        // The unification backfill turns every legacy card into an ownerless
+        // fudaba_cards row keyed by card_number; claim approval now binds onto
+        // that row in place, so a fixture created after the migration already
+        // ran has to mirror it by hand instead of relying on a fresh backfill.
+        await database.prepare(
+            `INSERT INTO fudaba_cards
+            (id, card_number, origin, producer_name, bio, trade_note,
+             exchange_mode, publication_status, revision,
+             created_at, updated_at)
+         VALUES (?, ?, 'legacy', ?, NULL, NULL, 'none', 'published', 0, ?, ?)`
+        ).bind(
+            `legacy-${row.id}`,
+            row.id,
+            `Legacy ${suffix}`,
+            CREATED_AT,
+            CREATED_AT
+        ).run();
+        // 旧 key 列已退役：这张卡的版面由线上页面行给出。
+        await database.prepare(
+            `INSERT INTO public.fudaba_card_pages
+            (card_id, queue, page_id, display_order, object_version,
+             width, height, created_at, updated_at)
+         VALUES (?, 'live', 'front', 1,
+                 '11111111-1111-4111-8111-111111111111'::uuid, 100, 50, ?, ?),
+                (?, 'live', 'back', 2,
+                 '22222222-2222-4222-8222-222222222222'::uuid, 100, 50, ?, ?)`
+        ).bind(
+            `legacy-${row.id}`,
+            CREATED_AT,
+            CREATED_AT,
+            `legacy-${row.id}`,
+            CREATED_AT,
+            CREATED_AT
+        ).run();
+        // Keep namecard_number_seq ahead of the explicit card_number just used,
+        // the same way the real migration advances it past every legacy id, so a
+        // later default-assigned exchange card_number cannot collide with it.
+        await database.prepare(
+            `SELECT setval(
+            'public.namecard_number_seq',
+            GREATEST(?, (SELECT last_value FROM public.namecard_number_seq))
+        )`
+        ).bind(row.id).run();
+        return row.id;
+    }
+
+    async function insertBackofficeActor(
+        database: ManagedSqlDatabase
+    ): Promise<number> {
+        const row = await database.prepare(
+            `INSERT INTO backoffice_accounts
+            (username, password, dept, producername, admin_role)
+         VALUES ('claim-reviewer', 'hash', 'op', 'Review Admin', 'super_admin')
+         RETURNING id`
+        ).first<{ id: number }>();
+        if (!row) throw new Error('Backoffice actor fixture insert failed');
+        return row.id;
+    }
+
+    async function fixture() {
+        const database = await createPostgresTestDatabase('fudaba-claim-review');
+        const siblingDatabase = connectPostgresTestDatabase(database);
+        // The namecard_legacy_tables_read_only migration locks cards down for
+        // the application; this suite's fixtures simulate pre-existing legacy
+        // data directly in cards, so they bypass that guard the same way real
+        // legacy data predates it.
+        await database.prepare('ALTER TABLE public.cards DISABLE TRIGGER ALL').run();
+        await seedCanonicalFudabaAgencies(database);
+        const schema = new PostgresqlSchemaStrategy();
+        const platform = new SqlPlatformAccountRepository(database, schema);
+        const fudaba = new SqlFudabaRepository(database, schema);
+        const sibling = new SqlFudabaRepository(siblingDatabase, schema);
+        await Promise.all([
+            platform.initialize(),
+            fudaba.initialize(),
+            sibling.initialize()
+        ]);
+        return { database, platform, fudaba, sibling };
+    }
+
+    describe('Fudaba claim review repository', () => {
+        postgresTest('PostgreSQL supplements apply once and yield to a claim', async () => {
+            const { database, platform, fudaba } = await fixture();
+            const submitter = 'supplement-submitter';
+            const claimant = 'supplement-claimant';
+            await Promise.all([
+                platform.createAccountWithProfile(account(submitter)),
+                platform.createAccountWithProfile(account(claimant))
+            ]);
+            const reviewedBy = await insertBackofficeActor(database);
+            const legacyId = await insertLegacyCard(database, 's');
+            const cardId = `legacy-${legacyId}`;
+            const notes = new SqlNamecardNotificationRepository(database);
+
+            const created = await fudaba.createCardSupplementForOwner({
+                id: 'supplement-1',
+                cardId,
+                submitterAccountId: submitter,
+                payload: { producerName: '补充后制作人', groupName: '765PRO' },
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(created.status, 'created');
+            if (created.status !== 'created') return;
+            assert.equal(created.supplement.state, 'pending');
+            assert.deepEqual(created.supplement.payload, {
+                producerName: '补充后制作人',
+                groupName: '765PRO'
+            });
+
+            // A second visitor cannot stack another supplement on the same card.
+            const duplicate = await fudaba.createCardSupplementForOwner({
+                id: 'supplement-2',
+                cardId,
+                submitterAccountId: claimant,
+                payload: { producerName: '另一个制作人' },
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(duplicate.status, 'conflict');
+
+            const detail = await fudaba.findCardSupplement('supplement-1');
+            assert.equal(detail?.supplement.card_number, legacyId);
+            // The fixture seeds a producer name; the supplement only fills what
+            // it names, so the live value stays until the verdict lands.
+            assert.equal(detail?.live.producer_name, 'Legacy s');
+
+            const approved = await fudaba.completeCardSupplementReview({
+                supplementId: 'supplement-1',
+                expectedRevision: 0,
+                decision: 'approve',
+                reviewNote: '资料与名片一致',
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                audit: { ...audit, action: 'approve card supplement' },
+                contributionPoints: 1,
+                contributionId: 'contribution-1'
+            });
+            assert.equal(approved.status, 'saved');
+            if (approved.status !== 'saved') return;
+            assert.equal(approved.supplement.state, 'approved');
+            assert.equal(approved.card?.producer_name, '补充后制作人');
+            assert.equal(approved.card?.group_name, '765PRO');
+
+            const awarded = await database
+                .prepare(
+                    `SELECT account_id, card_id, kind, points
+                     FROM namecard_contribution_events`
+                )
+                .all<{ account_id: string; card_id: string; kind: string; points: number }>();
+            assert.deepEqual(awarded.results.map((row) => ({ ...row })), [
+                {
+                    account_id: submitter,
+                    card_id: cardId,
+                    kind: 'card-supplement-approved',
+                    points: 1
+                }
+            ]);
+            const approvalNotes = await notes.list(submitter);
+            assert.equal(
+                approvalNotes.items.filter(
+                    (item) => item.kind === 'card-supplement-approved'
+                ).length,
+                1
+            );
+
+            // The same wording again is no longer a change.
+            const unchanged = await fudaba.createCardSupplementForOwner({
+                id: 'supplement-3',
+                cardId,
+                submitterAccountId: claimant,
+                payload: { producerName: '补充后制作人', groupName: '765PRO' },
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(unchanged.status, 'unchanged');
+
+            // A claim outranks the pending supplement: it is cancelled and the
+            // submitter hears why.
+            const pendingAgain = await fudaba.createCardSupplementForOwner({
+                id: 'supplement-4',
+                cardId,
+                submitterAccountId: claimant,
+                payload: { producerName: '第二位补充者' },
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(pendingAgain.status, 'created');
+            const claim = await fudaba.createCardClaimForOwner({
+                id: 'supplement-supersede-claim',
+                legacyCardId: legacyId,
+                claimantAccountId: claimant,
+                targetCardId: null,
+                payload: { producerName: '本人认领', seriesCodes: ['765'] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(claim.status, 'created');
+            const afterClaim = await fudaba.findCardSupplement('supplement-4');
+            assert.equal(afterClaim?.supplement.state, 'cancelled');
+            const supersededNotes = await notes.list(claimant);
+            assert.equal(
+                supersededNotes.items.filter(
+                    (item) => item.kind === 'card-supplement-rejected'
+                ).length,
+                1
+            );
+        });
+
+        postgresTest('real PostgreSQL counts the wall backlog and picks a card nobody has supplemented', async () => {
+            const { database, platform, fudaba } = await fixture();
+            const viewer = 'wall-insights-viewer';
+            const other = 'wall-insights-other';
+            await Promise.all([
+                platform.createAccountWithProfile(account(viewer)),
+                platform.createAccountWithProfile(account(other))
+            ]);
+
+            // Two ownerless wall cards: one keeps its series, one has none —
+            // the import path can leave a card without a series even though the
+            // editor requires one.
+            for (const id of ['wall-with-series', 'wall-without-series']) {
+                await fudaba.createCard(registeredCard(id, viewer));
+                await database
+                    .prepare(
+                        `UPDATE fudaba_cards
+                         SET owner_account_id=NULL, trade_note=NULL, exchange_mode='none'
+                         WHERE id=?`
+                    )
+                    .bind(id)
+                    .run();
+            }
+            await database
+                .prepare('DELETE FROM fudaba_card_series WHERE card_id=?')
+                .bind('wall-without-series')
+                .run();
+
+            const summary = await fudaba.wallInsights(null);
+            assert.equal(summary.ownerless, 2);
+            assert.equal(summary.ownerless_missing_series, 1);
+            assert.equal(summary.claimed, 0);
+            assert.equal(summary.supplements_pending, 0);
+
+            const picked = await fudaba.randomOwnerlessCardMissingSeries(other);
+            assert.equal(
+                typeof picked,
+                'number',
+                '只有缺少企划的那张卡能被抽中'
+            );
+        });
+        postgresTest('contributor pages include everyone beyond the top five with stable ties and active accounts only', async () => {
+            const { database, platform, fudaba } = await fixture();
+            for (let index = 0; index < 9; index += 1) {
+                const id = `leader-${index}`;
+                const input = account(id);
+                input.profile.displayName = index < 2 ? 'Same name' : `Producer ${index}`;
+                if (index === 7) input.status = 'suspended';
+                if (index === 8) {
+                    input.status = 'deleted';
+                    input.deletedAt = PROFILE_AT;
+                }
+                await platform.createAccountWithProfile(input);
+                await fudaba.createCard(registeredCard(`leader-card-${index}`, id));
+                await database.prepare(`
+                    INSERT INTO namecard_contribution_events
+                        (id, account_id, card_id, kind, points, created_at)
+                    VALUES (?, ?, ?, 'card-supplement-approved', ?, ?)
+                `).bind(`leader-event-${index}`, id, `leader-card-${index}`,
+                    index < 2 ? 10 : 9 - index, CREATED_AT).run();
+            }
+            const first = await fudaba.listNamecardContributors({ page: 1, pageSize: 5 });
+            const second = await fudaba.listNamecardContributors({ page: 2, pageSize: 5 });
+            assert.equal(first.total, 7);
+            assert.equal(second.total, 7);
+            assert.deepEqual(first.items.map((row) => row.account_id),
+                ['leader-0', 'leader-1', 'leader-2', 'leader-3', 'leader-4']);
+            assert.deepEqual(second.items.map((row) => row.account_id), ['leader-5', 'leader-6']);
+            assert.equal(first.items[0]?.points, 10);
+            assert.equal(first.items[0]?.cards, 1);
+            assert.deepEqual((await fudaba.wallInsights(null)).contributors, first.items);
+            assert.deepEqual(await fudaba.listNamecardContributors({ page: 3, pageSize: 5 }),
+                { items: [], total: 7 });
+        });
+        // 认领/审核是真实事务，覆盖多轮审批后默认 5s 不够。
+        postgresTest('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows', async () => {
+            const { database, platform, fudaba, sibling } = await fixture();
+            const ownerA = 'claim-owner-a';
+            const ownerB = 'claim-owner-b';
+            const ownerC = 'claim-owner-c';
+            await Promise.all([
+                platform.createAccountWithProfile(account(ownerA)),
+                platform.createAccountWithProfile(account(ownerB)),
+                platform.createAccountWithProfile(account(ownerC))
+            ]);
+            const reviewedBy = await insertBackofficeActor(database);
+
+            const legacyId = await insertLegacyCard(database, 'a');
+            const matchingCardId = String(legacyId);
+            await fudaba.createCard(registeredCard(matchingCardId, ownerA));
+            await database.prepare(
+                'UPDATE fudaba_cards SET producer_name=? WHERE id=?'
+            ).bind('P Name A', matchingCardId).run();
+            await fudaba.createCard(registeredCard(`0${legacyId}`, ownerA));
+
+            // The same-id hint moved from the envelope table to the notification
+            // feed: an ownerless wall card whose producer name matches a new
+            // account's display name tells that account exactly once.
+            const hintCardId = 'legacy-hint-card';
+            await fudaba.createCard(registeredCard(hintCardId, ownerA));
+            await database
+                .prepare(
+                    `UPDATE fudaba_cards
+                     SET owner_account_id=NULL, producer_name=?,
+                         trade_note=NULL, exchange_mode='none'
+                     WHERE id=?`
+                )
+                .bind(`Producer ${ownerB}`, hintCardId)
+                .run();
+            const hintNumber = await database
+                .prepare('SELECT card_number FROM fudaba_cards WHERE id=?')
+                .bind(hintCardId)
+                .first<{ card_number: number }>();
+            assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 1);
+            const hintNotes = await new SqlNamecardNotificationRepository(
+                database
+            ).list(ownerB);
+            assert.equal(hintNotes.items[0]?.kind, 'legacy-card-match');
+            assert.equal(
+                hintNotes.items[0]?.card_number,
+                hintNumber?.card_number
+            );
+            assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 0);
+
+            // 站内名常写成「深蓝白」，名片上却是「深蓝白P」：结尾的 P 不影响匹配。
+            await database
+                .prepare(
+                    `UPDATE platform_profiles SET display_name='深蓝白'
+                      WHERE account_id=?`
+                )
+                .bind(ownerB)
+                .run();
+            const suffixCardId = 'legacy-hint-suffix-card';
+            await fudaba.createCard(registeredCard(suffixCardId, ownerA));
+            await database
+                .prepare(
+                    `UPDATE fudaba_cards
+                     SET owner_account_id=NULL, producer_name=?,
+                         trade_note=NULL, exchange_mode='none'
+                     WHERE id=?`
+                )
+                .bind('深蓝白P', suffixCardId)
+                .run();
+            assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 1);
+
+            // 输入法打出的全角 Ｐ 同样算同一个名字。
+            await database
+                .prepare('UPDATE fudaba_cards SET producer_name=? WHERE id=?')
+                .bind('深蓝白Ｐ', suffixCardId)
+                .run();
+            await database
+                .prepare(
+                    `DELETE FROM namecard_notifications
+                      WHERE kind='legacy-card-match' AND recipient_account_id=?`
+                )
+                .bind(ownerB)
+                .run();
+            assert.equal(await fudaba.notifyLegacyCardMatchesForAccount(ownerB), 1);
+
+            const claimId = 'same-id-claim';
+            const createdClaim = await fudaba.createCardClaimForOwner({
+                id: claimId,
+                legacyCardId: legacyId,
+                claimantAccountId: ownerA,
+                targetCardId: matchingCardId,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [900_001] },
+                message: '这是同一个人的旧名片',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(createdClaim.status, 'created');
+            if (createdClaim.status !== 'created') return;
+            assert.equal(createdClaim.claim.legacy_card_id, legacyId);
+            assert.equal(createdClaim.claim.target_card_id, matchingCardId);
+            assert.equal(createdClaim.claim.payload.producerName, undefined);
+            assert.deepEqual(
+                createdClaim.claim.favorite_characters.map((character) => character.character_id),
+                [900_001]
+            );
+            // A second claim on the same legacy card is refused while one is open.
+            const blockedSecondClaim = await fudaba.createCardClaimForOwner({
+                id: 'wrong-recipient-claim',
+                legacyCardId: legacyId,
+                claimantAccountId: ownerB,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [900_001] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(blockedSecondClaim.status, 'conflict');
+
+            assert.deepEqual(await fudaba.listLegacyNamecardClaimStatuses(
+                [legacyId],
+                ownerA
+            ), [{
+                legacy_card_id: legacyId,
+                claim_status: 'pending',
+                viewer_claim_state: 'pending',
+                claimer_name: null,
+                claimer_account_id: null,
+                claimer_uid: null,
+                supplement_pending: false
+            }]);
+            const adminClaim = await fudaba.findAdminCardClaim(claimId);
+            assert.equal(adminClaim?.claimant_display_name, 'Producer claim-owner-a');
+            assert.match(
+                adminClaim?.legacy_front_key ?? '',
+                /^community\/fudaba\/cards\/legacy-\d+\/live\/front\.11111111-1111-4111-8111-111111111111\.webp$/
+            );
+            assert.match(
+                adminClaim?.legacy_back_key ?? '',
+                /^community\/fudaba\/cards\/legacy-\d+\/live\/back\.22222222-2222-4222-8222-222222222222\.webp$/
+            );
+
+            const beginResults = await Promise.all([
+                fudaba.beginCardClaimReview(claimId, 0),
+                sibling.beginCardClaimReview(claimId, 0)
+            ]);
+            assert.deepEqual(
+                beginResults.map((result) => result.status).sort(),
+                ['claimed', 'conflict']
+            );
+            const claimCompleted = await fudaba.completeCardClaimReview({
+                claimId,
+                approvingRevision: 1,
+                decision: 'approve',
+                media: null,
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '身份信息一致',
+                notificationTitle: '名片认领已通过',
+                notificationBody: '历史名片已经绑定。',
+                audit
+            });
+            assert.equal(claimCompleted.status, 'saved');
+            if (claimCompleted.status !== 'saved') return;
+            assert.equal(claimCompleted.claim.state, 'approved');
+            // The linkage lives in fudaba_card_merges; the served card keeps its
+            // own columns untouched so it can absorb further guest uploads.
+            assert.equal(claimCompleted.card?.id, matchingCardId);
+            assert.equal((await fudaba.findCardById(matchingCardId))?.legacy_card_id, null);
+            // The ownerless legacy row this claim bound onto must stop showing up
+            // twice: it stays in place (guest attributes/reactions history are not
+            // lost) but gets soft deleted so it drops off every compat read path.
+            const hiddenLegacyRow = await fudaba.findCardById(`legacy-${legacyId}`);
+            assert.equal(hiddenLegacyRow?.owner_account_id, null);
+            assert.notEqual(hiddenLegacyRow?.deleted_at, null);
+            assert.deepEqual(await fudaba.listLegacyNamecardClaimStatuses(
+                [legacyId],
+                ownerA
+            ), [{
+                legacy_card_id: legacyId,
+                claim_status: 'claimed',
+                viewer_claim_state: 'approved',
+                claimer_name: 'Producer claim-owner-a',
+                claimer_account_id: ownerA,
+                claimer_uid: 1,
+                supplement_pending: false
+            }]);
+            // The review result reaches the claimant through the shared
+            // notification feed instead of the retired envelope tables.
+            const resultNotes = await new SqlNamecardNotificationRepository(
+                database
+            ).list(ownerA);
+            const approvalNote = resultNotes.items.find(
+                (item) => item.kind === 'claim-approved'
+            );
+            assert.ok(approvalNote);
+            assert.equal(approvalNote?.card_number, legacyId);
+            assert.equal(approvalNote?.body, '历史名片已经绑定。');
+            const replay = await fudaba.completeCardClaimReview({
+                claimId,
+                approvingRevision: 1,
+                decision: 'approve',
+                media: null,
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '重放',
+                notificationTitle: '名片认领已通过',
+                notificationBody: '历史名片已经绑定。',
+                audit
+            });
+            assert.equal(replay.status, 'conflict');
+            // The merge ledger owns the linkage now, so the same guest upload
+            // cannot be folded into two different served cards.
+            await assert.rejects(
+                database.prepare(
+                    `INSERT INTO fudaba_card_merges
+                        (claim_id, target_card_id, legacy_card_id, merged_at)
+                     VALUES (?, ?, ?, ?)`
+                ).bind('duplicate-merge', matchingCardId, legacyId, REVIEWED_AT).run(),
+                /fudaba_card_merges_legacy_card_id_key/
+            );
+
+            // One served card absorbs a second guest upload: the merge ledger
+            // keeps both links while the card's own legacy_card_id stays on the
+            // first one, so the column never gets overwritten.
+            const secondLegacyId = await insertLegacyCard(database, 'second');
+            const secondClaimId = 'claim-second-merge';
+            const secondCreated = await fudaba.createCardClaimForOwner({
+                id: secondClaimId,
+                legacyCardId: secondLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: matchingCardId,
+                payload: {},
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(secondCreated.status, 'created');
+            await fudaba.beginCardClaimReview(secondClaimId, 0);
+            const secondCompleted = await fudaba.completeCardClaimReview({
+                claimId: secondClaimId,
+                approvingRevision: 1,
+                decision: 'approve',
+                media: null,
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '第二张游客投稿',
+                notificationTitle: '名片认领已通过',
+                notificationBody: '历史名片已经绑定。',
+                audit
+            });
+            assert.equal(secondCompleted.status, 'saved');
+            const merges = await database
+                .prepare(
+                    `SELECT legacy_card_id FROM fudaba_card_merges
+                     WHERE target_card_id=? ORDER BY legacy_card_id`
+                )
+                .bind(matchingCardId)
+                .all();
+            assert.deepEqual(
+                merges.results.map((row) => Number(row.legacy_card_id)).sort((a, b) => a - b),
+                [legacyId, secondLegacyId].sort((a, b) => a - b)
+            );
+            assert.equal(
+                (await fudaba.listLegacyNamecardClaimStatuses([secondLegacyId], ownerA))[0]
+                    ?.claim_status,
+                'claimed'
+            );
+
+            const raceLegacyId = await insertLegacyCard(database, 'r');
+            const raceResults = await Promise.all([
+                fudaba.createCardClaimForOwner({
+                    id: 'race-claim-a',
+                    legacyCardId: raceLegacyId,
+                    claimantAccountId: ownerA,
+                    targetCardId: null,
+                    payload: {
+                        seriesCodes: ['765'],
+                        favoriteCharacterIds: [900_001],
+                        producerName: '竞态 A'
+                    },
+                    message: '',
+                    createdAt: CREATED_AT,
+                    updatedAt: CREATED_AT
+                }),
+                sibling.createCardClaimForOwner({
+                    id: 'race-claim-b',
+                    legacyCardId: raceLegacyId,
+                    claimantAccountId: ownerB,
+                    targetCardId: null,
+                    payload: {
+                        seriesCodes: ['cg'],
+                        favoriteCharacterIds: [900_002],
+                        producerName: '竞态 B'
+                    },
+                    message: '',
+                    createdAt: CREATED_AT,
+                    updatedAt: CREATED_AT
+                })
+            ]);
+            assert.deepEqual(
+                raceResults.map((result) => result.status).sort(),
+                ['conflict', 'created']
+            );
+
+            for (const [suffix, characterIds] of [
+                ['d', [900_001, 900_001]],
+                ['m', [999_999]],
+                ['x', Array.from({ length: 201 }, (_, index) => 910_000 + index)]
+            ] as const) {
+                const invalidLegacyId = await insertLegacyCard(database, suffix);
+                assert.deepEqual(await fudaba.createCardClaimForOwner({
+                    id: `invalid-claim-${suffix}`,
+                    legacyCardId: invalidLegacyId,
+                    claimantAccountId: ownerA,
+                    targetCardId: null,
+                    payload: {
+                        seriesCodes: ['765'],
+                        favoriteCharacterIds: [...characterIds]
+                    },
+                    message: '',
+                    createdAt: CREATED_AT,
+                    updatedAt: CREATED_AT
+                }), { status: 'unavailable' });
+            }
+
+            // 企划 and 担当角色 are optional on a claim. The server derives the
+            // series from the selected characters' agency, the legacy card's own
+            // series, or the bound target card, and only asks when none exist.
+            const noSeriesLegacyId = await insertLegacyCard(database, 'e');
+            assert.deepEqual(await fudaba.createCardClaimForOwner({
+                id: 'empty-claim-input',
+                legacyCardId: noSeriesLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: { favoriteCharacterIds: [] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            }), { status: 'series-required' });
+
+            // 卡可能已被其他用户补充完整，所以认领允许不带任何改动。
+            // 补充审核写的是 fudaba_card_series，旧 cards 归档列不会跟着变，
+            // 所以这里按真实链路写企划，否则这条用例会掩盖兜底读错表的问题。
+            const settledLegacyId = await insertLegacyCard(database, 'o');
+            await attachCardSeries(database, settledLegacyId, '765');
+            await database
+                .prepare(
+                    `UPDATE fudaba_cards SET producer_name='既有制作人'
+                      WHERE card_number=?`
+                )
+                .bind(settledLegacyId)
+                .run();
+            const settled = await fudaba.createCardClaimForOwner({
+                id: 'settled-claim',
+                legacyCardId: settledLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: {},
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(settled.status, 'created');
+            if (settled.status !== 'created') return;
+            assert.deepEqual(settled.claim.payload, {});
+
+            // 必填项缺失时仍然拒绝：没有制作人名称就不算可提交的认领。
+            const namelessLegacyId = await insertLegacyCard(database, 'p');
+            await attachCardSeries(database, namelessLegacyId, '765');
+            await database
+                .prepare(
+                    `UPDATE fudaba_cards SET producer_name=NULL
+                      WHERE card_number=?`
+                )
+                .bind(namelessLegacyId)
+                .run();
+            assert.deepEqual(await fudaba.createCardClaimForOwner({
+                id: 'nameless-claim',
+                legacyCardId: namelessLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: {},
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            }), { status: 'producer-required' });
+
+            const characterDerivedLegacyId = await insertLegacyCard(database, 'i');
+            const characterDerived = await fudaba.createCardClaimForOwner({
+                id: 'character-derived-series-claim',
+                legacyCardId: characterDerivedLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: { favoriteCharacterIds: [900_001] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(characterDerived.status, 'created');
+            if (characterDerived.status !== 'created') return;
+            assert.equal(characterDerived.claim.series_code, '765');
+
+            const wrongOwnerLegacyId = await insertLegacyCard(database, 'w');
+            assert.deepEqual(await fudaba.createCardClaimForOwner({
+                id: 'wrong-owner-target',
+                legacyCardId: wrongOwnerLegacyId,
+                claimantAccountId: ownerB,
+                targetCardId: matchingCardId,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [900_001] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            }), { status: 'unavailable' });
+
+            const createLegacyId = await insertLegacyCard(database, 'c');
+            const createClaim = await fudaba.createCardClaimForOwner({
+                id: 'create-card-claim',
+                legacyCardId: createLegacyId,
+                claimantAccountId: ownerB,
+                targetCardId: null,
+                payload: {
+                    seriesCodes: ['cg'],
+                    favoriteCharacterIds: [900_001, 900_002]
+                },
+                message: '请创建绑定后的名片',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(createClaim.status, 'created');
+            const createBegin = await fudaba.beginCardClaimReview('create-card-claim', 0);
+            assert.equal(createBegin.status, 'claimed');
+            // The legacy card is already the ownerless row 'legacy-<id>' the
+            // unification backfill created, so the approve target binds onto that
+            // same id in place instead of minting an unrelated new row.
+            const boundCreateCardId = `legacy-${createLegacyId}`;
+            const createdCardResult = await fudaba.completeCardClaimReview({
+                claimId: 'create-card-claim',
+                approvingRevision: 1,
+                decision: 'approve',
+                media: {
+                    frontObjectKey: pageObjectKey(boundCreateCardId, 'front'),
+                    backObjectKey: pageObjectKey(boundCreateCardId, 'back'),
+                    pages: [cardPageWrite('front'), cardPageWrite('back')],
+                    accent: '#4f64dd'
+                },
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '已核验原图',
+                notificationTitle: '名片认领已通过',
+                notificationBody: '已创建可管理的注册名片。',
+                audit
+            });
+            assert.equal(createdCardResult.status, 'saved');
+            if (createdCardResult.status !== 'saved') return;
+            assert.equal(createdCardResult.card?.id, boundCreateCardId);
+            assert.equal(createdCardResult.card?.legacy_card_id, createLegacyId);
+            // origin/card_number are not part of FudabaCardRecord, so confirm the
+            // in-place upgrade directly: the row keeps its original identity and
+            // provenance instead of a second row appearing beside it.
+            const boundCreateCardRow = await database.prepare(
+                `SELECT origin, card_number FROM fudaba_cards WHERE id=?`
+            ).bind(boundCreateCardId).first<{ origin: string; card_number: number }>();
+            assert.equal(boundCreateCardRow?.origin, 'legacy');
+            assert.equal(boundCreateCardRow?.card_number, createLegacyId);
+            assert.equal(createdCardResult.card?.owner_account_id, ownerB);
+            assert.deepEqual(createdCardResult.card?.series_codes, ['cg']);
+            assert.equal(createdCardResult.card?.publication_status, 'published');
+            assert.deepEqual(
+                createdCardResult.card?.favorite_characters.map(
+                    (character) => character.character_id
+                ),
+                [900_001, 900_002]
+            );
+            // 审核写入的媒体以页面行为准：槽位与对象版本来自提交的页面。
+            assert.deepEqual(
+                createdCardResult.card?.pages.map((page) => page.page_id),
+                ['front', 'back']
+            );
+            assert.equal(
+                storedPageKey(createdCardResult.card!, 'front'),
+                pageObjectKey(boundCreateCardId, 'front')
+            );
+            // 早期绑定认领会把「升级后的同一张卡」记成自己的合并目标，审核队列
+            // 的排除条件因此把一张真实名片藏了起来；自合并不能再隐藏它。
+            await database.prepare(
+                `INSERT INTO fudaba_card_merges
+                     (claim_id, target_card_id, legacy_card_id, merged_at)
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT DO NOTHING`
+            ).bind(
+                'create-card-claim',
+                boundCreateCardId,
+                createLegacyId,
+                String(REVIEWED_AT)
+            ).run();
+            const queueRepository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await queueRepository.initialize();
+            const adminQueue = await queueRepository.listAdminCards(50, 0);
+            assert.ok(
+                adminQueue.some((row) => row.id === createLegacyId),
+                'a card that merged into itself stays in the admin queue'
+            );
+            assert.equal((await fudaba.softDeleteCardForOwner({
+                cardId: boundCreateCardId,
+                ownerAccountId: ownerB,
+                expectedRevision: 1,
+                deletedAt: REVIEWED_AT
+            })).status, 'saved');
+            assert.equal(
+                (await fudaba.listLegacyNamecardClaimStatuses(
+                    [createLegacyId],
+                    ownerB
+                ))[0]?.claim_status,
+                'claimed'
+            );
+
+            // 已经有一张就地升级过的名片（legacy_card_id = card_number）之后，
+            // 再认领另一张老卡仍必须能升级。NOT EXISTS 里的 card_number 一旦
+            // 解析到内层 bound 自己，就会变成自比较而恒为假，这里专门覆盖它。
+            const secondInPlaceLegacyId = await insertLegacyCard(database, 'z');
+            assert.equal((await fudaba.createCardClaimForOwner({
+                id: 'second-in-place-claim',
+                legacyCardId: secondInPlaceLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            })).status, 'created');
+            assert.equal(
+                (await fudaba.beginCardClaimReview('second-in-place-claim', 0)).status,
+                'claimed'
+            );
+            const secondInPlace = await fudaba.completeCardClaimReview({
+                claimId: 'second-in-place-claim',
+                approvingRevision: 1,
+                decision: 'approve',
+                media: {
+                    frontObjectKey: pageObjectKey(`legacy-${secondInPlaceLegacyId}`, 'front'),
+                    backObjectKey: pageObjectKey(`legacy-${secondInPlaceLegacyId}`, 'back'),
+                    pages: [cardPageWrite('front'), cardPageWrite('back')],
+                    accent: null
+                },
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '第二张就地升级',
+                notificationTitle: '旧名片认领已通过',
+                notificationBody: '旧名片已绑定到您的账号。',
+                audit: { ...audit, action: 'approve namecard claim' }
+            });
+            assert.equal(secondInPlace.status, 'saved');
+
+            // 老卡行自身已经带着 legacy_card_id = card_number（历史脏值/迁移遗留）时，
+            // 就地升级的 NOT EXISTS 不能把它读成「已被别的卡占用」——那是自比较，
+            // 会让所有处于该状态的老卡永远无法通过认领。
+            const staleLegacyId = await insertLegacyCard(database, 'y');
+            await database.prepare(
+                `UPDATE fudaba_cards SET legacy_card_id=? WHERE card_number=?`
+            ).bind(String(staleLegacyId), String(staleLegacyId)).run();
+            assert.equal((await fudaba.createCardClaimForOwner({
+                id: 'stale-legacy-id-claim',
+                legacyCardId: staleLegacyId,
+                claimantAccountId: ownerA,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            })).status, 'created');
+            assert.equal(
+                (await fudaba.beginCardClaimReview('stale-legacy-id-claim', 0)).status,
+                'claimed'
+            );
+            const staleInPlace = await fudaba.completeCardClaimReview({
+                claimId: 'stale-legacy-id-claim',
+                approvingRevision: 1,
+                decision: 'approve',
+                media: {
+                    frontObjectKey: pageObjectKey(`legacy-${staleLegacyId}`, 'front'),
+                    backObjectKey: pageObjectKey(`legacy-${staleLegacyId}`, 'back'),
+                    pages: [cardPageWrite('front'), cardPageWrite('back')],
+                    accent: null
+                },
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '老卡自带 legacy_card_id 时就地升级',
+                notificationTitle: '旧名片认领已通过',
+                notificationBody: '旧名片已绑定到您的账号。',
+                audit: { ...audit, action: 'approve namecard claim' }
+            });
+            assert.equal(staleInPlace.status, 'saved');
+
+            const rejectedLegacyId = await insertLegacyCard(database, 'j');
+            const rejectedClaim = await fudaba.createCardClaimForOwner({
+                id: 'rejected-claim',
+                legacyCardId: rejectedLegacyId,
+                claimantAccountId: ownerC,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [900_001] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(rejectedClaim.status, 'created');
+            assert.equal(
+                (await fudaba.beginCardClaimReview('rejected-claim', 0)).status,
+                'claimed'
+            );
+            const rejected = await fudaba.completeCardClaimReview({
+                claimId: 'rejected-claim',
+                approvingRevision: 1,
+                decision: 'reject',
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '证据不足',
+                notificationTitle: '名片认领未通过',
+                notificationBody: '请补充证明后重新提交。',
+                audit: { ...audit, action: 'reject namecard claim' }
+            });
+            assert.equal(rejected.status, 'saved');
+            if (rejected.status !== 'saved') return;
+            assert.equal(rejected.claim.state, 'rejected');
+            assert.equal(rejected.card, null);
+            const rejectedNotes = await new SqlNamecardNotificationRepository(
+                database
+            ).list(ownerC);
+            assert.equal(
+                rejectedNotes.items.filter((item) => item.kind === 'claim-rejected')
+                    .length,
+                1
+            );
+
+            const reviewCardId = 'registered-review-card';
+            const reviewCreated = await fudaba.createCardForOwner(ownerCard(reviewCardId, ownerC));
+            assert.equal(reviewCreated.status, 'saved');
+            const registeredBegin = await Promise.all([
+                fudaba.beginRegisteredCardReview(reviewCardId, 0),
+                sibling.beginRegisteredCardReview(reviewCardId, 0)
+            ]);
+            assert.deepEqual(
+                registeredBegin.map((result) => result.status).sort(),
+                ['claimed', 'conflict']
+            );
+            assert.deepEqual(await fudaba.updateCardMetadataForOwner({
+                cardId: reviewCardId,
+                ownerAccountId: ownerC,
+                producerName: 'Blocked while reviewing',
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [900_001],
+                bio: '',
+                tradeNote: '',
+                exchangeMode: 'manual',
+                madeOn: null,
+                groupName: null,
+                producerReading: null,
+                isOriginal: false,
+                madeWithAi: false,
+                visible: true,
+                expectedRevision: 1,
+                updatedAt: REVIEWED_AT
+            }), { status: 'unavailable' });
+            const registeredComplete = await fudaba.completeRegisteredCardReview({
+                cardId: reviewCardId,
+                approvingRevision: 1,
+                decision: 'publish',
+                reviewedAt: REVIEWED_AT,
+                audit: { ...audit, action: 'publish registered card' }
+            });
+            assert.equal(registeredComplete.status, 'saved');
+            if (registeredComplete.status !== 'saved') return;
+            assert.equal(registeredComplete.card.publication_status, 'published');
+            const registeredReplay = await fudaba.completeRegisteredCardReview({
+                cardId: reviewCardId,
+                approvingRevision: 1,
+                decision: 'publish',
+                reviewedAt: REVIEWED_AT,
+                audit: { ...audit, action: 'publish registered card' }
+            });
+            assert.equal(registeredReplay.status, 'conflict');
+
+            const rejectedCardId = 'registered-rejected-card';
+            assert.equal(
+                (await fudaba.createCardForOwner(ownerCard(rejectedCardId, ownerC))).status,
+                'saved'
+            );
+            assert.equal(
+                (await fudaba.beginRegisteredCardReview(rejectedCardId, 0)).status,
+                'claimed'
+            );
+            const registeredRejected = await fudaba.completeRegisteredCardReview({
+                cardId: rejectedCardId,
+                approvingRevision: 1,
+                decision: 'reject',
+                reviewedAt: REVIEWED_AT,
+                audit: { ...audit, action: 'reject registered card' }
+            });
+            assert.equal(registeredRejected.status, 'saved');
+            if (registeredRejected.status !== 'saved') return;
+            assert.equal(registeredRejected.card.publication_status, 'rejected');
+
+            const rollbackCardId = 'registered-review-rollback';
+            assert.equal(
+                (await fudaba.createCardForOwner(ownerCard(rollbackCardId, ownerC))).status,
+                'saved'
+            );
+            assert.equal(
+                (await fudaba.beginRegisteredCardReview(rollbackCardId, 0)).status,
+                'claimed'
+            );
+            assert.equal(await fudaba.rollbackRegisteredCardReview(rollbackCardId, 1), true);
+            const rolledBackCard = await fudaba.findRegisteredCardForAdmin(rollbackCardId);
+            assert.equal(rolledBackCard?.publication_status, 'pending');
+            assert.equal(rolledBackCard?.revision, 2);
+
+            const rollbackLegacyId = await insertLegacyCard(database, 'q');
+            assert.equal((await fudaba.createCardClaimForOwner({
+                id: 'claim-review-rollback',
+                legacyCardId: rollbackLegacyId,
+                claimantAccountId: ownerC,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [900_001] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            })).status, 'created');
+            assert.equal(
+                (await fudaba.beginCardClaimReview('claim-review-rollback', 0)).status,
+                'claimed'
+            );
+            assert.equal(await fudaba.rollbackCardClaimReview('claim-review-rollback', 1), true);
+            const rolledBackClaim = await fudaba.findAdminCardClaim('claim-review-rollback');
+            assert.equal(rolledBackClaim?.state, 'pending');
+            assert.equal(rolledBackClaim?.revision, 2);
+
+            // 两步审核之间的崩溃会留下 approving 行：它仍在队列里，必须能
+            // 用最新 revision 续做，否则这条认领永远无法通过。
+            const stuckLegacyId = await insertLegacyCard(database, 'k');
+            const stuckClaim = await fudaba.createCardClaimForOwner({
+                id: 'stuck-claim',
+                legacyCardId: stuckLegacyId,
+                claimantAccountId: ownerC,
+                targetCardId: null,
+                payload: { seriesCodes: ['765'], favoriteCharacterIds: [] },
+                message: '',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            });
+            assert.equal(stuckClaim.status, 'created');
+            const stuckBegin = await fudaba.beginCardClaimReview('stuck-claim', 0);
+            assert.equal(stuckBegin.status, 'claimed');
+            if (stuckBegin.status !== 'claimed') return;
+            const resumed = await fudaba.beginCardClaimReview(
+                'stuck-claim',
+                stuckBegin.claim.revision
+            );
+            assert.equal(resumed.status, 'claimed');
+            if (resumed.status !== 'claimed') return;
+            const resumedCompletion = await fudaba.completeCardClaimReview({
+                claimId: 'stuck-claim',
+                approvingRevision: resumed.claim.revision,
+                decision: 'reject',
+                reviewedBy,
+                reviewedAt: REVIEWED_AT,
+                reviewNote: '续做一次被中断的审核',
+                notificationTitle: '名片认领未通过',
+                notificationBody: '请补充材料后重新提交。',
+                audit: { ...audit, action: 'reject namecard claim' }
+            });
+            assert.equal(resumedCompletion.status, 'saved');
+        }, 60_000);
+    });
+}
+
+// fudaba-domain-repository.test.ts
+{
+    const CREATED_AT = '2026-08-02T00:00:00.000Z';
+    const UPDATED_AT = '2026-08-02T00:01:00.000Z';
+    const RESOLVED_AT = '2026-08-02T00:02:00.000Z';
+
+    const initializedPostgresSchema: SqlSchemaStrategy = {
+        initializeCore: async () => undefined,
+        initializePlatform: async () => undefined,
+        initializeFudaba: async () => undefined,
+        initializeStory: async () => undefined
+    };
+
+    interface Fixture {
+        database: ManagedSqlDatabase;
+        repository: SqlFudabaRepository;
+        dialect: 'postgresql';
+    }
+
+    function office(
+        id: string,
+        ownerAccountId: string,
+        overrides: Partial<NewFudabaOfficeInput> = {}
+    ): NewFudabaOfficeInput {
+        return {
+            id,
+            ownerAccountId,
+            slug: id,
+            name: `Office ${id}`,
+            intro: '',
+            city: 'Shanghai',
+            address: '765 Producer Street',
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: '#ef5b6c',
+            coverObjectKey: null,
+            isOpen: true,
+            visitorCount: 0,
+            status: 'active',
+            revision: 0,
+            createdAt: CREATED_AT,
+            updatedAt: CREATED_AT,
+            archivedAt: null,
+            seriesCodes: ['765'],
+            ...overrides
+        };
+    }
+
+    function card(
+        id: string,
+        ownerAccountId: string,
+        overrides: Partial<NewFudabaCardInput> = {}
+    ): NewFudabaCardInput {
+        return {
+            id,
+            ownerAccountId,
+            producerName: `Producer ${ownerAccountId}`,
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001],
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
+            bio: '',
+            tradeNote: '',
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            publicationStatus: 'published',
+            revision: 0,
+            createdAt: CREATED_AT,
+            updatedAt: CREATED_AT,
+            deletedAt: null,
+            ...overrides
+        };
+    }
+
+    async function createFixture(
+        dialect: 'postgresql' = 'postgresql'
+    ): Promise<Fixture> {
+        const harness = await createPostgresTestHarness();
+        const repository = new SqlFudabaRepository(
+            harness.connection,
+            initializedPostgresSchema
+        );
+        onTestFinished(() => harness.close());
+        await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
+        return { database: harness.connection, repository, dialect };
+    }
+
+    async function seedPlatformAccount(
+        fixture: Fixture,
+        accountId: string
+    ): Promise<void> {
+        await insertPlatformAccount(fixture.database, accountId);
+    }
+
+    async function seedBackofficeActor(
+        fixture: Fixture,
+        username: string
+    ): Promise<number> {
+        const actor = await insertBackofficeAccount(fixture.database, username, {
+            producername: username
+        });
+        assert.ok(actor);
+        return actor;
+    }
+
+    async function placeCard(
+        fixture: Fixture,
+        officeId: string,
+        cardId: string,
+        ownerAccountId: string,
+        zIndex = 1
+    ): Promise<boolean> {
+        return fixture.repository.placeOwnedCard({
+            officeId,
+            cardId,
+            ownerAccountId,
+            pinnedAt: CREATED_AT,
+            positionX: 50,
+            positionY: 50,
+            rotation: 0,
+            zIndex
+        });
+    }
+
+    describe('Fudaba domain repository', () => {
+        postgresTest('office creation and series assignment are atomic', async () => {
+            const fixture = await createFixture();
+            await seedPlatformAccount(fixture, 'office-owner');
+
+            await assert.rejects(fixture.repository.createOffice(office(
+                'rolled-back-office',
+                'office-owner',
+                { seriesCodes: ['765', 'not-a-series'] }
+            )));
+            assert.equal(await fixture.repository.findOfficeById('rolled-back-office'), null);
+            assert.equal(await fixture.database.prepare(
+                'SELECT COUNT(*) AS count FROM fudaba_office_series_tags WHERE office_id=?'
+            ).bind('rolled-back-office').first<number>('count'), 0);
+
+            const created = await fixture.repository.createOffice(office(
+                'atomic-office',
+                'office-owner',
+                { slug: '上海-事务所', seriesCodes: ['765', 'cg'] }
+            ));
+            assert.equal(created.owner_account_id, 'office-owner');
+            assert.equal(created.slug, '上海-事务所');
+            await fixture.database.prepare(
+                `INSERT INTO fudaba_office_series_tags
+            (office_id, series_code, display_order)
+         VALUES (?, 'ml', 1)`
+            ).bind(created.id).run();
+            const assigned = await fixture.database.prepare(
+                `SELECT series_code, display_order FROM fudaba_office_series_tags
+         WHERE office_id=? ORDER BY display_order, series_code`
+            ).bind(created.id).all<{ series_code: string; display_order: number }>();
+            assert.deepEqual(assigned.results, [
+                { series_code: '765', display_order: 0 },
+                { series_code: 'cg', display_order: 1 },
+                { series_code: 'ml', display_order: 1 }
+            ]);
+        });
+
+        async function assertOwnerAndArchiveBoundary(
+            dialect: 'postgresql'
+        ): Promise<void> {
+            const fixture = await createFixture(dialect);
+            for (const accountId of ['owner', 'intruder', 'requester']) {
+                await seedPlatformAccount(fixture, `${dialect}-${accountId}`);
+            }
+            const ownerId = `${dialect}-owner`;
+            const intruderId = `${dialect}-intruder`;
+            const requesterId = `${dialect}-requester`;
+            const officeId = `${dialect}-archive-office`;
+            const wantedId = `${dialect}-wanted-card`;
+            const blockedId = `${dialect}-blocked-card`;
+            await fixture.repository.createOffice(office(officeId, ownerId, {
+                slug: `上海-${dialect}`
+            }));
+            await seedPublishedOfficeFixture(fixture.database, officeId);
+            await fixture.repository.createCard(card(wantedId, ownerId));
+            await fixture.repository.createCard(card(blockedId, ownerId));
+
+            assert.equal(await placeCard(fixture, officeId, wantedId, intruderId), false);
+            assert.equal(await fixture.database.prepare(
+                'SELECT COUNT(*) AS count FROM fudaba_office_cards WHERE office_id=?'
+            ).bind(officeId).first<number>('count'), 0);
+            assert.equal(await placeCard(fixture, officeId, wantedId, ownerId), true);
+
+            assert.equal(await fixture.repository.updateOfficeStatusForOwner({
+                officeId,
+                ownerAccountId: intruderId,
+                status: 'archived',
+                archivedAt: UPDATED_AT,
+                updatedAt: UPDATED_AT,
+                expectedRevision: 0
+            }), false);
+            assert.equal(await fixture.repository.updateOfficeStatusForOwner({
+                officeId,
+                ownerAccountId: ownerId,
+                status: 'archived',
+                archivedAt: UPDATED_AT,
+                updatedAt: UPDATED_AT,
+                expectedRevision: 0
+            }), true);
+            assert.equal(await placeCard(fixture, officeId, blockedId, ownerId, 2), false);
+            assert.equal(await fixture.repository.createMessage({
+                id: `${dialect}-blocked-message`,
+                officeId,
+                authorAccountId: requesterId,
+                content: 'This must not be persisted.',
+                createdAt: UPDATED_AT
+            }), false);
+
+            await assert.rejects(fixture.database.prepare(
+                `INSERT INTO fudaba_office_cards
+            (office_id, card_id, pinned_at, position_x, position_y, rotation, z_index)
+         VALUES (?, ?, ?, 50, 50, 0, 3)`
+            ).bind(officeId, blockedId, UPDATED_AT).run());
+            await assert.rejects(fixture.database.prepare(
+                `INSERT INTO fudaba_messages
+            (id, office_id, author_account_id, content, created_at)
+         VALUES (?, ?, ?, 'Bypassed repository', ?)`
+            ).bind(`${dialect}-direct-message`, officeId, requesterId, UPDATED_AT).run());
+        }
+
+        postgresTest('moderation constraints cannot be bypassed', async () => {
+            const fixture = await createFixture();
+            await seedPlatformAccount(fixture, 'card-owner');
+            const actorId = await seedBackofficeActor(fixture, 'fudaba-moderator');
+
+            const published = await fixture.repository.createCard(card(
+                'approved-published-card',
+                'card-owner'
+            ));
+            assert.equal(published.publication_status, 'published');
+
+            await assert.rejects(fixture.repository.createModerationCase({
+                id: 'resolved-without-actor',
+                resourceKind: 'card',
+                resourceId: published.id,
+                reporterAccountId: 'card-owner',
+                reason: 'Rights review',
+                details: '',
+                state: 'resolved',
+                backofficeActorId: null,
+                resolution: 'Approved',
+                createdAt: CREATED_AT,
+                updatedAt: UPDATED_AT,
+                resolvedAt: UPDATED_AT
+            }));
+            const resolved = await fixture.repository.createModerationCase({
+                id: 'resolved-with-actor',
+                resourceKind: 'card',
+                resourceId: published.id,
+                reporterAccountId: 'card-owner',
+                reason: 'Rights review',
+                details: '',
+                state: 'resolved',
+                backofficeActorId: actorId,
+                resolution: 'Approved',
+                createdAt: CREATED_AT,
+                updatedAt: UPDATED_AT,
+                resolvedAt: UPDATED_AT
+            });
+            assert.equal(resolved.backoffice_actor_id, actorId);
+            await assert.rejects(fixture.repository.createModerationCase({
+                id: 'resolved-with-missing-actor',
+                resourceKind: 'card',
+                resourceId: published.id,
+                reporterAccountId: null,
+                reason: 'Rights review',
+                details: '',
+                state: 'resolved',
+                backofficeActorId: actorId + 10_000,
+                resolution: 'Approved',
+                createdAt: CREATED_AT,
+                updatedAt: UPDATED_AT,
+                resolvedAt: UPDATED_AT
+            }));
+        });
+
+        async function assertModerationActorRetention(
+            dialect: 'postgresql'
+        ): Promise<void> {
+            const fixture = await createFixture(dialect);
+            const actorId = await seedBackofficeActor(
+                fixture,
+                `${dialect}-retained-moderator`
+            );
+            await fixture.repository.createModerationCase({
+                id: `${dialect}-retained-moderation-case`,
+                resourceKind: 'office',
+                resourceId: `${dialect}-office`,
+                reporterAccountId: null,
+                reason: 'Policy review',
+                details: '',
+                state: 'resolved',
+                backofficeActorId: actorId,
+                resolution: 'Retain actor identity',
+                createdAt: CREATED_AT,
+                updatedAt: UPDATED_AT,
+                resolvedAt: UPDATED_AT
+            });
+            const adminAccounts = new SqlAdminAccountRepository(fixture.database);
+
+            assert.equal(
+                await adminAccounts.deleteAdminAccount(actorId),
+                'moderation-history'
+            );
+            assert.equal(await fixture.database.prepare(
+                'SELECT COUNT(*) AS count FROM backoffice_accounts WHERE id=?'
+            ).bind(actorId).first<number>('count'), 1);
+            assert.equal(await fixture.database.prepare(
+                `SELECT backoffice_actor_id FROM fudaba_moderation_cases WHERE id=?`
+            ).bind(`${dialect}-retained-moderation-case`).first<number>(
+                'backoffice_actor_id'
+            ), actorId);
+        }
+
+        postgresTest('real PostgreSQL enforces Fudaba ownership and archived-office constraints', async () => {
+            await assertOwnerAndArchiveBoundary('postgresql');
+        });
+
+        postgresTest('real PostgreSQL retains actors referenced by resolved moderation cases', async () => {
+            await assertModerationActorRetention('postgresql');
+        });
+    });
+}
+
+// fudaba-location-repository.test.ts
+{
+    const SUBMITTED_AT = "2026-08-03T01:00:00.000Z";
+    const RESUBMITTED_AT = "2026-08-03T02:00:00.000Z";
+    const REVIEWED_AT = "2026-08-03T03:00:00.000Z";
+    const PUBLISH_OPERATION_ID = "00000000-0000-4000-8000-000000000001";
+    const STALE_OPERATION_ID = "00000000-0000-4000-8000-000000000002";
+    const FAILED_OPERATION_ID = "00000000-0000-4000-8000-000000000003";
+
+    const initializedPostgresSchema: SqlSchemaStrategy = {
+        initializeCore: async () => undefined,
+        initializePlatform: async () => undefined,
+        initializeFudaba: async () => undefined,
+        initializeStory: async () => undefined,
+    };
+
+    interface Fixture {
+        database: ManagedSqlDatabase;
+        repository: SqlFudabaRepository;
+        dialect: "postgresql";
+    }
+
+    async function createFixture(
+        dialect: Fixture["dialect"],
+    ): Promise<Fixture> {
+        const harness = await createPostgresTestHarness();
+        const repository = new SqlFudabaRepository(
+            harness.connection,
+            initializedPostgresSchema,
+        );
+        onTestFinished(() => harness.close());
+        await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
+        return { database: harness.connection, repository, dialect };
+    }
+
+    async function seedAccount(
+        fixture: Fixture,
+        id: string,
+        status: PlatformAccountStatus = "active",
+    ): Promise<void> {
+        await insertPlatformAccount(fixture.database, id, { status });
+    }
+
+    function office(
+        id: string,
+        ownerAccountId: string,
+        overrides: Partial<NewFudabaOfficeInput> = {},
+    ): NewFudabaOfficeInput {
+        return {
+            id,
+            ownerAccountId,
+            slug: id,
+            name: `Office ${id}`,
+            intro: "Private intro",
+            city: "Shanghai",
+            address: "Private exact address",
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: "#ef5b6c",
+            coverObjectKey: null,
+            isOpen: true,
+            visitorCount: 0,
+            status: "active",
+            revision: 0,
+            createdAt: SUBMITTED_AT,
+            updatedAt: SUBMITTED_AT,
+            archivedAt: null,
+            seriesCodes: ["765"],
+            ...overrides,
+        };
+    }
+
+    async function seedReviewer(fixture: Fixture): Promise<number> {
+        const row = await insertBackofficeAccount(
+            fixture.database,
+            `${fixture.dialect}-location-reviewer`,
+            { producername: "Reviewer" },
+        );
+        assert.ok(row);
+        return row;
+    }
+
+    async function insertReviewedLocation(
+        fixture: Fixture,
+        input: {
+            officeId: string;
+            latitudeE1: number;
+            longitudeE1: number;
+            reviewerId: number;
+            state?: "published" | "rejected";
+            note?: string;
+        },
+    ): Promise<void> {
+        await insertFudabaOfficePublicLocation(
+            fixture.database,
+            input.officeId,
+            SUBMITTED_AT,
+            {
+                latitude_e1: input.latitudeE1,
+                longitude_e1: input.longitudeE1,
+                review_state: input.state ?? "published",
+                revision: 1,
+                reviewed_at: REVIEWED_AT,
+                reviewed_by: input.reviewerId,
+                review_note: input.note ?? "",
+                review_audit_id: crypto.randomUUID(),
+            },
+        );
+    }
+
+    function reviewAudit(target: string) {
+        return {
+            username: "location-reviewer",
+            producername: "Reviewer",
+            action: "发布 Fudaba 事务所公开位置",
+            target,
+            ip: "127.0.0.1",
+            time: REVIEWED_AT,
+        };
+    }
+
+    async function installFailingAuditTrigger(fixture: Fixture): Promise<void> {
+        await fixture.database.executeScript(`
+        CREATE FUNCTION fail_fudaba_location_audit()
+        RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            RAISE EXCEPTION 'forced Fudaba location audit failure';
+        END;
+        $$;
+        CREATE TRIGGER fail_fudaba_location_audit
+        BEFORE INSERT ON logs
+        FOR EACH ROW EXECUTE FUNCTION fail_fudaba_location_audit();
+    `);
+    }
+
+    async function removeFailingAuditTrigger(fixture: Fixture): Promise<void> {
+        await fixture.database.executeScript(`
+        DROP TRIGGER fail_fudaba_location_audit ON logs;
+        DROP FUNCTION fail_fudaba_location_audit();
+    `);
+    }
+
+    async function assertLocationRepository(
+        dialect: Fixture["dialect"],
+    ): Promise<void> {
+        const fixture = await createFixture(dialect);
+        const ownerId = `${dialect}-location-owner`;
+        const otherId = `${dialect}-location-other`;
+        const restrictedId = `${dialect}-location-restricted`;
+        const suspendedId = `${dialect}-location-suspended`;
+        await seedAccount(fixture, ownerId);
+        await seedAccount(fixture, otherId);
+        await seedAccount(fixture, restrictedId, "restricted");
+        await seedAccount(fixture, suspendedId, "suspended");
+        const reviewerId = await seedReviewer(fixture);
+
+        await fixture.repository.createOffice(office("location-main", ownerId));
+        await fixture.repository.createOffice(
+            office("location-hidden", ownerId, {
+                status: "hidden",
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("location-archived", ownerId, {
+                status: "archived",
+                archivedAt: RESUBMITTED_AT,
+            }),
+        );
+        await insertFudabaOfficePublicLocation(
+            fixture.database,
+            "location-hidden",
+            SUBMITTED_AT,
+            { latitude_e1: 300, longitude_e1: 1200 },
+        );
+
+        const created = await fixture.repository.saveOfficePublicLocationForOwner({
+            officeId: "location-main",
+            ownerAccountId: ownerId,
+            latitudeE1: 312,
+            longitudeE1: 1215,
+            expectedRevision: null,
+            submittedAt: SUBMITTED_AT,
+        });
+        assert.equal(created.status, "saved");
+        if (created.status !== "saved") return;
+        assert.deepEqual(created.location, {
+            office_id: "location-main",
+            precision: 'regional',
+            latitude_exact: null,
+            longitude_exact: null,
+            exact_location_consent_at: null,
+            latitude_e1: 312,
+            longitude_e1: 1215,
+            review_state: "pending",
+            revision: 0,
+            submitted_at: SUBMITTED_AT,
+            reviewed_at: null,
+            reviewed_by: null,
+            review_note: "",
+        });
+        assert.deepEqual(
+            await fixture.repository.saveOfficePublicLocationForOwner({
+                officeId: "location-main",
+                ownerAccountId: otherId,
+                latitudeE1: 300,
+                longitudeE1: 1200,
+                expectedRevision: 0,
+                submittedAt: RESUBMITTED_AT,
+            }),
+            { status: "unavailable" },
+        );
+        for (const officeId of ["location-hidden", "location-archived"]) {
+            assert.deepEqual(
+                await fixture.repository.saveOfficePublicLocationForOwner({
+                    officeId,
+                    ownerAccountId: ownerId,
+                    latitudeE1: 300,
+                    longitudeE1: 1200,
+                    expectedRevision: null,
+                    submittedAt: RESUBMITTED_AT,
+                }),
+                { status: "unavailable" },
+            );
+        }
+
+        const published = await fixture.repository.reviewOfficePublicLocation({
+            officeId: "location-main",
+            decision: "publish",
+            expectedRevision: 0,
+            reviewedAt: REVIEWED_AT,
+            reviewedBy: reviewerId,
+            reviewNote: "",
+            reviewOperationId: PUBLISH_OPERATION_ID,
+            audit: reviewAudit("location-main@1"),
+        });
+        assert.equal(published.status, "saved");
+        assert.deepEqual(
+            await fixture.database
+                .prepare(
+                    `SELECT username, producername, action, target, ip, time
+         FROM logs WHERE target='location-main@1'`,
+                )
+                .first(),
+            reviewAudit("location-main@1"),
+        );
+        assert.deepEqual(
+            await fixture.repository.reviewOfficePublicLocation({
+                officeId: "location-main",
+                decision: "reject",
+                expectedRevision: 0,
+                reviewedAt: REVIEWED_AT,
+                reviewedBy: reviewerId,
+                reviewNote: "stale",
+                reviewOperationId: STALE_OPERATION_ID,
+                audit: {
+                    ...reviewAudit("location-main@stale"),
+                    action: "stale review",
+                },
+            }),
+            { status: "conflict", revision: 1 },
+        );
+        assert.equal(
+            await fixture.database
+                .prepare("SELECT COUNT(*) AS count FROM logs")
+                .first<number>("count"),
+            1,
+            "stale review must not write an audit log",
+        );
+
+        await fixture.repository.createOffice(
+            office("location-audit-failure", ownerId),
+        );
+        assert.equal(
+            (
+                await fixture.repository.saveOfficePublicLocationForOwner({
+                    officeId: "location-audit-failure",
+                    ownerAccountId: ownerId,
+                    latitudeE1: 300,
+                    longitudeE1: 1200,
+                    expectedRevision: null,
+                    submittedAt: SUBMITTED_AT,
+                })
+            ).status,
+            "saved",
+        );
+        await installFailingAuditTrigger(fixture);
+        await assert.rejects(
+            fixture.repository.reviewOfficePublicLocation({
+                officeId: "location-audit-failure",
+                decision: "publish",
+                expectedRevision: 0,
+                reviewedAt: REVIEWED_AT,
+                reviewedBy: reviewerId,
+                reviewNote: "",
+                reviewOperationId: FAILED_OPERATION_ID,
+                audit: reviewAudit("location-audit-failure@1"),
+            }),
+            /forced Fudaba location audit failure/,
+        );
+        await removeFailingAuditTrigger(fixture);
+        const auditFailureLocation =
+            await fixture.repository.findOfficePublicLocationForOwner(
+                "location-audit-failure",
+                ownerId,
+            );
+        assert.equal(auditFailureLocation?.review_state, "pending");
+        assert.equal(auditFailureLocation?.revision, 0);
+        assert.equal(
+            await fixture.database
+                .prepare(
+                    `SELECT COUNT(*) AS count FROM logs
+         WHERE target='location-audit-failure@1'`,
+                )
+                .first<number>("count"),
+            0,
+        );
+        assert.equal(
+            (
+                await fixture.repository.withdrawOfficePublicLocationForOwner({
+                    officeId: "location-audit-failure",
+                    ownerAccountId: ownerId,
+                    expectedRevision: 0,
+                })
+            ).status,
+            "saved",
+        );
+
+        const resubmitted =
+            await fixture.repository.saveOfficePublicLocationForOwner({
+                officeId: "location-main",
+                ownerAccountId: ownerId,
+                latitudeE1: 313,
+                longitudeE1: 1216,
+                expectedRevision: 1,
+                submittedAt: RESUBMITTED_AT,
+            });
+        assert.equal(resubmitted.status, "saved");
+        if (resubmitted.status !== "saved") return;
+        assert.equal(resubmitted.location.revision, 2);
+        assert.equal(resubmitted.location.review_state, "pending");
+        assert.equal(resubmitted.location.reviewed_at, null);
+        assert.equal(resubmitted.location.reviewed_by, null);
+        assert.equal(resubmitted.location.review_note, "");
+        assert.equal(
+            await fixture.database
+                .prepare(
+                    `SELECT review_audit_id FROM fudaba_office_public_locations
+         WHERE office_id='location-main'`,
+                )
+                .first<string>("review_audit_id"),
+            null,
+        );
+
+        const sibling = new SqlFudabaRepository(
+            fixture.database,
+            initializedPostgresSchema,
+        );
+        await sibling.initialize();
+        const concurrent = await Promise.all([
+            fixture.repository.saveOfficePublicLocationForOwner({
+                officeId: "location-main",
+                ownerAccountId: ownerId,
+                latitudeE1: 314,
+                longitudeE1: 1217,
+                expectedRevision: 2,
+                submittedAt: REVIEWED_AT,
+            }),
+            sibling.saveOfficePublicLocationForOwner({
+                officeId: "location-main",
+                ownerAccountId: ownerId,
+                latitudeE1: 315,
+                longitudeE1: 1218,
+                expectedRevision: 2,
+                submittedAt: REVIEWED_AT,
+            }),
+        ]);
+        assert.deepEqual(concurrent.map((result) => result.status).sort(), [
+            "conflict",
+            "saved",
+        ]);
+        const current = await fixture.repository.findOfficePublicLocationForOwner(
+            "location-main",
+            ownerId,
+        );
+        assert.equal(current?.revision, 3);
+
+        await fixture.database
+            .prepare(
+                "UPDATE fudaba_offices SET status='archived', archived_at=? WHERE id=?",
+            )
+            .bind(REVIEWED_AT, "location-main")
+            .run();
+        const withdrawn =
+            await fixture.repository.withdrawOfficePublicLocationForOwner({
+                officeId: "location-main",
+                ownerAccountId: ownerId,
+                expectedRevision: 3,
+            });
+        assert.equal(withdrawn.status, "saved");
+        assert.equal(
+            await fixture.repository.findOfficePublicLocationForOwner(
+                "location-main",
+                ownerId,
+            ),
+            null,
+        );
+
+        await fixture.database
+            .prepare("UPDATE agencies SET wiki_enabled=? WHERE code='sidem'")
+            .bind(false)
+            .run();
+        const publicInputs = [
+            office("map-negative", ownerId, { city: "Beijing", isOpen: false, latitude: -3.2, longitude: -45.6 }),
+            office("map-positive", ownerId),
+            office("map-restricted", restrictedId, { latitude: 31.3, longitude: 121.6 }),
+            office("map-suspended", suspendedId, { latitude: 31.4, longitude: 121.7 }),
+            office("map-hidden-office", ownerId, { status: "hidden", latitude: 31.5, longitude: 121.8 }),
+            office("map-disabled-series", ownerId, { seriesCodes: ["sidem"], latitude: 31.6, longitude: 121.9 }),
+            office("map-untagged", ownerId, { seriesCodes: [], latitude: 31.8, longitude: 122.1 }),
+            office("map-pending", ownerId, { latitude: 31.7, longitude: 122 }),
+        ];
+        for (const input of publicInputs) {
+            await fixture.repository.createOffice(input);
+            if (input.id !== 'map-pending') await seedPublishedOfficeFixture(fixture.database, input.id);
+        }
+        await insertReviewedLocation(fixture, {
+            officeId: "map-negative",
+            latitudeE1: -32,
+            longitudeE1: -456,
+            reviewerId,
+        });
+        await insertReviewedLocation(fixture, {
+            officeId: "map-positive",
+            latitudeE1: 312,
+            longitudeE1: 1215,
+            reviewerId,
+        });
+        await insertReviewedLocation(fixture, {
+            officeId: "map-restricted",
+            latitudeE1: 313,
+            longitudeE1: 1216,
+            reviewerId,
+        });
+        await insertReviewedLocation(fixture, {
+            officeId: "map-suspended",
+            latitudeE1: 314,
+            longitudeE1: 1217,
+            reviewerId,
+        });
+        await insertReviewedLocation(fixture, {
+            officeId: "map-hidden-office",
+            latitudeE1: 315,
+            longitudeE1: 1218,
+            reviewerId,
+        });
+        await insertReviewedLocation(fixture, {
+            officeId: "map-disabled-series",
+            latitudeE1: 316,
+            longitudeE1: 1219,
+            reviewerId,
+        });
+        await insertReviewedLocation(fixture, {
+            officeId: "map-untagged",
+            latitudeE1: 318,
+            longitudeE1: 1221,
+            reviewerId,
+        });
+        assert.equal(
+            (
+                await fixture.repository.saveOfficePublicLocationForOwner({
+                    officeId: "map-pending",
+                    ownerAccountId: ownerId,
+                    latitudeE1: 317,
+                    longitudeE1: 1220,
+                    expectedRevision: null,
+                    submittedAt: SUBMITTED_AT,
+                })
+            ).status,
+            "saved",
+        );
+
+        const worldwide = await fixture.repository.listPublicMapOffices({
+            bbox: { west: -180, south: -90, east: 180, north: 90, westE1: -1800, southE1: -900, eastE1: 1800, northE1: 900 },
+            limit: 20,
+        });
+        assert.deepEqual(
+            worldwide.map(({ id }) => id),
+            ["map-negative", "map-positive", "map-restricted", "map-untagged"],
+        );
+        const mapRecord = worldwide[1] as unknown as Record<string, unknown>;
+        assert.equal(typeof mapRecord.address, "string");
+        for (const privateKey of [
+            "owner_account_id",
+            "latitude",
+            "longitude",
+            "review_state",
+            "reviewed_by",
+            "review_note",
+            "review_audit_id",
+        ]) {
+            assert.equal(privateKey in mapRecord, false, privateKey);
+        }
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicMapOffices({
+                    bbox: {
+                        west: 121.4737, south: 31.2304, east: 121.4737, north: 31.2304,
+                        westE1: 1215,
+                        southE1: 312,
+                        eastE1: 1215,
+                        northE1: 312,
+                    },
+                    city: "Shanghai",
+                    seriesCodes: ["765", "cg"],
+                    isOpen: true,
+                    limit: 20,
+                })
+                .then((rows) => rows.map(({ id }) => id)),
+            ["map-positive"],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicMapOffices({
+                    bbox: {
+                        west: -45.6, south: -3.2, east: -45.6, north: -3.2,
+                        westE1: -456,
+                        southE1: -32,
+                        eastE1: -456,
+                        northE1: -32,
+                    },
+                    isOpen: false,
+                    limit: 20,
+                })
+                .then((rows) => rows.map(({ id }) => id)),
+            ["map-negative"],
+        );
+
+        const pendingReviews = await fixture.repository.listOfficeLocationReviews({
+            reviewState: "pending",
+            limit: 20,
+        });
+        assert.deepEqual(
+            pendingReviews.map(({ office_id }) => office_id),
+            ["location-hidden", "map-pending"],
+        );
+        assert.equal(pendingReviews[1]?.office_name, "Office map-pending");
+        assert.equal(pendingReviews[1]?.owner_account_id, ownerId);
+
+        const adminAccounts = new SqlAdminAccountRepository(fixture.database);
+        assert.equal(
+            await adminAccounts.deleteAdminAccount(reviewerId),
+            "moderation-history",
+        );
+        const reviewerTable = "backoffice_accounts";
+        assert.equal(
+            await fixture.database
+                .prepare(
+                    `SELECT COUNT(*) AS count FROM ${reviewerTable} WHERE id=?`,
+                )
+                .bind(reviewerId)
+                .first<number>("count"),
+            1,
+        );
+    }
+
+    describe('Fudaba location repository', () => {
+        postgresTest('review migrations preserve legacy location history and requeue canonical offices without upgrading grids', async () => {
+            const harness = await createPostgresTestHarness({
+                migrationsPath: await createMigrationCatalogBefore(onTestFinished, '20261026130000_fudaba_public_location_precision.sql')
+            });
+            onTestFinished(() => harness.close());
+            const fixture: Fixture = {
+                database: harness.connection,
+                repository: new SqlFudabaRepository(harness.connection, initializedPostgresSchema),
+                dialect: 'postgresql'
+            };
+            await seedAccount(fixture, 'historical-owner');
+            const original = office('historical-location', 'historical-owner');
+            await fixture.database.prepare(`INSERT INTO fudaba_offices
+                (id, owner_account_id, slug, name, intro, city, address, latitude, longitude,
+                 accent, cover_object_key, is_open, visitor_count, status, revision, created_at, updated_at, archived_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                .bind(original.id, original.ownerAccountId, original.slug, original.name, original.intro,
+                    original.city, original.address, original.latitude, original.longitude, original.accent,
+                    original.coverObjectKey, original.isOpen, original.visitorCount, original.status,
+                    original.revision, original.createdAt, original.updatedAt, original.archivedAt).run();
+            const reviewerId = await seedReviewer(fixture);
+            await insertReviewedLocation(fixture, { officeId: 'historical-location', latitudeE1: 312, longitudeE1: 1215, reviewerId });
+            const { migratePostgres } = createRequire(__filename)('../../scripts/migration/postgres-migrations.js');
+            const result = await migratePostgres({ connectionString: harness.databaseUrl });
+            assert.deepEqual(result.executed, [
+                '20261026130000_fudaba_public_location_precision',
+                '20261026230000_fudaba_office_review',
+                '20261027120000_namecard_lock_status',
+                '20261027180000_namecard_pending_versions',
+                '20261028120000_namecard_editor_fields',
+                '20261029120000_namecard_series_set',
+                '20261030120000_namecard_accent_source',
+                '20261030130000_namecard_series_require_one_skip_missing',
+                '20261030140000_namecard_reading_marks',
+                '20261031120000_namecard_admin_notifications',
+                '20261101120000_namecard_feedback',
+                '20261101130000_namecard_feedback_drop_resolution_note',
+                '20261101140000_namecard_feedback_resolution_note',
+                '20261101150000_namecard_admin_flexible_identity',
+                '20261101160000_namecard_lock_records',
+                '20261101170000_namecard_lock_records_history',
+                '20261101180000_namecard_supplements',
+                '20261101190000_namecard_envelope_notifications',
+                '20261101200000_namecard_match_key',
+                '20261101210000_namecard_match_key_width',
+                '20261101220000_namecard_card_merges',
+                '20261101230000_namecard_claim_card_number',
+                '20261102090000_namecard_flag_audit',
+                '20261102120000_platform_profile_handle',
+                '20261103100000_platform_accounts',
+                '20261103110000_platform_account_kinds_order',
+                '20261103120000_platform_account_uppercase',
+                '20261103130000_platform_account_groups',
+                '20261103140000_platform_account_five_groups',
+                '20261103150000_platform_account_icon',
+                '20261104160000_shared_character_catalog',
+                '20261104161000_catalog_project_settings',
+                '20261104162000_catalog_character_cv',
+                '20261105120000_platform_profile_slug_not_numeric',
+                '20261105190000_character_profile_authority',
+                '20261105200000_catalog_public_facts',
+                '20261106120000_namecard_exchange_system',
+                '20261107120000_namecard_media_key_normalization',
+                '20261107160000_namecard_group_card',
+
+                '20261107180000_fudaba_card_pages',
+                '20261112120000_namecard_media_retire',
+                '20261112130000_namecard_page_object_queue',
+                '20261112140000_namecard_retire_card_key_columns',
+            ]);
+            const currentOffice = await fixture.repository.findOfficeById(original.id);
+            assert.equal(currentOffice?.review_state, 'pending');
+            assert.equal(currentOffice?.latitude, original.latitude);
+            assert.equal(currentOffice?.longitude, original.longitude);
+            assert.deepEqual(await fixture.repository.listPublicMapOffices({
+                bbox: { west: -180, south: -90, east: 180, north: 90, westE1: -1800, southE1: -900, eastE1: 1800, northE1: 900 }, limit: 10
+            }), []);
+            const historical = await fixture.repository.findOfficePublicLocationForOwner('historical-location', 'historical-owner');
+            assert.equal(historical?.precision, 'regional');
+            assert.equal(historical?.review_state, 'published');
+            assert.equal(historical?.latitude_exact, null);
+            assert.equal(historical?.longitude_exact, null);
+            assert.equal(historical?.exact_location_consent_at, null);
+            for (const assignment of [
+                "precision='invalid'",
+                "latitude_exact=31.2304",
+                "exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact=31.2304, longitude_exact=121.4737",
+                "precision='exact', latitude_exact=60.01, longitude_exact=121, exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact=31, longitude_exact=180.01, exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact='NaN', longitude_exact=121, exact_location_consent_at=submitted_at",
+                "precision='exact', latitude_exact=31, longitude_exact=121, exact_location_consent_at=submitted_at + interval '1 second'"
+            ]) {
+                await assert.rejects(fixture.database.prepare(`UPDATE fudaba_office_public_locations SET ${assignment} WHERE office_id='historical-location'`).run(), /check constraint/);
+            }
+            await fixture.database.prepare(`UPDATE fudaba_office_public_locations
+                SET precision='exact', latitude_exact=60, longitude_exact=-180,
+                    exact_location_consent_at=submitted_at
+                WHERE office_id='historical-location'`).run();
+            assert.equal((await fixture.repository.findOfficePublicLocationForOwner('historical-location', 'historical-owner'))?.latitude_exact, 60);
+            await assert.rejects(fixture.database.prepare(`UPDATE fudaba_office_public_locations
+                SET latitude_e1=601 WHERE office_id='historical-location'`).run(), /check constraint/);
+        });
+
+        postgresTest('canonical whole-office publication preserves decimals and ignores legacy location revisions', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'precision-owner';
+            await seedAccount(fixture, ownerId);
+            await seedAccount(fixture, 'precision-other');
+            const reviewerId = await seedReviewer(fixture);
+            const point = { latitude: 31.230456789, longitude: 121.473712345, precision: 'exact' as const };
+            const input = { ...office('precision-main', ownerId), latitude: point.latitude, longitude: point.longitude };
+            await fixture.repository.createOffice(input);
+            const save = {
+                officeId: input.id, ownerAccountId: ownerId,
+                precision: 'exact' as const,
+                latitudeE1: 312, longitudeE1: 1215,
+                latitudeExact: point.latitude, longitudeExact: point.longitude,
+                exactLocationConsentAt: SUBMITTED_AT,
+                submittedAt: SUBMITTED_AT, expectedRevision: null as number | null
+            };
+            const query = parseFudabaMapQuery('http://ims.test/?bbox=121.4737,31.2304,121.4738,31.2305&limit=1');
+            const listed = () => fixture.repository.listPublicMapOffices({ ...query, limit: 2 });
+            const review = (expectedRevision: number, decision: 'publish' | 'reject' = 'publish') =>
+                fixture.repository.reviewOfficePublicLocation({
+                    officeId: input.id, expectedRevision, decision,
+                    reviewedAt: REVIEWED_AT, reviewedBy: reviewerId,
+                    reviewNote: decision === 'reject' ? 'Rejected by test reviewer' : '',
+                    reviewOperationId: randomUUID(), audit: reviewAudit(input.id)
+                });
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner(save)).status, 'saved');
+            assert.deepEqual(await listed(), [], 'pending exact must stay private');
+            const pendingSearch = await fixture.repository.listPublicOffices({ q: 'precision', limit: 10 });
+            assert.equal(pendingSearch.length, 0, 'pending offices do not expose text or coordinates');
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner({ ...save, ownerAccountId: 'precision-other', expectedRevision: 0 })).status, 'unavailable');
+            await installFailingAuditTrigger(fixture);
+            await assert.rejects(review(0), /forced Fudaba location audit failure/);
+            await removeFailingAuditTrigger(fixture);
+            assert.equal((await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId))?.revision, 0);
+            assert.deepEqual(await listed(), [], 'audit rollback must not publish');
+            assert.equal((await review(0, 'reject')).status, 'saved');
+            assert.deepEqual(await listed(), [], 'rejected exact must stay private');
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner({ ...save, expectedRevision: 1 })).status, 'saved');
+            assert.equal((await review(2)).status, 'saved');
+            assert.equal((await review(2)).status, 'conflict');
+            assert.deepEqual(await listed(), [], 'legacy location approval cannot publish the office');
+            await seedPublishedOfficeFixture(fixture.database, input.id);
+            const rows = await listed();
+            assert.equal(rows.length, 1, 'exact point inside a bbox with no E1 grid point must survive');
+            assert.deepEqual(fudabaPublicMapOfficeView(rows[0]!).location, point);
+            assert.equal('exactLocationConsentAt' in fudabaPublicMapOfficeView(rows[0]!), false);
+            const search = await fixture.repository.listPublicOffices({ q: 'precision', limit: 10 });
+            const view = await fudabaPublicOfficeView(undefined, search[0]!, true);
+            assert.deepEqual(view.location, point);
+            const outside = await fixture.repository.listPublicMapOffices(parseFudabaMapQuery('http://ims.test/?bbox=121.49,31.19,121.51,31.21'));
+            assert.deepEqual(outside, [], 'E1 companion coordinates must not select an exact point');
+
+            // More eligible rows than the limit prove filtering happens before LIMIT.
+            for (const id of ['precision-a-outside', 'precision-z-inside']) {
+                await fixture.repository.createOffice({ ...office(id, ownerId),
+                    latitude: id.includes('outside') ? 31.231 : point.latitude, longitude: point.longitude });
+                await seedPublishedOfficeFixture(fixture.database, id);
+                await fixture.repository.saveOfficePublicLocationForOwner({
+                    ...save, officeId: id,
+                    latitudeExact: id.includes('outside') ? 31.231 : point.latitude
+                });
+                await fixture.repository.reviewOfficePublicLocation({
+                    officeId: id, expectedRevision: 0, decision: 'publish',
+                    reviewedAt: REVIEWED_AT, reviewedBy: reviewerId, reviewNote: '',
+                    reviewOperationId: randomUUID(), audit: reviewAudit(id)
+                });
+            }
+            assert.deepEqual((await listed()).map(row => row.id), ['precision-main', 'precision-z-inside']);
+            assert.equal((await fixture.repository.listPublicMapOffices(query)).length, 1);
+
+            const downgraded = await fixture.repository.saveOfficePublicLocationForOwner({
+                ...save, precision: 'regional', expectedRevision: 3
+            });
+            assert.equal(downgraded.status, 'saved');
+            if (downgraded.status !== 'saved') return;
+            assert.equal(downgraded.location.latitude_exact, null);
+            assert.equal(downgraded.location.longitude_exact, null);
+            assert.equal(downgraded.location.exact_location_consent_at, null);
+            assert.equal((await review(4)).status, 'saved');
+            assert.equal((await listed()).some(row => row.id === input.id), true, 'legacy grids do not replace canonical office coordinates');
+            assert.equal((await fixture.repository.saveOfficePublicLocationForOwner({
+                ...save, expectedRevision: 5, submittedAt: RESUBMITTED_AT, exactLocationConsentAt: RESUBMITTED_AT
+            })).status, 'saved');
+            const fresh = await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId);
+            assert.equal(fresh?.exact_location_consent_at, RESUBMITTED_AT);
+            assert.equal(fresh?.review_state, 'pending');
+            const update = {
+                officeId: input.id, ownerAccountId: ownerId,
+                name: input.name, intro: input.intro, city: input.city,
+                address: input.address, latitude: input.latitude, longitude: input.longitude,
+                accent: input.accent, isOpen: input.isOpen, seriesCodes: input.seriesCodes,
+                expectedRevision: 0, updatedAt: RESUBMITTED_AT
+            };
+            assert.equal((await fixture.repository.updateOfficeForOwner({ ...update, longitude: 122 })).status, 'saved');
+            assert.notEqual(await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId), null);
+            assert.equal((await fixture.repository.findOfficeById(input.id))?.review_state, 'pending');
+            // Current content edits require review; historical consent is not a publication authority.
+            for (const [index, change] of [{ address: 'Moved street' }, { city: 'New city' }].entries()) {
+                await seedPublishedOfficeFixture(fixture.database, input.id);
+                assert.equal((await fixture.repository.updateOfficeForOwner({ ...update, longitude: 122, ...change, expectedRevision: index + 1 })).status, 'saved');
+                assert.notEqual(await fixture.repository.findOfficePublicLocationForOwner(input.id, ownerId), null);
+                assert.equal((await fixture.repository.findOfficeById(input.id))?.review_state, 'pending');
+            }
+        });
+
+        postgresTest("real PostgreSQL enforces Fudaba location CAS and public map eligibility", async () => {
+            await assertLocationRepository("postgresql");
+        });
+    });
+}
+
+// fudaba-location-routes.test.ts
+{
+    const ACCOUNT_ID = "location-owner";
+    const OTHER_ACCOUNT_ID = "other-owner";
+    const OFFICE_ID = "location-office";
+    const PLATFORM_TOKEN = "platform-location-token";
+    const PLATFORM_CSRF = "platform-location-csrf";
+    const BACKOFFICE_TOKEN = "backoffice-location-token";
+    const BACKOFFICE_CSRF = "backoffice-location-csrf";
+    const SUBMITTED_AT = "2026-08-03T01:00:00.000Z";
+
+    function officeRecord(
+        id = OFFICE_ID,
+        ownerAccountId = ACCOUNT_ID,
+        status: FudabaOfficeRecord["status"] = "active",
+    ): FudabaOfficeRecord {
+        return {
+            id,
+            owner_account_id: ownerAccountId,
+            slug: id,
+            name: `Office ${id}`,
+            review_state: 'pending',
+            review_submitted_at: SUBMITTED_AT,
+            reviewed_at: null,
+            reviewed_by: null,
+            review_note: '',
+            review_operation_id: null,
+            intro: "Private intro",
+            city: "Shanghai",
+            address: "Private exact address",
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: "#ef5b6c",
+            cover_object_key: null,
+            pending_cover_object_key: null,
+            pending_cover_submitted_at: null,
+            is_open: true,
+            visitor_count: 0,
+            status,
+            revision: 0,
+            created_at: SUBMITTED_AT,
+            updated_at: SUBMITTED_AT,
+            archived_at: status === "archived" ? SUBMITTED_AT : null,
+        };
+    }
+
+    function pendingLocation(
+        officeId = OFFICE_ID,
+        overrides: Partial<FudabaOfficePublicLocationRecord> = {},
+    ): FudabaOfficePublicLocationRecord {
+        return {
+            office_id: officeId,
+            precision: 'regional',
+            latitude_exact: null,
+            longitude_exact: null,
+            exact_location_consent_at: null,
+            latitude_e1: 312,
+            longitude_e1: 1215,
+            review_state: "pending",
+            revision: 0,
+            submitted_at: SUBMITTED_AT,
+            reviewed_at: null,
+            reviewed_by: null,
+            review_note: "",
+            ...overrides,
+        };
+    }
+
+    class ControlledCache implements CacheStore {
+        readonly values = new Map<string, string>();
+
+        async get(key: string): Promise<string | null> {
+            return this.values.get(key) ?? null;
+        }
+
+        async set(key: string, value: string): Promise<void> {
+            this.values.set(key, value);
+        }
+
+        async delete(key: string): Promise<void> {
+            this.values.delete(key);
+        }
+
+        async ping(): Promise<void> {}
+
+        async close(): Promise<void> {}
+    }
+
+    class ControlledRateLimiter implements RateLimiter {
+        readonly deniedBuckets = new Set<string>();
+        readonly calls: Array<{
+            bucket: string;
+            key: string;
+            limit: number;
+            windowSeconds: number;
+        }> = [];
+
+        async consume(
+            bucket: string,
+            key: string,
+            limit: number,
+            windowSeconds: number,
+        ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+            this.calls.push({ bucket, key, limit, windowSeconds });
+            const allowed = !this.deniedBuckets.has(bucket);
+            return {
+                allowed,
+                remaining: allowed ? Math.max(0, limit - 1) : 0,
+                resetAt: Date.now() + 60_000,
+            };
+        }
+    }
+
+    interface FixtureOptions {
+        publicReadEnabled?: boolean;
+        mapEnabled?: boolean;
+        writeEnabled?: boolean;
+        accountStatus?: PlatformAccountStatus;
+        backofficeDept?: string;
+        currentBackofficeDept?: string;
+        currentBackofficeMissing?: boolean;
+        auditFailure?: boolean;
+        geocodingEnabled?: boolean;
+    }
+
+    class LocationRouteFixture {
+        publicReadEnabled: boolean;
+        mapEnabled: boolean;
+        writeEnabled: boolean;
+        accountStatus: PlatformAccountStatus;
+        backofficeDept: string;
+        currentBackofficeAccount: BackofficeAccountRecord | null;
+        auditFailure: boolean;
+        geocodingEnabled: boolean;
+        readonly offices = new Map<string, FudabaOfficeRecord>();
+        readonly locations = new Map<string, FudabaOfficePublicLocationRecord>();
+        readonly mapInputs: ListFudabaPublicMapOfficesInput[] = [];
+        readonly reviewInputs: Array<{
+            officeId: string;
+            decision: "publish" | "reject";
+            expectedRevision: number;
+            reviewNote: string;
+            reviewedAt: string;
+            reviewedBy: number;
+            reviewOperationId: string;
+            audit: AuditLogInput;
+        }> = [];
+        readonly audit: AuditLogInput[] = [];
+        readonly cache = new ControlledCache();
+        readonly rateLimiter = new ControlledRateLimiter();
+        readonly geocodingRequests: Array<{ url: URL; headers: Headers }> = [];
+        geocodingAddress: Record<string, string> = { city: "上海市" };
+        readonly mapRows: FudabaPublicMapOfficeRecord[] = [
+            {
+                id: "map-office-a",
+                precision: 'exact',
+                latitude_exact: 31.2,
+                longitude_exact: 121.5,
+                slug: "map-office-a",
+                name: "Map Office A",
+                city: "Shanghai",
+                // pi-lens-ignore: typos
+                address: "West Bund Art Center",
+                accent: "#ef5b6c",
+                is_open: true,
+                series_codes: ["765"],
+                latitude_e1: 312,
+                longitude_e1: 1215,
+            },
+            {
+                id: "map-office-b",
+                precision: 'exact',
+                latitude_exact: -3.2,
+                longitude_exact: -45.6,
+                slug: "map-office-b",
+                name: "Map Office B",
+                city: "Beijing",
+                address: "Shougang Park",
+                accent: "#336699",
+                is_open: false,
+                series_codes: ["cg"],
+                latitude_e1: -32,
+                longitude_e1: -456,
+            },
+        ];
+        readonly app: ReturnType<typeof createHonoApp>;
+
+        constructor(options: FixtureOptions = {}) {
+            this.publicReadEnabled = options.publicReadEnabled ?? true;
+            this.mapEnabled = options.mapEnabled ?? true;
+            this.writeEnabled = options.writeEnabled ?? true;
+            this.accountStatus = options.accountStatus ?? "active";
+            this.backofficeDept = options.backofficeDept ?? "op";
+            this.currentBackofficeAccount = options.currentBackofficeMissing
+                ? null
+                : {
+                      id: 7,
+                      username: "current-location-reviewer",
+                      password: "hash",
+                      dept: options.currentBackofficeDept ?? this.backofficeDept,
+                      producername: "Current Reviewer",
+                      admin_role: "admin",
+                  };
+            this.auditFailure = options.auditFailure ?? false;
+            this.geocodingEnabled = options.geocodingEnabled ?? false;
+            this.offices.set(OFFICE_ID, officeRecord());
+            this.offices.set(
+                "other-office",
+                officeRecord("other-office", OTHER_ACCOUNT_ID),
+            );
+            this.app = createHonoApp(() => this.runtime());
+        }
+
+        private identity(): PlatformAccountWithProfile {
+            return {
+                account: {
+                    id: ACCOUNT_ID,
+                    status: this.accountStatus,
+                    token_version: 0,
+                    created_at: 1_700_000_000_000,
+                    updated_at: 1_700_000_000_000,
+                    deleted_at:
+                        this.accountStatus === "deleted" ? 1_700_000_000_000 : null,
+                },
+                profile: {
+                    account_id: ACCOUNT_ID,
+                    uid: 4,
+                    page_slug: null,
+                    display_name: "Location Owner",
+                    avatar_object_key: null,
+                    avatar_external_url: null,
+                    home_city: "Shanghai",
+                    bio: "",
+                    updated_at: 1_700_000_000_000,
+                },
+            };
+        }
+
+        private readonly session: PlatformRefreshSessionRecord = {
+            id: "location-session",
+            account_id: ACCOUNT_ID,
+            token_hash: "token-hash",
+            previous_token_hash: null,
+            csrf_hash: csrfHash(PLATFORM_CSRF),
+            expires_at: Date.now() + 60 * 60 * 1000,
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            revoked_at: null,
+            user_agent: null,
+            ip_address: null,
+            last_seen_at: null,
+        };
+
+        readonly fudaba = {
+            listPublicMapOffices: async (
+                input: ListFudabaPublicMapOfficesInput,
+            ) => {
+                this.mapInputs.push(input);
+                return this.mapRows.slice(0, input.limit);
+            },
+            findOfficeById: async (id: string) => this.offices.get(id) ?? null,
+            findOfficePublicLocationForOwner: async (
+                officeId: string,
+                ownerAccountId: string,
+            ) =>
+                this.offices.get(officeId)?.owner_account_id === ownerAccountId
+                    ? (this.locations.get(officeId) ?? null)
+                    : null,
+            saveOfficePublicLocationForOwner: async (input: {
+                officeId: string;
+                ownerAccountId: string;
+                latitudeE1: number;
+                longitudeE1: number;
+                precision?: 'regional' | 'exact';
+                latitudeExact?: number | null;
+                longitudeExact?: number | null;
+                exactLocationConsentAt?: string | null;
+                expectedRevision: number | null;
+                submittedAt: string;
+            }) => {
+                const office = this.offices.get(input.officeId);
+                if (
+                    !office ||
+                    office.owner_account_id !== input.ownerAccountId ||
+                    office.status !== "active" ||
+                    this.accountStatus !== "active"
+                ) {
+                    return { status: "unavailable" as const };
+                }
+                const current = this.locations.get(input.officeId);
+                if (
+                    (current && current.revision !== input.expectedRevision) ||
+                    (!current && input.expectedRevision !== null)
+                ) {
+                    return current
+                        ? {
+                              status: "conflict" as const,
+                              revision: current.revision,
+                          }
+                        : { status: "unavailable" as const };
+                }
+                const saved = pendingLocation(input.officeId, {
+                    precision: input.precision ?? 'regional',
+                    latitude_exact: input.latitudeExact ?? null,
+                    longitude_exact: input.longitudeExact ?? null,
+                    exact_location_consent_at: input.exactLocationConsentAt ?? null,
+                    latitude_e1: input.latitudeE1,
+                    longitude_e1: input.longitudeE1,
+                    revision: current ? current.revision + 1 : 0,
+                    submitted_at: input.submittedAt,
+                });
+                this.locations.set(input.officeId, saved);
+                return { status: "saved" as const, location: { ...saved } };
+            },
+            withdrawOfficePublicLocationForOwner: async (input: {
+                officeId: string;
+                ownerAccountId: string;
+                expectedRevision: number;
+            }) => {
+                const office = this.offices.get(input.officeId);
+                const current = this.locations.get(input.officeId);
+                if (
+                    !office ||
+                    office.owner_account_id !== input.ownerAccountId ||
+                    !current
+                ) {
+                    return { status: "unavailable" as const };
+                }
+                if (current.revision !== input.expectedRevision) {
+                    return {
+                        status: "conflict" as const,
+                        revision: current.revision,
+                    };
+                }
+                this.locations.delete(input.officeId);
+                return { status: "saved" as const, location: current };
+            },
+            listCardClaimsForOwner: async () => [],
+            createCardClaimForOwner: async (
+                input: Parameters<FudabaRepository['createCardClaimForOwner']>[0],
+            ) => {
+                const series = input.payload.seriesCodes?.[0];
+                const derived = input.payload.favoriteCharacterIds?.length;
+                if (!series && !derived) {
+                    return { status: 'series-required' as const };
+                }
+                return { status: 'unavailable' as const };
+            },
+            listOfficeLocationReviews: async (input: {
+                reviewState?: FudabaOfficePublicLocationRecord["review_state"];
+                limit: number;
+            }): Promise<FudabaOfficeLocationReviewRecord[]> =>
+                [...this.locations.values()]
+                    .filter(
+                        (location) =>
+                            !input.reviewState ||
+                            location.review_state === input.reviewState,
+                    )
+                    .slice(0, input.limit)
+                    .map((location) => ({
+                        ...location,
+                        office_name:
+                            this.offices.get(location.office_id)?.name ?? "Office",
+                        office_city:
+                            this.offices.get(location.office_id)?.city ??
+                            "Shanghai",
+                        owner_account_id:
+                            this.offices.get(location.office_id)
+                                ?.owner_account_id ?? "",
+                    })),
+            reviewOfficePublicLocation: async (input: {
+                officeId: string;
+                decision: "publish" | "reject";
+                expectedRevision: number;
+                reviewedAt: string;
+                reviewedBy: number;
+                reviewNote: string;
+                reviewOperationId: string;
+                audit: AuditLogInput;
+            }) => {
+                this.reviewInputs.push(input);
+                const current = this.locations.get(input.officeId);
+                if (!current) return { status: "unavailable" as const };
+                if (current.revision !== input.expectedRevision) {
+                    return {
+                        status: "conflict" as const,
+                        revision: current.revision,
+                    };
+                }
+                if (this.auditFailure) throw new Error("injected audit failure");
+                const saved: FudabaOfficePublicLocationRecord = {
+                    ...current,
+                    review_state:
+                        input.decision === "publish" ? "published" : "rejected",
+                    revision: current.revision + 1,
+                    reviewed_at: input.reviewedAt,
+                    reviewed_by: input.reviewedBy,
+                    review_note: input.reviewNote,
+                };
+                this.locations.set(input.officeId, saved);
+                this.audit.push(input.audit);
+                return { status: "saved" as const, location: { ...saved } };
+            },
+        } as unknown as FudabaRepository;
+
+        runtime(): RuntimeServices {
+            return {
+                fudaba: this.fudaba,
+                cache: this.cache,
+                rateLimiter: this.rateLimiter,
+                fetch: async (input, init) => {
+                    const url =
+                        input instanceof URL ? input : new URL(String(input));
+                    const headers = new Headers(init?.headers);
+                    this.geocodingRequests.push({ url, headers });
+                    return new Response(
+                        JSON.stringify([
+                            {
+                                place_id: 100,
+                                osm_type: "way",
+                                osm_id: 200,
+                                name: "西岸艺术中心",
+                                display_name: "西岸艺术中心，徐汇区，上海市，中国",
+                                lat: "31.1842",
+                                lon: "121.4665",
+                                address: this.geocodingAddress,
+                            },
+                        ]),
+                        {
+                            headers: { "content-type": "application/json" },
+                        },
+                    );
+                },
+                platformAccounts: {
+                    findRefreshSessionById: async (id: string) =>
+                        id === this.session.id ? { ...this.session } : null,
+                    findAccountWithProfileById: async (id: string) =>
+                        id === ACCOUNT_ID ? this.identity() : null,
+                    revokeRefreshSession: async () => true,
+                } as unknown as NonNullable<RuntimeServices["platformAccounts"]>,
+                platformTokens: {
+                    async sign() {
+                        return PLATFORM_TOKEN;
+                    },
+                    async verify(token: string) {
+                        if (token !== PLATFORM_TOKEN)
+                            throw new Error("wrong token realm");
+                        const now = Math.floor(Date.now() / 1000);
+                        return {
+                            iss: "imsweb" as const,
+                            aud: "ims-platform" as const,
+                            kind: "platform" as const,
+                            id: ACCOUNT_ID,
+                            tokenVersion: 0,
+                            sessionId: "location-session",
+                            csrfSecret: PLATFORM_CSRF,
+                            jti: "location-access",
+                            iat: now,
+                            exp: now + 900,
+                        };
+                    },
+                },
+                backofficeTokens: {
+                    async sign() {
+                        return BACKOFFICE_TOKEN;
+                    },
+                    verify: async (token: string) => {
+                        if (token !== BACKOFFICE_TOKEN)
+                            throw new Error("wrong token realm");
+                        return {
+                            iss: "imsweb" as const,
+                            aud: "ims-backoffice" as const,
+                            kind: "backoffice" as const,
+                            id: 7,
+                            username: "location-reviewer",
+                            producername: "Reviewer",
+                            dept: this.backofficeDept,
+                            csrfSecret: BACKOFFICE_CSRF,
+                        };
+                    },
+                },
+                backofficeAuth: {
+                    findUserById: async (id: number) =>
+                        id === 7 ? this.currentBackofficeAccount : null,
+                } as NonNullable<RuntimeServices["backofficeAuth"]>,
+                audit: {
+                    insertAuditLog: async (input) => {
+                        this.audit.push(input);
+                    },
+                    listRecentAuditLogs: async () => [],
+                },
+                config: {
+                    fudabaPublicReadEnabled: this.publicReadEnabled,
+                    fudabaWriteEnabled: this.writeEnabled,
+                    fudabaMapEnabled: this.mapEnabled,
+                    fudabaMapSources: [{ provider: 'maplibre', styleUrl: '/api/community/exchange/map/style.json' }],
+                    fudabaGeocoding: {
+                        enabled: this.geocodingEnabled,
+                        endpoint: this.geocodingEnabled
+                            ? "https://nominatim.example.test/search"
+                            : "",
+                        userAgent: this.geocodingEnabled
+                            ? "IMSWeb tests (contact: test@example.test)"
+                            : "",
+                        countryCodes: "cn",
+                    },
+                },
+            };
+        }
+    }
+
+    function platformBearerHeaders(extra: Record<string, string> = {}) {
+        return bearerTokenHeaders(PLATFORM_TOKEN, extra);
+    }
+
+    function platformCookieHeaders(includeCsrf = true) {
+        return cookieCsrfHeaders([
+            [PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_TOKEN],
+            [PLATFORM_CSRF_TOKEN_COOKIE, PLATFORM_CSRF],
+        ], includeCsrf ? PLATFORM_CSRF : null);
+    }
+
+    function backofficeCookieHeaders(includeCsrf = true) {
+        return cookieCsrfHeaders([
+            [BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_TOKEN],
+            [BACKOFFICE_CSRF_TOKEN_COOKIE, BACKOFFICE_CSRF],
+        ], includeCsrf ? BACKOFFICE_CSRF : null);
+    }
+
+    test.describe('Fudaba location routes', () => {
+        test('retired location writes cannot revive precision modes and map DTOs preserve canonical decimals', async () => {
+            const fixture = new LocationRouteFixture();
+            const path = `http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`;
+            const body = { latitude: 31.230456789, longitude: 121.473712345, precision: 'exact', exactLocationConsent: true, expectedRevision: null };
+            const put = (value: unknown, target = path, headers = platformBearerHeaders()) => fixture.app.request(target, {
+                method: 'PUT', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(value)
+            });
+            const historical = structuredClone([...fixture.locations.entries()]);
+            for (const exactLocationConsent of [undefined, false, true, 'true', null, 1]) {
+                assert.equal((await put({ ...body, exactLocationConsent })).status, 404);
+            }
+            assert.equal((await put({ ...body, precision: 'regional' })).status, 404);
+            const reviews = await fixture.app.request('http://ims.test/api/admin/community/exchange/office-locations', {
+                headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` }
+            });
+            assert.equal(reviews.status, 404);
+            const published = await fixture.app.request(`http://ims.test/api/admin/community/exchange/office-locations/${OFFICE_ID}`, {
+                method: 'PUT', headers: { ...backofficeCookieHeaders(), 'content-type': 'application/json' },
+                body: JSON.stringify({ decision: 'publish', expectedRevision: 0, note: '' })
+            });
+            assert.equal(published.status, 404);
+            assert.deepEqual([...fixture.locations.entries()], historical);
+
+            fixture.mapRows[0] = {
+                ...fixture.mapRows[0]!, precision: 'exact',
+                latitude_exact: body.latitude, longitude_exact: body.longitude
+            };
+            const map = await fixture.app.request('http://ims.test/api/community/exchange/map/offices?bbox=121.4737,31.2304,121.4738,31.2305&limit=1');
+            assert.equal(map.status, 200);
+            const mapBody = await contractJson(map, fudabaMapOfficeListSchema);
+            assert.equal(mapBody.truncated, true);
+            assert.deepEqual(mapBody.items[0]!.location, { latitude: body.latitude, longitude: body.longitude, precision: 'exact' });
+            assert.equal('exactLocationConsentAt' in mapBody.items[0]!, false);
+        });
+
+        test("map config and offices require both flags and expose strict exact DTOs", async () => {
+            for (const options of [
+                { publicReadEnabled: false, mapEnabled: true },
+                { publicReadEnabled: true, mapEnabled: false },
+            ]) {
+                const disabled = new LocationRouteFixture(options);
+                const disabledConfig = await disabled.app.request(
+                    "http://ims.test/api/community/exchange/map/config",
+                );
+                assert.equal(disabledConfig.status, 404);
+                assert.match(disabledConfig.headers.get("content-type") ?? "", /^text\/plain/i);
+                assert.equal(await disabledConfig.text(), "Not Found");
+                const disabledOffices = await disabled.app.request(
+                    "http://ims.test/api/community/exchange/map/offices?bbox=-180,-90,180,90",
+                );
+                assert.equal(disabledOffices.status, 404);
+                assert.match(disabledOffices.headers.get("content-type") ?? "", /^text\/plain/i);
+                assert.equal(await disabledOffices.text(), "Not Found");
+            }
+
+            const fixture = new LocationRouteFixture();
+            const config = await fixture.app.request(
+                "http://ims.test/api/community/exchange/map/config",
+            );
+            assert.equal(config.status, 200);
+            assert.deepEqual(await contractJson(config, fudabaMapConfigSchema), {
+                provider: 'maplibre',
+                styleUrl: "/api/community/exchange/map/style.json",
+                search: { provider: 'nominatim' },
+            });
+            assert.equal(config.headers.get("cache-control"), "private, no-store");
+
+            const response = await fixture.app.request(
+                "http://ims.test/api/community/exchange/map/offices?" +
+                    "bbox=121.41,31.11,121.59,31.29&city=Shanghai" +
+                    "&series=765&series=cg&open=true&limit=1",
+            );
+            assert.equal(response.status, 200);
+            assert.deepEqual(await contractJson(response, fudabaMapOfficeListSchema), {
+                items: [
+                    {
+                        id: "map-office-a",
+                        slug: "map-office-a",
+                        name: "Map Office A",
+                        city: "Shanghai",
+                        // pi-lens-ignore: typos
+                        address: "West Bund Art Center",
+                        accent: "#ef5b6c",
+                        isOpen: true,
+                        seriesCodes: ["765"],
+                        location: {
+                            latitude: 31.2,
+                            longitude: 121.5,
+                            precision: "exact",
+                        },
+                    },
+                ],
+                truncated: true,
+            });
+            assert.deepEqual(fixture.mapInputs.at(-1), {
+                bbox: { west: 121.41, south: 31.11, east: 121.59, north: 31.29, westE1: 1215, southE1: 312, eastE1: 1215, northE1: 312 },
+                city: "Shanghai",
+                seriesCodes: ["765", "cg"],
+                isOpen: true,
+                limit: 2,
+            });
+
+            await fixture.app.request(
+                "http://ims.test/api/community/exchange/map/offices?" +
+                    "bbox=-45.69,-3.29,-45.51,-3.11",
+            );
+            assert.deepEqual(fixture.mapInputs.at(-1)?.bbox, {
+                west: -45.69, south: -3.29, east: -45.51, north: -3.11,
+                westE1: -456,
+                southE1: -32,
+                eastE1: -456,
+                northE1: -32,
+            });
+        });
+
+        test("map query rejects missing, duplicate, unknown, invalid, and antimeridian input", async () => {
+            const fixture = new LocationRouteFixture();
+            for (const query of [
+                "",
+                "?bbox=-180,-90,180,90&bbox=-10,-10,10,10",
+                "?bbox=-180,-90,180,90&unknown=1",
+                "?bbox=170,-10,-170,10",
+                "?bbox=-181,-10,10,10",
+                "?bbox=-10,10,10,-10",
+                "?bbox=-10,-10,10,10&limit=501",
+                "?bbox=-10,-10,10,10&open=1",
+                "?bbox=-10,-10,10,10&series=765&series=765",
+                "?bbox=-10,-10,10,10&series=invalid%21",
+            ]) {
+                const response = await fixture.app.request(
+                    `http://ims.test/api/community/exchange/map/offices${query}`,
+                );
+                assert.equal(response.status, 400, query);
+                if (query.includes("unknown")) {
+                    await contractJson(response, fudabaErrorResponseSchema);
+                }
+            }
+        });
+
+        test("office-only place search requires auth, validates input, caches results, and rate limits the provider", async () => {
+            const enabled = new LocationRouteFixture({ geocodingEnabled: true, mapEnabled: false });
+            const searchPath =
+                "/api/community/exchange/places/search?q=" +
+                encodeURIComponent("西岸艺术中心");
+            assert.equal(
+                (await enabled.app.request(`http://ims.test${searchPath}`)).status,
+                401,
+            );
+
+            const disabled = new LocationRouteFixture();
+            assert.equal(
+                (
+                    await disabled.app.request(`http://ims.test${searchPath}`, {
+                        headers: platformBearerHeaders(),
+                    })
+                ).status,
+                503,
+            );
+            assert.equal(
+                (
+                    await enabled.app.request(
+                        "http://ims.test/api/community/exchange/places/search?q=x",
+                        { headers: platformBearerHeaders() },
+                    )
+                ).status,
+                400,
+            );
+
+            const response = await enabled.app.request(`http://ims.test${searchPath}`, {
+                headers: platformBearerHeaders(),
+            });
+            assert.equal(response.status, 200);
+            assert.deepEqual(await contractJson(response, fudabaPlaceSearchResponseSchema), {
+                success: true,
+                items: [
+                    {
+                        id: "way:200",
+                        label: "西岸艺术中心",
+                        address: "西岸艺术中心，徐汇区，上海市，中国",
+                        city: "上海市",
+                        location: {
+                            latitude: 31.1842,
+                            longitude: 121.4665,
+                            precision: "exact",
+                        },
+                    },
+                ],
+                attribution: "© OpenStreetMap contributors",
+            });
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+            assert.equal(enabled.geocodingRequests.length, 1);
+            const request = enabled.geocodingRequests[0]!;
+            assert.equal(request.url.searchParams.get("q"), "西岸艺术中心");
+            assert.equal(request.url.searchParams.get("format"), "jsonv2");
+            assert.equal(request.url.searchParams.get("addressdetails"), "1");
+            assert.equal(request.url.searchParams.get("limit"), "5");
+            assert.equal(request.url.searchParams.get("countrycodes"), "cn");
+            assert.equal(
+                request.headers.get("user-agent"),
+                "IMSWeb tests (contact: test@example.test)",
+            );
+
+            const cached = await enabled.app.request(`http://ims.test${searchPath}`, {
+                headers: platformBearerHeaders(),
+            });
+            assert.equal(cached.status, 200);
+            assert.equal(enabled.geocodingRequests.length, 1);
+            assert.equal(
+                enabled.rateLimiter.calls.filter(
+                    (call) => call.bucket === "fudaba-geocoding-provider",
+                ).length,
+                1,
+            );
+
+            enabled.rateLimiter.deniedBuckets.add("fudaba-geocoding-provider");
+            const busy = await enabled.app.request(
+                "http://ims.test/api/community/exchange/places/search?q=" +
+                    encodeURIComponent("首钢园"),
+                { headers: platformBearerHeaders() },
+            );
+            assert.equal(busy.status, 429);
+            assert.equal(busy.headers.get("retry-after"), "60");
+        });
+
+        test("public map place search is read-only, requires both rollout flags, and shares provider cache and limits", async () => {
+            const fixture = new LocationRouteFixture({ geocodingEnabled: true, writeEnabled: false });
+            const path = "http://ims.test/api/community/exchange/places/search?q=" + encodeURIComponent("西岸艺术中心");
+            const anonymous = await fixture.app.request(path);
+            assert.equal(anonymous.status, 200);
+            const body = await contractJson(anonymous, fudabaPlaceSearchResponseSchema);
+            assert.equal(body.items[0]?.location.precision, "exact");
+            assert.equal(fixture.locations.size, 0);
+            const authenticated = await fixture.app.request(path, { headers: platformBearerHeaders() });
+            assert.equal(authenticated.status, 200);
+            assert.deepEqual(await contractJson(authenticated, fudabaPlaceSearchResponseSchema), body);
+            assert.equal(fixture.geocodingRequests.length, 1);
+            assert.equal(fixture.rateLimiter.calls.filter((call) => call.bucket === "fudaba-geocoding-provider").length, 1);
+            fixture.rateLimiter.deniedBuckets.add("fudaba-geocoding-provider");
+            assert.equal((await fixture.app.request("http://ims.test/api/community/exchange/places/search?q=other")).status, 429);
+            // Preserve the existing legacy-strip query policy.
+            assert.equal((await fixture.app.request(path + "&unknown=true")).status, 200);
+            assert.equal((await fixture.app.request("http://ims.test/api/community/exchange/places/search?q=x")).status, 400);
+            for (const flags of [{ publicReadEnabled: false }, { mapEnabled: false }]) {
+                const closed = new LocationRouteFixture({ ...flags, geocodingEnabled: true, writeEnabled: false });
+                assert.equal((await closed.app.request(path)).status, 404);
+                assert.equal(closed.geocodingRequests.length, 0);
+            }
+            assert.equal((await fixture.app.request(`http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}`)).status, 401);
+            assert.equal((await fixture.app.request(`http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`, {
+                method: "PUT", headers: platformBearerHeaders({ "content-type": "application/json" }), body: JSON.stringify({ latitude: 31.1842, longitude: 121.4665, revision: null }),
+            })).status, 404);
+        });
+
+        test("place search maps Chinese direct municipalities above the provider district without changing exact coordinates", async () => {
+            const fixture = new LocationRouteFixture({ geocodingEnabled: true });
+            fixture.geocodingAddress = { city: "徐汇区", state: "上海市", country_code: "cn" };
+            const response = await fixture.app.request("http://ims.test/api/community/exchange/places/search?q=" + encodeURIComponent("西岸艺术中心"));
+            assert.equal(response.status, 200);
+            const body = await contractJson(response, fudabaPlaceSearchResponseSchema);
+            assert.equal(body.items[0]?.city, "上海市");
+            assert.deepEqual(body.items[0]?.location, { latitude: 31.1842, longitude: 121.4665, precision: "exact" });
+        });
+
+        test("mounted claim routes authenticate reads, reject unknown mutation fields, and preserve business errors", async () => {
+            const fixture = new LocationRouteFixture();
+            const list = await fixture.app.request(
+                "http://ims.test/api/community/exchange/me/card-claims",
+                { headers: platformBearerHeaders() },
+            );
+            assert.equal(list.status, 200);
+            assert.deepEqual(await contractJson(list, ownerClaimListSchema), { items: [] });
+
+            const invalid = await fixture.app.request(
+                "http://ims.test/api/community/exchange/legacy-cards/42/claims",
+                {
+                    method: "POST",
+                    headers: platformBearerHeaders({ "content-type": "application/json" }),
+                    body: JSON.stringify({
+                        targetCardId: null,
+                        payload: { seriesCodes: ["765"], favoriteCharacterIds: [1] },
+                        message: "claim this card",
+                        unexpected: true,
+                    }),
+                },
+            );
+            assert.equal(invalid.status, 400);
+            await contractJson(invalid, fudabaCardClaimErrorSchema);
+
+            const unavailable = await fixture.app.request(
+                "http://ims.test/api/community/exchange/legacy-cards/42/claims",
+                {
+                    method: "POST",
+                    headers: platformBearerHeaders({ "content-type": "application/json" }),
+                    body: JSON.stringify({
+                        targetCardId: null,
+                        payload: { seriesCodes: ["765"], favoriteCharacterIds: [1] },
+                        message: "claim this card",
+                    }),
+                },
+            );
+            assert.equal(unavailable.status, 404);
+            assert.deepEqual(
+                await contractJson(unavailable, fudabaCardClaimErrorSchema),
+                { success: false, code: "FUDABA_LEGACY_CARD_UNAVAILABLE" },
+            );
+
+            const missingSeries = await fixture.app.request(
+                "http://ims.test/api/community/exchange/legacy-cards/42/claims",
+                {
+                    method: "POST",
+                    headers: platformBearerHeaders({ "content-type": "application/json" }),
+                    body: JSON.stringify({
+                        targetCardId: null,
+                        payload: { favoriteCharacterIds: [] },
+                        message: "claim this card",
+                    }),
+                },
+            );
+            assert.equal(missingSeries.status, 409);
+            assert.deepEqual(
+                await contractJson(missingSeries, fudabaCardClaimErrorSchema),
+                {
+                    success: false,
+                    code: "FUDABA_CLAIM_SERIES_REQUIRED",
+                    message: "请选择主企划后再提交认领",
+                },
+            );
+        });
+
+        test("legacy owner location endpoints remain unregistered for every credential and body", async () => {
+            const fixture = new LocationRouteFixture();
+            assert.equal(
+                (
+                    await fixture.app.request(
+                        `http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`,
+                    )
+                ).status,
+                404,
+            );
+            const empty = await fixture.app.request(
+                `http://ims.test/api/community/exchange/me/offices/${OFFICE_ID}/location`,
+                { headers: platformBearerHeaders() },
+            );
+            assert.equal(empty.status, 404);
+            assert.equal(
+                (
+                    await fixture.app.request(
+                        "http://ims.test/api/community/exchange/me/offices/other-office/location",
+                        { headers: platformBearerHeaders() },
+                    )
+                ).status,
+                404,
+            );
+
+            const path = `/api/community/exchange/me/offices/${OFFICE_ID}/location`;
+            const body = JSON.stringify({
+                latitude: -3.24,
+                longitude: 121.46,
+                expectedRevision: null,
+            });
+            assert.equal(
+                (
+                    await fixture.app.request(`http://ims.test${path}`, {
+                        method: "PUT",
+                        headers: {
+                            ...platformCookieHeaders(false),
+                            "content-type": "application/json",
+                        },
+                        body,
+                    })
+                ).status,
+                404,
+            );
+
+            const saved = await fixture.app.request(`http://ims.test${path}`, {
+                method: "PUT",
+                headers: {
+                    ...platformCookieHeaders(),
+                    "content-type": "application/json",
+                },
+                body,
+            });
+            assert.equal(saved.status, 404);
+            const stored = fixture.locations.get(OFFICE_ID);
+            assert.equal(stored, undefined);
+
+            for (const latitude of [-60.1, 60.1]) {
+                const invalidLatitude = await fixture.app.request(
+                    `http://ims.test${path}`,
+                    {
+                        method: "PUT",
+                        headers: platformBearerHeaders({
+                            "content-type": "application/json",
+                        }),
+                        body: JSON.stringify({
+                            latitude,
+                            longitude: 121.5,
+                            expectedRevision: 0,
+                        }),
+                    },
+                );
+                assert.equal(invalidLatitude.status, 404, `latitude=${latitude}`);
+            }
+
+            const stale = await fixture.app.request(`http://ims.test${path}`, {
+                method: "PUT",
+                headers: {
+                    ...platformBearerHeaders({ "content-type": "application/json" }),
+                },
+                body: JSON.stringify({
+                    latitude: 31.2,
+                    longitude: 121.5,
+                    expectedRevision: null,
+                }),
+            });
+            assert.equal(stale.status, 404);
+
+            const staleDelete = await fixture.app.request(`http://ims.test${path}`, {
+                method: "DELETE",
+                headers: platformBearerHeaders({ "content-type": "application/json" }),
+                body: JSON.stringify({ expectedRevision: 1 }),
+            });
+            assert.equal(staleDelete.status, 404);
+            const removed = await fixture.app.request(`http://ims.test${path}`, {
+                method: "DELETE",
+                headers: platformBearerHeaders({ "content-type": "application/json" }),
+                body: JSON.stringify({ expectedRevision: 0 }),
+            });
+            assert.equal(removed.status, 404);
+
+            const restricted = new LocationRouteFixture({
+                accountStatus: "restricted",
+            });
+            assert.equal(
+                (
+                    await restricted.app.request(`http://ims.test${path}`, {
+                        method: "PUT",
+                        headers: platformBearerHeaders({
+                            "content-type": "application/json",
+                        }),
+                        body,
+                    })
+                ).status,
+                404,
+            );
+        });
+
+        test("legacy location review routes stay retired without changing records or writing audits", async () => {
+            const fixture = new LocationRouteFixture({
+                publicReadEnabled: false,
+                mapEnabled: false,
+                writeEnabled: false,
+            });
+            fixture.locations.set(OFFICE_ID, pendingLocation());
+            const listPath =
+                "/api/admin/community/exchange/office-locations?state=pending&limit=20";
+            assert.equal(
+                (await fixture.app.request(`http://ims.test${listPath}`)).status,
+                404,
+            );
+            assert.equal(
+                (
+                    await fixture.app.request(`http://ims.test${listPath}`, {
+                        headers: platformBearerHeaders(),
+                    })
+                ).status,
+                404,
+            );
+            const listed = await fixture.app.request(`http://ims.test${listPath}`, {
+                headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` },
+            });
+            assert.equal(listed.status, 404);
+            assert.equal(listed.headers.get("cache-control"), "private, no-store");
+
+            const path = `/api/admin/community/exchange/office-locations/${OFFICE_ID}`;
+            const publishBody = JSON.stringify({
+                decision: "publish",
+                expectedRevision: 0,
+                note: "",
+            });
+            assert.equal(
+                (
+                    await fixture.app.request(`http://ims.test${path}`, {
+                        method: "PUT",
+                        headers: {
+                            ...backofficeCookieHeaders(false),
+                            "content-type": "application/json",
+                        },
+                        body: publishBody,
+                    })
+                ).status,
+                404,
+            );
+            assert.equal(
+                (
+                    await fixture.app.request(`http://ims.test${path}`, {
+                        method: "PUT",
+                        headers: {
+                            ...backofficeCookieHeaders(),
+                            "content-type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            decision: "reject",
+                            expectedRevision: 0,
+                            note: "   ",
+                        }),
+                    })
+                ).status,
+                404,
+            );
+
+            const published = await fixture.app.request(`http://ims.test${path}`, {
+                method: "PUT",
+                headers: {
+                    ...backofficeCookieHeaders(),
+                    "content-type": "application/json",
+                },
+                body: publishBody,
+            });
+            assert.equal(published.status, 404);
+            assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "pending");
+            assert.equal(fixture.audit.length, 0);
+            assert.equal(fixture.reviewInputs.length, 0);
+
+            const stale = await fixture.app.request(`http://ims.test${path}`, {
+                method: "PUT",
+                headers: {
+                    ...backofficeCookieHeaders(),
+                    "content-type": "application/json",
+                },
+                body: publishBody,
+            });
+            assert.equal(stale.status, 404);
+            assert.equal(fixture.audit.length, 0);
+
+            const rejected = await fixture.app.request(`http://ims.test${path}`, {
+                method: "PUT",
+                headers: {
+                    ...backofficeCookieHeaders(),
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                    decision: "reject",
+                    expectedRevision: 1,
+                    note: "公开精度仍不合适",
+                }),
+            });
+            assert.equal(rejected.status, 404);
+            assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "pending");
+            assert.equal(fixture.audit.length, 0);
+
+            const nonOp = new LocationRouteFixture({ backofficeDept: "design" });
+            assert.equal(
+                (
+                    await nonOp.app.request(
+                        "http://ims.test/api/admin/community/exchange/office-locations",
+                        { headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` } },
+                    )
+                ).status,
+                404,
+            );
+
+            const deletedCurrentOp = new LocationRouteFixture({
+                backofficeDept: "op",
+                currentBackofficeMissing: true,
+            });
+            assert.equal(
+                (
+                    await deletedCurrentOp.app.request(
+                        "http://ims.test/api/admin/community/exchange/office-locations",
+                        { headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` } },
+                    )
+                ).status,
+                404,
+            );
+
+            const demotedCurrentOp = new LocationRouteFixture({
+                backofficeDept: "op",
+                currentBackofficeDept: "design",
+            });
+            demotedCurrentOp.locations.set(OFFICE_ID, pendingLocation());
+            assert.equal(
+                (
+                    await demotedCurrentOp.app.request(`http://ims.test${path}`, {
+                        method: "PUT",
+                        headers: {
+                            ...backofficeCookieHeaders(),
+                            "content-type": "application/json",
+                        },
+                        body: publishBody,
+                    })
+                ).status,
+                404,
+            );
+            assert.equal(
+                demotedCurrentOp.locations.get(OFFICE_ID)?.review_state,
+                "pending",
+            );
+
+            const auditFailure = new LocationRouteFixture({ auditFailure: true });
+            auditFailure.locations.set(OFFICE_ID, pendingLocation());
+            const failedAuditResponse = await auditFailure.app.request(
+                `http://ims.test${path}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        ...backofficeCookieHeaders(),
+                        "content-type": "application/json",
+                    },
+                    body: publishBody,
+                },
+            );
+            assert.equal(failedAuditResponse.status, 404);
+            assert.equal(
+                auditFailure.locations.get(OFFICE_ID)?.review_state,
+                "pending",
+            );
+            assert.equal(auditFailure.locations.get(OFFICE_ID)?.revision, 0);
+            assert.equal(auditFailure.audit.length, 0);
+        });
+
+        test('map bootstrap has a separate protected budget from viewport reads', async () => {
+            const viewportLimited = new LocationRouteFixture();
+            viewportLimited.rateLimiter.deniedBuckets.add('fudaba-map-ip');
+            const configPath = 'http://ims.test/api/community/exchange/map/config';
+            assert.equal((await viewportLimited.app.request(configPath)).status, 200);
+            assert.equal((await viewportLimited.app.request(
+                'http://ims.test/api/community/exchange/map/offices?bbox=-180,-60,180,60',
+            )).status, 429);
+
+            const configLimited = new LocationRouteFixture();
+            configLimited.rateLimiter.deniedBuckets.add('fudaba-map-config-ip');
+            const response = await configLimited.app.request(configPath);
+            assert.equal(response.status, 429);
+            assert.ok(response.headers.get('retry-after'));
+            assert.ok(configLimited.rateLimiter.calls.some(({ bucket, limit, windowSeconds }) =>
+                bucket === 'fudaba-map-config-ip' && limit === 300 && windowSeconds === 900,
+            ));
+            assert.equal((await configLimited.app.request(
+                'http://ims.test/api/community/exchange/map/offices?bbox=-180,-60,180,60',
+            )).status, 200);
+
+            const globalLimited = new LocationRouteFixture();
+            globalLimited.rateLimiter.deniedBuckets.add('global');
+            assert.equal((await globalLimited.app.request(configPath)).status, 429);
+        });
+
+        test("map limits remain active and retired locations have no dedicated mutation budget", async () => {
+            const mapLimited = new LocationRouteFixture();
+            mapLimited.rateLimiter.deniedBuckets.add("fudaba-map-ip");
+            const mapResponse = await mapLimited.app.request(
+                "http://ims.test/api/community/exchange/map/offices?bbox=-180,-90,180,90",
+            );
+            assert.equal(mapResponse.status, 429);
+            assert.ok(mapResponse.headers.get("retry-after"));
+            assert.ok(
+                mapLimited.rateLimiter.calls.some(
+                    ({ bucket, limit, windowSeconds }) =>
+                        bucket === "fudaba-map-ip" &&
+                        limit === 300 &&
+                        windowSeconds === 900,
+                ),
+            );
+
+            const ipLimited = new LocationRouteFixture();
+            ipLimited.rateLimiter.deniedBuckets.add("fudaba-location-ip");
+            const path = `/api/community/exchange/me/offices/${OFFICE_ID}/location`;
+            const init = {
+                method: "PUT",
+                headers: platformBearerHeaders({ "content-type": "application/json" }),
+                body: JSON.stringify({
+                    latitude: 31.2,
+                    longitude: 121.5,
+                    expectedRevision: null,
+                }),
+            };
+            assert.equal(
+                (await ipLimited.app.request(`http://ims.test${path}`, init)).status,
+                404,
+            );
+            assert.ok(
+                !ipLimited.rateLimiter.calls.some(
+                    ({ bucket, limit, windowSeconds }) =>
+                        bucket === "fudaba-location-ip" &&
+                        limit === 60 &&
+                        windowSeconds === 3600,
+                ),
+            );
+
+            const accountLimited = new LocationRouteFixture();
+            accountLimited.rateLimiter.deniedBuckets.add("fudaba-location-account");
+            assert.equal(
+                (await accountLimited.app.request(`http://ims.test${path}`, init))
+                    .status,
+                404,
+            );
+            assert.ok(
+                !accountLimited.rateLimiter.calls.some(
+                    ({ bucket, key }) =>
+                        bucket === "fudaba-location-account" && key === ACCOUNT_ID,
+                ),
+            );
+            assert.ok(
+                !accountLimited.rateLimiter.calls.some(
+                    ({ bucket, limit, windowSeconds }) =>
+                        bucket === "fudaba-location-account" &&
+                        limit === 12 &&
+                        windowSeconds === 3600,
+                ),
+            );
+        });
+    });
+}
+
+// fudaba-map-delivery.test.ts
+{
+    const TOKEN = 'map-delivery-admin-token';
+    const OFFICIAL_STYLE = 'https://tiles.openfreemap.org/styles/positron';
+    const SELF_HOSTED_STYLE = '/maps/exchange-style.json';
+    const OBJECT_STORAGE_STYLE =
+        'https://objects.example.test/exchange/releases/v3/exchange-style.json';
+    const DYNAMIC_STYLE =
+        'https://dynamic.example.test/openmap/v4/exchange-style.json';
+    const EDITED_DYNAMIC_STYLE =
+        'https://dynamic.example.test/openmap/v5/exchange-style.json';
+
+    class MemoryStorage implements ObjectStorage {
+        private readonly objects = new Map<string, StoredObject>();
+        private revision = 0;
+
+        async get(key: string): Promise<StoredObject | null> {
+            const object = this.objects.get(key);
+            return object
+                ? { ...object, body: Uint8Array.from(object.body) }
+                : null;
+        }
+
+        async put(
+            key: string,
+            body: Uint8Array,
+            options: PutObjectOptions = {},
+        ): Promise<StoredObject> {
+            this.revision += 1;
+            const object: StoredObject = {
+                body: Uint8Array.from(body),
+                size: body.byteLength,
+                contentType: options.contentType || 'application/octet-stream',
+                etag: `"revision-${this.revision}"`,
+            };
+            this.objects.set(key, object);
+            return { ...object, body: Uint8Array.from(object.body) };
+        }
+
+        async putIfUnchanged(
+            key: string,
+            expectedEtag: string | null,
+            body: Uint8Array,
+            options: PutObjectOptions = {},
+        ): Promise<StoredObject | null> {
+            if ((this.objects.get(key)?.etag ?? null) !== expectedEtag) return null;
+            return this.put(key, body, options);
+        }
+
+        async delete(key: string): Promise<void> {
+            this.objects.delete(key);
+        }
+
+        async exists(key: string): Promise<boolean> {
+            return this.objects.has(key);
+        }
+
+        async copy(sourceKey: string, destinationKey: string): Promise<void> {
+            const source = await this.get(sourceKey);
+            if (!source) throw new Error('source missing');
+            await this.put(destinationKey, source.body, {
+                contentType: source.contentType,
+            });
+        }
+
+        async move(sourceKey: string, destinationKey: string): Promise<void> {
+            await this.copy(sourceKey, destinationKey);
+            await this.delete(sourceKey);
+        }
+
+        async list(prefix: string): Promise<ListedObject[]> {
+            return [...this.objects.entries()]
+                .filter(([key]) => key.startsWith(prefix))
+                .map(([key, value]) => ({
+                    key,
+                    size: value.size,
+                    etag: value.etag,
+                }));
+        }
+
+        async deletePrefix(prefix: string): Promise<void> {
+            for (const key of this.objects.keys()) {
+                if (key.startsWith(prefix)) this.objects.delete(key);
+            }
+        }
+    }
+
+    function fixture() {
+        const storage = new MemoryStorage();
+        const audit: AuditLogInput[] = [];
+        const services: RuntimeServices = {
+            storage,
+            config: {
+                fudabaPublicReadEnabled: true,
+                fudabaMapEnabled: true,
+                fudabaMapSources: [OFFICIAL_STYLE, SELF_HOSTED_STYLE, OBJECT_STORAGE_STYLE].map((styleUrl) => ({ provider: 'maplibre', styleUrl })),
+            },
+            backofficeTokens: {
+                async sign() {
+                    return TOKEN;
+                },
+                async verify(token: string) {
+                    if (token !== TOKEN) throw new Error('wrong token realm');
+                    return {
+                        iss: 'imsweb' as const,
+                        aud: 'ims-backoffice' as const,
+                        kind: 'backoffice' as const,
+                        id: 7,
+                        username: 'map-operator',
+                        producername: 'Map Operator',
+                        dept: 'op',
+                        csrfSecret: 'map-delivery-csrf',
+                    };
+                },
+            },
+            backofficeAuth: {
+                async findUserById(id: number) {
+                    return id === 7
+                        ? {
+                              id: 7,
+                              username: 'map-operator',
+                              password: 'unused-password-hash',
+                              producername: 'Map Operator',
+                              dept: 'op',
+                              admin_role: 'super_admin' as const,
+                          }
+                        : null;
+                },
+            } as NonNullable<RuntimeServices['backofficeAuth']>,
+            audit: {
+                async insertAuditLog(input) {
+                    audit.push(input);
+                },
+                async listRecentAuditLogs() {
+                    return [];
+                },
+            },
+        };
+        const app = createHonoApp(() => services);
+        const request = (pathname: string, init?: RequestInit) =>
+            app.request(`http://ims.test${pathname}`, init);
+        const authHeaders = (headers: Record<string, string> = {}) =>
+            bearerTokenHeaders(TOKEN, headers);
+        const mutation = (
+            pathname: string,
+            method: 'POST' | 'PUT' | 'DELETE',
+            body: unknown,
+        ) =>
+            request(pathname, {
+                method,
+                headers: authHeaders({ 'content-type': 'application/json' }),
+                body: JSON.stringify(body),
+            });
+        return { storage, audit, request, authHeaders, mutation };
+    }
+
+    interface SourcePayload {
+        id: string;
+        name: string;
+        styleUrl: string;
+    }
+
+    interface DeliveryPayload {
+        success: true;
+        delivery: {
+            sources: SourcePayload[];
+            activeSourceId: string;
+            effectiveStyleUrl: string;
+            revision: string | null;
+        };
+    }
+
+    test.describe('map delivery', () => {
+        test('rejects unknown query fields and source writes without an explicit provider', async () => {
+            const { request, mutation, authHeaders } = fixture();
+            const response = await request('/api/admin/community/exchange/map-delivery?ignored=1', { headers: authHeaders() });
+            assert.equal(response.status, 400);
+            await contractJson(response, fudabaMapDeliveryErrorSchema);
+            const missingProvider = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', { name: 'Explicit provider required', styleUrl: DYNAMIC_STYLE, revision: null });
+            assert.equal(missingProvider.status, 422);
+            await contractJson(missingProvider, fudabaMapDeliveryErrorSchema);
+        });
+        test('delivers fixed-Mapbox regional-search credentials without visitor-header selection', async () => {
+                const { request, mutation } = fixture();
+                const amap = { provider: 'amap', apiKey: 'public-amap-key-1234567890', securityProxyUrl: '/_AMapService', mapStyle: 'amap://styles/normal' };
+                const mapbox = { provider: 'mapbox', accessToken: 'pk.public-mapbox-token-1234567890', styleUrl: 'mapbox://styles/mapbox/streets-v12' };
+                const publicMapbox = { ...mapbox, search: { provider: 'mapbox', accessToken: mapbox.accessToken } };
+                const regionalSearch = { provider: 'regional', mainland: amap, overseas: mapbox, defaultRegion: 'mainland', search: { provider: 'federated', mainland: { provider: 'amap', apiKey: amap.apiKey, securityProxyUrl: amap.securityProxyUrl }, overseas: { provider: 'mapbox', accessToken: mapbox.accessToken } } };
+                const create = async (name: string, config: object, revision: string | null) => {
+                    const response = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', { name, ...config, revision });
+                    assert.equal(response.status, 201);
+                    return contractJson(response, fudabaMapDeliveryMutationSchema);
+                };
+                const first = await create('高德', amap, null);
+                const second = await create('Mapbox', mapbox, first.delivery.revision);
+                const mainland = second.delivery.sources.find((source) => source.name === '高德')!;
+                const overseas = second.delivery.sources.find((source) => source.name === 'Mapbox')!;
+                const routing = { mainlandSourceId: mainland.id, overseasSourceId: overseas.id };
+                const selected = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: second.delivery.activeSourceId, routing, revision: second.delivery.revision });
+                assert.equal(selected.status, 200);
+                const snapshot = await contractJson(selected, fudabaMapDeliveryMutationSchema);
+                assert.deepEqual(snapshot.delivery.routing, routing);
+                const headerCases: Record<string, string>[] = [{}, { 'x-ims-visitor-country': 'CN' }, { 'cf-ipcountry': 'US' }];
+                for (const headers of headerCases) {
+                    const response = await request('/api/community/exchange/map/config', { headers });
+                    assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+                    assert.deepEqual(await contractJson(response, fudabaMapConfigSchema), regionalSearch);
+                }
+                const referenced = await mutation(`/api/admin/community/exchange/map-delivery/sources/${mainland.id}`, 'DELETE', { revision: snapshot.delivery.revision });
+                assert.equal(referenced.status, 409);
+                const invalid = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: snapshot.delivery.activeSourceId, routing: { ...routing, mainlandSourceId: 'missing' }, revision: snapshot.delivery.revision });
+                assert.equal(invalid.status, 409);
+                const wrongProvider = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: snapshot.delivery.activeSourceId, routing: { ...routing, mainlandSourceId: snapshot.delivery.activeSourceId }, revision: snapshot.delivery.revision });
+                assert.equal(wrongProvider.status, 422);
+                const singleSourceMode = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: overseas.id, revision: snapshot.delivery.revision, routing: null });
+                const manual = await contractJson(singleSourceMode, fudabaMapDeliveryMutationSchema);
+                assert.equal(manual.delivery.routing, undefined);
+                assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config', { headers: { 'x-ims-visitor-country': 'CN' } }), fudabaMapConfigSchema), publicMapbox);
+                const secret = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                    name: 'Secret', ...mapbox, accessToken: 'sk.secret-1234567890', revision: manual.delivery.revision,
+                });
+                assert.equal(secret.status, 422);
+        });
+
+        test('persists, activates and edits AMap without exposing security codes or provider internals to business APIs', async () => {
+            const { storage, request, authHeaders, mutation, audit } = fixture();
+            const config = {
+                provider: 'amap', apiKey: 'public-amap-key-1234567890',
+                securityProxyUrl: 'https://maps.example.test/_AMapService',
+                mapStyle: 'amap://styles/normal',
+            };
+            const created = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                ...config, name: '高德', revision: null,
+            });
+            assert.equal(created.status, 201);
+            const payload = await contractJson(created, fudabaMapDeliveryMutationSchema);
+            const source = payload.delivery.sources.find((item) => item.name === '高德')!;
+            assert.deepEqual(source, { id: source.id, name: '高德', ...config });
+            const active = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', {
+                sourceId: source.id, revision: payload.delivery.revision,
+            });
+            const activated = await contractJson(active, fudabaMapDeliveryMutationSchema);
+            assert.equal(activated.delivery.effectiveStyleUrl, null);
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), { ...config, search: { provider: 'amap', apiKey: config.apiKey, securityProxyUrl: config.securityProxyUrl } });
+            const reread = await request('/api/admin/community/exchange/map-delivery', { headers: authHeaders() });
+            assert.deepEqual(await contractJson(reread, fudabaMapDeliverySnapshotSchema), activated.delivery);
+            const object = await storage.get(FUDABA_MAP_DELIVERY_OBJECT_KEY);
+            assert.equal(JSON.parse(new TextDecoder().decode(object!.body)).version, 4);
+            const stale = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                ...config, name: '高德新样式', revision: payload.delivery.revision,
+            });
+            assert.equal(stale.status, 409);
+            for (const invalid of [
+                { ...config, securityJsCode: 'must-stay-on-server' },
+                { ...config, securityProxyUrl: 'https://user:secret@maps.test/_AMapService' },
+                { ...config, securityProxyUrl: 'https://maps.test/other' },
+                { ...config, mapStyle: 'javascript:alert(1)' },
+                { ...config, provider: 'unknown' },
+                { ...config, styleUrl: OFFICIAL_STYLE },
+            ]) {
+                const response = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                    ...invalid, name: '无效源', revision: activated.delivery.revision,
+                });
+                assert.equal(response.status, 422);
+            }
+            const edited = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                ...config, name: '高德新样式', mapStyle: 'amap://styles/whitesmoke', revision: activated.delivery.revision,
+            });
+            const updated = await contractJson(edited, fudabaMapDeliveryMutationSchema);
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), {
+                ...config, mapStyle: 'amap://styles/whitesmoke',
+                search: { provider: 'amap', apiKey: config.apiKey, securityProxyUrl: config.securityProxyUrl },
+            });
+            const switchedBack = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                provider: 'maplibre', name: '切回 OpenFreeMap', styleUrl: DYNAMIC_STYLE, revision: updated.delivery.revision,
+            });
+            const switched = await contractJson(switchedBack, fudabaMapDeliveryMutationSchema);
+            assert.deepEqual(switched.delivery.sources.find((item) => item.id === source.id), {
+                provider: 'maplibre', id: source.id, name: '切回 OpenFreeMap', styleUrl: DYNAMIC_STYLE,
+            });
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), { provider: 'maplibre', styleUrl: DYNAMIC_STYLE, search: { provider: 'nominatim' } });
+            assert.ok(audit.every((entry) => !JSON.stringify(entry).includes(config.apiKey)));
+        });
+
+        test('validates raw JSON responses without projecting emitted fields', async () => {
+            const { request, authHeaders, mutation } = fixture();
+
+            const unauthorized = await request('/api/admin/community/exchange/map-delivery');
+            assert.equal(unauthorized.status, 401);
+            await contractJson(unauthorized, fudabaMapDeliveryErrorSchema);
+
+            const read = await request('/api/admin/community/exchange/map-delivery', {
+                headers: authHeaders(),
+            });
+            assert.equal(read.status, 200);
+            await contractJson(read, fudabaMapDeliverySnapshotSchema);
+
+            const created = await mutation(
+                '/api/admin/community/exchange/map-delivery/sources',
+                'POST',
+                { provider: 'maplibre', name: 'Boundary source', styleUrl: DYNAMIC_STYLE, revision: null },
+            );
+            assert.equal(created.status, 201);
+            await contractJson(created, fudabaMapDeliveryMutationSchema);
+
+            const invalidCases: Array<[string, RequestInit, string]> = [
+                [
+                    '/api/admin/community/exchange/map-delivery/sources',
+                    {
+                        method: 'POST',
+                        headers: authHeaders({ 'content-type': 'application/json' }),
+                        body: '{',
+                    },
+                    '请求正文必须为 JSON',
+                ],
+                [
+                    '/api/admin/community/exchange/map-delivery/sources',
+                    {
+                        method: 'POST',
+                        headers: authHeaders({ 'content-type': 'application/json' }),
+                        body: '[]',
+                    },
+                    '请求正文必须为 JSON 对象',
+                ],
+                [
+                    '/api/admin/community/exchange/map-delivery/sources',
+                    {
+                        method: 'POST',
+                        headers: authHeaders({ 'content-type': 'application/json' }),
+                        body: JSON.stringify({
+                            name: 'Boundary source',
+                            provider: 'maplibre',
+                            styleUrl: DYNAMIC_STYLE,
+                            revision: null,
+                            unexpected: true,
+                        }),
+                    },
+                    '地图源请求格式无效',
+                ],
+                [
+                    '/api/admin/community/exchange/map-delivery/sources',
+                    {
+                        method: 'POST',
+                        headers: authHeaders({ 'content-type': 'application/json' }),
+                        body: JSON.stringify({
+                            name: 'Boundary\u0001source',
+                            provider: 'maplibre',
+                            styleUrl: DYNAMIC_STYLE,
+                            revision: null,
+                        }),
+                    },
+                    '地图源名称格式无效',
+                ],
+                [
+                    '/api/admin/community/exchange/map-delivery/sources/invalid_id',
+                    {
+                        method: 'PUT',
+                        headers: authHeaders({ 'content-type': 'application/json' }),
+                        body: JSON.stringify({
+                            name: 'Boundary source',
+                            provider: 'maplibre',
+                            styleUrl: DYNAMIC_STYLE,
+                            revision: null,
+                        }),
+                    },
+                    '地图源 ID 格式无效',
+                ],
+            ];
+            for (const [path, init, message] of invalidCases) {
+                const response = await request(path, init);
+                assert.equal(response.status, 422, path);
+                assert.deepEqual(await contractJson(response, fudabaMapDeliveryErrorSchema), {
+                    error: message,
+                });
+            }
+        });
+
+        test('manages a version 4 collection with CAS and rejects old stored formats', async () => {
+            const { storage, audit, request, authHeaders, mutation } = fixture();
+
+            const coldConfig = await request('/api/community/exchange/map/config');
+            assert.equal(coldConfig.status, 200);
+            assert.deepEqual(await coldConfig.json(), { provider: 'maplibre', styleUrl: OFFICIAL_STYLE, search: { provider: 'nominatim' } });
+
+            const unauthorized = await request(
+                '/api/admin/community/exchange/map-delivery',
+            );
+            assert.equal(unauthorized.status, 401);
+
+            const coldAdmin = await request(
+                '/api/admin/community/exchange/map-delivery',
+                { headers: authHeaders() },
+            );
+            assert.equal(coldAdmin.status, 200);
+            const coldSnapshot =
+                (await coldAdmin.json()) as DeliveryPayload['delivery'];
+            assert.equal(coldSnapshot.sources.length, 3);
+            assert.equal(coldSnapshot.sources[0]?.name, 'MapLibre · tiles.openfreemap.org');
+            assert.equal(coldSnapshot.activeSourceId, coldSnapshot.sources[0]?.id);
+            assert.equal(coldSnapshot.effectiveStyleUrl, OFFICIAL_STYLE);
+            assert.equal(coldSnapshot.revision, null);
+
+            const malformed = await mutation(
+                '/api/admin/community/exchange/map-delivery/sources',
+                'POST',
+                { provider: 'maplibre', name: 'Broken', styleUrl: 'maps/style.json', revision: null },
+            );
+            assert.equal(malformed.status, 422);
+
+            const created = await mutation(
+                '/api/admin/community/exchange/map-delivery/sources',
+                'POST',
+                { provider: 'maplibre', name: 'Dynamic edge', styleUrl: DYNAMIC_STYLE, revision: null },
+            );
+            assert.equal(created.status, 201);
+            const createdPayload = (await created.json()) as DeliveryPayload;
+            const dynamicSource = createdPayload.delivery.sources.find(
+                (source) => source.styleUrl === DYNAMIC_STYLE,
+            );
+            assert.ok(dynamicSource);
+            assert.equal(createdPayload.delivery.revision, '"revision-1"');
+
+            const storedObject = await storage.get(FUDABA_MAP_DELIVERY_OBJECT_KEY);
+            assert.ok(storedObject);
+            const stored = JSON.parse(
+                new TextDecoder().decode(storedObject.body),
+            ) as Record<string, unknown>;
+            assert.equal(stored.version, 4);
+            assert.ok(Array.isArray(stored.sources));
+
+            const duplicate = await mutation(
+                '/api/admin/community/exchange/map-delivery/sources',
+                'POST',
+                {
+                    name: 'Dynamic edge',
+                    provider: 'maplibre',
+                    styleUrl: 'https://other.example.test/style.json',
+                    revision: createdPayload.delivery.revision,
+                },
+            );
+            assert.equal(duplicate.status, 409);
+
+            const edited = await mutation(
+                `/api/admin/community/exchange/map-delivery/sources/${dynamicSource.id}`,
+                'PUT',
+                {
+                    name: 'Dynamic edge v5',
+                    provider: 'maplibre',
+                    styleUrl: EDITED_DYNAMIC_STYLE,
+                    revision: createdPayload.delivery.revision,
+                },
+            );
+            assert.equal(edited.status, 200);
+            const editedPayload = (await edited.json()) as DeliveryPayload;
+            assert.equal(editedPayload.delivery.revision, '"revision-2"');
+            assert.ok(
+                editedPayload.delivery.sources.some(
+                    (source) =>
+                        source.id === dynamicSource.id &&
+                        source.name === 'Dynamic edge v5' &&
+                        source.styleUrl === EDITED_DYNAMIC_STYLE,
+                ),
+            );
+
+            const activated = await mutation(
+                '/api/admin/community/exchange/map-delivery/active',
+                'PUT',
+                {
+                    sourceId: dynamicSource.id,
+                    revision: editedPayload.delivery.revision,
+                },
+            );
+            assert.equal(activated.status, 200);
+            const activatedPayload = (await activated.json()) as DeliveryPayload;
+            assert.equal(activatedPayload.delivery.activeSourceId, dynamicSource.id);
+            assert.equal(
+                activatedPayload.delivery.effectiveStyleUrl,
+                EDITED_DYNAMIC_STYLE,
+            );
+            assert.equal(activatedPayload.delivery.revision, '"revision-3"');
+
+            const selectedConfig = await request('/api/community/exchange/map/config');
+            assert.equal(selectedConfig.status, 200);
+            assert.deepEqual(await selectedConfig.json(), {
+                provider: 'maplibre',
+                styleUrl: EDITED_DYNAMIC_STYLE,
+                search: { provider: 'nominatim' },
+            });
+
+            const deleteActive = await mutation(
+                `/api/admin/community/exchange/map-delivery/sources/${dynamicSource.id}`,
+                'DELETE',
+                { revision: activatedPayload.delivery.revision },
+            );
+            assert.equal(deleteActive.status, 409);
+
+            const inactiveSource = activatedPayload.delivery.sources.find(
+                (source) => source.styleUrl === SELF_HOSTED_STYLE,
+            );
+            assert.ok(inactiveSource);
+            const deleted = await mutation(
+                `/api/admin/community/exchange/map-delivery/sources/${inactiveSource.id}`,
+                'DELETE',
+                { revision: activatedPayload.delivery.revision },
+            );
+            assert.equal(deleted.status, 200);
+            const deletedPayload = (await deleted.json()) as DeliveryPayload;
+            assert.equal(deletedPayload.delivery.revision, '"revision-4"');
+            assert.ok(
+                !deletedPayload.delivery.sources.some(
+                    (source) => source.id === inactiveSource.id,
+                ),
+            );
+
+            const stale = await mutation(
+                '/api/admin/community/exchange/map-delivery/active',
+                'PUT',
+                {
+                    sourceId: coldSnapshot.activeSourceId,
+                    revision: '"revision-2"',
+                },
+            );
+            assert.equal(stale.status, 409);
+            assert.deepEqual(
+                audit.map((entry) => entry.action),
+                [
+                    '新增交换地图源',
+                    '编辑交换地图源',
+                    '激活交换地图源',
+                    '删除交换地图源',
+                ],
+            );
+
+            await storage.put(
+                FUDABA_MAP_DELIVERY_OBJECT_KEY,
+                new TextEncoder().encode(
+                    JSON.stringify({
+                        styleUrl: OBJECT_STORAGE_STYLE,
+                        updatedAt: new Date().toISOString(),
+                    }),
+                ),
+                { contentType: 'application/json; charset=utf-8' },
+            );
+            const legacyAdmin = await request(
+                '/api/admin/community/exchange/map-delivery',
+                { headers: authHeaders() },
+            );
+            const legacySnapshot =
+                (await legacyAdmin.json()) as DeliveryPayload['delivery'];
+            assert.equal(legacySnapshot.effectiveStyleUrl, OFFICIAL_STYLE);
+            assert.equal(
+                legacySnapshot.sources.find(
+                    (source) => source.id === legacySnapshot.activeSourceId,
+                )?.styleUrl,
+                OFFICIAL_STYLE,
+            );
+
+            await storage.put(
+                FUDABA_MAP_DELIVERY_OBJECT_KEY,
+                new TextEncoder().encode(
+                    JSON.stringify({
+                        version: 4,
+                        sources: [
+                            {
+                                id: 'poisoned',
+                                name: 'Poisoned',
+                                provider: 'maplibre',
+                                styleUrl:
+                                    'https://user:secret@attacker.example/style.json',
+                            },
+                        ],
+                        activeSourceId: 'poisoned',
+                    }),
+                ),
+                { contentType: 'application/json; charset=utf-8' },
+            );
+
+            const poisonedConfig = await request('/api/community/exchange/map/config');
+            assert.equal(poisonedConfig.status, 200);
+            assert.deepEqual(await poisonedConfig.json(), { provider: 'maplibre', styleUrl: OFFICIAL_STYLE, search: { provider: 'nominatim' } });
+
+            const poisonedAdmin = await request(
+                '/api/admin/community/exchange/map-delivery',
+                { headers: authHeaders() },
+            );
+            const poisonedSnapshot =
+                (await poisonedAdmin.json()) as DeliveryPayload['delivery'];
+            assert.equal(poisonedSnapshot.effectiveStyleUrl, OFFICIAL_STYLE);
+            assert.equal(poisonedSnapshot.revision, '"revision-6"');
+        });
+    });
+}
+
+// fudaba-office-management-repository.test.ts
+{
+    const CREATED_AT = '2026-08-03T01:00:00.000Z';
+    const UPDATED_AT = '2026-08-03T02:00:00.000Z';
+    const LATER_AT = '2026-08-03T03:00:00.000Z';
+    const RECEIPT_RACE_LOCK = [18_003, 18] as const;
+
+    const initializedPostgresSchema: SqlSchemaStrategy = {
+        initializeCore: async () => undefined,
+        initializePlatform: async () => undefined,
+        initializeFudaba: async () => undefined,
+        initializeStory: async () => undefined
+    };
+
+    interface Fixture {
+        database: ManagedSqlDatabase;
+        repository: SqlFudabaRepository;
+        dialect: 'postgresql';
+    }
+
+    class InterleavingStatement implements SqlStatement {
+        constructor(
+            private readonly statement: SqlStatement,
+            private readonly afterRead: () => Promise<void>
+        ) {}
+
+        bind(...values: unknown[]): SqlStatement {
+            return new InterleavingStatement(
+                this.statement.bind(...values),
+                this.afterRead
+            );
+        }
+
+        async first<Value = Record<string, unknown>>(
+            column?: string
+        ): Promise<Value | null> {
+            const result = await this.statement.first<Value>(column);
+            await this.afterRead();
+            return result;
+        }
+
+        async all<Row = Record<string, unknown>>(): Promise<SqlResult<Row>> {
+            const result = await this.statement.all<Row>();
+            await this.afterRead();
+            return result;
+        }
+
+        async run<Row = Record<string, unknown>>(): Promise<SqlResult<Row>> {
+            const result = await this.statement.run<Row>();
+            await this.afterRead();
+            return result;
+        }
+    }
+
+    class InterleavingOwnerReadDatabase implements ManagedSqlDatabase {
+        private armed = true;
+
+        constructor(
+            private readonly database: ManagedSqlDatabase,
+            private readonly interleave: () => Promise<void>
+        ) {
+        }
+
+        prepare(sql: string): SqlStatement {
+            const statement = this.database.prepare(sql);
+            if (!/\bFROM\s+fudaba_offices(?:\s+office)?\b/i.test(sql) ||
+                !/\bowner_account_id\b/i.test(sql)) {
+                return statement;
+            }
+            return new InterleavingStatement(statement, async () => {
+                if (!this.armed) return;
+                this.armed = false;
+                await this.interleave();
+            });
+        }
+
+        batch<Row = Record<string, unknown>>(
+            statements: SqlStatement[]
+        ): Promise<SqlResult<Row>[]> {
+            return this.database.batch<Row>(statements);
+        }
+
+        executeScript(sql: string): Promise<void> {
+            return this.database.executeScript(sql);
+        }
+
+        transaction<Value>(
+            operation: (database: SqlDatabase) => Promise<Value>
+        ): Promise<Value> {
+            return this.database.transaction(operation);
+        }
+
+        close(): Promise<void> {
+            return Promise.resolve();
+        }
+    }
+
+    async function createFixture(
+        dialect: Fixture['dialect']
+    ): Promise<Fixture> {
+        const harness = await createPostgresTestHarness();
+        const repository = new SqlFudabaRepository(
+            harness.connection,
+            initializedPostgresSchema
+        );
+        onTestFinished(() => harness.close());
+        await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
+        return { database: harness.connection, repository, dialect };
+    }
+
+    async function seedAccount(
+        fixture: Fixture,
+        id: string,
+        status: PlatformAccountStatus = 'active'
+    ): Promise<void> {
+        await fixture.database.prepare(
+            `INSERT INTO platform_accounts
+            (id, status, token_version, created_at, updated_at, deleted_at)
+         VALUES (?, ?, 0, 1700000000000, 1700000000000, ?)`
+        ).bind(id, status, status === 'deleted' ? 1700000000000 : null).run();
+    }
+
+    function office(
+        id: string,
+        ownerAccountId: string,
+        overrides: Partial<CreateOwnedFudabaOfficeInput> = {}
+    ): CreateOwnedFudabaOfficeInput {
+        return {
+            id,
+            ownerAccountId,
+            slug: id,
+            name: `Office ${id}`,
+            intro: 'Owner intro',
+            city: 'Shanghai',
+            address: '765 Producer Street',
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: '#ef5b6c',
+            coverObjectKey: null,
+            isOpen: true,
+            visitorCount: 0,
+            status: 'active',
+            revision: 0,
+            createdAt: CREATED_AT,
+            updatedAt: CREATED_AT,
+            archivedAt: null,
+            seriesCodes: ['765'],
+            idempotencyKeyHash: hash(`key:${id}`),
+            requestHash: hash(`request:${id}`),
+            receiptCreatedAt: 1_775_100_000_000,
+            ...overrides
+        };
+    }
+
+    async function seedPendingLocation(
+        fixture: Fixture,
+        officeId: string
+    ): Promise<void> {
+        await fixture.database.prepare(
+            `INSERT INTO fudaba_office_public_locations
+            (office_id, latitude_e1, longitude_e1, review_state, revision,
+             submitted_at, reviewed_at, reviewed_by, review_note)
+         VALUES (?, 312, 1215, 'pending', 0, ?, NULL, NULL, '')`
+        ).bind(officeId, CREATED_AT).run();
+    }
+
+    async function countOrphanedOfficeCreateReceipts(
+        fixture: Fixture
+    ): Promise<number> {
+        return Number(await fixture.database.prepare(
+            `SELECT COUNT(*) AS count
+         FROM fudaba_mutation_receipts receipt
+         LEFT JOIN fudaba_offices office
+           ON office.id=receipt.resource_id
+          AND office.owner_account_id=receipt.account_id
+         WHERE receipt.scope='office-create' AND office.id IS NULL`
+        ).first<number>('count') ?? 0);
+    }
+
+    function delay(milliseconds: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
+
+    async function waitForAdvisoryLockWaiter(fixture: Fixture): Promise<void> {
+        const deadline = Date.now() + 5_000;
+        while (Date.now() < deadline) {
+            const waiting = await fixture.database.prepare(
+                `SELECT EXISTS (
+                 SELECT 1 FROM pg_locks
+                 WHERE locktype='advisory' AND NOT granted
+                   AND database=(
+                       SELECT oid FROM pg_database WHERE datname=current_database()
+                   )
+             ) AS waiting`
+            ).first<boolean>('waiting');
+            if (waiting) return;
+            await delay(10);
+        }
+        throw new Error('Timed out waiting for the receipt race advisory lock');
+    }
+
+    async function waitForPostgresLockWait(
+        fixture: Fixture,
+        processId: number,
+        settled: () => boolean
+    ): Promise<boolean> {
+        const deadline = Date.now() + 5_000;
+        while (Date.now() < deadline) {
+            if (settled()) return false;
+            const activity = await fixture.database.prepare(
+                `SELECT wait_event_type FROM pg_stat_activity WHERE pid=?`
+            ).bind(processId).first<{ wait_event_type: string | null }>();
+            if (activity?.wait_event_type === 'Lock') return true;
+            await delay(10);
+        }
+        throw new Error('Timed out waiting for the account restriction lock');
+    }
+
+    function updateInput(
+        officeId: string,
+        ownerAccountId: string,
+        expectedRevision: number,
+        overrides: Record<string, unknown> = {}
+    ) {
+        return {
+            officeId,
+            ownerAccountId,
+            name: 'Updated office',
+            intro: 'Updated intro',
+            city: 'Shanghai',
+            address: '765 Producer Street',
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: '#4f64dd',
+            isOpen: false,
+            seriesCodes: ['cg', '765'],
+            expectedRevision,
+            updatedAt: UPDATED_AT,
+            ...overrides
+        };
+    }
+
+    async function assertOfficeManagement(fixture: Fixture): Promise<void> {
+        const ownerId = `${fixture.dialect}-office-owner`;
+        const otherId = `${fixture.dialect}-office-other`;
+        const restrictedId = `${fixture.dialect}-office-restricted`;
+        await seedAccount(fixture, ownerId);
+        await seedAccount(fixture, otherId);
+        await seedAccount(fixture, restrictedId, 'restricted');
+
+        assert.deepEqual(await fixture.repository.createOfficeForOwner(office(
+            `${fixture.dialect}-restricted-office`,
+            restrictedId
+        )), { status: 'unavailable' });
+
+        await fixture.database.prepare(
+            "UPDATE agencies SET wiki_enabled=FALSE WHERE code='876'"
+        ).run();
+        const disabled = office(`${fixture.dialect}-disabled-office`, ownerId, {
+            seriesCodes: ['876']
+        });
+        assert.deepEqual(
+            await fixture.repository.createOfficeForOwner(disabled),
+            { status: 'unavailable' }
+        );
+        assert.equal(await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM fudaba_mutation_receipts
+         WHERE account_id=? AND key_hash=?`
+        ).bind(ownerId, disabled.idempotencyKeyHash).first<number>('count'), 0);
+        assert.equal(await fixture.repository.findOfficeById(disabled.id), null);
+        assert.equal(await countOrphanedOfficeCreateReceipts(fixture), 0);
+
+        const untaggedOfficeId = `${fixture.dialect}-untagged-office`;
+        const untagged = await fixture.repository.createOfficeForOwner(office(
+            untaggedOfficeId,
+            ownerId,
+            { seriesCodes: [] }
+        ));
+        assert.equal(untagged.status, 'saved');
+        if (untagged.status === 'saved') {
+            assert.deepEqual(untagged.office.series_codes, []);
+        }
+
+        const officeId = `${fixture.dialect}-managed-office`;
+        const create = office(officeId, ownerId, {
+            seriesCodes: ['765', 'cg']
+        });
+        const created = await fixture.repository.createOfficeForOwner(create);
+        assert.equal(created.status, 'saved');
+        if (created.status !== 'saved') return;
+        assert.equal(created.office.revision, 0);
+        assert.equal(created.office.pending_cover_object_key, null);
+        assert.deepEqual(created.office.series_codes, ['765', 'cg']);
+
+        const replayed = await fixture.repository.createOfficeForOwner({
+            ...create,
+            id: `${officeId}-retry`,
+            slug: `${officeId}-retry`
+        });
+        assert.equal(replayed.status, 'saved');
+        if (replayed.status !== 'saved') return;
+        assert.equal(replayed.office.id, officeId);
+        assert.deepEqual(await fixture.repository.createOfficeForOwner({
+            ...create,
+            id: `${officeId}-conflict`,
+            slug: `${officeId}-conflict`,
+            requestHash: hash('different-request')
+        }), { status: 'idempotency-conflict' });
+        assert.equal(await countOrphanedOfficeCreateReceipts(fixture), 0);
+        assert.equal(await fixture.repository.findOfficeForOwner(officeId, otherId), null);
+        assert.deepEqual(await fixture.repository.updateOfficeForOwner(updateInput(
+            officeId,
+            otherId,
+            0
+        )), { status: 'unavailable' });
+
+        await seedPendingLocation(fixture, officeId);
+        const metadata = await fixture.repository.updateOfficeForOwner(updateInput(
+            officeId,
+            ownerId,
+            0
+        ));
+        assert.equal(metadata.status, 'saved');
+        if (metadata.status !== 'saved') return;
+        assert.equal(metadata.office.revision, 1);
+        assert.deepEqual(metadata.office.series_codes, ['cg', '765']);
+        assert.ok(await fixture.repository.findOfficePublicLocationForOwner(
+            officeId,
+            ownerId
+        ), 'unchanged exact location must retain review state');
+
+        const relocated = await fixture.repository.updateOfficeForOwner(updateInput(
+            officeId,
+            ownerId,
+            1,
+            { city: 'Hangzhou', seriesCodes: [], updatedAt: LATER_AT }
+        ));
+        assert.equal(relocated.status, 'saved');
+        assert.notEqual(await fixture.repository.findOfficePublicLocationForOwner(
+            officeId,
+            ownerId
+        ), null, 'historical location rows are retained for audit only');
+        assert.equal((await fixture.repository.findOfficeForOwner(officeId, ownerId))?.review_state, 'pending');
+
+        await fixture.database.prepare(
+            "UPDATE agencies SET wiki_enabled=FALSE WHERE code='sidem'"
+        ).run();
+        assert.deepEqual(await fixture.repository.updateOfficeForOwner(updateInput(
+            officeId,
+            ownerId,
+            2,
+            { seriesCodes: ['sidem'], updatedAt: LATER_AT }
+        )), { status: 'unavailable' });
+        const afterRollback = await fixture.repository.findOfficeForOwner(officeId, ownerId);
+        assert.equal(afterRollback?.revision, 2);
+        assert.deepEqual(afterRollback?.series_codes, []);
+        await fixture.database.prepare(
+            "UPDATE agencies SET wiki_enabled=TRUE WHERE code='sidem'"
+        ).run();
+
+        const sibling = new SqlFudabaRepository(
+            fixture.database,
+            initializedPostgresSchema
+        );
+        await sibling.initialize();
+        const first = updateInput(officeId, ownerId, 2, {
+            name: 'First writer',
+            seriesCodes: ['765'],
+            updatedAt: LATER_AT
+        });
+        const second = updateInput(officeId, ownerId, 2, {
+            name: 'Second writer',
+            seriesCodes: ['cg', 'sidem'],
+            updatedAt: LATER_AT
+        });
+        const casResults = await Promise.all([
+            fixture.repository.updateOfficeForOwner(first),
+            sibling.updateOfficeForOwner(second)
+        ]);
+        assert.deepEqual(
+            casResults.map((result) => result.status).sort(),
+            ['conflict', 'saved']
+        );
+        const afterCas = await fixture.repository.findOfficeForOwner(officeId, ownerId);
+        assert.equal(afterCas?.revision, 3);
+        if (afterCas?.name === 'First writer') {
+            assert.deepEqual(afterCas.series_codes, ['765']);
+        } else {
+            assert.equal(afterCas?.name, 'Second writer');
+            assert.deepEqual(afterCas?.series_codes, ['cg', 'sidem']);
+        }
+
+        const pendingKey = `community/fudaba/offices/${officeId}/covers/pending.webp`;
+        const reserved = await fixture.repository.reservePendingOfficeCoverForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            objectKey: pendingKey,
+            expectedRevision: 3,
+            submittedAt: LATER_AT
+        });
+        assert.equal(reserved.status, 'saved');
+        assert.deepEqual(await fixture.repository.reservePendingOfficeCoverForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            objectKey: `${pendingKey}.second`,
+            expectedRevision: 4,
+            submittedAt: LATER_AT
+        }), { status: 'pending-exists', revision: 4 });
+        await fixture.database.prepare(
+            `UPDATE platform_accounts
+         SET status='restricted', updated_at=1700000000001
+         WHERE id=?`
+        ).bind(ownerId).run();
+        assert.deepEqual(await fixture.repository.clearPendingOfficeCoverForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            objectKey: `${pendingKey}.wrong`,
+            expectedRevision: 4,
+            updatedAt: LATER_AT
+        }), { status: 'unavailable' });
+        assert.deepEqual(await fixture.repository.clearPendingOfficeCoverForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            objectKey: pendingKey,
+            expectedRevision: 3,
+            updatedAt: LATER_AT
+        }), { status: 'conflict', revision: 4 });
+        const cleared = await fixture.repository.clearPendingOfficeCoverForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            objectKey: pendingKey,
+            expectedRevision: 4,
+            updatedAt: LATER_AT
+        });
+        assert.equal(cleared.status, 'saved');
+        if (cleared.status !== 'saved') return;
+        assert.equal(cleared.previousPendingObjectKey, pendingKey);
+        assert.equal(cleared.office.pending_cover_object_key, null);
+        await fixture.database.prepare(
+            `UPDATE platform_accounts
+         SET status='active', deleted_at=NULL, updated_at=1700000000002
+         WHERE id=?`
+        ).bind(ownerId).run();
+
+        await fixture.database.prepare(
+            "UPDATE fudaba_offices SET status='hidden' WHERE id=?"
+        ).bind(officeId).run();
+        for (const result of [
+            await fixture.repository.updateOfficeForOwner(updateInput(
+                officeId,
+                ownerId,
+                5
+            )),
+            await fixture.repository.reservePendingOfficeCoverForOwner({
+                officeId,
+                ownerAccountId: ownerId,
+                objectKey: `${pendingKey}.hidden`,
+                expectedRevision: 5,
+                submittedAt: LATER_AT
+            }),
+            await fixture.repository.archiveOfficeForOwner({
+                officeId,
+                ownerAccountId: ownerId,
+                expectedRevision: 5,
+                archivedAt: LATER_AT
+            }),
+            await fixture.repository.restoreOfficeForOwner({
+                officeId,
+                ownerAccountId: ownerId,
+                expectedRevision: 5,
+                restoredAt: LATER_AT
+            })
+        ]) {
+            assert.deepEqual(result, {
+                status: 'state-conflict',
+                revision: 5,
+                officeStatus: 'hidden'
+            });
+        }
+        await fixture.database.prepare(
+            "UPDATE fudaba_offices SET status='active' WHERE id=?"
+        ).bind(officeId).run();
+        const archived = await fixture.repository.archiveOfficeForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            expectedRevision: 5,
+            archivedAt: LATER_AT
+        });
+        assert.equal(archived.status, 'saved');
+        assert.deepEqual(await fixture.repository.reservePendingOfficeCoverForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            objectKey: `${pendingKey}.archived`,
+            expectedRevision: 6,
+            submittedAt: LATER_AT
+        }), {
+            status: 'state-conflict',
+            revision: 6,
+            officeStatus: 'archived'
+        });
+        const restored = await fixture.repository.restoreOfficeForOwner({
+            officeId,
+            ownerAccountId: ownerId,
+            expectedRevision: 6,
+            restoredAt: LATER_AT
+        });
+        assert.equal(restored.status, 'saved');
+        const deletedPendingKey = `${pendingKey}.deleted-owner`;
+        const reservedBeforeDeletion =
+            await fixture.repository.reservePendingOfficeCoverForOwner({
+                officeId,
+                ownerAccountId: ownerId,
+                objectKey: deletedPendingKey,
+                expectedRevision: 7,
+                submittedAt: LATER_AT
+            });
+        assert.equal(reservedBeforeDeletion.status, 'saved');
+        await fixture.database.prepare(
+            `UPDATE platform_accounts
+         SET status='deleted', deleted_at=1700000000003,
+             updated_at=1700000000003
+         WHERE id=?`
+        ).bind(ownerId).run();
+        const clearedAfterDeletion =
+            await fixture.repository.clearPendingOfficeCoverForOwner({
+                officeId,
+                ownerAccountId: ownerId,
+                objectKey: deletedPendingKey,
+                expectedRevision: 8,
+                updatedAt: LATER_AT
+            });
+        assert.equal(clearedAfterDeletion.status, 'saved');
+        if (clearedAfterDeletion.status === 'saved') {
+            assert.equal(clearedAfterDeletion.office.revision, 9);
+            assert.equal(clearedAfterDeletion.office.pending_cover_object_key, null);
+        }
+        assert.deepEqual(
+            (await fixture.repository.listOfficesForOwner(ownerId)).map(({ id }) => id),
+            [officeId, untaggedOfficeId]
+        );
+    }
+
+    describe('Fudaba office management repository', () => {
+        postgresTest('real PostgreSQL owner offices enforce receipt and cross-replica CAS', async () => {
+            await assertOfficeManagement(await createFixture('postgresql'));
+        });
+
+        async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<void> {
+            const ownerId = `${fixture.dialect}-snapshot-owner`;
+            const officeId = `${fixture.dialect}-snapshot-office`;
+            await seedAccount(fixture, ownerId);
+            const created = await fixture.repository.createOfficeForOwner(office(
+                officeId,
+                ownerId,
+                { name: 'Version zero', seriesCodes: ['765'] }
+            ));
+            assert.equal(created.status, 'saved');
+
+            let firstInterleaved = false;
+            const firstReader = new SqlFudabaRepository(
+                new InterleavingOwnerReadDatabase(fixture.database, async () => {
+                    firstInterleaved = true;
+                    const updated = await fixture.repository.updateOfficeForOwner(updateInput(
+                        officeId,
+                        ownerId,
+                        0,
+                        { name: 'Version one', seriesCodes: ['cg'] }
+                    ));
+                    assert.equal(updated.status, 'saved');
+                }),
+                initializedPostgresSchema
+            );
+            await firstReader.initialize();
+            const firstSnapshot = await firstReader.findOfficeForOwner(officeId, ownerId);
+            assert.equal(firstInterleaved, true);
+            assert.deepEqual(
+                [firstSnapshot?.revision, firstSnapshot?.name, firstSnapshot?.series_codes],
+                [0, 'Version zero', ['765']]
+            );
+
+            let secondInterleaved = false;
+            const secondReader = new SqlFudabaRepository(
+                new InterleavingOwnerReadDatabase(fixture.database, async () => {
+                    secondInterleaved = true;
+                    const updated = await fixture.repository.updateOfficeForOwner(updateInput(
+                        officeId,
+                        ownerId,
+                        1,
+                        { name: 'Version two', seriesCodes: ['sidem'] }
+                    ));
+                    assert.equal(updated.status, 'saved');
+                }),
+                initializedPostgresSchema
+            );
+            await secondReader.initialize();
+            const listedSnapshot = (await secondReader.listOfficesForOwner(ownerId))[0];
+            assert.equal(secondInterleaved, true);
+            assert.deepEqual(
+                [listedSnapshot?.revision, listedSnapshot?.name, listedSnapshot?.series_codes],
+                [1, 'Version one', ['cg']]
+            );
+            const current = await fixture.repository.findOfficeForOwner(officeId, ownerId);
+            assert.deepEqual(
+                [current?.revision, current?.name, current?.series_codes],
+                [2, 'Version two', ['sidem']]
+            );
+        }
+
+        postgresTest('real PostgreSQL owner reads keep metadata and series in one snapshot', async () => {
+            await assertOwnerOfficeReadsUseOneSnapshot(await createFixture('postgresql'));
+        });
+
+        postgresTest('real PostgreSQL owner lock keeps office-create receipts atomic', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-receipt-race-owner';
+            const officeId = 'postgresql-receipt-race-office';
+            const createInput = office(officeId, ownerId);
+            await seedAccount(fixture, ownerId);
+            await fixture.database.executeScript(`
+        CREATE FUNCTION public.fudaba_test_hold_office_create_receipt()
+        RETURNS TRIGGER
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            PERFORM pg_advisory_xact_lock(
+                ${RECEIPT_RACE_LOCK[0]}, ${RECEIPT_RACE_LOCK[1]}
+            );
+            RETURN NEW;
+        END;
+        $$;
+
+        CREATE TRIGGER fudaba_test_hold_office_create_receipt
+        AFTER INSERT ON public.fudaba_mutation_receipts
+        FOR EACH ROW
+        EXECUTE FUNCTION public.fudaba_test_hold_office_create_receipt();
+    `);
+
+            const postgres = fixture.database as PostgresConnection;
+            const controller = await postgres.pool.connect();
+            const updater = await postgres.pool.connect();
+            const updaterProcessId = Number((await updater.query(
+                'SELECT pg_backend_pid() AS pid'
+            )).rows[0]?.pid);
+            let controllerLocked = false;
+            let restrictionAttempt: Promise<unknown> | undefined;
+            await controller.query(
+                'SELECT pg_advisory_lock($1, $2)',
+                [...RECEIPT_RACE_LOCK]
+            );
+            controllerLocked = true;
+            const createAttempt = fixture.repository.createOfficeForOwner(createInput);
+            try {
+                await waitForAdvisoryLockWaiter(fixture);
+                let restrictionSettled = false;
+                restrictionAttempt = updater.query(
+                    `UPDATE platform_accounts
+             SET status='restricted', updated_at=1700000000001
+             WHERE id=$1`,
+                    [ownerId]
+                ).finally(() => {
+                    restrictionSettled = true;
+                });
+                const restrictionWasBlocked = await waitForPostgresLockWait(
+                    fixture,
+                    updaterProcessId,
+                    () => restrictionSettled
+                );
+                await controller.query(
+                    'SELECT pg_advisory_unlock($1, $2)',
+                    [...RECEIPT_RACE_LOCK]
+                );
+                controllerLocked = false;
+
+                const [created] = await Promise.all([createAttempt, restrictionAttempt]);
+                assert.equal(
+                    restrictionWasBlocked,
+                    true,
+                    'account restriction must wait for receipt and office to commit'
+                );
+                assert.equal(created.status, 'saved');
+                assert.ok(await fixture.repository.findOfficeForOwner(officeId, ownerId));
+                assert.equal(await fixture.database.prepare(
+                    `SELECT COUNT(*) AS count FROM fudaba_mutation_receipts
+             WHERE scope='office-create' AND account_id=? AND key_hash=?
+               AND resource_id=?`
+                ).bind(
+                    ownerId,
+                    createInput.idempotencyKeyHash,
+                    officeId
+                ).first<number>('count'), 1);
+                assert.equal(await countOrphanedOfficeCreateReceipts(fixture), 0);
+            } finally {
+                if (controllerLocked) {
+                    await controller.query(
+                        'SELECT pg_advisory_unlock($1, $2)',
+                        [...RECEIPT_RACE_LOCK]
+                    ).catch(() => undefined);
+                }
+                await Promise.allSettled([
+                    createAttempt,
+                    ...(restrictionAttempt ? [restrictionAttempt] : [])
+                ]);
+                updater.release();
+                controller.release();
+            }
+        });
+    });
+}
+
+// fudaba-office-management-routes.test.ts
+{
+    const ACCOUNT_ID = 'office-owner';
+    const OTHER_ACCOUNT_ID = 'other-owner';
+    const PLATFORM_TOKEN = 'office-platform-token';
+    const CSRF_SECRET = 'office-csrf-secret';
+    const CREATED_AT = '2026-08-03T01:00:00.000Z';
+    const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
+
+    function officeRecord(
+        overrides: Partial<FudabaOwnerOfficeRecord> = {}
+    ): FudabaOwnerOfficeRecord {
+        return {
+            id: 'owner-office',
+            owner_account_id: ACCOUNT_ID,
+            slug: 'owner-office',
+            name: 'Owner Office',
+            review_state: 'pending',
+            review_submitted_at: CREATED_AT,
+            reviewed_at: null,
+            reviewed_by: null,
+            review_note: '',
+            review_operation_id: null,
+            intro: 'Owner intro',
+            city: 'Shanghai',
+            address: 'Private exact address',
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: '#ef5b6c',
+            cover_object_key: 'protected/fudaba/offices/owner-office/cover.webp',
+            pending_cover_object_key: null,
+            pending_cover_submitted_at: null,
+            is_open: true,
+            visitor_count: 8,
+            status: 'active',
+            revision: 0,
+            created_at: CREATED_AT,
+            updated_at: CREATED_AT,
+            archived_at: null,
+            series_codes: ['765'],
+            ...overrides
+        };
+    }
+
+    function officeBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+        return {
+            name: 'New Office',
+            intro: 'Office intro',
+            city: 'Shanghai',
+            address: '765 Producer Street',
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: '#ef5b6c',
+            isOpen: true,
+            seriesCodes: ['765'],
+            ...overrides
+        };
+    }
+
+    function uploadedFile(): UploadedFile {
+        return { filename: 'cover.jpg', contentType: 'image/jpeg', body: JPEG_BYTES };
+    }
+
+    class ControlledUploads implements UploadParser {
+        next: ParsedUpload = {
+            fields: { expectedRevision: '0' },
+            files: { image: uploadedFile() }
+        };
+        readonly calls: Array<Parameters<UploadParser['parse']>[1]> = [];
+
+        async parse(
+            _request: Request,
+            options: Parameters<UploadParser['parse']>[1]
+        ): Promise<ParsedUpload> {
+            this.calls.push(options);
+            return this.next;
+        }
+    }
+
+    class CoverImages implements ImageProcessor {
+        async validate(body: Uint8Array, declaredType?: string): Promise<ImageInfo> {
+            if (body[0] === 0xff) {
+                return {
+                    format: 'jpeg', width: 1200, height: 800,
+                    contentType: 'image/jpeg'
+                };
+            }
+            if (body[0] === 0x52 && declaredType === 'image/webp') {
+                return {
+                    format: 'webp', width: 1200, height: 800,
+                    contentType: 'image/webp'
+                };
+            }
+            throw new Error('unexpected image');
+        }
+
+        async toWebp(): Promise<Uint8Array> {
+            return new Uint8Array([0x52, 0x49, 0x46, 0x46]);
+        }
+
+        async thumbnailPng(): Promise<Uint8Array> {
+            throw new Error('unused');
+        }
+
+        async resizeJpeg(): Promise<Uint8Array> {
+            throw new Error('unused');
+        }
+    }
+
+    class CoverStorage {
+        readonly objects = new Map<string, { stored: StoredObject; options: PutObjectOptions }>();
+        readonly puts: Array<{ key: string; options: PutObjectOptions }> = [];
+        readonly deletes: string[] = [];
+        readonly ownedDeletes: Array<{ key: string; ownerToken: string }> = [];
+        readonly reads: Array<{ key: string; method?: 'GET' | 'HEAD' }> = [];
+        readonly events: string[] = [];
+        failPut = false;
+        failPutAfterStore = false;
+        afterPut: (() => void | Promise<void>) | null = null;
+
+        seed(key: string): void {
+            this.objects.set(key, {
+                stored: {
+                    body: new Uint8Array([0x52]),
+                    size: 1,
+                    contentType: 'image/webp',
+                    etag: `seed-${key}`
+                },
+                options: { protectedAccess: true }
+            });
+        }
+
+        async get(key: string): Promise<StoredObject | null> {
+            return this.objects.get(key)?.stored ?? null;
+        }
+
+        async createReadUrl(key: string, options?: { method?: 'GET' | 'HEAD' }) {
+            this.reads.push({ key, method: options?.method });
+            return this.objects.has(key)
+                ? {
+                    url: `https://private.example.test/${encodeURIComponent(key)}`,
+                    visibility: 'private' as const
+                }
+                : null;
+        }
+
+        async put(
+            key: string,
+            body: Uint8Array,
+            options: PutObjectOptions = {}
+        ): Promise<StoredObject> {
+            this.events.push('put');
+            this.puts.push({ key, options });
+            if (this.failPut) throw new Error('injected cover put failure');
+            const stored = {
+                body,
+                size: body.byteLength,
+                contentType: options.contentType ?? 'application/octet-stream',
+                etag: `etag-${this.puts.length}`
+            };
+            this.objects.set(key, { stored, options });
+            await this.afterPut?.();
+            if (this.failPutAfterStore) {
+                throw new Error('injected uncertain cover put failure');
+            }
+            return stored;
+        }
+
+        async delete(key: string): Promise<void> {
+            this.events.push('delete');
+            this.deletes.push(key);
+            this.objects.delete(key);
+        }
+
+        async deleteIfOwned(key: string, ownerToken: string): Promise<boolean> {
+            this.events.push('owned-delete');
+            this.ownedDeletes.push({ key, ownerToken });
+            const current = this.objects.get(key);
+            if (current?.options.ownerToken !== ownerToken) return false;
+            this.objects.delete(key);
+            return true;
+        }
+
+        async exists(key: string): Promise<boolean> {
+            return this.objects.has(key);
+        }
+
+        async copy(): Promise<void> { throw new Error('unused'); }
+        async move(): Promise<void> { throw new Error('unused'); }
+        async list(): Promise<[]> { return []; }
+        async deletePrefix(): Promise<void> {}
+    }
+
+    class ControlledRateLimiter implements RateLimiter {
+        readonly deniedBuckets = new Set<string>();
+        readonly calls: string[] = [];
+
+        async consume(
+            bucket: string,
+            _key: string,
+            limit: number
+        ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+            this.calls.push(bucket);
+            const allowed = !this.deniedBuckets.has(bucket);
+            return {
+                allowed,
+                remaining: allowed ? limit - 1 : 0,
+                resetAt: Date.now() + 60_000
+            };
+        }
+    }
+
+    class OfficeRouteFixture {
+        accountStatus: PlatformAccountStatus = 'active';
+        writeEnabled = true;
+        readonly offices = new Map<string, FudabaOwnerOfficeRecord>();
+        readonly receipts = new Map<string, { requestHash: string; officeId: string }>();
+        readonly uploads = new ControlledUploads();
+        readonly images = new CoverImages();
+        readonly storage = new CoverStorage();
+        readonly rateLimiter = new ControlledRateLimiter();
+        readonly createInputs: CreateOwnedFudabaOfficeInput[] = [];
+        readonly updateInputs: UpdateOwnedFudabaOfficeInput[] = [];
+        readonly events = this.storage.events;
+        reserveMode: 'saved' | 'mutate-then-throw' = 'saved';
+        clearMode: 'saved' | 'unavailable' | 'throw' | 'promote' = 'saved';
+        clearAttempts = 0;
+        failOwnerReadAfterPut = false;
+        readonly app: ReturnType<typeof createHonoApp>;
+        readonly session = {
+            id: 'office-session',
+            account_id: ACCOUNT_ID,
+            token_hash: 'refresh-hash',
+            previous_token_hash: null,
+            csrf_hash: csrfHash(CSRF_SECRET),
+            expires_at: Date.now() + 3_600_000,
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            revoked_at: null
+        };
+
+        constructor() {
+            const owner = officeRecord();
+            const other = officeRecord({
+                id: 'other-office',
+                owner_account_id: OTHER_ACCOUNT_ID,
+                slug: 'other-office',
+                cover_object_key: 'protected/fudaba/offices/other-office/cover.webp'
+            });
+            this.offices.set(owner.id, owner);
+            this.offices.set(other.id, other);
+            this.storage.seed(owner.cover_object_key!);
+            this.storage.seed(other.cover_object_key!);
+            this.app = createHonoApp(() => this.runtime());
+        }
+
+        private ownerOffice(officeId: string, ownerAccountId: string) {
+            const office = this.offices.get(officeId);
+            return office?.owner_account_id === ownerAccountId ? office : null;
+        }
+
+        private saved(office: FudabaOwnerOfficeRecord): FudabaOfficeMutationResult {
+            return { status: 'saved', office: { ...office }, previousPendingObjectKey: null };
+        }
+
+        readonly fudaba = {
+            listOfficesForOwner: async (ownerAccountId: string) =>
+                [...this.offices.values()]
+                    .filter((office) => office.owner_account_id === ownerAccountId)
+                    .map((office) => ({ ...office })),
+            findOfficeForOwner: async (officeId: string, ownerAccountId: string) => {
+                if (this.failOwnerReadAfterPut && this.storage.puts.length > 0) {
+                    throw new Error('injected owner office confirmation failure');
+                }
+                const office = this.ownerOffice(officeId, ownerAccountId);
+                return office ? { ...office } : null;
+            },
+            createOfficeForOwner: async (
+                input: CreateOwnedFudabaOfficeInput
+            ): Promise<FudabaOfficeCreateResult> => {
+                this.createInputs.push(input);
+                const receipt = this.receipts.get(input.idempotencyKeyHash);
+                if (receipt) {
+                    if (receipt.requestHash !== input.requestHash) {
+                        return { status: 'idempotency-conflict' };
+                    }
+                    return this.saved(this.offices.get(receipt.officeId)!);
+                }
+                const created = officeRecord({
+                    id: input.id,
+                    owner_account_id: input.ownerAccountId,
+                    slug: input.slug,
+                    name: input.name,
+                    intro: input.intro,
+                    city: input.city,
+                    address: input.address,
+                    latitude: input.latitude,
+                    longitude: input.longitude,
+                    accent: input.accent,
+                    cover_object_key: null,
+                    visitor_count: 0,
+                    is_open: input.isOpen,
+                    status: 'active',
+                    revision: 0,
+                    created_at: input.createdAt,
+                    updated_at: input.updatedAt,
+                    archived_at: null,
+                    series_codes: input.seriesCodes
+                });
+                this.offices.set(created.id, created);
+                this.receipts.set(input.idempotencyKeyHash, {
+                    requestHash: input.requestHash,
+                    officeId: created.id
+                });
+                return this.saved(created);
+            },
+            updateOfficeForOwner: async (
+                input: UpdateOwnedFudabaOfficeInput
+            ): Promise<FudabaOfficeMutationResult> => {
+                this.updateInputs.push(input);
+                const current = this.ownerOffice(input.officeId, input.ownerAccountId);
+                if (!current) return { status: 'unavailable' };
+                if (current.revision !== input.expectedRevision) {
+                    return { status: 'conflict', revision: current.revision };
+                }
+                if (current.status !== 'active') {
+                    return {
+                        status: 'state-conflict', revision: current.revision,
+                        officeStatus: current.status
+                    };
+                }
+                Object.assign(current, {
+                    name: input.name,
+                    intro: input.intro,
+                    city: input.city,
+                    address: input.address,
+                    latitude: input.latitude,
+                    longitude: input.longitude,
+                    accent: input.accent,
+                    is_open: input.isOpen,
+                    series_codes: input.seriesCodes,
+                    revision: current.revision + 1,
+                    updated_at: input.updatedAt
+                });
+                return this.saved(current);
+            },
+            archiveOfficeForOwner: async (input: {
+                officeId: string; ownerAccountId: string;
+                expectedRevision: number; archivedAt: string;
+            }): Promise<FudabaOfficeMutationResult> => {
+                const current = this.ownerOffice(input.officeId, input.ownerAccountId);
+                if (!current) return { status: 'unavailable' };
+                if (current.revision !== input.expectedRevision) {
+                    return { status: 'conflict', revision: current.revision };
+                }
+                if (current.status !== 'active') {
+                    return {
+                        status: 'state-conflict', revision: current.revision,
+                        officeStatus: current.status
+                    };
+                }
+                Object.assign(current, {
+                    status: 'archived', archived_at: input.archivedAt,
+                    updated_at: input.archivedAt, revision: current.revision + 1
+                });
+                return this.saved(current);
+            },
+            restoreOfficeForOwner: async (input: {
+                officeId: string; ownerAccountId: string;
+                expectedRevision: number; restoredAt: string;
+            }): Promise<FudabaOfficeMutationResult> => {
+                const current = this.ownerOffice(input.officeId, input.ownerAccountId);
+                if (!current) return { status: 'unavailable' };
+                if (current.revision !== input.expectedRevision) {
+                    return { status: 'conflict', revision: current.revision };
+                }
+                if (current.status !== 'archived') {
+                    return {
+                        status: 'state-conflict', revision: current.revision,
+                        officeStatus: current.status
+                    };
+                }
+                Object.assign(current, {
+                    status: 'active', archived_at: null,
+                    updated_at: input.restoredAt, revision: current.revision + 1
+                });
+                return this.saved(current);
+            },
+            reservePendingOfficeCoverForOwner: async (input: {
+                officeId: string; ownerAccountId: string; objectKey: string;
+                expectedRevision: number; submittedAt: string;
+            }): Promise<FudabaOfficeMutationResult> => {
+                const current = this.ownerOffice(input.officeId, input.ownerAccountId);
+                if (!current) return { status: 'unavailable' };
+                if (current.revision !== input.expectedRevision) {
+                    return { status: 'conflict', revision: current.revision };
+                }
+                if (current.status !== 'active') {
+                    return {
+                        status: 'state-conflict', revision: current.revision,
+                        officeStatus: current.status
+                    };
+                }
+                if (current.pending_cover_object_key) {
+                    return { status: 'pending-exists', revision: current.revision };
+                }
+                this.events.push('reserve');
+                Object.assign(current, {
+                    pending_cover_object_key: input.objectKey,
+                    pending_cover_submitted_at: input.submittedAt,
+                    updated_at: input.submittedAt,
+                    revision: current.revision + 1
+                });
+                if (this.reserveMode === 'mutate-then-throw') {
+                    throw new Error('connection lost after reserve');
+                }
+                return this.saved(current);
+            },
+            clearPendingOfficeCoverForOwner: async (input: {
+                officeId: string; ownerAccountId: string; objectKey: string;
+                expectedRevision: number; updatedAt: string;
+            }): Promise<FudabaOfficeMutationResult> => {
+                this.clearAttempts += 1;
+                const current = this.ownerOffice(input.officeId, input.ownerAccountId);
+                if (!current) return { status: 'unavailable' };
+                if (this.clearMode === 'throw') {
+                    throw new Error('injected cover release failure');
+                }
+                if (this.clearMode === 'unavailable') return { status: 'unavailable' };
+                if (this.clearMode === 'promote') {
+                    Object.assign(current, {
+                        cover_object_key: input.objectKey,
+                        pending_cover_object_key: null,
+                        pending_cover_submitted_at: null,
+                        revision: current.revision + 1,
+                        updated_at: input.updatedAt
+                    });
+                    return { status: 'unavailable' };
+                }
+                if (current.revision !== input.expectedRevision) {
+                    return { status: 'conflict', revision: current.revision };
+                }
+                if (current.pending_cover_object_key !== input.objectKey) {
+                    return {
+                        status: 'state-conflict', revision: current.revision,
+                        officeStatus: current.status
+                    };
+                }
+                this.events.push('release');
+                Object.assign(current, {
+                    pending_cover_object_key: null,
+                    pending_cover_submitted_at: null,
+                    updated_at: input.updatedAt,
+                    revision: current.revision + 1
+                });
+                return {
+                    status: 'saved',
+                    office: { ...current },
+                    previousPendingObjectKey: input.objectKey
+                };
+            }
+        } as unknown as FudabaRepository;
+
+        runtime(): RuntimeServices {
+            return {
+                fudaba: this.fudaba,
+                uploads: this.uploads,
+                images: this.images,
+                storage: this.storage as unknown as ObjectStorage,
+                compensation: {
+                    enqueue: async () => 'compensation',
+                    run: async () => undefined
+                },
+                rateLimiter: this.rateLimiter,
+                platformAccounts: {
+                    findRefreshSessionById: async (id: string) =>
+                        id === this.session.id ? { ...this.session } : null,
+                    findAccountWithProfileById: async (id: string) => id === ACCOUNT_ID
+                        ? {
+                            account: {
+                                id: ACCOUNT_ID,
+                                status: this.accountStatus,
+                                token_version: 0,
+                                created_at: 500,
+                                updated_at: 500,
+                                deleted_at: null
+                            },
+                            profile: {
+                                account_id: ACCOUNT_ID,
+                                display_name: 'Office Owner',
+                                avatar_object_key: null,
+                                avatar_external_url: null,
+                                home_city: 'Shanghai',
+                                bio: '',
+                                updated_at: 500
+                            }
+                        }
+                        : null,
+                    revokeRefreshSession: async () => true
+                } as unknown as NonNullable<RuntimeServices['platformAccounts']>,
+                platformTokens: {
+                    async sign() { return PLATFORM_TOKEN; },
+                    async verify(token: string) {
+                        if (token !== PLATFORM_TOKEN) throw new Error('wrong token');
+                        const now = Math.floor(Date.now() / 1000);
+                        return {
+                            iss: 'imsweb' as const,
+                            aud: 'ims-platform' as const,
+                            kind: 'platform' as const,
+                            id: ACCOUNT_ID,
+                            tokenVersion: 0,
+                            sessionId: 'office-session',
+                            csrfSecret: CSRF_SECRET,
+                            jti: 'office-access',
+                            iat: now,
+                            exp: now + 900
+                        };
+                    }
+                },
+                config: {
+                    fudabaPublicReadEnabled: false,
+                    fudabaWriteEnabled: this.writeEnabled
+                }
+            };
+        }
+    }
+
+    function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> {
+        return bearerTokenHeaders(PLATFORM_TOKEN, extra);
+    }
+
+    async function createOffice(
+        fixture: OfficeRouteFixture,
+        key: string,
+        body = officeBody()
+    ): Promise<Response> {
+        return fixture.app.request('http://ims.test/api/community/exchange/offices', {
+            method: 'POST',
+            headers: bearerHeaders({
+                'content-type': 'application/json',
+                'idempotency-key': key
+            }),
+            body: JSON.stringify(body)
+        });
+    }
+
+    async function uploadCover(
+        fixture: OfficeRouteFixture,
+        officeId = 'owner-office'
+    ): Promise<Response> {
+        return fixture.app.request(
+            `http://ims.test/api/community/exchange/me/offices/${officeId}/cover`,
+            { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+        );
+    }
+
+    test.describe('Fudaba office management routes', () => {
+        test('owner office reads ignore public/write flags and never expose object keys', async () => {
+            const fixture = new OfficeRouteFixture();
+            fixture.writeEnabled = false;
+            const list = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices',
+                { headers: bearerHeaders() }
+            );
+            assert.equal(list.status, 200);
+            const serialized = JSON.stringify(
+                await contractJson(list, fudabaOwnerOfficeListSchema)
+            );
+            assert.equal(serialized.includes('object_key'), false);
+            assert.equal(serialized.includes('protected/fudaba'), false);
+            assert.match(serialized, /media\/cover/);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices/other-office',
+                { headers: bearerHeaders() }
+            )).status, 404);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices'
+            )).status, 401);
+        });
+
+        test('office creation requires persistent idempotency and replays one resource', async () => {
+            const fixture = new OfficeRouteFixture();
+            const missingKey = await fixture.app.request(
+                'http://ims.test/api/community/exchange/offices',
+                {
+                    method: 'POST',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(officeBody())
+                }
+            );
+            assert.equal(missingKey.status, 400);
+            assert.equal(fixture.createInputs.length, 0);
+
+            const untaggedBody = officeBody({ seriesCodes: [] });
+            const created = await createOffice(fixture, 'create-office-key', untaggedBody);
+            assert.equal(created.status, 201);
+            const createdBody = await contractJson(created, fudabaOfficeMutationResponseSchema);
+            assert.ok(createdBody.office?.id);
+            assert.equal(fixture.createInputs[0]?.status, 'active');
+            assert.equal(fixture.createInputs[0]?.revision, 0);
+            assert.equal(fixture.createInputs[0]?.visitorCount, 0);
+            assert.equal(fixture.createInputs[0]?.coverObjectKey, null);
+            assert.deepEqual(fixture.createInputs[0]?.seriesCodes, []);
+            assert.match(fixture.createInputs[0]?.idempotencyKeyHash ?? '', /^[0-9a-f]{64}$/);
+            assert.match(fixture.createInputs[0]?.requestHash ?? '', /^[0-9a-f]{64}$/);
+
+            const replay = await createOffice(fixture, 'create-office-key', untaggedBody);
+            assert.equal(replay.status, 201);
+            assert.equal(
+                (await contractJson(replay, fudabaOfficeMutationResponseSchema)).office.id,
+                createdBody.office.id
+            );
+            const conflict = await createOffice(
+                fixture,
+                'create-office-key',
+                officeBody({ name: 'Different office' })
+            );
+            assert.equal(conflict.status, 409);
+            assert.equal(
+                (await contractJson(conflict, fudabaErrorResponseSchema) as { code: string }).code,
+                'FUDABA_IDEMPOTENCY_CONFLICT'
+            );
+
+            const forbidden = await createOffice(
+                fixture,
+                'unknown-field',
+                officeBody({ status: 'hidden' })
+            );
+            assert.equal(forbidden.status, 400);
+            await contractJson(forbidden, fudabaErrorResponseSchema);
+            const tooManyTags = await createOffice(
+                fixture,
+                'too-many-tags',
+                officeBody({
+                    seriesCodes: ['765', '876', 'cg', 'ml', 'sc', 'sidem', 'va', 'gk', 'extra']
+                })
+            );
+            assert.equal(tooManyTags.status, 400);
+        });
+
+        test('metadata and status routes fence stale, hidden, and non-owner writes', async () => {
+            const fixture = new OfficeRouteFixture();
+            const stale = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices/owner-office',
+                {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ ...officeBody(), expectedRevision: 9 })
+                }
+            );
+            assert.equal(stale.status, 409);
+            assert.equal((await stale.json() as { revision: number }).revision, 0);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices/other-office',
+                {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: 0 })
+                }
+            )).status, 404);
+
+            const hidden = fixture.offices.get('owner-office')!;
+            hidden.status = 'hidden';
+            const hiddenMetadata = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices/owner-office',
+                {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ ...officeBody(), expectedRevision: 0 })
+                }
+            );
+            assert.equal(hiddenMetadata.status, 409);
+            assert.equal(
+                (await hiddenMetadata.json() as { code: string }).code,
+                'FUDABA_OFFICE_STATE_CONFLICT'
+            );
+            for (const [method, suffix] of [
+                ['DELETE', ''],
+                ['POST', '/restore']
+            ] as const) {
+                const response = await fixture.app.request(
+                    `http://ims.test/api/community/exchange/me/offices/owner-office${suffix}`,
+                    {
+                        method,
+                        headers: bearerHeaders({ 'content-type': 'application/json' }),
+                        body: JSON.stringify({ expectedRevision: 0 })
+                    }
+                );
+                assert.equal(response.status, 409);
+                assert.equal((await response.json() as { officeStatus: string }).officeStatus,
+                    'hidden');
+            }
+        });
+
+        test('cover upload is active-only, reserves before put, and serves private previews', async () => {
+            for (const status of ['hidden', 'archived'] as const) {
+                const rejected = new OfficeRouteFixture();
+                rejected.offices.get('owner-office')!.status = status;
+                const response = await uploadCover(rejected);
+                assert.equal(response.status, 409, status);
+                assert.equal(rejected.uploads.calls.length, 0, status);
+                assert.equal(rejected.storage.puts.length, 0, status);
+            }
+            const pending = new OfficeRouteFixture();
+            pending.offices.get('owner-office')!.pending_cover_object_key = 'already-pending';
+            assert.equal((await uploadCover(pending)).status, 409);
+            assert.equal(pending.uploads.calls.length, 0);
+
+            const fixture = new OfficeRouteFixture();
+            const uploaded = await uploadCover(fixture);
+            const body = await uploaded.json();
+            assert.equal(uploaded.status, 202, JSON.stringify(body));
+            assert.deepEqual(fixture.events.slice(0, 2), ['reserve', 'put']);
+            assert.deepEqual(fixture.uploads.calls[0], {
+                maxBytes: (8 * 1024 * 1024) + (64 * 1024),
+                fileFields: ['image'],
+                maxFiles: 1,
+                maxFields: 1,
+                maxParts: 2
+            });
+            const put = fixture.storage.puts[0]!;
+            assert.match(put.key, /^community\/fudaba\/offices\/owner-office\/covers\/.+\.webp$/);
+            assert.equal(put.options.contentType, 'image/webp');
+            assert.equal(put.options.protectedAccess, true);
+            assert.match(put.options.ownerToken ?? '', /^[0-9a-f]{64}$/);
+            assert.equal(JSON.stringify(body).includes(put.key), false);
+            assert.equal(JSON.stringify(body).includes('object_key'), false);
+
+            const preview = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices/owner-office/media/pending-cover?v=1',
+                { headers: bearerHeaders(), redirect: 'manual' }
+            );
+            assert.equal(preview.status, 307);
+            assert.equal(preview.headers.get('cache-control'), 'private, no-store');
+            const head = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices/owner-office/media/pending-cover?v=1',
+                { method: 'HEAD', headers: bearerHeaders(), redirect: 'manual' }
+            );
+            assert.equal(head.status, 307);
+            assert.equal(fixture.storage.reads.at(-1)?.method, 'HEAD');
+
+            const withdrawn = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/offices/owner-office/cover/pending',
+                {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: 1 })
+                }
+            );
+            assert.equal(withdrawn.status, 200);
+            assert.equal(fixture.offices.get('owner-office')?.pending_cover_object_key, null);
+            assert.equal(fixture.storage.objects.has(put.key), false);
+        });
+
+        test('cover failures release the reservation and uncertain commits reconcile', async () => {
+            const failed = new OfficeRouteFixture();
+            failed.storage.failPut = true;
+            const response = await uploadCover(failed);
+            assert.equal(response.status, 500);
+            assert.deepEqual(failed.events.slice(0, 4), [
+                'reserve', 'put', 'release', 'owned-delete'
+            ]);
+            assert.equal(failed.offices.get('owner-office')?.pending_cover_object_key, null);
+            assert.equal(failed.storage.ownedDeletes.length, 1);
+
+            const uncertain = new OfficeRouteFixture();
+            uncertain.reserveMode = 'mutate-then-throw';
+            const recovered = await uploadCover(uncertain);
+            assert.equal(recovered.status, 202);
+            assert.deepEqual(uncertain.events.slice(0, 2), ['reserve', 'put']);
+            assert.equal(uncertain.storage.deletes.length, 0);
+        });
+
+        test('cover cleanup preserves objects while the database still or possibly references them',
+            async () => {
+                for (const clearMode of ['unavailable', 'throw'] as const) {
+                    const unknown = new OfficeRouteFixture();
+                    unknown.storage.failPutAfterStore = true;
+                    unknown.clearMode = clearMode;
+                    unknown.failOwnerReadAfterPut = true;
+                    const response = await uploadCover(unknown);
+                    const objectKey = unknown.storage.puts[0]!.key;
+                    assert.equal(response.status, 500, clearMode);
+                    assert.equal(unknown.clearAttempts, 3, clearMode);
+                    assert.equal(
+                        unknown.offices.get('owner-office')?.pending_cover_object_key,
+                        objectKey,
+                        clearMode
+                    );
+                    assert.equal(unknown.storage.objects.has(objectKey), true, clearMode);
+                    assert.equal(unknown.storage.ownedDeletes.length, 0, clearMode);
+                }
+
+                const promoted = new OfficeRouteFixture();
+                promoted.storage.failPutAfterStore = true;
+                promoted.clearMode = 'promote';
+                const response = await uploadCover(promoted);
+                const objectKey = promoted.storage.puts[0]!.key;
+                assert.equal(response.status, 500);
+                assert.equal(
+                    promoted.offices.get('owner-office')?.cover_object_key,
+                    objectKey
+                );
+                assert.equal(
+                    promoted.offices.get('owner-office')?.pending_cover_object_key,
+                    null
+                );
+                assert.equal(promoted.storage.objects.has(objectKey), true);
+                assert.equal(promoted.storage.ownedDeletes.length, 0);
+            });
+
+        test('cover upload reconciles withdrawal and unknown reads after object storage succeeds',
+            async () => {
+                const withdrawn = new OfficeRouteFixture();
+                withdrawn.storage.afterPut = () => {
+                    const office = withdrawn.offices.get('owner-office')!;
+                    office.pending_cover_object_key = null;
+                    office.pending_cover_submitted_at = null;
+                    office.revision += 1;
+                };
+                const conflict = await uploadCover(withdrawn);
+                const withdrawnKey = withdrawn.storage.puts[0]!.key;
+                assert.equal(conflict.status, 409);
+                assert.equal((await conflict.json() as { code: string }).code,
+                    'FUDABA_OFFICE_CONFLICT');
+                assert.equal(withdrawn.storage.objects.has(withdrawnKey), false);
+                assert.equal(withdrawn.storage.ownedDeletes.length, 1);
+
+                const unknown = new OfficeRouteFixture();
+                unknown.failOwnerReadAfterPut = true;
+                const failed = await uploadCover(unknown);
+                const unknownKey = unknown.storage.puts[0]!.key;
+                assert.equal(failed.status, 500);
+                assert.equal(
+                    unknown.offices.get('owner-office')?.pending_cover_object_key,
+                    unknownKey
+                );
+                assert.equal(unknown.storage.objects.has(unknownKey), true);
+                assert.equal(unknown.storage.ownedDeletes.length, 0);
+            });
+
+        test('cover upload consumes IP and account limits before multipart parsing', async () => {
+            for (const bucket of ['fudaba-upload-attempt', 'platform-upload-account']) {
+                const fixture = new OfficeRouteFixture();
+                fixture.rateLimiter.deniedBuckets.add(bucket);
+                const response = await uploadCover(fixture);
+                assert.equal(response.status, 429, bucket);
+                assert.equal(fixture.uploads.calls.length, 0, bucket);
+                assert.equal(fixture.storage.puts.length, 0, bucket);
+            }
+            const successful = new OfficeRouteFixture();
+            assert.equal((await uploadCover(successful)).status, 202);
+            for (const bucket of [
+                'fudaba-upload-attempt',
+                'platform-upload-account',
+                'platform-write-account'
+            ]) {
+                assert.equal(successful.rateLimiter.calls.includes(bucket), true, bucket);
+            }
+        });
+    });
+}
+
+// fudaba-owner-routes.test.ts
+{
+    test.describe('Fudaba owner routes', () => {
+        test('Fudaba public-read and owner-write flags remain independent', async () => {
+            const readOnly = new OwnerRouteFixture({
+                publicReadEnabled: true,
+                writeEnabled: false
+            });
+            assert.equal((await readOnly.app.request(
+                'http://ims.test/api/community/exchange/series'
+            )).status, 200);
+            const disabledWrite = await postCard(readOnly);
+            assert.equal(disabledWrite.status, 404);
+            assert.match(disabledWrite.headers.get('content-type') ?? '', /^text\/plain/i);
+            assert.equal(await disabledWrite.text(), 'Not Found');
+            assert.equal(readOnly.uploads.calls.length, 0);
+            assert.equal((await readOnly.app.request(
+                'http://ims.test/api/community/exchange/me/cards',
+                { headers: bearerHeaders() }
+            )).status, 200, 'owner reads do not depend on either rollout switch');
+            assert.equal((await readOnly.app.request(
+                'http://ims.test/api/community/exchange/me/series',
+                { headers: bearerHeaders() }
+            )).status, 200, 'owner series do not depend on either rollout switch');
+            const readOnlyProfile = await readOnly.app.request(
+                'http://ims.test/api/platform/me',
+                { headers: bearerHeaders() }
+            );
+            assert.equal(readOnlyProfile.status, 200);
+            assert.equal((await readOnlyProfile.json() as {
+                capabilities: { fudabaWrite: boolean };
+            }).capabilities.fudabaWrite, false);
+
+            const writeOnly = new OwnerRouteFixture({
+                publicReadEnabled: false,
+                writeEnabled: true
+            });
+            assert.equal((await writeOnly.app.request(
+                'http://ims.test/api/community/exchange/series'
+            )).status, 404);
+            const ownerSeries = await writeOnly.app.request(
+                'http://ims.test/api/community/exchange/me/series',
+                { headers: bearerHeaders() }
+            );
+            assert.equal(ownerSeries.status, 200);
+            assert.deepEqual(await ownerSeries.json(), {
+                items: [{
+                    id: 1,
+                    code: '765',
+                    displayName: '765PRO',
+                    displayOrder: 0,
+                    color: '#f34f6d',
+                    iconUrl: null,
+                    imageTransform: {
+                        fit: 'contain',
+                        focalX: 0.5,
+                        focalY: 0.5,
+                        zoom: 1,
+                        rotation: 0
+                    },
+                    activeOfficeCount: 0
+                }]
+            });
+            const cookieOwnerSeries = await writeOnly.app.request(
+                'http://ims.test/api/community/exchange/me/series',
+                { headers: cookieHeaders(null) }
+            );
+            assert.equal(cookieOwnerSeries.status, 200);
+            assert.equal(cookieOwnerSeries.headers.get('cache-control'),
+                'private, no-store');
+            assert.match(cookieOwnerSeries.headers.get('vary') || '', /Authorization/);
+            assert.match(cookieOwnerSeries.headers.get('vary') || '', /Cookie/);
+            assert.equal((await postCard(writeOnly)).status, 201);
+        });
+
+        test('owner routes require Platform auth and reject Backoffice tokens', async () => {
+            const fixture = new OwnerRouteFixture();
+            const anonymous = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards'
+            );
+            assert.equal(anonymous.status, 401);
+            assert.equal(
+                (await contractJson(anonymous, fudabaErrorResponseSchema) as { code: string }).code,
+                'PLATFORM_SESSION_INVALID'
+            );
+
+            const wrongRealm = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards',
+                { headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` } }
+            );
+            assert.equal(wrongRealm.status, 401);
+            assert.equal(
+                (await contractJson(wrongRealm, fudabaErrorResponseSchema) as { code: string }).code,
+                'PLATFORM_SESSION_INVALID'
+            );
+
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/series'
+            )).status, 401);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/series',
+                { headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` } }
+            )).status, 401);
+        });
+
+        test('cookie writes require the full CSRF triad while Bearer writes bypass CSRF', async () => {
+            const fixture = new OwnerRouteFixture();
+            for (const headers of [
+                cookieHeaders(null),
+                cookieHeaders('different-secret'),
+                cookieHeaders(CSRF_SECRET, 'different-secret')
+            ]) {
+                const response = await fixture.app.request('http://ims.test/api/platform/me', {
+                    method: 'PUT',
+                    headers: { ...headers, 'content-type': 'application/json' },
+                    body: JSON.stringify(profileBody(fixture.profile.updated_at))
+                });
+                assert.equal(response.status, 403);
+                assert.equal((await response.json() as { code: string }).code,
+                    'PLATFORM_CSRF_INVALID');
+            }
+            fixture.session.csrf_hash = csrfHash('different-secret');
+            const badStoredHash = await fixture.app.request('http://ims.test/api/platform/me', {
+                method: 'PUT',
+                headers: { ...cookieHeaders(), 'content-type': 'application/json' },
+                body: JSON.stringify(profileBody(fixture.profile.updated_at))
+            });
+            assert.equal(badStoredHash.status, 403);
+            fixture.session.csrf_hash = csrfHash(CSRF_SECRET);
+
+            const cookieWrite = await fixture.app.request('http://ims.test/api/platform/me', {
+                method: 'PUT',
+                headers: { ...cookieHeaders(), 'content-type': 'application/json' },
+                body: JSON.stringify(profileBody(fixture.profile.updated_at))
+            });
+            assert.equal(cookieWrite.status, 200);
+
+            const bearerWrite = await fixture.app.request('http://ims.test/api/platform/me', {
+                method: 'PUT',
+                headers: bearerHeaders({ 'content-type': 'application/json' }),
+                body: JSON.stringify(profileBody(fixture.profile.updated_at))
+            });
+            assert.equal(bearerWrite.status, 200);
+        });
+
+        test('restricted Platform accounts retain owner reads but cannot mutate or parse uploads', async () => {
+            const fixture = new OwnerRouteFixture({ accountStatus: 'restricted' });
+            assert.equal((await fixture.app.request('http://ims.test/api/platform/me', {
+                headers: bearerHeaders()
+            })).status, 200);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards',
+                { headers: bearerHeaders() }
+            )).status, 200);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/series',
+                { headers: bearerHeaders() }
+            )).status, 200);
+            const mutation = await postCard(fixture);
+            assert.equal(mutation.status, 403);
+            assert.equal((await mutation.json() as { code: string }).code,
+                'PLATFORM_ACCOUNT_RESTRICTED');
+            assert.equal(fixture.uploads.calls.length, 0);
+            assert.equal(fixture.storage.puts.length, 0);
+        });
+
+        test('owner card list and detail hide non-owner cards and raw object keys', async () => {
+            const fixture = new OwnerRouteFixture();
+            const list = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards',
+                { headers: bearerHeaders() }
+            );
+            assert.equal(list.status, 200);
+            const listBody = await contractJson(list, fudabaOwnerCardListSchema);
+            assert.equal(listBody.items.length, 1);
+            assert.equal(listBody.items[0]?.id, 'owner-card');
+            assert.equal(listBody.items[0]?.frontImageUrl,
+                '/api/community/exchange/me/cards/owner-card/media/front?v=1');
+            assert.equal(JSON.stringify(listBody).includes('object_key'), false);
+            assert.equal(JSON.stringify(listBody).includes('protected/fudaba'), false);
+
+            const detail = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card',
+                { headers: bearerHeaders() }
+            );
+            assert.equal(detail.status, 200);
+            const detailBody = await contractJson(detail, fudabaOwnerCardDetailSchema);
+            assert.equal(JSON.stringify(detailBody).includes('object_key'), false);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/other-card',
+                { headers: bearerHeaders() }
+            )).status, 404);
+        });
+
+        test.describe('card creation', () => {
+            test('sniffs both images and writes only protected owner objects', async () => {
+                const fixture = new OwnerRouteFixture();
+                const response = await postCard(fixture);
+                assert.equal(response.status, 201);
+                const body = await contractJson(response, fudabaCardMutationResponseSchema);
+                const serialized = JSON.stringify(body);
+                assert.equal(serialized.includes('object_key'), false);
+                assert.equal(serialized.includes('protected/fudaba'), false);
+                assert.equal(fixture.uploads.calls.length, 1);
+                assert.deepEqual(fixture.uploads.calls[0]?.fileFields, [
+                    'front',
+                    'back',
+                    'images',
+                ]);
+                assert.equal(fixture.images.conversions.length, 2);
+                assert.equal(fixture.storage.puts.length, 2);
+                assert.equal(fixture.createInputs[0]?.ownerAccountId, ACCOUNT_ID);
+                // 页面行与正反面列同一次创建写入，顺序即 front → back。
+                assert.deepEqual(
+                    fixture.createInputs[0]?.pages?.map((page) =>
+                        /^page-[0-9a-f-]{8,}$/.test(page.pageId)
+                    ),
+                    [true, true]
+                );
+                assert.deepEqual(fixture.createInputs[0]?.favoriteCharacterIds, [900001]);
+                for (const put of fixture.storage.puts) {
+                    assert.equal(put.options.contentType, 'image/webp');
+                    assert.equal(put.options.protectedAccess, true);
+                    assert.equal(put.options.metadata?.account, ACCOUNT_ID);
+                    assert.equal(put.options.metadata?.kind, 'fudaba-card-image');
+                    // 统一布局：页面身份与队列写进 metadata，不再按 side 区分。
+                    assert.match(
+                        String(put.options.metadata?.page ?? ''),
+                        /^(front|back|page-[0-9a-f-]{8,})$/
+                    );
+                    assert.equal(put.options.metadata?.queue, 'live');
+                }
+                // 页面身份是稳定槽位，不再用 front/back 命名。
+                assert.equal(
+                    new Set(
+                        fixture.storage.puts.map((put) => put.options.metadata?.page)
+                    ).size,
+                    2
+                );
+                // 写路径不再生成缩略图：两面上传只产生两个对象。
+                assert.equal(fixture.storage.puts.length, 2);
+            });
+
+            test('accepts a card without selected characters', async () => {
+                const fixture = new OwnerRouteFixture();
+                fixture.uploads.next = {
+                    ...cardUpload(),
+                    fields: { ...cardFields(), favoriteCharacterIds: '[]' }
+                };
+
+                const response = await postCard(fixture);
+                assert.equal(response.status, 201, await response.text());
+                assert.deepEqual(
+                    fixture.createInputs.at(-1)?.favoriteCharacterIds,
+                    []
+                );
+            });
+
+            test('rejects decoded image type mismatches before object writes', async () => {
+                const fixture = new OwnerRouteFixture();
+                fixture.uploads.next = cardUpload(
+                    uploadedFile('front.png', 'image/png', JPEG_BYTES)
+                );
+                const response = await postCard(fixture);
+                assert.equal(response.status, 400);
+                assert.equal((await response.json() as { code: string }).code,
+                    'FUDABA_CARD_INVALID');
+                assert.equal(fixture.storage.puts.length, 0);
+                assert.equal(fixture.createInputs.length, 0);
+            });
+        });
+
+        test('card metadata writes enforce owner revision fencing', async () => {
+            const fixture = new OwnerRouteFixture();
+            const stale = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card',
+                {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(metadataBody(0))
+                }
+            );
+            assert.equal(stale.status, 409);
+            assert.deepEqual(await stale.json(), {
+                success: false,
+                code: 'FUDABA_CARD_CONFLICT',
+                revision: 1
+            });
+            assert.equal(fixture.metadataInputs[0]?.ownerAccountId, ACCOUNT_ID);
+
+            const intruderTarget = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/other-card',
+                {
+                    method: 'PUT',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify(metadataBody(1))
+                }
+            );
+            assert.equal(intruderTarget.status, 404);
+        });
+
+        // Avatar upload is Platform identity, not Fudaba content; its CAS and
+        // object-sweep assertions live in `platform-profile.contract.test.ts`.
+        test('a reader reports a card and the backoffice settles the queue', async () => {
+            const fixture = new OwnerRouteFixture();
+            const url =
+                'http://ims.test/api/community/exchange/cards/owner-card/feedback';
+            const report = () =>
+                fixture.app.request(url, {
+                    method: 'POST',
+                    headers: {
+                        ...bearerHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        reason: 'content-violation',
+                        detail: '卡面不是企划内容'
+                    })
+                });
+
+            const reported = await report();
+            assert.equal(reported.status, 200);
+            assert.deepEqual(await reported.json(), { success: true });
+            assert.deepEqual(
+                fixture.feedbackCreates.map((entry) => [
+                    entry.cardId,
+                    entry.reason,
+                    entry.detail
+                ]),
+                [['owner-card', 'content-violation', '卡面不是企划内容']]
+            );
+            assert.match(fixture.feedbackCreates[0]!.createdAt, /^\d{4}-\d{2}-\d{2}T/);
+
+            // One open report per reader and card.
+            fixture.feedbackCreateResult = 'duplicate';
+            const duplicate = await report();
+            assert.equal(duplicate.status, 409);
+            assert.deepEqual(await duplicate.json(), {
+                error: '你已经有待处理的反馈，请等待处理结果'
+            });
+
+            fixture.feedbackCreateResult = 'not-found';
+            const missing = await report();
+            assert.equal(missing.status, 404);
+            assert.deepEqual(await missing.json(), { error: '名片不存在' });
+
+            // The backoffice reads the queue and leaves it once.
+            const adminHeaders = {
+                Cookie: `${BACKOFFICE_ACCESS_TOKEN_COOKIE}=${BACKOFFICE_TOKEN}; ${BACKOFFICE_CSRF_TOKEN_COOKIE}=admin-csrf`,
+                'X-CSRFToken': 'admin-csrf'
+            };
+            fixture.feedbackQueue = [
+                {
+                    id: 7,
+                    cardId: 'owner-card',
+                    cardNumber: 42,
+                    producerName: '天海春香',
+                    frontObjectKey: 'protected/fudaba/cards/owner-card/front.webp',
+                    backObjectKey: null,
+                    middlePageCount: 2,
+                    reporterAccountId: 'reporter',
+                    reporterName: '调试用户',
+                    reason: 'info-error',
+                    detail: '反馈说明',
+                    status: 'pending',
+                    createdAt: '2026-05-04T01:02:03.000Z'
+                }
+            ];
+            const queue = await fixture.app.request(
+                'http://ims.test/api/admin/cards/feedback',
+                { headers: adminHeaders }
+            );
+            assert.equal(queue.status, 200);
+            const queueBody = (await queue.json()) as {
+                success: boolean;
+                data: Array<Record<string, unknown>>;
+                pageInfo: { total: number };
+            };
+            assert.equal(queueBody.success, true);
+            assert.equal(queueBody.pageInfo.total, 1);
+            assert.deepEqual(queueBody.data[0], {
+                id: 7,
+                cardNumber: 42,
+                producerName: '天海春香',
+                pageCount: 3,
+                reporterName: '调试用户',
+                reason: 'info-error',
+                detail: '反馈说明',
+                createdAt: '2026-05-04T01:02:03.000Z'
+            });
+
+            fixture.feedbackResolveResult = {
+                ...fixture.feedbackQueue[0]!,
+                status: 'accepted'
+            };
+            const settled = await fixture.app.request(
+                'http://ims.test/api/admin/cards/feedback/7/resolve',
+                {
+                    method: 'POST',
+                    headers: {
+                        ...adminHeaders,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ outcome: 'accepted', note: null })
+                }
+            );
+            assert.equal(settled.status, 200);
+            assert.deepEqual(await settled.json(), { success: true });
+            assert.deepEqual(
+                fixture.feedbackResolves.map((entry) => [
+                    entry.id,
+                    entry.outcome,
+                    entry.handledBy
+                ]),
+                [[7, 'accepted', 'admin']]
+            );
+
+            fixture.feedbackResolveResult = null;
+            const handled = await fixture.app.request(
+                'http://ims.test/api/admin/cards/feedback/7/resolve',
+                {
+                    method: 'POST',
+                    headers: {
+                        ...adminHeaders,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ outcome: 'rejected', note: '反馈不成立' })
+                }
+            );
+            assert.equal(handled.status, 404);
+            assert.deepEqual(await handled.json(), {
+                success: false,
+                message: '反馈已被处理'
+            });
+        });
+
+        test('one ordered submit replaces an image and moves another across roles', async () => {
+            const fixture = new OwnerRouteFixture();
+            // 四页卡：正面、两张中间页、背面；槽位稳定，版面由 display_order 决定。
+            const live = ownerCard({
+                publication_status: 'published',
+                review_status: null,
+                pages: [
+                    cardPageRow('front', 1),
+                    cardPageRow('page-aaaaaaaa', 2),
+                    cardPageRow('page-bbbbbbbb', 3),
+                    cardPageRow('back', 4)
+                ]
+            });
+            fixture.cards.set('owner-card', live);
+            for (const page of live.pages) {
+                fixture.storage.seed(storedPageKey(live, page.page_id));
+            }
+            fixture.uploads.next = {
+                // The slots are front, middle pages, then the back: keeping the
+                // front, uploading one image, keeping both middle pages and
+                // promoting the second middle page to the back therefore all
+                // happen in this single revision.
+                fields: {
+                    order: JSON.stringify(['#0', '@0', '#1', '#2']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {
+                    images: [uploadedFile('new.png', 'image/png', PNG_BYTES)]
+                }
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            const body = await response.json();
+            assert.equal(response.status, 200, JSON.stringify(body));
+            const uploadedKey = fixture.storage.puts.at(-1)!.key;
+            // 统一布局：未发布的编辑落在 pending 队列，页面身份是稳定槽位。
+            assert.match(
+                uploadedKey,
+                /\/pending\/page-[0-9a-f-]{8,}\.[0-9a-f-]{8,}\.webp$/
+            );
+            const frontKey = storedPageKey(live, 'front');
+            const middleAKey = storedPageKey(live, 'page-aaaaaaaa');
+            const middleBKey = storedPageKey(live, 'page-bbbbbbbb');
+            const input = fixture.mediaSetInputs.at(-1)!;
+            assert.equal(input.frontObjectKey, frontKey);
+            // 第二张中间页接替背面：同一张图可以在一次提交里换角色。
+            assert.equal(input.backObjectKey, middleBKey);
+            assert.deepEqual(input.middleObjectKeys, [
+                uploadedKey,
+                middleAKey
+            ]);
+            assert.equal(input.accent, null);
+            // The live artwork of a published card is still on display, so
+            // nothing is deleted until a review approves the new set.
+            assert.deepEqual(fixture.storage.deletes, []);
+            assert.equal(fixture.cards.get('owner-card')?.revision,
+                live.revision + 1);
+            assert.equal(JSON.stringify(body).includes('object_key'), false);
+        });
+
+        test('the ordered submit drops artwork the card no longer points at', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = ownerCard({
+                publication_status: 'pending',
+                review_status: null,
+                pages: [
+                    cardPageRow('front', 1),
+                    cardPageRow('page-aaaaaaaa', 2),
+                    cardPageRow('page-bbbbbbbb', 3),
+                    cardPageRow('back', 4)
+                ]
+            });
+            fixture.cards.set('owner-card', live);
+            for (const page of live.pages) {
+                fixture.storage.seed(storedPageKey(live, page.page_id));
+            }
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '@0', '#1', '#2']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {
+                    images: [uploadedFile('new.png', 'image/png', PNG_BYTES)]
+                }
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 200);
+            // Only the object the card stopped referencing drops out: both
+            // middle pages stay (one remains a middle page, the other closes
+            // the list as the back).
+            assert.deepEqual(fixture.storage.deletes, [storedPageKey(live, 'back')]);
+        });
+
+        test('the ordered submit refuses slots the card does not have', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = fixture.cards.get('owner-card')!;
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '#7']),
+                    expectedRevision: String(live.revision)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 400);
+            assert.equal(fixture.mediaSetInputs.length, 0);
+            assert.equal(fixture.storage.puts.length, 0);
+        });
+
+        test('the ordered submit keeps the revision fence', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = fixture.cards.get('owner-card')!;
+            fixture.uploads.next = {
+                fields: {
+                    order: JSON.stringify(['#0', '#1']),
+                    expectedRevision: String(live.revision + 5)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            assert.equal(response.status, 409);
+            assert.equal(fixture.mediaSetInputs.length, 0);
+        });
+
+        test('soft deletion hides the card and keeps its media', async () => {
+            const fixture = new OwnerRouteFixture();
+            const current = fixture.cards.get('owner-card')!;
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card',
+                {
+                    method: 'DELETE',
+                    headers: bearerHeaders({ 'content-type': 'application/json' }),
+                    body: JSON.stringify({ expectedRevision: current.revision })
+                }
+            );
+            assert.equal(response.status, 200);
+            assert.deepEqual(await contractJson(response, fudabaCardDeleteResponseSchema), {
+                success: true,
+                revision: 2
+            });
+            assert.equal(fixture.deleteInputs[0]?.ownerAccountId, ACCOUNT_ID);
+            // Hidden rather than purged: the row and its media stay for review,
+            // and the owner simply stops seeing it.
+            assert.equal(fixture.cards.get('owner-card')?.publication_status, 'hidden');
+            assert.equal(fixture.cards.get('owner-card')?.deleted_at, null);
+            assert.equal(fixture.storage.objects.has(storedPageKey(current, 'front')), true);
+            assert.equal(fixture.storage.objects.has(storedPageKey(current, 'back')), true);
+            assert.equal(fixture.storage.ownedDeletes.length, 0);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card',
+                { headers: bearerHeaders() }
+            )).status, 404);
+        });
+
+        test('card creation cleans confirmed failures but preserves uncertain repository writes', async () => {
+            const unavailable = new OwnerRouteFixture();
+            const unavailableSeededKeys = new Set(unavailable.storage.objects.keys());
+            unavailable.createMode = 'unavailable';
+            const unavailableResponse = await postCard(unavailable);
+            assert.equal(unavailableResponse.status, 409);
+            assert.equal(unavailable.storage.deletes.length, 2);
+            assert.deepEqual(
+                new Set(unavailable.storage.objects.keys()),
+                unavailableSeededKeys
+            );
+
+            const uncertain = new OwnerRouteFixture();
+            uncertain.createMode = 'throw';
+            const uncertainResponse = await postCard(uncertain);
+            assert.equal(uncertainResponse.status, 500);
+            assert.equal(uncertain.storage.ownedDeletes.length, 0);
+            for (const put of uncertain.storage.puts) {
+                assert.equal(uncertain.storage.objects.has(put.key), true);
+            }
+
+            const storageFailure = new OwnerRouteFixture();
+            const seededKeys = new Set(storageFailure.storage.objects.keys());
+            storageFailure.storage.failPutNumber = 2;
+            const response = await postCard(storageFailure);
+            assert.equal(response.status, 500);
+            assert.equal(storageFailure.storage.deletes.length, 1);
+            assert.deepEqual(new Set(storageFailure.storage.objects.keys()), seededKeys);
+            assert.equal(storageFailure.createInputs.length, 0);
+        });
+
+        test('committed create writes recover after the repository throws', async () => {
+            const create = new OwnerRouteFixture();
+            create.createMode = 'mutate-then-throw';
+            const created = await postCard(create);
+            const createdBody = await created.json() as {
+                card?: { id: string };
+            };
+            assert.equal(created.status, 201, JSON.stringify(createdBody));
+            assert.equal(createdBody.card?.id, create.createInputs[0]?.id);
+            assert.equal(create.storage.ownedDeletes.length, 0);
+            for (const put of create.storage.puts) {
+                assert.equal(create.storage.objects.has(put.key), true);
+            }
+        });
+
+        test('failed confirmation reads preserve objects that ambiguous create mutations may reference', async () => {
+            const create = new OwnerRouteFixture();
+            create.createMode = 'mutate-then-throw';
+            create.failCardConfirmationRead = true;
+            const created = await postCard(create);
+            assert.equal(created.status, 500);
+            assert.equal(create.storage.ownedDeletes.length, 0);
+            assert.equal(create.cards.has(create.createInputs[0]!.id), true);
+            for (const put of create.storage.puts) {
+                assert.equal(create.storage.objects.has(put.key), true);
+            }
+        });
+
+        test('owner media is protected, private, and inaccessible through another account card', async () => {
+            const fixture = new OwnerRouteFixture();
+            const reads: string[] = [];
+            const get = fixture.storage.get.bind(fixture.storage);
+            fixture.storage.get = async (key) => {
+                reads.push(key);
+                return get(key);
+            };
+            assert.equal(typeof fixture.storage.createReadUrl, 'function');
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media/front?v=1',
+                { headers: bearerHeaders(), redirect: 'manual' }
+            );
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get('location'), null);
+            assert.equal(response.headers.get('cache-control'), 'private, no-store');
+            assert.match(response.headers.get('vary') || '', /Authorization/);
+            assert.equal(response.headers.get('content-type'), 'image/webp');
+            assert.equal(response.headers.get('content-length'), '4');
+            assert.equal(response.headers.get('etag'), `seed-${storedPageKey(ownerCard(), 'front')}`);
+            assert.deepEqual(new Uint8Array(await response.arrayBuffer()),
+                new Uint8Array([0x52, 0x49, 0x46, 0x46]));
+            assert.deepEqual(reads, [storedPageKey(ownerCard(), 'front')]);
+            assert.deepEqual(fixture.storage.readUrls, []);
+
+            const head = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media/back?v=1',
+                { method: 'HEAD', headers: bearerHeaders(), redirect: 'manual' }
+            );
+            assert.equal(head.status, 200);
+            assert.equal(head.headers.get('location'), null);
+            assert.equal(head.headers.get('content-length'), '4');
+            assert.equal((await head.arrayBuffer()).byteLength, 0);
+            assert.deepEqual(fixture.storage.readUrls, []);
+
+            const readsBeforeOther = reads.length;
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media/front'
+            )).status, 401);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media/front',
+                { headers: { authorization: 'Bearer expired-platform-token' } }
+            )).status, 401);
+            assert.equal((await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/other-card/media/front',
+                { headers: bearerHeaders() }
+            )).status, 404);
+            assert.equal(reads.length, readsBeforeOther);
+            assert.deepEqual(fixture.storage.readUrls, []);
+        });
+
+        test('owner media cookie GET and HEAD retain private signed delivery', async () => {
+            const fixture = new OwnerRouteFixture();
+            fixture.storage.get = async () => {
+                throw new Error('Cookie redirect must not read object bytes');
+            };
+            for (const method of ['GET', 'HEAD']) {
+                const response = await fixture.app.request(
+                    'http://ims.test/api/community/exchange/me/cards/owner-card/media/front?v=1',
+                    { method, headers: cookieHeaders(null), redirect: 'manual' }
+                );
+                assert.equal(response.status, 307);
+                assert.match(response.headers.get('location') || '', /^https:\/\/private-media\.example\.test\//);
+                assert.equal(response.headers.get('cache-control'), 'private, no-store');
+                assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+                assert.equal((await response.arrayBuffer()).byteLength, 0);
+                assert.equal(fixture.storage.readUrls.at(-1)?.method, method);
+            }
+        });
+
+        test.skipIf(process.env.IMS_OWNER_MEDIA_RUSTFS_TEST !== '1')(
+            'owner media proxies real local RustFS private bytes without a signed storage hop', async () => {
+                const connection = await createPostgresTestDatabase('owner-media-rustfs');
+                const state = new S3UploadStateMachine(connection);
+                await state.initialize();
+                // This opt-in acceptance uses only the documented local bucket.
+                const client = new S3Client({
+                    endpoint: 'http://127.0.0.1:9000',
+                    region: 'us-east-1',
+                    forcePathStyle: true
+                });
+                let signedCalls = 0;
+                const storage = new S3ObjectStorage(client, {
+                    bucket: 'imsweb-media-local',
+                    prefix: `owner-media-acceptance-${randomUUID()}`,
+                    readUrlTtlSeconds: 60
+                }, async (command, expiresIn) => {
+                    signedCalls += 1;
+                    return getSignedUrl(client, command, { expiresIn });
+                }, state);
+                const fixture = new OwnerRouteFixture();
+                const key = storedPageKey(ownerCard(), 'front');
+                const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"/>');
+                let owned = false;
+                onTestFinished(async () => {
+                    try {
+                        if (owned) await storage.delete(key);
+                    } finally {
+                        storage.close();
+                        await connection.close();
+                    }
+                });
+                await storage.put(key, bytes, { contentType: 'image/svg+xml', protectedAccess: true });
+                owned = true;
+                const target = await storage.createReadUrl(key);
+                assert.equal(target?.visibility, 'private');
+                const unsigned = new URL(target!.url);
+                unsigned.search = '';
+                assert.equal((await fetch(unsigned)).status, 403);
+                assert.deepEqual(new Uint8Array(await (await fetch(target!.url)).arrayBuffer()), bytes);
+                signedCalls = 0;
+                let byteReads = 0;
+                const get = storage.get.bind(storage);
+                storage.get = async (objectKey) => {
+                    byteReads += 1;
+                    return get(objectKey);
+                };
+                const app = createHonoApp(() => ({ ...fixture.runtime(), storage }));
+                const path = 'http://ims.test/api/community/exchange/me/cards/owner-card/media/front';
+                assert.equal((await app.request(path)).status, 401);
+                assert.equal((await app.request(path.replace('owner-card', 'other-card'), {
+                    headers: bearerHeaders()
+                })).status, 404);
+                assert.equal(byteReads, 0);
+                const response = await app.request(path, {
+                    headers: bearerHeaders({ origin: 'tauri://localhost' }), redirect: 'manual'
+                });
+                assert.equal(response.status, 200);
+                assert.equal(response.headers.get('location'), null);
+                assert.equal(response.headers.get('access-control-allow-origin'), 'tauri://localhost');
+                assert.equal(response.headers.get('cache-control'), 'private, no-store');
+                assert.equal(response.headers.get('content-type'), 'image/svg+xml');
+                assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes);
+                assert.equal(byteReads, 1);
+                assert.equal(signedCalls, 0);
+                await storage.delete(key);
+                owned = false;
+                assert.equal(await storage.get(key), null);
+                assert.equal((await fetch(target!.url)).status, 404);
+            }
+        );
+
+        test('card creation uses IP and account upload limits before multipart parsing', async () => {
+            const ipLimited = new OwnerRouteFixture();
+            ipLimited.rateLimiter.deniedBuckets.add('fudaba-upload-attempt');
+            const ipResponse = await postCard(ipLimited);
+            assert.equal(ipResponse.status, 429);
+            assert.equal(ipLimited.uploads.calls.length, 0);
+            assert.equal(ipLimited.storage.puts.length, 0);
+
+            const accountLimited = new OwnerRouteFixture();
+            accountLimited.rateLimiter.deniedBuckets.add('platform-upload-account');
+            const accountResponse = await postCard(accountLimited);
+            assert.equal(accountResponse.status, 429);
+            assert.equal((await accountResponse.json() as { code: string }).code,
+                'PLATFORM_RATE_LIMITED');
+            assert.equal(accountLimited.uploads.calls.length, 0);
+            assert.equal(accountLimited.storage.puts.length, 0);
+
+            const successful = new OwnerRouteFixture();
+            assert.equal((await postCard(successful)).status, 201);
+            const buckets = successful.rateLimiter.calls.map((call) => call.bucket);
+            assert.equal(buckets.includes('fudaba-upload-attempt'), true);
+            assert.equal(buckets.includes('platform-upload-account'), true);
+            assert.equal(buckets.includes('fudaba-write-attempt'), false);
+        });
+
+    });
+}
+
+// fudaba-owner-write-repository.test.ts
+{
+    const CREATED_AT = '2026-08-02T03:00:00.000Z';
+    const UPDATED_AT = '2026-08-02T03:01:00.000Z';
+    const MEDIA_UPDATED_AT = '2026-08-02T03:02:00.000Z';
+    const DELETED_AT = '2026-08-02T03:03:00.000Z';
+    const PROFILE_CREATED_AT = 1_775_100_000_000;
+
+    const initializedPostgresSchema: SqlSchemaStrategy = {
+        initializeCore: async () => undefined,
+        initializePlatform: async () => undefined,
+        initializeFudaba: async () => undefined,
+        initializeStory: async () => undefined
+    };
+
+    interface Fixture {
+        database: ManagedSqlDatabase;
+        platform: SqlPlatformAccountRepository;
+        fudaba: SqlFudabaRepository;
+        dialect: 'postgresql';
+    }
+
+    async function createFixture(
+        dialect: Fixture['dialect']
+    ): Promise<Fixture> {
+        const harness = await createPostgresTestHarness();
+        const platform = new SqlPlatformAccountRepository(
+            harness.connection,
+            initializedPostgresSchema
+        );
+        const fudaba = new SqlFudabaRepository(
+            harness.connection,
+            initializedPostgresSchema
+        );
+        onTestFinished(() => harness.close());
+        await Promise.all([platform.initialize(), fudaba.initialize()]);
+        await seedCanonicalFudabaAgencies(harness.connection);
+        return { database: harness.connection, platform, fudaba, dialect };
+    }
+
+    function account(
+        id: string,
+        status: PlatformAccountStatus = 'active',
+        avatarObjectKey: string | null = null
+    ): NewPlatformAccountInput {
+        return {
+            id,
+            status,
+            tokenVersion: 0,
+            createdAt: PROFILE_CREATED_AT,
+            updatedAt: PROFILE_CREATED_AT,
+            deletedAt: status === 'deleted' ? PROFILE_CREATED_AT : null,
+            profile: {
+                displayName: `Producer ${id}`,
+                avatarObjectKey,
+                avatarExternalUrl: null,
+                homeCity: null,
+                bio: '',
+                updatedAt: PROFILE_CREATED_AT
+            }
+        };
+    }
+
+    function ownedCard(
+        id: string,
+        ownerAccountId: string,
+        seriesCode = '765'
+    ): CreateOwnedFudabaCardInput {
+        return {
+            id,
+            ownerAccountId,
+            producerName: `Producer ${ownerAccountId}`,
+            seriesCodes: [seriesCode],
+            favoriteCharacterIds: [900_001],
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
+            bio: 'Profile',
+            tradeNote: 'Available for trade',
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            createdAt: CREATED_AT,
+            updatedAt: CREATED_AT
+        };
+    }
+
+    function importedCard(
+        id: string,
+        ownerAccountId: string
+    ): NewFudabaCardInput {
+        return {
+            ...ownedCard(id, ownerAccountId),
+            publicationStatus: 'published',
+            revision: 0,
+            deletedAt: null
+        };
+    }
+
+    async function assertProfileWrites(fixture: Fixture): Promise<void> {
+        const ownerId = `${fixture.dialect}-profile-owner`;
+        const previousAvatar = `community/fudaba/accounts/${ownerId}/old-avatar.webp`;
+        await fixture.platform.createAccountWithProfile(
+            account(ownerId, 'active', previousAvatar)
+        );
+
+        const textSaved = await fixture.platform.updateProfileTextForOwner({
+            accountId: ownerId,
+            displayName: 'Updated Producer',
+            homeCity: 'Shanghai',
+            pageSlug: null,
+            bio: 'Updated profile',
+            expectedUpdatedAt: PROFILE_CREATED_AT,
+            updatedAt: PROFILE_CREATED_AT + 1
+        });
+        assert.equal(textSaved.status, 'saved');
+        if (textSaved.status !== 'saved') return;
+        assert.equal(textSaved.previousAvatarObjectKey, previousAvatar);
+        assert.equal(textSaved.profile.avatar_object_key, previousAvatar);
+        assert.equal(textSaved.profile.display_name, 'Updated Producer');
+
+        assert.deepEqual(await fixture.platform.updateProfileAvatarForOwner({
+            accountId: ownerId,
+            avatarObjectKey: 'unreachable-stale-avatar.webp',
+            expectedUpdatedAt: PROFILE_CREATED_AT,
+            updatedAt: PROFILE_CREATED_AT + 2
+        }), {
+            status: 'conflict',
+            updatedAt: PROFILE_CREATED_AT + 1
+        });
+
+        const nextAvatar = `community/fudaba/accounts/${ownerId}/next-avatar.webp`;
+        const avatarSaved = await fixture.platform.updateProfileAvatarForOwner({
+            accountId: ownerId,
+            avatarObjectKey: nextAvatar,
+            expectedUpdatedAt: PROFILE_CREATED_AT + 1,
+            updatedAt: PROFILE_CREATED_AT + 2
+        });
+        assert.equal(avatarSaved.status, 'saved');
+        if (avatarSaved.status !== 'saved') return;
+        assert.equal(avatarSaved.previousAvatarObjectKey, previousAvatar);
+        assert.equal(avatarSaved.profile.avatar_object_key, nextAvatar);
+        assert.equal(avatarSaved.profile.avatar_external_url, null);
+
+        await fixture.database.prepare(
+            "UPDATE platform_accounts SET status='restricted' WHERE id=?"
+        ).bind(ownerId).run();
+        assert.deepEqual(await fixture.platform.updateProfileTextForOwner({
+            accountId: ownerId,
+            displayName: 'Restricted update',
+            homeCity: null,
+            pageSlug: null,
+            bio: '',
+            expectedUpdatedAt: PROFILE_CREATED_AT + 2,
+            updatedAt: PROFILE_CREATED_AT + 3
+        }), { status: 'unavailable' });
+        assert.equal(
+            (await fixture.platform.findAccountWithProfileById(ownerId))?.profile.display_name,
+            'Updated Producer'
+        );
+        assert.deepEqual(await fixture.platform.updateProfileAvatarForOwner({
+            accountId: `${fixture.dialect}-missing-profile`,
+            avatarObjectKey: null,
+            expectedUpdatedAt: PROFILE_CREATED_AT,
+            updatedAt: PROFILE_CREATED_AT + 1
+        }), { status: 'unavailable' });
+    }
+
+    async function assertCardWrites(fixture: Fixture): Promise<void> {
+        const ownerId = `${fixture.dialect}-card-owner`;
+        const otherId = `${fixture.dialect}-card-other`;
+        const restrictedId = `${fixture.dialect}-card-restricted`;
+        await fixture.platform.createAccountWithProfile(account(ownerId));
+        await fixture.platform.createAccountWithProfile(account(otherId));
+        await fixture.platform.createAccountWithProfile(account(restrictedId, 'restricted'));
+
+        // 担当角色可以留空：建出来的名片不挂任何角色，随后删掉以免影响
+        // 后面的列表断言。
+        const withoutCharacters = await fixture.fudaba.createCardForOwner({
+            ...ownedCard(`${fixture.dialect}-empty-characters-card`, ownerId),
+            favoriteCharacterIds: []
+        });
+        assert.equal(withoutCharacters.status, 'saved');
+        if (withoutCharacters.status === 'saved') {
+            assert.deepEqual(withoutCharacters.card.favorite_characters, []);
+        }
+        await fixture.database
+            .prepare('DELETE FROM fudaba_cards WHERE id=?')
+            .bind(`${fixture.dialect}-empty-characters-card`)
+            .run();
+        assert.deepEqual(await fixture.fudaba.createCardForOwner({
+            ...ownedCard(`${fixture.dialect}-duplicate-characters-card`, ownerId),
+            favoriteCharacterIds: [900_001, 900_001]
+        }), { status: 'unavailable' });
+        assert.deepEqual(await fixture.fudaba.createCardForOwner({
+            ...ownedCard(`${fixture.dialect}-missing-character-card`, ownerId),
+            favoriteCharacterIds: [999_999]
+        }), { status: 'unavailable' });
+
+        assert.deepEqual(await fixture.fudaba.createCardForOwner(ownedCard(
+            `${fixture.dialect}-restricted-card`,
+            restrictedId
+        )), { status: 'unavailable' });
+        // Every catalog series is selectable, so only an unknown code is fenced
+        // off; the owner picker and this write path read the same catalog.
+        assert.deepEqual(await fixture.fudaba.createCardForOwner(ownedCard(
+            `${fixture.dialect}-unknown-series-card`,
+            ownerId,
+            'no-such-series'
+        )), { status: 'unavailable' });
+
+        const cardId = `${fixture.dialect}-owned-card`;
+        const created = await fixture.fudaba.createCardForOwner(ownedCard(cardId, ownerId));
+        assert.equal(created.status, 'saved');
+        if (created.status !== 'saved') return;
+        assert.equal(created.card.owner_account_id, ownerId);
+        assert.equal(created.card.publication_status, 'pending');
+        assert.equal(created.card.revision, 0);
+        assert.deepEqual(
+            created.card.favorite_characters.map((character) => character.character_id),
+            [900_001]
+        );
+
+        const otherCardId = `${fixture.dialect}-other-card`;
+        await fixture.fudaba.createCard(importedCard(otherCardId, otherId));
+        assert.equal(await fixture.fudaba.findCardForOwner(cardId, otherId), null);
+        assert.deepEqual(
+            (await fixture.fudaba.listCardsForOwner(ownerId)).map((card) => card.id),
+            [cardId]
+        );
+
+        assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
+            cardId,
+            ownerAccountId: otherId,
+            producerName: 'Intruder',
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001],
+            bio: '',
+            tradeNote: '',
+            exchangeMode: 'none',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            expectedRevision: 0,
+            updatedAt: UPDATED_AT
+        }), { status: 'unavailable' });
+
+        // A live card stages new revisions instead of overwriting them, so the
+        // in-place fences below are exercised on a card still in review.
+        await fixture.database.prepare(
+            `UPDATE fudaba_cards
+         SET publication_status='pending'
+         WHERE id=?`
+        ).bind(cardId).run();
+        const metadataInput: UpdateOwnedFudabaCardMetadataInput = {
+            cardId,
+            ownerAccountId: ownerId,
+            producerName: 'Updated Producer',
+            seriesCodes: ['cg'],
+            favoriteCharacterIds: [900_001, 900_002] as number[],
+            bio: 'Updated bio',
+            tradeNote: 'Updated note',
+            exchangeMode: 'none',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            expectedRevision: 0,
+            updatedAt: UPDATED_AT
+        };
+        // Series membership is the catalog row itself: only an unknown code is
+        // fenced off, matching what the owner picker offers.
+        assert.deepEqual(
+            await fixture.fudaba.updateCardMetadataForOwner({
+                ...metadataInput,
+                seriesCodes: ['no-such-series']
+            }),
+            { status: 'unavailable' }
+        );
+
+        assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
+            ...metadataInput,
+            favoriteCharacterIds: [900_001, 900_001]
+        }), { status: 'unavailable' });
+        assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
+            ...metadataInput,
+            favoriteCharacterIds: [999_999]
+        }), { status: 'unavailable' });
+
+        const metadataSaved = await fixture.fudaba.updateCardMetadataForOwner(metadataInput);
+        assert.equal(metadataSaved.status, 'saved');
+        if (metadataSaved.status !== 'saved') return;
+        assert.equal(metadataSaved.card.revision, 1);
+        assert.deepEqual(metadataSaved.card.series_codes, ['cg']);
+        assert.deepEqual(
+            metadataSaved.card.favorite_characters.map((character) => ({
+                id: character.character_id,
+                agency: character.agency_code
+            })),
+            [
+                { id: 900_001, agency: '765' },
+                { id: 900_002, agency: 'cg' }
+            ]
+        );
+        assert.equal(metadataSaved.card.publication_status, 'pending');
+        assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
+            ...metadataInput,
+            bio: 'Stale update',
+            updatedAt: MEDIA_UPDATED_AT
+        }), { status: 'conflict', revision: 1 });
+
+        const deleted = await fixture.fudaba.softDeleteCardForOwner({
+            cardId,
+            ownerAccountId: ownerId,
+            expectedRevision: 1,
+            deletedAt: DELETED_AT
+        });
+        assert.equal(deleted.status, 'saved');
+        if (deleted.status !== 'saved') return;
+        assert.equal(deleted.card.publication_status, 'hidden');
+        assert.equal(deleted.card.deleted_at, null);
+        assert.equal(deleted.card.revision, 2);
+        assert.equal(await fixture.fudaba.findCardForOwner(cardId, ownerId), null);
+        assert.deepEqual(await fixture.fudaba.listCardsForOwner(ownerId), []);
+        assert.deepEqual(await fixture.fudaba.softDeleteCardForOwner({
+            cardId,
+            ownerAccountId: ownerId,
+            expectedRevision: 2,
+            deletedAt: DELETED_AT
+        }), { status: 'unavailable' });
+    }
+
+    async function assertCrossInstanceCas(fixture: Fixture): Promise<void> {
+        const siblingPlatform = new SqlPlatformAccountRepository(
+            fixture.database,
+            initializedPostgresSchema
+        );
+        const siblingFudaba = new SqlFudabaRepository(
+            fixture.database,
+            initializedPostgresSchema
+        );
+        await Promise.all([siblingPlatform.initialize(), siblingFudaba.initialize()]);
+
+        const accountId = `${fixture.dialect}-cas-owner`;
+        await fixture.platform.createAccountWithProfile(account(accountId));
+        const profileResults = await Promise.all([
+            fixture.platform.updateProfileTextForOwner({
+                accountId,
+                displayName: 'First writer',
+                homeCity: null,
+                pageSlug: null,
+            bio: '',
+                expectedUpdatedAt: PROFILE_CREATED_AT,
+                updatedAt: PROFILE_CREATED_AT + 10
+            }),
+            siblingPlatform.updateProfileTextForOwner({
+                accountId,
+                displayName: 'Second writer',
+                homeCity: null,
+                pageSlug: null,
+            bio: '',
+                expectedUpdatedAt: PROFILE_CREATED_AT,
+                updatedAt: PROFILE_CREATED_AT + 20
+            })
+        ]);
+        assert.deepEqual(
+            profileResults.map((result) => result.status).sort(),
+            ['conflict', 'saved']
+        );
+        const savedProfile = profileResults.find((result) => result.status === 'saved');
+        const profileConflict = profileResults.find((result) => result.status === 'conflict');
+        assert.ok(savedProfile && savedProfile.status === 'saved');
+        assert.ok(profileConflict && profileConflict.status === 'conflict');
+        assert.equal(profileConflict.updatedAt, savedProfile.profile.updated_at);
+
+        const cardId = `${fixture.dialect}-cas-card`;
+        const created = await fixture.fudaba.createCardForOwner(ownedCard(cardId, accountId));
+        assert.equal(created.status, 'saved');
+        const baseUpdate: UpdateOwnedFudabaCardMetadataInput = {
+            cardId,
+            ownerAccountId: accountId,
+            producerName: 'CAS Producer',
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001],
+            bio: '',
+            tradeNote: '',
+            exchangeMode: 'manual',
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            expectedRevision: 0,
+            updatedAt: UPDATED_AT
+        };
+        const cardResults = await Promise.all([
+            fixture.fudaba.updateCardMetadataForOwner({
+                ...baseUpdate,
+                producerName: 'First card writer'
+            }),
+            siblingFudaba.updateCardMetadataForOwner({
+                ...baseUpdate,
+                producerName: 'Second card writer'
+            })
+        ]);
+        assert.deepEqual(
+            cardResults.map((result) => result.status).sort(),
+            ['conflict', 'saved']
+        );
+        const cardConflict = cardResults.find((result) => result.status === 'conflict');
+        assert.ok(cardConflict && cardConflict.status === 'conflict');
+        assert.equal(cardConflict.revision, 1);
+    }
+
+    describe('Fudaba owner write repository', () => {
+        postgresTest('real PostgreSQL enforces Stage 14 profile and card write fences', async () => {
+            const fixture = await createFixture('postgresql');
+            await assertProfileWrites(fixture);
+            await assertCardWrites(fixture);
+            await assertCrossInstanceCas(fixture);
+        });
+
+        postgresTest('real PostgreSQL commits one ordered media set per submit', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-media-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-media-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+
+            // 页面行是唯一媒体来源：槽位 + 对象版本决定对象 key。
+            const pageId = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (name: string) =>
+                `${name.repeat(8).slice(0, 8)}-0000-4000-8000-000000000000`;
+            const key = (name: string, queue: 'live' | 'pending' = 'live'): string =>
+                pageObjectKey(cardId, pageId(name), queue, version(name));
+            const pageWrite = (name: string) => ({
+                pageId: pageId(name),
+                objectVersion: version(name),
+                width: 1000,
+                height: 700
+            });
+            const postgres = fixture.database as PostgresConnection;
+
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('a'),
+                backObjectKey: null,
+                middleObjectKeys: [],
+                accent: '#112233',
+                pages: [pageWrite('a')],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            assert.deepEqual(
+                first.card.pages.map((page) => page.page_id),
+                [pageId('a')]
+            );
+            assert.equal(
+                storedPageKey(first.card, pageId('a')),
+                key('a')
+            );
+            assert.equal(first.card.accent, '#112233');
+            assert.deepEqual(first.previousObjectKeys, [
+                storedPageKey(created.card, 'front'),
+                storedPageKey(created.card, 'back')
+            ]);
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT accent_source FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { accent_source: 'image' }
+            );
+
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            const staged = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('b', 'pending'),
+                backObjectKey: key('c', 'pending'),
+                middleObjectKeys: [key('d', 'pending')],
+                accent: null,
+                pages: [pageWrite('b'), pageWrite('d'), pageWrite('c')],
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            // A published card only stages the new set: the public surface keeps
+            // the live images until a review approves the submission.
+            assert.deepEqual(
+                staged.card.pages.map((page) => page.page_id),
+                [pageId('a')]
+            );
+            assert.deepEqual(
+                staged.card.pending_pages.map((page) => page.page_id),
+                [pageId('b'), pageId('d'), pageId('c')]
+            );
+            assert.equal(staged.card.review_status, 'pending');
+            assert.equal(staged.card.accent, '#112233');
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    'SELECT pending_payload IS NOT NULL AS seeded FROM public.fudaba_cards WHERE id = $1',
+                    [cardId]
+                )).rows[0],
+                { seeded: true }
+            );
+
+            const stale = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('e'),
+                backObjectKey: null,
+                middleObjectKeys: [],
+                accent: null,
+                pages: [pageWrite('e')],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(stale.status, 'conflict');
+        });
+
+        postgresTest(
+            'real PostgreSQL publishes the exempt edits without a review',
+            async () => {
+                const fixture = await createFixture('postgresql');
+                const ownerId = 'postgresql-exempt-owner';
+                await fixture.platform.createAccountWithProfile(account(ownerId));
+                const cardId = 'postgresql-exempt-card';
+                const created = await fixture.fudaba.createCardForOwner(
+                    ownedCard(cardId, ownerId)
+                );
+                assert.equal(created.status, 'saved');
+                if (created.status !== 'saved') return;
+                const postgres = fixture.database as PostgresConnection;
+                await postgres.pool.query(
+                    "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                    [cardId]
+                );
+                const draft = ownedCard(cardId, ownerId);
+                // Reading, series, credits, dates and flags publish immediately.
+                const exempt = await fixture.fudaba.updateCardMetadataForOwner({
+                    cardId,
+                    ownerAccountId: ownerId,
+                    producerName: draft.producerName,
+                    seriesCodes: ['765', 'cg'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    bio: draft.bio,
+                    tradeNote: draft.tradeNote,
+                    exchangeMode: 'auto',
+                    madeOn: '2024-05',
+                    groupName: 'Group',
+                    producerReading: 'ぷろでゅーさー',
+                    isOriginal: false,
+                    madeWithAi: true,
+                    visible: true,
+                    credits: [
+                        {
+                            accountId: null,
+                            displayName: 'Illustrator',
+                            url: null,
+                            roles: ['illustration']
+                        }
+                    ],
+                    expectedRevision: created.card.revision,
+                    updatedAt: MEDIA_UPDATED_AT
+                });
+                assert.equal(exempt.status, 'saved');
+                if (exempt.status !== 'saved') return;
+                assert.equal(exempt.card.publication_status, 'published');
+                assert.equal(exempt.card.review_status ?? null, null);
+                assert.equal(exempt.card.producer_reading, 'ぷろでゅーさー');
+                assert.equal(exempt.card.made_on, '2024-05');
+                assert.deepEqual(exempt.card.series_codes, ['765', 'cg']);
+                assert.deepEqual(
+                    exempt.card.credits.map((credit) => credit.displayName),
+                    ['Illustrator']
+                );
+                // A bio edit is content, so it parks in the review queue instead.
+                const staged = await fixture.fudaba.updateCardMetadataForOwner({
+                    ...draft,
+                    cardId,
+                    ownerAccountId: ownerId,
+                    seriesCodes: ['765', 'cg'],
+                    favoriteCharacterIds: [900_001, 900_002],
+                    exchangeMode: 'auto',
+                    madeOn: '2024-05',
+                    groupName: 'Group',
+                    producerReading: 'ぷろでゅーさー',
+                    madeWithAi: true,
+                    bio: 'Rewritten profile',
+                    expectedRevision: exempt.card.revision,
+                    updatedAt: MEDIA_UPDATED_AT
+                });
+                assert.equal(staged.status, 'saved');
+                if (staged.status !== 'saved') return;
+                assert.equal(staged.card.review_status, 'pending');
+                assert.equal(staged.card.bio, draft.bio);
+
+                // Saving the approved copy again is a withdrawal, not a new
+                // revision: the queue stops waiting for a reviewer.
+                const withdrawn =
+                    await fixture.fudaba.updateCardMetadataForOwner({
+                        ...draft,
+                        cardId,
+                        ownerAccountId: ownerId,
+                        seriesCodes: ['765', 'cg'],
+                        favoriteCharacterIds: [900_001, 900_002],
+                        exchangeMode: 'auto',
+                        madeOn: '2024-05',
+                        groupName: 'Group',
+                        producerReading: 'ぷろでゅーさー',
+                        madeWithAi: true,
+                        credits: [
+                            {
+                                accountId: null,
+                                displayName: 'Illustrator',
+                                url: null,
+                                roles: ['illustration']
+                            }
+                        ],
+                        expectedRevision: staged.card.revision,
+                        updatedAt: MEDIA_UPDATED_AT
+                    });
+                assert.equal(withdrawn.status, 'saved');
+                if (withdrawn.status !== 'saved') return;
+                assert.equal(withdrawn.card.review_status ?? null, null);
+                assert.equal(withdrawn.card.publication_status, 'published');
+                assert.equal(withdrawn.card.bio, draft.bio);
+                assert.equal(withdrawn.card.producer_reading, 'ぷろでゅーさー');
+                assert.deepEqual(
+                    (await postgres.pool.query(
+                        'SELECT pending_payload, review_submitted_at FROM public.fudaba_cards WHERE id = $1',
+                        [cardId]
+                    )).rows[0],
+                    {
+                        pending_payload: null,
+                        review_submitted_at: null
+                    }
+                );
+                // 撤回的修订把暂存的页面行一起丢掉。
+                assert.equal(
+                    (await postgres.pool.query(
+                        `SELECT COUNT(*)::int AS total FROM public.fudaba_card_pages
+                          WHERE card_id = $1 AND queue = 'pending'`,
+                        [cardId]
+                    )).rows[0]?.total,
+                    0
+                );
+            }
+        );
+
+        postgresTest('real PostgreSQL applies a pure page reorder without a review', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-reorder-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-reorder-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const page = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) =>
+                `abcdef12-0000-4000-8000-00000000000${n}`;
+            const key = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
+            const postgres = fixture.database as PostgresConnection;
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa1', 1),
+                backObjectKey: key('aaaaaaa4', 4),
+                middleObjectKeys: [key('aaaaaaa2', 2), key('aaaaaaa3', 3)],
+                accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa3'), objectVersion: version(3), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa4'), objectVersion: version(4), width: 1000, height: 700 }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            // Same pages, new order: nothing a reviewer reads has changed.
+            const reordered = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa1', 1),
+                backObjectKey: key('aaaaaaa4', 4),
+                middleObjectKeys: [key('aaaaaaa3', 3), key('aaaaaaa2', 2)],
+                accent: null,
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(reordered.status, 'saved');
+            if (reordered.status !== 'saved') return;
+            assert.equal(reordered.card.publication_status, 'published');
+            assert.equal(reordered.card.review_status ?? null, null);
+            assert.equal(reordered.card.review_submitted_at ?? null, null);
+            assert.deepEqual(reordered.card.pending_pages, []);
+            // 纯换序只改 display_order：槽位与对象版本都不动。
+            assert.deepEqual(
+                reordered.card.pages.map((page) => page.page_id),
+                [
+                    page('aaaaaaa1'),
+                    page('aaaaaaa3'),
+                    page('aaaaaaa2'),
+                    page('aaaaaaa4')
+                ]
+            );
+            assert.deepEqual(reordered.card.middle_object_keys, [
+                key('aaaaaaa3', 3),
+                key('aaaaaaa2', 2)
+            ]);
+            assert.equal(reordered.card.revision, first.card.revision + 1);
+        });
+
+        postgresTest('real PostgreSQL lets the backoffice rewrite, transfer and remove a card', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-admin-owner';
+            const nextId = 'postgresql-admin-next';
+            const blockedId = 'postgresql-admin-blocked';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            await fixture.platform.createAccountWithProfile(account(nextId));
+            await fixture.platform.createAccountWithProfile(account(blockedId));
+            const postgres = fixture.database as PostgresConnection;
+            await postgres.pool.query(
+                "UPDATE platform_accounts SET status = 'suspended' WHERE id = $1",
+                [blockedId]
+            );
+            const cardId = 'postgresql-admin-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const core = new SqlCoreRepository(
+                fixture.database,
+                new PostgresqlSchemaStrategy()
+            );
+            await core.initialize();
+
+            const cardNumber = created.card.card_number;
+            const content = {
+                producerName: '修正后的制作人',
+                producerReading: 'しゅうせい',
+                groupName: null,
+                madeOn: null,
+                bio: '修正后的简介',
+                tradeNote: '可交换',
+                isOriginal: false,
+                madeWithAi: false,
+                visible: true,
+                exchangeMode: 'auto' as const,
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [900_001],
+                credits: []
+            };
+            const submission = {
+                ownerAccountId: undefined,
+                status: 'published' as const,
+                reviewStatus: null,
+                content,
+                mediaOrder: ['#0', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            };
+            const saved = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: created.card.revision,
+                reason: '修正录入错误'
+            });
+            assert.equal(saved.status, 'updated');
+            if (saved.status !== 'updated') return;
+            assert.equal(saved.revision, created.card.revision + 1);
+            assert.deepEqual(
+                saved.changedFields.map((change) => change.label),
+                ['制作人名称', '制作人读音', '简介', '交换说明', '交换模式', '名片状态']
+            );
+            const stored = (await postgres.pool.query(
+                'SELECT producer_name, publication_status, review_status, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows as Array<Record<string, unknown>>;
+            assert.equal(stored[0]?.producer_name, '修正后的制作人');
+            assert.equal(stored[0]?.publication_status, 'published');
+            assert.equal(stored[0]?.review_status, null);
+            assert.equal(stored[0]?.pending_payload, null);
+
+            // A verdict without a queued revision is seeded from the submitted
+            // content, so the pending columns always describe one revision.
+            const reviewed = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: saved.revision,
+                reason: '复核不通过',
+                reviewStatus: 'rejected'
+            });
+            assert.equal(reviewed.status, 'updated');
+            if (reviewed.status !== 'updated') return;
+            const judged = (await postgres.pool.query(
+                'SELECT review_status, review_reason, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows as Array<Record<string, unknown>>;
+            assert.equal(judged[0]?.review_status, 'rejected');
+            assert.equal(judged[0]?.review_reason, '复核不通过');
+            assert.ok(judged[0]?.pending_payload !== null);
+            // 待审页集是完整快照：被判拒的修订仍带着这一版的页面行。
+            assert.deepEqual(
+                (await postgres.pool.query(
+                    `SELECT page_id FROM public.fudaba_card_pages
+                      WHERE card_id = $1 AND queue = 'pending'
+                      ORDER BY display_order`,
+                    [cardId]
+                )).rows.map((page) => page.page_id),
+                ['front', 'back']
+            );
+
+            // Rewriting nothing needs no reason; rewriting something does.
+            const unchanged = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: null,
+                reviewStatus: 'rejected'
+            });
+            assert.equal(unchanged.status, 'updated');
+            if (unchanged.status !== 'updated') return;
+            assert.deepEqual(unchanged.changedFields, []);
+            assert.equal(unchanged.revision, reviewed.revision);
+
+            const reasonless = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: '   ',
+                content: { ...content, bio: '又被改了一次' }
+            });
+            assert.equal(reasonless.status, 'reason-required');
+
+            const blocked = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: '原持有人离站',
+                ownerAccountId: blockedId
+            });
+            assert.equal(blocked.status, 'invalid-owner');
+
+            const moved = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: reviewed.revision,
+                reason: '原持有人离站',
+                ownerAccountId: nextId
+            });
+            assert.equal(moved.status, 'updated');
+            if (moved.status !== 'updated') return;
+            assert.deepEqual(moved.ownerChange, {
+                previousAccountId: ownerId,
+                nextAccountId: nextId
+            });
+
+            const notices = (await postgres.pool.query(
+                'SELECT recipient_account_id, kind, body FROM public.namecard_notifications ORDER BY created_at, kind'
+            )).rows as Array<Record<string, unknown>>;
+            // Every notice of one transaction shares its timestamp, so the
+            // comparison is by recipient and kind rather than by insertion order.
+            assert.deepEqual(
+                notices
+                    .map((row) => `${String(row.recipient_account_id)}:${String(row.kind)}`)
+                    .sort(),
+                [
+                    // The field rewrite and the later verdict each told the owner.
+                    `${ownerId}:card-admin-edited`,
+                    `${ownerId}:card-admin-edited`,
+                    `${ownerId}:card-transferred-out`,
+                    `${nextId}:card-admin-edited`,
+                    `${nextId}:card-transferred-in`
+                ].sort()
+            );
+            assert.match(String(notices[0]!.body), /简介/);
+            assert.match(String(notices[0]!.body), /修正录入错误/);
+
+            // 后台旋转：不要求理由、不产生字段改动、不通知属主，但必须落库。
+            const rotatedVersion = 'abcdef12-0000-4000-8000-000000000001';
+            const rotated = await core.updateCardAsAdmin({
+                ...submission,
+                cardNumber,
+                expectedRevision: moved.revision,
+                reason: null,
+                nextFrontObjectKey: pageObjectKey(
+                    cardId,
+                    'front',
+                    'live',
+                    rotatedVersion
+                ),
+                pages: [
+                    {
+                        pageId: 'front',
+                        objectVersion: rotatedVersion,
+                        width: 1000,
+                        height: 700
+                    }
+                ]
+            });
+            assert.equal(rotated.status, 'updated');
+            if (rotated.status !== 'updated') return;
+            assert.deepEqual(rotated.changedFields, []);
+            assert.equal(rotated.revision, moved.revision + 1);
+            const rotatedRow = (await postgres.pool.query(
+                `SELECT page_id, object_version FROM public.fudaba_card_pages
+                  WHERE card_id = $1 AND queue = 'live' AND display_order = 1`,
+                [cardId]
+            )).rows[0] as
+                | { page_id: string; object_version: string }
+                | undefined;
+            assert.equal(rotatedRow?.page_id, 'front');
+            assert.equal(rotatedRow?.object_version, rotatedVersion);
+            const noticesAfterRotation = (await postgres.pool.query(
+                'SELECT COUNT(*)::int AS total FROM public.namecard_notifications'
+            )).rows[0] as { total: number };
+            assert.equal(noticesAfterRotation.total, notices.length);
+
+            const removed = await core.deleteCardAsAdmin(cardNumber, rotated.revision);
+            assert.equal(removed.status, 'updated');
+            if (removed.status !== 'updated') return;
+            const queue = await core.listAdminCards(50, 0);
+            assert.ok(!queue.some((row) => row.id === cardNumber));
+            assert.equal(
+                (await core.deleteCardAsAdmin(cardNumber, removed.revision)).status,
+                'not-found'
+            );
+        });
+
+        postgresTest('real PostgreSQL preserves the rotated middle version through admin reorder', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-admin-middle-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-admin-middle-card';
+            const created = await fixture.fudaba.createCardForOwner(ownedCard(cardId, ownerId));
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const page = (n: number) => `page-aaaaaaa${n}`;
+            const version = (n: number) => `abcdef12-0000-4000-8000-00000000000${n}`;
+            const key = (n: number, v = n) => `community/fudaba/cards/${cardId}/live/${page(n)}.${version(v)}.webp`;
+            const media = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId, ownerAccountId: ownerId, frontObjectKey: key(1), backObjectKey: key(3),
+                middleObjectKeys: [key(2)], accent: null, expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT,
+                pages: [1, 2, 3].map(n => ({ pageId: page(n), objectVersion: version(n), width: 900, height: 600 }))
+            });
+            assert.equal(media.status, 'saved');
+            if (media.status !== 'saved') return;
+            const postgres = fixture.database as PostgresConnection;
+            await postgres.pool.query("UPDATE fudaba_cards SET publication_status='published',review_status=NULL WHERE id=$1", [cardId]);
+            const core = new SqlCoreRepository(fixture.database, new PostgresqlSchemaStrategy());
+            await core.initialize();
+            const content = { producerName: `Producer ${ownerId}`, producerReading: null, groupName: null,
+                madeOn: null, bio: 'Profile', tradeNote: 'Available for trade', exchangeMode: 'manual' as const,
+                isOriginal: false, madeWithAi: false, visible: true, seriesCodes: ['765'], favoriteCharacterIds: [900_001], credits: [] };
+            const rotated = await core.updateCardAsAdmin({
+                cardNumber: created.card.card_number, expectedRevision: media.card.revision, reason: null,
+                status: 'published', reviewStatus: null, content, mediaOrder: ['#0', '#1', '#2'],
+                pages: [{ pageId: page(2), objectVersion: version(4), width: 600, height: 900 }],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(rotated.status, 'updated');
+            if (rotated.status !== 'updated') return;
+            const rows = await fixture.fudaba.listCardPages(cardId);
+            assert.equal(rows.live[1]!.object_version, version(4));
+            assert.equal(rows.live[1]!.width, 600);
+            assert.equal((await core.findAdminCardArtwork(created.card.card_number))!.middleObjectKeys[0], key(2, 4));
+            const reordered = await core.updateCardAsAdmin({
+                cardNumber: created.card.card_number, expectedRevision: rotated.revision, reason: '调整页序',
+                status: 'published', reviewStatus: null, content, mediaOrder: ['#0', '#2', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(reordered.status, 'updated');
+            assert.equal((await core.findAdminCardArtwork(created.card.card_number))!.backObjectKey, key(2, 4));
+            assert.deepEqual((await fixture.fudaba.listCardPages(cardId)).live.map(p => p.page_id), [page(1), page(3), page(2)]);
+        });
+
+        postgresTest('real PostgreSQL queues one report per reader and answers it once', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-feedback-owner';
+            const reporterId = 'postgresql-feedback-reporter';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            await fixture.platform.createAccountWithProfile(account(reporterId));
+            const postgres = fixture.database as PostgresConnection;
+            const cardId = 'postgresql-feedback-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', visible = true WHERE id = $1",
+                [cardId]
+            );
+            const createdAt = new Date('2026-05-04T01:02:03.000Z').toISOString();
+            assert.equal(
+                await fixture.fudaba.createCardFeedback({
+                    cardId,
+                    reporterAccountId: reporterId,
+                    reason: 'content-violation',
+                    detail: '卡面不是企划内容',
+                    createdAt
+                }),
+                'created'
+            );
+            // One reader cannot pile reports on the same card.
+            assert.equal(
+                await fixture.fudaba.createCardFeedback({
+                    cardId,
+                    reporterAccountId: reporterId,
+                    reason: 'info-error',
+                    detail: '反馈说明',
+                    createdAt
+                }),
+                'duplicate'
+            );
+            assert.equal(
+                await fixture.fudaba.createCardFeedback({
+                    cardId: 'missing-feedback-card',
+                    reporterAccountId: reporterId,
+                    reason: 'info-error',
+                    detail: '反馈说明',
+                    createdAt
+                }),
+                'not-found'
+            );
+
+            const queue = await fixture.fudaba.listPendingCardFeedback({
+                page: 1,
+                pageSize: 12
+            });
+            assert.equal(queue.total, 1);
+            const [report] = queue.items;
+            assert.equal(report?.cardId, cardId);
+            assert.equal(report?.status, 'pending');
+            assert.equal(report?.reason, 'content-violation');
+            assert.equal(report?.detail, '卡面不是企划内容');
+            assert.equal(report?.reporterAccountId, reporterId);
+
+            const resolved = await fixture.fudaba.resolveCardFeedback({
+                id: report!.id,
+                outcome: 'accepted',
+                note: null,
+                handledBy: 'debugadmin',
+                updatedAt: new Date('2026-05-04T02:00:00.000Z').toISOString()
+            });
+            assert.equal(resolved?.status, 'accepted');
+            assert.equal(
+                (
+                    await fixture.fudaba.listPendingCardFeedback({
+                        page: 1,
+                        pageSize: 12
+                    })
+                ).total,
+                0
+            );
+            // A handled report never leaves the queue twice.
+            assert.equal(
+                await fixture.fudaba.resolveCardFeedback({
+                    id: report!.id,
+                    outcome: 'rejected',
+                    note: '反馈不成立',
+                    handledBy: 'debugadmin',
+                    updatedAt: new Date('2026-05-04T03:00:00.000Z').toISOString()
+                }),
+                null
+            );
+
+            const notices = (await postgres.pool.query(
+                'SELECT kind, body FROM public.namecard_notifications WHERE recipient_account_id = $1',
+                [reporterId]
+            )).rows as Array<Record<string, unknown>>;
+            assert.deepEqual(notices, [
+                {
+                    kind: 'card-feedback-accepted',
+                    body: '您的反馈已受理，感谢您协助维护偶像大师交流站'
+                }
+            ]);
+        });
+
+        postgresTest('real PostgreSQL keeps the management statuses and the review queue in step', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-queue-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard('postgresql-queue-card', ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const pageId = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (name: string) =>
+                `${name.repeat(8).slice(0, 8)}-0000-4000-8000-000000000000`;
+            const initial = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId: 'postgresql-queue-card',
+                ownerAccountId: ownerId,
+                frontObjectKey: `community/fudaba/cards/postgresql-queue-card/live/${pageId('queuefront')}.${version('6a6a6a6a')}.webp`,
+                backObjectKey: `community/fudaba/cards/postgresql-queue-card/live/${pageId('queueback')}.${version('6b6b6b6b')}.webp`,
+                middleObjectKeys: [],
+                accent: null,
+                pages: [
+                    {
+                        pageId: pageId('queuefront'),
+                        objectVersion: version('6a6a6a6a'),
+                        width: 1000,
+                        height: 700
+                    },
+                    {
+                        pageId: pageId('queueback'),
+                        objectVersion: version('6b6b6b6b'),
+                        width: 1000,
+                        height: 700
+                    }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(initial.status, 'saved');
+            if (initial.status !== 'saved') return;
+            const core = new SqlCoreRepository(
+                fixture.database,
+                new PostgresqlSchemaStrategy()
+            );
+            await core.initialize();
+            const postgres = fixture.database as PostgresConnection;
+            const cardNumber = initial.card.card_number;
+            const content = {
+                producerName: '队列制作人',
+                producerReading: 'きれつ',
+                groupName: null,
+                madeOn: null,
+                bio: '线上简介',
+                tradeNote: '可交换',
+                isOriginal: false,
+                madeWithAi: false,
+                visible: true,
+                exchangeMode: 'auto' as const,
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [900_001],
+                credits: []
+            };
+            const base = {
+                ownerAccountId: undefined,
+                content,
+                mediaOrder: ['#0', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            };
+            const published = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: initial.card.revision,
+                reason: '首次发布',
+                status: 'published',
+                reviewStatus: null
+            });
+            assert.equal(published.status, 'updated');
+            if (published.status !== 'updated') return;
+
+            const queued = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: published.revision,
+                reason: '新的版本',
+                status: 'published',
+                reviewStatus: 'pending',
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(queued.status, 'updated');
+            if (queued.status !== 'updated') return;
+
+            // Staying published keeps the queue: only the review screen may
+            // approve what is waiting there.
+            const stayedLive = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: queued.revision,
+                reason: '直接发布',
+                status: 'published',
+                reviewStatus: 'pending',
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(stayedLive.status, 'updated');
+            const queuedRow = (await postgres.pool.query(
+                'SELECT publication_status, review_status FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows[0] as Record<string, unknown>;
+            assert.equal(queuedRow.publication_status, 'published');
+            assert.equal(queuedRow.review_status, 'pending');
+
+            // Pending revisions may only change version status, not the card status.
+            const blocked = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: queued.revision,
+                reason: '内容不合规',
+                status: 'rejected',
+                reviewStatus: null,
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(blocked.status, 'blocked');
+            if (blocked.status !== 'blocked') return;
+            assert.match(blocked.message, /只能修改版本状态/);
+
+            // Reject the pending version itself, then reject the whole card.
+            const rejectedVersion = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: queued.revision,
+                reason: '内容不合规',
+                status: 'published',
+                reviewStatus: 'rejected',
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(rejectedVersion.status, 'updated');
+            if (rejectedVersion.status !== 'updated') return;
+
+            const retired = await core.updateCardAsAdmin({
+                ...base,
+                cardNumber,
+                expectedRevision: rejectedVersion.revision,
+                reason: '内容不合规',
+                status: 'rejected',
+                reviewStatus: null,
+                content: { ...content, bio: '待审简介' }
+            });
+            assert.equal(retired.status, 'updated');
+            if (retired.status !== 'updated') return;
+            assert.deepEqual(
+                retired.changedFields.map((change) => change.label),
+                ['名片状态', '版本状态']
+            );
+            const row = (await postgres.pool.query(
+                'SELECT publication_status, review_status, review_reason, pending_payload FROM public.fudaba_cards WHERE card_number = $1',
+                [cardNumber]
+            )).rows[0] as Record<string, unknown>;
+            assert.equal(row.publication_status, 'rejected');
+            assert.equal(row.review_status, null);
+            // The reason has to survive on the row: the editor shows it back to
+            // the owner without opening the review history.
+            assert.equal(row.review_reason, '内容不合规');
+            assert.equal(row.pending_payload, null);
+            // 清掉版本状态时暂存的页面行也要一起消失。
+            assert.equal(
+                (await postgres.pool.query(
+                    `SELECT COUNT(*)::int AS total FROM public.fudaba_card_pages
+                      WHERE card_id = $1 AND queue = 'pending'`,
+                    ['postgresql-queue-card']
+                )).rows[0]?.total,
+                0
+            );
+
+            const removed = await core.deleteCardAsAdmin(cardNumber, retired.revision);
+            assert.equal(removed.status, 'updated');
+            const notices = (await postgres.pool.query(
+                "SELECT title FROM public.namecard_notifications WHERE kind = 'card-admin-edited' ORDER BY created_at"
+            )).rows as Array<Record<string, unknown>>;
+            assert.ok(
+                notices.some((notice) => String(notice.title).includes('已被删除')),
+                'the owner is told when the card is removed'
+            );
+        });
+
+        postgresTest('real PostgreSQL keeps the lock audit in step with the card status', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-audit-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard('postgresql-audit-card', ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const core = new SqlCoreRepository(
+                fixture.database,
+                new PostgresqlSchemaStrategy()
+            );
+            await core.initialize();
+            const postgres = fixture.database as PostgresConnection;
+            const cardNumber = created.card.card_number;
+            const content = {
+                producerName: '审计制作人',
+                producerReading: null,
+                groupName: null,
+                madeOn: null,
+                bio: '',
+                tradeNote: '',
+                isOriginal: true,
+                madeWithAi: false,
+                visible: true,
+                exchangeMode: 'auto' as const,
+                seriesCodes: ['765'],
+                favoriteCharacterIds: [900_001],
+                credits: []
+            };
+            const published = await core.updateCardAsAdmin({
+                cardNumber,
+                expectedRevision: created.card.revision,
+                reason: '首次发布',
+                ownerAccountId: undefined,
+                status: 'published',
+                reviewStatus: null,
+                content,
+                mediaOrder: ['#0', '#1'],
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(published.status, 'updated');
+            if (published.status !== 'updated') return;
+
+            // Locking through the review screen records the operator.
+            const locked = await core.lockCard(
+                cardNumber,
+                published.revision,
+                '非企划内容',
+                'debugadmin'
+            );
+            assert.equal(locked.status, 'updated');
+            if (locked.status !== 'updated') return;
+            const page = await core.listNamecardLockAudit({
+                page: 1,
+                pageSize: 20,
+                owner: null,
+                reason: '企划',
+                handler: 'debug',
+                action: 'locked'
+            });
+            assert.equal(page.total, 1);
+            assert.equal(page.rows[0]?.cardNumber, cardNumber);
+            assert.equal(page.rows[0]?.reason, '非企划内容');
+            assert.equal(page.rows[0]?.handledBy, 'debugadmin');
+            assert.equal(page.rows[0]?.ownerName, `Producer ${ownerId}`);
+            assert.equal(
+                page.ownerTotals[page.rows[0]!.ownerAccountId!],
+                1,
+                'the table annotates owners with their total record count'
+            );
+
+            // Releasing the card is an event too: the lock stays in the trail.
+            const unlocked = await core.unlockCard(cardNumber, locked.card.revision);
+            assert.equal(unlocked.status, 'updated');
+            const trail = (await postgres.pool.query(
+                'SELECT action, reason FROM public.namecard_lock_records ORDER BY id'
+            )).rows as Array<Record<string, unknown>>;
+            assert.deepEqual(
+                trail.map((row) => row.action),
+                ['locked', 'unlocked'],
+                'the audit keeps both decisions'
+            );
+            const afterUnlock = await core.listNamecardLockAudit({
+                page: 1,
+                pageSize: 20,
+                owner: null,
+                reason: null,
+                handler: null,
+                action: 'unlocked'
+            });
+            assert.equal(afterUnlock.total, 1);
+            assert.equal(afterUnlock.rows[0]?.action, 'unlocked');
+            assert.equal(afterUnlock.rows[0]?.reason, null);
+
+            // The management console can lock by itself; the same table follows.
+            const managed = await core.updateCardAsAdmin({
+                cardNumber,
+                expectedRevision: unlocked.status === 'updated' ? unlocked.card.revision : 0,
+                reason: '用户申诉后重新锁定',
+                ownerAccountId: undefined,
+                status: 'locked',
+                reviewStatus: null,
+                content,
+                mediaOrder: ['#0', '#1'],
+                actor: 'second-op',
+                updatedAt: new Date(MEDIA_UPDATED_AT)
+            });
+            assert.equal(managed.status, 'updated');
+            const relocked = (await postgres.pool.query(
+                `SELECT reason, handled_by FROM public.namecard_lock_records
+                 WHERE card_id = $1 AND action = 'locked'
+                 ORDER BY id DESC LIMIT 1`,
+                ['postgresql-audit-card']
+            )).rows as Array<Record<string, unknown>>;
+            assert.equal(relocked.length, 1);
+            assert.equal(relocked[0]?.reason, '用户申诉后重新锁定');
+            assert.equal(relocked[0]?.handled_by, 'second-op');
+
+            // A deleted card leaves the table, so its trail stops being listed.
+            if (managed.status !== 'updated') return;
+            const removed = await core.deleteCardAsAdmin(cardNumber, managed.revision);
+            assert.equal(removed.status, 'updated');
+            const listed = await core.listNamecardLockAudit({
+                page: 1,
+                pageSize: 20,
+                owner: null,
+                reason: null,
+                handler: null,
+                action: null
+            });
+            assert.equal(listed.total, 0);
+        }, 30_000);
+
+        postgresTest('real PostgreSQL keeps middle pages when a metadata revision is staged', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-staged-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-staged-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const page = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) =>
+                `abcdef12-0000-4000-8000-00000000000${n}`;
+            const key = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
+            const middleKeys = [key('bbbbbbb2', 2), key('bbbbbbb3', 3)];
+            const media = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('bbbbbbb1', 1),
+                backObjectKey: key('bbbbbbb4', 4),
+                middleObjectKeys: middleKeys,
+                accent: null,
+                pages: [
+                    { pageId: page('bbbbbbb1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb3'), objectVersion: version(3), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb4'), objectVersion: version(4), width: 1000, height: 700 }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(media.status, 'saved');
+            if (media.status !== 'saved') return;
+
+            const postgres = fixture.database as PostgresConnection;
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status = 'published', review_status = NULL WHERE id = $1",
+                [cardId]
+            );
+            const draft = ownedCard(cardId, ownerId);
+            const staged = await fixture.fudaba.updateCardMetadataForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                producerName: 'Renamed producer',
+                seriesCodes: draft.seriesCodes,
+                favoriteCharacterIds: draft.favoriteCharacterIds,
+                bio: draft.bio,
+                tradeNote: draft.tradeNote,
+                exchangeMode: draft.exchangeMode,
+                madeOn: draft.madeOn,
+                groupName: draft.groupName,
+                producerReading: draft.producerReading,
+                isOriginal: draft.isOriginal,
+                madeWithAi: draft.madeWithAi,
+                visible: draft.visible,
+                credits: draft.credits,
+                expectedRevision: media.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            assert.equal(staged.card.review_status, 'pending');
+            // 只改文案的修订不写页面行：线上页集（含中间页）原样保留，审核通过
+            // 时不会把它们丢掉。
+            assert.deepEqual(staged.card.middle_object_keys, middleKeys);
+            assert.deepEqual(staged.card.pending_pages, []);
+        });
+
+        postgresTest('real PostgreSQL keeps page rows stable across reorder, add and delete', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-pages-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-pages-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const postgres = fixture.database as PostgresConnection;
+            const page = (name: string) => `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) => `${'abcdef12'.repeat(4)}`.slice(0, 8) + `-0000-4000-8000-00000000000${n}`;
+            const key = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
+            const rows = async () =>
+                (await postgres.pool.query(
+                    'SELECT page_id, display_order, object_version FROM public.fudaba_card_pages WHERE card_id = $1 ORDER BY display_order',
+                    [cardId]
+                )).rows as Array<{ page_id: string; display_order: number; object_version: string }>;
+
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa1', 1),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [key('aaaaaaa2', 2)],
+                accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa3'), objectVersion: version(3), width: 1000, height: 700 }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            assert.deepEqual((await rows()).map((row) => row.display_order), [1, 2, 3]);
+            const versionsBefore = (await rows()).map((row) => row.object_version);
+
+            // 调换顺序：只改 display_order，版本不变。
+            const reordered = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa2', 2),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [key('aaaaaaa1', 1)],
+                accent: null,
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(reordered.status, 'saved');
+            if (reordered.status !== 'saved') return;
+            assert.deepEqual(
+                (await rows()).map((row) => row.page_id),
+                [page('aaaaaaa2'), page('aaaaaaa1'), page('aaaaaaa3')]
+            );
+            assert.deepEqual(
+                (await rows()).map((row) => row.object_version),
+                [versionsBefore[1], versionsBefore[0], versionsBefore[2]]
+            );
+
+            // 加页：新行插入到目标位置，已有页顺序顺延。
+            const added = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa2', 2),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [key('aaaaaaa9', 9), key('aaaaaaa1', 1)],
+                accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa9'), objectVersion: version(9), width: 1000, height: 700 }
+                ],
+                expectedRevision: reordered.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(added.status, 'saved');
+            if (added.status !== 'saved') return;
+            assert.deepEqual(
+                (await rows()).map((row) => row.page_id),
+                [page('aaaaaaa2'), page('aaaaaaa9'), page('aaaaaaa1'), page('aaaaaaa3')]
+            );
+
+            // 删页：对应行删除，其余重排。
+            const removed = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: key('aaaaaaa2', 2),
+                backObjectKey: key('aaaaaaa3', 3),
+                middleObjectKeys: [],
+                accent: null,
+                expectedRevision: added.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(removed.status, 'saved');
+            if (removed.status !== 'saved') return;
+            assert.deepEqual(
+                (await rows()).map((row) => row.page_id),
+                [page('aaaaaaa2'), page('aaaaaaa3')]
+            );
+            assert.deepEqual((await rows()).map((row) => row.display_order), [1, 2]);
+        });
+
+        postgresTest('real PostgreSQL promotes staged pages when a revision is approved', async () => {
+            const fixture = await createFixture('postgresql');
+            const ownerId = 'postgresql-approve-pages-owner';
+            await fixture.platform.createAccountWithProfile(account(ownerId));
+            const cardId = 'postgresql-approve-pages-card';
+            const created = await fixture.fudaba.createCardForOwner(
+                ownedCard(cardId, ownerId)
+            );
+            assert.equal(created.status, 'saved');
+            if (created.status !== 'saved') return;
+            const page = (name: string) =>
+                `page-${name}-0000-4000-8000-000000000000`;
+            const version = (n: number) =>
+                `abcdef12-0000-4000-8000-00000000000${n}`;
+            const live = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/live/${page(name)}.${version(n)}.webp`;
+            const pending = (name: string, n: number) =>
+                `community/fudaba/cards/${cardId}/pending/${page(name)}.${version(n)}.webp`;
+            const postgres = fixture.database as PostgresConnection;
+            const first = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: live('aaaaaaa1', 1),
+                backObjectKey: live('aaaaaaa3', 3),
+                middleObjectKeys: [live('aaaaaaa2', 2)],
+                accent: null,
+                pages: [
+                    { pageId: page('aaaaaaa1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('aaaaaaa3'), objectVersion: version(3), width: 1000, height: 700 }
+                ],
+                expectedRevision: created.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(first.status, 'saved');
+            if (first.status !== 'saved') return;
+            await postgres.pool.query(
+                "UPDATE public.fudaba_cards SET publication_status='published', review_status=NULL WHERE id=$1",
+                [cardId]
+            );
+            const staged = await fixture.fudaba.replaceCardMediaForOwner({
+                cardId,
+                ownerAccountId: ownerId,
+                frontObjectKey: pending('bbbbbbb1', 1),
+                backObjectKey: pending('bbbbbbb3', 3),
+                middleObjectKeys: [pending('bbbbbbb2', 2)],
+                accent: null,
+                pages: [
+                    { pageId: page('bbbbbbb1'), objectVersion: version(1), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb2'), objectVersion: version(2), width: 1000, height: 700 },
+                    { pageId: page('bbbbbbb3'), objectVersion: version(3), width: 1000, height: 700 }
+                ],
+                expectedRevision: first.card.revision,
+                updatedAt: MEDIA_UPDATED_AT
+            });
+            assert.equal(staged.status, 'saved');
+            if (staged.status !== 'saved') return;
+            assert.equal(staged.card.review_status, 'pending');
+            const claimed = await fixture.fudaba.beginRegisteredCardReview(
+                cardId,
+                staged.card.revision
+            );
+            assert.equal(claimed.status, 'claimed');
+            if (claimed.status !== 'claimed') return;
+            const approved = await fixture.fudaba.completeRegisteredCardReview({
+                cardId,
+                approvingRevision: claimed.card.revision,
+                decision: 'publish',
+                reviewedAt: MEDIA_UPDATED_AT,
+                audit: {
+                    username: 'reviewer',
+                    producername: 'Review Admin',
+                    action: 'publish registered card',
+                    target: cardId,
+                    ip: '127.0.0.1',
+                    time: MEDIA_UPDATED_AT
+                }
+            });
+            assert.equal(approved.status, 'saved');
+            const rows = await postgres.pool.query(
+                `SELECT page_id, queue FROM public.fudaba_card_pages
+                  WHERE card_id=$1 ORDER BY queue, display_order`,
+                [cardId]
+            );
+            assert.deepEqual(
+                rows.rows.map((row: { queue: string; page_id: string }) => [
+                    row.queue,
+                    row.page_id
+                ]),
+                [
+                    ['live', page('bbbbbbb1')],
+                    ['live', page('bbbbbbb2')],
+                    ['live', page('bbbbbbb3')]
+                ]
+            );
+        });
+    });
+}
+
+// fudaba-public-read-repository.test.ts
+{
+    const OFFICE_CREATED_AT = "2026-08-02T00:00:00.000Z";
+    const OFFICE_UPDATED_AT = "2026-08-02T00:01:00.000Z";
+    const CARD_OLDEST_AT = "2026-08-02T01:00:00.000Z";
+    const CARD_OLD_AT = "2026-08-02T02:00:00.000Z";
+    const CARD_NEW_AT = "2026-08-02T03:00:00.000Z";
+    const CARD_DELETED_AT = "2026-08-02T04:00:00.000Z";
+
+    const initializedPostgresSchema: SqlSchemaStrategy = {
+        initializeCore: async () => undefined,
+        initializePlatform: async () => undefined,
+        initializeFudaba: async () => undefined,
+        initializeStory: async () => undefined,
+    };
+
+    interface Fixture {
+        database: ManagedSqlDatabase;
+        repository: SqlFudabaRepository;
+        dialect: "postgresql";
+    }
+
+    async function createFixture(
+        dialect: Fixture["dialect"],
+    ): Promise<Fixture> {
+        const harness = await createPostgresTestHarness();
+        const repository = new SqlFudabaRepository(
+            harness.connection,
+            initializedPostgresSchema,
+        );
+        onTestFinished(() => harness.close());
+        await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
+        return { database: harness.connection, repository, dialect };
+    }
+
+    function office(
+        id: string,
+        overrides: Partial<NewFudabaOfficeInput> = {},
+    ): NewFudabaOfficeInput {
+        return {
+            id,
+            ownerAccountId: "owner",
+            slug: id,
+            name: `Office ${id}`,
+            intro: `Intro ${id}`,
+            city: "Shanghai",
+            address: `Private address ${id}`,
+            latitude: 31.2304,
+            longitude: 121.4737,
+            accent: "#ef5b6c",
+            coverObjectKey: `community/fudaba/offices/${id}/cover.webp`,
+            isOpen: true,
+            visitorCount: 0,
+            status: "active",
+            revision: 0,
+            createdAt: OFFICE_CREATED_AT,
+            updatedAt: OFFICE_CREATED_AT,
+            archivedAt: null,
+            seriesCodes: ["765"],
+            ...overrides,
+        };
+    }
+
+    function card(
+        id: string,
+        overrides: Partial<NewFudabaCardInput> = {},
+    ): NewFudabaCardInput {
+        return {
+            id,
+            ownerAccountId: "owner",
+            producerName: `Producer ${id}`,
+            seriesCodes: ["765"],
+            favoriteCharacterIds: [900_001],
+            pages: [cardPageWrite('front'), cardPageWrite('back')],
+            bio: `Bio ${id}`,
+            tradeNote: `Trade ${id}`,
+            exchangeMode: "manual",
+            madeOn: null,
+            groupName: null,
+            producerReading: null,
+            isOriginal: false,
+            madeWithAi: false,
+            visible: true,
+            publicationStatus: "published",
+            revision: 0,
+            createdAt: CARD_OLD_AT,
+            updatedAt: CARD_OLD_AT,
+            deletedAt: null,
+            ...overrides,
+        };
+    }
+
+    async function seedAccount(
+        fixture: Fixture,
+        accountId: string,
+        status: PlatformAccountStatus = "active",
+    ): Promise<void> {
+        const createdAt = 1_700_000_000_000;
+        await fixture.database
+            .prepare(
+                `INSERT INTO platform_accounts
+            (id, status, token_version, created_at, updated_at, deleted_at)
+         VALUES (?, ?, 0, ?, ?, ?)`,
+            )
+            .bind(
+                accountId,
+                status,
+                createdAt,
+                createdAt,
+                status === "deleted" ? createdAt : null,
+            )
+            .run();
+    }
+
+    async function placeCard(
+        fixture: Fixture,
+        officeId: string,
+        cardId: string,
+        zIndex: number,
+        ownerAccountId = "owner",
+    ): Promise<void> {
+        assert.equal(
+            await fixture.repository.placeOwnedCard({
+                officeId,
+                cardId,
+                ownerAccountId,
+                pinnedAt: CARD_OLD_AT,
+                positionX: 10 + zIndex,
+                positionY: 20 + zIndex,
+                rotation: zIndex,
+                zIndex,
+            }),
+            true,
+        );
+    }
+
+    function assertOfficePrivacy(record: Record<string, unknown>): void {
+        assert.equal(typeof record.address, "string", "address must be public");
+        for (const privateKey of ["owner_account_id", "latitude", "longitude"]) {
+            assert.equal(
+                privateKey in record,
+                false,
+                `${privateKey} must stay private`,
+            );
+        }
+    }
+
+    async function assertPublicReadModels(
+        dialect: Fixture["dialect"],
+    ): Promise<void> {
+        const fixture = await createFixture(dialect);
+        for (const accountId of ["owner", "viewer", "other-viewer"]) {
+            await seedAccount(fixture, accountId);
+        }
+        await seedAccount(fixture, "restricted-owner", "restricted");
+        await seedAccount(fixture, "suspended-owner", "suspended");
+        await seedAccount(fixture, "deleted-owner", "deleted");
+
+        await fixture.database
+            .prepare("UPDATE agencies SET wiki_enabled=? WHERE code=?")
+            .bind(false, "sidem")
+            .run();
+
+        await fixture.repository.createOffice(
+            office("office-a-closed", {
+                isOpen: false,
+                visitorCount: 100,
+                seriesCodes: ["765", "cg"],
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("office-b-open", {
+                visitorCount: 100,
+                seriesCodes: ["765", "cg", "sidem"],
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("office-c-beijing", {
+                city: "Beijing",
+                visitorCount: 50,
+                seriesCodes: ["ml"],
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("office-hidden", {
+                status: "hidden",
+                visitorCount: 999,
+                seriesCodes: ["cg"],
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("office-archived", {
+                status: "archived",
+                archivedAt: OFFICE_UPDATED_AT,
+                updatedAt: OFFICE_UPDATED_AT,
+                visitorCount: 998,
+                seriesCodes: ["765"],
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("office-d-restricted", {
+                ownerAccountId: "restricted-owner",
+                visitorCount: 40,
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("office-suspended-owner", {
+                ownerAccountId: "suspended-owner",
+                visitorCount: 997,
+            }),
+        );
+        await fixture.repository.createOffice(
+            office("office-deleted-owner", {
+                ownerAccountId: "deleted-owner",
+                visitorCount: 996,
+            }),
+        );
+        await seedPublishedOfficeFixture(fixture.database);
+
+        const series = await fixture.repository.listPublicSeries();
+        assert.equal(
+            series.some((item) => item.code === "sidem"),
+            false,
+        );
+        assert.deepEqual(
+            series.slice(0, 3).map((item) => [item.code, item.active_office_count]),
+            [
+                ["765", 3],
+                ["876", 0],
+                ["cg", 2],
+            ],
+        );
+        assert.deepEqual(series[0], {
+            id: 1,
+            code: "765",
+            display_name: "765PRO",
+            color: "#f34f6d",
+            display_order: 0,
+            icon_object_key: "wiki/shared/static/icon/765pro.webp",
+            image_transform: {
+                fit: "contain",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+            },
+            active_office_count: 3,
+        });
+
+        const firstOfficePage = await fixture.repository.listPublicOffices({
+            limit: 1,
+        });
+        assert.deepEqual(
+            firstOfficePage.map((item) => item.id),
+            ["office-a-closed"],
+        );
+        assertOfficePrivacy(
+            firstOfficePage[0] as unknown as Record<string, unknown>,
+        );
+        assert.equal(
+            firstOfficePage[0].cover_object_key?.endsWith("cover.webp"),
+            true,
+        );
+        const nextOfficePage = await fixture.repository.listPublicOffices({
+            limit: 5,
+            after: { visitorCount: 100, id: "office-a-closed" },
+        });
+        assert.deepEqual(
+            nextOfficePage.map((item) => item.id),
+            ["office-b-open", "office-c-beijing", "office-d-restricted"],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicOffices({
+                    city: "Shanghai",
+                    seriesCodes: ["cg"],
+                    isOpen: true,
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["office-b-open"],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicOffices({
+                    isOpen: false,
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["office-a-closed"],
+        );
+        assert.deepEqual(
+            await fixture.repository.listPublicOffices({
+                seriesCodes: ["sidem"],
+                limit: 10,
+            }),
+            [],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicOffices({
+                    seriesCodes: ["cg", "ml"],
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["office-a-closed", "office-b-open", "office-c-beijing"],
+        );
+        assert.deepEqual(
+            await fixture.repository.listPublicOffices({
+                city: "Shang",
+                limit: 10,
+            }),
+            [],
+        );
+
+        // Keyword searches are global, case-insensitive and preserve public eligibility.
+        const reviewerId = await insertBackofficeAccount(fixture.database, 'public-search-reviewer');
+        for (const [id, state] of [['office-a-closed', 'published'], ['office-b-open', 'pending']]) {
+            const published = state === 'published';
+            await insertFudabaOfficePublicLocation(fixture.database, id, OFFICE_CREATED_AT, {
+                review_state: published ? 'published' : 'pending',
+                reviewed_at: published ? OFFICE_CREATED_AT : null,
+                reviewed_by: published ? reviewerId : null,
+                review_audit_id: published ? crypto.randomUUID() : null
+            });
+        }
+        const positioned = await fixture.repository.listPublicOffices({ q: 'Office', limit: 10 });
+        assert.equal(positioned[0].public_precision, 'exact');
+        assert.equal(positioned[0].public_latitude_exact, 31.2304);
+        assert.equal(positioned[0].public_longitude_exact, 121.4737);
+        assert.equal(positioned[1].public_precision, 'exact', 'historical pending locations do not suppress an approved office');
+        assert.equal(positioned[1].public_latitude_exact, 31.2304);
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'OFFICE', limit: 10 })).map((item) => item.id),
+            ['office-a-closed', 'office-b-open', 'office-c-beijing', 'office-d-restricted'],
+        );
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'beijing', limit: 10 })).map((item) => item.id),
+            ['office-c-beijing'],
+        );
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'Private address office-b', limit: 10 })).map((item) => item.id),
+            ['office-b-open'],
+        );
+        await fixture.database.prepare('UPDATE fudaba_offices SET name=? WHERE id=?')
+            .bind('100%_! Office', 'office-a-closed').run();
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: '%_!', limit: 10 })).map((item) => item.id),
+            ['office-a-closed'],
+        );
+        await fixture.database.prepare('UPDATE fudaba_offices SET name=? WHERE id=?')
+            .bind('Office office-a-closed', 'office-a-closed').run();
+
+        const cardInputs = [
+            card("card-z-new", { createdAt: CARD_NEW_AT, updatedAt: CARD_NEW_AT }),
+            card("card-y-new", { createdAt: CARD_NEW_AT, updatedAt: CARD_NEW_AT }),
+            card("card-unavailable", {
+                exchangeMode: "none",
+                createdAt: CARD_OLD_AT,
+                updatedAt: CARD_OLD_AT,
+            }),
+            card("card-cinderella-old", {
+                seriesCodes: ["cg"],
+                createdAt: CARD_OLDEST_AT,
+                updatedAt: CARD_OLDEST_AT,
+            }),
+            card("card-hidden-office", {
+                createdAt: CARD_OLDEST_AT,
+                updatedAt: CARD_OLDEST_AT,
+            }),
+            card("card-restricted-owner", {
+                ownerAccountId: "restricted-owner",
+                createdAt: CARD_OLDEST_AT,
+                updatedAt: CARD_OLDEST_AT,
+            }),
+            card("card-suspended-owner", {
+                ownerAccountId: "suspended-owner",
+                createdAt: CARD_OLDEST_AT,
+                updatedAt: CARD_OLDEST_AT,
+            }),
+            card("card-deleted-owner", {
+                ownerAccountId: "deleted-owner",
+                createdAt: CARD_OLDEST_AT,
+                updatedAt: CARD_OLDEST_AT,
+            }),
+            card("card-disabled-series", {
+                seriesCodes: ["sidem"],
+                createdAt: CARD_OLDEST_AT,
+                updatedAt: CARD_OLDEST_AT,
+            }),
+            card("card-pending", {
+                publicationStatus: "pending",
+                createdAt: CARD_NEW_AT,
+                updatedAt: CARD_NEW_AT,
+            }),
+            card("card-unapproved", {
+                publicationStatus: "pending",
+                createdAt: CARD_NEW_AT,
+                updatedAt: CARD_NEW_AT,
+            }),
+            card("card-deleted", {
+                createdAt: CARD_NEW_AT,
+                updatedAt: CARD_NEW_AT,
+            }),
+        ];
+        for (const input of cardInputs) {
+            await fixture.repository.createCard(input);
+        }
+        await placeCard(fixture, "office-b-open", "card-y-new", 1);
+        await placeCard(fixture, "office-b-open", "card-z-new", 2);
+        await placeCard(fixture, "office-b-open", "card-unavailable", 3);
+        await placeCard(fixture, "office-b-open", "card-pending", 4);
+        await placeCard(fixture, "office-b-open", "card-unapproved", 5);
+        await placeCard(fixture, "office-b-open", "card-deleted", 6);
+        await placeCard(
+            fixture,
+            "office-b-open",
+            "card-restricted-owner",
+            7,
+            "restricted-owner",
+        );
+        await placeCard(
+            fixture,
+            "office-b-open",
+            "card-suspended-owner",
+            8,
+            "suspended-owner",
+        );
+        await placeCard(
+            fixture,
+            "office-b-open",
+            "card-deleted-owner",
+            9,
+            "deleted-owner",
+        );
+        await placeCard(fixture, "office-b-open", "card-disabled-series", 10);
+        await fixture.database
+            .prepare(
+                "UPDATE fudaba_offices SET status='active' WHERE id='office-hidden'",
+            )
+            .run();
+        await placeCard(fixture, "office-hidden", "card-hidden-office", 1);
+        await fixture.database
+            .prepare(
+                "UPDATE fudaba_offices SET status='hidden' WHERE id='office-hidden'",
+            )
+            .run();
+        await placeCard(fixture, "office-suspended-owner", "card-hidden-office", 1);
+        await fixture.database
+            .prepare(
+                `UPDATE fudaba_cards
+         SET deleted_at=?, updated_at=?, revision=revision+1
+         WHERE id='card-deleted'`,
+            )
+            .bind(CARD_DELETED_AT, CARD_DELETED_AT)
+            .run();
+
+        for (const [kind, accountId] of [
+            ["like", "viewer"],
+            ["like", "other-viewer"],
+            ["favorite", "viewer"],
+        ] as const) {
+            assert.equal(
+                await fixture.repository.setCardInteraction({
+                    kind,
+                    cardId: "card-z-new",
+                    accountId,
+                    active: true,
+                    createdAt: CARD_DELETED_AT,
+                }),
+                true,
+            );
+        }
+        assert.equal(
+            await fixture.repository.setCardInteraction({
+                kind: "favorite",
+                cardId: "card-y-new",
+                accountId: "other-viewer",
+                active: true,
+                createdAt: CARD_DELETED_AT,
+            }),
+            true,
+        );
+
+        const detail = await fixture.repository.findPublicOfficeBySlug(
+            "office-b-open",
+            "viewer",
+        );
+        assert.ok(detail);
+        assertOfficePrivacy(detail as unknown as Record<string, unknown>);
+        assert.deepEqual(detail.series_codes, ["765", "cg"]);
+        assert.deepEqual(
+            detail.cards.map((item) => item.id),
+            [
+                "card-y-new",
+                "card-z-new",
+                "card-unavailable",
+                "card-restricted-owner",
+            ],
+        );
+        assert.deepEqual(
+            detail.cards.map((item) => item.z_index),
+            [1, 2, 3, 7],
+        );
+        const likedCard = detail.cards.find((item) => item.id === "card-z-new");
+        assert.ok(likedCard);
+        assert.equal(likedCard.like_count, 2);
+        assert.equal(likedCard.favorite_count, 1);
+        assert.equal(likedCard.viewer_liked, true);
+        assert.equal(likedCard.viewer_favorited, true);
+        assert.equal(likedCard.viewer_owned, false);
+        assert.equal(likedCard.revision, 0);
+        assert.equal(likedCard.updated_at, CARD_OLD_AT);
+        assert.equal("owner_account_id" in likedCard, false);
+        const ownerDetail = await fixture.repository.findPublicOfficeBySlug(
+            "office-b-open",
+            "owner",
+        );
+        assert.equal(
+            ownerDetail?.cards.find((item) => item.id === "card-z-new")
+                ?.viewer_owned,
+            true,
+        );
+        assert.equal(
+            await fixture.repository.findPublicOfficeBySlug("office-hidden", null),
+            null,
+        );
+        assert.equal(
+            await fixture.repository.findPublicOfficeBySlug(
+                "office-suspended-owner",
+                null,
+            ),
+            null,
+        );
+        assert.equal(
+            await fixture.repository.findPublicOfficeBySlug(
+                "office-deleted-owner",
+                null,
+            ),
+            null,
+        );
+        const restrictedDetail = await fixture.repository.findPublicOfficeBySlug(
+            "office-d-restricted",
+            null,
+        );
+        assert.ok(restrictedDetail);
+        assertOfficePrivacy(restrictedDetail as unknown as Record<string, unknown>);
+
+        const firstCardPage = await fixture.repository.listPublicCards({
+            viewerAccountId: null,
+            limit: 1,
+        });
+        assert.deepEqual(
+            firstCardPage.map((item) => item.id),
+            ["card-z-new"],
+        );
+        assert.equal(firstCardPage[0].viewer_liked, false);
+        assert.equal(firstCardPage[0].viewer_favorited, false);
+        assert.equal(firstCardPage[0].like_count, 2);
+        assert.equal("owner_account_id" in firstCardPage[0], false);
+        const allPublicCards = await fixture.repository.listPublicCards({
+            viewerAccountId: null,
+            limit: 100,
+        });
+        assert.equal(
+            allPublicCards.some((item) => item.id === "card-restricted-owner"),
+            true,
+        );
+        for (const hiddenId of [
+            "card-suspended-owner",
+            "card-deleted-owner",
+            "card-disabled-series",
+            "card-pending",
+            "card-unapproved",
+            "card-deleted",
+        ]) {
+            assert.equal(
+                allPublicCards.some((item) => item.id === hiddenId),
+                false,
+                hiddenId,
+            );
+        }
+        const nextCardPage = await fixture.repository.listPublicCards({
+            viewerAccountId: "viewer",
+            limit: 2,
+            after: { createdAt: CARD_NEW_AT, id: "card-z-new" },
+        });
+        assert.deepEqual(
+            nextCardPage.map((item) => item.id),
+            ["card-y-new", "card-unavailable"],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicCards({
+                    seriesCodes: ["765"],
+                    exchangeable: true,
+                    officeSlug: "office-b-open",
+                    viewerAccountId: "viewer",
+                    limit: 10,
+                    after: { createdAt: CARD_NEW_AT, id: "card-z-new" },
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["card-y-new", "card-restricted-owner"],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicCards({
+                    seriesCodes: ["cg"],
+                    viewerAccountId: null,
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["card-cinderella-old"],
+        );
+        assert.deepEqual(
+            await fixture.repository.listPublicCards({
+                seriesCodes: ["sidem"],
+                viewerAccountId: null,
+                limit: 10,
+            }),
+            [],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicCards({
+                    seriesCodes: ["765", "cg"],
+                    viewerAccountId: null,
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            [
+                "card-z-new",
+                "card-y-new",
+                "card-unavailable",
+                "card-restricted-owner",
+                "card-hidden-office",
+                "card-cinderella-old",
+            ],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicCards({
+                    exchangeable: false,
+                    viewerAccountId: null,
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["card-unavailable"],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicCards({
+                    officeSlug: "office-b-open",
+                    viewerAccountId: null,
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            [
+                "card-z-new",
+                "card-y-new",
+                "card-unavailable",
+                "card-restricted-owner",
+            ],
+        );
+        assert.deepEqual(
+            await fixture.repository.listPublicCards({
+                officeSlug: "office-hidden",
+                viewerAccountId: null,
+                limit: 10,
+            }),
+            [],
+        );
+        assert.deepEqual(
+            await fixture.repository.listPublicCards({
+                officeSlug: "office-suspended-owner",
+                viewerAccountId: null,
+                limit: 10,
+            }),
+            [],
+        );
+
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicCards({
+                    favoritedByAccountId: "viewer",
+                    viewerAccountId: "viewer",
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["card-z-new"],
+        );
+        assert.deepEqual(
+            await fixture.repository
+                .listPublicCards({
+                    favoritedByAccountId: "other-viewer",
+                    viewerAccountId: "other-viewer",
+                    limit: 10,
+                })
+                .then((items) => items.map((item) => item.id)),
+            ["card-y-new"],
+        );
+        assert.deepEqual(
+            await fixture.repository.listPublicCards({
+                favoritedByAccountId: "owner",
+                viewerAccountId: "owner",
+                limit: 10,
+            }),
+            [],
+        );
+
+        assert.deepEqual(
+            await fixture.repository.findPublicCardInteractions(
+                "card-z-new",
+                "viewer",
+            ),
+            {
+                like_count: 2,
+                favorite_count: 1,
+                viewer_liked: true,
+                viewer_favorited: true,
+            },
+        );
+        assert.deepEqual(
+            await fixture.repository.findPublicCardInteractions(
+                "card-z-new",
+                null,
+            ),
+            {
+                like_count: 2,
+                favorite_count: 1,
+                viewer_liked: false,
+                viewer_favorited: false,
+            },
+        );
+        for (const hiddenId of [
+            "card-deleted",
+            "card-pending",
+            "card-suspended-owner",
+            "missing-card",
+        ]) {
+            assert.equal(
+                await fixture.repository.findPublicCardInteractions(
+                    hiddenId,
+                    "viewer",
+                ),
+                null,
+                hiddenId,
+            );
+        }
+
+        assert.equal(
+            await fixture.repository.setCardInteraction({
+                kind: "favorite",
+                cardId: "card-z-new",
+                accountId: "viewer",
+                active: false,
+                createdAt: CARD_DELETED_AT,
+            }),
+            true,
+        );
+        assert.deepEqual(
+            await fixture.repository.findPublicCardInteractions(
+                "card-z-new",
+                "viewer",
+            ),
+            {
+                like_count: 2,
+                favorite_count: 0,
+                viewer_liked: true,
+                viewer_favorited: false,
+            },
+        );
+        assert.deepEqual(
+            await fixture.repository.listPublicCards({
+                favoritedByAccountId: "viewer",
+                viewerAccountId: "viewer",
+                limit: 10,
+            }),
+            [],
+        );
+    }
+
+    describe('Fudaba public read repository', () => {
+        postgresTest("PostgreSQL exposes the same Fudaba public read models", async () => {
+            await assertPublicReadModels("postgresql");
+        });
+    });
+}
+
+// fudaba-public-routes.test.ts
+{
+    const NOW = Date.now();
+    const CREATED_AT = "2026-08-02T00:00:00.000Z";
+
+    class PublicMediaStorage implements ObjectStorage {
+        async createPublicReadUrl(key: string): Promise<string | null> {
+            // 统一布局的页面 key 与旧公开目录同属可公开读取的对象；其余一律拒绝。
+            return key.startsWith("public/") ||
+                key.startsWith("community/fudaba/cards/")
+                ? `https://media.example.test/${key}`
+                : null;
+        }
+        async get(): Promise<StoredObject | null> {
+            return null;
+        }
+        async put(
+            _key: string,
+            body: Uint8Array,
+            options: PutObjectOptions = {},
+        ): Promise<StoredObject> {
+            return {
+                body,
+                size: body.byteLength,
+                contentType: options.contentType || "application/octet-stream",
+                etag: "unused",
+            };
+        }
+        async delete(): Promise<void> {}
+        async exists(): Promise<boolean> {
+            return false;
+        }
+        async copy(): Promise<void> {}
+        async move(): Promise<void> {}
+        async list(): Promise<ListedObject[]> {
+            return [];
+        }
+        async deletePrefix(): Promise<void> {}
+    }
+
+    function publicCard(
+        overrides: Partial<FudabaPublicCardRecord> = {},
+    ): FudabaPublicCardRecord {
+        return {
+            id: "card-a",
+            producer_name: "Producer A",
+            series_codes: ["765"],
+            favorite_characters: [],
+            pages: [cardPageRow("front", 1), cardPageRow("back", 2)],
+            middle_object_keys: [],
+            accent: "#4f64dd",
+            bio: "Public bio",
+            trade_note: "Trade note",
+            exchange_mode: "manual",
+            made_on: null,
+            group_name: null,
+            producer_reading: null,
+            is_original: false,
+            made_with_ai: false,
+            visible: true,
+            credits: [],
+            created_at: CREATED_AT,
+            like_count: 2,
+            favorite_count: 1,
+            viewer_liked: false,
+            viewer_favorited: false,
+            ...overrides,
+        };
+    }
+
+    function publicOffice(): FudabaPublicOfficeRecord {
+        return {
+            id: "office-a",
+            slug: "上海-office-a",
+            name: "Office A",
+            intro: "Public intro",
+            city: "Shanghai",
+            // pi-lens-ignore: typos
+            address: "West Bund Art Center",
+            accent: "#ef5b6c",
+            cover_object_key: "public/offices/office-a/cover.webp",
+            is_open: true,
+            visitor_count: 7,
+            series_codes: ["765"],
+        };
+    }
+
+    class PublicFudabaFixture {
+        lastOfficeInput: ListFudabaPublicOfficesInput | null = null;
+        lastCardInput: ListFudabaPublicCardsInput | null = null;
+        officeVisible = true;
+        card = publicCard();
+
+        readonly characters = {
+            listNamecardCharacterAgencies: async () => [
+                {
+                    id: 1,
+                    code: "765",
+                    name_cn: "765PRO",
+                    color: "#f34f6d",
+                    wiki_enabled: true,
+                },
+            ],
+            listNamecardCharacterCatalog: async () => [
+                {
+                    id: 1,
+                    agency_id: 1,
+                    agency_code: "765",
+                    agency_name: "765PRO",
+                    agency_color: "#f34f6d",
+                    category: "idol",
+                    is_fallback: false,
+                    name_cn: "天海春香",
+                    name_ja: "天海春香",
+                    name_en: "Haruka Amami",
+                    aliases: "春香",
+                    display_order: 0,
+                    revision: 1,
+                    created_at: CREATED_AT,
+                    updated_at: CREATED_AT,
+                },
+            ],
+        } as unknown as NamecardCharacterRepository;
+        readonly units = {
+            listNamecardUnitCatalog: async () => [
+                {
+                    id: 1,
+                    name_cn: "765PRO ALLSTARS",
+                    name_ja: null,
+                    name_en: null,
+                    aliases: null,
+                    display_order: 0,
+                    revision: 1,
+                    created_at: CREATED_AT,
+                    updated_at: CREATED_AT,
+                    agencies: [
+                        { id: 1, code: "765", name_cn: "765PRO", color: "#f34f6d" },
+                    ],
+                    members: [
+                        {
+                            character_id: 1,
+                            name_cn: "天海春香",
+                            name_ja: "天海春香",
+                            name_en: "Haruka Amami",
+                            category: "idol",
+                        },
+                    ],
+                },
+            ],
+        } as unknown as NamecardUnitRepository;
+
+        readonly repository = {
+            listPublicSeries: async () => [
+                {
+                    id: 1,
+                    code: "765",
+                    display_name: "765PRO",
+                    color: "#f34f6d",
+                    display_order: 0,
+                    icon_object_key: "public/agencies/765.webp",
+                    image_transform: {
+                        fit: "contain" as const,
+                        focalX: 0.5,
+                        focalY: 0.5,
+                        zoom: 1,
+                        rotation: 0 as const,
+                    },
+                    active_office_count: 1,
+                },
+            ],
+            listPublicOffices: async (input: ListFudabaPublicOfficesInput) => {
+                this.lastOfficeInput = input;
+                const row = {
+                    ...publicOffice(),
+                    owner_account_id: "must-not-leak",
+                    latitude: 31.2,
+                    longitude: 121.4,
+                };
+                return input.limit > 1 ? [row, { ...row, id: "office-b" }] : [row];
+            },
+            findPublicOfficeBySlug: async (
+                _slug: string,
+                viewerAccountId: string | null,
+            ): Promise<FudabaPublicOfficeDetailRecord | null> => {
+                if (!this.officeVisible) return null;
+                return {
+                    ...publicOffice(),
+                    cards: [
+                        {
+                            ...this.card,
+                            viewer_liked: viewerAccountId === "platform-viewer",
+                            viewer_favorited: viewerAccountId === "platform-viewer",
+                            pinned_at: CREATED_AT,
+                            position_x: 50,
+                            position_y: 40,
+                            rotation: 2,
+                            z_index: 3,
+                            revision: 4,
+                            updated_at: CREATED_AT,
+                            viewer_owned: viewerAccountId === "platform-viewer",
+                        },
+                    ],
+                };
+            },
+            listPublicCards: async (input: ListFudabaPublicCardsInput) => {
+                this.lastCardInput = input;
+                const row = {
+                    ...this.card,
+                    viewer_liked: input.viewerAccountId === "platform-viewer",
+                    viewer_favorited: input.viewerAccountId === "platform-viewer",
+                };
+                return input.limit > 1 ? [row, { ...row, id: "card-b" }] : [row];
+            },
+        } as unknown as FudabaRepository;
+    }
+
+    function runtime(
+        fudaba: PublicFudabaFixture,
+        options: {
+            enabled?: boolean;
+            accountStatus?: PlatformAccountStatus;
+        } = {},
+    ): RuntimeServices {
+        const status = options.accountStatus ?? "active";
+        return {
+            fudaba: fudaba.repository,
+            namecardCharacters: fudaba.characters,
+            namecardUnits: fudaba.units,
+            storage: new PublicMediaStorage(),
+            platformTokens: {
+                async sign() {
+                    return "valid-platform";
+                },
+                async verify(token: string) {
+                    if (token !== "valid-platform")
+                        throw new Error("invalid token");
+                    return {
+                        iss: "imsweb" as const,
+                        aud: "ims-platform" as const,
+                        kind: "platform" as const,
+                        id: "platform-viewer",
+                        tokenVersion: 0,
+                        sessionId: "platform-session",
+                        csrfSecret: "csrf-secret",
+                        jti: "access-token",
+                        iat: Math.floor(Date.now() / 1000),
+                        exp: Math.floor(Date.now() / 1000) + 300,
+                    };
+                },
+            },
+            platformAccounts: {
+                async findRefreshSessionById() {
+                    return {
+                        id: "platform-session",
+                        account_id: "platform-viewer",
+                        token_hash: "hash",
+                        previous_token_hash: null,
+                        csrf_hash: "csrf-hash",
+                        expires_at: Date.now() + 60_000,
+                        created_at: NOW,
+                        updated_at: NOW,
+                        revoked_at: null,
+                    };
+                },
+                async findAccountWithProfileById() {
+                    return {
+                        account: {
+                            id: "platform-viewer",
+                            status,
+                            token_version: 0,
+                            created_at: NOW,
+                            updated_at: NOW,
+                            deleted_at: status === "deleted" ? NOW : null,
+                        },
+                        profile: {
+                            account_id: "platform-viewer",
+                            display_name: "Platform Viewer",
+                            avatar_object_key: null,
+                            avatar_external_url: null,
+                            home_city: null,
+                            bio: "",
+                            updated_at: NOW,
+                        },
+                    };
+                },
+                async revokeRefreshSession() {
+                    return true;
+                },
+            } as unknown as NonNullable<RuntimeServices["platformAccounts"]>,
+            config: { fudabaPublicReadEnabled: options.enabled ?? true },
+        };
+    }
+
+    test.describe('Fudaba public routes', () => {
+        test("Fudaba public read feature gate hides every route by default", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba, { enabled: false }));
+            const response = await testRequest(
+                app,
+                "/api/community/exchange/series",
+            );
+            assert.equal(response.status, 404);
+            assert.match(response.headers.get("content-type") ?? "", /^text\/plain/i);
+            assert.equal(await response.text(), "Not Found");
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+        });
+
+        test("public character catalog carries agencies, ordered categories, characters and units", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const response = await testRequest(
+                app,
+                "/api/community/exchange/characters",
+            );
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+            assert.deepEqual(
+                await contractJson(response, namecardCharacterCatalogSchema),
+                {
+                    agencies: [
+                        { id: 1, code: "765", name: "765PRO", color: "#f34f6d" },
+                    ],
+                    categories: [
+                        "idol",
+                        "staff",
+                        "rival",
+                        "mascot",
+                        "chara",
+                        "other",
+                    ],
+                    characters: [
+                        {
+                            id: 1,
+                            agencyId: 1,
+                            agencyCode: "765",
+                            agencyName: "765PRO",
+                            agencyColor: "#f34f6d",
+                            category: "idol",
+                            isFallback: false,
+                            nameCn: "天海春香",
+                            nameJa: "天海春香",
+                            nameEn: "Haruka Amami",
+                            aliases: "春香",
+                        },
+                    ],
+                    units: [
+                        {
+                            id: 1,
+                            nameCn: "765PRO ALLSTARS",
+                            nameJa: null,
+                            nameEn: null,
+                            aliases: null,
+                            agencyIds: [1],
+                            memberIds: [1],
+                        },
+                    ],
+                },
+            );
+
+            const gated = createTestApp(() => runtime(fudaba, { enabled: false }));
+            assert.equal(
+                (await testRequest(gated, "/api/community/exchange/characters")).status,
+                404,
+            );
+        });
+
+        test("Fudaba public series fails closed when icon storage is unavailable", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => ({
+                ...runtime(fudaba),
+                storage: undefined,
+            }));
+
+            const response = await testRequest(
+                app,
+                "/api/community/exchange/series",
+            );
+            assert.equal(response.status, 503);
+            assert.deepEqual(await contractJson(response, fudabaErrorResponseSchema), {
+                error: "Internal server error",
+            });
+        });
+
+        test("anonymous Fudaba discovery exposes only public projections and stable cursors", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const seriesResponse = await testRequest(
+                app,
+                "/api/community/exchange/series",
+            );
+            assert.equal(seriesResponse.status, 200);
+            assert.deepEqual(await contractJson(seriesResponse, fudabaSeriesListSchema), {
+                items: [
+                    {
+                        id: 1,
+                        code: "765",
+                        displayName: "765PRO",
+                        displayOrder: 0,
+                        color: "#f34f6d",
+                        iconUrl: "https://media.example.test/public/agencies/765.webp",
+                        imageTransform: {
+                            fit: "contain",
+                            focalX: 0.5,
+                            focalY: 0.5,
+                            zoom: 1,
+                            rotation: 0,
+                        },
+                        activeOfficeCount: 1,
+                    },
+                ],
+            });
+            const response = await testRequest(
+                app,
+                "/api/community/exchange/offices?city=Shanghai&limit=1",
+                { headers: { cookie: "ims_admin_access=backoffice-token" } },
+            );
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+            const body = await contractJson(response, fudabaOfficePageSchema);
+            assert.equal(body.pageInfo.hasNextPage, true);
+            assert.ok(body.pageInfo.nextCursor);
+            assert.equal(
+                body.items[0].coverUrl,
+                "https://media.example.test/public/offices/office-a/cover.webp",
+            );
+            // pi-lens-ignore: typos
+            assert.equal(body.items[0].address, "West Bund Art Center");
+            const serialized = JSON.stringify(body);
+            for (const forbidden of [
+                "owner_account_id",
+                "cover_object_key",
+                "latitude",
+                "longitude",
+            ]) {
+                assert.equal(serialized.includes(forbidden), false, forbidden);
+            }
+            assert.deepEqual(fudaba.lastOfficeInput, {
+                city: "Shanghai",
+                limit: 2,
+            });
+
+            const mismatched = await testRequest(
+                app,
+                `/api/community/exchange/offices?city=Beijing&limit=1&cursor=${body.pageInfo.nextCursor}`,
+            );
+            assert.equal(mismatched.status, 400);
+        });
+
+        test("valid Platform auth adds viewer flags while Backoffice remains anonymous", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const anonymous = await testRequest(
+                app,
+                "/api/community/exchange/cards",
+                {
+                    headers: { cookie: "ims_admin_access=backoffice-token" },
+                },
+            );
+            assert.equal(anonymous.status, 200);
+            assert.equal(fudaba.lastCardInput?.viewerAccountId, null);
+
+            const authenticated = await testRequest(
+                app,
+                "/api/community/exchange/cards",
+                { headers: { authorization: "Bearer valid-platform" } },
+            );
+            assert.equal(authenticated.status, 200);
+            assert.equal(fudaba.lastCardInput?.viewerAccountId, "platform-viewer");
+            const body = await contractJson(authenticated, fudabaCardPageSchema);
+            assert.deepEqual(body.items[0].interactions, {
+                likes: 2,
+                favorites: 1,
+                viewerLiked: true,
+                viewerFavorited: true,
+            });
+            assert.equal(JSON.stringify(body).includes("object_key"), false);
+
+            const office = await testRequest(
+                app,
+                "/api/community/exchange/offices/上海-office-a",
+                { headers: { authorization: "Bearer valid-platform" } },
+            );
+            assert.equal(office.status, 200);
+            const officeBody = await contractJson(office, fudabaOfficeDetailSchema);
+            assert.equal(officeBody.office.cards[0]?.viewerOwned, true);
+            assert.deepEqual(officeBody.office.cards[0]?.placement, {
+                pinnedAt: CREATED_AT,
+                x: 50,
+                y: 40,
+                rotation: 2,
+                zIndex: 3,
+                revision: 4,
+                updatedAt: CREATED_AT,
+            });
+        });
+
+        test("invalid or blocked Platform credentials never downgrade to anonymous", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const activeApp = createTestApp(() => runtime(fudaba));
+            const invalid = await testRequest(
+                activeApp,
+                "/api/community/exchange/cards",
+                { headers: { cookie: `${PLATFORM_ACCESS_TOKEN_COOKIE}=invalid` } },
+            );
+            assert.equal(invalid.status, 401);
+
+            const suspendedApp = createTestApp(() =>
+                runtime(fudaba, {
+                    accountStatus: "suspended",
+                }),
+            );
+            const suspended = await testRequest(
+                suspendedApp,
+                "/api/community/exchange/cards",
+                { headers: { authorization: "Bearer valid-platform" } },
+            );
+            assert.equal(suspended.status, 403);
+        });
+
+        test("office visibility, query validation, and public media fail closed", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            fudaba.officeVisible = false;
+            assert.equal(
+                (
+                    await testRequest(
+                        app,
+                        "/api/community/exchange/offices/上海-office-a",
+                    )
+                ).status,
+                404,
+            );
+            assert.equal(
+                (
+                    await testRequest(
+                        app,
+                        "/api/community/exchange/offices?bbox=1,2,3,4",
+                    )
+                ).status,
+                400,
+            );
+            assert.equal(
+                (
+                    await testRequest(
+                        app,
+                        "/api/community/exchange/cards?available=yes",
+                    )
+                ).status,
+                400,
+            );
+
+            // 页面行是公开媒体地址的唯一来源：没有页面行时只能失败关闭，
+            // 不能退回旧的 key 列去拼一个地址。
+            fudaba.card = publicCard({ pages: [] });
+            const unavailable = await testRequest(
+                app,
+                "/api/community/exchange/cards",
+            );
+            assert.equal(unavailable.status, 503);
+            assert.deepEqual(await contractJson(unavailable, fudabaErrorResponseSchema), {
+                error: "Internal server error",
+            });
+        });
+
+        test("Fudaba public queries reject duplicate, out-of-range, and mismatched cursor input", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const multiSeries = await testRequest(
+                app,
+                "/api/community/exchange/offices" +
+                    "?series=765&series=cg&limit=2",
+            );
+            assert.equal(multiSeries.status, 200);
+            await contractJson(multiSeries, fudabaOfficePageSchema);
+            assert.deepEqual(fudaba.lastOfficeInput?.seriesCodes, ["765", "cg"]);
+            for (const path of [
+                "/api/community/exchange/offices?q=Shanghai&q=Beijing",
+                `/api/community/exchange/offices?q=${'x'.repeat(121)}`,
+                "/api/community/exchange/offices?city=Shanghai&city=Beijing",
+                "/api/community/exchange/offices?limit=0",
+                "/api/community/exchange/offices?limit=51",
+                "/api/community/exchange/offices?cursor=not-a-cursor",
+                "/api/community/exchange/cards?series=invalid%21",
+                "/api/community/exchange/cards?series=765&series=765",
+                "/api/community/exchange/cards?office=invalid%2Fslug",
+                "/api/community/exchange/offices/invalid_slug",
+                "/api/community/exchange/offices/office-a?unexpected=true",
+            ]) {
+                assert.equal(
+                    (await testRequest(app, path)).status,
+                    400,
+                    path,
+                );
+            }
+
+            const firstPage = await testRequest(
+                app,
+                "/api/community/exchange/cards?series=765&limit=1",
+            );
+            assert.equal(firstPage.status, 200);
+            const body = (await firstPage.json()) as {
+                pageInfo: { nextCursor: string | null };
+            };
+            assert.ok(body.pageInfo.nextCursor);
+            const mismatch = await testRequest(
+                app,
+                "/api/community/exchange/cards" +
+                    `?series=cg&limit=1&cursor=${body.pageInfo.nextCursor}`,
+            );
+            assert.equal(mismatch.status, 400);
+        });
+
+        test('office search delivers canonical exact positions only while map delivery is enabled', async () => {
+            const fixture = new PublicFudabaFixture();
+            const base = runtime(fixture);
+            const repository = base.fudaba!;
+            const appFor = (enabled: boolean) => createTestApp(() => ({
+                ...base,
+                config: { ...base.config, fudabaMapEnabled: enabled },
+                fudaba: {
+                    ...repository,
+                    listPublicOffices: async (input) => (await repository.listPublicOffices(input)).map((office) => ({
+                        ...office, public_precision: 'exact' as const,
+                        public_latitude_exact: 31.230412345, public_longitude_exact: 121.473712345
+                    }))
+                }
+            }));
+            const enabled = await contractJson(await testRequest(appFor(true), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
+            assert.deepEqual(enabled.items[0].location, { latitude: 31.230412345, longitude: 121.473712345, precision: 'exact' });
+            const disabled = await contractJson(await testRequest(appFor(false), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
+            assert.equal(disabled.items[0].location, undefined);
+        });
+
+        test('office keyword cursors stay bound to the submitted query', async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const first = await testRequest(app, '/api/community/exchange/offices?q=%20Shanghai%25_%20&limit=1');
+            assert.equal(first.status, 200);
+            const body = await contractJson(first, fudabaOfficePageSchema);
+            assert.deepEqual(fudaba.lastOfficeInput, { q: 'Shanghai%_', limit: 2 });
+            assert.ok(body.pageInfo.nextCursor);
+            const cursor = encodeURIComponent(body.pageInfo.nextCursor);
+            assert.equal((await testRequest(app, `/api/community/exchange/offices?q=Shanghai%25_&limit=1&cursor=${cursor}`)).status, 200);
+            assert.equal((await testRequest(app, `/api/community/exchange/offices?q=Beijing&limit=1&cursor=${cursor}`)).status, 400);
+        });
+
+        test("Fudaba public surface registers no mutation routes", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+                const response = await testRequest(
+                    app,
+                    "/api/community/exchange/cards",
+                    { method },
+                );
+                assert.equal(response.status, 404, method);
+            }
+            const invalidCredentialMutation = await testRequest(
+                app,
+                "/api/community/exchange/cards",
+                {
+                    method: "POST",
+                    headers: { authorization: "Bearer invalid-platform" },
+                },
+            );
+            assert.equal(invalidCredentialMutation.status, 404);
+        });
+    });
+}

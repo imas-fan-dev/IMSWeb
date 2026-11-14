@@ -1,4 +1,4 @@
-'use strict';
+
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -26,9 +26,13 @@ function filesUnder(directory) {
 }
 
 function compiledSpecifier(file, alias) {
-    const target = path.join(stagingOutput, ...alias.slice(sourceAliasPrefix.length).split('/'));
+    let target = path.join(stagingOutput, ...alias.slice(sourceAliasPrefix.length).split('/'));
     if (!fs.existsSync(`${target}.js`)) {
-        throw new Error(`Internal source alias has no compiled target: ${alias}`);
+        if (fs.existsSync(path.join(target, 'index.js'))) {
+            target = path.join(target, 'index');
+        } else {
+            throw new Error(`Internal source alias has no compiled target: ${alias}`);
+        }
     }
     const relative = path.relative(path.dirname(file), target).split(path.sep).join('/');
     return relative.startsWith('.') ? relative : `./${relative}`;

@@ -1,98 +1,73 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import {
-  getNamecardSubmission,
-  namecardSchema,
-  uploadNamecard,
-  withdrawNamecardSubmission,
-} from "~/lib/api/endpoints/community"
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import { getNamecardPage, namecardSchema } from "~/lib/api/endpoints/community"
 
 describe("community API contracts", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
-  it("normalizes numeric string card IDs", () => {
-    expect(
-      namecardSchema.parse({
-        id: "12",
-        image1_url: "/uploads/front.webp",
-        image2_url: "/uploads/back.webp",
-        image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
-        image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
-        status: "approved",
-        created_at: null,
-      }).id
-    ).toBe(12)
-  })
-
-  it("rejects incomplete card media", () => {
+  it("rejects numeric string card IDs instead of coercing wire data", () => {
     expect(() =>
       namecardSchema.parse({
-        id: 1,
-        image1_url: "/uploads/front.webp",
+        id: "12",
+        status: "approved",
+        created_at: null,
       })
     ).toThrow()
   })
 
-  it("parses the one-time withdrawal receipt returned after upload", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(
-          Response.json({
-            msg: "已提交审核",
-            submission: { id: 19, status: "pending", revision: 0 },
-            withdrawalToken: "a".repeat(43),
-          })
-        )
-      )
-    )
-
-    await expect(
-      uploadNamecard(
-        new File(["front"], "front.png", { type: "image/png" }),
-        new File(["back"], "back.png", { type: "image/png" })
-      ).send()
-    ).resolves.toMatchObject({
-      submission: { id: 19, status: "pending", revision: 0 },
-      withdrawalToken: "a".repeat(43),
-    })
+  it("rejects an incomplete card", () => {
+    expect(() =>
+      namecardSchema.parse({
+        id: 1,
+      })
+    ).toThrow()
   })
 
-  it("keeps the withdrawal token in a header for status and mutation", async () => {
-    const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        const request =
-          input instanceof Request
-            ? input
-            : new Request(new URL(String(input), "http://localhost"), init)
-        requests.push(request)
-        return Promise.resolve(
-          request.method === "GET"
-            ? Response.json({
-                submission: { id: 19, status: "pending", revision: 2 },
-              })
-            : Response.json({
-                success: true,
-                submission: { id: 19, status: "withdrawn", revision: 3 },
-              })
-        )
-      })
-    )
-
-    await getNamecardSubmission(19, "private-receipt-token").send()
-    await withdrawNamecardSubmission(19, "private-receipt-token", 2).send()
-
-    expect(requests).toHaveLength(2)
-    for (const request of requests) {
-      expect(request.headers.get("X-Namecard-Withdrawal-Token")).toBe(
-        "private-receipt-token"
+  it("does not cache viewer-specific claim state across sessions", async () => {
+    let requestCount = 0
+    installFetchMock(() => {
+      requestCount += 1
+      return Promise.resolve(
+        Response.json({
+          list: [
+            {
+              id: 42,
+              cardId: "card-42",
+              cardNumber: 42,
+              revision: 1,
+              producerName: "天海春香",
+              producerReading: null,
+              groupName: null,
+              madeOn: null,
+              isOriginal: false,
+              madeWithAi: false,
+              bio: null,
+              tradeNote: null,
+              exchangeMode: "manual",
+              accent: "#ff74b8",
+              seriesCodes: [],
+              credits: [],
+              canEdit: false,
+              hasOwner: false,
+              seriesCode: null,
+              favoriteCharacters: [],
+              claimStatus: requestCount === 1 ? "unclaimed" : "pending",
+              supplementPending: false,
+              viewerClaimState: requestCount === 1 ? null : "pending",
+              claimerName: null,
+              claimerUid: null,
+            },
+          ],
+          total: 1,
+          totalPage: 1,
+        })
       )
-      expect(request.url).not.toContain("private-receipt-token")
-    }
-    await expect(requests[1]?.json()).resolves.toEqual({
-      expected_revision: 2,
     })
+
+    const first = await getNamecardPage().send()
+    const second = await getNamecardPage().send()
+
+    expect(requestCount).toBe(2)
+    expect(first.list[0]?.viewerClaimState).toBeNull()
+    expect(second.list[0]?.viewerClaimState).toBe("pending")
   })
 })

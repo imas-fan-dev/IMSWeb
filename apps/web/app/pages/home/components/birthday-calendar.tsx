@@ -10,7 +10,9 @@ import { useMemo, useState } from "react"
 
 import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
-import { getBirthdaysOn } from "../birthday-data"
+import { useHomeBirthdays } from "../hooks/use-home-birthdays"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { birthdayStoryHref } from "../birthday-data"
 
 const weekdays = ["一", "二", "三", "四", "五", "六", "日"]
 
@@ -43,6 +45,7 @@ function shiftMonth(current: VisibleMonth, offset: number): VisibleMonth {
 export function BirthdayCalendar({
   today = new Date(),
 }: BirthdayCalendarProps) {
+  const { data, loading, error, retry, getBirthdaysOn } = useHomeBirthdays()
   const todayYear = today.getFullYear()
   const todayMonth = today.getMonth() + 1
   const todayDay = today.getDate()
@@ -91,7 +94,11 @@ export function BirthdayCalendar({
             </h2>
           </div>
           <p className="hidden text-sm text-muted-foreground sm:block">
-            已收录 347 位偶像
+            {loading
+              ? "正在读取生日资料…"
+              : error
+                ? "生日资料暂不可用"
+                : `已收录 ${data.items.length} 位偶像`}
           </p>
         </div>
 
@@ -239,11 +246,25 @@ export function BirthdayCalendar({
                 </p>
               )}
 
-              {selectedDay && selectedBirthdays.length ? (
+              {loading ? (
+                <p role="status" className="mt-4 text-sm text-muted-foreground">
+                  正在加载生日资料…
+                </p>
+              ) : error ? (
+                <div
+                  role="alert"
+                  className="mt-4 text-sm text-muted-foreground"
+                >
+                  <p>生日资料加载失败。</p>
+                  <Button variant="outline" className="mt-3" onClick={retry}>
+                    重试生日资料
+                  </Button>
+                </div>
+              ) : selectedDay && selectedBirthdays.length ? (
                 <ul className="mt-4 divide-y">
                   {selectedBirthdays.map((idol) => (
                     <li
-                      key={`${idol.agency}-${idol.name}`}
+                      key={idol.characterId}
                       className="flex items-center gap-3 py-3 first:pt-0"
                     >
                       <span
@@ -253,7 +274,17 @@ export function BirthdayCalendar({
                       />
                       <span className="min-w-0">
                         <span className="block text-sm font-medium">
-                          {idol.name}
+                          {idol.story ? (
+                            <NavigationLink
+                              href={birthdayStoryHref(idol)!}
+                              className="text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                              aria-label={`${idol.name}的剧情`}
+                            >
+                              {idol.name}
+                            </NavigationLink>
+                          ) : (
+                            idol.name
+                          )}
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
                           {idol.agency}

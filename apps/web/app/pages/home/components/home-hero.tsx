@@ -1,8 +1,10 @@
 import { CakeSliceIcon } from "lucide-react"
 
 import { cn } from "~/lib/utils"
-import { getBirthdaysOn } from "../birthday-data"
+import { useHomeBirthdays } from "../hooks/use-home-birthdays"
 import { seriesItems } from "../home-content"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { birthdayStoryHref } from "../birthday-data"
 
 export function SeriesWall() {
   return (
@@ -10,16 +12,14 @@ export function SeriesWall() {
       className="relative isolate overflow-hidden bg-neutral-950 text-white"
       aria-labelledby="home-heading"
     >
-      <div
-        className="grid h-76 grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-112 lg:grid-cols-6"
-      >
+      <div className="grid h-76 grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-112 lg:grid-cols-6">
         {seriesItems.map((series) => (
-          <a
+          <NavigationLink
             key={series.name}
             data-testid="series-band"
             href={series.href}
             className={cn(
-              "group relative min-w-0 overflow-hidden focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:ring-inset focus-visible:outline-none",
+              "group relative min-w-0 overflow-hidden focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none focus-visible:ring-inset",
               series.background
             )}
             aria-label={series.name}
@@ -33,7 +33,7 @@ export function SeriesWall() {
               decoding="async"
               draggable={false}
             />
-          </a>
+          </NavigationLink>
         ))}
       </div>
 
@@ -43,10 +43,7 @@ export function SeriesWall() {
       />
       <div className="relative z-10 flex min-h-44 items-center justify-center bg-neutral-950 px-5 text-center lg:pointer-events-none lg:absolute lg:inset-0 lg:min-h-0 lg:bg-transparent">
         <div className="max-w-3xl text-white">
-          <h1
-            id="home-heading"
-            className="text-3xl font-semibold sm:text-5xl"
-          >
+          <h1 id="home-heading" className="text-3xl font-semibold sm:text-5xl">
             THE iDOLM@STER
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg/7 sm:text-xl/8">
@@ -58,10 +55,10 @@ export function SeriesWall() {
   )
 }
 
-export function TodayBirthdayNotice() {
-  const today = new Date()
+export function TodayBirthdayNotice({ today = new Date() }: { today?: Date }) {
+  const { getBirthdaysOn, loading, error } = useHomeBirthdays()
   const birthdays = getBirthdaysOn(today.getMonth() + 1, today.getDate())
-  if (!birthdays.length) return null
+  if (loading || error || !birthdays.length) return null
 
   return (
     <aside className="border-b bg-card" aria-label="今日生日">
@@ -74,7 +71,7 @@ export function TodayBirthdayNotice() {
           <span className="font-medium">今天生日：</span>
           {birthdays.map((idol, index) => (
             <span
-              key={idol.agency + "-" + idol.name}
+              key={idol.characterId}
               className="inline-flex items-center gap-1.5 font-semibold"
             >
               {index ? "、" : ""}
@@ -83,7 +80,17 @@ export function TodayBirthdayNotice() {
                 style={{ backgroundColor: idol.color }}
                 aria-hidden="true"
               />
-              {idol.name}
+              {idol.story ? (
+                <NavigationLink
+                  href={birthdayStoryHref(idol)!}
+                  className="text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  aria-label={`${idol.name}的剧情`}
+                >
+                  {idol.name}
+                </NavigationLink>
+              ) : (
+                idol.name
+              )}
             </span>
           ))}
         </p>

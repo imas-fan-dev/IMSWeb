@@ -1,0 +1,138 @@
+// @vitest-environment node
+
+import { resolve, sep } from "node:path"
+
+import { describe, expect, it, vi } from "vitest"
+
+import { localContractsOptimizer } from "../../vite-contracts"
+import {
+  parseByteRange,
+  resolveExchangeMapAssetPath,
+  tauriMapAssetCorsOrigin,
+} from "@/vite-exchange-map-assets"
+import { GENERATED_BUILD_WATCH_OPTIONS } from "@/vite-watch"
+import viteConfig from "@/vite.config"
+
+/** Windows separators are regex escapes (`\`), so they need escaping first. */
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+describe("Vite file watching", () => {
+  it("ignores Web build output and non-runtime Tauri files", () => {
+    expect(GENERATED_BUILD_WATCH_OPTIONS.ignored).toEqual([
+      "**/build/**",
+      "**/build-app/**",
+      "**/src-tauri/gen/**",
+      "**/src-tauri/icon-sources/**",
+      "**/src-tauri/icons/**",
+      "**/src-tauri/target/**",
+    ])
+  })
+})
+
+describe("Vite dependency optimization", () => {
+  it("registers a serve-only optimizer that invalidates linked contracts", () => {
+    expect(localContractsOptimizer(process.cwd())).toMatchObject({
+      name: "imsweb-local-contracts-optimizer",
+      apply: "serve",
+    })
+    expect(viteConfig.plugins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "imsweb-local-contracts-optimizer",
+          apply: "serve",
+        }),
+      ])
+    )
+  })
+  it("pre-bundles linked CommonJS runtime entrypoints", () => {
+    expect(viteConfig.optimizeDeps?.include).toContain(
+      "@imsweb/contracts/fudaba/runtime"
+    )
+  })
+})
+
+it("registers the local AMap security proxy without requiring credentials at build time", () => {
+  expect(viteConfig.plugins).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        name: "imsweb-local-amap-service-proxy",
+        apply: "serve",
+      }),
+    ])
+  )
+})
+
+describe("local exchange map asset delivery", () => {
+  it("parses closed, open-ended, and suffix byte ranges", () => {
+    expect(parseByteRange("bytes=2-5", 10)).toEqual({ start: 2, end: 5 })
+    expect(parseByteRange("bytes=6-", 10)).toEqual({ start: 6, end: 9 })
+    expect(parseByteRange("bytes=-4", 10)).toEqual({ start: 6, end: 9 })
+    expect(parseByteRange("bytes=0-99", 10)).toEqual({ start: 0, end: 9 })
+  })
+
+  it("rejects unsatisfiable and multi-range requests", () => {
+    for (const value of [
+      "bytes=10-",
+      "bytes=8-4",
+      "bytes=-0",
+      "bytes=0-1,4-5",
+      "items=0-1",
+    ]) {
+      expect(parseByteRange(value, 10)).toBeNull()
+    }
+  })
+
+  it("allows only the packaged Tauri origins to fetch LAN map assets", () => {
+    for (const origin of [
+      "tauri://localhost",
+      "http://tauri.localhost",
+      "https://tauri.localhost",
+    ]) {
+      expect(tauriMapAssetCorsOrigin(origin)).toBe(origin)
+    }
+
+    expect(tauriMapAssetCorsOrigin("https://attacker.example")).toBeUndefined()
+    expect(tauriMapAssetCorsOrigin(undefined)).toBeUndefined()
+  })
+
+  it("keeps decoded paths inside data/maps/current", () => {
+    const assetRoot = resolve(process.cwd(), "../../data/maps/current")
+    expect(
+      resolveExchangeMapAssetPath("openfreemap-z0-11.pmtiles", assetRoot)
+    ).toMatch(
+      new RegExp(
+        `data${escapeRegExp(sep)}maps${escapeRegExp(sep)}current${escapeRegExp(sep)}openfreemap-z0-11\\.pmtiles$`
+      )
+    )
+    expect(
+      resolveExchangeMapAssetPath("../outside.pmtiles", assetRoot)
+    ).toBeUndefined()
+    expect(
+      resolveExchangeMapAssetPath("/absolute.pmtiles", assetRoot)
+    ).toBeUndefined()
+  })
+})
+
+describe("Vite dependency cache", () => {
+  it("gives the web and app dev servers separate dependency caches", async () => {
+    const previous = process.env.VITE_IMS_APP_TARGET
+    const load = async (target: string | undefined) => {
+      vi.resetModules()
+      if (target === undefined) delete process.env.VITE_IMS_APP_TARGET
+      else process.env.VITE_IMS_APP_TARGET = target
+      return (await import("@/vite.config")).default.cacheDir
+    }
+    try {
+      const web = await load(undefined)
+      const app = await load("app")
+      expect(web).toBe("node_modules/.vite/web")
+      expect(app).toBe("node_modules/.vite/app")
+    } finally {
+      vi.resetModules()
+      if (previous === undefined) delete process.env.VITE_IMS_APP_TARGET
+      else process.env.VITE_IMS_APP_TARGET = previous
+    }
+  })
+})

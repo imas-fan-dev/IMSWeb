@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { pickAccentFromPixels } from '@/infra/media/sharp/accent';
 import {
     ImagePixelLimitError,
     type ImageInfo,
@@ -109,6 +110,16 @@ export class SharpImageProcessor implements ImageProcessor {
         }
     }
 
+    async rotate(body: Uint8Array, degrees: number): Promise<Uint8Array> {
+        if (!Number.isInteger(degrees) || degrees % 90 !== 0) {
+            throw new Error('旋转角度必须是 90 的倍数');
+        }
+        return sharp(body, { failOn: 'error' })
+            .rotate(degrees)
+            .webp({ quality: 92 })
+            .toBuffer();
+    }
+
     async thumbnailPng(body: Uint8Array, width: number, height: number): Promise<Uint8Array> {
         return new Uint8Array(await sharp(body, inputOptions(DEFAULT_MAX_INPUT_PIXELS))
             .resize(width, height, { fit: 'cover', position: 'center' })
@@ -124,5 +135,26 @@ export class SharpImageProcessor implements ImageProcessor {
         return new Uint8Array(await sharp(body, inputOptions(maxInputPixels(options)))
             .resize({ width, height, fit: 'inside', withoutEnlargement: true })
             .jpeg({ quality: 80 }).toBuffer());
+    }
+
+    async resizeWebp(
+        body: Uint8Array,
+        width: number,
+        options?: ImageInputOptions
+    ): Promise<Uint8Array> {
+        return new Uint8Array(await sharp(body, inputOptions(maxInputPixels(options)))
+            .resize({ width, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 82 }).toBuffer());
+    }
+
+    async dominantColor(body: Uint8Array): Promise<string | null> {
+        // Downsampling first keeps a 40 MP upload cheap: the hue histogram of a
+        // 48x48 thumbnail is the same colour family as the original artwork.
+        const { data, info } = await sharp(body, inputOptions(maxInputPixels()))
+            .resize({ width: 48, height: 48, fit: 'inside', withoutEnlargement: true })
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        return pickAccentFromPixels(new Uint8Array(data), info.channels);
     }
 }

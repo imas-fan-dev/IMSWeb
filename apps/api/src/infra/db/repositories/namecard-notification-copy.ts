@@ -1,0 +1,279 @@
+/**
+ * Single source for the copy attached to every card lifecycle notification.
+ *
+ * Both review pipelines write the same kinds (`core-repository.ts` for the
+ * exchange queue, `fudaba-repository.ts` for registered-card reviews), so the
+ * wording lives here instead of being repeated per call site - and drifts
+ * independently of the reviewer who edits it.
+ */
+export type NamecardNotificationCopyKind =
+    | 'card-approved'
+    | 'card-rejected'
+    | 'card-locked'
+    | 'card-unlocked'
+    | 'card-transferred-out'
+    | 'card-transferred-in'
+    | 'card-admin-edited'
+    | 'card-feedback-accepted'
+    | 'card-feedback-rejected'
+    | 'claim-approved'
+    | 'claim-rejected'
+    | 'card-supplement-approved'
+    | 'card-supplement-rejected'
+    | 'legacy-card-match'
+    | 'card-exchange-requested'
+    | 'card-exchange-accepted'
+    | 'card-exchange-declined';
+
+export interface NamecardNotificationCopy {
+    kind: NamecardNotificationCopyKind;
+    title: string;
+    body: string;
+}
+
+export function cardApprovedCopy(cardNumber: number): NamecardNotificationCopy {
+    return {
+        kind: 'card-approved',
+        title: `名片 #${cardNumber} 已通过审核`,
+        body: `你的名片 #${cardNumber} 已通过审核，现已展示在名片墙上。`
+    };
+}
+
+export function cardRejectedCopy(
+    cardNumber: number,
+    reason: string | null
+): NamecardNotificationCopy {
+    const trimmed = reason?.trim() ?? '';
+    return {
+        kind: 'card-rejected',
+        title: `名片 #${cardNumber} 未通过审核`,
+        body: trimmed.length > 0
+            ? `你的名片 #${cardNumber} 未通过审核。驳回理由：${trimmed}。请按理由修改后可重新提交。`
+            : `你的名片 #${cardNumber} 未通过审核。请修改后可重新提交。`
+    };
+}
+
+export function cardLockedCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-locked',
+        title: `名片 #${cardNumber} 已被锁定`,
+        body: `你的名片 #${cardNumber} 已被锁定。锁定理由：${reason}。`
+    };
+}
+
+export function cardUnlockedCopy(cardNumber: number): NamecardNotificationCopy {
+    return {
+        kind: 'card-unlocked',
+        title: `名片 #${cardNumber} 已解除锁定`,
+        body: `你的名片 #${cardNumber} 已解除锁定，重新进入审核队列。审核通过后会再次展示在名片墙上。`
+    };
+}
+
+/**
+ * A brand new revision of an already published card was turned down. The copy
+ * has to say so, otherwise the owner assumes the card went offline.
+ */
+export function cardRevisionRejectedCopy(
+    cardNumber: number,
+    reason: string | null
+): NamecardNotificationCopy {
+    const trimmed = reason?.trim() ?? '';
+    return {
+        kind: 'card-rejected',
+        title: `名片 #${cardNumber} 的新版本未通过审核`,
+        body: trimmed.length > 0
+            ? `你的名片 #${cardNumber} 的新版本未通过审核。驳回理由：${trimmed}。此前已发布的版本仍然有效。`
+            : `你的名片 #${cardNumber} 的新版本未通过审核。此前已发布的版本仍然有效。`
+    };
+}
+
+/** Same situation as a rejection, but the submission broke the rules. */
+export function cardRevisionFlaggedCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-rejected',
+        title: `名片 #${cardNumber} 的新版本已被标记违规`,
+        body: `你的名片 #${cardNumber} 的新版本因违规被拒绝。理由：${reason}。此前已发布的版本仍然有效。`
+    };
+}
+
+
+/**
+ * The management console rewrote the card. The owner gets a line per changed
+ * field, because "an administrator edited your card" alone leaves them guessing
+ * what to fix.
+ */
+export function cardAdminEditedCopy(
+    cardNumber: number,
+    reason: string,
+    changes: readonly { label: string; before: string | null; after: string | null }[]
+): NamecardNotificationCopy {
+    const lines = changes
+        .slice(0, ADMIN_EDIT_NOTIFICATION_LIMIT)
+        .map((change) => `- ${change.label}：${clip(change.before)} → ${clip(change.after)}`);
+    const overflow = changes.length - lines.length;
+    if (overflow > 0) lines.push(`- 另有 ${overflow} 项改动`);
+    return {
+        kind: 'card-admin-edited',
+        title: `名片 #${cardNumber} 已被管理员修改`,
+        body: clip(
+            `你的名片 #${cardNumber} 已被管理员修改。理由：${reason}。\n修改内容：\n${lines.join('\n')}`,
+            ADMIN_EDIT_NOTIFICATION_BODY_LIMIT
+        )
+    };
+}
+
+/** The card moved to another account: the previous owner is told why. */
+export function cardTransferredOutCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-transferred-out',
+        title: `名片 #${cardNumber} 已转出`,
+        body: `你的名片 #${cardNumber} 已被管理员转移到其他账号。理由：${reason}。`
+    };
+}
+
+/** …and the new owner learns where the card came from. */
+export function cardTransferredInCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-transferred-in',
+        title: `名片 #${cardNumber} 已归入你的账号`,
+        body: `名片 #${cardNumber} 已由管理员归入你的账号。理由：${reason}。`
+    };
+}
+
+const ADMIN_EDIT_NOTIFICATION_LIMIT = 12;
+const ADMIN_EDIT_NOTIFICATION_BODY_LIMIT = 3800;
+
+function clip(value: string | null, limit = 120): string {
+    const text = (value ?? '').replace(/\s+/g, ' ').trim();
+    if (!text.length) return '（空）';
+    return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+/** The reader who reported the card hears the decision, not the owner. */
+export function cardFeedbackAcceptedCopy(
+    cardNumber: number
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-feedback-accepted',
+        title: `名片 #${cardNumber} 的反馈已受理`,
+        body: '您的反馈已受理，感谢您协助维护偶像大师交流站'
+    };
+}
+
+export function cardFeedbackRejectedCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    // The operator usually ends the reason with a period of their own.
+    const sentence = reason.trim().replace(/[。.]+$/u, '');
+    return {
+        kind: 'card-feedback-rejected',
+        title: `名片 #${cardNumber} 的反馈未受理`,
+        body: `您的反馈未被受理，理由：${sentence}。`
+    };
+}
+
+/** The visitor who filled in someone else's card hears the reviewer's verdict. */
+export function cardSupplementApprovedCopy(
+    cardNumber: number,
+    points: number
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-supplement-approved',
+        title: `名片 #${cardNumber} 的补充已通过`,
+        body:
+            points > 0
+                ? `你补充的资料已更新到名片 #${cardNumber}，感谢协助维护偶像大师交流站。本次获得 ${points} 点贡献值。`
+                : `你补充的资料已更新到名片 #${cardNumber}，感谢协助维护偶像大师交流站。`
+    };
+}
+
+export function cardSupplementRejectedCopy(
+    cardNumber: number,
+    reason: string
+): NamecardNotificationCopy {
+    const sentence = reason.trim().replace(/[。.]+$/u, '');
+    return {
+        kind: 'card-supplement-rejected',
+        title: `名片 #${cardNumber} 的补充未通过`,
+        body: `你补充的资料未被采纳，理由：${sentence}。`
+    };
+}
+
+/** The owner's claim outranks a supplement that was still waiting. */
+export function cardSupplementSupersededCopy(
+    cardNumber: number
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-supplement-rejected',
+        title: `名片 #${cardNumber} 的补充已撤销`,
+        body: `这张名片已被制作人认领，你提交的补充无需再审核。`
+    };
+}
+
+/** Invites an account whose name matches an ownerless card to claim it. */
+export function legacyCardMatchCopy(
+    cardNumber: number,
+    producerName: string
+): NamecardNotificationCopy {
+    return {
+        kind: 'legacy-card-match',
+        title: `名片 #${cardNumber} 可能属于你`,
+        body: `名片墙上有一张无主名片 #${cardNumber}，制作人名称是「${producerName}」。如果这是你的名片，可以在名片详情里认领它。`
+    };
+}
+
+/** 手动交换：对方要确认，发起方只能等。 */
+export function cardExchangeRequestedCopy(
+    counterpart: string,
+    cardNumbers: number[]
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-exchange-requested',
+        title: '有一笔名片交换在等你确认',
+        body: `${counterpart} 想和你交换名片，涉及 ${describeCardNumbers(cardNumbers)}。到名片册里确认或婉拒，一周内不处理会自动过期。`
+    };
+}
+
+export function cardExchangeAcceptedCopy(
+    counterpart: string,
+    cardNumbers: number[]
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-exchange-accepted',
+        title: '名片交换已完成',
+        body: `${counterpart} 已经确认交换，${describeCardNumbers(cardNumbers)} 已放进双方的名片册。`
+    };
+}
+
+export function cardExchangeDeclinedCopy(
+    counterpart: string,
+    cardNumbers: number[]
+): NamecardNotificationCopy {
+    return {
+        kind: 'card-exchange-declined',
+        title: '对方婉拒了这次交换',
+        body: `${counterpart} 婉拒了 ${describeCardNumbers(cardNumbers)} 的交换，这次没有名片易手。`
+    };
+}
+
+/** 通知正文里只点名几张，更多的用「等 N 张」收尾。 */
+function describeCardNumbers(cardNumbers: number[]): string {
+    const labels = cardNumbers.slice(0, 3).map((number) => `#${number}`);
+    if (cardNumbers.length > labels.length) {
+        return `${labels.join('、')} 等 ${cardNumbers.length} 张名片`;
+    }
+    return `${labels.join('、')} 名片`;
+}
