@@ -11,6 +11,8 @@ import {
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
 
+import { z } from "@imsweb/contracts/z"
+
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Button } from "~/components/ui/button"
@@ -145,6 +147,11 @@ export function CardEditor({
       setFeedback({ kind: "error", message: "名片编辑当前未开放。" })
       return
     }
+    // 请求被本地 schema 拦下（压根没发出去）：按字段说清楚，不说「请重试」。
+    if (error instanceof z.ZodError) {
+      setFeedback({ kind: "error", message: schemaFieldMessage(error) })
+      return
+    }
     setFeedback({ kind: "error", message: apiMessage(error, fallback) })
   }
 
@@ -172,6 +179,39 @@ export function CardEditor({
     groupName: "团体名片请填写团体名称。",
     seriesCodes: "请至少选择一个所属企划。",
     media: "请至少添加一张名片图片。",
+  }
+
+  /**
+   * 本地 `fudabaCardUpdateRequestSchema.parse()` 拒绝时的文案：这次请求根本
+   * 没发出去，所以既不能说「请重试」，也不能漏出 zod 的原始英文。
+   */
+  const SCHEMA_FIELD_MESSAGES: Record<string, string> = {
+    producerName: "制作人名称不符合要求。",
+    groupName: "团体名称不符合要求。",
+    producerReading: "制作人名读法只能使用日文假名、英文字母、撇号与连字符。",
+    madeOn: "制作日期需要在 2002 至 2099 年之间。",
+    seriesCodes: "所属企划不符合要求（最多 64 个）。",
+    favoriteCharacterIds: "担当角色不符合要求（最多 200 位且不能重复）。",
+    bio: "个人简介超出长度限制，请精简。",
+    tradeNote: "交换备注超出长度限制，请精简。",
+    credits: "致谢名单不符合要求（最多 8 项，链接需以 http(s) 开头）。",
+    isGroupCard: "团体名片标记无效。",
+    exchangeMode: "交换模式无效。",
+    visible: "可见性设置无效。",
+    expectedRevision: "名片版本已过期，请刷新后重试。",
+  }
+
+  /** 本地 schema 拒绝：按字段给文案；认不出的字段退回它自己的报错。 */
+  function schemaFieldMessage(error: z.ZodError): string {
+    const seen = new Set<string>()
+    const messages: string[] = []
+    for (const issue of error.issues) {
+      const field = String(issue.path[0] ?? "")
+      if (seen.has(field)) continue
+      seen.add(field)
+      messages.push(SCHEMA_FIELD_MESSAGES[field] ?? issue.message)
+    }
+    return messages.join(" ")
   }
 
   /** 跳到第一个缺失的字段，闪两下黄光，并把焦点放进去。 */
