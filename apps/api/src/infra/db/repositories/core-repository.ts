@@ -88,6 +88,11 @@ import {
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
 
+/** 名片册条目能带实时投影的原卡状态；其余（`null`/`approving`/…）只能渲染 `snapshot`（doc §5）。 */
+function shelfCardStatus(value: string | null): 'published' | 'hidden' | null {
+    return value === 'published' || value === 'hidden' ? value : null;
+}
+
 type NamecardLockAuditRow = {
     id: number | string;
     action: NamecardLockAuditAction;
@@ -2937,6 +2942,33 @@ export class SqlCoreRepository implements NamecardRepository {
         )) as NamecardPublicRecord[];
     }
 
+    /**
+     * 名片册条目的原卡投影：`published` 与 `hidden`（持有者删卡）都算「行还在」，按最新内容展示；
+     * `locked` 的条目根本不会进列表，`approving` 等状态仍回落到 `snapshot`（doc §5）。
+     */
+    private async loadShelfCards(
+        database: SqlDatabase,
+        cardNumbers: readonly number[]
+    ): Promise<NamecardPublicRecord[]> {
+        const unique = [...new Set(cardNumbers)];
+        if (unique.length === 0) return [];
+        const placeholders = unique.map(() => '?').join(',');
+        const rows = await queryAll<NamecardCardRow>(
+            database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number IN (${placeholders})
+               AND deleted_at IS NULL
+               AND publication_status IN ('published','hidden')
+               AND ${NAMECARD_PUBLIC_ORIGIN}`,
+            unique
+        );
+        return (await this.attachNamecardFavorites(
+            database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
+    }
+
     /** 名片册留存的那份只读投影。 */
     private collectionSnapshot(
         card: NamecardPublicRecord
@@ -3373,8 +3405,8 @@ export class SqlCoreRepository implements NamecardRepository {
         limit: number;
         offset: number;
     }): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }> {
-        // 条目没有删除操作：`hidden_at` 是「默认不展示」，整卡 `locked` 同样不展示，
-        // 只有卡片行真的没了（`card.id IS NULL`）才落回 `snapshot` 渲染（doc §5）。
+        // 条目没有删除操作：`hidden_at` 是「默认不展示」，整卡 `locked` 同样不展示；
+        // 原卡被持有者下线（`hidden`）仍按最新内容展示，只有卡片行真的没了才落回 `snapshot`（doc §5）。
         const total = await queryOne<{ total: number | string }>(
             this.database,
             `SELECT COUNT(*) AS total
@@ -3389,10 +3421,13 @@ export class SqlCoreRepository implements NamecardRepository {
             card_number: number | string;
             obtained_at: string | Date;
             hidden_at: string | Date | null;
+            card_status: string | null;
             snapshot: unknown;
         }>(
             this.database,
-            `SELECT entry.card_number, entry.obtained_at, entry.hidden_at, entry.snapshot
+            `SELECT entry.card_number, entry.obtained_at, entry.hidden_at, entry.snapshot,
+                    CASE WHEN card.deleted_at IS NULL
+                         THEN card.publication_status END AS card_status
                FROM public.namecard_collection_entries entry
                LEFT JOIN fudaba_cards card ON card.id = entry.card_id
               WHERE entry.collector_account_id=?
@@ -3402,7 +3437,7 @@ export class SqlCoreRepository implements NamecardRepository {
               LIMIT ? OFFSET ?`,
             [input.accountId, input.limit, input.offset]
         );
-        const live = await this.loadExchangeCards(
+        const live = await this.loadShelfCards(
             this.database,
             entries.map((entry) => Number(entry.card_number))
         );
@@ -3415,6 +3450,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 obtained_at: entry.obtained_at,
                 hidden_at: entry.hidden_at,
                 card: liveByNumber.get(Number(entry.card_number)) ?? null,
+                card_status: shelfCardStatus(entry.card_status),
                 snapshot: entry.snapshot as NamecardCollectionSnapshotRecord
             })),
             total: Number(total?.total ?? 0)
@@ -3436,6 +3472,40 @@ export class SqlCoreRepository implements NamecardRepository {
             [input.hidden ? input.at : null, input.accountId, input.cardNumber]
         );
         return Boolean(row);
+    }
+
+    /**
+     * 已经收到这张卡的人可以继续读它的页面对象：原卡被持有者下线（`hidden`）后仍然放行。
+     * `published` 走公开读取、`locked` 谁都不放，所以这里只认 `hidden`（doc §5）。
+     */
+    async findHeldCardPageKey(input: {
+        viewerAccountId: string;
+        cardId: string;
+        pageId: string;
+    }): Promise<string | null> {
+        const row = await queryOne<{ object_version: string }>(
+            this.database,
+            `SELECT page.object_version
+               FROM fudaba_cards card
+               JOIN fudaba_card_pages page
+                 ON page.card_id=card.id AND page.queue='live' AND page.page_id=?
+              WHERE card.id=?
+                AND card.deleted_at IS NULL
+                AND card.publication_status='hidden'
+                AND EXISTS (
+                    SELECT 1 FROM public.namecard_collection_entries entry
+                     WHERE entry.collector_account_id=?
+                       AND entry.card_id=card.id)
+              LIMIT 1`,
+            [input.pageId, input.cardId, input.viewerAccountId]
+        );
+        if (!row) return null;
+        return cardPageObjectKey(
+            input.cardId,
+            'live',
+            input.pageId,
+            row.object_version
+        );
     }
 
     async listQuickExchangeCards(

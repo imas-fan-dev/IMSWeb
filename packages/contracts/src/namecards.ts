@@ -794,12 +794,15 @@ export const namecardCollectionSnapshotSchema =
     })
     .strict()
 
-/** 名片册里的一条：原卡还在就带最新投影，删掉了就只剩快照。 */
+/** 名片册里的一条：原卡行还在就给最新投影（含持有者已下线的 `hidden`），行被删除才只剩快照。 */
 export const namecardCollectionEntrySchema = exactJsonResponse({
   cardNumber: cardIdSchema,
   obtainedAt: z.string().min(1),
   hiddenAt: z.string().min(1).nullable(),
-  /** 原卡是否仍然在线；为 false 时前端只能渲染 `snapshot`。 */
+  /**
+   * 原卡是否仍对外可见（`published`）。为 false 时 `card` **可能仍在**——持有者删卡（`hidden`）
+   * 后已收集者照旧拿到投影与图；只有 `card === null` 才必须渲染 `snapshot`。
+   */
   available: z.boolean(),
   card: namecardSchema.nullable(),
   snapshot: namecardCollectionSnapshotSchema,

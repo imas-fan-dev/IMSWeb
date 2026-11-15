@@ -841,6 +841,7 @@ import { test } from 'vitest';
             async listExchanges() { return { rows: [], total: 0 }; },
             async listCollection() { return { rows: [], total: 0 }; },
             async setCollectionHidden() { return false; },
+            async findHeldCardPageKey() { return null; },
             async countMissingCollectionCards() { return 0; },
             async listQuickExchangeCards() { return []; },
             async replaceQuickExchangeCards() {},

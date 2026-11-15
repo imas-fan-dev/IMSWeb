@@ -407,11 +407,14 @@ export interface NamecardCollectionEntryRecord {
     obtained_at: string | Date;
     hidden_at: string | Date | null;
     /**
-     * 原卡仍在线时带实时投影；`null` 表示它已不可读——卡片行被删除（`card_id` 置空），
-     * 或不再是 `published`（如 `hidden`，条目仍留在册中）。两种情形都改用 `snapshot` 渲染；
+     * 原卡行还在且未被 `locked` 时带实时投影：`published` **与 `hidden`（持有者删卡）都给**，
+     * 因为「我收到的那张」不该因为对方下线而消失。`null` 表示只能渲染 `snapshot`——
+     * 卡片行被删除（`card_id` 置空），或它正处于不进册的状态（如 `approving`）。
      * 整卡 `locked` 的条目根本不会出现在列表里（doc §5）。
      */
     card: NamecardPublicRecord | null;
+    /** 原卡当前是否仍对外可见（`published`）；`hidden` 时为 false 但 `card` 仍在。`null` = 行已不在。 */
+    card_status: 'published' | 'hidden' | null;
     snapshot: NamecardCollectionSnapshotRecord;
 }
 
@@ -513,6 +516,18 @@ export interface NamecardRepository {
         hidden: boolean;
         at: string;
     }): Promise<boolean>;
+    /**
+     * 已经收到这张卡的人可以继续读它的页面对象：原卡被持有者下线（`hidden`）后仍然放行。
+     * `published` 走公开读取、`locked` 谁都不放，因此这里只认 `hidden`（doc §5）。
+     */
+    findHeldCardPageKey(input: {
+        /** 读图的人。 */
+        viewerAccountId: string;
+        /** 卡片的内部 id：交换媒体地址用的就是它。 */
+        cardId: string;
+        /** 页面 id：`front` / `back` / `page-<uuid>`。 */
+        pageId: string;
+    }): Promise<string | null>;
     /** 我有、仍可交换、且对方名片册里还没有的张数。 */
     countMissingCollectionCards(input: {
         /** 名片属于谁。 */

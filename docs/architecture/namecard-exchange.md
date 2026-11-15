@@ -215,9 +215,17 @@ ORDER BY entry.obtained_at DESC
 ```
 
 - `locked` 被过滤；解锁后条目自动重新出现。
-- `hidden` 保留展示，界面标记为已隐藏。
-- 卡片行不存在、**或原卡已不再 `published`**（如持有者删除后 `hidden`）时，用 `snapshot` 渲染。
+- `hidden`（持有者删卡）保留展示，界面标记为已隐藏，**并照旧拿到最新投影与图**。
+- 原卡**可读**（行在、未被 `deleted_at` 判删、状态为 `published` 或 `hidden`）时给实时投影；其余情形——
+  行被物理删除、被后台判决删除（`deleted_at`）、或状态不入册（`pending` / `approving`，例如解锁后回到待审）——
+  才用 `snapshot` 渲染。
 - 内容实时读取，对方更新名片后名片册随之更新。
+- 响应里的 `available` 只表示「原卡是否仍对外可见（`published`）」：`hidden` 时为 false 但 `card` 仍在；
+  前端据 `!available && card` 标记「对方已删除」，只有 `card === null` 才必须渲染 `snapshot`。
+- 媒体准入：公开读取只认 `published`；原卡 `hidden` 之后，**名片册里已经有这张卡的人**仍能读它的页面对象
+  （媒体路由加可选会话 + 一条 `EXISTS namecard_collection_entries` 判断；`hidden_at` 只是展示开关，不影响准入），
+  匿名与没有这张卡的人一律 404。该分支的**最终**响应头由 `/api/community/exchange/*` 的前缀中间件统一设为
+  `private, no-store`（比 handler 里声明的更严）。分享链接本身仍然拒绝 `hidden`（§2.1 不变）。
 
 ## 6. 链接与二维码
 
@@ -301,7 +309,7 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 幂等：同一 `clientExchangeId` 重复提交只落一次。
 - 扫码：单次消费、超时、离线重放。
 - 快速列表：模式改动与状态变化的自动移除。
-- 名片册：锁定过滤、隐藏保留、手动不展示、卡片删除后快照渲染。
+- 名片册：锁定过滤、隐藏保留**并继续出图**、手动不展示；行被删除（物理或后台判删）或状态不入册（`pending` / `approving`）时才快照渲染。
 
 ## 12. 已定的取值与剩余问题
 
@@ -324,8 +332,10 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - ~~名片册快照存对象键、读取时经 `resolveSnapshotMedia` 解析~~ → **更正（2026-11-15 复核）**：
   `namecardCollectionSnapshotSchema` 只含文本字段（`producerName` / `bio` / `tradeNote` / `accent` /
   `seriesCodes` / `credits` 等），**不含页面或媒体**，代码里也从未存在 `resolveSnapshotMedia`。
-  后果：卡片被物理删除后，名片册只能渲染文本、**没有图片**（前端需要占位）。
-  是否让快照带上页面键属于**待定设计**，前端阶段再定。
+  后果：卡片行被**物理删除**后名片册只能渲染文本（前端用占位图）；**持有者删卡（`hidden`）不受影响**——
+  条目照旧带最新投影与图。**已定（2026-11-15，方案 A）**：快照不带页面键；让 `hidden` 卡继续出图靠
+  「媒体路由加可选会话 + 已收集者判断」（见 §5），公开分享链接仍然关闭。取舍对比见任务
+  `.trellis/tasks/11-15-namecard-exchange/design.md` §11-D3。
 
 已定（补充）：
 
@@ -359,7 +369,8 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
   `public-cards/handlers/get-public-card.ts`。已由 `namecard-exchange.test.ts` 的
   「the shelf and the share page hand out exchange media addresses」钉住。
 - ~~名片册快照存键、读时解析~~ → **更正**：快照契约是纯文本投影，没有对象键，也没有
-  `resolveSnapshotMedia`。卡片被删除后名片册**没有图片可显示**，是已知空白（见 §12 的同一条）。
+  `resolveSnapshotMedia`。只有卡片行被物理删除时名片册才**没有图片可显示**（前端用占位图）；
+  持有者删卡（`hidden`）按方案 A 照旧出图（见 §5 / §12）。
 
 验证入口：`apps/api/tests/server/namecard-exchange.test.ts`（真库：双向入册、manual 待确认后裁决、
 幂等与跳过、快速清单过滤）与 `namecard-exchange-routes.test.ts`（分享页 404/400、写接口 401、快速页 404）。

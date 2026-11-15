@@ -55,7 +55,7 @@ CREATE TABLE fudaba_card_pages (
   `Page = { pageId, role, order, url, width, height }`；`role` 由顺序推导（首=front、末=back）。
 - 路由（现有路径保持，参数扩展）：
   - 公开（名片墙）：`GET /api/cards/:id/media/:side?w=`（`side` 兼容 `front|back|middle-N`）
-  - 公开（交换墙，按卡片 UUID）：`GET /api/community/exchange/cards/:cardId/media/:pageId?w=`（新增，页面行缺失时 404）
+  - 公开（交换墙，按卡片 UUID）：`GET /api/community/exchange/cards/:cardId/media/:pageId?w=`（新增；`published` 对外公开，`hidden` 且请求者名片册里已有这张卡时按会话放行，其余 404）
   - 属主：`GET /api/community/exchange/me/cards/:cardId/media/:side?w=`（Bearer）
   - 后台：`GET /api/admin/cards/:id/media/:live|draft/:side?w=`（Cookie）
   - 审核：`GET /api/admin/community/exchange/card-reviews/:cardId/media/:side?w=`，取消视觉改版前先与后台路由共用实现。

@@ -14,7 +14,7 @@ import { toPublicNamecardResponse } from '@/domains/community/namecards/response
 import { resolveExchangeCardMedia } from '@/domains/community/namecards/exchange/media';
 import { namecardRepository } from '@/middleware/hono-context';
 
-/** 名片册：原卡还在就给最新投影，删掉了就只剩交换当时留下的快照。 */
+/** 名片册：原卡行还在就给最新投影（含持有者已下线的 `hidden`），行没了才只剩交换当时留下的快照。 */
 export async function handleListCollection(
     c: NamecardCollectionQueryContext,
 ): Promise<Response> {
@@ -33,7 +33,9 @@ export async function handleListCollection(
                 cardNumber: row.card_number,
                 obtainedAt: new Date(row.obtained_at).toISOString(),
                 hiddenAt: row.hidden_at ? new Date(row.hidden_at).toISOString() : null,
-                available: row.card !== null,
+                // 「在线」只表示原卡仍对外可见；`hidden` 的条目照样带 `card`（图照常显示），
+                // 前端据 `!available && card` 标「对方已删除」（doc §5）。
+                available: row.card_status === 'published',
                 card: row.card
                     ? await resolveExchangeCardMedia(
                           c,

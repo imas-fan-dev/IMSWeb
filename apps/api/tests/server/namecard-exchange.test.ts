@@ -11,6 +11,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { describe } from 'vitest';
+import type { ObjectStorage } from '@/ports/object-storage';
 import type { PlatformAccessTokenInput, PlatformTokenService } from '@/ports/security';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
@@ -64,6 +65,9 @@ const UUID = {
     scanReplay: '0e0e0e0e-0e0e-4e0e-8e0e-0e0e0e0e0e0e',
     idemCountFirst: '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f',
     idemCountReplay: '1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a',
+    mediaHidden: '1c1c1c1c-1c1c-4c1c-8c1c-1c1c1c1c1c1c',
+    heldKey: '1d1d1d1d-1d1d-4d1d-8d1d-1d1d1d1d1d1d',
+    shelfSoftDeleted: '1e1e1e1e-1e1e-4e1e-8e1e-1e1e1e1e1e1e',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
@@ -193,6 +197,31 @@ async function fixture() {
                 platformTokens,
                 namecards,
                 fudaba,
+                // 媒体路由要真出图：夹具只实现读侧，`createReadUrl` 返回私有直链。
+                storage: {
+                    async get() {
+                        return null;
+                    },
+                    async put(): Promise<never> {
+                        throw new Error('the fixture never writes objects');
+                    },
+                    async delete() {},
+                    async exists() {
+                        return false;
+                    },
+                    async copy() {},
+                    async move() {},
+                    async list() {
+                        return [];
+                    },
+                    async deletePrefix() {},
+                    async createReadUrl(key: string) {
+                        return {
+                            url: `https://objects.example.test/${encodeURIComponent(key)}`,
+                            visibility: 'private' as const,
+                        };
+                    },
+                } satisfies ObjectStorage,
                 config: {
                     cookieSecure: false,
                     fudabaPublicReadEnabled: true,
@@ -808,8 +837,8 @@ describe('namecard exchange repository', () => {
         assert.equal((await shelf('collector')).total, 1);
     });
 
-    postgresTest('a hidden card stays on the shelf riding on its snapshot', async () => {
-        const { publish, commit, setCardStatus, shelf } = await fixture();
+    postgresTest('an owner-deleted card keeps its projection and its media on the shelf', async () => {
+        const { app, authHeaders, publish, commit, setCardStatus, shelf } = await fixture();
         const ownerNumber = await publish('owner-shelf-hidden', 'owner', 'auto');
         await commit({
             id: UUID.shelfHidden,
@@ -820,14 +849,30 @@ describe('namecard exchange repository', () => {
             targetCardNumbers: [ownerNumber],
         });
 
-        // 持有者删卡 = `hidden`：名片册照旧保留，界面另做标记（doc 规则 6 / §5）。
+        // 持有者删卡 = `hidden`：条目保留，并且**照旧拿到最新投影与图**（doc 规则 6 / §5）。
         await setCardStatus('owner-shelf-hidden', 'hidden');
         const mine = await shelf('collector');
         assert.equal(mine.total, 1);
         assert.equal(mine.rows[0]?.card_number, ownerNumber);
-        // 原卡不再在线，渲染只能靠交换当时的快照。
-        assert.equal(mine.rows[0]?.card, null);
+        assert.equal(mine.rows[0]?.card_status, 'hidden');
+        assert.ok(mine.rows[0]?.card, '原卡下线后仍要带实时投影');
         assert.equal(mine.rows[0]?.snapshot.producerName, 'Producer owner');
+
+        // 路由层：`available` 只表示「仍对外可见」，页面地址照发。
+        const response = await testRequest(app, '/api/community/exchange/me/collection', {
+            headers: authHeaders('collector'),
+        });
+        assert.equal(response.status, 200, await response.clone().text());
+        const collection = (await response.json()) as {
+            list: Array<{
+                available: boolean;
+                card: { pages?: Array<{ thumbUrl: string }> } | null;
+            }>;
+        };
+        assert.equal(collection.list[0]?.available, false);
+        const pages = collection.list[0]?.card?.pages ?? [];
+        assert.ok(pages.length > 0, '下线后仍要给页面地址');
+        assert.match(pages[0]?.thumbUrl ?? '', /^\/api\/community\/exchange\/cards\//);
     });
 
     postgresTest('a deleted card keeps its shelf row pointed at nothing', async () => {
@@ -855,8 +900,35 @@ describe('namecard exchange repository', () => {
         assert.equal(mine.total, 1);
         assert.equal(mine.rows[0]?.card_number, ownerNumber);
         assert.equal(mine.rows[0]?.card, null);
+        assert.equal(mine.rows[0]?.card_status, null);
         assert.equal(mine.rows[0]?.snapshot.producerName, 'Producer owner');
         assert.equal(mine.rows[0]?.snapshot.exchangeMode, 'auto');
+    });
+
+    postgresTest('a card row deleted by moderation keeps its shelf row on the snapshot', async () => {
+        const { database, publish, commit, shelf } = await fixture();
+        const ownerNumber = await publish('owner-shelf-soft-deleted', 'owner', 'auto');
+        await commit({
+            id: UUID.shelfSoftDeleted,
+            clientExchangeId: 'client-shelf-soft-deleted',
+            source: 'card-share',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerNumber],
+        });
+
+        // 后台判决删除只打 `deleted_at`，不动 `publication_status`：投影已经不在了，
+        // 「是否仍对外可见」也必须跟着变成 false，否则前端既拿不到卡、又不会标出「已删除」。
+        await executeSql(database, 'UPDATE fudaba_cards SET deleted_at=? WHERE id=?', [
+            AT,
+            'owner-shelf-soft-deleted',
+        ]);
+        const mine = await shelf('collector');
+        assert.equal(mine.total, 1);
+        assert.equal(mine.rows[0]?.card_number, ownerNumber);
+        assert.equal(mine.rows[0]?.card, null);
+        assert.equal(mine.rows[0]?.card_status, null);
+        assert.equal(mine.rows[0]?.snapshot.producerName, 'Producer owner');
     });
 
     postgresTest('the display flag never changes what the account owns', async () => {
@@ -1127,6 +1199,75 @@ describe('namecard exchange repository', () => {
     });
 
     /* ---- 交换里的媒体地址（doc §13） ---- */
+
+    postgresTest('the held media key answers only for hidden cards the viewer holds', async () => {
+        const { publish, commit, setCardStatus, namecards } = await fixture();
+        const ownerNumber = await publish('owner-held-key', 'owner', 'auto');
+        await commit({
+            id: UUID.heldKey,
+            clientExchangeId: 'client-held-key',
+            source: 'card-share',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerNumber],
+        });
+        const held = {
+            viewerAccountId: 'collector',
+            cardId: 'owner-held-key',
+            pageId: 'front',
+        };
+
+        // 还在线时由公开读取负责，这个入口不参与。
+        assert.equal(await namecards.findHeldCardPageKey(held), null);
+        await setCardStatus('owner-held-key', 'hidden');
+        assert.ok(await namecards.findHeldCardPageKey(held), '持有者要拿到对象键');
+        // 没收到这张卡的人、或页 id 不存在，都不放行。
+        assert.equal(
+            await namecards.findHeldCardPageKey({ ...held, viewerAccountId: 'owner' }),
+            null,
+        );
+        assert.equal(
+            await namecards.findHeldCardPageKey({ ...held, pageId: 'back' }),
+            null,
+        );
+    });
+
+    postgresTest('a hidden card hands its media to the holders and nobody else', async () => {
+        const { app, authHeaders, publish, commit, setCardStatus } = await fixture();
+        const ownerNumber = await publish('owner-media-hidden', 'owner', 'auto');
+        await commit({
+            id: UUID.mediaHidden,
+            clientExchangeId: 'client-media-hidden',
+            source: 'card-share',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerNumber],
+        });
+        const mediaUrl = '/api/community/exchange/cards/owner-media-hidden/media/front';
+
+        // 还 published：匿名也读得到，公开路径不变。
+        const open = await testRequest(app, mediaUrl, { redirect: 'manual' });
+        assert.equal(open.status, 307, await open.clone().text());
+
+        await setCardStatus('owner-media-hidden', 'hidden');
+
+        // 下线之后：匿名 404、没收到这张卡的账号 404，只有持有者拿得到，且只能进私有缓存。
+        const anonymous = await testRequest(app, mediaUrl, { redirect: 'manual' });
+        assert.equal(anonymous.status, 404);
+        const stranger = await testRequest(app, mediaUrl, {
+            headers: authHeaders('owner'),
+            redirect: 'manual',
+        });
+        assert.equal(stranger.status, 404, '原卡持有者自己也没有收集这张卡');
+        const holder = await testRequest(app, mediaUrl, {
+            headers: authHeaders('collector'),
+            redirect: 'manual',
+        });
+        assert.equal(holder.status, 307, await holder.clone().text());
+        assert.match(holder.headers.get('location') ?? '', /owner-media-hidden/);
+        // 实际头来自 `/api/community/exchange/*` 的前缀中间件，比 handler 自己声明的更严。
+        assert.equal(holder.headers.get('cache-control'), 'private, no-store');
+    });
 
     postgresTest('the shelf and the share page hand out exchange media addresses', async () => {
         const { app, authHeaders, commit, namecards, publish } = await fixture();

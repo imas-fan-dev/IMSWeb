@@ -67,6 +67,8 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
     routes.get(
         '/cards/:cardId/media/:side',
         requireFudabaPublicRead,
+        // 原卡被持有者下线（`hidden`）后不再公开放行，但**已经收到这张卡的人**仍要能看图（doc §5）。
+        optionalPlatformAuth,
         paramSchemaValidator(fudabaCardMediaParamsSchema),
         querySchemaValidator(fudabaMediaQuerySchema),
         handleServeExchangeCardMedia
