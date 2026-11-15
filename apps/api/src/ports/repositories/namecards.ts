@@ -406,7 +406,11 @@ export interface NamecardCollectionEntryRecord {
     card_number: number;
     obtained_at: string | Date;
     hidden_at: string | Date | null;
-    /** 原卡仍在时带实时投影，否则为 null。 */
+    /**
+     * 原卡仍在线时带实时投影；`null` 表示它已不可读——卡片行被删除（`card_id` 置空），
+     * 或不再是 `published`（如 `hidden`，条目仍留在册中）。两种情形都改用 `snapshot` 渲染；
+     * 整卡 `locked` 的条目根本不会出现在列表里（doc §5）。
+     */
     card: NamecardPublicRecord | null;
     snapshot: NamecardCollectionSnapshotRecord;
 }
@@ -516,7 +520,7 @@ export interface NamecardRepository {
         /** 已经收着这些名片的另一方。 */
         otherAccountId: string;
     }): Promise<number>;
-    /** 快速交换清单：只有持有者勾选的卡，读取时再过滤一次可用性。 */
+    /** 快速交换清单：只有持有者勾选的卡，读取时再按 `published` + `auto` 过滤一次。 */
     listQuickExchangeCards(accountId: string): Promise<NamecardPublicRecord[]>;
     replaceQuickExchangeCards(input: {
         accountId: string;

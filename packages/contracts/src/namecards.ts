@@ -737,7 +737,10 @@ export const namecardQuickExchangeSchema = exactJsonResponse({
   targetMissingCount: z.number().int().nonnegative(),
 })
 
-/** 我一侧的快速交换清单；`cards` 只含当前仍可交换的名片。 */
+/**
+ * 选卡界面的一侧投影：`cards` 是**全部**可展示的候选（含 `manual` / `none`），
+ * 只有 `selected` 表示该卡真的在快速交换清单里（清单只收 `published + auto`）。
+ */
 export const namecardQuickCandidateSchema = exactJsonResponse({
   cardNumber: cardIdSchema,
   /** 统一布局的页面，正面在首、背面在末。 */

@@ -3359,10 +3359,16 @@ export class SqlCoreRepository implements NamecardRepository {
         limit: number;
         offset: number;
     }): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }> {
+        // 条目没有删除操作：`hidden_at` 是「默认不展示」，整卡 `locked` 同样不展示，
+        // 只有卡片行真的没了（`card.id IS NULL`）才落回 `snapshot` 渲染（doc §5）。
         const total = await queryOne<{ total: number | string }>(
             this.database,
-            `SELECT COUNT(*) AS total FROM public.namecard_collection_entries
-              WHERE collector_account_id=? AND hidden_at IS NULL`,
+            `SELECT COUNT(*) AS total
+               FROM public.namecard_collection_entries entry
+               LEFT JOIN fudaba_cards card ON card.id = entry.card_id
+              WHERE entry.collector_account_id=?
+                AND entry.hidden_at IS NULL
+                AND (card.id IS NULL OR card.publication_status <> 'locked')`,
             [input.accountId]
         );
         const entries = await queryAll<{
@@ -3372,10 +3378,13 @@ export class SqlCoreRepository implements NamecardRepository {
             snapshot: unknown;
         }>(
             this.database,
-            `SELECT card_number, obtained_at, hidden_at, snapshot
-               FROM public.namecard_collection_entries
-              WHERE collector_account_id=? AND hidden_at IS NULL
-              ORDER BY obtained_at DESC, card_number DESC
+            `SELECT entry.card_number, entry.obtained_at, entry.hidden_at, entry.snapshot
+               FROM public.namecard_collection_entries entry
+               LEFT JOIN fudaba_cards card ON card.id = entry.card_id
+              WHERE entry.collector_account_id=?
+                AND entry.hidden_at IS NULL
+                AND (card.id IS NULL OR card.publication_status <> 'locked')
+              ORDER BY entry.obtained_at DESC, entry.card_number DESC
               LIMIT ? OFFSET ?`,
             [input.accountId, input.limit, input.offset]
         );
@@ -3426,7 +3435,8 @@ export class SqlCoreRepository implements NamecardRepository {
               WHERE quick.account_id=?
                 AND card.deleted_at IS NULL
                 AND card.publication_status='published'
-                AND card.exchange_mode <> 'none'
+                -- 只有 auto 能留在清单里；manual/none 一律实时过滤掉（doc §2.3 / §3.4）。
+                AND card.exchange_mode='auto'
                 AND ${NAMECARD_PUBLIC_ORIGIN}
               ORDER BY quick.added_at DESC, card.card_number DESC
               LIMIT 20`,
@@ -3444,10 +3454,12 @@ export class SqlCoreRepository implements NamecardRepository {
     }): Promise<void> {
         const unique = [...new Set(input.cardNumbers)].slice(0, 20);
         const cards = await this.loadExchangeCards(this.database, unique);
+        // 写入就只收 `published + auto`（`loadExchangeCards` 已经保证 published）：
+        // `manual` 要逐张确认，`none` 不接受他人发起，两者都不属于「一页全收」（doc §2.3 / §3.4）。
         const allowed = cards.filter(
             (card) =>
                 card.owner_account_id === input.accountId &&
-                card.exchange_mode !== 'none'
+                card.exchange_mode === 'auto'
         );
         await this.database.transaction(async (database) => {
             await executeSql(
