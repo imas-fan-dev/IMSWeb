@@ -6,11 +6,14 @@ import type {
     NamecardMutationResponse
 } from '@/domains/community/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
-import { promoteCardPageObjects } from '@/domains/community/fudaba/cards/card-page-objects';
+import { promoteCardPageObjects, protectPromotedCardPages } from '@/domains/community/fudaba/cards/card-page-objects';
 
 export async function handleApproveNamecard(c: NamecardMutationContext): Promise<Response> {
     const { id } = c.req.valid('param');
     const { expected_revision: revision } = c.req.valid('json');
+    /** 本次公开过的待审页副本：判决没落地就要退回受保护态。 */
+    const promoted: string[] = [];
+    let landed = false;
     try {
         const repository = namecardRepository(c);
         const claim = await repository.beginCardApproval(id, revision);
@@ -72,14 +75,18 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
                 )
             )
         ];
-        await promoteCardPageObjects(runtime, stagedKeys);
+        await promoteCardPageObjects(runtime, stagedKeys, promoted);
         const completed = await repository.completeCardApproval(id, claim.card.revision);
         if (completed.status !== 'updated') {
+            // 判决没落地：这次公开的副本退回受保护态（与注册卡审核一致），
+            // 源对象仍在 pending 队列里，重试照常可行。
+            await protectPromotedCardPages(runtime, promoted);
             return c.json({
                 error: 'Namecard changed; refresh and retry',
                 ...(completed.status === 'conflict' ? { revision: completed.revision } : {})
             } satisfies NamecardErrorResponse, 409);
         }
+        landed = true;
         await writeAudit(c, '审核图片通过', `card_id=${id};revision=${completed.card.revision}`);
         return c.json({
             success: true,
@@ -87,6 +94,8 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
         } satisfies NamecardMutationResponse);
     } catch (error) {
         console.error('Failed to approve namecard', error);
+        // 提升过但没走完：副本退回受保护态，别让未通过审核的图片留在公网。
+        if (!landed) await protectPromotedCardPages(services(c), promoted);
         return c.json({ error: '服务器错误' } satisfies NamecardErrorResponse, 500);
     }
 }

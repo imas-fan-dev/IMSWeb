@@ -14,7 +14,10 @@ import {
 } from '@/utils/storage/business-object-keys';
 import { randomHex } from '@/utils/crypto/random';
 import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
-import { promoteCardPageObjects } from '@/domains/community/fudaba/cards/card-page-objects';
+import {
+    promoteCardPageObjects,
+    protectPromotedCardPages
+} from '@/domains/community/fudaba/cards/card-page-objects';
 import type { FudabaCardPageWrite } from '@/ports/repositories';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
@@ -23,6 +26,23 @@ import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
  * told per changed field, so the audit trail carries the labels too.
  */
 export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promise<Response> {
+    /**
+     * 本次公开过的对象键（提升的副本 + 新写入的页面对象）：保存没落地就都要退回
+     * 受保护态，否则未生效的图片会以公开可读的 URL 留在对象存储里。
+     */
+    const published: string[] = [];
+    try {
+        return await updateAdminNamecard(c, published);
+    } catch (error) {
+        await protectPromotedCardPages(services(c), published);
+        throw error;
+    }
+}
+
+async function updateAdminNamecard(
+    c: NamecardUpdateContext,
+    published: string[]
+): Promise<Response> {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const repository = namecardRepository(c);
@@ -120,6 +140,8 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
                 !keepsStaged &&
                 body.status === 'published'
             ) {
+                // 新对象先记进 published：保存没落地时它们同样要退回受保护态。
+                published.push(...createdKeys);
                 await Promise.all(
                     createdKeys.map((key) => runtime.storage!.publish!(key))
                 );
@@ -143,7 +165,8 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
                 stagedArtwork.frontObjectKey,
                 ...stagedArtwork.middleObjectKeys,
                 stagedArtwork.backObjectKey
-            ]
+            ],
+            published
         );
     }
     const result = await repository.updateCardAsAdmin({
@@ -181,6 +204,10 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
         actor: c.get('backofficeUser')?.username ?? null,
         updatedAt: new Date()
     });
+    if (result.status !== 'updated') {
+        // 保存没落地：这次公开的副本与新对象退回受保护态（与审批通过同一口径）。
+        await protectPromotedCardPages(services(c), published);
+    }
     if (result.status === 'not-found') {
         return c.json({ error: 'Namecard not found' } satisfies NamecardErrorResponse, 404);
     }
