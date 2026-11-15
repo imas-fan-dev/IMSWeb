@@ -46,6 +46,7 @@ import type {
     PlatformProfileRecord,
     SoftDeleteOwnedFudabaCardInput,
     ReplaceOwnedFudabaCardMediaInput,
+    RotateOwnedFudabaCardMediaInput,
     ResolveNamecardFeedbackInput,
     UpdateOwnedFudabaCardMetadataInput,
     UpdatePlatformProfileAvatarInput,
@@ -285,6 +286,14 @@ export class SniffingImageProcessor implements ImageProcessor {
     async resizeJpeg(): Promise<Uint8Array> {
         throw new Error('unused');
     }
+
+    /** 真的转像素没有意义：记下请求的角度，原样返回字节。 */
+    readonly rotations: number[] = [];
+
+    async rotate(body: Uint8Array, degrees: number): Promise<Uint8Array> {
+        this.rotations.push(degrees);
+        return body;
+    }
 }
 
 export interface MemoryObject {
@@ -499,6 +508,7 @@ export class OwnerRouteFixture {
     readonly createInputs: CreateOwnedFudabaCardInput[] = [];
     readonly metadataInputs: UpdateOwnedFudabaCardMetadataInput[] = [];
     readonly mediaSetInputs: ReplaceOwnedFudabaCardMediaInput[] = [];
+    readonly rotationInputs: RotateOwnedFudabaCardMediaInput[] = [];
     readonly deleteInputs: SoftDeleteOwnedFudabaCardInput[] = [];
     readonly profileTextInputs: UpdatePlatformProfileTextInput[] = [];
     readonly profileAvatarInputs: UpdatePlatformProfileAvatarInput[] = [];
@@ -835,6 +845,85 @@ export class OwnerRouteFixture {
                 this.cardMutationCommitted = true;
                 throw new Error('media connection lost after commit');
             }
+            return {
+                status: 'saved',
+                card: { ...card },
+                previousObjectKey: null,
+                previousObjectKeys
+            };
+        },
+        /**
+         * 只换图不改页序：与真实仓储一致，状态与待审标记都不动，所以不进复审。
+         */
+        rotateCardMediaForOwner: async (
+            input: RotateOwnedFudabaCardMediaInput
+        ): Promise<FudabaCardMutationResult> => {
+            this.rotationInputs.push(input);
+            const current = this.cards.get(input.cardId);
+            if (
+                !current || current.owner_account_id !== input.ownerAccountId ||
+                current.deleted_at !== null || this.accountStatus !== 'active'
+            ) {
+                return { status: 'unavailable' };
+            }
+            // 与真实仓储的守卫对齐：认领中/锁定的卡不能再旋转。
+            const status: string = current.publication_status;
+            if (status === 'approving' || status === 'locked') {
+                return { status: 'unavailable' };
+            }
+            if (current.revision !== input.expectedRevision) {
+                return { status: 'conflict', revision: current.revision };
+            }
+            const queue = input.staged ? 'pending' as const : 'live' as const;
+            const previousRows = input.staged
+                ? current.pending_pages
+                : current.pages;
+            const previousObjectKeys = previousRows.map((page) =>
+                cardPageObjectKey(
+                    current.id,
+                    page.object_queue ?? queue,
+                    page.page_id,
+                    page.object_version
+                )
+            );
+            const written = new Map(
+                (input.pages ?? []).map((page) => [page.pageId, page])
+            );
+            const rows: FudabaCardPageRecord[] = [];
+            for (const key of [
+                input.frontObjectKey,
+                ...input.middleObjectKeys,
+                ...(input.backObjectKey ? [input.backObjectKey] : [])
+            ]) {
+                const parsed = parseCardPageObjectKey(key);
+                if (!parsed) continue;
+                const page = written.get(parsed.pageId);
+                rows.push({
+                    page_id: parsed.pageId,
+                    display_order: rows.length + 1,
+                    object_version: parsed.version,
+                    object_queue: queue === 'live' ? 'live' : parsed.queue,
+                    width: page?.width ?? 1000,
+                    height: page?.height ?? 700
+                });
+            }
+            const card: FudabaCardRecord = {
+                ...current,
+                ...(input.staged ? { pending_pages: rows } : { pages: rows }),
+                revision: current.revision + 1,
+                updated_at: input.updatedAt
+            };
+            card.middle_object_keys = card.pages
+                .slice(1, -1)
+                .map((page) =>
+                    cardPageObjectKey(
+                        card.id,
+                        page.object_queue ?? 'live',
+                        page.page_id,
+                        page.object_version
+                    )
+                );
+            this.cards.set(card.id, card);
             return {
                 status: 'saved',
                 card: { ...card },

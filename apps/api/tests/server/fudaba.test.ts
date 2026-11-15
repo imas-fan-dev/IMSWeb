@@ -8014,6 +8014,67 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.deepEqual(fixture.storage.deletes, [storedPageKey(live, 'back')]);
         });
 
+        test('rotating only a middle page lands live without a review', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = ownerCard({
+                publication_status: 'published',
+                review_status: null,
+                pages: [
+                    cardPageRow('front', 1),
+                    cardPageRow('page-aaaaaaaa', 2),
+                    cardPageRow('page-bbbbbbbb', 3),
+                    cardPageRow('back', 4)
+                ]
+            });
+            fixture.cards.set('owner-card', live);
+            for (const page of live.pages) {
+                fixture.storage.seed(storedPageKey(live, page.page_id));
+            }
+            fixture.uploads.next = {
+                // 页序原样、没有新图、只给一张中间页的圈数：这就是「只转不换」。
+                fields: {
+                    order: JSON.stringify(['#0', '#1', '#2', '#3']),
+                    rotations: JSON.stringify({ middles: [1] }),
+                    expectedRevision: String(live.revision)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            const body = await response.json();
+            assert.equal(response.status, 200, JSON.stringify(body));
+
+            // 走旋转落库而不是「换整套图」：状态与待审标记都不动，所以不进复审。
+            assert.equal(fixture.mediaSetInputs.length, 0);
+            assert.equal(fixture.rotationInputs.length, 1);
+            assert.deepEqual(fixture.images.rotations, [90]);
+            const saved = fixture.cards.get('owner-card')!;
+            assert.equal(saved.publication_status, 'published');
+            assert.equal(saved.review_status, null);
+            assert.deepEqual(saved.pending_pages, []);
+
+            // 只有被转的那张中间页换了对象，其余三页仍是原来的键。
+            assert.notEqual(
+                storedPageKey(saved, 'page-aaaaaaaa'),
+                storedPageKey(live, 'page-aaaaaaaa')
+            );
+            assert.equal(
+                storedPageKey(saved, 'front'),
+                storedPageKey(live, 'front')
+            );
+            assert.equal(
+                storedPageKey(saved, 'page-bbbbbbbb'),
+                storedPageKey(live, 'page-bbbbbbbb')
+            );
+            assert.equal(
+                storedPageKey(saved, 'back'),
+                storedPageKey(live, 'back')
+            );
+            assert.equal(saved.revision, live.revision + 1);
+        });
+
         test('the ordered submit refuses slots the card does not have', async () => {
             const fixture = new OwnerRouteFixture();
             const live = fixture.cards.get('owner-card')!;
