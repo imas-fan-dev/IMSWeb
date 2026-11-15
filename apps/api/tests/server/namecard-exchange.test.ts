@@ -62,6 +62,8 @@ const UUID = {
     scanTwice: '0c0c0c0c-0c0c-4c0c-8c0c-0c0c0c0c0c0c',
     scanExpired: '0d0d0d0d-0d0d-4d0d-8d0d-0d0d0d0d0d0d',
     scanReplay: '0e0e0e0e-0e0e-4e0e-8e0e-0e0e0e0e0e0e',
+    idemCountFirst: '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f',
+    idemCountReplay: '1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
@@ -433,6 +435,44 @@ describe('namecard exchange repository', () => {
             { cardNumber: ownerNumber, side: 'target', reason: 'already-owned' },
         ]);
         assert.equal((await namecards.listCollection({ accountId: 'collector', limit: 10, offset: 0 })).total, 1);
+    });
+
+    postgresTest('a replayed commit reports the same missing count as the first one', async () => {
+        const { namecards, publish } = await fixture();
+        const ownerNumber = await publish('owner-idem-count', 'owner', 'auto');
+        const givenNumber = await publish('collector-idem-give', 'collector', 'auto');
+        // 第二张留在自己手里，才是重放能看出差别的那张。
+        await publish('collector-idem-keep', 'collector', 'auto');
+
+        const input = {
+            id: UUID.idemCountFirst,
+            clientExchangeId: 'client-idem-count-0001',
+            source: 'quick' as const,
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerNumber],
+            giveCardNumbers: [givenNumber],
+            scanSessionId: null,
+            at: AT,
+        };
+        const first = await namecards.commitExchange(input);
+        assert.equal(first.idempotent, false);
+        // 给出 givenNumber 之后，owner 名下还缺 collector 的那一张。
+        assert.equal(first.targetMissingCount, 1);
+
+        // doc §7：重放拿回同一条记录，缺口数也必须同口径，不能因为是重放就填 0。
+        const replay = await namecards.commitExchange({ ...input, id: UUID.idemCountReplay });
+        assert.equal(replay.idempotent, true);
+        assert.equal(replay.targetMissingCount, 1);
+        // 重放不重写：名片册只有收到的那一张（册子不装自己的卡），交换记录也仍然只有一条。
+        assert.equal(
+            (await namecards.listCollection({ accountId: 'owner', limit: 10, offset: 0 })).total,
+            1,
+        );
+        assert.equal(
+            (await namecards.listExchanges({ accountId: 'collector', limit: 10, offset: 0 })).total,
+            1,
+        );
     });
 
     postgresTest('the quick shelf only keeps cards the owner still offers', async () => {

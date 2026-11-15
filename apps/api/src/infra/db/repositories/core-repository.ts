@@ -3000,7 +3000,17 @@ export class SqlCoreRepository implements NamecardRepository {
     ): Promise<NamecardExchangeCommitResult> {
         const existing = await this.findExchangeByClientId(input.clientExchangeId);
         if (existing) {
-            return { exchange: existing, idempotent: true, targetMissingCount: 0 };
+            // 幂等命中也要与首次提交同口径：这个数用于「对方还缺我哪几张」的二次确认，
+            // 直接填 0 会让一次重放看起来像对方已经全收下了。
+            return {
+                exchange: existing,
+                idempotent: true,
+                targetMissingCount: await this.countMissingCollectionCardsWith(
+                    this.database,
+                    input.initiatorAccountId,
+                    input.targetAccountId
+                )
+            };
         }
         return this.database.transaction(async (database) => {
             const targetCards = await this.loadExchangeCards(
@@ -3124,7 +3134,11 @@ export class SqlCoreRepository implements NamecardRepository {
                 return {
                     exchange: exchangeRecordFromRow(winner),
                     idempotent: true,
-                    targetMissingCount: 0
+                    targetMissingCount: await this.countMissingCollectionCardsWith(
+                        database,
+                        input.initiatorAccountId,
+                        input.targetAccountId
+                    )
                 };
             }
             if (status === 'completed') {

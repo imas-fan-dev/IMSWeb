@@ -67,6 +67,13 @@
 - 名片变为 `locked` 或 `hidden` 时自动移出。
 - 列表内名片被取走的流程与主动分享一致。
 - 任何需要「选择名片参与交换」的场合，都会自动勾选该账号快速交换列表中的名片。
+- 选卡界面里出现的是**候选**，不是清单：`GET` / `PUT /api/community/exchange/me/quick` 的 `cards` 是该账号
+  **全部** `published` 名片（含 `manual` / `none`），只有 `selected: true` 才表示它在快速交换清单里。
+  所以 `selected: false` 的候选要渲染成不可勾选；想分享某张 `manual` / `none` 卡，得先把它改成 `auto`。
+- 快速交换页的「一次收下」（`POST /api/community/exchange/quick/:handle/commit`）收的是**对方快速清单**里的
+  全部名片（`source: 'quick'`）。清单只含 `auto`，所以这类交换必定 `completed`，不会产生待确认、不发通知；
+  对方清单为空（包括「对方只有 `manual` / `none` 名片」）时该接口返回 **409「对方当前没有可交换的名片」**，
+  而页面 `GET /api/community/exchange/quick/:handle` 仍是 200 + 空清单，前端展示空态即可。
 
 ### 2.4 扫码交换
 
@@ -243,6 +250,8 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 网络失败时保留 `{ clientExchangeId, source, target, targetCardNumbers, giveCardNumbers }`。
 - 恢复后按顺序重放，服务端按幂等键返回同一条记录，不重复写入名片册。
 - 扫码 token 只在成功时消费；重放使用同一 token 仍然有效，超过一周则提示重新扫码。
+- 重放先看幂等键：库里已有该 `clientExchangeId` 的记录就直接返回它，此时 token 是否已消费、是否过期都不再拦
+  （扫码 token 的原子消费仍由 `consumed_at` 保证，只是不挡重放）。
 
 ## 8. API 契约
 
