@@ -923,6 +923,26 @@ describe("AccountMeWorkspace", () => {
     expect(screen.getByRole("button", { name: "载入最新名片" })).toBeVisible()
   })
 
+  it("locks the artwork rotation while the card save is in flight", async () => {
+    apiMocks.sendUpdate.mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(
+      await screen.findByRole("button", { name: /周末交换名片/ })
+    )
+    const rotate = await screen.findByRole("button", {
+      name: "向左旋转 90 度",
+    })
+    expect(rotate).toBeEnabled()
+
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
+
+    // 提交后窗口刷新期间画布不能再改：按钮要跟着保存态一起禁用。
+    await waitFor(() => expect(rotate).toBeDisabled())
+  })
+
   it("replaces the ordered artwork set and keeps local changes until save", async () => {
     stubArtworkSizes()
     const user = userEvent.setup()

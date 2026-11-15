@@ -271,6 +271,7 @@ export function CardMediaPreview({
   previewLabel,
   rotations,
   onRotate,
+  disabled = false,
 }: {
   slots: readonly MediaSlot[]
   roleLabels?: boolean
@@ -280,6 +281,8 @@ export function CardMediaPreview({
   /** 审核前的旋转提案：只改预览，随提交一起写入。 */
   rotations?: Readonly<Record<number, number>>
   onRotate?: (position: number, direction: "left" | "right") => void
+  /** 弹窗正在提交：旋转按钮跟着锁住，避免提交中途改草稿。 */
+  disabled?: boolean
 }) {
   return (
     <CardMediaGallery
@@ -287,6 +290,7 @@ export function CardMediaPreview({
       disabled
       readOnly
       allowUpload={false}
+      rotationLocked={disabled}
       roleLabels={roleLabels}
       initialIndex={initialIndex}
       onOpenPreview={onOpenPreview}
@@ -319,7 +323,12 @@ export function CardMediaGallery({
   onRotate,
   /** 每一页待保存的旋转圈数（0-3），只在前端用 CSS 预览。 */
   rotations = {},
-  /** 独立于只读/上传禁用，允许审核前的旋转预览。 */
+  /**
+   * 提交/刷新期间锁住旋转按钮。
+   * 与 `disabled` 分开：`CardMediaPreview` 永远是 `disabled`（不能上传/拖拽），
+   * 但审核前的旋转预览必须还能点，只有弹窗在提交时才锁。
+   */
+  rotationLocked = false,
 }: {
   slots: readonly MediaSlot[]
   disabled: boolean
@@ -334,6 +343,8 @@ export function CardMediaGallery({
   onError: (message: string) => void
   onRotate?: (position: number, direction: "left" | "right") => void
   rotations?: Readonly<Record<number, number>>
+  /** 提交/刷新期间锁住旋转按钮；只读预览传入 `onRotate` 时仍可旋转。 */
+  rotationLocked?: boolean
 }) {
   const [active, setActive] = useState(() => Math.max(0, initialIndex))
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -368,6 +379,8 @@ export function CardMediaGallery({
   )
   /** 点旋转时预览先切到新圈数；这一版位图还留在屏幕上，记下来供换图时顶着用。 */
   function rotate(position: number, direction: "left" | "right") {
+    // 提交/刷新期间画布不该还能改：按钮已经 disabled，这里再兜一层。
+    if (rotationLocked) return
     setHeldTurns((current) => ({
       ...current,
       [position]: nextTurn(pendingTurns(rotations, position), direction),
@@ -664,6 +677,7 @@ export function CardMediaGallery({
               variant="secondary"
               className="size-8 shadow-sm"
               aria-label="向左旋转 90 度"
+              disabled={rotationLocked}
               onClick={(event) => {
                 event.stopPropagation()
                 rotate(position, "left")
@@ -677,6 +691,7 @@ export function CardMediaGallery({
               variant="secondary"
               className="size-8 shadow-sm"
               aria-label="向右旋转 90 度"
+              disabled={rotationLocked}
               onClick={(event) => {
                 event.stopPropagation()
                 rotate(position, "right")

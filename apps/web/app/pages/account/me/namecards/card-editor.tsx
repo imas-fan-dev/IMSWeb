@@ -423,6 +423,7 @@ export function CardEditor({
           <CardMediaGallery
             slots={slots}
             disabled={editDisabled || modes?.media === "view"}
+            rotationLocked={editDisabled || modes?.media === "view"}
             onChange={updateSlots}
             onError={(message) => setFeedback({ kind: "error", message })}
             rotations={rotations}

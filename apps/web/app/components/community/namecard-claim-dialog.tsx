@@ -183,6 +183,7 @@ export function NamecardClaimDialog({
           {card ? (
             <CardMediaPreview
               slots={mediaSlots}
+              disabled={submitting}
               rotations={binding ? {} : rotations}
               onRotate={
                 binding

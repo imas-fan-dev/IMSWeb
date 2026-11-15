@@ -137,6 +137,7 @@ export function NamecardSupplementDialog({
           {card ? (
             <CardMediaPreview
               slots={mediaSlots}
+              disabled={submitting}
               rotations={rotations}
               onRotate={(position, direction) =>
                 setRotations((current) =>
