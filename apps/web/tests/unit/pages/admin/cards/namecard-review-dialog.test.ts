@@ -5,6 +5,7 @@ import {
 } from "~/pages/admin/cards/namecard-review-dialog"
 import { diffImageSlots } from "~/pages/admin/cards/diff-artwork"
 import type { AdminNamecardDiff } from "~/lib/api"
+import { makeCardPage } from "@/mocks/data/namecards"
 
 type DiffSide = AdminNamecardDiff["live"]
 
@@ -14,16 +15,7 @@ function sidePage(
   role: "front" | "middle" | "back",
   url: string
 ) {
-  return {
-    pageId,
-    role,
-    order,
-    url,
-    previewUrl: url,
-    thumbUrl: url,
-    width: 900,
-    height: 500,
-  }
+  return makeCardPage({ pageId, role, order, url })
 }
 
 function side(overrides: Partial<DiffSide> = {}): DiffSide {

@@ -19,7 +19,9 @@ import { createPortal } from "react-dom"
 import { Button } from "~/components/ui/button"
 import { getOwnerCardMedia } from "~/lib/api"
 import { CardImage } from "~/components/shared/card-image"
+import { mediaSlotRole } from "~/components/shared/namecard-pages"
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from "@imsweb/contracts/fudaba/runtime"
+import { nextTurn } from "~/lib/namecards/rotation"
 
 /** One ordered artwork list: the front first, the middle pages, the back last. */
 export const NAMECARD_MEDIA_LIMIT = 2 + NAMECARD_MIDDLE_IMAGE_LIMIT
@@ -126,13 +128,6 @@ export function artworkShapeMismatch(
     return value >= 1 ? value : 1 / value
   }
   return Math.abs(ratio(front) - ratio(back)) > 0.02
-}
-
-export function mediaSlotRole(position: number, total: number): string | null {
-  if (total < 2) return null
-  if (position === 0) return "正面"
-  if (position === total - 1) return "背面"
-  return `中间页 ${position}`
 }
 
 async function measure(
@@ -375,9 +370,7 @@ export function CardMediaGallery({
   function rotate(position: number, direction: "left" | "right") {
     setHeldTurns((current) => ({
       ...current,
-      [position]:
-        (pendingTurns(rotations, position) + (direction === "right" ? 1 : 3)) %
-        4,
+      [position]: nextTurn(pendingTurns(rotations, position), direction),
     }))
     onRotate?.(position, direction)
   }

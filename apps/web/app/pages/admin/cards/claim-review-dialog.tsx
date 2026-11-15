@@ -1,14 +1,11 @@
-import { CheckIcon, XIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
 import {
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
@@ -19,8 +16,12 @@ import {
 } from "~/lib/api"
 import { DiffArtwork, diffImageSlots } from "./diff-artwork"
 import { ReviewCardPreview } from "./review-card-preview"
+import { ReviewDecisionFooter } from "./review-decision-footer"
 import {
   ReviewFieldRows,
+  characterListOrNull,
+  rotationRows,
+  seriesListOrNull,
   useReviewLabels,
   type ReviewRow,
 } from "./review-field-rows"
@@ -31,6 +32,8 @@ type LiveSide = AdminNamecardDiff["live"]
 /**
  * 认领申请只带六个字段：申请值缺省时沿用 live，
  * 因此对照表要按「申请之后这张卡会变成什么」来算右侧。
+ * 申请里的旋转必须让审核员看到，否则通过后卡片朝向会莫名变化；
+ * 绑定型认领提交时不带旋转（调用方已把 `payload` 置空），这里自然得到空数组。
  */
 export function claimRows(
   claim: FudabaAdminCardClaim,
@@ -38,30 +41,8 @@ export function claimRows(
   labels: ReturnType<typeof useReviewLabels>,
   target: LiveSide | null = null
 ): ReviewRow[] {
-  const series = (codes: readonly string[]) =>
-    codes.length ? labels.seriesList(codes) : null
-  const characters = (ids: readonly number[]) =>
-    ids.length ? labels.characterList(ids) : null
   const characterIds = (side: LiveSide) =>
     side.favoriteCharacters.map((character) => character.id)
-  /**
-   * 申请里的旋转必须让审核员看到，否则通过后卡片朝向会莫名变化。
-   * 绑定型认领提交时不带旋转（调用方已把 `payload` 置空），这里自然得到空数组。
-   */
-  const rotationRows = (): ReviewRow[] => {
-    const rotations = claim.payload.rotations
-    if (!rotations) return []
-    const turnLabels = (["front", "back"] as const)
-      .map((side) => {
-        const turns = rotations[side] ?? 0
-        if (!turns) return null
-        return `${side === "front" ? "正面" : "背面"} ${turns * 90}°`
-      })
-      .filter((label): label is string => label !== null)
-    return turnLabels.length > 0
-      ? [textRow("图片旋转", null, turnLabels.join("、"))]
-      : []
-  }
 
   // 绑定型认领丢弃游客投稿的资料：右侧整列取自目标卡片。
   if (target) {
@@ -76,15 +57,15 @@ export function claimRows(
       textRow("制作时间", live?.madeOn ?? null, target.madeOn),
       textRow(
         "企划",
-        series(live?.seriesCodes ?? []),
-        series(target.seriesCodes)
+        seriesListOrNull(labels, live?.seriesCodes ?? []),
+        seriesListOrNull(labels, target.seriesCodes)
       ),
       textRow(
         "担当角色",
-        characters(live ? characterIds(live) : []),
-        characters(characterIds(target))
+        characterListOrNull(labels, live ? characterIds(live) : []),
+        characterListOrNull(labels, characterIds(target))
       ),
-      ...rotationRows(),
+      ...rotationRows(claim.payload.rotations),
     ]
   }
   // 未绑定时右侧是「申请里给了就用申请值，否则沿用线上值」。
@@ -114,15 +95,18 @@ export function claimRows(
     ),
     textRow(
       "企划",
-      series(liveSeries),
-      series(payload.seriesCodes ?? liveSeries)
+      seriesListOrNull(labels, liveSeries),
+      seriesListOrNull(labels, payload.seriesCodes ?? liveSeries)
     ),
     textRow(
       "担当角色",
-      characters(liveCharacters),
-      characters(payload.favoriteCharacterIds ?? liveCharacters)
+      characterListOrNull(labels, liveCharacters),
+      characterListOrNull(
+        labels,
+        payload.favoriteCharacterIds ?? liveCharacters
+      )
     ),
-    ...rotationRows(),
+    ...rotationRows(payload.rotations),
   ]
 }
 
@@ -222,27 +206,14 @@ export function ClaimReviewDialog({
             )}
           </div>
         </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            onClick={() => {
-              if (claim) onApprove(claim)
-            }}
-          >
-            <CheckIcon data-icon="inline-start" aria-hidden="true" />
-            通过
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              if (claim) onReject(claim)
-            }}
-          >
-            <XIcon data-icon="inline-start" aria-hidden="true" />
-            驳回
-          </Button>
-        </DialogFooter>
+        <ReviewDecisionFooter
+          onApprove={() => {
+            if (claim) onApprove(claim)
+          }}
+          onReject={() => {
+            if (claim) onReject(claim)
+          }}
+        />
       </DialogContent>
     </Dialog>
   )

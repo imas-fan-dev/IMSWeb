@@ -1,5 +1,4 @@
 import type {
-  CardPage,
   FudabaCard,
   FudabaCardPage,
   FudabaOffice,
@@ -23,6 +22,8 @@ import type {
 import { iconPath } from "@imsweb/contracts/paths"
 import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 
+import { makeCardPage } from "./namecards"
+
 /**
  * Item-level factories for the owner-facing card, office, and placed-card
  * shapes, alongside the moderation factories below.
@@ -33,25 +34,6 @@ import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
  * `makeFudabaOwnerCardList().items[0]` is both obscure and wasteful. The item
  * shapes are therefore part of the exported surface.
  */
-/** One artwork page: pages are the only media source the UI renders. */
-function mockPage(
-  pageId: string,
-  role: "front" | "middle" | "back",
-  order: number,
-  url: string
-): CardPage {
-  return {
-    pageId,
-    role,
-    order,
-    url,
-    previewUrl: url,
-    thumbUrl: url,
-    width: 900,
-    height: 500,
-  }
-}
-
 export function makeFudabaOwnerCard(
   overrides: Partial<FudabaOwnerCard> = {}
 ): FudabaOwnerCard {
@@ -69,8 +51,18 @@ export function makeFudabaOwnerCard(
     frontImageUrl: `/api/exchange/me/cards/${id}/media/front?v=3`,
     backImageUrl: `/api/exchange/me/cards/${id}/media/back?v=3`,
     pages: [
-      mockPage("front", "front", 1, pageUrl("front")),
-      mockPage("back", "back", 2, pageUrl("back")),
+      makeCardPage({
+        pageId: "front",
+        role: "front",
+        order: 1,
+        url: pageUrl("front"),
+      }),
+      makeCardPage({
+        pageId: "back",
+        role: "back",
+        order: 2,
+        url: pageUrl("back"),
+      }),
     ],
     accent: "#f54798",
     bio: "",
@@ -241,8 +233,18 @@ export function makeFudabaCard(
     frontImageUrl: "https://objects.example.com/cards/1-front.webp",
     backImageUrl: "https://objects.example.com/cards/1-back.webp",
     pages: [
-      mockPage("front", "front", 1, "https://objects.example.com/cards/1-front.webp"),
-      mockPage("back", "back", 2, "https://objects.example.com/cards/1-back.webp"),
+      makeCardPage({
+        pageId: "front",
+        role: "front",
+        order: 1,
+        url: "https://objects.example.com/cards/1-front.webp",
+      }),
+      makeCardPage({
+        pageId: "back",
+        role: "back",
+        order: 2,
+        url: "https://objects.example.com/cards/1-back.webp",
+      }),
     ],
     accent: "#f54798",
     bio: "",
@@ -381,8 +383,18 @@ export function makeFudabaAdminCardClaim(
     legacyCard: {
       id: 42,
       pages: [
-        mockPage("front", "front", 1, "/uploads/namecard/original/abc.webp"),
-        mockPage("back", "back", 2, "/uploads/namecard/original/def.webp"),
+        makeCardPage({
+          pageId: "front",
+          role: "front",
+          order: 1,
+          url: "/uploads/namecard/original/abc.webp",
+        }),
+        makeCardPage({
+          pageId: "back",
+          role: "back",
+          order: 2,
+          url: "/uploads/namecard/original/def.webp",
+        }),
       ],
     },
     ...overrides,

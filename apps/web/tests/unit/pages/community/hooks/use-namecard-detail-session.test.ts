@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import type { Namecard } from "~/lib/api"
 import { useNamecardDetailSession } from "~/pages/community/hooks/use-namecard-detail-session"
+import { makeCardPage } from "@/mocks/data/namecards"
 
 function card(id: number): Namecard {
   return {
@@ -23,26 +24,18 @@ function card(id: number): Namecard {
     seriesCodes: ["765"],
     credits: [],
     pages: [
-      {
+      makeCardPage({
         pageId: `front-${id}`,
         role: "front",
         order: 1,
         url: `/front-${id}.jpg`,
-        previewUrl: `/front-${id}.jpg`,
-        thumbUrl: `/front-${id}.jpg`,
-        width: 900,
-        height: 500,
-      },
-      {
+      }),
+      makeCardPage({
         pageId: `back-${id}`,
         role: "back",
         order: 2,
         url: `/back-${id}.jpg`,
-        previewUrl: `/back-${id}.jpg`,
-        thumbUrl: `/back-${id}.jpg`,
-        width: 900,
-        height: 500,
-      },
+      }),
     ],
     canEdit: false,
     hasOwner: false,

@@ -21,29 +21,13 @@ import { installAdminAuthMock } from "./admin-auth"
 import type { ApiDispatcher, ApiResponse, ApiTimes } from "./api-dispatcher"
 import { installEmptyWikiCatalogMock } from "./homepage"
 
+import { makeCardPage } from "../../../mocks/data/namecards"
+
 /** 列表瓦片只认页面行：正/反/中间由页序推导。 */
 function namecardPages(front: string, back: string) {
   return [
-    {
-      pageId: "page-front",
-      role: "front" as const,
-      order: 1,
-      url: front,
-      previewUrl: front,
-      thumbUrl: front,
-      width: 900,
-      height: 500,
-    },
-    {
-      pageId: "page-back",
-      role: "back" as const,
-      order: 2,
-      url: back,
-      previewUrl: back,
-      thumbUrl: back,
-      width: 900,
-      height: 500,
-    },
+    makeCardPage({ pageId: "page-front", role: "front", order: 1, url: front }),
+    makeCardPage({ pageId: "page-back", role: "back", order: 2, url: back }),
   ]
 }
 

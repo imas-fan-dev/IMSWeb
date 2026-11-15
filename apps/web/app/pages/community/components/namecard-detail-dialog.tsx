@@ -8,12 +8,14 @@ import {
 import { useEffect, useRef, useState } from "react"
 import type { MouseEvent } from "react"
 
+import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { creditParts } from "~/components/community/namecard-credit-format"
 import {
   CardMediaPreview,
   publicMediaSlotsFromCard,
 } from "~/pages/account/me/namecards/card-media-gallery"
 import { useCardFieldFade } from "~/components/community/use-card-field-fade"
+import { namecardPageLabel } from "~/components/shared/namecard-pages"
 import type { NamecardSide } from "~/components/shared/namecard-preview"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -451,31 +453,7 @@ export function NamecardDetailDialog({
               名片 #{card?.cardNumber ?? card?.id ?? ""} · 版本{" "}
               {card?.revision ?? 0}
             </span>
-            {card?.claimStatus === "claimed" ? (
-              card.claimerUid ? (
-                <Badge
-                  variant="outline"
-                  className="text-muted-foreground"
-                  render={<NavigationLink to={`/user/${card.claimerUid}`} />}
-                >
-                  <ShieldCheckIcon
-                    data-icon="inline-start"
-                    aria-hidden="true"
-                  />
-                  {card.claimerName ?? "已由注册用户认领"}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-muted-foreground">
-                  <ShieldCheckIcon
-                    data-icon="inline-start"
-                    aria-hidden="true"
-                  />
-                  {card.claimerName ?? "已由注册用户认领"}
-                </Badge>
-              )
-            ) : card?.claimStatus === "pending" ? (
-              <Badge variant="outline">认领审核中</Badge>
-            ) : null}
+            {card ? <NamecardClaimBadge card={card} layout="inline" /> : null}
             {card?.isOriginal ? (
               <Badge
                 variant="secondary"
@@ -514,11 +492,7 @@ export function NamecardDetailDialog({
                   }
                   previewLabel={(index) =>
                     `放大制作人名片 ${card.id} ${
-                      index === 0
-                        ? "正面"
-                        : index === mediaSlots.length - 1
-                          ? "背面"
-                          : "中间页"
+                      namecardPageLabel(index, mediaSlots.length)
                     }`
                   }
                 />

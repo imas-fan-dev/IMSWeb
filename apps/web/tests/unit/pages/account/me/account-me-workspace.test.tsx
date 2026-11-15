@@ -19,6 +19,7 @@ import { isProfileWorkspaceSection } from "~/pages/account/me/profile-workspace-
 import { ProfileEditor } from "~/pages/account/me/profile/profile-editor"
 import { ExchangeManagementDialog } from "~/pages/community/exchange/components/exchange-management-dialog"
 import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
+import { makeCardPage } from "@/mocks/data/namecards"
 
 const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
@@ -150,26 +151,23 @@ const card = {
   frontImageUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
   backImageUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
   pages: [
-    {
+    // This card is a 960×640 scan, so its size is spelled out.
+    makeCardPage({
       pageId: "page-front",
       role: "front",
       order: 1,
       url: "/api/community/exchange/me/cards/card-1/media/front?v=3",
-      previewUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
-      thumbUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
       width: 960,
       height: 640,
-    },
-    {
+    }),
+    makeCardPage({
       pageId: "page-back",
       role: "back",
       order: 2,
       url: "/api/community/exchange/me/cards/card-1/media/back?v=3",
-      previewUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
-      thumbUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
       width: 960,
       height: 640,
-    },
+    }),
   ],
   accent: "#f34e6c",
   bio: "上海地区制作人",

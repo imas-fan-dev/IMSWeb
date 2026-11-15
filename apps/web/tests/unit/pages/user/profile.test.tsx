@@ -8,6 +8,7 @@ import type {
   PublicProfile,
 } from "~/lib/api"
 import UserProfilePage from "~/pages/user/profile"
+import { makeCardPage } from "@/mocks/data/namecards"
 import { renderPage } from "@/tests/unit/support/harness"
 
 const apiMocks = vi.hoisted(() => ({
@@ -128,26 +129,18 @@ function card(overrides: Partial<Namecard> = {}): Namecard {
     seriesCodes: ["765as"],
     credits: [],
     pages: [
-      {
+      makeCardPage({
         pageId: "front-101",
         role: "front",
         order: 1,
         url: "/cards/front-101.jpg",
-        previewUrl: "/cards/front-101.jpg",
-        thumbUrl: "/cards/front-101.jpg",
-        width: 900,
-        height: 500,
-      },
-      {
+      }),
+      makeCardPage({
         pageId: "back-101",
         role: "back",
         order: 2,
         url: "/cards/back-101.jpg",
-        previewUrl: "/cards/back-101.jpg",
-        thumbUrl: "/cards/back-101.jpg",
-        width: 900,
-        height: 500,
-      },
+      }),
     ],
     canEdit: false,
     hasOwner: true,

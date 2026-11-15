@@ -1,18 +1,19 @@
 import { describe, expect, test } from "vitest"
 
 import { namecardPages } from "~/components/shared/namecard-pages"
+import { makeCardPage } from "@/mocks/data/namecards"
 
 function page(pageId: string, order: number) {
-  return {
+  return makeCardPage({
     pageId,
     order,
-    role: order === 1 ? ("front" as const) : ("back" as const),
+    role: order === 1 ? "front" : "back",
     url: `/api/cards/801/media/${pageId}?w=800`,
-    previewUrl: `/api/cards/801/media/${pageId}?w=800`,
     thumbUrl: `/api/cards/801/media/${pageId}?w=400`,
+    // This suite renders an 800×500 page, so its size stays explicit.
     width: 800,
     height: 500,
-  }
+  })
 }
 
 describe("namecardPages", () => {

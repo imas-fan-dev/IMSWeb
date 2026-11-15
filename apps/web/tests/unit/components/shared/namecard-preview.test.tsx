@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import { namecardPages } from "~/components/shared/namecard-pages"
 import { NamecardPreview } from "~/components/shared/namecard-preview"
 import type { Namecard } from "~/lib/api"
+import { makeCardPage } from "@/mocks/data/namecards"
 
 function page(
   pageId: string,
@@ -13,16 +14,7 @@ function page(
   role: "front" | "middle" | "back",
   url: string
 ) {
-  return {
-    pageId,
-    role,
-    order,
-    url,
-    previewUrl: url,
-    thumbUrl: url,
-    width: 900,
-    height: 500,
-  }
+  return makeCardPage({ pageId, role, order, url })
 }
 
 const card: Namecard = {

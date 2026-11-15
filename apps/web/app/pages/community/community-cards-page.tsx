@@ -3,13 +3,13 @@ import {
   ArrowRightIcon,
   CalendarDaysIcon,
   ImagesIcon,
-  ShieldCheckIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { SubmitEvent } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
+import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
 import { WallInsightsPanel } from "./components/wall-insights-panel"
 import { NamecardSupplementDialog } from "~/components/community/namecard-supplement-dialog"
@@ -21,7 +21,6 @@ import {
 import { namecardPages } from "~/components/shared/namecard-pages"
 import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Card,
@@ -190,40 +189,7 @@ function NamecardItem({
             <span title="提交时间缺失或无效">日期待补</span>
           )}
         </CardDescription>
-        {card.claimStatus === "claimed" ? (
-          card.claimerUid ? (
-            <Badge
-              variant="outline"
-              className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
-              render={<NavigationLink to={`/user/${card.claimerUid}`} />}
-            >
-              <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
-              {card.claimerName ?? "已由注册用户认领"}
-            </Badge>
-          ) : (
-            <Badge
-              variant="outline"
-              className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
-            >
-              <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
-              {card.claimerName ?? "已由注册用户认领"}
-            </Badge>
-          )
-        ) : card.claimStatus === "pending" ? (
-          <Badge
-            variant="outline"
-            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
-          >
-            认领审核中
-          </Badge>
-        ) : card.supplementPending ? (
-          <Badge
-            variant="outline"
-            className="ml-auto h-auto min-h-5 max-w-full whitespace-normal md:h-6 md:px-2.5 md:whitespace-nowrap md:text-muted-foreground"
-          >
-            补充审核中
-          </Badge>
-        ) : null}
+        <NamecardClaimBadge card={card} />
       </CardHeader>
       <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-1.5 md:px-4 md:pt-3 md:pb-4">
         <NamecardReactionSummary
