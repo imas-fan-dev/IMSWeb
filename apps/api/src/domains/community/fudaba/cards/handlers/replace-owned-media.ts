@@ -11,7 +11,10 @@ import type { UploadedFile } from '@/ports/http';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { convertUserImageToWebp } from '@/utils/media/user-image';
-import { parseMediaRotations } from '@/domains/community/fudaba/cards/request';
+import {
+    hasMediaRotations,
+    parseMediaRotations
+} from '@/domains/community/fudaba/cards/request';
 import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
 import { parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
 import type { FudabaCardPageWrite } from '@/ports/repositories';
@@ -212,7 +215,7 @@ export async function handleReplaceFudabaOwnedMedia(
         );
         const rotationOnly =
             files.length === 0 &&
-            (rotations.front !== 0 || rotations.back !== 0) &&
+            hasMediaRotations(rotations) &&
             slots.length === surface.length &&
             slots.every((key, index) => key === surface[index]);
         /*
@@ -220,7 +223,8 @@ export async function handleReplaceFudabaOwnedMedia(
           只加一次。旧的独立旋转接口会为每次 90° 各加一版，把审核窗口的版本栅栏
           顶掉。
         */
-        if ((rotations.front || rotations.back) && !runtime.images.rotate) {
+        // 中间页也算「需要旋转」：只提交 middles 时下面一样要用 rotate。
+        if (hasMediaRotations(rotations) && !runtime.images.rotate) {
             throw new Error('Image rotation is unavailable');
         }
         const rotateSlot = async (

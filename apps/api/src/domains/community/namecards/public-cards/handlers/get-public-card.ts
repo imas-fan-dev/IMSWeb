@@ -2,7 +2,7 @@ import type { AppEnvironment } from '@/app';
 import type { CompatibleNamecardIdParams } from '@/domains/community/namecards/request';
 import type { PublicNamecardResponse as PublicCardResponse } from '@imsweb/contracts/namecards';
 import { toPublicNamecardResponse } from '@/domains/community/namecards/response';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import { namecardRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
@@ -28,14 +28,11 @@ export async function handleGetPublicCard(
     const pagesByNumber =
         (await services(c).fudaba?.listCardPagesBatchByNumbers?.([id])) ??
         new Map();
-    const pageRows = pagesByNumber.get(id);
-    const pages = cardArtworkView({
+    const pages = namecardPagesView(pagesByNumber.get(id), {
         scope: 'public',
         publicRoute: 'cards',
         cardNumber: id,
-        cardId: String(card.cardId ?? card.id),
-        live: pageRows?.live ?? [],
-        pending: []
+        cardId: String(card.cardId ?? card.id)
     }).live;
     const response = toPublicNamecardResponse(
         {

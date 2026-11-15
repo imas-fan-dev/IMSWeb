@@ -24,6 +24,10 @@ import {
     cardTransferredOutCopy,
     cardUnlockedCopy,
 } from '@/infra/db/repositories/namecard-notification-copy';
+import {
+    classifyNamecardReviewRetry,
+    planNamecardReview
+} from '@/ports/repositories/fudaba-review-policy';
 import type {
     PlatformAccountEntryRecord,
     PlatformAccountKindRecord,
@@ -214,6 +218,10 @@ function namecardAdminWhere(
     if (filter !== undefined && filter.origins.length > 0) {
         clauses.push(`origin IN (${filter.origins.map(() => '?').join(', ')})`);
         values.push(...filter.origins);
+    }
+    if (filter?.ownerAccountId !== null && filter?.ownerAccountId !== undefined) {
+        clauses.push('owner_account_id = ?');
+        values.push(filter.ownerAccountId);
     }
     if (filter !== undefined && filter.query !== null && filter.query !== '') {
         const pattern = `%${filter.query.replace(/[\\%_]/g, '\\$&')}%`;
@@ -1281,15 +1289,21 @@ export class SqlCoreRepository implements NamecardRepository {
         if (claimed) return { status: 'claimed', card: claimed };
         const current = await this.findSubmission(id);
         if (!current) return { status: 'not-found' };
-        if (current.status === 'withdrawn') {
+        // 与 P2 共用同一张状态机。`status` 是旧投影（`approving` 读作 `pending`），
+        // 上一节认领失败留下的正是这种行：用最新 revision 重试要能续做，否则它永远
+        // 无法再通过。
+        const retry = classifyNamecardReviewRetry(
+            {
+                publicationStatus: current.status,
+                reviewStatus: current.reviewStatus ?? null,
+                revision: current.revision
+            },
+            expectedRevision
+        );
+        if (retry === 'withdrawn') {
             return { status: 'withdrawn', revision: current.revision };
         }
-        if (
-            (current.status === 'approving' || current.status === 'pending') &&
-            (current.revision === expectedRevision || current.revision === expectedRevision + 1)
-        ) {
-            return { status: 'resumed', card: current };
-        }
+        if (retry === 'resumed') return { status: 'resumed', card: current };
         return { status: 'conflict', revision: current.revision };
     }
 
@@ -1308,7 +1322,15 @@ export class SqlCoreRepository implements NamecardRepository {
             );
             let updatedRow: (NamecardCardRow & { owner_account_id?: string | null }) | null = null;
             if (claimedRow) {
-                if (claimedRow.review_status === 'pending') {
+                // 判定走共享状态机：待审改版要把整份改版提升上线，首投只改卡片状态。
+                const plan = planNamecardReview(
+                    {
+                        publicationStatus: claimedRow.publication_status,
+                        reviewStatus: claimedRow.review_status ?? null
+                    },
+                    'publish'
+                );
+                if (plan.allowed && plan.promotesPages) {
                     await this.publishNamecardRevision(
                         database,
                         claimedRow,
@@ -2327,16 +2349,28 @@ export class SqlCoreRepository implements NamecardRepository {
             if (revision !== expectedRevision) {
                 return { status: 'conflict', revision };
             }
+            // 删除是状态机里唯一恒被允许的判决：它不动线上状态，只把整行打上
+            // `deleted_at` 并丢弃待审改版。
+            const plan = planNamecardReview(
+                {
+                    publicationStatus: current.publication_status,
+                    reviewStatus: current.review_status ?? null
+                },
+                'delete'
+            );
+            if (!plan.allowed || !plan.tombstones) {
+                return { status: 'conflict', revision };
+            }
             const updatedRow = await queryOne<NamecardCardRow>(database,
                 `UPDATE fudaba_cards SET
                      deleted_at=CURRENT_TIMESTAMP,
-                     review_status=NULL, review_reason=NULL, review_submitted_at=NULL,
+                     review_status=?, review_reason=NULL, review_submitted_at=NULL,
                      pending_payload=NULL,
                      lock_reason=NULL,
                      revision=revision+1, updated_at=CURRENT_TIMESTAMP
                  WHERE card_number=? AND revision=? AND deleted_at IS NULL
                  RETURNING ${NAMECARD_COLUMNS}`,
-                [cardNumber, expectedRevision]
+                [plan.reviewStatus, cardNumber, expectedRevision]
             );
             if (!updatedRow) return { status: 'conflict', revision };
             // The staged revision leaves with the card.
@@ -2441,23 +2475,31 @@ export class SqlCoreRepository implements NamecardRepository {
             if (current.revision !== expectedRevision) {
                 return { status: 'conflict', revision: current.revision };
             }
-            // Locking is a review decision, so it never applies to a card that
-            // is already locked or that its owner withdrew from the queue.
-            if (current.status === 'withdrawn') {
-                return { status: 'withdrawn', revision: current.revision };
-            }
-            if (current.status === 'locked') {
-                return { status: 'conflict', revision: current.revision };
+            // 判定走共享状态机：撤回的卡不能锁，已经锁定的卡不用再锁；锁定是终态
+            // 处置，待审改版随之丢弃。
+            const plan = currentRow
+                ? planNamecardReview(
+                    {
+                        publicationStatus: currentRow.publication_status,
+                        reviewStatus: currentRow.review_status ?? null
+                    },
+                    'lock'
+                )
+                : null;
+            if (!plan || !plan.allowed) {
+                return plan && plan.reason === 'withdrawn'
+                    ? { status: 'withdrawn', revision: current.revision }
+                    : { status: 'conflict', revision: current.revision };
             }
             const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
                 `UPDATE fudaba_cards
-                 SET publication_status='locked', lock_reason=?,
-                     review_status=NULL, review_reason=NULL,
+                 SET publication_status=?, lock_reason=?,
+                     review_status=?, review_reason=NULL,
                      review_submitted_at=NULL, pending_payload=NULL,
                      revision=revision+1, updated_at=CURRENT_TIMESTAMP
                  WHERE card_number=? AND revision=? AND deleted_at IS NULL
                  RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
-                [reason, id, expectedRevision]
+                [plan.publicationStatus, reason, plan.reviewStatus, id, expectedRevision]
             );
             if (!updatedRow) return { status: 'conflict', revision: current.revision };
             // Locking drops the queue entry, so its staged pages go with it.
@@ -2492,15 +2534,33 @@ export class SqlCoreRepository implements NamecardRepository {
         expectedRevision: number
     ): Promise<NamecardMutationResult> {
         return this.database.transaction(async (database) => {
-            const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
-                `UPDATE fudaba_cards
-                 SET publication_status='pending', lock_reason=NULL,
-                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
-                 WHERE card_number=?
-                   AND publication_status='locked' AND revision=? AND deleted_at IS NULL
-                 RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
-                [id, expectedRevision]
+            const currentRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                `SELECT ${NAMECARD_COLUMNS}, owner_account_id FROM fudaba_cards
+                 WHERE card_number=? AND deleted_at IS NULL
+                 FOR UPDATE`,
+                [id]
             );
+            // 判定走共享状态机：只有锁定的卡能解锁，解锁把它放回待审队列。
+            const plan = currentRow
+                ? planNamecardReview(
+                    {
+                        publicationStatus: currentRow.publication_status,
+                        reviewStatus: currentRow.review_status ?? null
+                    },
+                    'unlock'
+                )
+                : null;
+            const updatedRow = currentRow && plan && plan.allowed
+                ? await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
+                    `UPDATE fudaba_cards
+                     SET publication_status=?, lock_reason=NULL,
+                         revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                     WHERE card_number=?
+                       AND publication_status='locked' AND revision=? AND deleted_at IS NULL
+                     RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
+                    [plan.publicationStatus, id, expectedRevision]
+                )
+                : null;
             if (updatedRow) {
                 await this.appendNamecardLockRecord(
                     database,
@@ -2519,9 +2579,9 @@ export class SqlCoreRepository implements NamecardRepository {
                 const updated = await this.attachOneNamecard(database, updatedRow);
                 return { status: 'updated', card: updated! };
             }
-            const current = await this.findSubmission(id, database);
+            const current = await this.attachOneNamecard(database, currentRow);
             if (!current) return { status: 'not-found' };
-            if (current.status === 'withdrawn') {
+            if (plan && !plan.allowed && plan.reason === 'withdrawn') {
                 return { status: 'withdrawn', revision: current.revision };
             }
             return { status: 'conflict', revision: current.revision };
@@ -2534,21 +2594,42 @@ export class SqlCoreRepository implements NamecardRepository {
         reason: string | null = null
     ): Promise<NamecardMutationResult> {
         return this.database.transaction(async (database) => {
-            const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
-                `UPDATE fudaba_cards SET
-                     publication_status=CASE WHEN review_status='pending'
-                         THEN publication_status ELSE 'rejected' END,
-                     review_status=CASE WHEN review_status='pending'
-                         THEN 'rejected' ELSE review_status END,
-                     review_reason=CASE WHEN review_status='pending'
-                         THEN ? ELSE review_reason END,
-                     rejection_reason=?, revision=revision+1, updated_at=CURRENT_TIMESTAMP
-                 WHERE card_number=? AND revision=? AND deleted_at IS NULL
-                   AND (publication_status='pending'
-                        OR (review_status='pending' AND publication_status='published'))
-                 RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
-                [reason, reason, id, expectedRevision]
+            const currentRow = await queryOne<NamecardCardRow>(database,
+                `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+                 WHERE card_number=? AND deleted_at IS NULL
+                 FOR UPDATE`,
+                [id]
             );
+            // 判定走共享状态机：改版驳回只处置待审副本（线上卡继续上墙），首投驳回
+            // 才把卡片本身打到 `rejected`。
+            const plan = currentRow
+                ? planNamecardReview(
+                    {
+                        publicationStatus: currentRow.publication_status,
+                        reviewStatus: currentRow.review_status ?? null
+                    },
+                    'reject'
+                )
+                : null;
+            const updatedRow = currentRow && plan && plan.allowed
+                ? await queryOne<NamecardCardRow>(database,
+                    `UPDATE fudaba_cards SET
+                         publication_status=?, review_status=?, review_reason=?,
+                         rejection_reason=?, revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                     WHERE card_number=? AND revision=? AND deleted_at IS NULL
+                       AND (publication_status='pending'
+                            OR (review_status='pending' AND publication_status='published'))
+                     RETURNING ${NAMECARD_COLUMNS}`,
+                    [
+                        plan.publicationStatus,
+                        plan.reviewStatus,
+                        plan.subject === 'revision' ? reason : currentRow.review_reason ?? null,
+                        reason,
+                        id,
+                        expectedRevision
+                    ]
+                )
+                : null;
             if (updatedRow) {
                 await executeSql(database,
                     'UPDATE namecard_guest_attributes SET rejected_at=CURRENT_TIMESTAMP WHERE card_id=?',
@@ -2586,25 +2667,45 @@ export class SqlCoreRepository implements NamecardRepository {
         actor: string | null = null
     ): Promise<NamecardMutationResult> {
         return this.database.transaction(async (database) => {
-            const updatedRow = await queryOne<NamecardCardRow & { owner_account_id?: string | null }>(database,
-                `UPDATE fudaba_cards SET
-                     publication_status=CASE WHEN review_status='pending'
-                         AND publication_status='published'
-                         THEN publication_status ELSE 'locked' END,
-                     lock_reason=CASE WHEN review_status='pending'
-                         AND publication_status='published'
-                         THEN lock_reason ELSE ? END,
-                     review_status=CASE WHEN review_status='pending'
-                         THEN 'locked' ELSE review_status END,
-                     review_reason=CASE WHEN review_status='pending'
-                         THEN ? ELSE review_reason END,
-                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
-                 WHERE card_number=? AND revision=? AND deleted_at IS NULL
-                   AND (publication_status='pending'
-                        OR (review_status='pending' AND publication_status='published'))
-                 RETURNING ${NAMECARD_COLUMNS}, owner_account_id`,
-                [reason, reason, id, expectedRevision]
+            const currentRow = await queryOne<NamecardCardRow>(database,
+                `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+                 WHERE card_number=? AND deleted_at IS NULL
+                 FOR UPDATE`,
+                [id]
             );
+            // 判定走共享状态机：改版违规只把待审副本判成 `locked`（线上卡继续上墙），
+            // 首投违规直接锁卡。
+            const plan = currentRow
+                ? planNamecardReview(
+                    {
+                        publicationStatus: currentRow.publication_status,
+                        reviewStatus: currentRow.review_status ?? null
+                    },
+                    'flag'
+                )
+                : null;
+            const updatedRow = currentRow && plan && plan.allowed
+                ? await queryOne<NamecardCardRow>(database,
+                    `UPDATE fudaba_cards SET
+                         publication_status=?,
+                         lock_reason=?,
+                         review_status=?,
+                         review_reason=?,
+                         revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                     WHERE card_number=? AND revision=? AND deleted_at IS NULL
+                       AND (publication_status='pending'
+                            OR (review_status='pending' AND publication_status='published'))
+                     RETURNING ${NAMECARD_COLUMNS}`,
+                    [
+                        plan.publicationStatus,
+                        plan.subject === 'revision' ? currentRow.lock_reason ?? null : reason,
+                        plan.reviewStatus,
+                        plan.subject === 'revision' ? reason : currentRow.review_reason ?? null,
+                        id,
+                        expectedRevision
+                    ]
+                )
+                : null;
             if (updatedRow) {
                 // The verdict belongs in the same trail as locks and unlocks.
                 await this.appendNamecardLockRecord(

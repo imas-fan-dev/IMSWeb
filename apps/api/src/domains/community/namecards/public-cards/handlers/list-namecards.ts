@@ -1,6 +1,6 @@
 import type { AppEnvironment } from '@/app';
 import type { NamecardListQuery } from '@/domains/community/namecards/request';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import {
     toPublicNamecardResponse,
     type NamecardListErrorResponse,
@@ -38,13 +38,11 @@ export async function handleListNamecards(
         const cards = rows.map((card) => {
             const status = statusByCardId.get(Number(card.id));
             const pageRows = pagesByNumber.get(Number(card.id));
-            const pages = cardArtworkView({
+            const pages = namecardPagesView(pageRows, {
                 scope: 'public',
                 publicRoute: 'cards',
                 cardNumber: Number(card.id),
-                cardId: String(card.cardId ?? card.id),
-                live: pageRows?.live ?? [],
-                pending: []
+                cardId: String(card.cardId ?? card.id)
             }).live;
             return toPublicNamecardResponse(
                 {

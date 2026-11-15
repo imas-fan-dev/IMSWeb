@@ -6,10 +6,7 @@ import type {
     NamecardMutationResponse
 } from '@/domains/community/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
-import {
-    cardPageObjectKey,
-    parseCardPageObjectKey
-} from '@/utils/storage/business-object-keys';
+import { promoteCardPageObjects } from '@/domains/community/fudaba/cards/card-page-objects';
 
 export async function handleApproveNamecard(c: NamecardMutationContext): Promise<Response> {
     const { id } = c.req.valid('param');
@@ -62,7 +59,9 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
             await storage.publish(value);
         }
         // 已发布卡的 staged 修订只把改动过的页写进 pending 队列。这些对象必须
-        // 先搬到 live 路径再公开，否则页面行指向 pending 对象，公开路由 404。
+        // 先提升到 live 路径再公开，否则页面行指向 pending 对象，公开路由 404。
+        // 用 copy：审批失败后要能按 revision 重试，源对象必须还在
+        // （`promoteCardPageObjects` 会跳过已经提升过的对象）。
         const stagedKeys = [
             await repository.findCardMediaKey(id, 'front', true),
             await repository.findCardMediaKey(id, 'back', true),
@@ -73,29 +72,7 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
                 )
             )
         ];
-        for (const key of stagedKeys) {
-            if (typeof key !== 'string') continue;
-            const parsed = parseCardPageObjectKey(key);
-            if (!parsed || parsed.queue !== 'pending') continue;
-            const liveKey = cardPageObjectKey(
-                parsed.cardId,
-                'live',
-                parsed.pageId,
-                parsed.version
-            );
-            // 审批失败后按设计会保留 approving 行并允许重试；已经搬过的对象
-            // 不能再次 move。
-            if (!await storage.exists(liveKey)) {
-                if (!await storage.exists(key)) {
-                    throw new Error(`Staged card page object not found: ${key}`);
-                }
-                await storage.move(key, liveKey);
-            }
-            if (!storage.publish) {
-                throw new Error('Object storage publication is unavailable');
-            }
-            await storage.publish(liveKey);
-        }
+        await promoteCardPageObjects(runtime, stagedKeys);
         const completed = await repository.completeCardApproval(id, claim.card.revision);
         if (completed.status !== 'updated') {
             return c.json({

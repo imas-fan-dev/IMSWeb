@@ -113,26 +113,63 @@ function pages(
 }
 
 /**
- * 页面行 → 对外视图。URL 由作用域决定，顺序由 `display_order` 决定；
- * 队列隔离在数据层，视图只负责拼地址。
+ * 一卡的两套页面行：`pending` 是完整待审快照，没有待审版本时为空。
  */
-interface CardArtworkViewCommon {
-    cardNumber: number;
-    cardId: string;
+export interface CardPageRows {
     live: readonly FudabaCardPageRecord[];
     pending: readonly FudabaCardPageRecord[];
 }
 
-export type CardArtworkViewInput =
-    | (CardArtworkViewCommon & {
+interface CardArtworkViewLayout {
+    cardNumber: number;
+    cardId: string;
+}
+
+/**
+ * 布局部分（不含页面行）：公开墙需要地址族 `publicRoute`，后台/属主不需要。
+ */
+export type CardArtworkViewLayoutInput =
+    | (CardArtworkViewLayout & {
           scope: 'public';
           publicRoute: 'exchange' | 'cards';
       })
-    | (CardArtworkViewCommon & {
+    | (CardArtworkViewLayout & {
           scope: 'admin' | 'owner';
           publicRoute?: undefined;
       });
 
+export type CardArtworkViewInput = CardArtworkViewLayoutInput & CardPageRows;
+
+/**
+ * 响应里 `pages` 的唯一装配入口：入参是批量/单卡查询拿到的页面行
+ * （可能没有这张卡，传 `undefined` 或 `null`），返回线上/待审两套视图。
+ *
+ * 只做装配、不做 IO：页面行必须由调用方查好；这里不碰仓储与对象存储。
+ * 无待审版本时 `pending` 为 `null`，由 `cardArtworkView` 的语义决定。
+ */
+export function namecardPagesView(
+    rows: CardPageRows | undefined | null,
+    layout: CardArtworkViewLayoutInput
+): CardArtworkView {
+    const pageRows = {
+        cardNumber: layout.cardNumber,
+        cardId: layout.cardId,
+        live: rows?.live ?? [],
+        pending: rows?.pending ?? []
+    };
+    return layout.scope === 'public'
+        ? cardArtworkView({
+              ...pageRows,
+              scope: 'public',
+              publicRoute: layout.publicRoute
+          })
+        : cardArtworkView({ ...pageRows, scope: layout.scope });
+}
+
+/**
+ * 页面行 → 对外视图。URL 由作用域决定，顺序由 `display_order` 决定；
+ * 队列隔离在数据层，视图只负责拼地址。
+ */
 export function cardArtworkView(
     input: CardArtworkViewInput
 ): CardArtworkView {
@@ -163,16 +200,11 @@ export function cardArtworkView(
  */
 export function ownerCardArtwork(
     card: Pick<FudabaCardRecord, 'id' | 'card_number'>,
-    rows: {
-        live: readonly FudabaCardPageRecord[];
-        pending: readonly FudabaCardPageRecord[];
-    }
+    rows: CardPageRows
 ): CardArtworkView {
-    return cardArtworkView({
+    return namecardPagesView(rows, {
         scope: 'owner',
         cardNumber: card.card_number,
-        cardId: card.id,
-        live: rows.live,
-        pending: rows.pending
+        cardId: card.id
     });
 }

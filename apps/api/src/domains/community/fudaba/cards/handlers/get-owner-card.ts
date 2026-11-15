@@ -2,7 +2,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView, validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import { fudabaRepository } from '@/middleware/hono-context';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 
 export async function handleGetFudabaOwnerCard(
     c: Context<AppEnvironment>
@@ -24,19 +24,13 @@ export async function handleGetFudabaOwnerCard(
             live: [],
             pending: []
         };
-    const live = cardArtworkView({
+    // 装配只有一处（`namecardPagesView`）：线上与待审从同一份页面行派生。
+    const view = namecardPagesView(pages, {
         scope: 'owner',
         cardNumber: card.card_number,
-        cardId: card.id,
-        live: pages.live,
-        pending: []
-    }).live;
-    const pending = cardArtworkView({
-        scope: 'owner',
-        cardNumber: card.card_number,
-        cardId: card.id,
-        live: [],
-        pending: pages.pending
-    }).pending ?? [];
-    return c.json({ card: fudabaOwnerCardView(card, live, pending) });
+        cardId: card.id
+    });
+    return c.json({
+        card: fudabaOwnerCardView(card, view.live, view.pending ?? [])
+    });
 }

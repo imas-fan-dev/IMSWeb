@@ -1,4 +1,9 @@
-import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from '@imsweb/contracts/fudaba/runtime';
+import {
+    fudabaCardFieldsSubmissionSchema,
+    type FudabaCardFieldsRequest,
+    type FudabaCardUpdateRequest,
+    type NamecardCardFieldIssue
+} from '@imsweb/contracts/fudaba';
 import { parseFudabaRevision } from '@/domains/community/fudaba/contracts/card';
 
 export type FudabaCardCreditRole = 'design' | 'illustration' | 'other';
@@ -46,239 +51,195 @@ export interface FudabaCardPlacementSubmission {
     expectedRevision: number | null;
 }
 
-const CARD_FIELDS = [
-    'producerName',
-    'isGroupCard',
-    'rotations',
-    'seriesCodes',
-    'favoriteCharacterIds',
-    'bio',
-    'tradeNote',
-    'exchangeMode',
-    'madeOn',
-    'groupName',
-    'producerReading',
-    'isOriginal',
-    'madeWithAi',
-    'visible',
-    'credits'
-] as const;
+/** 一次保存里按顺时针 90° 圈数（0-3）记录的页面旋转。 */
+export interface FudabaMediaRotations {
+    front: number;
+    back: number;
+    middles: number[];
+}
 
-const EXCHANGE_MODES: readonly FudabaExchangeMode[] = ['auto', 'manual', 'none'];
-const CREDIT_ROLES: readonly FudabaCardCreditRole[] = ['design', 'illustration', 'other'];
-// The bound is structural, not a list of agencies: the catalogue grows.
-const SERIES_LIMIT = 64;
-const CREDIT_LIMIT = 8;
-const CREDIT_ROLE_LIMIT = 3;
-const PRODUCTION_YEAR_MIN = 2002;
-const PRODUCTION_YEAR_MAX = 2099;
-const PRODUCTION_DATE = /^\d{4}(-\d{2}(-\d{2})?)?$/;
 const MAX_PLACEMENT_REVISION = 2_147_483_647;
 
-function badRequest(message: string): Error {
-    return Object.assign(new Error(message), { status: 400 });
-}
+/**
+ * 卡片字段的规则全部在 `@imsweb/contracts/fudaba` 的 zod schema 里：上限、去重、
+ * 日期范围、名称读法、枚举、跨字段要求。这一层只负责「multipart 字符串 → 规范
+ * 对象」的强制转换、缺省值填充与派生字段，不再自己判断业务规则。
+ */
 
-function text(
-    value: unknown,
-    name: string,
-    maximum: number,
-    required = false
-): string {
-    if (typeof value !== 'string') throw badRequest(`${name} 必须是字符串`);
-    const normalized = value.trim();
-    if (
-        (required && !normalized) || normalized.length > maximum ||
-        /[\u0000-\u001f\u007f]/.test(normalized)
-    ) {
-        throw badRequest(`${name} 长度或内容无效`);
+/**
+ * 每个 multipart 字段的强制转换。表以外的字段原样送出——合法值范围与格式都由
+ * schema 判定。
+ */
+
+/** JSON 文本 → 数组/对象；解不开就原样留着，让 schema 报格式错误。 */
+function parseJson(value: unknown): unknown {
+    if (typeof value !== 'string') return value;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return value;
     }
-    return normalized;
 }
 
-function booleanValue(value: unknown, name: string): boolean {
-    if (value === true || value === 'true') return true;
-    if (value === false || value === 'false') return false;
-    throw badRequest(`${name} 必须是布尔值`);
+/** `'true'` / `'false'` → 布尔；其它值原样留着。 */
+function parseFlag(value: unknown): unknown {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
 }
 
-/** Missing or blank means the owner did not declare a value. */
-function nullableText(value: unknown, name: string, maximum: number): string | null {
-    if (value === undefined || value === null || value === '') return null;
-    const normalized = text(value, name, maximum);
-    return normalized.length > 0 ? normalized : null;
+/** 空串与只有空白的字符串都是「没有填写」，按缺省处理成 null。 */
+function parseNullableText(value: unknown): unknown {
+    if (typeof value === 'string' && value.trim().length === 0) return null;
+    return value;
+}
+
+/** 企划编码先修剪（schema 只判形态，不修剪）。 */
+function parseSeriesCodes(value: unknown): unknown {
+    const parsed = parseJson(value);
+    return Array.isArray(parsed)
+        ? parsed.map((code) => (typeof code === 'string' ? code.trim() : code))
+        : parsed;
+}
+
+/** credits 的每个字段同样来自 multipart 字符串。 */
+function coerceCredit(value: unknown): unknown {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+    const credit = { ...(value as Record<string, unknown>) };
+    if ('accountId' in credit) {
+        credit.accountId = parseNullableText(credit.accountId);
+    }
+    if ('url' in credit) {
+        credit.url = parseNullableText(credit.url);
+    }
+    if ('roles' in credit) {
+        credit.roles = parseJson(credit.roles);
+    }
+    return credit;
+}
+
+function parseCredits(value: unknown): unknown {
+    const parsed = parseJson(value);
+    return Array.isArray(parsed) ? parsed.map(coerceCredit) : parsed;
+}
+
+const FIELD_COERCIONS: Record<string, (value: unknown) => unknown> = {
+    seriesCodes: parseSeriesCodes,
+    favoriteCharacterIds: parseJson,
+    credits: parseCredits,
+    isGroupCard: parseFlag,
+    isOriginal: parseFlag,
+    madeWithAi: parseFlag,
+    visible: parseFlag,
+    groupName: parseNullableText,
+    producerReading: parseNullableText,
+    madeOn: parseNullableText
+};
+
+/**
+ * 缺省值：布尔默认关、可见默认开、交换模式默认手动、可空文本与 credit 默认空。
+ * 只补缺，不覆盖已经送来的值——不合格的值交给 schema 报错。
+ */
+const CARD_FIELD_DEFAULTS: Record<string, unknown> = {
+    producerName: '',
+    isGroupCard: false,
+    isOriginal: false,
+    madeWithAi: false,
+    visible: true,
+    exchangeMode: 'manual',
+    groupName: null,
+    producerReading: null,
+    madeOn: null,
+    credits: []
+};
+
+/**
+ * multipart 的字符串字段 → schema 能读的规范对象。未知字段原样保留，
+ * 好让 `.strict()` 的 schema 拒绝它。
+ */
+function coerceCardFields(fields: Record<string, unknown>): Record<string, unknown> {
+    const coerced: Record<string, unknown> = {};
+    for (const [key, raw] of Object.entries(fields)) {
+        const coerce = FIELD_COERCIONS[key];
+        coerced[key] = coerce ? coerce(raw) : raw;
+    }
+    for (const [key, fallback] of Object.entries(CARD_FIELD_DEFAULTS)) {
+        coerced[key] ??= fallback;
+    }
+    return coerced;
+}
+
+/** 旧手写 adapter 的业务文案，按报错字段还原；规则本身已经不在这一层。 */
+const CARD_FIELD_MESSAGES: Record<string, string> = {
+    producerName: 'producerName 长度或内容无效',
+    bio: 'bio 长度或内容无效',
+    tradeNote: 'tradeNote 长度或内容无效',
+    groupName: 'groupName 长度或内容无效',
+    producerReading: '制作人名读法只能使用日文假名、英文字母、撇号与连字符',
+    madeOn: 'madeOn 无效',
+    exchangeMode: 'exchangeMode 无效',
+    seriesCodes: 'seriesCodes 无效',
+    favoriteCharacterIds: 'favoriteCharacterIds 无效',
+    credits: 'credits 无效',
+    isGroupCard: 'isGroupCard 必须是布尔值',
+    isOriginal: 'isOriginal 必须是布尔值',
+    madeWithAi: 'madeWithAi 必须是布尔值',
+    visible: 'visible 必须是布尔值'
+};
+
+/** zod 的首个报错 → 客户端一直在读的中文文案。 */
+function cardFieldsMessage(issues: readonly NamecardCardFieldIssue[]): string {
+    const issue = issues[0];
+    if (!issue) return '请求体字段无效';
+    if (issue.code === 'unrecognized_keys') return '请求体包含未知字段';
+    // 跨字段规则写在 schema 里，文案也由它给出。
+    if (issue.code === 'custom' && issue.path.length === 0) {
+        return issue.message || '请求体字段无效';
+    }
+    const field = issue.path[0];
+    if (typeof field !== 'string') return '请求体字段无效';
+    if (
+        (issue.code === 'too_big' || issue.code === 'too_small') &&
+        issue.type === 'string'
+    ) {
+        return `${field} 长度或内容无效`;
+    }
+    return CARD_FIELD_MESSAGES[field] ?? `${field} 无效`;
 }
 
 /**
- * Producer name reading: the sort key, so kana and Latin letters only.
- * Apostrophes and hyphens may split the syllables; sorting strips them.
+ * 派生与缺省（不是规则判断）：团体名片的制作人名称由团体名称派生、交换模式固定
+ * 自动、始终可见；原创声明与 AI 声明互斥，两个都勾上时以 AI 声明为准。
  */
-const PRODUCER_READING = /^[ぁ-ゖァ-ヺーA-Za-z '\-]+$/;
-
-function producerReading(value: unknown): string | null {
-    const reading = nullableText(value, 'producerReading', 80);
-    if (reading === null) return null;
-    if (!PRODUCER_READING.test(reading)) {
-        throw badRequest('制作人名读法只能使用日文假名、英文字母、撇号与连字符');
-    }
-    return reading;
-}
-
-function exchangeMode(value: unknown): FudabaExchangeMode {
-    const mode = value === undefined ? 'manual' : value;
-    if (typeof mode !== 'string' || !EXCHANGE_MODES.includes(mode as FudabaExchangeMode)) {
-        throw badRequest('exchangeMode 无效');
-    }
-    return mode as FudabaExchangeMode;
-}
-
-function productionDate(value: unknown): string | null {
-    const madeOn = nullableText(value, 'madeOn', 10);
-    if (madeOn === null) return null;
-    const year = Number(madeOn.slice(0, 4));
-    if (
-        !PRODUCTION_DATE.test(madeOn) || !Number.isInteger(year) ||
-        year < PRODUCTION_YEAR_MIN || year > PRODUCTION_YEAR_MAX
-    ) {
-        throw badRequest('madeOn 无效');
-    }
-    return madeOn;
-}
-
-function creditRoles(value: unknown): FudabaCardCreditRole[] {
-    let parsed = value;
-    if (typeof value === 'string') {
-        try {
-            parsed = JSON.parse(value);
-        } catch {
-            throw badRequest('credits 无效');
-        }
-    }
-    if (
-        !Array.isArray(parsed) || parsed.length < 1 || parsed.length > CREDIT_ROLE_LIMIT ||
-        parsed.some((role) => !CREDIT_ROLES.includes(role as FudabaCardCreditRole)) ||
-        new Set(parsed).size !== parsed.length
-    ) {
-        throw badRequest('credits 角色无效');
-    }
-    return parsed as FudabaCardCreditRole[];
-}
-
-function creditUrl(value: unknown): string | null {
-    const url = nullableText(value, 'credits.url', 300);
-    if (url === null) return null;
-    if (!/^https?:\/\/[^\s]+$/.test(url) || /[\u0000-\u001f\u007f]/.test(url)) {
-        throw badRequest('credits.url 无效');
-    }
-    return url;
-}
-
-function credits(value: unknown): FudabaCardCredit[] {
-    let parsed = value;
-    if (typeof value === 'string') {
-        try {
-            parsed = JSON.parse(value);
-        } catch {
-            throw badRequest('credits 无效');
-        }
-    }
-    if (parsed === undefined || parsed === null) return [];
-    if (!Array.isArray(parsed) || parsed.length > CREDIT_LIMIT) {
-        throw badRequest('credits 无效');
-    }
-    return parsed.map((entry, index) => {
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-            throw badRequest(`credits[${index}] 无效`);
-        }
-        const record = entry as Record<string, unknown>;
-        const accountId = nullableText(record.accountId, 'credits.accountId', 64);
-        return {
-            accountId,
-            displayName: text(record.displayName, 'credits.displayName', 80, true),
-            url: creditUrl(record.url),
-            roles: creditRoles(record.roles)
-        };
-    });
-}
-
-function favoriteCharacterIds(value: unknown): number[] {
-    let parsed = value;
-    if (typeof value === 'string') {
-        try {
-            parsed = JSON.parse(value);
-        } catch {
-            throw badRequest('favoriteCharacterIds 无效');
-        }
-    }
-    if (
-        !Array.isArray(parsed) ||
-        parsed.length > NAMECARD_FAVORITE_CHARACTER_LIMIT ||
-        parsed.some((id) => !Number.isSafeInteger(id) || Number(id) <= 0) ||
-        new Set(parsed).size !== parsed.length
-    ) {
-        throw badRequest('favoriteCharacterIds 无效');
-    }
-    return parsed.map(Number);
-}
-
-function seriesCodeList(value: unknown): string[] {
-    let parsed: unknown = value;
-    if (typeof parsed === 'string') {
-        try {
-            parsed = JSON.parse(parsed);
-        } catch {
-            throw badRequest('seriesCodes 无效');
-        }
-    }
-    if (!Array.isArray(parsed)) throw badRequest('seriesCodes 无效');
-    const codes = (parsed as unknown[]).map((code) => text(code, 'seriesCodes', 64, true));
-    if (
-        codes.length === 0 ||
-        codes.length > SERIES_LIMIT ||
-        new Set(codes).size !== codes.length ||
-        codes.some((code) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(code))
-    ) {
-        throw badRequest('seriesCodes 无效');
-    }
-    return codes;
-}
-
-function cardFields(value: Record<string, unknown>): FudabaCardFields {
-    const madeWithAi = booleanValue(value.madeWithAi ?? false, 'madeWithAi');
-    // 原创声明与 AI 声明互斥；两个都被勾选说明前端被绕过，移除原创声明。
-    const isOriginal = booleanValue(value.isOriginal ?? false, 'isOriginal') && !madeWithAi;
-    const seriesCodes = seriesCodeList(value.seriesCodes);
-    // 团体名片没有制作人名称：必填项换成团体名称，展示名由团体名称派生。
-    const isGroupCard = booleanValue(value.isGroupCard ?? false, 'isGroupCard');
-    const groupName = nullableText(value.groupName, 'groupName', 80);
-    if (isGroupCard && groupName === null) {
-        throw badRequest('团体名片需要填写团体名称');
-    }
-    // 团体名片的制作人名称是选填（团体可能有吉祥物）：留空时回落到团体名称。
-    const producerName = isGroupCard
-        ? (nullableText(value.producerName, 'producerName', 80) ?? (groupName as string))
-        : text(value.producerName, 'producerName', 80, true);
+function normalizeCardFields(fields: FudabaCardFieldsRequest): FudabaCardFields {
+    const isGroupCard = fields.isGroupCard ?? false;
+    const groupName = fields.groupName;
     return {
         isGroupCard,
-        producerName,
-        seriesCodes,
-        favoriteCharacterIds: favoriteCharacterIds(value.favoriteCharacterIds),
-        bio: text(value.bio, 'bio', 2000),
-        tradeNote: text(value.tradeNote, 'tradeNote', 1000),
+        // 团体名片的制作人名称是选填（团体可能有吉祥物）：留空时回落到团体名称。
+        // 走到这里团体名称一定非空——schema 的跨字段规则拦住了空团体名称。
+        producerName: isGroupCard
+            ? fields.producerName || groupName || ''
+            : fields.producerName,
+        seriesCodes: fields.seriesCodes,
+        favoriteCharacterIds: fields.favoriteCharacterIds,
+        bio: fields.bio,
+        tradeNote: fields.tradeNote,
         // 团体名片只能是自动交换，前端即便传了别的值也按自动处理。
-        exchangeMode: isGroupCard ? 'auto' : exchangeMode(value.exchangeMode),
-        madeOn: productionDate(value.madeOn),
+        exchangeMode: isGroupCard ? 'auto' : fields.exchangeMode,
+        madeOn: fields.madeOn,
         groupName,
-        producerReading: producerReading(value.producerReading),
-        isOriginal,
-        madeWithAi,
-        // 团体名片的表述是「任何人都可以自由领取」，所以它必须可见：
-        // 前端即便传了 false 也按可见处理。
-        visible: isGroupCard
-            ? true
-            : booleanValue(value.visible ?? true, 'visible'),
-        credits: credits(value.credits)
+        producerReading: fields.producerReading,
+        isOriginal: fields.isOriginal && !fields.madeWithAi,
+        madeWithAi: fields.madeWithAi,
+        // 团体名片的表述是「任何人都可以自由领取」，所以它必须可见。
+        visible: isGroupCard ? true : fields.visible,
+        credits: fields.credits
     };
+}
+
+function badRequest(message: string): Error {
+    return Object.assign(new Error(message), { status: 400 });
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -347,11 +308,9 @@ function placementRevision(value: unknown): number {
  * 保存时随图一起提交的旋转，按顺时针 90° 的圈数记（0-3）。只在真正写入的那一次
  * 生效：新建和替换图片各算一次保存，revision 只加一次。
  */
-export function parseMediaRotations(value: string | undefined | null): {
-    front: number;
-    back: number;
-    middles: number[];
-} {
+export function parseMediaRotations(
+    value: string | undefined | null
+): FudabaMediaRotations {
     if (!value) return { front: 0, back: 0, middles: [] };
     let parsed: unknown;
     try {
@@ -381,19 +340,52 @@ export function parseMediaRotations(value: string | undefined | null): {
     };
 }
 
+/**
+ * 是否有任何一张页面需要旋转。中间页也算进去：只提交 `middles` 圈数时，写入
+ * 阶段一样会用到 `images.rotate`，门禁漏了它就会踩到非空断言。
+ */
+export function hasMediaRotations(rotations: FudabaMediaRotations): boolean {
+    return (
+        Boolean(rotations.front || rotations.back) ||
+        rotations.middles.some((turns) => turns !== 0)
+    );
+}
+
+/**
+ * multipart 提交的字段边界：contracts 的 schema 只在这里执行（与路由上的
+ * `jsonSchemaValidator` 同级），转换层负责先把字符串还原成规范对象。
+ */
+function cardFieldsSchemaValidator(
+    schema: typeof fudabaCardFieldsSubmissionSchema,
+    fields: Record<string, unknown>
+): FudabaCardFields {
+    const parsed = schema.safeParse(coerceCardFields(fields));
+    if (!parsed.success) throw badRequest(cardFieldsMessage(parsed.error.issues));
+    return normalizeCardFields(parsed.data);
+}
+
+/**
+ * 创建只送 multipart 字符串：先做强制转换，再交给创建侧的 zod schema 判规则。
+ */
 export function parseFudabaCardCreateFields(
     fields: Record<string, string>
 ): FudabaCardFields {
-    allowedKeys(fields, CARD_FIELDS);
-    return cardFields(fields);
+    // 旋转随图提交，由 `parseMediaRotations` 单独解析，不属于卡片内容字段。
+    const content: Record<string, unknown> = { ...fields };
+    delete content.rotations;
+    return cardFieldsSchemaValidator(fudabaCardFieldsSubmissionSchema, content);
 }
 
-export function parseFudabaCardUpdate(value: unknown): FudabaCardUpdate {
-    const body = object(value);
-    allowedKeys(body, [...CARD_FIELDS, 'expectedRevision']);
+/**
+ * 更新请求已经由路由上的 `fudabaCardUpdateRequestSchema` 校验过（同一份规则），
+ * 这里只补缺省、做派生字段。
+ */
+export function parseFudabaCardUpdate(
+    body: FudabaCardUpdateRequest
+): FudabaCardUpdate {
     return {
-        ...cardFields(body),
-        expectedRevision: parseFudabaRevision(body.expectedRevision)
+        ...normalizeCardFields(body),
+        expectedRevision: body.expectedRevision
     };
 }
 

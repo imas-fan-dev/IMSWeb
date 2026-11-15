@@ -340,6 +340,8 @@ export interface NamecardAdminFilter {
     query: string | null;
     status: string | null;
     origins: string[];
+    /** 归属账号：只返回该账号名下的名片；`null` 表示不过滤归属。 */
+    ownerAccountId?: string | null;
 }
 
 /** 交换入口：单卡分享、从墙上发起、快速交换页、扫码。 */
@@ -575,6 +577,10 @@ export interface NamecardRepository {
         offset: number,
         filter?: NamecardAdminFilter,
     ): Promise<NamecardSubmissionRecord[]>;
+    /**
+     * 两阶段审核的第一步。失败/并发留下的 `approving` 不算错误：拿最新 revision
+     * 重试会得到 `resumed`，调用方按成功处理即可——失败不回滚，行留在原处等重试。
+     */
     beginCardApproval(
         id: number,
         expectedRevision: number,
@@ -583,7 +589,6 @@ export interface NamecardRepository {
         id: number,
         approvingRevision: number,
     ): Promise<NamecardMutationResult>;
-    /** Returns a card to `pending` when approval aborts before completion. */
     findCardMedia(id: number): Promise<CardMediaRecord | null>;
     /**
      * Backoffice moderation state: the card leaves every public surface but

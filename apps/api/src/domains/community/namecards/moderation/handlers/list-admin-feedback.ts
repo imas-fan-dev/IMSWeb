@@ -6,7 +6,7 @@ import type {
 } from '@/domains/community/namecards/response';
 import { fudabaRepository } from '@/middleware/hono-context';
 import { namecardPageCount } from '@/domains/community/namecards/page-count';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 const PAGE_SIZE = 12;
@@ -32,12 +32,10 @@ export async function handleListAdminNamecardFeedback(
             success: true,
             data: items.map<AdminNamecardFeedbackResponse>((item) => {
                 const rows = pagesByNumber.get(item.cardNumber);
-                const pages = cardArtworkView({
+                const pages = namecardPagesView(rows, {
                     scope: 'admin',
                     cardNumber: item.cardNumber,
-                    cardId: String(item.cardNumber),
-                    live: rows?.live ?? [],
-                    pending: []
+                    cardId: String(item.cardNumber)
                 }).live;
                 // 页面行是唯一媒体来源：正/反/中间一律由页序推导。
                 return {

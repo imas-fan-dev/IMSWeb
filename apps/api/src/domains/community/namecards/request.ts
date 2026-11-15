@@ -60,6 +60,8 @@ export interface AdminNamecardListQuery {
     query: string | null;
     status: AdminNamecardListStatus | null;
     origins: string[];
+    /** 归属账号：只保留该账号名下的名片；`null` 表示不按归属过滤。 */
+    ownerAccountId: string | null;
 }
 
 export interface ExpectedRevisionRequest {
@@ -210,6 +212,7 @@ export function validateAdminNamecardListQuery(
     const origins = typeof query.origin === "string"
         ? query.origin.split(",").map((value) => value.trim()).filter(Boolean)
         : [];
+    const owner = typeof query.owner === "string" ? query.owner.trim() : "";
     return {
         page: legacyPaginationValue(query.page, DEFAULT_PAGE),
         query: keyword === "" ? null : keyword,
@@ -222,6 +225,7 @@ export function validateAdminNamecardListQuery(
                 ? status
                 : null,
         origins: origins.slice(0, 4),
+        ownerAccountId: owner === "" ? null : owner,
     };
 }
 
