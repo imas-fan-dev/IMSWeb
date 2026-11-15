@@ -23,7 +23,8 @@
 2. 名片可见性（`visible`）只影响名片墙与个人主页的展示，不影响持有者主动分享。
 3. `auto`（自动确认）的名片在交换流程中不产生任何通知。
 4. `manual`（手动确认）的名片被他人申请交换时，持有者收到通知并决定是否同意，申请者随后收到结果通知。
-5. 整卡 `locked` 与 `hidden` 的名片不会出现在持有者的「选择用于交换的名片」列表里，因此不能作为提供方。
+5. 整卡 `locked` 与 `hidden` 的名片不会出现在持有者的「选择用于交换的名片」列表里，因此不能作为提供方。
+
 11. 团体名片（`is_group_card=true`）的交换模式固定为 `auto`：数据库 CHECK、服务端与编辑器三处同时约束，
     勾选或取消该标记本身要经过版本复审。
 6. 整卡 `locked` 的名片不出现在已交换方的名片册里；整卡 `hidden`（持有者删除）的名片仍然出现在名片册里。
@@ -208,7 +209,7 @@ ORDER BY entry.obtained_at DESC
 
 - `locked` 被过滤；解锁后条目自动重新出现。
 - `hidden` 保留展示，界面标记为已隐藏。
-- 卡片行不存在时用 `snapshot` 渲染。
+- 卡片行不存在、**或原卡已不再 `published`**（如持有者删除后 `hidden`）时，用 `snapshot` 渲染。
 - 内容实时读取，对方更新名片后名片册随之更新。
 
 ## 6. 链接与二维码
@@ -311,7 +312,11 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 旧 `fudaba_exchange_requests` 连同 `fudaba_office_cards` 删除守卫里的 `in_use` 判断、
   `fudaba_moderation_cases.resource_kind='exchange'` 取值与 `FUDABA_CARD_PLACEMENT_IN_USE` 错误码一并删除。
 - OGP 注入本轮不做，留到前端阶段。
-- 名片册快照存**对象键**，读取时经 `resolveSnapshotMedia` 换成存储签名 URL（与墙一致）。
+- ~~名片册快照存对象键、读取时经 `resolveSnapshotMedia` 解析~~ → **更正（2026-11-15 复核）**：
+  `namecardCollectionSnapshotSchema` 只含文本字段（`producerName` / `bio` / `tradeNote` / `accent` /
+  `seriesCodes` / `credits` 等），**不含页面或媒体**，代码里也从未存在 `resolveSnapshotMedia`。
+  后果：卡片被物理删除后，名片册只能渲染文本、**没有图片**（前端需要占位）。
+  是否让快照带上页面键属于**待定设计**，前端阶段再定。
 
 已定（补充）：
 
@@ -338,12 +343,14 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 `scan/sessions`（+`/:token/commit`）、`exchanges/:id/accept|decline`。写操作统一走
 `platformAuth + activePlatformMutation + platformCsrf + platformWriteRateLimit`。
 
-实现时必须遵守的两条（都踩过）：
+实现时必须遵守的（2026-11-15 复核后修订）：
 
-- **响应里的媒体地址要穿存储**：仓储给的是对象键，handler 必须经 `resolveExchangeCardMedia` /
-  `resolveSnapshotMedia` 换成签名 URL，否则浏览器加载不了。参考 `public-cards/handlers/get-public-card.ts`。
-- **名片册快照存键、读时解析**：`snapshot` 是交换当时那份投影的冻结副本，卡片被删后靠它渲染；
-  签名 URL 会过期，所以库里存键，`me/collection` 读时再解析。
+- **响应里的媒体地址要穿存储**：仓储给的是对象键，handler 必须经 `resolveExchangeCardMedia`
+  （`exchange/media.ts`，内部走 `namecardPagesView`）换成签名 URL，否则浏览器加载不了；参考
+  `public-cards/handlers/get-public-card.ts`。已由 `namecard-exchange.test.ts` 的
+  「the shelf and the share page hand out exchange media addresses」钉住。
+- ~~名片册快照存键、读时解析~~ → **更正**：快照契约是纯文本投影，没有对象键，也没有
+  `resolveSnapshotMedia`。卡片被删除后名片册**没有图片可显示**，是已知空白（见 §12 的同一条）。
 
 验证入口：`apps/api/tests/server/namecard-exchange.test.ts`（真库：双向入册、manual 待确认后裁决、
 幂等与跳过、快速清单过滤）与 `namecard-exchange-routes.test.ts`（分享页 404/400、写接口 401、快速页 404）。
