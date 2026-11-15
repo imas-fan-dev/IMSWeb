@@ -107,7 +107,8 @@ test.describe('business request models', () => {
             page: 1,
             status: null,
             query: null,
-            origins: []
+            origins: [],
+            ownerAccountId: null
         };
         assert.deepEqual(validateAdminNamecardListQuery({ page: 'abc' }), defaultAdminPage);
         assert.deepEqual(validateAdminNamecardListQuery({ page: '0' }), defaultAdminPage);
@@ -116,7 +117,8 @@ test.describe('business request models', () => {
             page: 101,
             status: null,
             query: null,
-            origins: []
+            origins: [],
+            ownerAccountId: null
         });
     });
 

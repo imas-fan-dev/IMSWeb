@@ -1,6 +1,6 @@
 import type { AppEnvironment } from '@/app';
 import type { Namecard } from '@imsweb/contracts/namecards';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import { services } from '@/middleware/hono-context';
 import type { Context } from 'hono';
 
@@ -19,14 +19,11 @@ export async function resolveExchangeCardMedia(
         (await services(c).fudaba?.listCardPagesBatchByNumbers?.([
             card.cardNumber,
         ])) ?? new Map();
-    const rows = pagesByNumber.get(card.cardNumber);
-    const pages = cardArtworkView({
+    const pages = namecardPagesView(pagesByNumber.get(card.cardNumber), {
         scope: 'public',
         publicRoute: 'exchange',
         cardNumber: card.cardNumber,
         cardId: card.cardId,
-        live: rows?.live ?? [],
-        pending: [],
     }).live;
     return pages.length > 0 ? { ...card, pages } : card;
 }

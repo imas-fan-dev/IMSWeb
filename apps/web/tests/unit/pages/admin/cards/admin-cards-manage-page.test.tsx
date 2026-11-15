@@ -161,6 +161,89 @@ describe("AdminNamecardManagePage", () => {
     })
   })
 
+  it("narrows the queue by the owning account picked from the user search", async () => {
+    const fetchMock = installFetchMock(async (input) => {
+      const url = new URL(String(input), "http://x")
+      if (url.pathname.endsWith("/cards/feedback")) return emptyQueue()
+      if (url.pathname.endsWith("/platform/users")) {
+        return Response.json({
+          success: true,
+          users: [
+            {
+              id: "account-1",
+              status: "active",
+              displayName: "Producer One",
+              uid: 1,
+              pageSlug: null,
+              email: null,
+              hasPassword: false,
+              activeSessionCount: 0,
+              lastLoginAt: null,
+              createdAt: 1,
+              updatedAt: 1,
+            },
+          ],
+          pageInfo: {
+            page: 1,
+            pageSize: 6,
+            total: 1,
+            totalPages: 1,
+            hasNextPage: false,
+          },
+        })
+      }
+      return cardsBody([card()])
+    })
+    const listCalls = () =>
+      fetchMock.mock.calls
+        .map((call) => new URL(requestDetails(call).url, "http://x"))
+        .filter((url) => url.pathname === "/api/admin/cards")
+    const user = userEvent.setup()
+
+    renderPage(<AdminNamecardManagePage />, {
+      route: "/admin/cards/manage?tab=advanced",
+    })
+    await screen.findByText("名片队列")
+
+    // 控件落位：制作人名称 → 所属用户 → 审核状态。
+    const fieldOrder = ["制作人名称", "所属用户", "审核状态"].map((label) =>
+      screen.getByText(label)
+    )
+    expect(fieldOrder[0]!.compareDocumentPosition(fieldOrder[1]!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(fieldOrder[1]!.compareDocumentPosition(fieldOrder[2]!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+
+    await user.type(screen.getByPlaceholderText("按昵称检索用户"), "Producer")
+    await user.click(await screen.findByRole("button", { name: /Producer One/ }))
+
+    await waitFor(() => {
+      expect(listCalls().at(-1)!.searchParams.get("owner")).toBe("account-1")
+    })
+    expect(screen.getByText("Producer One")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "取消所属用户筛选" }))
+    await waitFor(() => {
+      expect(listCalls().at(-1)!.searchParams.get("owner")).toBeNull()
+    })
+  })
+
+  it("keeps the owning account filter through a reloaded URL", async () => {
+    const fetchMock = installHarness(() => cardsBody([card()]))
+
+    renderPage(<AdminNamecardManagePage />, {
+      route:
+        "/admin/cards/manage?tab=advanced&owner=account-1&owner_name=Producer%20One",
+    })
+
+    expect(await screen.findByText("Producer One")).toBeInTheDocument()
+    expect(cardsOnly(fetchMock).at(-1)!.searchParams.get("owner")).toBe(
+      "account-1"
+    )
+  })
+
   it("flags a pending submission instead of a plain reject when asked to", async () => {
     setCsrfCookie("backoffice", "csrf-token")
     const fetchMock = installFetchMock(async (input, init) => {

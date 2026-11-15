@@ -902,6 +902,60 @@ import { describe, onTestFinished, test } from 'vitest';
             });
         });
     });
+
+    describe('admin namecard owner filter', () => {
+        postgresTest('narrows the admin queue and its count to one owner', async () => {
+            const database = await createPostgresTestDatabase('namecard-admin-owner-filter');
+            await seedCanonicalFudabaAgencies(database);
+            const repository = new SqlCoreRepository(
+                database,
+                new PostgresqlSchemaStrategy()
+            );
+            await repository.initialize();
+            await executeSql(database,
+                `INSERT INTO platform_accounts (id, status, created_at, updated_at)
+                 VALUES ('filter-owner-a', 'active', 1, 1),
+                        ('filter-owner-b', 'active', 1, 1)`
+            );
+
+            const first = await repository.insertPendingCard(guestInput('owner-a'));
+            const second = await repository.insertPendingCard(guestInput('owner-b'));
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                    SET owner_account_id=?, producer_name=?, trade_note=''
+                  WHERE card_number=?`,
+                ['filter-owner-a', '甲制作人', first]
+            );
+            await executeSql(database,
+                `UPDATE fudaba_cards
+                    SET owner_account_id=?, producer_name=?, trade_note=''
+                  WHERE card_number=?`,
+                ['filter-owner-b', '乙制作人', second]
+            );
+
+            // 不带归属条件时两张都在队列里，归属条件只收窄到自己那张。
+            const unfiltered = { query: null, status: null, origins: [] };
+            assert.equal(await repository.countAdminCards(unfiltered), 2);
+            assert.equal(
+                (await repository.listAdminCards(20, 0, unfiltered)).length,
+                2
+            );
+
+            const firstOwner = { ...unfiltered, ownerAccountId: 'filter-owner-a' };
+            assert.deepEqual(
+                (await repository.listAdminCards(20, 0, firstOwner)).map((row) => row.id),
+                [first]
+            );
+            assert.equal(await repository.countAdminCards(firstOwner), 1);
+
+            const secondOwner = { ...unfiltered, ownerAccountId: 'filter-owner-b' };
+            assert.deepEqual(
+                (await repository.listAdminCards(20, 0, secondOwner)).map((row) => row.id),
+                [second]
+            );
+            assert.equal(await repository.countAdminCards(secondOwner), 1);
+        });
+    });
 }
 
 // namecard-ownership-migration.test.ts

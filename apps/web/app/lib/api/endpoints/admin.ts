@@ -421,6 +421,8 @@ export interface AdminNamecardListFilters {
   query?: string
   status?: string
   origins?: string[]
+  /** 归属账号：只列出该账号名下的名片。 */
+  ownerAccountId?: string
 }
 
 export function getAdminNamecards(
@@ -431,6 +433,7 @@ export function getAdminNamecards(
   if (filters?.query) params.query = filters.query
   if (filters?.status) params.status = filters.status
   if (filters?.origins?.length) params.origin = filters.origins.join(",")
+  if (filters?.ownerAccountId) params.owner = filters.ownerAccountId
   return adminApiClient.Get(
     adminApiPath("/cards"),
     parsed(adminNamecardListSchema, {

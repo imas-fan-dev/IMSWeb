@@ -1,20 +1,12 @@
-import {
-  CheckIcon,
-  IdCardIcon,
-  PlusIcon,
-  SearchIcon,
-  XIcon,
-} from "lucide-react"
+import { CheckIcon, IdCardIcon, PlusIcon, XIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
 import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { AdminPagination } from "~/components/admin/admin-pagination"
+import { CheckboxFilterGroup, SearchField } from "~/components/admin/filter-bar"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { ReviewRowAction } from "./review-row-action"
 import { Badge } from "~/components/ui/badge"
-
-import { Checkbox } from "~/components/ui/checkbox"
-import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   getAdminFudabaReviewQueue,
@@ -150,7 +142,10 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
     }
   }, [apply, loadKey, page, query, type])
 
-  function toggleKind(kind: ReviewKind, checked: boolean) {
+  function toggleKind(value: string, checked: boolean) {
+    // 勾选组回传的是原始字符串；只有 KIND_ITEMS 里的取值会被写进状态。
+    const kind = KIND_ITEMS.find((item) => item.value === value)?.value
+    if (!kind) return
     setKinds((current) =>
       checked
         ? Array.from(new Set([...current, kind]))
@@ -287,43 +282,21 @@ export function ClaimReviewTab({ reloadToken = 0 }: { reloadToken?: number }) {
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
-        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-          制作人名称
-          <div className="relative">
-            <SearchIcon
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              value={draftQuery}
-              placeholder="搜索制作人名称"
-              className="w-56 pl-8"
-              onChange={(event) => {
-                setDraftQuery(event.currentTarget.value)
-                setPage(1)
-              }}
-            />
-          </div>
-        </label>
-        <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-          <span>审核类型</span>
-          <div className="flex h-9 items-center gap-4">
-            {KIND_ITEMS.map((item) => (
-              <label
-                key={item.value}
-                className="flex items-center gap-1.5 text-sm text-foreground"
-              >
-                <Checkbox
-                  checked={kinds.includes(item.value)}
-                  onCheckedChange={(checked) =>
-                    toggleKind(item.value, checked === true)
-                  }
-                />
-                {item.label}
-              </label>
-            ))}
-          </div>
-        </div>
+        <SearchField
+          label="制作人名称"
+          placeholder="搜索制作人名称"
+          value={draftQuery}
+          onChange={(value) => {
+            setDraftQuery(value)
+            setPage(1)
+          }}
+        />
+        <CheckboxFilterGroup
+          label="审核类型"
+          items={KIND_ITEMS}
+          values={kinds}
+          onToggle={toggleKind}
+        />
       </div>
 
       <AdminPanel

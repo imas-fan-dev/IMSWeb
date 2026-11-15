@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { makeCardPage } from "@/mocks/data/namecards"
 import { renderPage } from "@/tests/unit/support/harness"
 import type {
   AdminCardSupplement,
@@ -33,16 +34,7 @@ function page(
   role: "front" | "middle" | "back",
   url: string
 ) {
-  return {
-    pageId,
-    role,
-    order,
-    url,
-    previewUrl: url,
-    thumbUrl: url,
-    width: 900,
-    height: 500,
-  }
+  return makeCardPage({ pageId, role, order, url })
 }
 
 function claim(

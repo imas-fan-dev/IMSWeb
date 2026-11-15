@@ -3,8 +3,10 @@ import {
     NAMECARD_FAVORITE_CHARACTER_LIMIT,
 } from "@imsweb/contracts/fudaba/runtime";
 import {
+    classifyNamecardReviewRetry,
     fudabaReviewPolicy,
     isArtworkReorder,
+    planNamecardReview,
     sameArtworkOrder,
     sameCardSubmission,
     type CardSubmissionSnapshot,
@@ -722,8 +724,14 @@ function supplementChangesLiveCard(
     payload: FudabaCardPayload,
     live: FudabaCardRecord,
 ): boolean {
-    // 只提旋转也是有效补充：它会在审核通过时改写正反面。
-    if (payload.rotations && ((payload.rotations.front ?? 0) !== 0 || (payload.rotations.back ?? 0) !== 0)) {
+    // 只提旋转也是有效补充：它会在审核通过时改写正反面与中间页。
+    const rotations = payload.rotations;
+    if (
+        rotations &&
+        ((rotations.front ?? 0) !== 0 ||
+            (rotations.back ?? 0) !== 0 ||
+            (rotations.middles ?? []).some((turns) => turns !== 0))
+    ) {
         return true;
     }
     if ("producerName" in payload && payload.producerName !== live.producer_name)
@@ -4887,68 +4895,77 @@ export class SqlFudabaRepository implements FudabaRepository {
                     [cardId, expectedRevision],
                 );
                 if (claimed) {
-                    const row = await queryOne<FudabaRegisteredCardReviewRow>(
+                    const { record } = await this.loadRegisteredCardReview(
                         database,
-                        `SELECT card.*, profile.display_name AS owner_display_name
-                     FROM fudaba_cards card
-                     JOIN platform_profiles profile
-                       ON profile.account_id=card.owner_account_id
-                     WHERE card.id=?`,
-                        [cardId],
+                        cardId,
                     );
-                    if (!row)
-                        throw new Error(
-                            "Claimed Fudaba card review disappeared",
-                        );
-                    const card = (
-                        await this.attachCardSelections(database, [
-                            registeredCardReviewRecord(row),
-                        ])
-                    )[0]!;
-                    return { status: "claimed", card };
+                    return { status: "claimed", card: record };
                 }
                 const current = await queryOne<{
                     revision: number | string;
                     publication_status: FudabaRegisteredCardReviewRecord["publication_status"];
+                    review_status: FudabaRegisteredCardReviewRecord["review_status"];
                 }>(
                     database,
-                    `SELECT revision, publication_status
+                    `SELECT revision, publication_status, review_status
                  FROM fudaba_cards WHERE id=? AND deleted_at IS NULL`,
                     [cardId],
                 );
-                return current
-                    ? {
-                          status: "conflict",
-                          revision: Number(current.revision),
-                          publicationStatus: current.publication_status,
-                      }
-                    : { status: "unavailable" };
+                if (!current) return { status: "unavailable" };
+                // 与 P1 共用同一张状态机：失败/并发留下的 `approving`（或待审改版）
+                // 仍是「上次的残留」，拿最新 revision 重试即可续做，不能报冲突——
+                // 否则这一步失败过的行永远无法再通过。
+                const retry = classifyNamecardReviewRetry(
+                    {
+                        publicationStatus: current.publication_status,
+                        reviewStatus: current.review_status,
+                        revision: Number(current.revision),
+                    },
+                    expectedRevision,
+                );
+                if (retry === "resumed") {
+                    const { record } = await this.loadRegisteredCardReview(
+                        database,
+                        cardId,
+                    );
+                    return { status: "resumed", card: record };
+                }
+                return {
+                    status: "conflict",
+                    revision: Number(current.revision),
+                    publicationStatus: current.publication_status,
+                };
             }),
         );
     }
 
-    rollbackRegisteredCardReview(
+    /**
+     * 审核行 + 属主显示名：`begin*` 的 claimed/resumed 与落地判决共用这一份投影。
+     * 通知要原始行（`owner_account_id`/`card_number`），响应要记录。
+     */
+    private async loadRegisteredCardReview(
+        database: SqlDatabase,
         cardId: string,
-        approvingRevision: number,
-    ): Promise<boolean> {
-        return this.serializeWrite(async () => {
-            const result = await executeSql(
-                this.database,
-                `UPDATE fudaba_cards
-                 SET publication_status=CASE
-                         WHEN publication_status='approving' THEN 'pending'
-                         ELSE publication_status
-                     END,
-                     revision=revision+1, updated_at=CURRENT_TIMESTAMP
-                 WHERE id=? AND revision=? AND deleted_at IS NULL
-                   AND (
-                       publication_status='approving'
-                       OR review_status='pending'
-                   )`,
-                [cardId, approvingRevision],
-            );
-            return result.meta.changes === 1;
-        });
+    ): Promise<{
+        row: FudabaRegisteredCardReviewRow;
+        record: FudabaRegisteredCardReviewRecord;
+    }> {
+        const row = await queryOne<FudabaRegisteredCardReviewRow>(
+            database,
+            `SELECT card.*, profile.display_name AS owner_display_name
+             FROM fudaba_cards card
+             JOIN platform_profiles profile
+               ON profile.account_id=card.owner_account_id
+             WHERE card.id=?`,
+            [cardId],
+        );
+        if (!row) throw new Error("Fudaba card review row disappeared");
+        const record = (
+            await this.attachCardSelections(database, [
+                registeredCardReviewRecord(row),
+            ])
+        )[0]!;
+        return { row, record };
     }
 
     private async notifyRegisteredCardReview(
@@ -5005,17 +5022,25 @@ export class SqlFudabaRepository implements FudabaRepository {
                  FOR UPDATE`,
                     [input.cardId, input.approvingRevision],
                 );
-                if (reviewed) {
-                    const staged = reviewed.review_status === "pending";
+                const plan = reviewed
+                    ? planNamecardReview(
+                          {
+                              publicationStatus: reviewed.publication_status,
+                              reviewStatus: reviewed.review_status
+                          },
+                          input.decision
+                      )
+                    : null;
+                if (reviewed && plan && plan.allowed) {
                     const replacedObjectKeys: string[] = [];
-                    if (staged && input.decision === "publish") {
+                    if (plan.promotesPages) {
                         await this.publishStagedRevision(
                             database,
                             reviewed,
                             input.reviewedAt,
                             replacedObjectKeys,
                         );
-                    } else if (staged) {
+                    } else if (plan.subject === "revision") {
                         // A verdict on the submission only; the published copy
                         // keeps serving the wall.
                         await executeSql(
@@ -5025,9 +5050,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                                  revision=revision+1, updated_at=?
                              WHERE id=?`,
                             [
-                                input.decision === "flag"
-                                    ? "locked"
-                                    : "rejected",
+                                plan.reviewStatus,
                                 input.note ?? null,
                                 input.reviewedAt,
                                 input.cardId,
@@ -5043,11 +5066,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                                  revision=revision+1, updated_at=?
                              WHERE id=?`,
                             [
-                                input.decision === "publish"
-                                    ? "published"
-                                    : input.decision === "flag"
-                                      ? "locked"
-                                      : "rejected",
+                                plan.publicationStatus,
                                 input.decision,
                                 input.note ?? null,
                                 input.reviewedAt,
@@ -5069,30 +5088,18 @@ export class SqlFudabaRepository implements FudabaRepository {
                             input.audit.time,
                         ],
                     );
-                    const row = await queryOne<FudabaRegisteredCardReviewRow>(
+                    const { row, record } = await this.loadRegisteredCardReview(
                         database,
-                        `SELECT card.*, profile.display_name AS owner_display_name
-                     FROM fudaba_cards card
-                     JOIN platform_profiles profile
-                       ON profile.account_id=card.owner_account_id
-                     WHERE card.id=?`,
-                        [input.cardId],
+                        input.cardId,
                     );
-                    if (!row)
-                        throw new Error("Reviewed Fudaba card disappeared");
                     // This pipeline used to decide silently; owners now hear
                     // about the outcome the same way the exchange queue does.
                     await this.notifyRegisteredCardReview(database, row, {
                         decision: input.decision,
                         note: input.note ?? null,
-                        staged,
+                        staged: plan.subject === "revision",
                     });
-                    const card = (
-                        await this.attachCardSelections(database, [
-                            registeredCardReviewRecord(row),
-                        ])
-                    )[0]!;
-                    return { status: "saved", card, replacedObjectKeys };
+                    return { status: "saved", card: record, replacedObjectKeys };
                 }
                 const current = await queryOne<{
                     revision: number | string;
@@ -5506,7 +5513,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                                 "live",
                                 [
                                     input.media.frontObjectKey,
-                                    null,
+                                    ...(input.media.middleObjectKeys ?? []),
                                     input.media.backObjectKey,
                                 ],
                                 input.media.pages,
@@ -5912,7 +5919,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                             "live",
                             [
                                 input.media.frontObjectKey,
-                                null,
+                                ...(input.media.middleObjectKeys ?? []),
                                 input.media.backObjectKey,
                             ],
                             input.media.pages,

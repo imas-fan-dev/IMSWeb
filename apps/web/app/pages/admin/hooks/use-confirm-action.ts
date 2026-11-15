@@ -17,6 +17,10 @@ export interface ConfirmActionOptions<T> {
    * 免得版本竞争之后还拿着旧 revision 反复提交。
    */
   reloadTarget?: (item: T) => Promise<T | null>
+  /**
+   * 取消/关闭确认弹窗时调用（提交成功后不调用，成功路径各自清理）。
+   */
+  onClose?: () => void
 }
 
 function messageFor<T>(
@@ -33,6 +37,7 @@ export function useConfirmAction<T>({
   successMessage,
   getFallbackFocus,
   reloadTarget,
+  onClose,
 }: ConfirmActionOptions<T>) {
   const [target, setTarget] = useState<T | null>(null)
   const [status, setStatus] = useState<ConfirmActionStatus>("idle")
@@ -70,7 +75,8 @@ export function useConfirmAction<T>({
     if (target) restoreFocus(target)
     setTarget(null)
     setStatus("idle")
-  }, [restoreFocus, target])
+    onClose?.()
+  }, [onClose, restoreFocus, target])
 
   const onOpenChange = useCallback(
     (open: boolean) => {

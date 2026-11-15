@@ -19,6 +19,7 @@ import { isProfileWorkspaceSection } from "~/pages/account/me/profile-workspace-
 import { ProfileEditor } from "~/pages/account/me/profile/profile-editor"
 import { ExchangeManagementDialog } from "~/pages/community/exchange/components/exchange-management-dialog"
 import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
+import { makeCardPage } from "@/mocks/data/namecards"
 
 const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
@@ -150,26 +151,23 @@ const card = {
   frontImageUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
   backImageUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
   pages: [
-    {
+    // This card is a 960×640 scan, so its size is spelled out.
+    makeCardPage({
       pageId: "page-front",
       role: "front",
       order: 1,
       url: "/api/community/exchange/me/cards/card-1/media/front?v=3",
-      previewUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
-      thumbUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
       width: 960,
       height: 640,
-    },
-    {
+    }),
+    makeCardPage({
       pageId: "page-back",
       role: "back",
       order: 2,
       url: "/api/community/exchange/me/cards/card-1/media/back?v=3",
-      previewUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
-      thumbUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
       width: 960,
       height: 640,
-    },
+    }),
   ],
   accent: "#f34e6c",
   bio: "上海地区制作人",
@@ -923,6 +921,26 @@ describe("AccountMeWorkspace", () => {
     expect(await screen.findByText("名片版本冲突")).toBeVisible()
     expect(cardName).toHaveValue("仍需保留的输入")
     expect(screen.getByRole("button", { name: "载入最新名片" })).toBeVisible()
+  })
+
+  it("locks the artwork rotation while the card save is in flight", async () => {
+    apiMocks.sendUpdate.mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(
+      await screen.findByRole("button", { name: /周末交换名片/ })
+    )
+    const rotate = await screen.findByRole("button", {
+      name: "向左旋转 90 度",
+    })
+    expect(rotate).toBeEnabled()
+
+    await user.click(screen.getByRole("button", { name: "保存并提交" }))
+
+    // 提交后窗口刷新期间画布不能再改：按钮要跟着保存态一起禁用。
+    await waitFor(() => expect(rotate).toBeDisabled())
   })
 
   it("replaces the ordered artwork set and keeps local changes until save", async () => {

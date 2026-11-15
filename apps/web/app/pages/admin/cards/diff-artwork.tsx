@@ -1,6 +1,7 @@
 import { useState } from "react"
 
 import { CardImage } from "~/components/shared/card-image"
+import { namecardPageLabel } from "~/components/shared/namecard-pages"
 import { cn } from "~/lib/utils"
 
 type DiffSide = {
@@ -87,7 +88,7 @@ export function diffImageSlots(
       ...pairSlots(
         liveFaces.middles[index] ?? null,
         nextFaces.middles[index] ?? null,
-        `中间页 ${index + 1}`,
+        namecardPageLabel(index + 1, middles + 2),
         `middle-${index}`
       )
     )

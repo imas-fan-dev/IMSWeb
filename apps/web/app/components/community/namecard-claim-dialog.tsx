@@ -18,6 +18,7 @@ import {
   CardMediaPreview,
   publicMediaSlotsFromCard,
 } from "~/pages/account/me/namecards/card-media-gallery"
+import { rotateOne, rotationPayload } from "~/lib/namecards/rotation"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useCardFieldFade } from "~/components/community/use-card-field-fade"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
@@ -137,28 +138,19 @@ export function NamecardClaimDialog({
     try {
       // 认领接口以「旧名片编号」定位：墙上这张卡的 id 现在是 guest-<编号>，
       // 直接当编号用在服务端会被判无效。
-      const turns = (position: number) =>
-        (((rotations[position] ?? 0) % 4) + 4) % 4
-      const lastPosition = Math.max(mediaSlots.length - 1, 0)
-      const rotationPatch = {
-        ...(turns(0) ? { front: turns(0) } : {}),
-        ...(lastPosition > 0 && turns(lastPosition)
-          ? { back: turns(lastPosition) }
-          : {}),
-      }
+      // 中间页也要一起提交，否则墙上的中间页旋转不会生效。
+      const rotationPatch = rotationPayload(mediaSlots.length, rotations)
       const result = await createFudabaLegacyCardClaim(card.cardNumber, {
         targetCardId: binding ? existingTarget.id : null,
         // 绑定已有名片时信息以那张卡为准，所以只提交归属关系与旋转。
         payload: binding
-          ? Object.keys(rotationPatch).length
+          ? rotationPatch
             ? { rotations: rotationPatch }
             : undefined
           : (() => {
               const patch = {
                 ...wallCardPayload("claim", filled, live),
-                ...(Object.keys(rotationPatch).length
-                  ? { rotations: rotationPatch }
-                  : {}),
+                ...(rotationPatch ? { rotations: rotationPatch } : {}),
               }
               // 没有任何改动时不带 payload，服务端按 live 资料落认领记录。
               return Object.keys(patch).length ? patch : undefined
@@ -191,20 +183,15 @@ export function NamecardClaimDialog({
           {card ? (
             <CardMediaPreview
               slots={mediaSlots}
+              disabled={submitting}
               rotations={binding ? {} : rotations}
               onRotate={
                 binding
                   ? undefined
                   : (position, direction) =>
-                      setRotations((current) => ({
-                        ...current,
-                        [position]:
-                          ((((current[position] ?? 0) +
-                            (direction === "right" ? 1 : 3)) %
-                            4) +
-                            4) %
-                          4,
-                      }))
+                      setRotations((current) =>
+                        rotateOne(current, position, direction)
+                      )
               }
             />
           ) : null}

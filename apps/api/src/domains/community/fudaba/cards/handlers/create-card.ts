@@ -3,6 +3,7 @@ import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView } from '@/domains/community/fudaba/contracts/card';
 import { ownerCardArtwork } from '@/domains/community/fudaba/cards/artwork-view';
 import {
+    hasMediaRotations,
     parseFudabaCardCreateFields,
     parseMediaRotations
 } from '@/domains/community/fudaba/cards/request';
@@ -65,7 +66,8 @@ export async function handleCreateFudabaCard(
             MAX_CARD_IMAGE_BYTES
         );
         // A single-sided card is legal: no back artwork, nothing uploaded.
-        if ((rotations.front || rotations.back) && !runtime.images.rotate) {
+        // 中间页也算「需要旋转」：只提交 middles 时写入阶段一样要用 rotate。
+        if (hasMediaRotations(rotations) && !runtime.images.rotate) {
             throw new Error('Image rotation is unavailable');
         }
         const rotatedFront = rotations.front

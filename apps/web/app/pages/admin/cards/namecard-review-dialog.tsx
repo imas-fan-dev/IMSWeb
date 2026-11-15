@@ -1,9 +1,4 @@
-import {
-  CheckIcon,
-  LoaderCircleIcon,
-  LockIcon,
-  XIcon,
-} from "lucide-react"
+import { LoaderCircleIcon, LockIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Button } from "~/components/ui/button"
@@ -11,7 +6,6 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
@@ -23,6 +17,7 @@ import {
   type AdminNamecardDiff,
 } from "~/lib/api"
 import { DiffArtwork, diffImageSlots } from "./diff-artwork"
+import { ReviewDecisionFooter } from "./review-decision-footer"
 import { ReviewFieldRows, useReviewLabels } from "./review-field-rows"
 
 type DiffSide = AdminNamecardDiff["live"]
@@ -173,31 +168,19 @@ export function NamecardReviewDialog({
             </div>
           )}
         </DialogBody>
-        <DialogFooter className="flex-nowrap justify-end gap-2 overflow-x-auto border-t bg-transparent">
-          <Button
-            type="button"
-            className="min-h-11"
-            disabled={!card || card.status !== "pending"}
-            onClick={() => {
-              // 两版对比读到的 revision 比列表行新，冲突重试才有意义。
-              if (card) onApprove({ ...card, revision: diff?.revision ?? card.revision })
-            }}
-          >
-            <CheckIcon data-icon="inline-start" aria-hidden="true" />
-            通过
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            disabled={!card || card.status !== "pending"}
-            onClick={() => {
-              if (card) onReject(card)
-            }}
-          >
-            <XIcon data-icon="inline-start" aria-hidden="true" />
-            驳回
-          </Button>
+        <ReviewDecisionFooter
+          className="flex-nowrap justify-end gap-2 overflow-x-auto border-t bg-transparent"
+          buttonClassName="min-h-11"
+          approving={!card || card.status !== "pending"}
+          rejecting={!card || card.status !== "pending"}
+          onApprove={() => {
+            // 两版对比读到的 revision 比列表行新，冲突重试才有意义。
+            if (card) onApprove({ ...card, revision: diff?.revision ?? card.revision })
+          }}
+          onReject={() => {
+            if (card) onReject(card)
+          }}
+        >
           <Button
             type="button"
             variant="destructive"
@@ -210,7 +193,7 @@ export function NamecardReviewDialog({
             <LockIcon data-icon="inline-start" aria-hidden="true" />
             锁定
           </Button>
-        </DialogFooter>
+        </ReviewDecisionFooter>
       </DialogContent>
     </Dialog>
   )

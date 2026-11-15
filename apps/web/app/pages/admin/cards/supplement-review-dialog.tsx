@@ -1,19 +1,21 @@
-import { CheckIcon, LoaderCircleIcon, XIcon } from "lucide-react"
+import { LoaderCircleIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
-import { Button } from "~/components/ui/button"
 import {
   Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
 import { ReviewCardPreview } from "./review-card-preview"
+import { ReviewDecisionFooter } from "./review-decision-footer"
 import {
   ReviewFieldRows,
+  characterListOrNull,
+  rotationRows,
+  seriesListOrNull,
   useReviewLabels,
   type ReviewRow,
 } from "./review-field-rows"
@@ -31,10 +33,6 @@ function fieldRows(
 ): ReviewRow[] {
   const pending = detail.supplement.payload
   const live = detail.live
-  const series = (codes: readonly string[]) =>
-    codes.length ? labels.seriesList(codes) : null
-  const characters = (ids: readonly number[]) =>
-    ids.length ? labels.characterList(ids) : null
   const liveCharacters = live.favoriteCharacters.map((item) => item.id)
   const rows: ReviewRow[] = []
   if (pending.producerName !== undefined) {
@@ -45,32 +43,24 @@ function fieldRows(
   }
   if (pending.seriesCodes !== undefined) {
     rows.push(
-      textRow("企划", series(live.seriesCodes), series(pending.seriesCodes))
+      textRow(
+        "企划",
+        seriesListOrNull(labels, live.seriesCodes),
+        seriesListOrNull(labels, pending.seriesCodes)
+      )
     )
   }
   if (pending.favoriteCharacterIds !== undefined) {
     rows.push(
       textRow(
         "担当角色",
-        characters(liveCharacters),
-        characters(pending.favoriteCharacterIds)
+        characterListOrNull(labels, liveCharacters),
+        characterListOrNull(labels, pending.favoriteCharacterIds)
       )
     )
   }
   // 旋转是这次补充的一部分，审核员必须看到，否则通过后卡片朝向会莫名变化。
-  const rotations = pending.rotations
-  const turnLabels = rotations
-    ? (["front", "back"] as const)
-        .map((side) => {
-          const turns = rotations[side] ?? 0
-          if (!turns) return null
-          return `${side === "front" ? "正面" : "背面"} ${turns * 90}°`
-        })
-        .filter((label): label is string => label !== null)
-    : []
-  if (turnLabels.length > 0) {
-    rows.push(textRow("图片旋转", null, turnLabels.join("、")))
-  }
+  rows.push(...rotationRows(pending.rotations))
   return rows
 }
 
@@ -157,29 +147,16 @@ export function SupplementReviewDialog({
             )}
           </div>
         </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            disabled={!supplement}
-            onClick={() => {
-              if (supplement) onApprove(supplement)
-            }}
-          >
-            <CheckIcon data-icon="inline-start" aria-hidden="true" />
-            通过
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!supplement}
-            onClick={() => {
-              if (supplement) onReject(supplement)
-            }}
-          >
-            <XIcon data-icon="inline-start" aria-hidden="true" />
-            驳回
-          </Button>
-        </DialogFooter>
+        <ReviewDecisionFooter
+          approving={!supplement}
+          rejecting={!supplement}
+          onApprove={() => {
+            if (supplement) onApprove(supplement)
+          }}
+          onReject={() => {
+            if (supplement) onReject(supplement)
+          }}
+        />
       </DialogContent>
     </Dialog>
   )

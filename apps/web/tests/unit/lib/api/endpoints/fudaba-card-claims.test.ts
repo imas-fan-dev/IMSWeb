@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 
+import { makeCardPage } from "@/mocks/data/namecards"
 import { installFetchMock } from "@/tests/unit/support/api-client"
 import {
   clearCsrfCookie,
@@ -210,26 +211,23 @@ describe("Fudaba card claim API", () => {
               legacyCard: {
                 id: 42,
                 pages: [
-                  {
+                  // A 960×640 legacy scan, so its size is spelled out.
+                  makeCardPage({
                     pageId: "page-front",
                     role: "front",
                     order: 1,
                     url: "/legacy-front.webp",
-                    previewUrl: "/legacy-front.webp",
-                    thumbUrl: "/legacy-front.webp",
                     width: 960,
                     height: 640,
-                  },
-                  {
+                  }),
+                  makeCardPage({
                     pageId: "page-back",
                     role: "back",
                     order: 2,
                     url: "/legacy-back.webp",
-                    previewUrl: "/legacy-back.webp",
-                    thumbUrl: "/legacy-back.webp",
                     width: 960,
                     height: 640,
-                  },
+                  }),
                 ],
               },
             },

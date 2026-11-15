@@ -36,12 +36,17 @@ import type {
     FudabaAdminCardClaimRecord,
     FudabaCardPageWrite
 } from '@/ports/repositories';
+import {
+    planNamecardReview,
+    type NamecardReviewAction,
+    type NamecardReviewPlan
+} from '@/ports/repositories/fudaba-review-policy';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 import { fudabaCardMediaVersionObjectKey } from '@/utils/storage/business-object-keys';
 import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import { cardPageObjectKeys } from '@/domains/community/fudaba/cards/card-media-resolver';
 import { parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
 import { randomUUID } from 'node:crypto';
@@ -63,7 +68,7 @@ async function rotateReviewedArtwork(
     runtime: ReturnType<typeof services>,
     input: {
         cardId: string;
-        side: 'front' | 'back';
+        side: 'front' | 'back' | 'middle';
         key: string;
         turns: number;
         accountId: string;
@@ -102,6 +107,47 @@ async function rotateReviewedArtwork(
         height: stored.height
     });
     return stored.key;
+}
+
+/**
+ * 按页序重写中间页：只转圈数非 0 的那几张，其余原样保留在返回的页序里。
+ * 返回的是**完整的**中间页键序列——仓储同步页面行时用它判断哪些页还在，
+ * 只交被旋转的那几张会把其余中间页当成已删除。
+ */
+async function rotateReviewedMiddles(
+    runtime: ReturnType<typeof services>,
+    input: {
+        cardId: string;
+        /** 线上页面行：首页正面、末页背面，中间的 1..n-2 是中间页。 */
+        liveKeys: readonly string[];
+        /** 按页序排列的中间页圈数；下标 0 对应第一张中间页。 */
+        turns: readonly number[];
+        accountId: string;
+    },
+    created: CreatedObject[],
+    pages: FudabaCardPageWrite[]
+): Promise<string[]> {
+    const middles = input.liveKeys.slice(
+        1,
+        Math.max(1, input.liveKeys.length - 1)
+    );
+    for (const [index, turns] of input.turns.entries()) {
+        const slot = index + 1;
+        if (turns === 0 || slot >= input.liveKeys.length - 1) continue;
+        middles[index] = await rotateReviewedArtwork(
+            runtime,
+            {
+                cardId: input.cardId,
+                side: 'middle',
+                key: input.liveKeys[slot]!,
+                turns,
+                accountId: input.accountId
+            },
+            created,
+            pages
+        );
+    }
+    return middles;
 }
 
 /** The queue merges three lists in memory, so each one is read in full. */
@@ -160,12 +206,10 @@ export async function handleListFudabaRegisteredCardReviews(
                 const rows = pagesByNumber.get(Number(card.card_number));
                 return fudabaRegisteredCardReviewView(
                     card,
-                    cardArtworkView({
+                    namecardPagesView(rows, {
                         scope: 'admin',
                         cardNumber: Number(card.card_number),
-                        cardId: card.id,
-                        live: rows?.live ?? [],
-                        pending: []
+                        cardId: card.id
                     }).live
                 );
             })
@@ -191,11 +235,16 @@ export async function handleReviewFudabaRegisteredCard(
     let approvingRevision: number | null = null;
     let mediaNeedsProtection = false;
     let reviewMediaKeys: string[] = [];
-    let requestedDecision: 'approve' | 'reject' | 'flag' | null = null;
+    /** 认领后由共享状态机算出的落点；失败恢复靠它判断判决有没有落地。 */
+    let reviewPlan: NamecardReviewPlan | null = null;
     let completionAttempted = false;
     try {
         const review = parseCardReview(await jsonBody(c));
-        requestedDecision = review.decision;
+        const action: NamecardReviewAction = review.decision === 'approve'
+            ? 'publish'
+            : review.decision === 'flag'
+              ? 'flag'
+              : 'reject';
         const claimed = await repository.beginRegisteredCardReview(
             cardId,
             review.expectedRevision
@@ -205,6 +254,14 @@ export async function handleReviewFudabaRegisteredCard(
         }
         if (claimed.status === 'conflict') return reviewConflict(c, claimed.revision);
         approvingRevision = claimed.card.revision;
+        // 判决的落点由共享状态机给出：只有 `publish` 才提升待审页与整份改版。
+        reviewPlan = planNamecardReview(
+            {
+                publicationStatus: claimed.card.publication_status,
+                reviewStatus: claimed.card.review_status
+            },
+            action
+        );
         /*
           公开墙按「公开对象」取图，所以这里必须发布批准之后真正上线的那一套：
           有暂存页面行时是完整的待审快照（未改动的页仍指向线上对象），否则就是
@@ -231,12 +288,7 @@ export async function handleReviewFudabaRegisteredCard(
         const result = await repository.completeRegisteredCardReview({
             cardId,
             approvingRevision,
-            decision:
-                review.decision === 'approve'
-                    ? 'publish'
-                    : review.decision === 'flag'
-                      ? 'flag'
-                      : 'reject',
+            decision: action,
             note: review.note || null,
             reviewedAt,
             audit: audit(
@@ -256,29 +308,27 @@ export async function handleReviewFudabaRegisteredCard(
                 await Promise.all(reviewMediaKeys.map((key) =>
                     protectObjectWithCompensation(services(c), key)
                 ));
-                mediaNeedsProtection = false;
             }
-            await repository.rollbackRegisteredCardReview(cardId, approvingRevision);
-            approvingRevision = null;
+            // 判决没落地也不回收认领：行留在 `approving`（或待审改版）等重试——
+            // 这是 P1 一直以来的语义，重试时 `begin*` 会以 `resumed` 续做。
             if (result.status === 'conflict') {
                 return reviewConflict(c, result.revision);
             }
             return c.json({ success: false, code: 'FUDABA_CARD_REVIEW_NOT_FOUND' }, 404);
         }
-        mediaNeedsProtection = false;
-        approvingRevision = null;
         return c.json({ success: true, revision: result.card.revision });
     } catch (error) {
         let compensationSafe = true;
-        if (completionAttempted && approvingRevision !== null && requestedDecision) {
+        if (completionAttempted && approvingRevision !== null && reviewPlan && reviewPlan.allowed) {
+            // 落点已知，所以「这次判决到底有没有落地」是可判定的：行必须推进到状态
+            // 机给出的那两列上。`pending` 回滚已经不存在，这是唯一的恢复判据。
             try {
                 const recovered = await repository.findRegisteredCardForAdmin(cardId);
-                const expectedStatus = requestedDecision === 'approve'
-                    ? 'published'
-                    : 'rejected';
                 if (
-                    recovered?.publication_status === expectedStatus &&
-                    recovered.revision === approvingRevision + 1
+                    recovered &&
+                    recovered.revision === approvingRevision + 1 &&
+                    recovered.publication_status === reviewPlan.publicationStatus &&
+                    recovered.review_status === reviewPlan.reviewStatus
                 ) {
                     return c.json({ success: true, revision: recovered.revision });
                 }
@@ -290,21 +340,17 @@ export async function handleReviewFudabaRegisteredCard(
                 );
             }
         }
-        let protectionFailed = false;
         if (compensationSafe && mediaNeedsProtection) {
+            // 只是把这次发布退回受保护状态；认领本身照旧留着等重试。
             await Promise.all(reviewMediaKeys.map((key) =>
                 protectObjectWithCompensation(services(c), key)
                     .catch((protectionError) => {
-                        protectionFailed = true;
-                        console.error('Failed to protect registered card media', protectionError);
+                        console.error(
+                            'Failed to protect registered card media',
+                            protectionError
+                        );
                     })
             ));
-        }
-        if (approvingRevision !== null && compensationSafe && !protectionFailed) {
-            await repository.rollbackRegisteredCardReview(cardId, approvingRevision)
-                .catch((rollbackError) => {
-                    console.error('Failed to roll back registered card review', rollbackError);
-                });
         }
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to review registered card', error);
@@ -387,6 +433,7 @@ export async function handleReviewFudabaCardSupplement(
         let media: {
             frontObjectKey: string;
             backObjectKey: string | null;
+            middleObjectKeys: string[];
             accent: null;
             pages?: FudabaCardPageWrite[];
         } | null = null;
@@ -396,12 +443,18 @@ export async function handleReviewFudabaCardSupplement(
             const rotations = pending?.supplement.payload.rotations ?? {};
             const turnFront = rotations.front ?? 0;
             const turnBack = rotations.back ?? 0;
-            if (pending && (turnFront !== 0 || turnBack !== 0)) {
+            const middleTurns = rotations.middles ?? [];
+            if (
+                pending &&
+                (turnFront !== 0 ||
+                    turnBack !== 0 ||
+                    middleTurns.some((turns) => turns !== 0))
+            ) {
                 const runtime = services(c);
                 const created: CreatedObject[] = [];
                 const pages: FudabaCardPageWrite[] = [];
                 rotatedArtwork = created;
-                // 线上页面行是正反面的唯一来源：首页正面，末页背面。
+                // 线上页面行是唯一来源：首页正面、末页背面，中间的 1..n-2 是中间页。
                 const liveKeys = cardPageObjectKeys(
                     pending.live.id,
                     'live',
@@ -436,6 +489,17 @@ export async function handleReviewFudabaCardSupplement(
                                       pages
                                   )
                                 : null,
+                        middleObjectKeys: await rotateReviewedMiddles(
+                            runtime,
+                            {
+                                cardId: pending.live.id,
+                                liveKeys,
+                                turns: middleTurns,
+                                accountId: pending.supplement.submitter_account_id
+                            },
+                            created,
+                            pages
+                        ),
                         accent: null,
                         pages
                     };
@@ -521,12 +585,10 @@ export async function handleListFudabaReviewQueue(
                 (await repository.listCardPagesBatchByNumbers?.([cardNumber])) ??
                 new Map();
             const rowsForCard = map.get(cardNumber);
-            return cardArtworkView({
+            return namecardPagesView(rowsForCard, {
                 scope: 'admin',
                 cardNumber,
-                cardId: String(cardNumber),
-                live: rowsForCard?.live ?? [],
-                pending: []
+                cardId: String(cardNumber)
             }).live;
         };
         if (type === null || type === 'claim' || type === 'all') {
@@ -704,6 +766,7 @@ export async function handleReviewFudabaCardClaim(
         const rotations = context.payload.rotations ?? {};
         const turnFront = rotations.front ?? 0;
         const turnBack = rotations.back ?? 0;
+        const middleTurns = rotations.middles ?? [];
         const claimed = await repository.beginCardClaimReview(
             claimId,
             review.expectedRevision
@@ -743,14 +806,19 @@ export async function handleReviewFudabaCardClaim(
             let media: {
                 frontObjectKey: string;
                 backObjectKey: string | null;
+                middleObjectKeys: string[];
                 accent: null;
                 pages?: FudabaCardPageWrite[];
             } | null = null;
-            if (turnFront !== 0 || turnBack !== 0) {
+            if (
+                turnFront !== 0 ||
+                turnBack !== 0 ||
+                middleTurns.some((turns) => turns !== 0)
+            ) {
                 const target = await repository.findCardById(context.target_card_id);
                 if (!target) throw new Error('认领目标不可用');
                 const runtime = services(c);
-                // 线上页面行是正反面的唯一来源：首页正面，末页背面。
+                // 线上页面行是唯一来源：首页正面、末页背面，中间的 1..n-2 是中间页。
                 const liveKeys = cardPageObjectKeys(
                     target.id,
                     'live',
@@ -784,6 +852,17 @@ export async function handleReviewFudabaCardClaim(
                                   pages
                               )
                             : null,
+                    middleObjectKeys: await rotateReviewedMiddles(
+                        runtime,
+                        {
+                            cardId: target.id,
+                            liveKeys,
+                            turns: middleTurns,
+                            accountId: context.claimant_account_id
+                        },
+                        created,
+                        pages
+                    ),
                     accent: null,
                     pages
                 };
@@ -815,9 +894,31 @@ export async function handleReviewFudabaCardClaim(
                 created,
                 pages,
             );
+            // 旧名片的中间页已经挂在这一行上，认领不重抄它们：按提交的圈数重写，
+            // 未旋转的原样留在页序里，交给仓储一起同步页面行。取不到旧行时只能
+            // 维持旧行为（退回只剩正反面）。
+            const guest = await repository.findCardById(boundCardId);
+            const middleObjectKeys = guest
+                ? await rotateReviewedMiddles(
+                      services(c),
+                      {
+                          cardId: boundCardId,
+                          liveKeys: cardPageObjectKeys(
+                              boundCardId,
+                              'live',
+                              guest.pages
+                          ),
+                          turns: middleTurns,
+                          accountId: context.claimant_account_id
+                      },
+                      created,
+                      pages
+                  )
+                : [];
             const media = {
                 frontObjectKey: copied.frontObjectKey,
                 backObjectKey: copied.backObjectKey,
+                middleObjectKeys,
                 pages,
             };
             await Promise.all(created.map(({ key }) => storage.publish!(key)));

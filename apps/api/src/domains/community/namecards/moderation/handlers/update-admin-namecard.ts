@@ -8,61 +8,41 @@ import {
 import { namecardRepository, services } from '@/middleware/hono-context';
 import { withAdminNamecardPages } from '@/domains/community/namecards/moderation/admin-namecard-diff-pages';
 import { randomUUID } from 'node:crypto';
-import { cardPageObjectKey, fudabaCardMediaVersionObjectKey } from '@/utils/storage/business-object-keys';
+import {
+    fudabaCardMediaVersionObjectKey,
+    parseCardPageObjectKey
+} from '@/utils/storage/business-object-keys';
 import { randomHex } from '@/utils/crypto/random';
 import { storeCardPage } from '@/domains/community/fudaba/cards/artwork-store';
-import { parseCardPageObjectKey } from '@/utils/storage/business-object-keys';
+import {
+    promoteCardPageObjects,
+    protectPromotedCardPages
+} from '@/domains/community/fudaba/cards/card-page-objects';
 import type { FudabaCardPageWrite } from '@/ports/repositories';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
-
-/**
- * Moves page objects that are being promoted from the pending surface to the
- * live surface. Page rows can be promoted by updateCardAsAdmin, but their
- * objects are still stored under the pending prefix; without this step the
- * live media route asks for a missing object and renders an empty image.
- */
-async function publishPromotedPageObjects(
-    runtime: ReturnType<typeof services>,
-    artwork: {
-        frontObjectKey: string;
-        backObjectKey: string | null;
-        middleObjectKeys: string[];
-    },
-): Promise<void> {
-    const storage = runtime.storage;
-    if (!storage) throw new Error('Object storage publication is unavailable');
-    const keys = [
-        artwork.frontObjectKey,
-        ...artwork.middleObjectKeys,
-        ...(artwork.backObjectKey ? [artwork.backObjectKey] : []),
-    ];
-    for (const key of keys) {
-        const parsed = parseCardPageObjectKey(key);
-        if (!parsed || parsed.queue !== 'pending') continue;
-        const liveKey = cardPageObjectKey(
-            parsed.cardId,
-            'live',
-            parsed.pageId,
-            parsed.version,
-        );
-        if (!(await storage.exists(liveKey))) {
-            if (!(await storage.exists(key))) {
-                throw new Error(`Staged card page object not found: ${key}`);
-            }
-            await storage.copy(key, liveKey);
-        }
-        if (!storage.publish) {
-            throw new Error('Object storage publication is unavailable');
-        }
-        await storage.publish(liveKey);
-    }
-}
 
 /**
  * Rewrites the live card the way the management window shows it. The owner is
  * told per changed field, so the audit trail carries the labels too.
  */
 export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promise<Response> {
+    /**
+     * 本次公开过的对象键（提升的副本 + 新写入的页面对象）：保存没落地就都要退回
+     * 受保护态，否则未生效的图片会以公开可读的 URL 留在对象存储里。
+     */
+    const published: string[] = [];
+    try {
+        return await updateAdminNamecard(c, published);
+    } catch (error) {
+        await protectPromotedCardPages(services(c), published);
+        throw error;
+    }
+}
+
+async function updateAdminNamecard(
+    c: NamecardUpdateContext,
+    published: string[]
+): Promise<Response> {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const repository = namecardRepository(c);
@@ -160,6 +140,8 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
                 !keepsStaged &&
                 body.status === 'published'
             ) {
+                // 新对象先记进 published：保存没落地时它们同样要退回受保护态。
+                published.push(...createdKeys);
                 await Promise.all(
                     createdKeys.map((key) => runtime.storage!.publish!(key))
                 );
@@ -175,7 +157,17 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
         ? await repository.findAdminCardArtwork(id)
         : null;
     if (stagedArtwork?.staged) {
-        await publishPromotedPageObjects(services(c), stagedArtwork);
+        // 与审批通过走同一处提升（`promoteCardPageObjects`）：copy 保留
+        // pending 源对象，保存失败后重试仍能找到它。
+        await promoteCardPageObjects(
+            services(c),
+            [
+                stagedArtwork.frontObjectKey,
+                ...stagedArtwork.middleObjectKeys,
+                stagedArtwork.backObjectKey
+            ],
+            published
+        );
     }
     const result = await repository.updateCardAsAdmin({
         cardNumber: id,
@@ -212,6 +204,10 @@ export async function handleUpdateAdminNamecard(c: NamecardUpdateContext): Promi
         actor: c.get('backofficeUser')?.username ?? null,
         updatedAt: new Date()
     });
+    if (result.status !== 'updated') {
+        // 保存没落地：这次公开的副本与新对象退回受保护态（与审批通过同一口径）。
+        await protectPromotedCardPages(services(c), published);
+    }
     if (result.status === 'not-found') {
         return c.json({ error: 'Namecard not found' } satisfies NamecardErrorResponse, 404);
     }

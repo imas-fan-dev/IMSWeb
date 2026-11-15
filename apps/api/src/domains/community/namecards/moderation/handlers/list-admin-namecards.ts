@@ -5,7 +5,7 @@ import {
     type AdminNamecardListResponse
 } from '@/domains/community/namecards/response';
 import { purgeExpiredNamecardSubmissions } from '@/domains/community/fudaba/cards/ttl-purge';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import { services } from '@/middleware/hono-context';
 import { namecardRepository } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
@@ -13,8 +13,8 @@ import type { ValidatedRequestContext } from '@/middleware/request-validation';
 export async function handleListAdminNamecards(
     c: ValidatedRequestContext<AppEnvironment, 'query', AdminNamecardListQuery>
 ): Promise<Response> {
-    const { page, query, status, origins } = c.req.valid('query');
-    const filter = { query, status, origins };
+    const { page, query, status, origins, ownerAccountId } = c.req.valid('query');
+    const filter = { query, status, origins, ownerAccountId };
     try {
         const repository = namecardRepository(c);
         await purgeExpiredNamecardSubmissions(c);
@@ -35,13 +35,12 @@ export async function handleListAdminNamecards(
                 const pending =
                     row.reviewStatus !== null &&
                     (rowsForCard?.pending.length ?? 0) > 0;
-                const pages = cardArtworkView({
+                const pages = namecardPagesView(rowsForCard, {
                     scope: 'admin',
                     cardNumber: Number(row.id),
-                    cardId: String(row.cardId ?? row.id),
-                    live: rowsForCard?.live ?? [],
-                    pending: pending ? (rowsForCard?.pending ?? []) : []
+                    cardId: String(row.cardId ?? row.id)
                 });
+                // 待审版本存在时给待审页视图，否则用线上页。
                 const pageViews = pending ? (pages.pending ?? []) : pages.live;
                 return toAdminNamecardResponse(
                     row,

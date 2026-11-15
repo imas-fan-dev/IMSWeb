@@ -662,6 +662,7 @@ export function NamecardManageDialog({
                 key={diff?.revision ?? "initial"}
                 slots={slots}
                 disabled={busy || queued}
+                rotationLocked={busy || queued}
                 allowUpload={false}
                 rotations={queued ? {} : rotations}
                 onRotate={

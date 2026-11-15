@@ -1,5 +1,5 @@
 import type { AppEnvironment } from "@/app";
-import { cardArtworkView } from "@/domains/community/fudaba/cards/artwork-view";
+import { namecardPagesView } from "@/domains/community/fudaba/cards/artwork-view";
 import { parseNamecardPage } from "@/domains/community/namecards/request";
 import {
     toPublicNamecardResponse,
@@ -46,15 +46,15 @@ export async function handleListProfileCards(
             rows.map((card) => Number(card.card_number))
         )) ?? new Map();
     const list = rows.map((card) => {
-        const pageRows = pagesByNumber.get(Number(card.card_number));
-        const pages = cardArtworkView({
-            scope: 'public',
-            publicRoute: 'cards',
-            cardNumber: Number(card.card_number),
-            cardId: String(card.cardId ?? card.card_number),
-            live: pageRows?.live ?? [],
-            pending: []
-        }).live;
+        const pages = namecardPagesView(
+            pagesByNumber.get(Number(card.card_number)),
+            {
+                scope: "public",
+                publicRoute: "cards",
+                cardNumber: Number(card.card_number),
+                cardId: String(card.cardId ?? card.card_number),
+            },
+        ).live;
         return toPublicNamecardResponse(
             card,
             c.get("platformUser")?.id ?? null,

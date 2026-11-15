@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { cardPageSchema } from "./index.js"
+import { NAMECARD_MIDDLE_IMAGE_LIMIT } from "./namecard-runtime.js"
 import {
   backofficeProtectedHttpErrorSchema,
   exactJsonError,
@@ -56,13 +57,18 @@ const claimFieldSchema = {
 const filledInAtLeastOnce = (value: object) => Object.keys(value).length > 0
 
 /**
- * 审核通过后要执行的旋转，按顺时针 90° 的圈数记（0-3）。目前上线版本只有正反面，
- * 中间页不上传新图，所以旋转也只支持这两面。
+ * 审核通过后要执行的旋转，按顺时针 90° 的圈数记（0-3）：正面、背面，以及按页序
+ * 排列的中间页。提交人不动原始对象，审核通过时由服务端重写图片。
  */
 export const cardMediaRotationsSchema = z
   .object({
     front: z.number().int().min(0).max(3).optional(),
     back: z.number().int().min(0).max(3).optional(),
+    /** 按中间页顺序排列；长度覆盖到最后一张被旋转的中间页。 */
+    middles: z
+      .array(z.number().int().min(0).max(3))
+      .max(NAMECARD_MIDDLE_IMAGE_LIMIT)
+      .optional(),
   })
   .strict();
 
