@@ -108,6 +108,7 @@ test.skipIf(!postgresIntegrationEnabled())(
                 '20261112120000_namecard_media_retire',
                 '20261112130000_namecard_page_object_queue',
                 '20261112140000_namecard_retire_card_key_columns',
+                '20261116120000_namecard_profile_layouts',
 
             ]);
             const seeded = (

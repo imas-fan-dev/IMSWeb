@@ -418,6 +418,29 @@ export interface NamecardCollectionEntryRecord {
     snapshot: NamecardCollectionSnapshotRecord;
 }
 
+/** 属主清单布局的原始形态：分组 + 默认分组顺序。 */
+export interface NamecardCardLayoutRecord {
+    groups: { id: string; title: string; cardNumbers: number[] }[];
+    defaultCardNumbers: number[];
+}
+
+export interface NamecardCardLayoutSaveInput {
+    accountId: string;
+    groups: { id: string | null; title: string; cardNumbers: number[] }[];
+    defaultCardNumbers: number[];
+    quickCardNumbers: number[];
+    /** 只放有变化的卡：可见性与交换模式都是免审字段。 */
+    cardSettings: {
+        cardId: string;
+        visible?: boolean;
+        exchangeMode?: 'auto' | 'manual' | 'none';
+    }[];
+    at: string;
+}
+
+/** 布局保存被拒绝时抛出；`message` 直接给用户看。 */
+export class NamecardCardLayoutError extends Error {}
+
 export interface NamecardExchangeCommitInput {
     id: string;
     clientExchangeId: string;
@@ -478,12 +501,6 @@ export interface NamecardRepository {
         at: string;
     }): Promise<void>;
     deletePlatformAccountEntry(accountId: string, kindId: string): Promise<number>;
-    countOwnedPublishedCards(accountId: string): Promise<number>;
-    listOwnedPublishedCards(
-        accountId: string,
-        limit: number,
-        offset: number,
-    ): Promise<NamecardPublicRecord[]>;
     /* ---- 名片册与交换（docs/architecture/namecard-exchange.md） ---- */
     /** 幂等锚点：同一次提交重试时先查这里。 */
     findExchangeByClientId(
@@ -516,6 +533,14 @@ export interface NamecardRepository {
         hidden: boolean;
         at: string;
     }): Promise<boolean>;
+    /** 属主清单布局的原始形态；没有保存过时返回 null，由读取侧归一出默认布局。 */
+    getCardLayout(accountId: string): Promise<NamecardCardLayoutRecord | null>;
+    /** 整份保存布局 + 快速清单 + 批量字段（同一事务）；校验失败抛 `NamecardCardLayoutError`。 */
+    saveCardLayout(input: NamecardCardLayoutSaveInput): Promise<void>;
+    /** 公开主页用：该账号全部「已发布 + 允许展示」的名片（自然顺序 `card_number DESC`）。 */
+    listOwnedPublishedCardsAll(
+        accountId: string
+    ): Promise<NamecardPublicRecord[]>;
     /**
      * 已经收到这张卡的人可以继续读它的页面对象：原卡被持有者下线（`hidden`）后仍然放行。
      * `published` 走公开读取、`locked` 谁都不放，因此这里只认 `hidden`（doc §5）。

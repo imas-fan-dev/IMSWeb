@@ -1,5 +1,9 @@
 import type { AppEnvironment } from "@/app";
 import { namecardPagesView } from "@/domains/community/fudaba/cards/artwork-view";
+import {
+    flattenCardLayout,
+    normalizeCardLayout,
+} from "@/domains/community/namecards/exchange/layout";
 import { parseNamecardPage } from "@/domains/community/namecards/request";
 import {
     toPublicNamecardResponse,
@@ -10,7 +14,9 @@ import type { ValidatedRequestContext } from "@/middleware/request-validation";
 
 /**
  * 用户主页下半部分：这个人自己持有的、已发布且允许展示的名片。
- * 排序与管理界面一致（按名片编号倒序），后续再支持自定义顺序与分组。
+ *
+ * 顺序与分组来自属主的清单布局（doc §5；任务 design-owner-card-manager §4.3）：
+ * 没有布局、或布局里没有某张卡时，回到「按名片编号倒序」的旧行为。
  */
 export async function handleListProfileCards(
     c: ValidatedRequestContext<
@@ -35,12 +41,22 @@ export async function handleListProfileCards(
         );
     }
     const accountId = profile.account_id;
-    const total = await repository.countOwnedPublishedCards(accountId);
-    const rows = await repository.listOwnedPublishedCards(
-        accountId,
-        size,
-        (page - 1) * size,
+    // 一个账号的名片量级很小，按布局排序后在内存里分页，避免为自定义顺序另写一套 SQL。
+    const cards = await repository.listOwnedPublishedCardsAll(accountId);
+    const normalized = normalizeCardLayout(
+        await repository.getCardLayout(accountId),
+        cards.map((card) => Number(card.card_number)),
     );
+    const order = new Map(
+        flattenCardLayout(normalized).map((number, index) => [number, index]),
+    );
+    const ordered = [...cards].sort(
+        (left, right) =>
+            (order.get(Number(left.card_number)) ?? 0) -
+            (order.get(Number(right.card_number)) ?? 0),
+    );
+    const total = ordered.length;
+    const rows = ordered.slice((page - 1) * size, page * size);
     const pagesByNumber =
         (await services(c).fudaba?.listCardPagesBatchByNumbers?.(
             rows.map((card) => Number(card.card_number))
@@ -65,5 +81,13 @@ export async function handleListProfileCards(
         list,
         total,
         totalPage: size > 0 ? Math.ceil(total / size) : 0,
+        ...(normalized.groups.length > 0
+            ? {
+                  groups: normalized.groups.map((group) => ({
+                      title: group.title,
+                      cardNumbers: group.cardNumbers,
+                  })),
+              }
+            : {}),
     } satisfies NamecardPageResponse);
 }

@@ -1,5 +1,6 @@
 import {
   NAMECARD_EXCHANGE_CARD_LIMIT,
+  NAMECARD_PROFILE_GROUP_LIMIT,
   NAMECARD_SCAN_TOKEN_TTL_MS,
 } from "./namecards-runtime.js"
 
@@ -143,10 +144,18 @@ export const namecardSchema = exactJsonResponse({
   created_at: z.string().nullable().optional(),
 })
 
+/** 公开主页按属主布局展示的分组；没有布局时整个字段省略。 */
+export const namecardPageGroupSchema = exactJsonResponse({
+  title: z.string().min(1),
+  cardNumbers: z.array(cardIdSchema),
+})
+
 export const namecardPageSchema = exactJsonResponse({
   list: z.array(namecardSchema),
   total: z.number().int().nonnegative(),
   totalPage: z.number().int().nonnegative(),
+  /** 公开主页：属主配置的分组（只含仍有公开卡片的分组）。 */
+  groups: z.array(namecardPageGroupSchema).optional(),
 })
 
 /** One platform handle as the profile page renders it. */
@@ -758,6 +767,54 @@ export const namecardQuickSelectionSchema = strictRequestObject({
   cardNumbers: z.array(cardIdSchema).max(NAMECARD_EXCHANGE_CARD_LIMIT),
 })
 
+/** 布局里的一个分组；`id` 传 null 表示新建（服务端分配）。 */
+export const namecardCardLayoutGroupSchema = strictRequestObject({
+  id: z.string().uuid().nullable(),
+  title: z.string().trim().min(1).max(40),
+  cardNumbers: z.array(cardIdSchema),
+})
+
+/** 一次保存：布局 + 快速清单 + 批量字段差异（同一事务，全成或全不成）。 */
+export const namecardCardLayoutRequestSchema = strictRequestObject({
+  groups: z
+    .array(namecardCardLayoutGroupSchema)
+    .max(NAMECARD_PROFILE_GROUP_LIMIT),
+  /** 默认分组（无标题、永远排第一）的顺序。 */
+  defaultCardNumbers: z.array(cardIdSchema),
+  quickCardNumbers: z
+    .array(cardIdSchema)
+    .max(NAMECARD_EXCHANGE_CARD_LIMIT)
+    .default([]),
+  /** 只放有变化的卡：可见性与交换模式都是免审字段。 */
+  cardSettings: z
+    .array(
+      z
+        .object({
+          cardId: z.string().min(1),
+          visible: z.boolean().optional(),
+          exchangeMode: z.enum(["auto", "manual", "none"]).optional(),
+        })
+        .strict()
+    )
+    .max(500)
+    .default([]),
+})
+
+export const namecardCardLayoutGroupViewSchema = exactJsonResponse({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  cardNumbers: z.array(cardIdSchema),
+})
+
+/** 归一后的布局；读与写都返回它。 */
+export const namecardCardLayoutSchema = exactJsonResponse({
+  groups: z.array(namecardCardLayoutGroupViewSchema),
+  defaultCardNumbers: z.array(cardIdSchema),
+  quickCardNumbers: z.array(cardIdSchema),
+  /** 快速交换清单的上限，前端不要自己写死。 */
+  limit: z.number().int().positive(),
+})
+
 /** 发起一次交换：幂等锚点 + 我交出的名片（可以为空）。 */
 export const namecardExchangeCommitSchema = strictRequestObject({
   clientExchangeId: z.string().trim().min(8).max(64),
@@ -897,6 +954,10 @@ export type NamecardExchangeSkipped = z.infer<
 export type NamecardCardShare = z.infer<typeof namecardCardShareSchema>
 export type NamecardQuickExchange = z.infer<typeof namecardQuickExchangeSchema>
 export type NamecardQuickSettings = z.infer<typeof namecardQuickSettingsSchema>
+export type NamecardCardLayout = z.infer<typeof namecardCardLayoutSchema>
+export type NamecardCardLayoutRequest = z.infer<
+  typeof namecardCardLayoutRequestSchema
+>
 export type NamecardExchangeResult = z.infer<
   typeof namecardExchangeResultSchema
 >

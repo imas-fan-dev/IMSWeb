@@ -185,6 +185,27 @@ stateDiagram-v2
 
 `auto` 与扫码模式不产生任何通知。
 
+### 3.7 `namecard_profile_layouts`（属主清单布局）
+
+属主「我的名片」的分组与排序。一行 JSONB，不参与交换：
+
+```sql
+CREATE TABLE public.namecard_profile_layouts (
+    owner_account_id TEXT PRIMARY KEY
+        REFERENCES public.platform_accounts(id) ON DELETE CASCADE,
+    layout JSONB NOT NULL,   -- {"groups":[{"id","title","cardNumbers":[]}],"defaultCardNumbers":[]}
+    updated_at TIMESTAMPTZ NOT NULL
+);
+```
+
+- 卡片以 `card_number` 引用（行生命周期内稳定），**不建外键**：读取侧归一时丢弃已删除/已隐藏的
+  编号，并把「保存之后新建」的卡按自然顺序补进默认分组最前。
+- 默认分组（无标题、永远第一）只体现在 `defaultCardNumbers` 里，不落库为组；空分组在保存时删除。
+- 分组数 ≤ 20、标题 1–40 字（去首尾空白）。
+- 归属是**展示**而不是交换：改它不动卡片可交换性，也不进审核。
+- 公开主页（`GET /api/community/users/<handle>/cards`）按同一份布局返回顺序，并附 `groups`
+  （只含仍有公开卡片的组）；没有布局时回到「按名片编号倒序」。
+
 ## 4. 交换执行
 
 服务端在单个事务内完成，入参统一为
@@ -271,6 +292,7 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 | `GET` | `/api/community/exchange/quick/:handle` | 快速交换列表 |
 | `POST` | `/api/community/exchange/quick/:handle/commit` | 提交交换 |
 | `GET` / `PUT` | `/api/community/exchange/me/quick` | 读取/保存快速交换列表 |
+| `GET` / `PUT` | `/api/community/exchange/me/cards/layout` | 读取/整份保存清单布局（分组、排序、快速清单、批量可见性与交换模式；同一事务） |
 | `POST` | `/api/community/exchange/scan/sessions` | 出示方创建二维码会话 |
 | `POST` | `/api/community/exchange/scan/sessions/:token/commit` | 扫码方提交 |
 | `GET` | `/api/community/exchange/me/collection` | 名片册 |
@@ -329,11 +351,11 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 旧 `fudaba_exchange_requests` 连同 `fudaba_office_cards` 删除守卫里的 `in_use` 判断、
   `fudaba_moderation_cases.resource_kind='exchange'` 取值与 `FUDABA_CARD_PLACEMENT_IN_USE` 错误码一并删除。
 - OGP 注入本轮不做，留到前端阶段。
-- ~~名片册快照存对象键、读取时经 `resolveSnapshotMedia` 解析~~ → **更正（2026-11-15 复核）**：
+- ~~名片册快照存对象键、读取时经 `resolveSnapshotMedia` 解析~~ → **更正（复核后）**：
   `namecardCollectionSnapshotSchema` 只含文本字段（`producerName` / `bio` / `tradeNote` / `accent` /
   `seriesCodes` / `credits` 等），**不含页面或媒体**，代码里也从未存在 `resolveSnapshotMedia`。
   后果：卡片行被**物理删除**后名片册只能渲染文本（前端用占位图）；**持有者删卡（`hidden`）不受影响**——
-  条目照旧带最新投影与图。**已定（2026-11-15，方案 A）**：快照不带页面键；让 `hidden` 卡继续出图靠
+  条目照旧带最新投影与图。**已定（方案 A）**：快照不带页面键；让 `hidden` 卡继续出图靠
   「媒体路由加可选会话 + 已收集者判断」（见 §5），公开分享链接仍然关闭。取舍对比见任务
   `.trellis/tasks/11-15-namecard-exchange/design.md` §11-D3。
 
@@ -362,7 +384,7 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 `scan/sessions`（+`/:token/commit`）、`exchanges/:id/accept|decline`。写操作统一走
 `platformAuth + activePlatformMutation + platformCsrf + platformWriteRateLimit`。
 
-实现时必须遵守的（2026-11-15 复核后修订）：
+实现时必须遵守的：
 
 - **响应里的媒体地址要穿存储**：仓储给的是对象键，handler 必须经 `resolveExchangeCardMedia`
   （`exchange/media.ts`，内部走 `namecardPagesView`）换成签名 URL，否则浏览器加载不了；参考

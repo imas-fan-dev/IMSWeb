@@ -28,7 +28,10 @@ import {
     classifyNamecardReviewRetry,
     planNamecardReview
 } from '@/ports/repositories/fudaba-review-policy';
+import { NamecardCardLayoutError } from '@/ports/repositories/namecards';
 import type {
+    NamecardCardLayoutRecord,
+    NamecardCardLayoutSaveInput,
     PlatformAccountEntryRecord,
     PlatformAccountKindRecord,
     PlatformAccountLinkRecord,
@@ -91,6 +94,31 @@ type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters
 /** 名片册条目能带实时投影的原卡状态；其余（`null`/`approving`/…）只能渲染 `snapshot`（doc §5）。 */
 function shelfCardStatus(value: string | null): 'published' | 'hidden' | null {
     return value === 'published' || value === 'hidden' ? value : null;
+}
+
+/** 布局 JSONB 的防御性解析：坏数据按空布局处理，不让一行脏数据把整页打挂。 */
+function cardLayoutFromJson(value: unknown): NamecardCardLayoutRecord {
+    const record = (
+        typeof value === 'string' ? JSON.parse(value) : value
+    ) as Partial<NamecardCardLayoutRecord> | null;
+    const groups = Array.isArray(record?.groups) ? record.groups : [];
+    return {
+        groups: groups
+            .filter(
+                (group) =>
+                    typeof group?.id === 'string' &&
+                    typeof group?.title === 'string' &&
+                    Array.isArray(group?.cardNumbers)
+            )
+            .map((group) => ({
+                id: group.id,
+                title: group.title,
+                cardNumbers: group.cardNumbers.map(Number)
+            })),
+        defaultCardNumbers: Array.isArray(record?.defaultCardNumbers)
+            ? record.defaultCardNumbers.map(Number)
+            : []
+    };
 }
 
 type NamecardLockAuditRow = {
@@ -932,38 +960,6 @@ export class SqlCoreRepository implements NamecardRepository {
             [accountId, kindId]
         );
         return row?.removed ?? 0;
-    }
-
-    async countOwnedPublishedCards(accountId: string): Promise<number> {
-        const row = await queryOne<{ total: number }>(
-            this.database,
-            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM fudaba_cards
-             WHERE owner_account_id=? AND deleted_at IS NULL
-               AND publication_status='published' AND visible`,
-            [accountId]
-        );
-        return row?.total ?? 0;
-    }
-
-    async listOwnedPublishedCards(
-        accountId: string,
-        limit: number,
-        offset: number
-    ): Promise<NamecardPublicRecord[]> {
-        const rows = await queryAll<NamecardCardRow>(
-            this.database,
-            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
-             WHERE owner_account_id=? AND deleted_at IS NULL
-               AND publication_status='published' AND visible
-             ORDER BY card_number DESC
-             LIMIT ? OFFSET ?`,
-            [accountId, limit, offset]
-        );
-        return await this.attachNamecardFavorites(
-            this.database,
-            rows,
-            'live'
-        ) as NamecardPublicRecord[];
     }
 
     async listAdminCards(limit: number, offset: number, filter?: NamecardAdminFilter): Promise<NamecardSubmissionRecord[]> {
@@ -3472,6 +3468,178 @@ export class SqlCoreRepository implements NamecardRepository {
             [input.hidden ? input.at : null, input.accountId, input.cardNumber]
         );
         return Boolean(row);
+    }
+
+    async getCardLayout(
+        accountId: string
+    ): Promise<NamecardCardLayoutRecord | null> {
+        const row = await queryOne<{ layout: unknown }>(
+            this.database,
+            `SELECT layout FROM public.namecard_profile_layouts
+              WHERE owner_account_id=?`,
+            [accountId]
+        );
+        return row ? cardLayoutFromJson(row.layout) : null;
+    }
+
+    async saveCardLayout(input: NamecardCardLayoutSaveInput): Promise<void> {
+        const cards = await queryAll<{
+            id: string;
+            card_number: number | string;
+            publication_status: string;
+            exchange_mode: string;
+            visible: boolean;
+            is_group_card: boolean;
+            public_origin: boolean;
+        }>(
+            this.database,
+            `SELECT id, card_number, publication_status, exchange_mode, visible, is_group_card,
+                    (${NAMECARD_PUBLIC_ORIGIN}) AS public_origin
+               FROM fudaba_cards
+              WHERE owner_account_id=? AND deleted_at IS NULL
+                AND publication_status<>'hidden'`,
+            [input.accountId]
+        );
+        const byNumber = new Map(
+            cards.map((card) => [Number(card.card_number), card])
+        );
+        const byId = new Map(cards.map((card) => [card.id, card]));
+
+        const seen = new Set<number>();
+        for (const number of [
+            ...input.groups.flatMap((group) => group.cardNumbers),
+            ...input.defaultCardNumbers
+        ]) {
+            if (!byNumber.has(number)) {
+                throw new NamecardCardLayoutError('布局里有不属于你的名片');
+            }
+            if (seen.has(number)) {
+                throw new NamecardCardLayoutError('同一张名片在布局里出现了多次');
+            }
+            seen.add(number);
+        }
+
+        const settings = new Map(
+            input.cardSettings.map((setting) => [setting.cardId, setting])
+        );
+        for (const setting of settings.values()) {
+            const card = byId.get(setting.cardId);
+            if (!card) {
+                throw new NamecardCardLayoutError('设置里有不属于你的名片');
+            }
+            if (card.is_group_card) {
+                throw new NamecardCardLayoutError(
+                    '团体名片固定为自动交换且始终展示'
+                );
+            }
+        }
+
+        // 同一份请求里刚改成 `auto` 的卡也可以直接进清单。
+        const quickIds = input.quickCardNumbers.map((number) => {
+            const card = byNumber.get(number);
+            const mode =
+                settings.get(card?.id ?? '')?.exchangeMode ??
+                card?.exchange_mode;
+            if (
+                !card ||
+                card.publication_status !== 'published' ||
+                // 读侧（`listQuickExchangeCards`）与候选清单都要求「有线上页」，写入侧必须同口径，
+                // 否则会保存成功却在返回的 `quickCardNumbers` 里消失。
+                !card.public_origin ||
+                mode !== 'auto'
+            ) {
+                throw new NamecardCardLayoutError(
+                    '快速交换清单只收已发布且自动交换的名片'
+                );
+            }
+            return card.id;
+        });
+
+        // 空分组在保存时删掉（公开页不渲染空标题）。
+        const stored: NamecardCardLayoutRecord = {
+            groups: input.groups
+                .map((group) => ({
+                    id: group.id ?? randomUUID(),
+                    title: group.title,
+                    cardNumbers: [...new Set(group.cardNumbers)]
+                }))
+                .filter((group) => group.cardNumbers.length > 0),
+            defaultCardNumbers: [...new Set(input.defaultCardNumbers)]
+        };
+
+        await this.database.transaction(async (database) => {
+            await executeSql(
+                database,
+                `INSERT INTO public.namecard_profile_layouts
+                     (owner_account_id, layout, updated_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (owner_account_id) DO UPDATE
+                     SET layout=EXCLUDED.layout, updated_at=EXCLUDED.updated_at`,
+                [input.accountId, JSON.stringify(stored), input.at]
+            );
+            await executeSql(
+                database,
+                `DELETE FROM public.namecard_quick_exchange_cards WHERE account_id=?`,
+                [input.accountId]
+            );
+            if (quickIds.length > 0) {
+                await database.batch(
+                    quickIds.map((cardId) =>
+                        database
+                            .prepare(
+                                `INSERT INTO public.namecard_quick_exchange_cards
+                                     (account_id, card_id) VALUES (?, ?)
+                                 ON CONFLICT DO NOTHING`
+                            )
+                            .bind(input.accountId, cardId)
+                    )
+                );
+            }
+            for (const setting of settings.values()) {
+                await executeSql(
+                    database,
+                    `UPDATE fudaba_cards
+                        SET visible=COALESCE(?, visible),
+                            exchange_mode=COALESCE(?, exchange_mode),
+                            -- 待审修订发布时会整份覆盖这两列，改动必须同时并进 pending_payload，
+                            -- 否则审核通过的一刻批量改动被静默回滚（与 fudaba-repository.ts 的免审分支同款写法）。
+                            pending_payload=CASE WHEN pending_payload IS NULL THEN NULL
+                                ELSE pending_payload || jsonb_strip_nulls(
+                                    jsonb_build_object(
+                                        'visible', CAST(? AS boolean),
+                                        'exchange_mode', CAST(? AS text))) END,
+                            updated_at=?
+                      WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
+                    [
+                        setting.visible ?? null,
+                        setting.exchangeMode ?? null,
+                        setting.visible ?? null,
+                        setting.exchangeMode ?? null,
+                        input.at,
+                        setting.cardId,
+                        input.accountId
+                    ]
+                );
+            }
+        });
+    }
+
+    async listOwnedPublishedCardsAll(
+        accountId: string
+    ): Promise<NamecardPublicRecord[]> {
+        const rows = await queryAll<NamecardCardRow>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+              WHERE owner_account_id=? AND deleted_at IS NULL
+                AND publication_status='published' AND visible
+              ORDER BY card_number DESC`,
+            [accountId]
+        );
+        return (await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
     }
 
     /**

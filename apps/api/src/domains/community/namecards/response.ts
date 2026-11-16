@@ -24,6 +24,7 @@ import type {
     PublicProfile as PublicProfileContract,
     RandomOwnerlessCard as RandomOwnerlessCardContract,
     RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
+    NamecardCardLayout as NamecardCardLayoutContract,
     NamecardCardShare as NamecardCardShareContract,
     NamecardCollectionPage as NamecardCollectionPageContract,
     NamecardCollectionVisibilityResponse as NamecardCollectionVisibilityContract,
@@ -75,6 +76,8 @@ export type NamecardExchangeHistoryPageResponse =
     NamecardExchangeHistoryPageContract;
 export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
+/** 属主清单布局的读写共用一份返回体。 */
+export type NamecardCardLayoutResponse = NamecardCardLayoutContract;
 /** 名片册的可见性切换只回一个确认标记。 */
 export type NamecardCollectionVisibilityResponse =
     NamecardCollectionVisibilityContract;

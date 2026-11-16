@@ -44,7 +44,7 @@
 
 | 入口 | 窗口 | 媒体 | 字段 | 动作 |
 | --- | --- | --- | --- | --- |
-| 个人名片管理（`account/me/namecards`） | `CardWorkspace` → `CardEditor`（3xl） | `CardMediaGallery`：上传 + 拖动排序 + 替换 + 删除 + 旋转（预览区左上角两个按钮） | `CardFields` 13 项（身份四字段 + 团体标记来自 `NamecardIdentityFields`）；必填：制作人名称（团体名片改为选填、改由团体名称必填）、企划、至少一张图 | 首次 `createFudabaCard`；之后 `updateFudabaCard`；图片有改动先 `replaceFudabaCardMedia`；`deleteFudabaCard` |
+| 个人名片管理（`account/me/namecards`） | `CardWorkspace`：`CardInventory`（1:1 瓦片网格，角标 + 交换模式徽标）→ `CardEditor`（3xl） | `CardMediaGallery`：上传 + 拖动排序 + 替换 + 删除 + 旋转（预览区左上角两个按钮） | `CardFields` 13 项（身份四字段 + 团体标记来自 `NamecardIdentityFields`）；必填：制作人名称（团体名片改为选填、改由团体名称必填）、企划、至少一张图 | 首次 `createFudabaCard`；之后 `updateFudabaCard`；图片有改动先 `replaceFudabaCardMedia`；`deleteFudabaCard` |
 | 名片墙 · 认领（`NamecardClaimDialog`，2xl） | 同上壳 | `CardMediaPreview`（只读） | `NamecardWallFields mode="claim"` 6 项 + 绑定方式；必填：名称、企划（可从卡/角色/绑定目标推导） | `createFudabaLegacyCardClaim` |
 | 名片墙 · 补充（`NamecardSupplementDialog`，2xl） | 同上壳 | `CardMediaPreview` | `NamecardWallFields mode="supplement"` 4 项；必须至少一处改动 | `createFudabaCardSupplement` |
 | 后台 · 反馈 / 修改（`NamecardManageDialog`，4xl） | 同上壳，`feedback` 有无区分两个入口 | `CardMediaGallery`（只允许排序/删除） | `CardFields required={false}` + 账号归属、名片状态、版本状态、理由；资料/状态/归属有变动时理由必填 | `updateAdminNamecard`、`deleteAdminNamecard`、`resolveAdminNamecardFeedback` |

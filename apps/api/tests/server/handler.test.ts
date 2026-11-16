@@ -169,11 +169,13 @@ import { test } from 'vitest';
             'handleCommitScanSession',
             'handleCreateScanSession',
             'handleDeclineExchange',
+            'handleGetCardLayout',
             'handleGetCardShare',
             'handleGetQuickExchange',
             'handleGetQuickSettings',
             'handleListCollection',
             'handleListExchanges',
+            'handlePutCardLayout',
             'handlePutQuickSettings',
             'handleRequestCard',
             'handleSetCollectionVisibility'
@@ -517,7 +519,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 170);
+            assert.equal(Object.values(actual).flat().length, 172);
         });
 
 
@@ -833,8 +835,9 @@ import { test } from 'vitest';
             async listPlatformAccountEntries() { return []; },
             async upsertPlatformAccountEntry() {},
             async deletePlatformAccountEntry() { return 0; },
-            async listOwnedPublishedCards() { return []; },
-            async countOwnedPublishedCards() { return 0; },
+            async listOwnedPublishedCardsAll() { return []; },
+            async getCardLayout() { return null; },
+            async saveCardLayout() {},
             async findExchangeByClientId() { return null; },
             async commitExchange() { throw new Error('unexpected exchange commit'); },
             async decideExchange() { return { status: 'not-found' }; },

@@ -10,6 +10,9 @@
 /** 单次交换的名片数量上限：快速列表、发起与扫码出示同受此限。 */
 export const NAMECARD_EXCHANGE_CARD_LIMIT = 20
 
+/** 属主清单里最多能建多少个分组（不含默认分组）。 */
+export const NAMECARD_PROFILE_GROUP_LIMIT = 20
+
 /** 扫码出示的二维码一周内有效。 */
 export const NAMECARD_SCAN_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
 

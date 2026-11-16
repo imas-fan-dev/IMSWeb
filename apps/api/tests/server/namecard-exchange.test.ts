@@ -312,6 +312,17 @@ async function fixture() {
             headers: { ...authHeaders(accountId), 'content-type': 'application/json' },
             body: JSON.stringify(body),
         });
+    /** 属主清单布局：读 / 整份保存。 */
+    const getLayout = (accountId: 'collector' | 'owner') =>
+        testRequest(app, '/api/community/exchange/me/cards/layout', {
+            headers: authHeaders(accountId),
+        });
+    const putLayout = (accountId: 'collector' | 'owner', body: unknown) =>
+        testRequest(app, '/api/community/exchange/me/cards/layout', {
+            method: 'PUT',
+            headers: { ...authHeaders(accountId), 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+        });
     return {
         database,
         fudaba,
@@ -326,6 +337,8 @@ async function fixture() {
         authHeaders,
         openScanSession,
         scanCommit,
+        getLayout,
+        putLayout,
     };
 }
 
@@ -1309,6 +1322,269 @@ describe('namecard exchange repository', () => {
         };
         assert.equal(body.state, 'available');
         assert.match(body.card.pages?.[0]?.thumbUrl ?? '', /^\/api\/community\/exchange\/cards\//);
+    });
+
+    /* ---- 属主清单布局（doc §5；任务 design-owner-card-manager） ---- */
+
+    postgresTest('the layout saves groups, order, quick list and card settings at once', async () => {
+        const { database, putLayout, publish } = await fixture();
+        const first = await publish('owner-layout-1', 'owner', 'auto');
+        const second = await publish('owner-layout-2', 'owner', 'auto');
+
+        const saved = await putLayout('owner', {
+            groups: [{ id: null, title: '常用', cardNumbers: [second] }],
+            defaultCardNumbers: [first],
+            quickCardNumbers: [second],
+            cardSettings: [{ cardId: 'owner-layout-1', visible: false }],
+        });
+        assert.equal(saved.status, 200, await saved.clone().text());
+        const body = (await saved.json()) as {
+            groups: Array<{ id: string; title: string; cardNumbers: number[] }>;
+            defaultCardNumbers: number[];
+            quickCardNumbers: number[];
+            limit: number;
+        };
+        assert.equal(body.groups.length, 1);
+        assert.equal(body.groups[0]?.title, '常用');
+        assert.ok(body.groups[0]?.id, '新分组要拿到服务端分配的 id');
+        assert.deepEqual(body.groups[0]?.cardNumbers, [second]);
+        assert.deepEqual(body.defaultCardNumbers, [first]);
+        assert.deepEqual(body.quickCardNumbers, [second]);
+        assert.equal(body.limit, NAMECARD_EXCHANGE_CARD_LIMIT);
+
+        // 可见性是免审字段：保存即生效。
+        const [invisible] = await queryAll<{ visible: boolean }>(
+            database,
+            'SELECT visible FROM fudaba_cards WHERE id=?',
+            ['owner-layout-1'],
+        );
+        assert.equal(invisible?.visible, false);
+        const quick = await queryAll<{ card_id: string }>(
+            database,
+            'SELECT card_id FROM namecard_quick_exchange_cards WHERE account_id=?',
+            ['owner'],
+        );
+        assert.deepEqual(quick.map((row) => row.card_id), ['owner-layout-2']);
+    });
+
+    postgresTest('a card created after the save joins the top of the default group', async () => {
+        const { getLayout, putLayout, publish } = await fixture();
+        const older = await publish('owner-layout-old', 'owner', 'auto');
+        assert.equal(
+            (await putLayout('owner', {
+                groups: [],
+                defaultCardNumbers: [older],
+                quickCardNumbers: [],
+                cardSettings: [],
+            })).status,
+            200,
+        );
+        const newer = await publish('owner-layout-new', 'owner', 'auto');
+        const state = (await (await getLayout('owner')).json()) as {
+            defaultCardNumbers: number[];
+        };
+        assert.deepEqual(state.defaultCardNumbers, [newer, older]);
+    });
+
+    postgresTest('the layout rejects foreign numbers and duplicates without touching state', async () => {
+        const { getLayout, putLayout, publish } = await fixture();
+        const mine = await publish('owner-layout-mine', 'owner', 'auto');
+        const theirs = await publish('collector-layout-theirs', 'collector', 'auto');
+        assert.equal(
+            (await putLayout('owner', {
+                groups: [],
+                defaultCardNumbers: [mine],
+                quickCardNumbers: [],
+                cardSettings: [],
+            })).status,
+            200,
+        );
+
+        const foreign = await putLayout('owner', {
+            groups: [],
+            defaultCardNumbers: [theirs],
+            quickCardNumbers: [],
+            cardSettings: [],
+        });
+        assert.equal(foreign.status, 400);
+        assert.match(await foreign.text(), /不属于你/);
+
+        const duplicated = await putLayout('owner', {
+            groups: [],
+            defaultCardNumbers: [mine, mine],
+            quickCardNumbers: [],
+            cardSettings: [],
+        });
+        assert.equal(duplicated.status, 400);
+        assert.match(await duplicated.text(), /出现了多次/);
+
+        const state = (await (await getLayout('owner')).json()) as {
+            defaultCardNumbers: number[];
+        };
+        assert.deepEqual(state.defaultCardNumbers, [mine]);
+    });
+
+    postgresTest('the quick list only takes published automatic cards', async () => {
+        const { putLayout, publish } = await fixture();
+        const manual = await publish('owner-layout-manual', 'owner', 'manual');
+        const automatic = await publish('owner-layout-auto', 'owner', 'auto');
+
+        const rejected = await putLayout('owner', {
+            groups: [],
+            defaultCardNumbers: [manual, automatic],
+            quickCardNumbers: [manual],
+            cardSettings: [],
+        });
+        assert.equal(rejected.status, 400);
+        assert.match(await rejected.text(), /自动交换/);
+
+        // 同一份请求里先改成 auto 的卡可以直接进清单。
+        const accepted = await putLayout('owner', {
+            groups: [],
+            defaultCardNumbers: [manual, automatic],
+            quickCardNumbers: [manual],
+            cardSettings: [{ cardId: 'owner-layout-manual', exchangeMode: 'auto' }],
+        });
+        assert.equal(accepted.status, 200, await accepted.clone().text());
+    });
+
+    postgresTest('group cards keep their fixed visibility and mode', async () => {
+        const { database, putLayout, publish } = await fixture();
+        await publish('owner-layout-group', 'owner', 'auto');
+        await executeSql(database, 'UPDATE fudaba_cards SET is_group_card=true WHERE id=?', [
+            'owner-layout-group',
+        ]);
+        const response = await putLayout('owner', {
+            groups: [],
+            defaultCardNumbers: [],
+            quickCardNumbers: [],
+            cardSettings: [{ cardId: 'owner-layout-group', visible: false }],
+        });
+        assert.equal(response.status, 400);
+        assert.match(await response.text(), /团体名片/);
+    });
+
+    postgresTest('empty groups are dropped and hidden cards leave the layout', async () => {
+        const { getLayout, putLayout, publish, setCardStatus } = await fixture();
+        const kept = await publish('owner-layout-kept', 'owner', 'auto');
+        const gone = await publish('owner-layout-gone', 'owner', 'auto');
+        const saved = await putLayout('owner', {
+            groups: [
+                { id: null, title: '常用', cardNumbers: [kept] },
+                { id: null, title: '空组', cardNumbers: [] },
+            ],
+            defaultCardNumbers: [gone],
+            quickCardNumbers: [],
+            cardSettings: [],
+        });
+        assert.equal(saved.status, 200, await saved.clone().text());
+        const body = (await saved.json()) as {
+            groups: Array<{ id: string; title: string }>;
+        };
+        assert.deepEqual(body.groups.map((group) => group.title), ['常用']);
+
+        // 分组里唯一的卡被持有者下线 → 该组在读取侧消失。
+        await setCardStatus('owner-layout-kept', 'hidden');
+        const state = (await (await getLayout('owner')).json()) as {
+            groups: unknown[];
+        };
+        assert.deepEqual(state.groups, []);
+    });
+
+    postgresTest('the public profile follows the layout and reports its groups', async () => {
+        const { app, putLayout, publish } = await fixture();
+        const first = await publish('owner-profile-1', 'owner', 'auto');
+        const second = await publish('owner-profile-2', 'owner', 'auto');
+        assert.equal(
+            (await putLayout('owner', {
+                groups: [{ id: null, title: '精选', cardNumbers: [first] }],
+                defaultCardNumbers: [second],
+                quickCardNumbers: [],
+                cardSettings: [],
+            })).status,
+            200,
+        );
+        const response = await testRequest(app, '/api/users/owner/cards');
+        assert.equal(response.status, 200, await response.clone().text());
+        const body = (await response.json()) as {
+            list: Array<{ cardNumber: number }>;
+            groups?: Array<{ title: string; cardNumbers: number[] }>;
+        };
+        assert.deepEqual(
+            body.list.map((card) => card.cardNumber),
+            [second, first],
+        );
+        assert.deepEqual(body.groups, [{ title: '精选', cardNumbers: [first] }]);
+    });
+
+    postgresTest('a batch change rides along a queued revision instead of being reverted', async () => {
+        const { database, putLayout, publish } = await fixture();
+        const number = await publish('owner-layout-pending', 'owner', 'auto');
+        // 模拟「这张卡还有排队的修订」：审核通过时 `publishStagedRevision` 会用这份 payload
+        // 整份覆盖 live 列，所以批量改动必须同时并进 payload，否则那一刻被静默回滚。
+        await executeSql(
+            database,
+            `UPDATE fudaba_cards
+                SET pending_payload = jsonb_build_object(
+                    'producer_name', '旧值', 'visible', true, 'exchange_mode', 'auto')
+              WHERE id=?`,
+            ['owner-layout-pending'],
+        );
+
+        assert.equal(
+            (await putLayout('owner', {
+                groups: [{ id: null, title: '常用', cardNumbers: [number] }],
+                defaultCardNumbers: [],
+                quickCardNumbers: [],
+                cardSettings: [
+                    {
+                        cardId: 'owner-layout-pending',
+                        visible: false,
+                        exchangeMode: 'manual',
+                    },
+                ],
+            })).status,
+            200,
+        );
+
+        const [row] = await queryAll<{
+            visible: boolean;
+            exchange_mode: string;
+            pending_payload: Record<string, unknown>;
+        }>(
+            database,
+            'SELECT visible, exchange_mode, pending_payload FROM fudaba_cards WHERE id=?',
+            ['owner-layout-pending'],
+        );
+        assert.equal(row?.visible, false);
+        assert.equal(row?.exchange_mode, 'manual');
+        assert.equal(row?.pending_payload?.visible, false);
+        assert.equal(row?.pending_payload?.exchange_mode, 'manual');
+        // payload 里别的字段原样保留。
+        assert.equal(row?.pending_payload?.producer_name, '旧值');
+    });
+
+    postgresTest('the quick list refuses a card that has no public page', async () => {
+        const { database, putLayout, publish } = await fixture();
+        const number = await publish('owner-layout-nopage', 'owner', 'auto');
+        // 卡片仍 `published + auto`，只是没有线上页（`NAMECARD_PUBLIC_ORIGIN`），
+        // 读侧会把它过滤掉——写入侧必须同口径，否则就是「保存成功但清单里没有」。
+        await executeSql(
+            database,
+            'DELETE FROM public.fudaba_card_pages WHERE card_id=?',
+            ['owner-layout-nopage'],
+        );
+
+        const refused = await putLayout('owner', {
+            groups: [],
+            defaultCardNumbers: [],
+            quickCardNumbers: [number],
+            cardSettings: [],
+        });
+        assert.equal(refused.status, 400);
+        assert.deepEqual(await refused.json(), {
+            error: '快速交换清单只收已发布且自动交换的名片',
+        });
     });
 
     /* ---- 快速交换清单的上限（契约常量，doc §12） ---- */

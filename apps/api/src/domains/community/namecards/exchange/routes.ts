@@ -1,4 +1,5 @@
 import {
+    namecardCardLayoutRequestSchema,
     namecardCollectionEntryParamsSchema,
     namecardCollectionQuerySchema,
     namecardCollectionVisibilitySchema,
@@ -11,6 +12,10 @@ import {
     namecardScanSessionRequestSchema,
     namecardScanTokenParamsSchema,
 } from '@imsweb/contracts/namecards';
+import {
+    handleGetCardLayout,
+    handlePutCardLayout,
+} from '@/domains/community/namecards/exchange/handlers/card-layout';
 import { handleCommitCardShare } from '@/domains/community/namecards/exchange/handlers/commit-card-share';
 import { handleCommitQuickExchange } from '@/domains/community/namecards/exchange/handlers/commit-quick-exchange';
 import { handleGetCardShare } from '@/domains/community/namecards/exchange/handlers/get-card-share';
@@ -97,6 +102,17 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
         ...write,
         jsonSchemaValidator(namecardQuickSelectionSchema, { invalidMessage: '清单参数无效' }),
         handlePutQuickSettings,
+    );
+
+    // 属主清单布局：分组 + 排序 + 批量字段，一次性保存。
+    routes.get('/exchange/me/cards/layout', platformAuth, handleGetCardLayout);
+    routes.put(
+        '/exchange/me/cards/layout',
+        ...write,
+        jsonSchemaValidator(namecardCardLayoutRequestSchema, {
+            invalidMessage: '名片布局无效',
+        }),
+        handlePutCardLayout,
     );
 
     // 名片册与交换记录。
