@@ -139,6 +139,27 @@ describe("CardTile", () => {
 
   it("shows the madeOn text when the author filled it", () => {
     render(<CardTile card={card({ madeOn: "2024-11" })} onSelect={() => {}} />)
-    expect(screen.getByText("2024 年 11 月")).toBeTruthy()
+    expect(screen.getByText("2024-11")).toBeTruthy()
+  })
+
+  it("puts the date above the badges", () => {
+    render(<CardTile card={card({ madeOn: "2024-11" })} onSelect={() => {}} />)
+    const date = screen.getByText("2024-11")
+    const badge = screen.getByText("自动交换")
+    // 日期节点在徽标之前（DOCUMENT_POSITION_FOLLOWING 表示 badge 在 date 之后）。
+    expect(
+      date.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it("asks the media route for the 400px variant", () => {
+    render(
+      <CardTile
+        card={card({ frontImageUrl: "/api/cards/1/media/front?v=3" })}
+        onSelect={() => {}}
+      />
+    )
+    const img = screen.getByRole("button").querySelector("img")
+    expect(img?.getAttribute("src")).toBe("/api/cards/1/media/front?v=3&w=400")
   })
 })

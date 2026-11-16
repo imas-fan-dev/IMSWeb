@@ -7,10 +7,10 @@ import {
 } from "~/lib/namecards/dates"
 
 describe("madeOnLabel", () => {
-  it("keeps the precision the author filled in", () => {
-    expect(madeOnLabel("2025")).toBe("2025 年")
-    expect(madeOnLabel("2025-03")).toBe("2025 年 3 月")
-    expect(madeOnLabel("2025-03-02")).toBe("2025年3月2日")
+  it("keeps only the parts the author filled in, as yyyy-mm-dd", () => {
+    expect(madeOnLabel("2025")).toBe("2025")
+    expect(madeOnLabel("2025-03")).toBe("2025-03")
+    expect(madeOnLabel("2025-03-02")).toBe("2025-03-02")
   })
 
   it("returns null for empty or malformed values", () => {
@@ -36,7 +36,7 @@ describe("cardTimeLabel", () => {
   it("prefers madeOn and falls back to the created time", () => {
     expect(
       cardTimeLabel({ madeOn: "2024-11", createdAt: "2025-03-02T01:00:00.000Z" })
-    ).toBe("2024 年 11 月")
+    ).toBe("2024-11")
     expect(
       cardTimeLabel({ madeOn: null, createdAt: "2025-03-02T01:00:00.000Z" })
     ).toBe("2025-03-02")

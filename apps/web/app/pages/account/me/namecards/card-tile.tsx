@@ -25,6 +25,14 @@ export function inventoryCoverUrl(card: FudabaOwnerCard): string {
     : card.frontImageUrl
 }
 
+/** 缩略图只用 400 档（媒体路由支持 `w=160|400|800|1400`），列表里不需要原尺寸。 */
+export function coverThumbUrl(card: FudabaOwnerCard): string {
+  const [path, query = ""] = inventoryCoverUrl(card).split("?")
+  const params = new URLSearchParams(query)
+  params.set("w", "400")
+  return `${path}?${params.toString()}`
+}
+
 export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
   const status = card.publicationStatus
   // A published card keeps serving the old copy while a revision is decided, so
@@ -102,7 +110,7 @@ export function CardTile({
     >
       <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md bg-border">
         <OwnerCardImage
-          src={inventoryCoverUrl(card)}
+          src={coverThumbUrl(card)}
           className="max-h-full max-w-full border border-foreground/25 object-contain"
         />
         {!card.visible ? (
@@ -130,16 +138,16 @@ export function CardTile({
       <span className="mt-2 block truncate text-sm font-medium">
         {inventoryProducerName(card)}
       </span>
-      <span className="mt-1 flex min-w-0 flex-wrap gap-1">
-        <PublicationBadge card={card} />
-        <ExchangeModeBadge mode={card.exchangeMode} />
-      </span>
       {time ? (
         <span className="mt-1 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           <CalendarIcon className="size-3 shrink-0" aria-hidden="true" />
           <span className="truncate">{time}</span>
         </span>
       ) : null}
+      <span className="mt-2 flex min-w-0 flex-wrap gap-1">
+        <PublicationBadge card={card} />
+        <ExchangeModeBadge mode={card.exchangeMode} />
+      </span>
     </button>
   )
 }
