@@ -103,8 +103,8 @@ describe("CardTile", () => {
     const button = screen.getByRole("button")
     const thumb = button.querySelector("span")
     expect(thumb?.className).toContain("aspect-square")
-    // 容器不加底色（2026-11-16 调整）：留白露页面底色，边界由图片自己的边框给。
-    expect(thumb?.className).not.toContain("bg-border")
+    // 容器统一用 bg-border 兜住留白；边界仍由图片自己的边框给。
+    expect(thumb?.className).toContain("bg-border")
     expect(thumb?.className).not.toContain("bg-muted")
 
     const img = button.querySelector("img")

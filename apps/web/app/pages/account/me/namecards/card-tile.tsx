@@ -100,7 +100,7 @@ export function CardTile({
       aria-current={selected ? "page" : undefined}
       onClick={onSelect}
     >
-      <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md">
+      <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md bg-border">
         <OwnerCardImage
           src={inventoryCoverUrl(card)}
           className="max-h-full max-w-full border border-foreground/25 object-contain"
