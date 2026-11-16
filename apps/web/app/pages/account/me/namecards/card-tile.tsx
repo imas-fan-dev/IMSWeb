@@ -100,11 +100,11 @@ export function CardTile({
       aria-current={selected ? "page" : undefined}
       onClick={onSelect}
     >
-      <span
-        className="relative block aspect-square overflow-hidden rounded-md border bg-muted"
-        style={card.accent ? { backgroundColor: card.accent } : undefined}
-      >
-        <OwnerCardImage src={inventoryCoverUrl(card)} />
+      <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md">
+        <OwnerCardImage
+          src={inventoryCoverUrl(card)}
+          className="max-h-full max-w-full border border-foreground/25 object-contain"
+        />
         {!card.visible ? (
           <span
             className="absolute top-2 left-2 z-10 inline-flex items-center rounded-md bg-background/90 p-1 text-muted-foreground shadow-sm ring-1 ring-border"

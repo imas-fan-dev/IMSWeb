@@ -98,6 +98,21 @@ describe("ExchangeModeBadge", () => {
 })
 
 describe("CardTile", () => {
+  it("keeps the artwork at its own aspect inside a bare 1:1 frame", () => {
+    render(<CardTile card={card()} onSelect={() => {}} />)
+    const button = screen.getByRole("button")
+    const thumb = button.querySelector("span")
+    expect(thumb?.className).toContain("aspect-square")
+    // 容器不加底色（2026-11-16 调整）：留白露页面底色，边界由图片自己的边框给。
+    expect(thumb?.className).not.toContain("bg-border")
+    expect(thumb?.className).not.toContain("bg-muted")
+
+    const img = button.querySelector("img")
+    expect(img?.className).toContain("max-h-full")
+    expect(img?.className).toContain("max-w-full")
+    expect(img?.className).toContain("border-foreground/25")
+  })
+
   it("marks a card hidden from the profile and wall", () => {
     render(<CardTile card={card({ visible: false })} onSelect={() => {}} />)
     expect(screen.getByTitle("在用户主页和名片墙不可见")).toBeTruthy()
