@@ -19,7 +19,7 @@ import { isProfileWorkspaceSection } from "~/pages/account/me/profile-workspace-
 import { ProfileEditor } from "~/pages/account/me/profile/profile-editor"
 import { ExchangeManagementDialog } from "~/pages/community/exchange/components/exchange-management-dialog"
 import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
-import { makeCardPage } from "@/mocks/data/namecards"
+import { makeCardPage, makeNamecardCardLayout } from "@/mocks/data/namecards"
 
 const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
@@ -35,6 +35,7 @@ const apiMocks = vi.hoisted(() => ({
   getPlatformProfile: vi.fn(),
   getFudabaOwnerSeries: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
+  getCardLayout: vi.fn(),
   getFudabaOwnerCard: vi.fn(),
   getFudabaClaimEnvelopes: vi.fn(),
   getWikiCatalog: vi.fn(),
@@ -49,6 +50,7 @@ const apiMocks = vi.hoisted(() => ({
   sendProfile: vi.fn(),
   sendSeries: vi.fn(),
   sendCards: vi.fn(),
+  sendCardLayout: vi.fn(),
   sendCard: vi.fn(),
   sendCatalog: vi.fn(),
   sendCharacterCatalog: vi.fn(),
@@ -101,6 +103,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getPlatformProfile: apiMocks.getPlatformProfile,
     getFudabaOwnerSeries: apiMocks.getFudabaOwnerSeries,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
+    getCardLayout: apiMocks.getCardLayout,
     getFudabaOwnerCard: apiMocks.getFudabaOwnerCard,
     getFudabaClaimEnvelopes: apiMocks.getFudabaClaimEnvelopes,
     getWikiCatalog: apiMocks.getWikiCatalog,
@@ -307,6 +310,8 @@ describe("AccountMeWorkspace", () => {
     apiMocks.getPlatformProfile.mockReturnValue({ send: apiMocks.sendProfile })
     apiMocks.getFudabaOwnerSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOwnerCards.mockReturnValue({ send: apiMocks.sendCards })
+    apiMocks.getCardLayout.mockReturnValue({ send: apiMocks.sendCardLayout })
+    apiMocks.sendCardLayout.mockResolvedValue(makeNamecardCardLayout())
     apiMocks.getFudabaOwnerCard.mockReturnValue({ send: apiMocks.sendCard })
     apiMocks.getFudabaClaimEnvelopes.mockReturnValue({
       send: apiMocks.sendEnvelopes,

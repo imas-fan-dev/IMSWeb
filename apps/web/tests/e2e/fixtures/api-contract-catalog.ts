@@ -139,6 +139,7 @@ import {
   expectedNamecardRevisionRequestSchema,
   flaggedNamecardRequestSchema,
   lockedNamecardRequestSchema,
+  namecardCardLayoutSchema,
   namecardListErrorResponseSchema,
   namecardListQuerySchema,
   namecardMutationResponseSchema,
@@ -532,6 +533,12 @@ export function resolveApiContract(
     return {
       query: fudabaIgnoredQuerySchema,
       responses: { 200: fudabaOwnerCardListSchema, ...fudabaErrors },
+    }
+  // 精确匹配必须排在下面的名片详情正则之前，否则 `/cards/layout` 会被当成详情。
+  if (method === "GET" && path === `${exchange}/me/cards/layout`)
+    return {
+      query: fudabaIgnoredQuerySchema,
+      responses: { 200: namecardCardLayoutSchema, ...fudabaErrors },
     }
   if (
     method === "GET" &&

@@ -5,6 +5,7 @@ import type {
 import { afterEach, describe, expect, it } from "vitest"
 
 import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import { makeNamecardCardLayout } from "@/mocks/data/namecards"
 import {
   clearCsrfCookie,
   setCsrfCookie,
@@ -46,6 +47,7 @@ import {
   getFudabaOwnerOffices,
   getFudabaOwnerCard,
   getFudabaOwnerCards,
+  getCardLayout,
   getFudabaOwnerSeries,
   getFudabaMapConfig,
   getFudabaMapOffices,
@@ -657,6 +659,11 @@ describe("Fudaba Web API contracts", () => {
           makeFudabaSeriesList({ items: [makeFudabaSeries()] })
         )
       }
+      if (pathname.endsWith("/me/cards/layout")) {
+        return Response.json(
+          makeNamecardCardLayout({ defaultCardNumbers: [1] })
+        )
+      }
       if (pathname.endsWith("/me/cards")) {
         return Response.json(makeFudabaOwnerCardList({ items: [ownerCard] }))
       }
@@ -674,6 +681,9 @@ describe("Fudaba Web API contracts", () => {
     await expect(getFudabaOwnerCards().send()).resolves.toMatchObject({
       items: [{ id: "owner-card" }],
     })
+    await expect(getCardLayout().send()).resolves.toMatchObject({
+      defaultCardNumbers: [1],
+    })
     await expect(
       getFudabaOwnerCard("owner card?#").send()
     ).resolves.toMatchObject({ card: { id: "owner card?#" } })
@@ -681,6 +691,7 @@ describe("Fudaba Web API contracts", () => {
     expect(requests.map(({ url, init }) => [url, init?.method])).toEqual([
       ["/api/community/exchange/me/series", "GET"],
       ["/api/community/exchange/me/cards", "GET"],
+      ["/api/community/exchange/me/cards/layout", "GET"],
       [`/api/community/exchange/me/cards/${encodedCardId}`, "GET"],
     ])
     for (const request of requests) {

@@ -1,11 +1,13 @@
 import {
   adminExchangePath,
+  exchangeMyCardsLayoutPath,
   exchangePath,
   mapsPath,
 } from "@imsweb/contracts/paths"
 export { createMapboxNearbySearch } from "./mapbox-place-search"
 import {
   createNamecardFeedbackRequestSchema,
+  namecardCardLayoutSchema,
   namecardFeedbackMutationSchema,
   type NamecardFeedbackReason,
 } from "@imsweb/contracts/namecards"
@@ -649,6 +651,22 @@ export function getFudabaOwnerCards() {
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformAuth(),
       select: normalizeFudabaOwnerCardList,
+    })
+  )
+}
+
+/**
+ * 属主清单的布局（分组 / 顺序 / 快速清单），服务端已归一。
+ *
+ * 只影响展示，所以调用方在失败时退化成「只有默认分组」，不要让它拖垮整个工作区。
+ */
+export function getCardLayout() {
+  return platformApiClient.Get(
+    exchangeMyCardsLayoutPath(),
+    parsed(namecardCardLayoutSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
     })
   )
 }

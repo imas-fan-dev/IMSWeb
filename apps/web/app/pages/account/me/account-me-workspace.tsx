@@ -22,6 +22,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
+  getCardLayout,
   getFudabaOwnerCard,
   getFudabaOwnerCards,
   getFudabaOwnerSeries,
@@ -29,6 +30,7 @@ import {
   hasPlatformSessionHint,
   type FudabaOwnerCard,
   type FudabaSeries,
+  type NamecardCardLayout,
   type PlatformAccountStatus,
   type PlatformProfile,
 } from "~/lib/api"
@@ -61,6 +63,8 @@ type WorkspaceState = {
   writeEnabled: boolean
   series: FudabaSeries[]
   cards: FudabaOwnerCard[]
+  /** 展示顺序与分组；读失败时为 `null`，清单退化成「只有默认分组」。 */
+  cardLayout: NamecardCardLayout | null
   error: string | null
 }
 
@@ -71,7 +75,20 @@ const initialState: WorkspaceState = {
   writeEnabled: false,
   series: [],
   cards: [],
+  cardLayout: null,
   error: null,
+}
+
+/**
+ * 布局只决定分组与展示顺序：读不到就退回「只有默认分组」，不能让一次展示偏好请求
+ * 把整个工作区打成错误页。同步抛错（例如客户端手里没有对应端点）也要吃掉。
+ */
+async function loadCardLayout(): Promise<NamecardCardLayout | null> {
+  try {
+    return await getCardLayout().send()
+  } catch {
+    return null
+  }
 }
 
 function AccountWorkspaceBackLink() {
@@ -157,11 +174,13 @@ function ProfileWorkspace({
       error: null,
     }))
     try {
-      const [profileResult, seriesResult, cardResult] = await Promise.all([
-        getPlatformProfile().send(),
-        getFudabaOwnerSeries().send(),
-        getFudabaOwnerCards().send(),
-      ])
+      const [profileResult, seriesResult, cardResult, layoutResult] =
+        await Promise.all([
+          getPlatformProfile().send(),
+          getFudabaOwnerSeries().send(),
+          getFudabaOwnerCards().send(),
+          loadCardLayout(),
+        ])
       if (workspaceGeneration.current !== generation) return
       setState({
         phase: "ready",
@@ -170,6 +189,7 @@ function ProfileWorkspace({
         writeEnabled: profileResult.capabilities.fudabaWrite,
         series: seriesResult.items,
         cards: cardResult.items,
+        cardLayout: layoutResult,
         error: null,
       })
       setCreating(false)
@@ -621,6 +641,8 @@ function ProfileWorkspace({
                 active={activeSection === "namecards"}
                 onClose={closeCard}
                 cards={state.cards}
+                cardLayout={state.cardLayout}
+                accountId={profileAccountId ?? null}
                 selectedCardId={selectedCardId}
                 creating={creating}
                 loadingDetail={loadingDetail}

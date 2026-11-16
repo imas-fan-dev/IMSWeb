@@ -9,8 +9,15 @@ import { Badge } from "~/components/ui/badge"
 import type { FudabaOwnerCard } from "~/lib/api"
 import { cardTimeLabel } from "~/lib/namecards/dates"
 import { cn } from "~/lib/utils"
+import { cardViewTransitionName } from "./card-manager-model"
 import { publicationLabels } from "./card-model"
 import { OwnerCardImage } from "./owner-card-image"
+
+/**
+ * 瓦片网格：分组模式与经典模式共用同一套列宽，切换模式时瓦片只换位置、不变尺寸。
+ */
+export const cardTileGridClassName =
+  "grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
 
 /** The inventory tile follows the revision the owner is reviewing. */
 export function inventoryProducerName(card: FudabaOwnerCard): string {
@@ -85,6 +92,7 @@ export function ExchangeModeBadge({
  *
  * 缩略图用 `object-contain`（名片多为 90×50 / 90×54 mm，固定比例裁切会切掉内容，
  * 理由见 `NamecardMediaPreview` 的注释），容器底色用卡片 accent 兜住留白。
+ * 每张瓦片带自己的 `view-transition-name`，分组↔经典切换时由浏览器把它挪到新位置。
  */
 export function CardTile({
   card,
@@ -105,6 +113,7 @@ export function CardTile({
         "min-w-0 rounded-lg border bg-background p-2 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50",
         selected && "border-primary bg-accent/40"
       )}
+      style={{ viewTransitionName: cardViewTransitionName(card.id) }}
       aria-current={selected ? "page" : undefined}
       onClick={onSelect}
     >

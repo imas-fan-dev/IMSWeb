@@ -6,9 +6,16 @@ import {
 } from "@imsweb/contracts/fudaba/card-claims"
 import {
   myPlatformAccountsSchema,
+  namecardCardLayoutSchema,
   wallInsightsSchema,
 } from "@imsweb/contracts/namecards"
-import { apiPath, exchangePath, platformApiPath } from "@imsweb/contracts/paths"
+import { NAMECARD_EXCHANGE_CARD_LIMIT } from "@imsweb/contracts/namecards/runtime"
+import {
+  apiPath,
+  exchangeMyCardsLayoutPath,
+  exchangePath,
+  platformApiPath,
+} from "@imsweb/contracts/paths"
 
 import { ApiDispatcher } from "./api-dispatcher"
 
@@ -91,6 +98,30 @@ function installSeriesProbe(dispatcher: ApiDispatcher) {
   })
 }
 
+/**
+ * 属主名片管理器打开时会并发读布局，只关心卡片本身的 spec 不该为它单独登记，
+ * 所以给一个空布局兜底（所有卡片落在默认分组、顺序照旧）。需要分组的 spec
+ * 再登记同名端点，会替换掉这个兜底。
+ */
+function installCardLayoutProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangeMyCardsLayoutPath(),
+    responses: { 200: namecardCardLayoutSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({
+      status: 200,
+      json: {
+        groups: [],
+        defaultCardNumbers: [],
+        quickCardNumbers: [],
+        limit: NAMECARD_EXCHANGE_CARD_LIMIT,
+      },
+    }),
+  })
+}
+
 export { expect } from "@playwright/test"
 export type { ApiDispatcher } from "./api-dispatcher"
 
@@ -139,6 +170,7 @@ export const test = base.extend<
       installSeriesProbe(dispatcher)
       installWallInsightsProbe(dispatcher)
       installPlatformAccountsProbe(dispatcher)
+      installCardLayoutProbe(dispatcher)
       if (activeApi) {
         await dispatcher.dispose()
         throw new Error(

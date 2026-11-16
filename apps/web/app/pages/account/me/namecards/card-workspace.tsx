@@ -18,12 +18,19 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
-import type { FudabaOwnerCard, FudabaSeries, PlatformProfile } from "~/lib/api"
+import type {
+  FudabaOwnerCard,
+  FudabaSeries,
+  NamecardCardLayout,
+  PlatformProfile,
+} from "~/lib/api"
 import { CardEditor, CardEditorHeading } from "./card-editor"
-import { CardInventory } from "./card-inventory"
+import { CardManager } from "./card-manager"
 
 export function CardWorkspace({
   cards,
+  cardLayout,
+  accountId,
   selectedCardId,
   creating,
   loadingDetail,
@@ -44,6 +51,9 @@ export function CardWorkspace({
   active: boolean
   onClose: () => void
   cards: FudabaOwnerCard[]
+  /** 服务端归一后的清单布局；读失败时为 `null`。 */
+  cardLayout: NamecardCardLayout | null
+  accountId: string | null
   selectedCardId: string | null
   creating: boolean
   loadingDetail: boolean
@@ -104,8 +114,10 @@ export function CardWorkspace({
   const open = active && Boolean(creating || selectedCard)
   return (
     <div className="min-w-0">
-      <CardInventory
+      <CardManager
         cards={cards}
+        layout={cardLayout}
+        accountId={accountId}
         selectedCardId={selectedCardId}
         readOnly={readOnly}
         onSelect={(id) => {
