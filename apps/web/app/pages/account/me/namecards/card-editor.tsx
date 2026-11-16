@@ -43,7 +43,7 @@ import {
   releaseMediaSlot,
   type MediaSlot,
 } from "./card-media-gallery"
-import { PublicationBadge } from "./card-inventory"
+import { PublicationBadge } from "./card-tile"
 import { CardFields } from "./card-editor-fields"
 import { CardModule, type CardModuleModes } from "./card-module"
 import {
