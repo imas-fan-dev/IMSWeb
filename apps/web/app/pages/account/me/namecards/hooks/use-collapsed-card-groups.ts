@@ -56,6 +56,12 @@ function writeCollapsedKeysIfChanged(
 export function useCollapsedCardGroups(accountId: string | null): {
   collapsedKeys: ReadonlySet<string>
   toggleCollapsed: (key: string) => void
+  /**
+   * 只保留给定的分组键：不在集合里的折叠态一律忘记（结果相同时保持原引用）。
+   * 编辑会话里的本地键（`local:N`）每会话都从 1 重号，调用方在会话边界上收窄一次，
+   * 上一会话留下的折叠态就不会串到这一会话新建的分组上。
+   */
+  pruneCollapsedKeys: (keys: Iterable<string>) => void
 } {
   const [collapsedKeys, setCollapsedKeys] = useState<ReadonlySet<string>>(() =>
     readCollapsedKeys(accountId)
@@ -74,5 +80,14 @@ export function useCollapsedCardGroups(accountId: string | null): {
     })
   }, [])
 
-  return { collapsedKeys, toggleCollapsed }
+  const pruneCollapsedKeys = useCallback((keys: Iterable<string>) => {
+    const allowed = new Set(keys)
+    setCollapsedKeys((current) => {
+      const next = new Set([...current].filter((key) => allowed.has(key)))
+      // 全都还在（子集）就没变：不换引用，也就不触发一次无意义的写回。
+      return next.size === current.size ? current : next
+    })
+  }, [])
+
+  return { collapsedKeys, toggleCollapsed, pruneCollapsedKeys }
 }

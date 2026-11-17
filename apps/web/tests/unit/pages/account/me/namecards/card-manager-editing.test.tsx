@@ -163,6 +163,21 @@ describe("CardManager editing mode", () => {
     expect(screen.getByRole("button", { name: "全选" })).toBeDisabled()
   })
 
+  it("blocks creating a card while the editing session is open", async () => {
+    const user = userEvent.setup()
+    const { onCreate } = renderManager()
+
+    expect(screen.getByRole("button", { name: "新建名片" })).toBeEnabled()
+
+    await enterEditing(user)
+
+    // 会话里新建的卡不进这次草稿，默认分组里的落点会整体错位，所以先禁掉。
+    const create = screen.getByRole("button", { name: "新建名片" })
+    expect(create).toBeDisabled()
+    expect(create).toHaveAttribute("title", "保存或退出编辑后再新建")
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
   it("keeps the selected count neutral and marks only the quick list red", async () => {
     const user = userEvent.setup()
     const many = Array.from({ length: 25 }, (_, index) => card(index + 1))

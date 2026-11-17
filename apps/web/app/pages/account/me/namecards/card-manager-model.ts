@@ -1,4 +1,5 @@
 import type { NamecardCardLayoutRequest } from "@imsweb/contracts/namecards"
+import { NAMECARD_PROFILE_GROUP_LIMIT } from "@imsweb/contracts/namecards/runtime"
 import { flushSync } from "react-dom"
 
 import type { FudabaOwnerCard, NamecardCardLayout } from "~/lib/api"
@@ -24,9 +25,27 @@ export type CardGroup = {
   cards: FudabaOwnerCard[]
 }
 
-/** 折叠状态与 `view-transition-name` 共用的稳定键。 */
-export function cardGroupKey(group: Pick<CardGroup, "id">): string {
-  return group.id ?? DEFAULT_CARD_GROUP_KEY
+/**
+ * 渲染一个分组所需的最小形状：只读结构（`CardGroup`）、草稿结构（`DraftCardGroup`）都满足它。
+ * 组件只认这个形状，两种模式因此能共用同一套分组组件。
+ */
+export type CardGroupView = {
+  id: string | null
+  /** 草稿结构才有：新建分组没有服务端 id，只能靠它做身份。 */
+  key?: string
+  title: string | null
+  cards: readonly FudabaOwnerCard[]
+}
+
+/**
+ * 分组的身份：服务端 id，外加草稿渲染结构（`DraftCardGroup`）才有的本地 `key`。
+ * 只读结构（`CardGroup`）没有 `key`，默认分组也没有 id，两者都落到 `DEFAULT_CARD_GROUP_KEY`。
+ */
+export type CardGroupIdentity = Pick<CardGroupView, "id" | "key">
+
+/** 折叠状态、dnd id 与 `view-transition-name` 共用的稳定键。 */
+export function cardGroupKey(group: CardGroupIdentity): string {
+  return group.key ?? group.id ?? DEFAULT_CARD_GROUP_KEY
 }
 
 /**
@@ -41,18 +60,11 @@ export function cardGroupHeading(
 }
 
 /**
- * 布局 + 卡片合成渲染结构。
- *
- * - 默认分组永远第一且无标题，顺序就是 `defaultCardNumbers`；
- * - 组内只保留本次真的拥有的卡（布局里已删除、已隐藏的编号被丢弃）；
- * - 布局里没出现过的卡（刚新建、或布局读失败时的全部卡）补进默认分组**最前**，
- *   与服务端归一同一顺序，保证任何一张拥有的卡都不会从列表里消失；
- * - 只引用不在手上的卡的组直接不渲染（服务端也只保存非空分组）。
+ * 「布局里的编号 → 手上的卡」的认领器：命名分组先认领、默认分组再认领剩下的，
+ * 任何一张手上的卡都不能从列表里消失。只读渲染（`buildCardGroups`）与编辑草稿
+ * （`buildDraftCardGroups`）共用它，保证两条渲染路径同口径。
  */
-export function buildCardGroups(
-  cards: readonly FudabaOwnerCard[],
-  layout: NamecardCardLayout | null
-): CardGroup[] {
+function createCardClaimer(cards: readonly FudabaOwnerCard[]) {
   const byNumber = new Map<number, FudabaOwnerCard>()
   for (const card of cards) {
     if (!byNumber.has(card.cardNumber)) byNumber.set(card.cardNumber, card)
@@ -62,42 +74,62 @@ export function buildCardGroups(
   // 记账——哪怕编号撞了，任何一张手上的卡也不能从列表里消失。
   const claimed = new Set<number>()
   const placed = new Set<string>()
-  const take = (cardNumbers: readonly number[]): FudabaOwnerCard[] => {
-    const taken: FudabaOwnerCard[] = []
-    for (const number of cardNumbers) {
-      const card = byNumber.get(number)
-      if (!card || claimed.has(number)) continue
-      claimed.add(number)
-      placed.add(card.id)
-      taken.push(card)
-    }
-    return taken
+  return {
+    take(cardNumbers: readonly number[]): FudabaOwnerCard[] {
+      const taken: FudabaOwnerCard[] = []
+      for (const number of cardNumbers) {
+        const card = byNumber.get(number)
+        if (!card || claimed.has(number)) continue
+        claimed.add(number)
+        placed.add(card.id)
+        taken.push(card)
+      }
+      return taken
+    },
+    /**
+     * 布局里没出现过的卡（刚新建、或布局读失败）：补进默认分组**最前**，与服务端归一
+     * （`normalizeCardLayout` 的 `[...missing, ...defaultCardNumbers]`）同口径——新卡在保存
+     * 前后都待在同一个位置，不会先落在末尾、刷新后又跳到最前。
+     */
+    remaining(): FudabaOwnerCard[] {
+      const missing: FudabaOwnerCard[] = []
+      for (const card of cards) {
+        if (placed.has(card.id)) continue
+        placed.add(card.id)
+        missing.push(card)
+      }
+      return missing
+    },
   }
+}
+
+/**
+ * 布局 + 卡片合成渲染结构（只读模式）。
+ *
+ * - 默认分组永远第一且无标题，顺序就是 `defaultCardNumbers`；
+ * - 组内只保留本次真的拥有的卡（布局里已删除、已隐藏的编号被丢弃）；
+ * - 布局里没出现过的卡补进默认分组**最前**（见 `createCardClaimer.remaining`）；
+ * - 只引用不在手上的卡的组直接不渲染（服务端也只保存非空分组）。
+ */
+export function buildCardGroups(
+  cards: readonly FudabaOwnerCard[],
+  layout: NamecardCardLayout | null
+): CardGroup[] {
+  const claimer = createCardClaimer(cards)
 
   // 认领顺序与服务端归一一致（`layout.ts` 的 `normalizeCardLayout`）：**各分组先认领**，
   // 默认分组再认领剩下的；同一编号被两处引用时它归分组，不会在两边各出现一次。
   const groups: CardGroup[] = []
   for (const group of layout?.groups ?? []) {
-    const groupCards = take(group.cardNumbers)
+    const groupCards = claimer.take(group.cardNumbers)
     if (!groupCards.length) continue
     groups.push({ id: group.id, title: group.title.trim(), cards: groupCards })
   }
 
-  const defaultCards = take(layout?.defaultCardNumbers ?? [])
-
-  // 布局里没出现过的卡（刚新建、或布局读失败）补进默认分组**最前**，与服务端归一
-  // （`normalizeCardLayout` 的 `[...missing, ...defaultCardNumbers]`）同口径：新卡在保存
-  // 前后都待在同一个位置，不会先落在末尾、刷新后又跳到最前。先让各分组认领自己的卡，
-  // 否则组里的卡会被这一轮提前算进默认分组。
-  const missing: FudabaOwnerCard[] = []
-  for (const card of cards) {
-    if (placed.has(card.id)) continue
-    placed.add(card.id)
-    missing.push(card)
-  }
+  const defaultCards = claimer.take(layout?.defaultCardNumbers ?? [])
 
   // 默认分组没有卡片时不渲染（卡片全在命名分组里）；有卡片时永远第一。
-  const defaultGroupCards = [...missing, ...defaultCards]
+  const defaultGroupCards = [...claimer.remaining(), ...defaultCards]
   return defaultGroupCards.length
     ? [{ id: null, title: null, cards: defaultGroupCards }, ...groups]
     : groups
@@ -108,9 +140,381 @@ export function buildCardGroups(
  * 经典模式只是不渲染组头，顺序与这里完全一致。
  */
 export function flattenCardGroups(
-  groups: readonly CardGroup[]
+  groups: readonly CardGroupView[]
 ): FudabaOwnerCard[] {
   return groups.flatMap((group) => group.cards)
+}
+
+/** 分组标题的字数上限（去首尾空白后），与服务端 `namecardCardLayoutGroupSchema` 同一口径。 */
+export const CARD_GROUP_TITLE_MAX_LENGTH = 40
+
+/** 新建分组在拿到服务端 id 之前用的本地键前缀；保存时这个分组发 `id: null`。 */
+const LOCAL_CARD_GROUP_KEY_PREFIX = "local:"
+
+/** 分组放置区（瓦片网格）的 droppable id 前缀：卡片拖到这里 = 落到该分组末尾。 */
+const CARD_GROUP_DROP_ID_PREFIX = "group-drop:"
+
+/** 分组自身的 sortable id 前缀（只有命名分组的组头可拖）。 */
+const CARD_GROUP_SORTABLE_ID_PREFIX = "group-item:"
+
+/**
+ * 编辑会话里的一个命名分组（**不含**默认分组）。`id === null` 表示本次新建，
+ * 保存时原样发 `null` 由服务端分配 uuid。
+ */
+export type CardManagerGroup = {
+  /**
+   * 稳定身份：既有分组 = 服务端 id，新建分组 = 本地键（`local:` 前缀）。
+   * React key / 折叠键 / dnd id 都用它——新建分组还没有 id，不能拿 id 当身份。
+   */
+  key: string
+  /** 服务端分配的分组 id；本次新建时为 `null`。 */
+  id: string | null
+  /** 已去首尾空白，1–40 字（`createCardGroup` / `renameCardGroup` 保证）。 */
+  title: string
+  /** 组内名片编号，顺序即展示顺序。 */
+  cardNumbers: number[]
+}
+
+/**
+ * 布局草稿：与 `PUT /me/cards/layout` 的 `groups` + `defaultCardNumbers` 同结构。
+ * 编辑模式下的拖动只改它，点保存才整份提交（§12）。
+ */
+export type CardManagerLayoutDraft = {
+  /** 命名分组；默认分组永远排在它们之前，所以不在这个数组里。 */
+  groups: CardManagerGroup[]
+  /** 默认分组（无标题、永远第一）的顺序。 */
+  defaultCardNumbers: number[]
+}
+
+/**
+ * 一次移动的落点：默认分组用 `DEFAULT_CARD_GROUP_KEY`，命名分组用它的 `key`。
+ *
+ * `index` 是**摘掉被搬走的卡之后**目标列表里的下标（与 `arrayMove` 同一套语义）：
+ * 落在「被压住的那张卡现在的下标」上就对了——向下拖落在那张卡后面，向上拖落在它前面。
+ */
+export type CardMoveTarget = {
+  groupKey: string
+  index?: number
+}
+
+/**
+ * 由「服务端归一后的布局 + 手上的卡」生成布局草稿：结构与只读渲染（`buildCardGroups`）
+ * 逐字一致，也就是把「布局里还没出现过的卡」显式写进默认分组最前。
+ *
+ * 这样拖拽落点的下标在草稿与渲染之间一一对应；保存时又是整份写回，服务端不必再兜底一次
+ * （否则「补进默认分组最前」的卡会让下标错位，用户拖到的位置与保存结果不一致）。
+ */
+export function createCardLayoutDraft(
+  cards: readonly FudabaOwnerCard[],
+  layout: NamecardCardLayout | null
+): CardManagerLayoutDraft {
+  const groups: CardManagerGroup[] = []
+  let defaultCardNumbers: number[] = []
+  for (const group of buildCardGroups(cards, layout)) {
+    if (group.id === null) {
+      defaultCardNumbers = cardNumbersOf(group.cards)
+      continue
+    }
+    groups.push({
+      key: group.id,
+      id: group.id,
+      // 服务端允许标题只有空白；展示兜底成「未命名分组」，保存时也按看到的标题写回。
+      title: cardGroupHeading(group) ?? "",
+      cardNumbers: cardNumbersOf(group.cards),
+    })
+  }
+  return { groups, defaultCardNumbers }
+}
+
+/** 组内卡片 → 编号；同一编号只留一处，编号撞车的异常数据也不会让保存请求 400。 */
+function cardNumbersOf(cards: readonly FudabaOwnerCard[]): number[] {
+  const numbers: number[] = []
+  const seen = new Set<number>()
+  for (const card of cards) {
+    if (seen.has(card.cardNumber)) continue
+    seen.add(card.cardNumber)
+    numbers.push(card.cardNumber)
+  }
+  return numbers
+}
+
+/** 还能不能新建分组（上限来自契约，别写死）。 */
+export function canCreateCardGroup(
+  groups: readonly CardManagerGroup[]
+): boolean {
+  return groups.length < NAMECARD_PROFILE_GROUP_LIMIT
+}
+
+/**
+ * 新建分组：插到**命名分组首位**（也就是默认分组正下方），`id: null` 等保存时由服务端分配。
+ *
+ * 标题去首尾空白；空标题、超过 40 字、或已达分组上限时原样返回**同一个数组**（等于没建）。
+ */
+export function createCardGroup(
+  groups: CardManagerGroup[],
+  title: string
+): CardManagerGroup[] {
+  const trimmed = title.trim()
+  if (
+    !trimmed ||
+    trimmed.length > CARD_GROUP_TITLE_MAX_LENGTH ||
+    !canCreateCardGroup(groups)
+  ) {
+    return groups
+  }
+  return [
+    {
+      key: nextLocalCardGroupKey(groups),
+      id: null,
+      title: trimmed,
+      cardNumbers: [],
+    },
+    ...groups,
+  ]
+}
+
+/** 本地键取「已有的 `local:N` 里没被用过的下一个」，拖动排序不会改变它。 */
+function nextLocalCardGroupKey(groups: readonly CardManagerGroup[]): string {
+  let max = 0
+  for (const group of groups) {
+    if (!group.key.startsWith(LOCAL_CARD_GROUP_KEY_PREFIX)) continue
+    const value = Number.parseInt(
+      group.key.slice(LOCAL_CARD_GROUP_KEY_PREFIX.length),
+      10
+    )
+    if (Number.isFinite(value) && value > max) max = value
+  }
+  return `${LOCAL_CARD_GROUP_KEY_PREFIX}${max + 1}`
+}
+
+/** 重命名分组：标题去首尾空白；空标题、超长标题或没有实际变化时原样返回。 */
+export function renameCardGroup(
+  groups: CardManagerGroup[],
+  key: string,
+  title: string
+): CardManagerGroup[] {
+  const trimmed = title.trim()
+  if (!trimmed || trimmed.length > CARD_GROUP_TITLE_MAX_LENGTH) return groups
+  const target = groups.find((group) => group.key === key)
+  if (!target || target.title === trimmed) return groups
+  return groups.map((group) =>
+    group.key === key ? { ...group, title: trimmed } : group
+  )
+}
+
+/**
+ * 删除分组：组内名片**退回默认分组末尾**（按组内顺序追加），不会跟着分组一起消失。
+ * 未知 key 原样返回。
+ */
+export function removeCardGroup(
+  draft: CardManagerLayoutDraft,
+  key: string
+): CardManagerLayoutDraft {
+  const target = draft.groups.find((group) => group.key === key)
+  if (!target) return draft
+  return {
+    groups: draft.groups.filter((group) => group.key !== key),
+    defaultCardNumbers: appendMissingNumbers(
+      draft.defaultCardNumbers,
+      target.cardNumbers
+    ),
+  }
+}
+
+function appendMissingNumbers(
+  current: readonly number[],
+  incoming: readonly number[]
+): number[] {
+  const present = new Set(current)
+  const next = [...current]
+  for (const number of incoming) {
+    if (present.has(number)) continue
+    present.add(number)
+    next.push(number)
+  }
+  return next
+}
+
+/**
+ * 命名分组之间的排序。默认分组永远第一、不参与排序；未知 key 或原地不动时原样返回。
+ */
+export function reorderCardGroups(
+  groups: CardManagerGroup[],
+  fromKey: string,
+  toKey: string
+): CardManagerGroup[] {
+  const from = groups.findIndex((group) => group.key === fromKey)
+  const to = groups.findIndex((group) => group.key === toKey)
+  if (from < 0 || to < 0 || from === to) return groups
+  const next = [...groups]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved!)
+  return next
+}
+
+/**
+ * 把一批编号整体搬到目标位置：先把它从所有分组里摘掉（同一张名片只留一处），再按批次顺序
+ * 插到目标分组的 `index` 处（省略即末尾）。
+ *
+ * - 批次内部的相对顺序保持不变；
+ * - 重复编号只保留一处（摘的时候按编号摘，插的时候按去重后的批次插）；
+ * - 目标分组不存在（例如刚好被删掉）时退回默认分组末尾，宁可落回默认分组也不静默丢掉这次移动。
+ */
+export function moveCards(
+  draft: CardManagerLayoutDraft,
+  cardNumbers: readonly number[],
+  target: CardMoveTarget
+): CardManagerLayoutDraft {
+  const moving = [...new Set(cardNumbers)]
+  if (!moving.length) return draft
+  const movingSet = new Set(moving)
+
+  const groups = draft.groups.map((group) => ({
+    ...group,
+    cardNumbers: group.cardNumbers.filter((number) => !movingSet.has(number)),
+  }))
+  const defaultCardNumbers = draft.defaultCardNumbers.filter(
+    (number) => !movingSet.has(number)
+  )
+
+  const targetGroup =
+    target.groupKey === DEFAULT_CARD_GROUP_KEY
+      ? null
+      : (groups.find((group) => group.key === target.groupKey) ?? null)
+
+  if (!targetGroup) {
+    return {
+      groups,
+      defaultCardNumbers: insertCards(defaultCardNumbers, target.index, moving),
+    }
+  }
+  const nextNumbers = insertCards(targetGroup.cardNumbers, target.index, moving)
+  return {
+    groups: groups.map((group) =>
+      group.key === targetGroup.key
+        ? { ...group, cardNumbers: nextNumbers }
+        : group
+    ),
+    defaultCardNumbers,
+  }
+}
+
+function insertCards(
+  list: readonly number[],
+  index: number | undefined,
+  moving: readonly number[]
+): number[] {
+  const at = Math.max(0, Math.min(index ?? list.length, list.length))
+  return [...list.slice(0, at), ...moving, ...list.slice(at)]
+}
+
+/**
+ * 保存前的空分组丢弃：新建后一张卡都没放进去的分组等于没建，服务端的 `saveCardLayout`
+ * 也是同一口径（它还会再过滤一次），这里先丢掉是为了让脏标记与保存结果一致。
+ */
+export function dropEmptyGroups(
+  groups: readonly CardManagerGroup[]
+): CardManagerGroup[] {
+  return groups.filter((group) => group.cardNumbers.length > 0)
+}
+
+/** 两份布局草稿保存后的结果是否一致（空分组不参与，它们保存时会被丢掉）。 */
+export function sameCardLayoutDraft(
+  left: CardManagerLayoutDraft,
+  right: CardManagerLayoutDraft
+): boolean {
+  const leftGroups = dropEmptyGroups(left.groups)
+  const rightGroups = dropEmptyGroups(right.groups)
+  if (leftGroups.length !== rightGroups.length) return false
+  for (let index = 0; index < leftGroups.length; index += 1) {
+    const a = leftGroups[index]!
+    const b = rightGroups[index]!
+    if (a.id !== b.id || a.title !== b.title) return false
+    if (!sameCardNumberOrder(a.cardNumbers, b.cardNumbers)) return false
+  }
+  return sameCardNumberOrder(left.defaultCardNumbers, right.defaultCardNumbers)
+}
+
+/** 顺序敏感的比较：用户拖出来的顺序就是他要的顺序。 */
+function sameCardNumberOrder(
+  left: readonly number[],
+  right: readonly number[]
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((number, index) => number === right[index])
+  )
+}
+
+/**
+ * 编辑模式渲染用一个分组：默认分组的 `key` 是 `DEFAULT_CARD_GROUP_KEY`，新建分组用本地键。
+ * 只读模式用 `CardGroup`（`id === null` 即默认分组），两者靠 `cardGroupKey` 统一。
+ */
+export type DraftCardGroup = {
+  key: string
+  id: string | null
+  title: string | null
+  cards: FudabaOwnerCard[]
+}
+
+/**
+ * 编辑模式的渲染结构：默认分组**永远渲染**（空着也要留出放置区，卡片要能拖回去），
+ * 命名分组同样哪怕空着也渲染（刚建好还没放卡，或者卡片被全部拖走）。
+ * 只读模式走 `buildCardGroups`：空分组不渲染（服务端也只保存非空分组）。
+ */
+export function buildDraftCardGroups(
+  cards: readonly FudabaOwnerCard[],
+  draft: CardManagerLayoutDraft
+): DraftCardGroup[] {
+  const claimer = createCardClaimer(cards)
+  const groups: DraftCardGroup[] = draft.groups.map((group) => ({
+    key: group.key,
+    id: group.id,
+    title: group.title.trim(),
+    cards: claimer.take(group.cardNumbers),
+  }))
+  const defaultCards = claimer.take(draft.defaultCardNumbers)
+  return [
+    {
+      key: DEFAULT_CARD_GROUP_KEY,
+      id: null,
+      title: null,
+      cards: [...claimer.remaining(), ...defaultCards],
+    },
+    ...groups,
+  ]
+}
+
+/** 分组放置区的 droppable id。 */
+export function cardGroupDropId(key: string): string {
+  return `${CARD_GROUP_DROP_ID_PREFIX}${key}`
+}
+
+/** 分组自身的 sortable id（只有命名分组的组头挂它）。 */
+export function cardGroupSortableId(key: string): string {
+  return `${CARD_GROUP_SORTABLE_ID_PREFIX}${key}`
+}
+
+export function isCardGroupDropId(id: string): boolean {
+  return id.startsWith(CARD_GROUP_DROP_ID_PREFIX)
+}
+
+export function isCardGroupSortableId(id: string): boolean {
+  return id.startsWith(CARD_GROUP_SORTABLE_ID_PREFIX)
+}
+
+/** 放置区 id → 分组键；不是放置区时返回 `null`。 */
+export function cardGroupKeyFromDropId(id: string): string | null {
+  return isCardGroupDropId(id)
+    ? id.slice(CARD_GROUP_DROP_ID_PREFIX.length)
+    : null
+}
+
+/** 分组 sortable id → 分组键；不是分组 sortable 时返回 `null`。 */
+export function cardGroupKeyFromSortableId(id: string): string | null {
+  return isCardGroupSortableId(id)
+    ? id.slice(CARD_GROUP_SORTABLE_ID_PREFIX.length)
+    : null
 }
 
 /**
@@ -153,9 +557,7 @@ export function cardViewTransitionName(cardId: string): string {
   return `card-${identFrom(cardId)}`
 }
 
-export function cardGroupViewTransitionName(
-  group: Pick<CardGroup, "id">
-): string {
+export function cardGroupViewTransitionName(group: CardGroupIdentity): string {
   return `group-${identFrom(cardGroupKey(group))}`
 }
 
@@ -206,9 +608,7 @@ export function isCardSelectable(
 }
 
 /** 可勾选的卡片 id，按清单顺序——「全选」只选这一批。 */
-export function selectableCardIds(
-  cards: readonly FudabaOwnerCard[]
-): string[] {
+export function selectableCardIds(cards: readonly FudabaOwnerCard[]): string[] {
   return cards.filter(isCardSelectable).map((card) => card.id)
 }
 
@@ -357,12 +757,19 @@ export function isCardManagerDraftDirty({
   layout,
   quickCardNumbers,
   cardSettings,
+  layoutChanged = false,
 }: {
   cards: readonly FudabaOwnerCard[]
   layout: NamecardCardLayout | null
   quickCardNumbers: readonly number[]
   cardSettings: CardManagerCardSettings
+  /**
+   * 布局草稿相对**会话开始时**的差异（`sameCardLayoutDraft` 判定）。不拿它跟服务端布局比：
+   * 草稿会把「布局里还没出现过的卡」显式写进默认分组最前，一进编辑模式就跟服务端布局不同。
+   */
+  layoutChanged?: boolean
 }): boolean {
+  if (layoutChanged) return true
   if (collectCardSettings(cards, cardSettings).length > 0) return true
   return !sameCardNumbers(
     effectiveQuickCardNumbers(quickCardNumbers, cards, cardSettings),
@@ -373,27 +780,40 @@ export function isCardManagerDraftDirty({
 /**
  * 组装整份保存请求（§4.2）。
  *
- * 这一片（S3）不改布局结构，所以 `groups`/`defaultCardNumbers` 用**已加载的布局原样**
- * 回传；`quickCardNumbers` 整份覆盖；`cardSettings` 只放改动过的卡。
+ * 布局用**草稿里的分组结构**：空分组丢弃，新建分组发 `id: null`（服务端分配 uuid），
+ * 组内编号顺序即用户拖出来的顺序。`layoutDraft` 省略时退回「已加载的布局原样」，
+ * 给只改快速清单的调用留一条不动布局的安全路径。
+ * `quickCardNumbers` 整份覆盖；`cardSettings` 只放改动过的卡。
  */
 export function buildCardLayoutRequest({
   cards,
   layout,
   quickCardNumbers,
   cardSettings,
+  layoutDraft = null,
 }: {
   cards: readonly FudabaOwnerCard[]
   layout: NamecardCardLayout | null
   quickCardNumbers: readonly number[]
   cardSettings: CardManagerCardSettings
+  /** 编辑会话里的布局草稿；为空时用已加载的布局原样回传。 */
+  layoutDraft?: CardManagerLayoutDraft | null
 }): NamecardCardLayoutRequest {
   return {
-    groups: (layout?.groups ?? []).map((group) => ({
-      id: group.id,
-      title: group.title,
-      cardNumbers: [...group.cardNumbers],
-    })),
-    defaultCardNumbers: [...(layout?.defaultCardNumbers ?? [])],
+    groups: layoutDraft
+      ? dropEmptyGroups(layoutDraft.groups).map((group) => ({
+          id: group.id,
+          title: group.title.trim(),
+          cardNumbers: [...group.cardNumbers],
+        }))
+      : (layout?.groups ?? []).map((group) => ({
+          id: group.id,
+          title: group.title,
+          cardNumbers: [...group.cardNumbers],
+        })),
+    defaultCardNumbers: [
+      ...(layoutDraft?.defaultCardNumbers ?? layout?.defaultCardNumbers ?? []),
+    ],
     quickCardNumbers: effectiveQuickCardNumbers(
       quickCardNumbers,
       cards,

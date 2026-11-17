@@ -21,6 +21,7 @@ describe("CardGroupSection", () => {
     render(
       <CardGroupSection
         group={group({ id: null, title: null })}
+        tileCount={1}
         collapsed={false}
         onToggleCollapsed={vi.fn()}
       >
@@ -39,6 +40,7 @@ describe("CardGroupSection", () => {
     render(
       <CardGroupSection
         group={group({ title: "   " })}
+        tileCount={1}
         collapsed={false}
         onToggleCollapsed={vi.fn()}
       >
@@ -55,6 +57,7 @@ describe("CardGroupSection", () => {
     const { rerender } = render(
       <CardGroupSection
         group={group()}
+        tileCount={1}
         collapsed={false}
         onToggleCollapsed={onToggleCollapsed}
       >
@@ -70,6 +73,7 @@ describe("CardGroupSection", () => {
     rerender(
       <CardGroupSection
         group={group()}
+        tileCount={1}
         collapsed
         onToggleCollapsed={onToggleCollapsed}
       >
@@ -82,6 +86,79 @@ describe("CardGroupSection", () => {
     expect(screen.getByRole("button", { name: "展开常用" })).toHaveAttribute(
       "aria-expanded",
       "false"
+    )
+  })
+
+  it("shows the drop hint in every empty group of the editing session", () => {
+    // 编辑模式里 `children` 外面永远裹着一层 `SortableContext`（数出来恒为 1），
+    // 所以空分组有没有落点只看 `tileCount`。默认分组（没有组头）也要有。
+    const { rerender } = render(
+      <CardGroupSection
+        group={group({ id: null, title: null, cards: [] })}
+        tileCount={0}
+        collapsed={false}
+        onToggleCollapsed={vi.fn()}
+        editing
+      >
+        <span>放置区</span>
+      </CardGroupSection>
+    )
+    expect(screen.getByText("把名片拖到这里")).toBeVisible()
+
+    rerender(
+      <CardGroupSection
+        group={group({ cards: [] })}
+        tileCount={0}
+        collapsed={false}
+        onToggleCollapsed={vi.fn()}
+        editing
+      >
+        <span>放置区</span>
+      </CardGroupSection>
+    )
+    expect(screen.getByRole("heading", { name: "常用" })).toBeVisible()
+    expect(screen.getByText("把名片拖到这里")).toBeVisible()
+  })
+
+  it("leaves the drop hint out once the group holds a tile", () => {
+    render(
+      <CardGroupSection
+        group={group()}
+        tileCount={1}
+        collapsed={false}
+        onToggleCollapsed={vi.fn()}
+        editing
+      >
+        <span>名片 A</span>
+      </CardGroupSection>
+    )
+
+    expect(screen.queryByText("把名片拖到这里")).toBeNull()
+  })
+
+  it("restores the current title when a rename input is cleared and left empty", async () => {
+    const user = userEvent.setup()
+    const onRename = vi.fn()
+    render(
+      <CardGroupSection
+        group={group()}
+        tileCount={1}
+        collapsed={false}
+        onToggleCollapsed={vi.fn()}
+        editing
+        onRename={onRename}
+      >
+        <span>名片 A</span>
+      </CardGroupSection>
+    )
+
+    await user.clear(screen.getByRole("textbox", { name: "分组名称" }))
+    await user.tab()
+
+    // 空标题不提交（重命名也没有 `onCancel`）：组头不能就这么留空串。
+    expect(onRename).not.toHaveBeenCalled()
+    expect(screen.getByRole("textbox", { name: "分组名称" })).toHaveValue(
+      "常用"
     )
   })
 })

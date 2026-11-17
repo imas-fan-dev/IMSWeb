@@ -1,5 +1,19 @@
+import { DndContext, DragOverlay } from "@dnd-kit/core"
+import {
+  rectSortingStrategy,
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { NAMECARD_PROFILE_GROUP_LIMIT } from "@imsweb/contracts/namecards/runtime"
 import { FileImageIcon, PlusIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
 
 import {
   AlertDialog,
@@ -24,35 +38,48 @@ import { cn } from "~/lib/utils"
 import {
   applyLayout,
   buildCardGroups,
+  buildDraftCardGroups,
+  canCreateCardGroup,
   cardGroupKey,
+  cardGroupSortableId,
   cardSettingsToPatches,
   collectCardSettings,
+  DEFAULT_CARD_GROUP_KEY,
   effectiveCardVisible,
   effectiveExchangeMode,
   flattenCardGroups,
+  isCardSelectable,
   quickCardIdSet,
+  type CardGroupView,
   type CardManagerCardPatches,
+  type DraftCardGroup,
 } from "./card-manager-model"
-import { CardTile, cardTileGridClassName } from "./card-tile"
+import { cardTileGridClassName } from "./card-tile"
 import { CardBulkActions } from "./components/card-bulk-actions"
+import { CardDragGhost, CardDragLayer } from "./components/card-drag-layer"
 import { CardGroupSection } from "./components/card-group-section"
+import { CardGroupTitleInput } from "./components/card-group-title-input"
 import {
   CardManagerToolbar,
   type CardManagerViewMode,
 } from "./components/card-manager-toolbar"
+import { SortableCardTile } from "./components/sortable-card-tile"
 import { useCardManagerDraft } from "./hooks/use-card-manager-draft"
+import { useCardManagerDrag } from "./hooks/use-card-manager-drag"
 import { useCardManagerSave } from "./hooks/use-card-manager-save"
 import { useCollapsedCardGroups } from "./hooks/use-collapsed-card-groups"
 
 /**
  * 属主名片管理器：工具栏 + 批量操作 + 分组 + 瓦片。
  *
- * 分组与顺序都以服务端归一后的布局为准（§4.1）：这里只做展示合成，不改数据。
- * 分组模式下每个分组有组头与折叠；经典模式只是不渲染组头、把同一份顺序展平，
- * 两种状态的切换走 View Transition（不支持时立即切换，见 `applyLayout`）。
+ * 只读模式的分组与顺序以服务端归一后的布局为准（§4.1）；编辑模式改的是**布局草稿**
+ * （`useCardManagerDraft` 里的 `layoutDraft`），拖拽与建组都先落草稿，点保存才整份提交。
+ * 分组模式下每个分组有组头与折叠；经典模式只是不渲染组头、把同一份顺序展平，两种状态的
+ * 切换走 View Transition（不支持时立即切换，见 `applyLayout`）。
  *
- * 编辑模式是草稿会话（§12）：勾选与批量操作先落 `useCardManagerDraft`，显式保存才发一次
- * `PUT /me/cards/layout`；保存成功后用响应覆盖布局、清脏并退出编辑。
+ * 拖拽只在**分组模式**里开（§7.3）：经典模式没有分组落点，展平列表里的落点含义不明确，
+ * 所以那一侧只保留勾选与批量操作。拖动期间不起 View Transition（设计 §10.1），落位后由
+ * React 按新顺序直接渲染。
  */
 export function CardManager({
   cards,
@@ -88,8 +115,30 @@ export function CardManager({
   const [mode, setMode] = useState<CardManagerViewMode>("grouped")
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [confirmQuickJoin, setConfirmQuickJoin] = useState(false)
+  /** 「+ 新建分组」按下之后，默认分组下方出现标题输入区（§7.2）。 */
+  const [creatingGroup, setCreatingGroup] = useState(false)
 
   const draft = useCardManagerDraft({ cards, layout })
+  const { collapsedKeys, toggleCollapsed, pruneCollapsedKeys } =
+    useCollapsedCardGroups(accountId)
+  // 解构出稳定的引用：`draft` 每次渲染都是新对象，直接读成员会让 useCallback
+  // 每帧都换新（依赖告警也来自这里）。
+  const { editing, hasChanges, resetDraft, startEditing: beginEditing } = draft
+
+  /**
+   * 退出 / 重置编辑会话：折叠态收窄到**服务端已保存的分组**。新建分组用的 `local:N`
+   * 键每会话都从 1 重号，上一会话留下的折叠态不清掉，这一会话新建的组会一出生就折叠着。
+   */
+  const endEditingSession = useCallback(
+    (nextLayout: NamecardCardLayout | null) => {
+      if (nextLayout) {
+        pruneCollapsedKeys(nextLayout.groups.map((group) => group.id))
+      }
+      resetDraft(nextLayout)
+    },
+    [pruneCollapsedKeys, resetDraft]
+  )
+
   const save = useCardManagerSave({
     source: {
       buildRequest: draft.buildRequest,
@@ -102,7 +151,7 @@ export function CardManager({
       const patches = cardSettingsToPatches(
         collectCardSettings(cards, draft.cardSettings)
       )
-      draft.resetDraft(saved)
+      endEditingSession(saved)
       onLayoutSaved(saved, patches)
     },
   })
@@ -111,50 +160,54 @@ export function CardManager({
     onDirtyChange?.(draft.hasChanges)
   }, [draft.hasChanges, onDirtyChange])
 
-  const groups = useMemo(() => buildCardGroups(cards, layout), [cards, layout])
+  /** 编辑模式下的布局草稿渲染结构；不在编辑模式时为 `null`。 */
+  const draftGroups = useMemo<DraftCardGroup[] | null>(
+    () =>
+      draft.layoutDraft ? buildDraftCardGroups(cards, draft.layoutDraft) : null,
+    [cards, draft.layoutDraft]
+  )
+  const readGroups = useMemo(
+    () => buildCardGroups(cards, layout),
+    [cards, layout]
+  )
+  const groups: readonly CardGroupView[] = draftGroups ?? readGroups
   const flatCards = useMemo(() => flattenCardGroups(groups), [groups])
   // 角标跟草稿走：加入/移出与改交换模式立刻反映到瓦片上，不必等保存。
   const quickCardIds = useMemo(
     () => quickCardIdSet(cards, draft.quickCardNumbers),
     [cards, draft.quickCardNumbers]
   )
-  const { collapsedKeys, toggleCollapsed } = useCollapsedCardGroups(accountId)
-
-  const renderTile = (card: FudabaOwnerCard) => (
-    <CardTile
-      key={card.id}
-      card={card}
-      inQuickExchange={quickCardIds.has(card.id)}
-      hidden={!effectiveCardVisible(card, draft.cardSettings)}
-      exchangeMode={effectiveExchangeMode(card, draft.cardSettings)}
-      selected={selectedCardId === card.id}
-      editing={draft.editing}
-      checked={draft.selectedCardIds.has(card.id)}
-      onSelect={() => {
-        if (draft.editing) draft.toggleSelected(card.id)
-        else onSelect(card.id)
-      }}
-    />
-  )
 
   // 布局读不到时不许进编辑模式：保存会把 `groups: []` / `defaultCardNumbers: []` 整份
   // 覆盖到服务端，清空用户已有的分组与顺序，而且 `limit` 未知、超限阻断也失效。
   const editDisabledReason =
     layout === null ? "读不到名片布局，刷新页面后再试。" : null
-  // 解构出稳定的引用：`draft` 每次渲染都是新对象，直接读成员会让下面的 useCallback
-  // 每帧都换新（依赖告警也来自这里）。
-  const {
-    editing,
-    hasChanges,
-    resetDraft,
-    startEditing: beginEditing,
-  } = draft
   const startEditing = useCallback(() => {
     if (layout === null) return
+    // 每次进编辑模式都从「没有在建组」开始：退出/切换模式时会丢掉这个输入区，
+    // 状态也就跟着会话一起重置，不必再用 effect 去追状态。
+    setCreatingGroup(false)
+    // 上一会话留下的 `local:N` 折叠态会串到这一会话新建的分组上，进来先清掉。
+    pruneCollapsedKeys(layout.groups.map((group) => group.id))
     beginEditing()
-  }, [beginEditing, layout])
+  }, [beginEditing, layout, pruneCollapsedKeys])
+
+  /** 拖拽、建组、折叠只发生在分组模式；经典模式是同一顺序的展平视图。 */
+  const layoutEditing = editing && mode === "grouped"
+  const canAddGroup = canCreateCardGroup(draft.layoutDraft?.groups ?? [])
+
+  const drag = useCardManagerDrag({
+    enabled: layoutEditing,
+    cards,
+    groups: draftGroups ?? [],
+    selectedCardIds: draft.selectedCardIds,
+    onMoveCards: draft.moveCards,
+    onReorderCardGroups: draft.reorderCardGroups,
+  })
 
   function changeMode(next: CardManagerViewMode) {
+    // 经典模式没有分组界面，没提交的建组输入区跟着收起（草稿本身留着）。
+    setCreatingGroup(false)
     // 用函数式更新读取「当前」模式：View Transition 会把提交推迟到回调里，
     // 同一帧内连点两下时闭包里的 `mode` 还是旧值，闭包守卫会误判。
     applyLayout(() => setMode((current) => (current === next ? current : next)))
@@ -171,8 +224,8 @@ export function CardManager({
       setConfirmDiscard(true)
       return
     }
-    resetDraft(layout)
-  }, [hasChanges, layout, resetDraft, save.saving])
+    endEditingSession(layout)
+  }, [endEditingSession, hasChanges, layout, save.saving])
 
   // `Esc` 退出编辑（§7.1）。任何弹框打开或正在保存时都不响应，免得和
   // AlertDialog 自己的 Esc 处理打架、或在半路写请求时把草稿丢掉。
@@ -214,24 +267,112 @@ export function CardManager({
     setConfirmQuickJoin(false)
   }
 
+  const renderTile = (card: FudabaOwnerCard) => (
+    <SortableCardTile
+      key={card.id}
+      // 可拖拽资格与可勾选一致（§8）：整卡 `published`、在编辑模式的分组视图里。
+      draggable={layoutEditing && isCardSelectable(card)}
+      card={card}
+      inQuickExchange={quickCardIds.has(card.id)}
+      hidden={!effectiveCardVisible(card, draft.cardSettings)}
+      exchangeMode={effectiveExchangeMode(card, draft.cardSettings)}
+      selected={selectedCardId === card.id}
+      editing={editing}
+      checked={draft.selectedCardIds.has(card.id)}
+      onSelect={() => {
+        if (editing) draft.toggleSelected(card.id)
+        else onSelect(card.id)
+      }}
+    />
+  )
+
+  /** 分组放置区里的瓦片；拖动中在预估落点插上虚线的 ghost 占位块（§7.3）。 */
+  function renderGroupTiles(group: CardGroupView): ReactNode {
+    const tiles = group.cards.map(renderTile)
+    const ghost =
+      drag.ghost && drag.ghost.groupKey === cardGroupKey(group)
+        ? drag.ghost
+        : null
+    const placed = ghost
+      ? [
+          ...tiles.slice(0, Math.min(ghost.index, tiles.length)),
+          ...Array.from({ length: ghost.count }, (_, index) => (
+            <CardDragGhost key={`card-drag-ghost-${index}`} />
+          )),
+          ...tiles.slice(Math.min(ghost.index, tiles.length)),
+        ]
+      : tiles
+    return layoutEditing ? (
+      <SortableContext
+        items={group.cards.map((card) => card.id)}
+        strategy={rectSortingStrategy}
+      >
+        {placed}
+      </SortableContext>
+    ) : (
+      placed
+    )
+  }
+
   // 分组模式保留组头与折叠；经典模式只换容器，瓦片顺序（`flattenCardGroups`）不变。
   // 两种模式共用一个具名容器：e2e 与读屏都靠「我的名片清单」找到整个列表。
+  const groupedGroups = draftGroups ?? readGroups
+  const groupSortableIds = layoutEditing
+    ? groupedGroups
+        .filter((group) => group.title !== null)
+        .map((group) => cardGroupSortableId(cardGroupKey(group)))
+    : []
+
   const cardList =
     mode === "grouped" ? (
       <nav className="mt-4 flex flex-col gap-6" aria-label="我的名片清单">
-        {groups.map((group) => {
-          const key = cardGroupKey(group)
-          return (
-            <CardGroupSection
-              key={key}
-              group={group}
-              collapsed={collapsedKeys.has(key)}
-              onToggleCollapsed={() => toggleGroup(key)}
-            >
-              {group.cards.map(renderTile)}
-            </CardGroupSection>
-          )
-        })}
+        <SortableContext
+          items={groupSortableIds}
+          strategy={verticalListSortingStrategy}
+        >
+          {groupedGroups.map((group) => {
+            // 草稿渲染结构里默认分组永远第一，所以「新建分组」的输入区插在它下面（§7.2）。
+            const key = cardGroupKey(group)
+            const named = group.title !== null
+            return (
+              <Fragment key={key}>
+                <CardGroupSection
+                  group={group}
+                  // 计数来自渲染结构（不含拖动中的 ghost）：空分组靠它 0 才知道画落点提示。
+                  tileCount={group.cards.length}
+                  collapsed={collapsedKeys.has(key)}
+                  onToggleCollapsed={() => toggleGroup(key)}
+                  editing={layoutEditing}
+                  onRename={
+                    named
+                      ? (title) => draft.renameCardGroup(key, title)
+                      : undefined
+                  }
+                  onRemove={
+                    // 删组不是破坏性操作：组内名片退回默认分组，且只是草稿，没保存就还在。
+                    named ? () => draft.removeCardGroup(key) : undefined
+                  }
+                >
+                  {renderGroupTiles(group)}
+                </CardGroupSection>
+                {layoutEditing &&
+                creatingGroup &&
+                key === DEFAULT_CARD_GROUP_KEY ? (
+                  <CardGroupTitleInput
+                    autoFocus
+                    label="新分组名称"
+                    placeholder="输入分组名称"
+                    onSubmit={(title) => {
+                      draft.createCardGroup(title)
+                      setCreatingGroup(false)
+                    }}
+                    onCancel={() => setCreatingGroup(false)}
+                  />
+                ) : null}
+              </Fragment>
+            )
+          })}
+        </SortableContext>
       </nav>
     ) : (
       <nav
@@ -241,6 +382,20 @@ export function CardManager({
         {flatCards.map(renderTile)}
       </nav>
     )
+
+  /** 编辑模式下才需要 dnd 上下文（落点、Overlay、读屏播报都在里面）。 */
+  const dndList = editing ? (
+    <DndContext {...drag.dnd}>
+      {cardList}
+      <DragOverlay>
+        {drag.activeCards.length ? (
+          <CardDragLayer cards={drag.activeCards} />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  ) : (
+    cardList
+  )
 
   return (
     <section aria-labelledby="owned-card-list-title">
@@ -301,8 +456,30 @@ export function CardManager({
         />
       ) : null}
 
+      {layoutEditing ? (
+        creatingGroup ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4 w-full border-dashed"
+            disabled={!canAddGroup}
+            title={
+              canAddGroup
+                ? undefined
+                : `最多 ${NAMECARD_PROFILE_GROUP_LIMIT} 个分组`
+            }
+            onClick={() => setCreatingGroup(true)}
+          >
+            <PlusIcon data-icon="inline-start" aria-hidden="true" />
+            新建分组
+          </Button>
+        )
+      ) : null}
+
       {cards.length ? (
-        cardList
+        // 只读模式不挂 `DndContext`：没有拖拽可做，页面结构也就和改造前逐字一致
+        // （dnd-kit 的钩子在context 之外是安全的空实现，见 `SortableCardTile`）。
+        dndList
       ) : (
         <Empty className="mt-4 min-h-44 border-y">
           <EmptyHeader>
@@ -330,7 +507,7 @@ export function CardManager({
           <AlertDialogHeader>
             <AlertDialogTitle>放弃未保存的改动？</AlertDialogTitle>
             <AlertDialogDescription>
-              退出编辑模式后，本次的批量改动与快速清单调整都会丢失。
+              退出编辑模式后，本次的分组、顺序、批量改动与快速清单调整都会丢失。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -339,7 +516,7 @@ export function CardManager({
               type="button"
               variant="destructive"
               onClick={() => {
-                draft.resetDraft(layout)
+                endEditingSession(layout)
                 setConfirmDiscard(false)
               }}
             >
@@ -383,10 +560,7 @@ export function CardManager({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogAction
-                type="button"
-                onClick={save.dismissOverLimit}
-              >
+              <AlertDialogAction type="button" onClick={save.dismissOverLimit}>
                 返回调整
               </AlertDialogAction>
             </AlertDialogFooter>

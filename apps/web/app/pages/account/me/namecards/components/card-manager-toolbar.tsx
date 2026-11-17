@@ -129,7 +129,15 @@ export function CardManagerToolbar({
           ) : null}
         </>
       )}
-      <Button type="button" size="sm" disabled={readOnly} onClick={onCreate}>
+      <Button
+        type="button"
+        size="sm"
+        // 编辑模式里新建的卡会落到默认分组最前，但不进这次会话的草稿（草稿是进会话时
+        // materialize 的），默认组里所有落点下标就整体差 1，所以这段会话里禁掉。
+        disabled={readOnly || editing}
+        title={editing ? "保存或退出编辑后再新建" : undefined}
+        onClick={onCreate}
+      >
         <PlusIcon data-icon="inline-start" aria-hidden="true" />
         新建名片
       </Button>

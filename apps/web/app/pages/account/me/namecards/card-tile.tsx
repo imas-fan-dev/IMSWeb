@@ -1,9 +1,4 @@
-import {
-  CalendarIcon,
-  CheckIcon,
-  EyeOffIcon,
-  ZapIcon,
-} from "lucide-react"
+import { CalendarIcon, CheckIcon, EyeOffIcon, ZapIcon } from "lucide-react"
 import { useId } from "react"
 
 import { NAMECARD_REVIEW_LABELS } from "~/components/community/namecard-status-labels"
@@ -81,7 +76,11 @@ export function ExchangeModeBadge({
   return (
     <Badge
       variant={
-        mode === "none" ? "outline" : mode === "manual" ? "secondary" : "default"
+        mode === "none"
+          ? "outline"
+          : mode === "manual"
+            ? "secondary"
+            : "default"
       }
     >
       {EXCHANGE_MODE_LABELS[mode]}
@@ -127,14 +126,17 @@ export function CardTile({
 }) {
   const time = cardTimeLabel(card)
   const selectable = editing && isCardSelectable(card)
-  const lockedReason = editing && !selectable ? "只有已发布的名片可以批量调整" : null
+  const lockedReason =
+    editing && !selectable ? "只有已发布的名片可以批量调整" : null
   const lockedReasonId = useId()
   const marked = editing ? checked : selected
   return (
     <button
       type="button"
       className={cn(
-        "min-w-0 rounded-lg border bg-background p-2 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50",
+        // 编辑模式下瓦片外面还套一层 dnd 用的 wrapper（`SortableCardTile`），
+        // `w-full` 让瓦片继续铺满一个网格单元格，宽度不受 wrapper 影响。
+        "w-full min-w-0 rounded-lg border bg-background p-2 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50",
         marked && "border-primary bg-accent/40",
         lockedReason && "opacity-70"
       )}

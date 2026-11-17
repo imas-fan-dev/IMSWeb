@@ -3,20 +3,31 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { FudabaOwnerCard, NamecardCardLayout } from "~/lib/api"
 import {
   buildCardLayoutRequest,
+  createCardGroup as createCardGroupInDraft,
+  createCardLayoutDraft,
   effectiveExchangeMode,
   effectiveQuickCardNumbers,
   isCardManagerDraftDirty,
+  moveCards as moveCardsInDraft,
+  removeCardGroup as removeCardGroupInDraft,
+  renameCardGroup as renameCardGroupInDraft,
+  reorderCardGroups as reorderCardGroupsInDraft,
+  sameCardLayoutDraft,
   selectableCardIds,
   type CardManagerCardSetting,
   type CardManagerCardSettings,
+  type CardManagerLayoutDraft,
+  type CardMoveTarget,
 } from "../card-manager-model"
 
 /**
- * 编辑模式是**草稿会话**（§12）：布局不动，快速清单与批量字段先落本地，
- * 点保存才整份提交。这里只管草稿，请求与失败处理在 `use-card-manager-save`。
+ * 编辑模式是**草稿会话**（§12）：布局、快速清单与批量字段先落本地，点保存才整份提交。
+ * 这里只管草稿，请求与失败处理在 `use-card-manager-save`。
  *
- * 布局结构与本片（S3）无关，所以草稿不带 `groups`/`defaultCardNumbers`——保存时用已加载的
- * 布局原样回传，避免前端复算顺序。
+ * 布局草稿（`layoutDraft`）在**进入编辑模式时**由「已加载的布局 + 手上的卡」materialize 出来：
+ * 结构与只读渲染逐字一致（含「布局里还没出现过的卡补进默认分组最前」），所以拖拽落点下标
+ * 可以直接用在草稿上。同时留一份 `baselineDraft` 做脏标记基准——草稿一开始就跟服务端布局
+ * 有字形上的差别（那批补进默认分组的卡），拿服务端布局当基准会一进编辑模式就「有改动」。
  */
 export function useCardManagerDraft({
   cards,
@@ -34,6 +45,13 @@ export function useCardManagerDraft({
   const [rawSelectedCardIds, setRawSelectedCardIds] = useState<
     ReadonlySet<string>
   >(() => new Set())
+  /** 编辑会话里的布局草稿；不在编辑模式时为 `null`。 */
+  const [layoutDraft, setLayoutDraft] = useState<CardManagerLayoutDraft | null>(
+    null
+  )
+  /** 进入编辑模式那一刻的布局草稿：脏标记只比较它，不比较服务端布局（见上）。 */
+  const [baselineDraft, setBaselineDraft] =
+    useState<CardManagerLayoutDraft | null>(null)
 
   const selectableIds = useMemo(
     () => new Set(selectableCardIds(cards)),
@@ -56,10 +74,24 @@ export function useCardManagerDraft({
     [quickCardNumbers, cards, cardSettings]
   )
 
+  const layoutChanged = useMemo(
+    () =>
+      layoutDraft !== null &&
+      baselineDraft !== null &&
+      !sameCardLayoutDraft(layoutDraft, baselineDraft),
+    [baselineDraft, layoutDraft]
+  )
+
   const hasChanges = useMemo(
     () =>
-      isCardManagerDraftDirty({ cards, layout, quickCardNumbers, cardSettings }),
-    [cards, layout, quickCardNumbers, cardSettings]
+      isCardManagerDraftDirty({
+        cards,
+        layout,
+        quickCardNumbers,
+        cardSettings,
+        layoutChanged,
+      }),
+    [cards, layout, layoutChanged, quickCardNumbers, cardSettings]
   )
 
   const selectedCards = useMemo(
@@ -75,7 +107,8 @@ export function useCardManagerDraft({
     () =>
       selectedCards.filter(
         (card) =>
-          !card.isGroupCard && effectiveExchangeMode(card, cardSettings) !== "auto"
+          !card.isGroupCard &&
+          effectiveExchangeMode(card, cardSettings) !== "auto"
       ).length,
     [cardSettings, selectedCards]
   )
@@ -92,7 +125,16 @@ export function useCardManagerDraft({
     return () => window.removeEventListener("beforeunload", guard)
   }, [hasChanges])
 
-  const startEditing = useCallback(() => setEditing(true), [])
+  /**
+   * 进入编辑模式：以当前的布局 + 卡片 materialize 一份布局草稿（连同它的基准副本）。
+   * 每次都重建，这样别处刷新过卡片/布局之后进来拿到的仍是最新的一份。
+   */
+  const startEditing = useCallback(() => {
+    const draft = createCardLayoutDraft(cards, layout)
+    setLayoutDraft(draft)
+    setBaselineDraft(draft)
+    setEditing(true)
+  }, [cards, layout])
 
   /**
    * 用一份布局重置草稿并退出编辑：保存成功时传响应（服务端归一后的布局），
@@ -102,8 +144,66 @@ export function useCardManagerDraft({
     setQuickCardNumbers(nextLayout?.quickCardNumbers ?? [])
     setCardSettings({})
     setRawSelectedCardIds(new Set())
+    setLayoutDraft(null)
+    setBaselineDraft(null)
     setEditing(false)
   }, [])
+
+  /**
+   * 布局草稿的写入口：不在编辑模式（没有草稿）时原样不动，调用方不必自己判空。
+   */
+  const updateLayoutDraft = useCallback(
+    (update: (draft: CardManagerLayoutDraft) => CardManagerLayoutDraft) => {
+      setLayoutDraft((current) => (current ? update(current) : current))
+    },
+    []
+  )
+
+  /** 新建分组（§7.2）：空标题、超长标题、超过上限时 `createCardGroup` 原样返回。 */
+  const createCardGroup = useCallback(
+    (title: string) => {
+      updateLayoutDraft((draft) => ({
+        ...draft,
+        groups: createCardGroupInDraft(draft.groups, title),
+      }))
+    },
+    [updateLayoutDraft]
+  )
+
+  const renameCardGroup = useCallback(
+    (key: string, title: string) => {
+      updateLayoutDraft((draft) => ({
+        ...draft,
+        groups: renameCardGroupInDraft(draft.groups, key, title),
+      }))
+    },
+    [updateLayoutDraft]
+  )
+
+  const removeCardGroup = useCallback(
+    (key: string) => {
+      updateLayoutDraft((draft) => removeCardGroupInDraft(draft, key))
+    },
+    [updateLayoutDraft]
+  )
+
+  const reorderCardGroups = useCallback(
+    (fromKey: string, toKey: string) => {
+      updateLayoutDraft((draft) => ({
+        ...draft,
+        groups: reorderCardGroupsInDraft(draft.groups, fromKey, toKey),
+      }))
+    },
+    [updateLayoutDraft]
+  )
+
+  /** 拖拽落位：把一批编号整体搬到目标分组的目标下标（§7.3）。 */
+  const moveCards = useCallback(
+    (cardNumbers: readonly number[], target: CardMoveTarget) => {
+      updateLayoutDraft((draft) => moveCardsInDraft(draft, cardNumbers, target))
+    },
+    [updateLayoutDraft]
+  )
 
   const toggleSelected = useCallback((cardId: string) => {
     setRawSelectedCardIds((current) => {
@@ -170,14 +270,20 @@ export function useCardManagerDraft({
         layout,
         quickCardNumbers,
         cardSettings,
+        layoutDraft,
       }),
-    [cards, layout, quickCardNumbers, cardSettings]
+    [cards, layout, layoutDraft, quickCardNumbers, cardSettings]
   )
 
   return {
     editing,
     startEditing,
     resetDraft,
+    /**
+     * 编辑会话里的布局草稿（分组 / 默认分组顺序）；不在编辑模式时为 `null`。
+     * 渲染由 `buildDraftCardGroups` 合成，不要直接读 `groups[].cardNumbers` 去渲染。
+     */
+    layoutDraft,
     /** 生效后的快速清单编号（已按服务端口径收窄到 `published + auto`）。 */
     quickCardNumbers: effectiveQuick,
     /** 布局响应里的上限；布局读失败时为 `null`。 */
@@ -200,6 +306,11 @@ export function useCardManagerDraft({
     applyCardSettings,
     addSelectionToQuickList,
     removeSelectionFromQuickList,
+    createCardGroup,
+    renameCardGroup,
+    removeCardGroup,
+    reorderCardGroups,
+    moveCards,
     buildRequest,
   }
 }
