@@ -264,14 +264,26 @@ ORDER BY entry.obtained_at DESC
 
 ### 6.1 分享页的 OGP
 
-Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是静态文件，因此动态路由拿不到
-服务端数据。交换分享页要被社交平台正确预览，需要：
+Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲染：预渲染路由的 HTML 自带
+`meta()` 标签，而动态路径（`/exchange/card/<slug>`、`/exchange/<handle>`）只能拿到通用空壳
+`__spa-fallback.html`，社交平台抓不到逐卡信息。因此 OGP 由 **API 的 HTML 出口现场注入**
+（`app.ts` 在 `notFound` 之前注册两条站点路由，实现在
+`domains/community/namecards/exchange/handlers/share-page-html.ts`）：
 
-1. `__spa-fallback.html` 改成带占位符的模板（`<!--og-meta-->`）。
-2. API 在返回 `/exchange/*` 的 HTML 时按路径取数据并注入 `og:title`、`og:description`、
-   `og:image`、`og:type`、`twitter:card`，再交给 SPA 启动。
-3. 图片用名片正面的 600×400 缩略图；快速交换用列表首张，扫码页用出示方首张。
-4. 注入结果按 URL 缓存一分钟，避免每次 HTML 请求都查库。
+1. 空壳走 `StaticAssets.fetchShell()`：前端路由策略按契约拒绝「按路径直取 `.html`」
+   （`tests/assets/frontend-routing.contract.test.ts` 的 FRT-04 断言它 404），并且请求**不带**
+   `Accept-Encoding`（带了会拿到 `.br`/`.gz` 字节）。空壳在进程内只取一次；取不到就回 404
+   `Not Found`，不缓存失败。
+2. 数据用与 JSON 接口**同一份**读取函数（`loadCardShareModel` / `loadQuickExchangeModel`），
+   浏览者视角固定 `null`（爬虫没有会话）。查不到目标时注入通用站名标签并**仍然回 200**，
+   具体提示由 SPA 页面渲染。
+3. 注入 `<title>`、`description`、`og:title`、`og:description`、`og:image`(+width/height 400)、
+   `og:url`、`og:type`、`og:site_name`、`twitter:card=summary` 与 twitter 三件套；空壳自带的
+   `<title>`/description 先删掉，新标签插在 `<head>` 之后，所有值 HTML 转义。
+4. 图片取卡片 `pages` 里 `role = 'front'` 那页的 `thumbUrl`（已经是 `?w=400` 变体），补请求
+   origin 成绝对地址（`og:url` 同理）；快速交换清单取 `cards[0]`；没有正面页就整块省略。
+5. 响应 `text/html; charset=UTF-8`、`Cache-Control: public, max-age=300`。页面本身仍是同一个
+   SPA 文档，注入只改 `<head>`，不影响 hydration。
 
 ## 7. 离线与重放
 
