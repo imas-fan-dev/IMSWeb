@@ -21,17 +21,14 @@ export function ImportDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
+   <DialogContent className="overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>导入图片</DialogTitle>
           <DialogDescription>
             上传本机图片。所有图片只保存在浏览器本地，不会上传到服务器。
           </DialogDescription>
         </DialogHeader>
-        <LocalImportTab
-          existingItems={existingItems}
-          onAddItems={onAddItems}
-        />
+        <LocalImportTab existingItems={existingItems} onAddItems={onAddItems} />
       </DialogContent>
     </Dialog>
   )

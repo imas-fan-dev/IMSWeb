@@ -31,7 +31,6 @@ export const UPLOADS_DIR = configuredPath(
 );
 export const NEWS_ORIGINAL_DIR = path.join(UPLOADS_DIR, 'news/original');
 export const NEWS_THUMB_DIR = path.join(UPLOADS_DIR, 'news/thumb');
-export const NAMECARD_ORIGINAL_DIR = path.join(UPLOADS_DIR, 'namecard/original');
 export const EVENT_ORIGINAL_DIR = path.join(UPLOADS_DIR, 'event/original');
 
 export const EVENT_BASE = configuredPath(
@@ -49,7 +48,6 @@ const ALWAYS_RUNTIME_DIRECTORIES = [COMPENSATION_DIR];
 const FILESYSTEM_STORAGE_DIRECTORIES = [
     NEWS_ORIGINAL_DIR,
     NEWS_THUMB_DIR,
-    NAMECARD_ORIGINAL_DIR,
     EVENT_ORIGINAL_DIR,
     STORY_DATA_DIR,
     CHRONICLE_UPLOAD_DIR,

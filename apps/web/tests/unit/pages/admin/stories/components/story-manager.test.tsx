@@ -1,25 +1,22 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router"
+import { beforeEach, describe, expect, it } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StoryManager } from "~/pages/admin/stories/components/story-manager"
+import type { WikiAdminCatalog, WikiAdminStories } from "~/lib/api"
 
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return {
-      body: input.body,
-      headers: input.headers,
-      method: input.method,
-      url: input.url,
-    }
-  }
-  return {
-    body: init?.body ?? null,
-    headers: new Headers(init?.headers),
-    method: init?.method ?? "GET",
-    url: String(input),
-  }
+function renderManager() {
+  return render(
+    <MemoryRouter>
+      <StoryManager />
+    </MemoryRouter>
+  )
 }
 
 function catalogPayload() {
@@ -36,6 +33,40 @@ function catalogPayload() {
         displayOrder: 0,
         layoutRevision: 0,
         iconUrl: null,
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
+        },
+        mediaRevision: 0,
+        idols: [
+          {
+            id: 10,
+            agencyId: 1,
+            name: "天海春香",
+            folderName: "amami_haruka",
+            color: "#e22b30",
+            wikiUrl: null,
+            textColor: "#ffffff",
+            displayOrder: 0,
+            imageUrl: "",
+            imageFit: "cover",
+            imageTransform: {
+              fit: "cover",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
+            mediaRevision: 0,
+            wikiEnabled: true,
+            groupIds: [1],
+            entryKind: "idol",
+            entrySubtype: null,
+          },
+        ],
         groups: [
           {
             id: 1,
@@ -45,6 +76,15 @@ function catalogPayload() {
             iconUrl: null,
             displayOrder: 0,
             isFallback: true,
+            idolIds: [10],
+            imageTransform: {
+              fit: "cover",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
+            mediaRevision: 0,
             idols: [
               {
                 id: 10,
@@ -52,17 +92,30 @@ function catalogPayload() {
                 name: "天海春香",
                 folderName: "amami_haruka",
                 color: "#e22b30",
+                wikiUrl: null,
                 textColor: "#ffffff",
                 displayOrder: 0,
                 imageUrl: "",
                 imageFit: "cover",
+                imageTransform: {
+                  fit: "cover",
+                  focalX: 0.5,
+                  focalY: 0.5,
+                  zoom: 1,
+                  rotation: 0,
+                },
+                mediaRevision: 0,
+                wikiEnabled: true,
+                groupIds: [1],
+                entryKind: "idol",
+                entrySubtype: null,
               },
             ],
           },
         ],
       },
     ],
-  }
+  } satisfies WikiAdminCatalog
 }
 
 function storiesPayload(upName = "投稿者") {
@@ -80,10 +133,21 @@ function storiesPayload(upName = "投稿者") {
       name: "天海春香",
       folderName: "amami_haruka",
       color: "#e22b30",
+      wikiUrl: null,
       textColor: "#ffffff",
       displayOrder: 0,
       imageUrl: "",
       imageFit: "cover",
+      imageTransform: {
+        fit: "cover",
+        focalX: 0.5,
+        focalY: 0.5,
+        zoom: 1,
+        rotation: 0,
+      },
+      mediaRevision: 0,
+      entryKind: "idol",
+      entrySubtype: null,
     },
     categories: [
       {
@@ -113,6 +177,7 @@ function storiesPayload(upName = "投稿者") {
         displayOrder: 0,
         isActive: true,
         revision: 0,
+        iconName: "book-open-text",
       },
     ],
     sourcePlatforms: [
@@ -143,24 +208,28 @@ function storiesPayload(upName = "投稿者") {
         subtitle: "开场",
         imageFile: null,
         imageUrl: "",
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
+        },
+        mediaRevision: 0,
         revision: 0,
       },
     ],
-  }
+  } satisfies WikiAdminStories
 }
 
 describe("StoryManager", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=wiki-manager-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    setCsrfCookie("backoffice", "wiki-manager-test")
   })
 
   it("loads dynamic Wiki data and edits the selected story id", async () => {
     let currentUpName = "投稿者"
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+    const fetchMock = installFetchMock((...args) => {
       const request = requestDetails(args)
       const url = new URL(request.url, window.location.origin)
       if (url.pathname === "/api/admin/wiki/catalog") {
@@ -184,10 +253,9 @@ describe("StoryManager", () => {
         new Error(`Unexpected request: ${request.method} ${url.pathname}`)
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<StoryManager />)
+    renderManager()
 
     expect(await screen.findByText("【第一话】")).toBeVisible()
     expect(screen.getAllByText("投稿者")[0]).toBeVisible()

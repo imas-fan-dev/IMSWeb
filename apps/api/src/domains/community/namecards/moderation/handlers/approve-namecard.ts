@@ -1,0 +1,101 @@
+import { NAMECARD_MIDDLE_IMAGE_LIMIT } from '@imsweb/contracts/fudaba/runtime';
+import { writeAudit } from '@/domains/admin/audit/write-audit';
+import type { NamecardMutationContext } from '@/domains/community/namecards/request';
+import type {
+    NamecardErrorResponse,
+    NamecardMutationResponse
+} from '@/domains/community/namecards/response';
+import { namecardRepository, services } from '@/middleware/hono-context';
+import { promoteCardPageObjects, protectPromotedCardPages } from '@/domains/community/fudaba/cards/card-page-objects';
+
+export async function handleApproveNamecard(c: NamecardMutationContext): Promise<Response> {
+    const { id } = c.req.valid('param');
+    const { expected_revision: revision } = c.req.valid('json');
+    /** 本次公开过的待审页副本：判决没落地就要退回受保护态。 */
+    const promoted: string[] = [];
+    let landed = false;
+    try {
+        const repository = namecardRepository(c);
+        const claim = await repository.beginCardApproval(id, revision);
+        if (claim.status === 'not-found') {
+            return c.json({ error: 'Namecard not found' } satisfies NamecardErrorResponse, 404);
+        }
+        if (claim.status === 'conflict') {
+            return c.json({
+                error: 'Namecard changed; refresh and retry',
+                revision: claim.revision
+            } satisfies NamecardErrorResponse, 409);
+        }
+        if (claim.status === 'withdrawn') {
+            return c.json({
+                error: '用户已撤回',
+                revision: claim.revision
+            } satisfies NamecardErrorResponse, 410);
+        }
+        // A failed attempt leaves the row in `approving` on purpose: the retry
+        // path recognises that claim (revision+1) and resumes it, whereas
+        // reverting to `pending` would let a stale reviewer approve a newer
+        // edit the owner submitted in the meantime.
+        const runtime = services(c);
+        const storage = runtime.storage;
+        if (!storage) throw new Error('Object storage publication is unavailable');
+        // Both layouts must end up in the canonical
+        // community/namecards/assets/<stem>/image.<ext> shape before publication:
+        // that is the only layout the thumbnail helper and the public key
+        // reversal understand. Registered-user uploads still point at
+        // community/fudaba/cards/<uuid>/front|back.<ext>, so copy those objects
+        // across, rewrite the row, then publish as usual.
+        // 页面行是唯一媒体来源；已发布/待审对象都必须使用版本化页面键。
+        // 旧布局（community/namecards/assets/...）与无版本正/反键不再支持。
+        const [frontKey, backKey] = await Promise.all([
+            repository.findCardMediaKey(id, 'front', false),
+            repository.findCardMediaKey(id, 'back', false)
+        ]);
+        for (const value of [frontKey, backKey]) {
+            if (typeof value !== 'string') continue;
+            if (!value.startsWith('community/fudaba/cards/')) {
+                throw new Error(`Unsupported namecard object key: ${value}`);
+            }
+            if (!storage.publish) {
+                throw new Error('Object storage publication is unavailable');
+            }
+            await storage.publish(value);
+        }
+        // 已发布卡的 staged 修订只把改动过的页写进 pending 队列。这些对象必须
+        // 先提升到 live 路径再公开，否则页面行指向 pending 对象，公开路由 404。
+        // 用 copy：审批失败后要能按 revision 重试，源对象必须还在
+        // （`promoteCardPageObjects` 会跳过已经提升过的对象）。
+        const stagedKeys = [
+            await repository.findCardMediaKey(id, 'front', true),
+            await repository.findCardMediaKey(id, 'back', true),
+            ...await Promise.all(
+                Array.from(
+                    { length: NAMECARD_MIDDLE_IMAGE_LIMIT },
+                    (_, index) => repository.findCardMediaKey(id, `middle-${index + 1}`, true)
+                )
+            )
+        ];
+        await promoteCardPageObjects(runtime, stagedKeys, promoted);
+        const completed = await repository.completeCardApproval(id, claim.card.revision);
+        if (completed.status !== 'updated') {
+            // 判决没落地：这次公开的副本退回受保护态（与注册卡审核一致），
+            // 源对象仍在 pending 队列里，重试照常可行。
+            await protectPromotedCardPages(runtime, promoted);
+            return c.json({
+                error: 'Namecard changed; refresh and retry',
+                ...(completed.status === 'conflict' ? { revision: completed.revision } : {})
+            } satisfies NamecardErrorResponse, 409);
+        }
+        landed = true;
+        await writeAudit(c, '审核图片通过', `card_id=${id};revision=${completed.card.revision}`);
+        return c.json({
+            success: true,
+            revision: completed.card.revision
+        } satisfies NamecardMutationResponse);
+    } catch (error) {
+        console.error('Failed to approve namecard', error);
+        // 提升过但没走完：副本退回受保护态，别让未通过审核的图片留在公网。
+        if (!landed) await protectPromotedCardPages(services(c), promoted);
+        return c.json({ error: '服务器错误' } satisfies NamecardErrorResponse, 500);
+    }
+}

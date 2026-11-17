@@ -1,40 +1,43 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import { EventsCenter } from "~/pages/events/index"
 import { cacheEventFeed } from "~/lib/api"
 import type { EventListItem } from "~/lib/api"
 
-const { virtualizerOptions } = vi.hoisted(() => ({
+const { measureVirtualizer, virtualizerOptions } = vi.hoisted(() => ({
+  measureVirtualizer: vi.fn(),
   virtualizerOptions: vi.fn(),
 }))
+
+let mediaMatches = true
+let mediaChangeListener: (() => void) | undefined
 
 vi.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: (options: {
     count: number
+    estimateSize: () => number
     getItemKey: (index: number) => string | number
   }) => {
     virtualizerOptions(options)
     const renderedCount = Math.min(options.count, 12)
+    const estimatedSize = options.estimateSize()
     return {
-      getTotalSize: () => options.count * 176,
+      getTotalSize: () => options.count * estimatedSize,
       getVirtualItems: () =>
         Array.from({ length: renderedCount }, (_, index) => ({
           index,
           key: options.getItemKey(index),
-          start: index * 176,
+          start: index * estimatedSize,
         })),
+      measure: measureVirtualizer,
       measureElement: vi.fn(),
     }
   },
 }))
-
-function jsonResponse(value: unknown) {
-  return new Response(JSON.stringify(value), {
-    headers: { "content-type": "application/json" },
-  })
-}
 
 function requestUrl(input: RequestInfo | URL) {
   return input instanceof Request ? input.url : String(input)
@@ -47,6 +50,7 @@ function event(id: number) {
     name: "测试发布者",
     contact: `QQ群 ${id}`,
     image_url: null,
+    cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
     created_at: "2026-07-24T00:00:00.000Z",
   }
 }
@@ -57,17 +61,26 @@ function cachedEvent(id: number): EventListItem {
 
 describe("EventsCenter", () => {
   beforeEach(() => {
+    mediaMatches = true
+    mediaChangeListener = undefined
+    measureVirtualizer.mockClear()
+    virtualizerOptions.mockClear()
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation(() => ({
+        matches: mediaMatches,
+        addEventListener: (_event: string, listener: () => void) => {
+          mediaChangeListener = listener
+        },
+        removeEventListener: vi.fn(),
+      }))
+    )
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it("loads cursor pages, deduplicates rows, and exposes a manual fallback", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+  it("loads cursor pages by scroll alone and deduplicates rows", async () => {
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [event(3), event(2)],
@@ -88,18 +101,24 @@ describe("EventsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
-    const user = userEvent.setup()
 
-    render(<EventsCenter />)
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
 
+    // No click anywhere. With IntersectionObserver stubbed out, the scroll
+    // fallback is what carries the list, and it runs once on mount so a first
+    // page shorter than the viewport still advances.
     expect(await screen.findByRole("heading", { name: "活动 3" })).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "加载更多活动" }))
-
     expect(await screen.findByRole("heading", { name: "活动 1" })).toBeVisible()
     expect(screen.getAllByRole("heading", { name: "活动 2" })).toHaveLength(1)
     expect(screen.getAllByRole("listitem")).toHaveLength(3)
-    expect(screen.getByText("已显示本批次的全部活动")).toBeVisible()
+    expect(screen.getByText("已显示本批次的全部动态")).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: /加载更多/ })
+    ).not.toBeInTheDocument()
 
     const firstUrl = new URL(
       requestUrl(fetchMock.mock.calls[0]![0]),
@@ -115,8 +134,7 @@ describe("EventsCenter", () => {
   })
 
   it("recovers from the initial error into the empty state", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockRejectedValueOnce(new TypeError("offline"))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -128,14 +146,17 @@ describe("EventsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<EventsCenter />)
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
 
-    expect(await screen.findByText("活动暂时无法加载")).toBeVisible()
+    expect(await screen.findByText("社区动态暂时无法加载")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "重新加载" }))
-    expect(await screen.findByText("当前没有已发布活动")).toBeVisible()
+    expect(await screen.findByText("当前没有已发布社区动态")).toBeVisible()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -168,8 +189,7 @@ describe("EventsCenter", () => {
       }
     }
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver)
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [event(2)],
@@ -190,9 +210,12 @@ describe("EventsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
-    render(<EventsCenter />)
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByRole("heading", { name: "活动 2" })).toBeVisible()
     await waitFor(() => expect(intersect).toBeDefined())
@@ -213,23 +236,83 @@ describe("EventsCenter", () => {
         snapshotAt: "65",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
-    render(<EventsCenter />)
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText("已加载 65 条")).toBeVisible()
     await waitFor(() =>
-      expect(screen.getAllByRole("listitem")).toHaveLength(12)
+      expect(screen.getAllByRole("listitem")).toHaveLength(24)
     )
     expect(fetchMock).not.toHaveBeenCalled()
     expect(virtualizerOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        count: 65,
+        count: 33,
         overscan: 6,
         useFlushSync: false,
       })
     )
+    expect(virtualizerOptions.mock.lastCall?.[0].estimateSize()).toBe(144)
+  })
+
+  it("packs desktop items into virtual rows and returns to one column below lg", async () => {
+    await cacheEventFeed({
+      items: Array.from({ length: 5 }, (_, index) => cachedEvent(5 - index)),
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "5",
+      },
+    })
+
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(5))
+    expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(3)
+    expect(
+      screen.getAllByRole("listitem").map((item) => ({
+        position: item.getAttribute("aria-posinset"),
+        size: item.getAttribute("aria-setsize"),
+      }))
+    ).toEqual([
+      { position: "1", size: "5" },
+      { position: "2", size: "5" },
+      { position: "3", size: "5" },
+      { position: "4", size: "5" },
+      { position: "5", size: "5" },
+    ])
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-2",
+      "gap-x-6"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveAttribute(
+      "role",
+      "presentation"
+    )
+
+    act(() => {
+      mediaMatches = false
+      mediaChangeListener?.()
+    })
+
+    await waitFor(() =>
+      expect(virtualizerOptions.mock.lastCall?.[0].count).toBe(5)
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).toHaveClass(
+      "grid-cols-1"
+    )
+    expect(screen.getAllByRole("listitem")[0]?.parentElement).not.toHaveClass(
+      "grid-cols-2"
+    )
+    expect(measureVirtualizer).toHaveBeenCalled()
   })
 
   it("bypasses the Alova snapshot when the user refreshes", async () => {
@@ -249,7 +332,7 @@ describe("EventsCenter", () => {
     })
     const directUrl =
       "https://media.example.test/editorial/events/event-1/poster.png"
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+    const fetchMock = installFetchMock().mockResolvedValueOnce(
       jsonResponse({
         items: [{ ...event(1), image_url: directUrl }],
         pageInfo: {
@@ -259,17 +342,20 @@ describe("EventsCenter", () => {
         },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<EventsCenter />)
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
 
     expect(
       await screen.findByRole("heading", { name: "缓存中的活动" })
     ).toBeVisible()
     expect(fetchMock).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole("button", { name: "刷新活动列表" }))
+    await user.click(screen.getByRole("button", { name: "刷新社区动态列表" }))
 
     expect(await screen.findByRole("heading", { name: "活动 1" })).toBeVisible()
     expect(fetchMock).toHaveBeenCalledTimes(1)

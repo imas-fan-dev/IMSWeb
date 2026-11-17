@@ -1,8 +1,22 @@
 import { render, screen } from "@testing-library/react"
+import type { ComponentProps } from "react"
 import { MemoryRouter } from "react-router"
 import { describe, expect, it } from "vitest"
 
 import Works from "~/pages/works/index"
+import WorkDetailPage from "~/pages/works/work-detail-page"
+
+function renderDetail(workSlug: string) {
+  const props = {
+    params: { workSlug },
+  } as ComponentProps<typeof WorkDetailPage>
+
+  return render(
+    <MemoryRouter>
+      <WorkDetailPage {...props} />
+    </MemoryRouter>
+  )
+}
 
 describe("Works page", () => {
   it("renders section headers and links", () => {
@@ -36,5 +50,39 @@ describe("Works page", () => {
     expect(
       screen.getByRole("link", { name: "查看 World of W@rships 作品专题" })
     ).toHaveAttribute("href", "/works/wows")
+
+    expect(document.getElementById("main-content")).toHaveClass(
+      "max-w-5xl",
+      "px-4",
+      "py-12",
+      "sm:px-6",
+      "sm:py-16",
+      "lg:px-8"
+    )
+  })
+
+  it("keeps the Web work detail height contract", () => {
+    renderDetail("765")
+
+    const main = document.getElementById("main-content")
+    const surface = screen.getByTestId("work-detail-surface")
+    const franchise = screen.getByTestId("work-detail-franchise")
+
+    for (const element of [main, surface, franchise]) {
+      expect(element).toHaveClass("min-h-[calc(100svh-4rem)]")
+      expect(element).not.toHaveClass("min-h-(--app-content-height)")
+    }
+  })
+
+  it("renders the missing-work state without a detail height shell", () => {
+    renderDetail("missing-work")
+
+    expect(
+      screen.getByRole("heading", { name: "没有找到这个作品专题" })
+    ).toBeVisible()
+    expect(screen.queryByTestId("work-detail-surface")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "返回作品中心" })
+    ).toHaveAttribute("href", "/works")
   })
 })

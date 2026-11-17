@@ -1,8 +1,19 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { InformationManager } from "~/pages/admin/information/index"
+
+function renderManager() {
+  return render(
+    <MemoryRouter>
+      <InformationManager />
+    </MemoryRouter>
+  )
+}
 
 const informationPayload = {
   version: 1,
@@ -21,29 +32,16 @@ const informationPayload = {
   assets: ["/uploads/summer.webp", "/uploads/body.webp"],
 }
 
-function jsonResponse(payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    headers: { "content-type": "application/json" },
-  })
-}
-
 function stubInformationRequest() {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(() => Promise.resolve(jsonResponse(informationPayload)))
-  )
+  installFetchMock(() => Promise.resolve(jsonResponse(informationPayload)))
 }
 
 describe("InformationManager", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("opens a blank create dialog from the published list", async () => {
     stubInformationRequest()
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
@@ -61,7 +59,7 @@ describe("InformationManager", () => {
     stubInformationRequest()
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     expect(screen.getByText("2 个对象")).toBeVisible()
@@ -94,12 +92,12 @@ describe("InformationManager", () => {
   })
 
   it("keeps the edit dialog open until saving succeeds", async () => {
-    document.cookie = "csrf_token=information-manager-test; path=/"
+    setCsrfCookie("legacy", "information-manager-test")
     let resolveSave: (response: Response) => void = () => undefined
     const saveResponse = new Promise<Response>((resolve) => {
       resolveSave = resolve
     })
-    const fetchMock = vi.fn(
+    const fetchMock = installFetchMock(
       (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const method =
           input instanceof Request ? input.method : (init?.method ?? "GET")
@@ -107,10 +105,9 @@ describe("InformationManager", () => {
         return Promise.resolve(jsonResponse(informationPayload))
       }
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "编辑“夏日活动”" }))
@@ -135,7 +132,9 @@ describe("InformationManager", () => {
     expect(savedPayload.html).not.toContain("data-information-body-asset")
 
     await act(async () => {
-      resolveSave(jsonResponse({ success: true }))
+      resolveSave(
+        jsonResponse({ success: true, card: informationPayload.cards[0] })
+      )
       await saveResponse
     })
 
@@ -147,14 +146,16 @@ describe("InformationManager", () => {
   })
 
   it("does not retry a successful save when list refresh fails", async () => {
-    document.cookie = "csrf_token=information-refresh-test; path=/"
+    setCsrfCookie("legacy", "information-refresh-test")
     let informationLoads = 0
-    const fetchMock = vi.fn(
+    const fetchMock = installFetchMock(
       (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const method =
           input instanceof Request ? input.method : (init?.method ?? "GET")
         if (method === "PUT") {
-          return Promise.resolve(jsonResponse({ success: true }))
+          return Promise.resolve(
+            jsonResponse({ success: true, card: informationPayload.cards[0] })
+          )
         }
         informationLoads += 1
         if (informationLoads === 1) {
@@ -168,10 +169,9 @@ describe("InformationManager", () => {
         )
       }
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "编辑“夏日活动”" }))

@@ -45,7 +45,8 @@ export const TIER_COLOR_PRESETS = [
   "#7fff7f",
   "#7fbfff",
   "#7f7fff",
-  // Franchise accent colors, kept in sync with `--franchise-*` in app.css.
+  // Franchise accent colors, kept in sync with `--franchise-*` in
+  // app/styles/theme.css.
   "#f34e6c",
   "#2581c7",
   "#ffc20b",

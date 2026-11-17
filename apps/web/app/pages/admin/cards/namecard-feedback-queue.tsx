@@ -1,0 +1,174 @@
+import { FlagIcon } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
+
+import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
+import { AdminPagination } from "~/components/admin/admin-pagination"
+import { Skeleton } from "~/components/ui/skeleton"
+import {
+  getAdminNamecardFeedback,
+  type AdminNamecardFeedback,
+  type AdminNamecardFeedbackList,
+} from "~/lib/api"
+import { NamecardManageDialog } from "./namecard-manage-dialog"
+import { NamecardMediaPreview } from "./namecard-media-preview"
+
+function QueueSkeleton() {
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
+      {[0, 1, 2, 3].map((index) => (
+        <Skeleton key={index} className="h-64 rounded-xl" />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The default face of the management entry: reports filed from the card wall.
+ * Cards carry no actions — opening one shows the reported card in the editor.
+ */
+/**
+ * `reloadToken` lets the page header's refresh button re-read the queue:
+ * the button lives outside this component but must refresh whatever tab
+ * is showing.
+ */
+export function NamecardFeedbackQueue({
+  reloadToken = 0,
+}: {
+  reloadToken?: number
+}) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedPage = Number(searchParams.get("page") ?? "1")
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+  const [items, setItems] = useState<AdminNamecardFeedback[]>([])
+  const [pageInfo, setPageInfo] = useState<
+    AdminNamecardFeedbackList["pageInfo"]
+  >({ page: 1, pageSize: 12, total: 0, totalPages: 0, hasNextPage: false })
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
+  const [localToken, setLocalToken] = useState(0)
+  const [error, setError] = useState(false)
+  const [openItem, setOpenItem] = useState<AdminNamecardFeedback | null>(null)
+
+  const applyPage = useCallback((next: AdminNamecardFeedbackList) => {
+    setItems(next.data)
+    setPageInfo(next.pageInfo)
+  }, [])
+
+  // Loading is derived from the request key: a new page or a refresh makes the
+  // rows stale immediately without writing state from inside the effect.
+  const loadKey = `${page}:${reloadToken}:${localToken}`
+  const loading = loadedKey !== loadKey
+
+  useEffect(() => {
+    let active = true
+    void getAdminNamecardFeedback(page)
+      .send()
+      .then((next) => {
+        if (active) {
+          applyPage(next)
+          setError(false)
+        }
+      })
+      .catch(() => {
+        if (active) setError(true)
+      })
+      .finally(() => {
+        if (active) setLoadedKey(loadKey)
+      })
+    return () => {
+      active = false
+    }
+  }, [applyPage, loadKey, page])
+
+  function refresh() {
+    setLocalToken((token) => token + 1)
+  }
+
+  function changePage(nextPage: number) {
+    const next = new URLSearchParams(searchParams)
+    next.set("page", String(Math.max(1, nextPage)))
+    setSearchParams(next)
+  }
+
+  return (
+    <>
+      <AdminPanel
+        title="反馈队列"
+        description={`名片墙上提交的反馈 · 共 ${pageInfo.total} 条待处理`}
+        icon={FlagIcon}
+      >
+        {loading ? (
+          <QueueSkeleton />
+        ) : error ? (
+          <AdminEmptyState
+            icon={FlagIcon}
+            title="无法读取反馈队列"
+            description="请确认管理会话有效，然后刷新页面重试。"
+          />
+        ) : items.length ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
+            {items.map((item) => (
+              <article
+                key={item.id}
+                data-feedback-id={item.id}
+                className="relative overflow-hidden rounded-xl border"
+              >
+                <button
+                  type="button"
+                  className="relative block w-full cursor-zoom-in text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  aria-label={`处理反馈 #${item.id}`}
+                  onClick={() => setOpenItem(item)}
+                >
+                  <NamecardMediaPreview
+                    pages={item.pages}
+                    altBase={`名片 #${item.cardNumber}`}
+                    pageCount={item.pageCount}
+                  />
+                </button>
+                <div className="flex flex-col gap-1 p-4">
+                  <p className="font-medium">
+                    {item.producerName ?? `名片 #${item.cardNumber}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    反馈人：{item.reporterName}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <AdminEmptyState
+            icon={FlagIcon}
+            title="没有待处理的反馈"
+            description="名片墙上提交的反馈会显示在这里。"
+          />
+        )}
+      </AdminPanel>
+
+      <AdminPagination
+        page={pageInfo.page}
+        totalPages={pageInfo.totalPages}
+        disabled={loading}
+        onChange={changePage}
+      />
+
+      {openItem ? (
+        <NamecardManageDialog
+          cardNumber={openItem.cardNumber}
+          feedback={{
+            id: openItem.id,
+            reason: openItem.reason,
+            detail: openItem.detail,
+            reporterName: openItem.reporterName,
+          }}
+          onClose={() => setOpenItem(null)}
+          onSaved={() => {
+            setOpenItem(null)
+            refresh()
+          }}
+        />
+      ) : null}
+    </>
+  )
+}

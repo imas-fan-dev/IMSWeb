@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest"
 
 import { seriesWallItems } from "~/lib/series-wall"
 
+import { readAppStylesheet } from "@/tests/unit/support/stylesheet-source"
+
 const seriesColors = [
-  { token: "franchise-765", value: "#f34e6c" },
+  { token: "franchise-765", value: "#f34e6c" }, // gitleaks:allow -- public brand color
   { token: "franchise-cg", value: "#2581c7" },
   { token: "franchise-ml", value: "#ffc20b" },
   { token: "franchise-sidem", value: "#11be93" },
@@ -21,10 +23,7 @@ describe("series colors", () => {
   })
 
   it("keeps the global tokens and design reference on the exact wall colors", () => {
-    const stylesheet = readFileSync(
-      resolve(process.cwd(), "app/app.css"),
-      "utf8"
-    )
+    const stylesheet = readAppStylesheet()
     const designReference = readFileSync(
       resolve(process.cwd(), "DESIGN.md"),
       "utf8"

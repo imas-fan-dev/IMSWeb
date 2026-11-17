@@ -53,6 +53,7 @@ import {
   updateWikiStorySourcePlatform,
 } from "~/lib/api"
 import type { WikiStoryContentType, WikiStorySourcePlatform } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type CatalogKind = "content-type" | "source-platform"
 type CatalogOption = WikiStoryContentType | WikiStorySourcePlatform
@@ -128,7 +129,7 @@ export function StorySourceCatalogDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-3xl">
+    <DialogContent className="overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>内容类型与来源平台</DialogTitle>
             <DialogDescription>
@@ -441,7 +442,7 @@ function CatalogPanel<Option extends CatalogOption>({
                 </p>
               ) : null}
               {"homepageUrl" in option && option.homepageUrl ? (
-                <a
+                <NavigationLink
                   href={option.homepageUrl}
                   target="_blank"
                   rel="noreferrer"
@@ -449,7 +450,7 @@ function CatalogPanel<Option extends CatalogOption>({
                 >
                   平台主页
                   <ExternalLinkIcon className="size-3" />
-                </a>
+                </NavigationLink>
               ) : null}
             </div>
             <div className="flex justify-end">

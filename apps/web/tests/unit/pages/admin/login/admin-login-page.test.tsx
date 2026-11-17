@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import AdminLogin from "~/pages/admin/login/index"
 
 function renderLogin() {
@@ -16,20 +17,12 @@ function renderLogin() {
   )
 }
 
-function jsonResponse(payload: unknown, status = 200) {
-  return Response.json(payload, { status })
-}
-
 describe("AdminLogin", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("submits to the role-gated endpoint and shows permission denial", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = installFetchMock(async (input: RequestInfo | URL) => {
       const requestUrl = input instanceof Request ? input.url : String(input)
       expect(new URL(requestUrl, "http://ims.test").pathname).toBe(
-        "/api/admin/login"
+        "/api/admin/auth/login"
       )
       return jsonResponse(
         {
@@ -39,7 +32,6 @@ describe("AdminLogin", () => {
         403
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
     renderLogin()
 
@@ -52,17 +44,15 @@ describe("AdminLogin", () => {
   })
 
   it("navigates to the workspace after an op login", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        jsonResponse({
-          success: true,
-          username: "operator",
-          producername: "Operator",
-          dept: "op",
-          adminRole: "admin",
-        })
-      )
+    installFetchMock(async () =>
+      jsonResponse({
+        success: true,
+        token: "operator-token",
+        username: "operator",
+        producername: "Operator",
+        dept: "op",
+        adminRole: "admin",
+      })
     )
     const user = userEvent.setup()
     renderLogin()

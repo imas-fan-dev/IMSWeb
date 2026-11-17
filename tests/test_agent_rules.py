@@ -15,7 +15,7 @@ class AgentRulesTests(unittest.TestCase):
         script.parent.mkdir(parents=True)
         shutil.copyfile(RULE_CHECK, script)
 
-        for relative_directory in (".", "apps/api", "apps/web"):
+        for relative_directory in (".", "apps/api", "apps/web", "packages/contracts"):
             directory = root / relative_directory
             directory.mkdir(parents=True, exist_ok=True)
             (directory / ".rules").write_text("# Rules\n", encoding="utf-8")
@@ -35,7 +35,7 @@ class AgentRulesTests(unittest.TestCase):
         result = self.run_fixture(PROJECT_ROOT)
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("3 scope(s)", result.stdout)
+        self.assertIn("4 scope(s)", result.stdout)
 
     def test_missing_alias_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="ims-rules-") as temporary:

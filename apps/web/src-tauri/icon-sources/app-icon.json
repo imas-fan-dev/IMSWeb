@@ -1,0 +1,8 @@
+{
+  "default": "../../public/brand/imsweb-app-icon.png",
+  "bg_color": "#e0e1e3",
+  "android_bg": "android-background.png",
+  "android_fg": "android-foreground.png",
+  "android_fg_scale": 88,
+  "android_monochrome": "android-monochrome.png"
+}

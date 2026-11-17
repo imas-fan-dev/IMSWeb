@@ -33,6 +33,7 @@ export type FileUploadControlProps = {
   name?: string
   file?: File | null
   disabled?: boolean
+  preparing?: boolean
   uploading?: boolean
   required?: boolean
   resetAfterSelect?: boolean
@@ -43,6 +44,7 @@ export type FileUploadControlProps = {
   dropTitle?: string
   selectedIcon?: LucideIcon
   emptyIcon?: LucideIcon
+  onBrowse?: () => void | Promise<void>
 }
 
 export function FileUploadControl({
@@ -54,6 +56,7 @@ export function FileUploadControl({
   fileKind,
   file = null,
   disabled = false,
+  preparing = false,
   uploading = false,
   required = false,
   resetAfterSelect = false,
@@ -64,12 +67,13 @@ export function FileUploadControl({
   dropTitle,
   selectedIcon: SelectedIcon = FileUpIcon,
   emptyIcon: EmptyIcon = UploadIcon,
+  onBrowse,
   onSelect,
 }: FileUploadControlProps) {
   const { i18n, t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
-  const inactive = disabled || uploading
+  const inactive = disabled || preparing || uploading
   const language = i18n.resolvedLanguage || i18n.language
   const resolvedDropZoneLabel =
     dropZoneLabel || t("upload.dropZoneLabel", { fileKind })
@@ -90,19 +94,23 @@ export function FileUploadControl({
     selectFile(null)
   }
 
-  const title = uploading
-    ? t("upload.uploadingTitle", { fileKind })
-    : dragging
-      ? resolvedDropTitle
-      : file?.name || emptyTitle
-  const detail = uploading
-    ? t("upload.uploadingDetail")
-    : file
-      ? t("upload.selectedDetail", {
-          fileKind,
-          size: formatFileSize(file.size, language),
-        })
-      : emptyDetail
+  const title = preparing
+    ? t("upload.preparingTitle", { fileKind })
+    : uploading
+      ? t("upload.uploadingTitle", { fileKind })
+      : dragging
+        ? resolvedDropTitle
+        : file?.name || emptyTitle
+  const detail = preparing
+    ? t("upload.preparingDetail")
+    : uploading
+      ? t("upload.uploadingDetail")
+      : file
+        ? t("upload.selectedDetail", {
+            fileKind,
+            size: formatFileSize(file.size, language),
+          })
+        : emptyDetail
 
   return (
     <>
@@ -112,11 +120,16 @@ export function FileUploadControl({
         name={name}
         type="file"
         accept={accept}
-        className="peer sr-only"
+        className="peer sr-only w-px!"
         disabled={inactive}
-        aria-busy={uploading}
+        aria-busy={preparing || uploading}
         aria-required={required}
         aria-invalid={invalid}
+        onClick={(event) => {
+          if (!onBrowse) return
+          event.preventDefault()
+          void onBrowse()
+        }}
         onChange={(event) => selectFile(event.currentTarget.files?.[0] ?? null)}
       />
       <div
@@ -133,11 +146,11 @@ export function FileUploadControl({
         )}
         onDragEnter={(event) => {
           event.preventDefault()
-          if (!inactive) setDragging(true)
+          if (!inactive && !onBrowse) setDragging(true)
         }}
         onDragOver={(event) => {
           event.preventDefault()
-          if (!inactive) event.dataTransfer.dropEffect = "copy"
+          if (!inactive && !onBrowse) event.dataTransfer.dropEffect = "copy"
         }}
         onDragLeave={(event) => {
           const nextTarget = event.relatedTarget
@@ -151,7 +164,7 @@ export function FileUploadControl({
         }}
         onDrop={(event) => {
           event.preventDefault()
-          if (inactive) return
+          if (inactive || onBrowse) return
           selectFile(event.dataTransfer.files?.[0] ?? null)
         }}
       >
@@ -163,7 +176,7 @@ export function FileUploadControl({
             invalid && "text-destructive"
           )}
         >
-          {uploading ? (
+          {preparing || uploading ? (
             <LoaderCircleIcon
               className="size-5 animate-spin"
               aria-hidden="true"
@@ -185,7 +198,9 @@ export function FileUploadControl({
             >
               {title}
             </p>
-            {uploading ? (
+            {preparing ? (
+              <Badge variant="secondary">{t("upload.preparingStatus")}</Badge>
+            ) : uploading ? (
               <Badge variant="secondary">{t("upload.uploadingStatus")}</Badge>
             ) : file ? (
               <Badge variant={invalid ? "destructive" : "secondary"}>
@@ -208,7 +223,7 @@ export function FileUploadControl({
           </p>
         </div>
 
-        {!uploading ? (
+        {!preparing && !uploading ? (
           <div className="flex shrink-0 items-center gap-2">
             <Button
               type="button"

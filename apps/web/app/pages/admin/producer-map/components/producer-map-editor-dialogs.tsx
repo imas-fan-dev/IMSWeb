@@ -105,7 +105,7 @@ function ProducerMapImageEditor({
             id={`producer-map-${label}-upload`}
             name="image"
             label={value ? `替换${label}` : `上传${label}`}
-            description="PNG、JPEG、WebP 或 AVIF，最大 10MB。"
+            description="PNG、JPEG、WebP、AVIF、HEIC 或 HEIF，最大 10MB。"
             disabled={uploading}
             uploading={uploading}
             resetAfterSelect
@@ -222,7 +222,7 @@ export function RegionEditorDialog({
       }}
     >
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl"
+        className="overflow-y-auto sm:max-w-2xl"
         showCloseButton={!uploading}
         finalFocus={finalFocus}
       >
@@ -395,7 +395,7 @@ export function CommunityEditorDialog({
       }}
     >
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl"
+        className="overflow-y-auto sm:max-w-2xl"
         showCloseButton={!uploading}
       >
         <form className="contents" onSubmit={submit}>

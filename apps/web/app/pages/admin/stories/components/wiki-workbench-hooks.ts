@@ -18,12 +18,11 @@ import type {
   WikiStorySourceCatalog,
 } from "~/lib/api"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
+import { uniqueAgencyIdols } from "~/lib/wiki-admin-catalog"
 import type { StoryCreateDefaults } from "~/pages/admin/stories/components/story-outline"
-import type { WikiEntityEditorTarget } from "~/pages/admin/stories/components/wiki-entity-editor-sheet"
 import {
   positiveId,
   positiveIds,
-  uniqueAgencyIdols,
   type CategoryEditorState,
   type DeleteTarget,
   type StoriesRequest,
@@ -68,8 +67,6 @@ export function useWikiWorkbenchState() {
   onSourceCatalogError(() => undefined)
   const sourceCatalog = sourceCatalogResult as WikiStorySourceCatalog
   const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false)
-  const [entityTarget, setEntityTarget] =
-    useState<WikiEntityEditorTarget | null>(null)
   const [storyEditor, setStoryEditor] = useState<StoryEditorState | null>(null)
   const [categoryEditor, setCategoryEditor] =
     useState<CategoryEditorState | null>(null)
@@ -246,11 +243,6 @@ export function useWikiWorkbenchState() {
     }
   }
 
-  function handleEntitySaved() {
-    void refreshCatalog().catch(() => undefined)
-    reloadStories()
-  }
-
   function openCreateStory(defaults: StoryCreateDefaults) {
     const template = defaults.template
     setStoryEditor({
@@ -338,8 +330,6 @@ export function useWikiWorkbenchState() {
     storyQuery,
     mobileExplorerOpen,
     setMobileExplorerOpen,
-    entityTarget,
-    setEntityTarget,
     storyEditor,
     setStoryEditor,
     categoryEditor,
@@ -351,7 +341,6 @@ export function useWikiWorkbenchState() {
     chooseIdol,
     reloadStories,
     refreshAll,
-    handleEntitySaved,
     openCreateStory,
     setStoryQuery,
     setCategoryOpen,

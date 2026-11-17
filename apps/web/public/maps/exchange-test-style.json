@@ -1,0 +1,44 @@
+{
+  "version": 8,
+  "name": "IMSWeb exchange test map",
+  "metadata": {
+    "imsweb:map-profile": "test-geojson",
+    "imsweb:renderer": "maplibre-gl"
+  },
+  "glyphs": "/maps/exchange/fonts/{fontstack}/{range}.pbf",
+  "sources": {
+    "china-provinces": {
+      "type": "geojson",
+      "data": "/maps/china-provinces.json",
+      "attribution": "Boundary data: <a href=\"https://datav.aliyun.com/portal/school/atlas/area_selector\" target=\"_blank\">DataV GeoAtlas</a>"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#e8f2f4"
+      }
+    },
+    {
+      "id": "province-fill",
+      "type": "fill",
+      "source": "china-provinces",
+      "paint": {
+        "fill-color": "#f6f7f4",
+        "fill-opacity": 0.96
+      }
+    },
+    {
+      "id": "province-boundary",
+      "type": "line",
+      "source": "china-provinces",
+      "paint": {
+        "line-color": "#66736d",
+        "line-opacity": 0.9,
+        "line-width": 1
+      }
+    }
+  ]
+}

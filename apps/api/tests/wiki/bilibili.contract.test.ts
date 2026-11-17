@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
+import { describe, onTestFinished, test, vi } from 'vitest';
 import { createWikiFixture, type WikiFixture } from './fixture';
 
 async function postBilibili(fixture: WikiFixture, input: string) {
@@ -78,8 +78,14 @@ describe('WIKI-02 isolated Bilibili parsing contract', () => {
         assert.deepEqual(await upstream.json(), { status: 'error', msg: '请求错误' });
     });
 
-    test('the five-second timeout aborts injected fetch and maps to the legacy gateway error', async (context) => {
-        context.mock.timers.enable({ apis: ['setTimeout'] });
+    test('the five-second timeout aborts injected fetch and maps to the legacy gateway error', async () => {
+        // Fake only setTimeout, mirroring the previous runner's narrowed
+        // `{ apis: ['setTimeout'] }` mock. Date and performance stay real so
+        // the JWT expiry check keeps reading the wall clock.
+        vi.useFakeTimers({ toFake: ['setTimeout'] });
+        onTestFinished(() => {
+            vi.useRealTimers();
+        });
         const fixture = createWikiFixture();
         let resolveFetchStarted!: (signal: AbortSignal) => void;
         const fetchStarted = new Promise<AbortSignal>((resolve) => {
@@ -101,9 +107,9 @@ describe('WIKI-02 isolated Bilibili parsing contract', () => {
         const pending = postBilibili(fixture, 'BV1xx411c7mD');
         const signal = await fetchStarted;
         assert.equal(signal.aborted, false);
-        context.mock.timers.tick(4999);
+        vi.advanceTimersByTime(4999);
         assert.equal(signal.aborted, false);
-        context.mock.timers.tick(1);
+        vi.advanceTimersByTime(1);
         assert.equal(signal.aborted, true);
 
         const response = await pending;

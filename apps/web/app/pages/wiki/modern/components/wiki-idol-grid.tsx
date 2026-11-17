@@ -1,5 +1,4 @@
 import { ArrowUpRightIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import type {
@@ -9,6 +8,7 @@ import type {
 } from "~/lib/api"
 
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type PublicGroup = NonNullable<WikiPublicCatalog["selection"]>["groups"][number]
 
@@ -103,7 +103,7 @@ function IdolSection({
 
       <div className="grid grid-cols-3 gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {idols.map((idol) => (
-          <Link
+          <NavigationLink
             key={idol.id}
             to={`/story?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
             aria-label={idol.name}
@@ -131,7 +131,7 @@ function IdolSection({
               </span>
               <ArrowUpRightIcon className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
             </div>
-          </Link>
+          </NavigationLink>
         ))}
       </div>
     </section>

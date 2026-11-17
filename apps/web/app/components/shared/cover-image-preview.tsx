@@ -6,7 +6,7 @@ import {
   ZoomInIcon,
   ZoomOutIcon,
 } from "lucide-react"
-import { useRef, useState } from "react"
+import { useRef, useState, type ReactNode } from "react"
 
 import { Button } from "~/components/ui/button"
 import {
@@ -54,19 +54,23 @@ export function CoverImagePreview({
   alt,
   className,
   imageClassName,
+  imageStyle,
   loading = "lazy",
   previewLabel = "封面",
   previewItems,
   previewIndex = 0,
+  previewActions,
 }: {
   src: string
   alt: string
   className?: string
   imageClassName?: string
+  imageStyle?: React.CSSProperties
   loading?: React.ImgHTMLAttributes<HTMLImageElement>["loading"]
   previewLabel?: string
   previewItems?: readonly PreviewItem[]
   previewIndex?: number
+  previewActions?: ReactNode
 }) {
   const previewCount = Math.max(previewItems?.length ?? 0, 1)
   const initialPreviewIndex =
@@ -153,6 +157,16 @@ export function CoverImagePreview({
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const target = event.target
+    if (
+      target instanceof Element &&
+      (target.closest(
+        "input, textarea, select, [contenteditable]:not([contenteditable='false'])"
+      ) ||
+        target.closest('[role="dialog"]') !==
+          event.currentTarget.closest('[role="dialog"]'))
+    )
+      return
     const panDistance = event.shiftKey ? PAN_STEP * 3 : PAN_STEP
     if (event.key === "+" || event.key === "=") {
       event.preventDefault()
@@ -216,6 +230,7 @@ export function CoverImagePreview({
           alt=""
           loading={loading}
           className={cn("size-full object-cover", imageClassName)}
+          style={imageStyle}
         />
         <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-colors group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
           <ZoomInIcon className="size-5 drop-shadow-sm" aria-hidden="true" />
@@ -224,11 +239,12 @@ export function CoverImagePreview({
 
       <DialogContent
         showCloseButton={false}
+        safeArea="viewport"
         overlayClassName="bg-background/85 supports-backdrop-filter:bg-background/45 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150"
-        className="top-0 left-0 grid h-svh max-h-none w-screen max-w-none translate-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-transparent p-0 text-foreground ring-0 sm:max-w-none data-open:zoom-in-100 data-closed:zoom-out-100"
+        className="grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-transparent p-0 text-foreground ring-0 data-open:zoom-in-100 data-closed:zoom-out-100"
         onKeyDown={handleKeyDown}
       >
-        <header className="flex h-16 min-w-0 items-center gap-3 px-4 sm:px-6">
+        <header className="flex min-h-[calc(4rem+var(--safe-area-top))] min-w-0 items-center gap-3 pt-(--safe-area-top) pr-[calc(1rem+var(--safe-area-right))] pl-[calc(1rem+var(--safe-area-left))]">
           <DialogTitle className="min-w-0 flex-1 truncate text-sm text-foreground drop-shadow-sm">
             {activePreview.alt}
           </DialogTitle>
@@ -322,7 +338,13 @@ export function CoverImagePreview({
           />
         </div>
 
-        <footer className="flex h-20 items-center justify-center px-3">
+        <footer
+          className={cn(
+            "flex min-h-[calc(5rem+var(--safe-area-bottom))] items-center justify-center pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]",
+            previewActions && "flex-col gap-2"
+          )}
+        >
+          {previewActions}
           <div className="flex items-center gap-1 rounded-lg border border-foreground/10 bg-background/35 p-1 shadow-lg backdrop-blur-xl">
             <Button
               type="button"

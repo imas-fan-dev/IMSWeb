@@ -21,8 +21,6 @@ const stories: WikiAdminStories = {
     imageFit: "cover",
     imageTransform: defaultWikiImageTransform,
     mediaRevision: 0,
-    wikiEnabled: true,
-    groupIds: [],
     entryKind: "idol",
     entrySubtype: null,
   },

@@ -1,0 +1,86 @@
+/*
+ * App shell: the `--app-*` viewport tokens, the immersive override, the app
+ * viewport gesture policy, the native-glass DOM twin hiding, and the wiki
+ * mobile-search lift that clears the admin return shortcut.
+ *
+ * Tokens and gesture policy sit in `@layer base`. The native-glass hiding and
+ * the wiki lift sit in `@layer overrides` because each one must win against a
+ * utility class on the same element.
+ */
+
+@layer base {
+  html[data-app-target="app"],
+  [data-app-shell] {
+    --app-header-height: 3rem;
+    --app-header-inset: calc(var(--app-header-height) + var(--safe-area-top));
+    --app-bottom-clearance: calc(5.25rem + var(--safe-area-bottom));
+    --app-floating-bottom: calc(6rem + var(--safe-area-bottom));
+    --app-safe-inline: max(1rem, var(--safe-area-left), var(--safe-area-right));
+    --app-viewport-height: calc(100dvh - var(--app-header-inset));
+    --app-content-height: calc(
+      var(--app-viewport-height) - var(--app-bottom-clearance)
+    );
+  }
+
+  html[data-app-target="app"][data-app-immersive],
+  [data-app-shell][data-app-immersive] {
+    --app-header-height: 0px;
+    --app-header-inset: var(--safe-area-top);
+  }
+
+  /*
+   * The packaged App owns its viewport: pinch-zoom and double-tap zoom stay off
+   * so the shell reads as a native screen rather than a zoomable website.
+   * pan-x/pan-y keeps one- and two-finger scrolling and map panning working.
+   * The Web build never sets data-app-target, so website zoom is unchanged.
+   */
+  html[data-app-target="app"] {
+    touch-action: pan-x pan-y;
+    /*
+     * Android 15 gesture navigation is transparent under enforced edge-to-edge.
+     * Paint the document canvas so the WebView's current theme reaches the
+     * gesture area; native navigationBarColor only remains a compatibility path
+     * for navigation modes where Android still honors it.
+     */
+    background-color: var(--background);
+  }
+}
+
+@layer overrides {
+  /*
+   * Native Liquid Glass controls are drawn above the WKWebView, which only
+   * refracts native layers below it, so the DOM twin has to leave the layout
+   * instead of turning transparent. A transparent twin would keep a second focus
+   * stop, a second press animation, and a tooltip under the native surface.
+   * Only the packaged iOS App on iOS 26+ writes this attribute; a rejected or
+   * unsupported native path never sets it, so Android and the Web keep the twins.
+   * The rule says "never show this", so it belongs in `@layer overrides`: no
+   * utility class, present or future, may bring the twin back.
+   */
+  html[data-native-glass="controls"] [data-native-glass-control],
+  html[data-native-glass="controls"] [data-native-glass-twin] {
+    display: none;
+  }
+}
+
+@layer overrides {
+  /*
+   * Wiki mobile search floats above the admin return shortcut. The lift is the
+   * shortcut's `h-11` (2.75rem) plus its own bottom offset (`bottom-1rem`, or
+   * `sm:bottom-1.5rem`), so the search panel clears the button instead of
+   * covering it.
+   */
+  @media (max-width: 767px) {
+    body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
+      --wiki-search-lift: 4.25rem;
+      bottom: calc(var(--wiki-search-lift) + env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (min-width: 640px) and (max-width: 767px) {
+    body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
+      --wiki-search-lift: 4.75rem;
+      bottom: calc(var(--wiki-search-lift) + env(safe-area-inset-bottom));
+    }
+  }
+}

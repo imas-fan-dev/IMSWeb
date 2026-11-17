@@ -192,7 +192,7 @@ export function RecommendationManager() {
                 id="recommendation-image"
                 name="image"
                 label="封面图片"
-                description="PNG、JPEG、WebP 或 AVIF。"
+                description="PNG、JPEG、WebP、AVIF、HEIC 或 HEIF。"
                 file={image}
                 disabled={saving}
                 onSelect={setImage}

@@ -4,6 +4,10 @@ import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "~/components/ui/button"
+import {
+  shouldSyncAndroidSystemBars,
+  syncAndroidSystemBars,
+} from "~/lib/native-glass"
 import { cn } from "~/lib/utils"
 
 const themeColors = {
@@ -22,6 +26,21 @@ type ThemeName = "dark" | "light"
 type ThemeTransitionOrigin = {
   x: number
   y: number
+}
+
+function supportsCircularThemeTransition(root: HTMLElement) {
+  if (
+    typeof document.startViewTransition !== "function" ||
+    typeof root.animate !== "function"
+  ) {
+    return false
+  }
+
+  return (
+    typeof CSS === "undefined" ||
+    typeof CSS.supports !== "function" ||
+    CSS.supports("selector(::view-transition-new(root))")
+  )
 }
 
 function themeIsApplied(theme: ThemeName) {
@@ -97,23 +116,31 @@ function changeThemeWithTransition(
     return
   }
 
-  if (
-    typeof document.startViewTransition !== "function" ||
-    typeof root.animate !== "function"
-  ) {
+  if (!supportsCircularThemeTransition(root)) {
     startFallbackTransition(theme, setTheme, sequence)
     return
   }
 
+  const viewport = window.visualViewport
+  const viewportWidth = viewport?.width ?? window.innerWidth
+  const viewportHeight = viewport?.height ?? window.innerHeight
+  const originX = origin.x - (viewport?.offsetLeft ?? 0)
+  const originY = origin.y - (viewport?.offsetTop ?? 0)
   const radius = Math.hypot(
-    Math.max(origin.x, window.innerWidth - origin.x),
-    Math.max(origin.y, window.innerHeight - origin.y)
+    Math.max(originX, viewportWidth - originX),
+    Math.max(originY, viewportHeight - originY)
   )
 
   root.dataset.themeTransition = "circle"
-  const transition = document.startViewTransition(() =>
-    setThemeAndWait(theme, setTheme)
-  )
+  let transition: ViewTransition
+  try {
+    transition = document.startViewTransition(() =>
+      setThemeAndWait(theme, setTheme)
+    )
+  } catch {
+    startFallbackTransition(theme, setTheme, sequence)
+    return
+  }
   activeViewTransition = transition
 
   void (async () => {
@@ -124,8 +151,8 @@ function changeThemeWithTransition(
       const reveal = root.animate(
         {
           clipPath: [
-            `circle(0px at ${origin.x}px ${origin.y}px)`,
-            `circle(${radius}px at ${origin.x}px ${origin.y}px)`,
+            `circle(0px at ${originX}px ${originY}px)`,
+            `circle(${radius}px at ${originX}px ${originY}px)`,
           ],
         },
         {
@@ -151,13 +178,19 @@ export function ThemeColorSync() {
   const { resolvedTheme } = useTheme()
 
   useEffect(() => {
+    if (!resolvedTheme) return
+
+    const dark = resolvedTheme === "dark"
     const themeColor = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]'
     )
-    if (!themeColor || !resolvedTheme) return
+    if (themeColor) {
+      themeColor.content = dark ? themeColors.dark : themeColors.light
+    }
 
-    themeColor.content =
-      resolvedTheme === "dark" ? themeColors.dark : themeColors.light
+    if (shouldSyncAndroidSystemBars()) {
+      void syncAndroidSystemBars(dark).catch(() => undefined)
+    }
   }, [resolvedTheme])
 
   return null

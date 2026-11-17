@@ -1,4 +1,19 @@
+import {
+  apiPath,
+  cssPath,
+  eventChroniclePath,
+  iconPath,
+  imagePath,
+  publicAssetsPath,
+  publicUploadsPath,
+  siteContentPath,
+  sitesPath,
+} from '@imsweb/contracts/paths';
 import { isSensitiveRequestPath } from "@/middleware/static-path-policy";
+import {
+    FRONTEND_PRERENDERED_ROUTES,
+    FRONTEND_SPA_FALLBACK_PATTERNS,
+} from '@/routing/frontend-route-delivery';
 
 export type FrontendRouteDecision =
   | { kind: "server" }
@@ -11,43 +26,20 @@ export interface FrontendRouteRequest {
 }
 
 const SERVER_PREFIXES = [
-  "/api",
-  "/site-content",
-  "/sites",
-  "/image",
-  "/icon",
-  "/css",
-  "/uploads",
-  "/eventchronicle",
-  "/assets/images/eventchronicle/events",
+  apiPath(),
+  siteContentPath(),
+  sitesPath(),
+  imagePath(),
+  iconPath(),
+  cssPath(),
+  publicUploadsPath(),
+  eventChroniclePath(),
+  publicAssetsPath('/images/eventchronicle/events'),
 ] as const;
 
-const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map([
-  ["/about", "about/index.html"],
-  ["/events", "events/index.html"],
-  ["/recommendations", "recommendations/index.html"],
-  ["/live", "live/index.html"],
-  ["/community", "community/index.html"],
-  ["/community/cards", "community/cards/index.html"],
-  ["/producer-map", "producer-map/index.html"],
-  ["/works", "works/index.html"],
-  ["/works/765", "works/765/index.html"],
-  ["/works/cg", "works/cg/index.html"],
-  ["/works/ml", "works/ml/index.html"],
-  ["/works/sidem", "works/sidem/index.html"],
-  ["/works/sc", "works/sc/index.html"],
-  ["/works/gakuen", "works/gakuen/index.html"],
-  ["/works/games", "works/games/index.html"],
-  ["/works/wows", "works/wows/index.html"],
-  ["/wiki", "wiki/index.html"],
-  ["/wiki/modern", "wiki/modern/index.html"],
-  ["/wiki/classic", "wiki/classic/index.html"],
-  ["/story", "story/index.html"],
-  ["/story/modern", "story/modern/index.html"],
-  ["/story/classic", "story/classic/index.html"],
-  ["/chronicle", "chronicle/index.html"],
-  ["/tier-list", "tier-list/index.html"],
-] as const);
+const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map(
+    FRONTEND_PRERENDERED_ROUTES,
+);
 
 const SPA_FALLBACK = "__spa-fallback.html";
 
@@ -70,6 +62,25 @@ function isServerOwned(pathname: string): boolean {
   if (/^\/information\/[a-z0-9][a-z0-9_-]{7,63}\/content$/i.test(pathname))
     return true;
   return /^\/runninggame\/(?:Build|BuildMobile)\/[^/]+\.data$/.test(pathname);
+}
+
+function matchesSpaFallback(
+    routePathname: string,
+    segments: readonly string[],
+): boolean {
+    return FRONTEND_SPA_FALLBACK_PATTERNS.some((pattern) => {
+        const pathMatches =
+            pattern.match === 'exact'
+                ? routePathname === pattern.path
+                : hasPathPrefix(routePathname, pattern.path);
+        if (!pathMatches) return false;
+        if ('segmentCount' in pattern && segments.length !== pattern.segmentCount) {
+            return false;
+        }
+        return pattern.segments.every(
+            (expected, index) => segments[index] === expected,
+        );
+    });
 }
 
 function decodedSegments(pathname: string): string[] | null {
@@ -112,8 +123,9 @@ export function resolveFrontendRoute(
     return { kind: "server" };
 
   if (pathname === "/" || pathname === "/index.html") {
-    return frontendFiles.has("index.html")
-      ? { kind: "frontend", assetPath: "index.html" }
+    const rootAsset = PRERENDERED_ROUTES.get("/");
+    return rootAsset && frontendFiles.has(rootAsset)
+      ? { kind: "frontend", assetPath: rootAsset }
       : { kind: "not-found" };
   }
 
@@ -131,14 +143,7 @@ export function resolveFrontendRoute(
   const segments = decodedSegments(routePathname);
   if (!segments) return { kind: "not-found" };
 
-  const usesSpaFallback =
-    (hasPathPrefix(routePathname, "/admin") && segments[0] === "admin") ||
-    (hasPathPrefix(routePathname, "/information") &&
-      segments[0] === "information" &&
-      segments.length === 2) ||
-    (hasPathPrefix(routePathname, "/chronicle") &&
-      segments[0] === "chronicle" &&
-      segments.length === 2);
+  const usesSpaFallback = matchesSpaFallback(routePathname, segments);
   if (usesSpaFallback) {
     return frontendFiles.has(SPA_FALLBACK)
       ? { kind: "frontend", assetPath: SPA_FALLBACK }

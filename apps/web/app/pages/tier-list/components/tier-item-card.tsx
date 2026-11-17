@@ -16,7 +16,10 @@ export function TierItemCardView({
 }) {
   return (
     <div
-      className={cn("relative size-16 shrink-0", overlay && "scale-110 rotate-2")}
+      className={cn(
+        "relative size-16 shrink-0",
+        overlay && "scale-110 rotate-2"
+      )}
     >
       <img
         src={item.src}

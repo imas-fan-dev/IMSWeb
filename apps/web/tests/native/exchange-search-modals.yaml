@@ -1,0 +1,33 @@
+appId: top.idol-master.imsweb
+---
+- assertVisible: "筛选地图"
+- assertNotVisible:
+    id: "ims-native-exchange-search"
+- assertNotVisible:
+    id: "ims-native-exchange-search-input"
+- assertNotVisible:
+    id: "inputView"
+- tapOn: "关闭"
+- assertVisible: "查找地点"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"
+- tapOn: "事务所"
+- assertVisible: "公开交换名录"
+- assertNotVisible:
+    id: "ims-native-exchange-search"
+- takeScreenshot:
+    path: "NativeSearchDirectoryTeardown"
+- tapOn: "关闭"
+- assertVisible: "查找地点"
+- tapOn: "更多"
+- tapOn: "地图来源"
+- assertVisible: "地图数据来源"
+- assertNotVisible:
+    id: "ims-native-exchange-search"
+- takeScreenshot:
+    path: "NativeSearchSourceTeardown"
+- tapOn: "Close"
+- assertVisible: "查找地点"
+- assertVisible: "更多"
+- assertVisible:
+    id: "ims-native-liquid-glass-tab-bar"

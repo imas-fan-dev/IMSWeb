@@ -1,228 +1,157 @@
-import { z } from "zod"
+import type { PlatformAccountLink } from "@imsweb/contracts/namecards"
+import { apiPath, namecardPath } from "@imsweb/contracts/paths"
+import {
+  namecardErrorResponseSchema,
+  namecardListErrorResponseSchema,
+  randomOwnerlessCardErrorSchema,
+  randomOwnerlessCardSchema,
+  publicNamecardResponseSchema,
+  wallInsightsSchema,
+  namecardContributorsSchema,
+  namecardReactionListQuerySchema,
+  namecardReactionRequestSchema,
+  reactionMutationSchema,
+} from "@imsweb/contracts/namecards"
+import { NAMECARD_REACTION_EMOJIS } from "@imsweb/contracts/fudaba/runtime"
 
 import {
+  NO_CLIENT_CACHE,
   PUBLIC_CACHE_INVALIDATION_SOURCE,
-  PUBLIC_QUERY_CACHE_FOR,
 } from "../cache-policy"
+import { normalizeNamecard, normalizeNamecardPage } from "../media-urls"
+import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
-export const NAMECARD_REACTIONS = [
-  "❤️",
-  "👍",
-  "😂",
-  "🤣",
-  "😭",
-  "😍",
-  "🥰",
-  "😘",
-  "🤯",
-  "😱",
-  "😎",
-  "🤩",
-  "😤",
-  "🙏",
-  "👏",
-  "✨",
-  "💯",
-  "🎉",
-  "💥",
-  "🌟",
-  "🐵",
-  "🐶",
-  "🐱",
-  "🦊",
-  "🐼",
-  "🐳",
-  "🔥",
-  "💀",
-  "👀",
-  "🍀",
-  "🌈",
-  "🐛",
-  "💎",
-  "🚀",
-  "🏆",
-  "🍕",
-  "🍔",
-  "🎮",
-  "🌹",
-  "🍭",
-  "🔨",
-  "🔫",
-  "❓",
-  "🧒",
-  "😙",
-  "🔘",
-] as const
+import {
+  namecardPageSchema,
+  publicProfileSchema,
+  reactionSchema,
+} from "@imsweb/contracts/namecards"
 
-const cardIdSchema = z
-  .union([z.number().int().positive(), z.string().regex(/^[1-9]\d*$/)])
-  .transform(Number)
+export {
+  cardIdSchema,
+  namecardFavoriteCharacterSchema,
+  namecardMetadataSchema,
+  namecardSchema,
+  namecardPageSchema,
+  publicProfileSchema,
+  reactionSchema,
+  adminNamecardSchema,
+  adminNamecardListSchema,
+  adminNamecardMutationSchema,
+  reactionMutationSchema,
+} from "@imsweb/contracts/namecards"
+export type * from "@imsweb/contracts/namecards"
 
-export const namecardSchema = z.object({
-  id: cardIdSchema,
-  image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
-  image1_thumbnail_url: z.string().min(1),
-  image2_thumbnail_url: z.string().min(1),
-  status: z.string().optional(),
-  created_at: z.string().nullable().optional(),
-})
+export const NAMECARD_REACTIONS = NAMECARD_REACTION_EMOJIS
 
-const namecardPageSchema = z.object({
-  list: z.array(namecardSchema),
-  total: z.number().int().nonnegative(),
-  totalPage: z.number().int().nonnegative(),
-})
+/** 名片墙顶部面板：进度、贡献榜前五与自己的名次。 */
+export function getWallInsights() {
+  return apiClient.Get(
+    apiPath("/cards/wall-insights"),
+    parsed(wallInsightsSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
 
-const reactionSchema = z.record(z.string(), z.number().int().nonnegative())
-const namecardSubmissionStatusSchema = z.enum([
-  "pending",
-  "approving",
-  "approved",
-  "rejected",
-  "withdrawn",
-])
+export function getNamecardContributors(page = 1) {
+  return apiClient.Get(
+    apiPath("/cards/contributors"),
+    parsed(namecardContributorsSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+      params: { page, limit: 25 },
+    })
+  )
+}
 
-const namecardSubmissionSchema = z.object({
-  id: cardIdSchema,
-  status: namecardSubmissionStatusSchema,
-  revision: z.number().int().nonnegative(),
-  image1_url: z.string().min(1).optional(),
-  image2_url: z.string().min(1).optional(),
-  created_at: z.string().nullable().optional(),
-  withdrawn_at: z.string().nullable().optional(),
-})
+/** 抽一张缺少企划的无主名片；池子空了返回 404 `FUDABA_NO_OWNERLESS_CARD`。 */
+export function getRandomOwnerlessCard() {
+  return apiClient.Get(
+    apiPath("/cards/random-ownerless"),
+    parsed(randomOwnerlessCardSchema, {
+      errorSchema: randomOwnerlessCardErrorSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    })
+  )
+}
 
-const uploadNamecardResponseSchema = z.object({
-  msg: z.string().min(1),
-  submission: namecardSubmissionSchema,
-  withdrawalToken: z.string().min(32),
-})
+/** 用户主页：公开资料与本人名片分开取。 */
+export function getPublicProfile(accountId: string) {
+  return apiClient.Get(
+    apiPath(`/users/${encodeURIComponent(accountId)}`),
+    parsed(publicProfileSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+    })
+  )
+}
 
-const namecardSubmissionResponseSchema = z.object({
-  submission: namecardSubmissionSchema,
-})
+export function getProfileCards(accountId: string, page = 1, size = 24) {
+  return apiClient.Get(
+    apiPath(`/users/${encodeURIComponent(accountId)}/cards`),
+    parsed(namecardPageSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      params: { page, size },
+      select: normalizeNamecardPage,
+    })
+  )
+}
 
-const withdrawNamecardResponseSchema = z.object({
-  success: z.literal(true),
-  submission: namecardSubmissionSchema,
-})
-
-const namecardResubmitResponseSchema = z.object({
-  success: z.literal(true),
-  submission: namecardSubmissionSchema,
-})
-
-export type Namecard = z.infer<typeof namecardSchema>
-export type NamecardPage = z.infer<typeof namecardPageSchema>
-export type NamecardReactions = z.infer<typeof reactionSchema>
-export type NamecardSubmission = z.infer<typeof namecardSubmissionSchema>
-export type NamecardSubmissionStatus = z.infer<
-  typeof namecardSubmissionStatusSchema
->
-export type UploadNamecardResponse = z.infer<
-  typeof uploadNamecardResponseSchema
->
+/** 深链与随机补充：按编号取单张公开名片，当前分页里可能没有它。 */
+export function getPublicCard(cardNumber: number) {
+  return apiClient.Get(
+    namecardPath(cardNumber),
+    parsed(publicNamecardResponseSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+      select: (payload) => ({
+        ...payload,
+        card: payload.card ? normalizeNamecard(payload.card) : null,
+      }),
+    })
+  )
+}
 
 export function getNamecardPage(page = 1, size = 12) {
-  return apiClient.Get<NamecardPage, unknown>("/api/cards", {
-    cacheFor: PUBLIC_QUERY_CACHE_FOR,
-    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
-    params: { page, size },
-    transform: (payload) => namecardPageSchema.parse(payload),
-  })
+  return apiClient.Get(
+    apiPath("/cards"),
+    parsed(namecardPageSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      businessErrorSchema: namecardListErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+      params: { page, size },
+      select: normalizeNamecardPage,
+    })
+  )
 }
 
 export function getNamecardReactions(cardId: number) {
-  return apiClient.Get<NamecardReactions, unknown>("/api/reactions", {
-    params: { id: cardId },
-    transform: (payload) => reactionSchema.parse(payload),
-  })
+  const params = namecardReactionListQuerySchema.parse({ id: cardId })
+  return apiClient.Get(
+    apiPath("/reactions"),
+    parsed(reactionSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      params,
+    })
+  )
 }
 
 export function addNamecardReaction(cardId: number, emoji: string) {
-  return apiClient.Post<{ ok: true }, unknown>("/api/reactions", {
-    id: cardId,
-    emoji,
-  })
-}
-
-export function uploadNamecard(front: File, back: File) {
-  const form = new FormData()
-  form.append("images", front)
-  form.append("images", back)
-  return apiClient.Post<UploadNamecardResponse, unknown>(
-    "/api/uploadNameCard",
-    form,
-    { transform: (payload) => uploadNamecardResponseSchema.parse(payload) }
+  const submission = namecardReactionRequestSchema.parse({ id: cardId, emoji })
+  return apiClient.Post(
+    apiPath("/reactions"),
+    submission,
+    parsed(reactionMutationSchema, { errorSchema: namecardErrorResponseSchema })
   )
 }
 
-export function getNamecardSubmission(id: number, withdrawalToken: string) {
-  return apiClient.Get<
-    z.infer<typeof namecardSubmissionResponseSchema>,
-    unknown
-  >(`/api/namecards/submissions/${id}`, {
-    headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-    transform: (payload) => namecardSubmissionResponseSchema.parse(payload),
-  })
-}
-
-export function withdrawNamecardSubmission(
-  id: number,
-  withdrawalToken: string,
-  expectedRevision: number
-) {
-  return apiClient.Post<
-    z.infer<typeof withdrawNamecardResponseSchema>,
-    unknown
-  >(
-    `/api/namecards/submissions/${id}/withdraw`,
-    { expected_revision: expectedRevision },
-    {
-      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-      transform: (payload) => withdrawNamecardResponseSchema.parse(payload),
-    }
-  )
-}
-
-export function replaceNamecardSubmissionImage(
-  id: number,
-  withdrawalToken: string,
-  side: "front" | "back",
-  expectedRevision: number,
-  file: File
-) {
-  const form = new FormData()
-  form.append("image", file)
-  return apiClient.Post<
-    z.infer<typeof namecardResubmitResponseSchema>,
-    unknown
-  >(
-    `/api/namecards/submissions/${id}/images/${side}?expected_revision=${expectedRevision}`,
-    form,
-    {
-      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
-    }
-  )
-}
-
-export function resubmitNamecardSubmission(
-  id: number,
-  withdrawalToken: string,
-  expectedRevision: number
-) {
-  return apiClient.Post<
-    z.infer<typeof namecardResubmitResponseSchema>,
-    unknown
-  >(
-    `/api/namecards/submissions/${id}/resubmit`,
-    { expected_revision: expectedRevision },
-    {
-      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
-    }
-  )
-}
+export type { PlatformAccountLink }

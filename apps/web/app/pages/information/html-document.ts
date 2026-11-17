@@ -1,10 +1,7 @@
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;")
+function serializeHtmlText(value: string) {
+  const container = document.createElement("span")
+  container.textContent = value
+  return container.innerHTML
 }
 
 export function buildInformationHtmlDocument(title: string, html: string) {
@@ -14,7 +11,7 @@ export function buildInformationHtmlDocument(title: string, html: string) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; font-src 'none'; form-action 'none'; frame-src 'none'; img-src 'self' https: http: data: blob:; media-src 'self'; object-src 'none'; script-src 'none'; style-src 'unsafe-inline'">
-  <title>${escapeHtml(title)}</title>
+  <title>${serializeHtmlText(title)}</title>
   <style>
     :root { color-scheme: light; font-family: Geist, "Noto Sans SC", "PingFang SC", sans-serif; }
     :root[data-theme="dark"] { color-scheme: dark; }

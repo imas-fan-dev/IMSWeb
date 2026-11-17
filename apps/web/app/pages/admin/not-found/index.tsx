@@ -15,7 +15,7 @@ export default function AdminNotFound() {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button render={<Link to="/admin" />} nativeButton={false}>
+        <Button render={<NavigationLink to="/admin" />} nativeButton={false}>
           <ArrowLeftIcon data-icon="inline-start" />
           返回工作台
         </Button>
@@ -24,7 +24,6 @@ export default function AdminNotFound() {
   )
 }
 import { ArrowLeftIcon, FileQuestionIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
 import {
@@ -35,3 +34,4 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty"
+import { NavigationLink } from "~/components/navigation/navigation-link"

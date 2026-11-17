@@ -2,7 +2,8 @@ import { type ReactNode } from "react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import type { WikiPublicCatalog } from "~/lib/api"
-
+import { APP_STICKY_HEADER_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
 
 type PublicGroup = NonNullable<WikiPublicCatalog["selection"]>["groups"][number]
@@ -18,7 +19,10 @@ export function WikiGroupFilter({
 }) {
   return (
     <section
-      className="sticky top-16 z-30 mt-4 border-y bg-background/95 backdrop-blur-sm md:mt-6"
+      className={cn(
+        "sticky z-30 mt-4 border-y bg-background/95 backdrop-blur-sm md:mt-6",
+        IS_APP_TARGET ? APP_STICKY_HEADER_OFFSET : "top-16"
+      )}
       aria-label="组合与分类导航"
     >
       <div className="flex items-center gap-2 py-2 md:gap-3 md:py-3">

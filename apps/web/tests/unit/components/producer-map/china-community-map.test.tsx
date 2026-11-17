@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChinaCommunityMap } from "~/components/producer-map/china-community-map"
 import type {
@@ -118,8 +118,6 @@ describe("ChinaCommunityMap", () => {
       }
     )
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it("preserves public defaults, filters click names, and disposes the chart", async () => {
     const onSelect = vi.fn()

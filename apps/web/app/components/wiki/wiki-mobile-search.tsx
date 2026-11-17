@@ -12,6 +12,7 @@ import {
 import { Input } from "~/components/ui/input"
 import { WikiGlobalSearchResults } from "~/components/wiki/wiki-global-search-results"
 import type { WikiPublicSearchEntry } from "~/lib/api"
+import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 
 export function WikiMobileSearch({
@@ -27,6 +28,11 @@ export function WikiMobileSearch({
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
   const classic = view === "classic"
+  // `/wiki/classic` is a standalone route: it renders with no layout, so the app
+  // build has no tab bar there and the button keeps its edge position. Only the
+  // modern view sits inside `app-layout.tsx`. `IS_APP_TARGET` is inlined, so the
+  // web bundle evaluates this to `false` and keeps the original offset.
+  const clearsAppTabBar = IS_APP_TARGET && !classic
 
   function changeOpen(nextOpen: boolean) {
     setOpen(nextOpen)
@@ -55,6 +61,7 @@ export function WikiMobileSearch({
               "fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 size-12 rounded-full shadow-lg",
               classic &&
                 "border-[3px] border-white bg-(--classic-accent) text-white hover:bg-(--classic-accent)",
+              clearsAppTabBar && APP_FLOATING_CONTROL_OFFSET,
               className
             )}
             data-wiki-mobile-search={view}
@@ -69,19 +76,27 @@ export function WikiMobileSearch({
       <DialogContent
         initialFocus={inputRef}
         showCloseButton={false}
+        safeArea={clearsAppTabBar ? "custom" : "viewport"}
         overlayClassName={cn(
           "bg-background/92 duration-300 supports-backdrop-filter:bg-background/45 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150 motion-reduce:duration-0",
           classic && "bg-[#fff8fb]/92 supports-backdrop-filter:bg-[#fff8fb]/48"
         )}
         className={cn(
-          "inset-0 top-0 left-0 flex h-dvh max-h-dvh w-screen max-w-none translate-0 flex-col gap-0 overflow-hidden rounded-none bg-transparent p-0 ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none data-open:zoom-in-100 data-closed:zoom-out-100",
+          "flex flex-col gap-0 overflow-hidden rounded-none bg-transparent p-0 ring-0 duration-300 motion-reduce:duration-0 data-open:zoom-in-100 data-closed:zoom-out-100",
+          clearsAppTabBar &&
+            "inset-x-0 top-(--app-header-inset) bottom-0 h-(--app-viewport-height) max-h-none w-screen max-w-none translate-0",
           classic && "text-[#292a2f]"
         )}
         data-wiki-mobile-search-dialog={view}
         onClick={closeFromBackground}
       >
         <div
-          className="min-h-0 flex-1 px-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"
+          className={cn(
+            "min-h-0 flex-1",
+            clearsAppTabBar
+              ? "px-(--app-safe-inline) pt-4 pb-[calc(var(--app-bottom-clearance)-4.25rem)]"
+              : "pt-[calc(1.5rem+var(--safe-area-top))] pr-[calc(1rem+var(--safe-area-right))] pb-[calc(1rem+var(--safe-area-bottom))] pl-[calc(1rem+var(--safe-area-left))]"
+          )}
           data-wiki-mobile-search-surface={view}
           data-wiki-mobile-search-dismiss={view}
         >
