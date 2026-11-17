@@ -139,6 +139,7 @@ import {
   expectedNamecardRevisionRequestSchema,
   flaggedNamecardRequestSchema,
   lockedNamecardRequestSchema,
+  namecardCardLayoutRequestSchema,
   namecardCardLayoutSchema,
   namecardListErrorResponseSchema,
   namecardListQuerySchema,
@@ -538,6 +539,11 @@ export function resolveApiContract(
   if (method === "GET" && path === `${exchange}/me/cards/layout`)
     return {
       query: fudabaIgnoredQuerySchema,
+      responses: { 200: namecardCardLayoutSchema, ...fudabaErrors },
+    }
+  if (method === "PUT" && path === `${exchange}/me/cards/layout`)
+    return {
+      body: namecardCardLayoutRequestSchema,
       responses: { 200: namecardCardLayoutSchema, ...fudabaErrors },
     }
   if (

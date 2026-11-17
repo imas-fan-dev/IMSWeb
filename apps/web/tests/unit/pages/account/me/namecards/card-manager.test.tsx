@@ -12,6 +12,8 @@ function card(cardNumber: number, producerName: string) {
     id: `card-${cardNumber}`,
     cardNumber,
     producerName,
+    // 快速清单只收 `published + auto`（服务端读侧同口径），所以夹具用自动交换。
+    exchangeMode: "auto",
   })
 }
 
@@ -34,6 +36,7 @@ function managerProps(
     readOnly: false,
     onSelect: vi.fn(),
     onCreate: vi.fn(),
+    onLayoutSaved: vi.fn(),
     ...overrides,
   }
 }
@@ -154,6 +157,31 @@ describe("CardManager collapsing", () => {
     unmount()
     render(<CardManager {...managerProps({ accountId: "platform-2" })} />)
     expect(screen.getByText("名片 B")).toBeVisible()
+  })
+})
+
+describe("CardManager without a layout", () => {
+  it("locks editing mode when the layout could not be loaded", async () => {
+    const user = userEvent.setup()
+    // 布局读失败：保存会整份覆盖成空 groups / defaultCardNumbers，必须挡住入口。
+    renderManager({ layout: null })
+
+    const editButton = screen.getByRole("button", { name: "编辑模式" })
+    expect(editButton).toBeDisabled()
+    expect(editButton).toHaveAttribute(
+      "title",
+      "读不到名片布局，刷新页面后再试。"
+    )
+    expect(
+      document.getElementById(editButton.getAttribute("aria-describedby") ?? "")
+    ).toHaveTextContent("读不到名片布局，刷新页面后再试。")
+
+    await user.click(editButton)
+
+    // 进不去编辑模式：没有批量操作区、没有复选框，连保存按钮都不在。
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0)
+    expect(screen.queryByRole("button", { name: "保存" })).toBeNull()
+    expect(editButton).toBeVisible()
   })
 })
 

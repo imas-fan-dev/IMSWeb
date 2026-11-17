@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
   MemoryRouter,
@@ -438,6 +438,50 @@ describe("AccountMeWorkspace", () => {
     expect(screen.getByRole("textbox", { name: "制作人名称" })).toHaveValue(
       card.producerName
     )
+  })
+
+  it("asks before a manual refresh drops an unsaved namecard draft", async () => {
+    const user = userEvent.setup()
+    // 已发布才有复选框；这个 fixture 默认还是草稿。
+    apiMocks.sendCards.mockResolvedValue({
+      items: [{ ...card, publicationStatus: "published" }],
+    })
+    render(
+      <MemoryRouter initialEntries={["/account/me?section=namecards"]}>
+        <Routes>
+          <Route path="/account/me/:section?" element={<WorkspaceRoute />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    await user.click(await screen.findByRole("button", { name: "编辑模式" }))
+    await user.click(screen.getByRole("checkbox", { name: /周末交换名片/ }))
+    await user.click(screen.getByRole("button", { name: "隐藏" }))
+
+    // 手动刷新会把 CardManager 整个卸掉：有脏草稿时先确认。
+    expect(apiMocks.sendCards).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole("button", { name: "刷新个人档案" }))
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "放弃未保存的名片改动并刷新？",
+    })
+    await user.click(within(dialog).getByRole("button", { name: "继续编辑" }))
+
+    // 取消就是真的不加载：草稿与列表都还在。
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(apiMocks.sendCards).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled()
+
+    await user.click(screen.getByRole("button", { name: "刷新个人档案" }))
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "放弃未保存的名片改动并刷新？",
+        })
+      ).getByRole("button", { name: "放弃并刷新" })
+    )
+
+    await waitFor(() => expect(apiMocks.sendCards).toHaveBeenCalledTimes(2))
   })
 
   it("opens a card addressed by its wall number instead of the internal id", async () => {

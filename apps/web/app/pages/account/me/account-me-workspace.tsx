@@ -10,6 +10,7 @@ import { useLocation, useSearchParams } from "react-router"
 import { readOfficeCreateIntent } from "~/lib/maps/office-create-intent"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
+import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -146,6 +147,9 @@ function ProfileWorkspace({
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  /** 名片管理器的编辑草稿有没有未保存改动（由 `CardManager` 上抛）。 */
+  const [cardDraftDirty, setCardDraftDirty] = useState(false)
+  const [confirmDiscardReload, setConfirmDiscardReload] = useState(false)
   const workspaceGeneration = useRef(0)
   const detailGeneration = useRef(0)
   const closingNavigationRef = useRef(false)
@@ -204,6 +208,19 @@ function ProfileWorkspace({
       }))
     }
   }, [])
+
+  /**
+   * 用户主动刷新：名片管理器里有未保存草稿时先确认。`loadWorkspace()` 会把 `phase`
+   * 置成 `loading`、把整个 `CardManager` 卸掉，勾选与批量字段会被静默丢弃（§12 要求
+   * 脏标记确认）。初挂载、保存成功等内部加载不走这里，不弹确认。
+   */
+  function requestWorkspaceReload() {
+    if (cardDraftDirty) {
+      setConfirmDiscardReload(true)
+      return
+    }
+    void loadWorkspace()
+  }
 
   useEffect(() => {
     if (
@@ -539,7 +556,7 @@ function ProfileWorkspace({
                 size="icon"
                 aria-label="刷新个人档案"
                 title="刷新"
-                onClick={() => void loadWorkspace()}
+                onClick={requestWorkspaceReload}
               >
                 <RefreshCwIcon aria-hidden="true" />
               </Button>
@@ -672,6 +689,18 @@ function ProfileWorkspace({
                   mapDialog?.changed?.()
                 }}
                 onDeleted={deleteCard}
+                onLayoutSaved={(layout, patches) =>
+                  // 只合并差异：请求在飞期间新建/删除的卡不会被闭包快照覆盖掉。
+                  setState((current) => ({
+                    ...current,
+                    cardLayout: layout,
+                    cards: current.cards.map((item) => {
+                      const patch = patches[item.id]
+                      return patch ? { ...item, ...patch } : item
+                    }),
+                  }))
+                }
+                onDirtyChange={setCardDraftDirty}
                 onReload={async (cardId) => {
                   const workspaceRequest = workspaceGeneration.current
                   const detailRequest = detailGeneration.current
@@ -725,6 +754,20 @@ function ProfileWorkspace({
           </div>
         </div>
       </div>
+
+      <ConfirmActionDialog
+        open={confirmDiscardReload}
+        onOpenChange={setConfirmDiscardReload}
+        title="放弃未保存的名片改动并刷新？"
+        description="刷新会重新载入名片清单，编辑模式里未保存的批量改动与快速清单调整都会丢失。"
+        confirmLabel="放弃并刷新"
+        cancelLabel="继续编辑"
+        submitting={false}
+        onConfirm={() => {
+          setConfirmDiscardReload(false)
+          void loadWorkspace()
+        }}
+      />
     </ExchangePageSurface>
   )
 }

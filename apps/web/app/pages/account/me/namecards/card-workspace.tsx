@@ -25,6 +25,7 @@ import type {
   PlatformProfile,
 } from "~/lib/api"
 import { CardEditor, CardEditorHeading } from "./card-editor"
+import type { CardManagerCardPatches } from "./card-manager-model"
 import { CardManager } from "./card-manager"
 
 export function CardWorkspace({
@@ -45,8 +46,10 @@ export function CardWorkspace({
   onCreated,
   onSaved,
   onDeleted,
+  onLayoutSaved,
   onReload,
   onWriteClosed,
+  onDirtyChange,
 }: {
   active: boolean
   onClose: () => void
@@ -66,8 +69,18 @@ export function CardWorkspace({
   onCreated: (card: FudabaOwnerCard) => void
   onSaved: (card: FudabaOwnerCard) => void
   onDeleted: (cardId: string) => void
+  /**
+   * 保存布局成功后把服务端归一后的布局与**只含差异**的卡片字段写回上层；
+   * 上层用函数式合并，请求在飞期间新建/删除的卡不受影响。
+   */
+  onLayoutSaved: (
+    layout: NamecardCardLayout,
+    patches: CardManagerCardPatches
+  ) => void
   onReload: (cardId: string) => Promise<FudabaOwnerCard>
   onWriteClosed: () => void
+  /** 编辑草稿的脏标记；上层用它决定刷新前是否先确认。 */
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null
 
@@ -126,6 +139,8 @@ export function CardWorkspace({
         onCreate={() => {
           onCreate()
         }}
+        onLayoutSaved={onLayoutSaved}
+        onDirtyChange={onDirtyChange}
       />
       {mapDialog ? (
         open ? (

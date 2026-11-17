@@ -163,3 +163,38 @@ describe("CardTile", () => {
     expect(img?.getAttribute("src")).toBe("/api/cards/1/media/front?v=3&w=400")
   })
 })
+
+describe("CardTile editing", () => {
+  it("keeps a non-published tile focusable but aria-disabled, with the reason described", async () => {
+    const onSelect = vi.fn()
+    render(
+      <CardTile
+        card={card({ publicationStatus: "draft" })}
+        editing
+        onSelect={onSelect}
+      />
+    )
+
+    const tile = screen.getByRole("button")
+    // 真 `disabled` 会让瓦片不可聚焦、`title` 也播报不稳，所以改用 aria-disabled。
+    expect(tile).toHaveAttribute("aria-disabled", "true")
+    expect(tile).not.toBeDisabled()
+    expect(tile).not.toHaveAttribute("title")
+    expect(
+      document.getElementById(tile.getAttribute("aria-describedby") ?? "")
+    ).toHaveTextContent("只有已发布的名片可以批量调整")
+
+    // 编辑模式下点只读瓦片：忽略，不进入选择。
+    await userEvent.click(tile)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it("keeps a published tile a checkbox without a disabled state", () => {
+    render(<CardTile card={card()} editing checked onSelect={() => {}} />)
+
+    const checkbox = screen.getByRole("checkbox")
+    expect(checkbox).toBeChecked()
+    expect(checkbox).not.toHaveAttribute("aria-disabled")
+    expect(checkbox).not.toHaveAttribute("aria-describedby")
+  })
+})

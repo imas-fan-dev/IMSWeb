@@ -2,22 +2,34 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { makeFudabaOwnerCard } from "@/mocks/data/fudaba"
 import { makeNamecardCardLayout } from "@/mocks/data/namecards"
+import type { FudabaOwnerCard } from "~/lib/api"
 import {
   applyLayout,
   buildCardGroups,
+  buildCardLayoutRequest,
   cardGroupHeading,
   cardGroupKey,
   cardGroupViewTransitionName,
+  cardSettingsToPatches,
   cardViewTransitionName,
+  collectCardSettings,
+  effectiveQuickCardNumbers,
   flattenCardGroups,
+  isCardManagerDraftDirty,
+  isCardQuickEligible,
   quickCardIdSet,
+  selectableCardIds,
 } from "~/pages/account/me/namecards/card-manager-model"
 
-function card(cardNumber: number) {
+function card(
+  cardNumber: number,
+  overrides: Partial<FudabaOwnerCard> = {}
+) {
   return makeFudabaOwnerCard({
     id: `card-${cardNumber}`,
     cardNumber,
     producerName: `名片 ${cardNumber}`,
+    ...overrides,
   })
 }
 
@@ -176,10 +188,7 @@ describe("flattenCardGroups", () => {
 describe("quickCardIdSet", () => {
   it("maps the quick list numbers onto card ids", () => {
     const cards = [card(1), card(2)]
-    const quickCardIds = quickCardIdSet(
-      cards,
-      makeNamecardCardLayout({ quickCardNumbers: [2, 9] })
-    )
+    const quickCardIds = quickCardIdSet(cards, [2, 9])
 
     expect([...quickCardIds]).toEqual(["card-2"])
   })
@@ -253,5 +262,215 @@ describe("applyLayout", () => {
 
     expect(startViewTransition).not.toHaveBeenCalled()
     expect(mutate).toHaveBeenCalledOnce()
+  })
+})
+
+describe("selectableCardIds", () => {
+  it("only lets published cards be picked, in list order", () => {
+    const cards = [
+      card(1),
+      card(2, { publicationStatus: "draft" }),
+      card(3, { publicationStatus: "pending" }),
+      card(4, { publicationStatus: "published", reviewStatus: "pending" }),
+      card(5, { publicationStatus: "rejected" }),
+      card(6, { publicationStatus: "hidden" }),
+    ]
+
+    // `pending` 只是「已发布卡暂存了修订」，线上照旧展示，所以仍然可勾选。
+    expect(selectableCardIds(cards)).toEqual(["card-1", "card-4"])
+  })
+})
+
+describe("effectiveQuickCardNumbers", () => {
+  it("keeps order, drops duplicates and cards that no longer qualify", () => {
+    const cards = [
+      card(1, { exchangeMode: "auto" }),
+      card(2, { exchangeMode: "manual" }),
+      card(3, { exchangeMode: "auto", publicationStatus: "draft" }),
+    ]
+
+    expect(effectiveQuickCardNumbers([1, 2, 3, 1, 9], cards, {})).toEqual([1])
+  })
+
+  it("follows the draft exchange mode over the live value", () => {
+    const cards = [card(2, { exchangeMode: "manual" })]
+
+    expect(effectiveQuickCardNumbers([2], cards, {})).toEqual([])
+    expect(
+      effectiveQuickCardNumbers([2], cards, { "card-2": { exchangeMode: "auto" } })
+    ).toEqual([2])
+  })
+
+  it("drops a published auto card that has no live page", () => {
+    // 服务端写入侧要求有线上页；客户端不同口径的话，这张卡一进清单整份保存必 400。
+    const cards = [card(1, { exchangeMode: "auto", pages: [] })]
+
+    expect(isCardQuickEligible(cards[0]!, "auto")).toBe(false)
+    expect(effectiveQuickCardNumbers([1], cards, {})).toEqual([])
+    // 勾选资格不受「有线上页」约束：它没有线上页也仍然可以批量调整。
+    expect(selectableCardIds(cards)).toEqual(["card-1"])
+  })
+})
+
+describe("isCardQuickEligible", () => {
+  it("requires published, auto and at least one live page", () => {
+    expect(isCardQuickEligible(card(1, { pages: [] }), "auto")).toBe(false)
+    expect(isCardQuickEligible(card(1), "manual")).toBe(false)
+    expect(isCardQuickEligible(card(1), "none")).toBe(false)
+    expect(
+      isCardQuickEligible(
+        card(1, { publicationStatus: "draft" }),
+        "auto"
+      )
+    ).toBe(false)
+    expect(isCardQuickEligible(card(1), "auto")).toBe(true)
+  })
+})
+
+describe("collectCardSettings", () => {
+  it("keeps only the fields that differ from the live card", () => {
+    const cards = [card(1, { visible: true, exchangeMode: "manual" })]
+
+    expect(collectCardSettings(cards, { "card-1": { visible: true } })).toEqual([])
+    expect(
+      collectCardSettings(cards, {
+        "card-1": { visible: false, exchangeMode: "manual" },
+      })
+    ).toEqual([{ cardId: "card-1", visible: false }])
+    expect(
+      collectCardSettings(cards, {
+        "card-1": { visible: false, exchangeMode: "auto" },
+      })
+    ).toEqual([{ cardId: "card-1", visible: false, exchangeMode: "auto" }])
+  })
+
+  it("skips group cards and cards that are no longer in the list", () => {
+    const cards = [card(1, { isGroupCard: true }), card(2)]
+
+    expect(
+      collectCardSettings(cards, {
+        "card-1": { visible: false },
+        "card-9": { visible: false },
+        "card-2": { exchangeMode: "none" },
+      })
+    ).toEqual([{ cardId: "card-2", exchangeMode: "none" }])
+  })
+})
+
+describe("cardSettingsToPatches", () => {
+  it("turns the request settings into one patch per card", () => {
+    expect(
+      cardSettingsToPatches([
+        { cardId: "card-1", visible: false },
+        { cardId: "card-2", exchangeMode: "auto" },
+      ])
+    ).toEqual({
+      "card-1": { visible: false },
+      "card-2": { exchangeMode: "auto" },
+    })
+  })
+
+  it("merges two entries for the same card and keeps an empty request empty", () => {
+    expect(
+      cardSettingsToPatches([
+        { cardId: "card-1", visible: false },
+        { cardId: "card-1", exchangeMode: "manual" },
+      ])
+    ).toEqual({ "card-1": { visible: false, exchangeMode: "manual" } })
+    expect(cardSettingsToPatches([])).toEqual({})
+  })
+})
+
+describe("isCardManagerDraftDirty", () => {
+  const cards = [card(1, { exchangeMode: "auto" }), card(2)]
+  const layout = makeNamecardCardLayout({
+    defaultCardNumbers: [1, 2],
+    quickCardNumbers: [1],
+  })
+
+  it("is clean while the quick list and the settings match the layout", () => {
+    expect(
+      isCardManagerDraftDirty({
+        cards,
+        layout,
+        quickCardNumbers: [1],
+        cardSettings: {},
+      })
+    ).toBe(false)
+    expect(
+      isCardManagerDraftDirty({
+        cards,
+        layout,
+        quickCardNumbers: [1],
+        cardSettings: { "card-2": { visible: true } },
+      })
+    ).toBe(false)
+  })
+
+  it("tracks quick list membership and real field changes", () => {
+    expect(
+      isCardManagerDraftDirty({
+        cards,
+        layout,
+        quickCardNumbers: [1, 2],
+        cardSettings: { "card-2": { exchangeMode: "auto" } },
+      })
+    ).toBe(true)
+    expect(
+      isCardManagerDraftDirty({
+        cards,
+        layout,
+        quickCardNumbers: [1],
+        cardSettings: { "card-2": { visible: false } },
+      })
+    ).toBe(true)
+  })
+})
+
+describe("buildCardLayoutRequest", () => {
+  const layout = makeNamecardCardLayout({
+    groups: [{ id: "g-1", title: "常用", cardNumbers: [2] }],
+    defaultCardNumbers: [1, 3],
+    quickCardNumbers: [1],
+  })
+
+  it("sends the loaded layout as-is, the whole quick list, and only changed cards", () => {
+    const cards = [
+      card(1, { exchangeMode: "auto" }),
+      card(2),
+      card(3, { exchangeMode: "auto" }),
+    ]
+
+    expect(
+      buildCardLayoutRequest({
+        cards,
+        layout,
+        quickCardNumbers: [1, 3],
+        cardSettings: { "card-2": { visible: false }, "card-3": {} },
+      })
+    ).toEqual({
+      groups: [{ id: "g-1", title: "常用", cardNumbers: [2] }],
+      defaultCardNumbers: [1, 3],
+      quickCardNumbers: [1, 3],
+      cardSettings: [{ cardId: "card-2", visible: false }],
+    })
+  })
+
+  it("falls back to an empty layout when the layout read failed", () => {
+    const cards = [card(1, { exchangeMode: "auto" })]
+
+    expect(
+      buildCardLayoutRequest({
+        cards,
+        layout: null,
+        quickCardNumbers: [1],
+        cardSettings: {},
+      })
+    ).toEqual({
+      groups: [],
+      defaultCardNumbers: [],
+      quickCardNumbers: [1],
+      cardSettings: [],
+    })
   })
 })

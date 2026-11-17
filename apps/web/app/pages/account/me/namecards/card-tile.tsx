@@ -1,15 +1,17 @@
 import {
   CalendarIcon,
+  CheckIcon,
   EyeOffIcon,
   ZapIcon,
 } from "lucide-react"
+import { useId } from "react"
 
 import { NAMECARD_REVIEW_LABELS } from "~/components/community/namecard-status-labels"
 import { Badge } from "~/components/ui/badge"
 import type { FudabaOwnerCard } from "~/lib/api"
 import { cardTimeLabel } from "~/lib/namecards/dates"
 import { cn } from "~/lib/utils"
-import { cardViewTransitionName } from "./card-manager-model"
+import { cardViewTransitionName, isCardSelectable } from "./card-manager-model"
 import { publicationLabels } from "./card-model"
 import { OwnerCardImage } from "./owner-card-image"
 
@@ -93,36 +95,68 @@ export function ExchangeModeBadge({
  * 缩略图用 `object-contain`（名片多为 90×50 / 90×54 mm，固定比例裁切会切掉内容，
  * 理由见 `NamecardMediaPreview` 的注释），容器底色用卡片 accent 兜住留白。
  * 每张瓦片带自己的 `view-transition-name`，分组↔经典切换时由浏览器把它挪到新位置。
+ *
+ * 编辑模式（§6.1/§8）：整卡 `published` 的瓦片变成复选框（`role="checkbox"` +
+ * `aria-checked`），点击切换勾选；其余状态是只读的，禁用且不给复选框。
+ *
+ * `hidden` 与 `exchangeMode` 传的是**生效值**（编辑模式下草稿优先于线上值），这样批量改
+ * 可见性/交换模式后角标与徽标立刻跟上；非编辑模式两者就等于卡片自己的值。
  */
 export function CardTile({
   card,
   inQuickExchange = false,
   selected = false,
+  editing = false,
+  checked = false,
+  hidden = !card.visible,
+  exchangeMode = card.exchangeMode,
   onSelect,
 }: {
   card: FudabaOwnerCard
   inQuickExchange?: boolean
+  /** 非编辑模式：这张卡正在编辑器里打开。 */
   selected?: boolean
+  editing?: boolean
+  /** 编辑模式：这张卡在勾选集合里。 */
+  checked?: boolean
+  /** 生效的可见性（默认取卡片自己的值）。 */
+  hidden?: boolean
+  /** 生效的交换模式（默认取卡片自己的值）。 */
+  exchangeMode?: FudabaOwnerCard["exchangeMode"]
   onSelect: () => void
 }) {
   const time = cardTimeLabel(card)
+  const selectable = editing && isCardSelectable(card)
+  const lockedReason = editing && !selectable ? "只有已发布的名片可以批量调整" : null
+  const lockedReasonId = useId()
+  const marked = editing ? checked : selected
   return (
     <button
       type="button"
       className={cn(
         "min-w-0 rounded-lg border bg-background p-2 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50",
-        selected && "border-primary bg-accent/40"
+        marked && "border-primary bg-accent/40",
+        lockedReason && "opacity-70"
       )}
       style={{ viewTransitionName: cardViewTransitionName(card.id) }}
-      aria-current={selected ? "page" : undefined}
-      onClick={onSelect}
+      role={selectable ? "checkbox" : undefined}
+      aria-checked={selectable ? checked : undefined}
+      aria-current={!editing && selected ? "page" : undefined}
+      // 只读瓦片不能用真 `disabled`：那样它不可聚焦、`title` 也播报不稳。改成
+      // `aria-disabled` + sr-only 说明，并在点击处理里自己忽略。
+      aria-disabled={lockedReason ? true : undefined}
+      aria-describedby={lockedReason ? lockedReasonId : undefined}
+      onClick={() => {
+        if (lockedReason) return
+        onSelect()
+      }}
     >
       <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md bg-border">
         <OwnerCardImage
           src={coverThumbUrl(card)}
           className="max-h-full max-w-full border border-foreground/25 object-contain"
         />
-        {!card.visible ? (
+        {hidden ? (
           <span
             className="absolute top-2 left-2 z-10 inline-flex items-center rounded-md bg-background/90 p-1 text-muted-foreground shadow-sm ring-1 ring-border"
             title="在用户主页和名片墙不可见"
@@ -143,6 +177,18 @@ export function CardTile({
             <span className="sr-only">在快速交换清单里</span>
           </span>
         ) : null}
+        {selectable ? (
+          // 视觉勾选标记：整张瓦片才是控件（`role="checkbox"`），这里不渲染真输入框。
+          <span
+            aria-hidden="true"
+            className={cn(
+              "absolute bottom-2 left-2 z-10 flex size-5 items-center justify-center rounded-[4px] border border-input bg-background/90 shadow-sm",
+              checked && "border-primary bg-primary text-primary-foreground"
+            )}
+          >
+            {checked ? <CheckIcon className="size-3.5" /> : null}
+          </span>
+        ) : null}
       </span>
       <span className="mt-2 block truncate text-sm font-medium">
         {inventoryProducerName(card)}
@@ -155,8 +201,13 @@ export function CardTile({
       ) : null}
       <span className="mt-2 flex min-w-0 flex-wrap gap-1">
         <PublicationBadge card={card} />
-        <ExchangeModeBadge mode={card.exchangeMode} />
+        <ExchangeModeBadge mode={exchangeMode} />
       </span>
+      {lockedReason ? (
+        <span id={lockedReasonId} className="sr-only">
+          {lockedReason}
+        </span>
+      ) : null}
     </button>
   )
 }

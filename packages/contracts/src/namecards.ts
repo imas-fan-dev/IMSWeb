@@ -767,9 +767,15 @@ export const namecardQuickSelectionSchema = strictRequestObject({
   cardNumbers: z.array(cardIdSchema).max(NAMECARD_EXCHANGE_CARD_LIMIT),
 })
 
-/** 布局里的一个分组；`id` 传 null 表示新建（服务端分配）。 */
+/**
+ * 布局里的一个分组；`id` 传 null 表示新建（服务端分配）。
+ *
+ * 写侧的 `id` 与读侧（`namecardCardLayoutGroupViewSchema`）同口径放开成 `min(1)`：
+ * 库里存过非 uuid 的组 id 时，GET 能正常返回，写侧再用 `uuid()` 会让同一份布局在
+ * 客户端 `.parse()` 永久失败。标题仍按设计保持 1–40 字。
+ */
 export const namecardCardLayoutGroupSchema = strictRequestObject({
-  id: z.string().uuid().nullable(),
+  id: z.string().min(1).nullable(),
   title: z.string().trim().min(1).max(40),
   cardNumbers: z.array(cardIdSchema),
 })

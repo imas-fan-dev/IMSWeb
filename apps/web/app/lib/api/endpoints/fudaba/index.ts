@@ -7,8 +7,10 @@ import {
 export { createMapboxNearbySearch } from "./mapbox-place-search"
 import {
   createNamecardFeedbackRequestSchema,
+  namecardCardLayoutRequestSchema,
   namecardCardLayoutSchema,
   namecardFeedbackMutationSchema,
+  type NamecardCardLayoutRequest,
   type NamecardFeedbackReason,
 } from "@imsweb/contracts/namecards"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
@@ -667,6 +669,25 @@ export function getCardLayout() {
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformAuth(),
+    })
+  )
+}
+
+/**
+ * 整份保存属主清单：布局 + 快速清单 + 批量字段差异，一次原子写（§4.2）。
+ *
+ * 服务端返回归一后的布局（含它分配的 `group.id` 与 `limit`），调用方直接用它覆盖本地草稿，
+ * 不要在前端复算顺序。
+ */
+export function putCardLayout(input: NamecardCardLayoutRequest) {
+  const submission = namecardCardLayoutRequestSchema.parse(input)
+  return platformApiClient.Put(
+    exchangeMyCardsLayoutPath(),
+    submission,
+    parsed(namecardCardLayoutSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
     })
   )
 }
