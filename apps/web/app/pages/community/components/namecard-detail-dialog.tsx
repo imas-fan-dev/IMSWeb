@@ -694,7 +694,7 @@ export function NamecardDetailDialog({
               type="button"
               className={FOOTER_BUTTON}
               disabled
-              title="暂未开放"
+              title={card?.collected ? "你已经拥有这张名片" : "暂未开放"}
             >
               <ArrowLeftRightIcon aria-hidden="true" />
               交换

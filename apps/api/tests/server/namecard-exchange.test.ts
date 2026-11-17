@@ -23,9 +23,11 @@ import { executeSql, queryAll } from '@/infra/db/sql/query';
 import {
     NAMECARD_EXCHANGE_CARD_LIMIT,
     NAMECARD_SCAN_TOKEN_TTL_MS,
+    namecardPageSchema,
 } from '@imsweb/contracts/namecards';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { cardPageWrite } from '../fixtures/owner-route-fixture';
+import { assertContractJson } from '../contracts/contract-json';
 import { createPostgresTestDatabase, postgresTest } from '../postgres-test-database';
 import { createTestApp, testRequest } from './test-app';
 
@@ -68,6 +70,7 @@ const UUID = {
     mediaHidden: '1c1c1c1c-1c1c-4c1c-8c1c-1c1c1c1c1c1c',
     heldKey: '1d1d1d1d-1d1d-4d1d-8d1d-1d1d1d1d1d1d',
     shelfSoftDeleted: '1e1e1e1e-1e1e-4e1e-8e1e-1e1e1e1e1e1e',
+    profileCollected: '2a2a2a2a-2a2a-4a2a-8a2a-2a2a2a2a2a2a',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
@@ -1546,6 +1549,51 @@ describe('namecard exchange repository', () => {
         assert.deepEqual(
             [single, double, triple].map((number) => counts.get(number)),
             [1, 2, 3],
+        );
+    });
+
+    postgresTest('the public profile marks the cards the viewer already holds', async () => {
+        const { app, publish, commit, authHeaders, namecards } = await fixture();
+        const held = await publish('owner-profile-held', 'owner', 'auto');
+        const fresh = await publish('owner-profile-fresh', 'owner', 'auto');
+        // 浏览者通过一次交换拿到其中一张，另一张没拿。
+        await commit({
+            id: UUID.profileCollected,
+            clientExchangeId: 'client-profile-collected-1',
+            source: 'quick',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [held],
+        });
+        // 「已交换」不看名片册的隐藏状态：与交换系统的 `already-owned` 同口径。
+        await namecards.setCollectionHidden({
+            accountId: 'collector',
+            cardNumber: held,
+            hidden: true,
+            at: AT,
+        });
+
+        const viewer = await assertContractJson(
+            await testRequest(app, '/api/users/owner/cards', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardPageSchema,
+        );
+        const rows = new Map(viewer.list.map((row) => [row.cardNumber, row]));
+        assert.equal(rows.get(held)?.collected, true);
+        // 没拿到的卡整份省略该字段，而不是写 `false`。
+        assert.equal('collected' in (rows.get(fresh) ?? {}), false);
+
+        // 未登录浏览不查名片册：字段一律不出现。
+        const anonymous = await assertContractJson(
+            await testRequest(app, '/api/users/owner/cards'),
+            200,
+            namecardPageSchema,
+        );
+        assert.deepEqual(
+            anonymous.list.map((row) => 'collected' in row),
+            [false, false],
         );
     });
 

@@ -427,6 +427,64 @@ describe("UserProfilePage", () => {
     expect(within(two).queryByText("2")).toBeNull()
   })
 
+  it("marks the cards the visitor already holds on the tile and in the exchange title", async () => {
+    apiMocks.sendProfile.mockResolvedValue(profile())
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [
+          card({ id: 101, cardNumber: 101, collected: true }),
+          card({ id: 202, cardNumber: 202 }),
+        ],
+        total: 2,
+        totalPage: 1,
+      })
+    )
+    renderProfile()
+
+    // 浏览者已经拥有 101：缩略图左上角出现「已交换」标记，另一张没有。
+    const held = await screen.findByRole("button", {
+      name: "查看制作人名片 101 正面",
+    })
+    expect(within(held).getByLabelText("已交换过这张名片")).toBeTruthy()
+    expect(within(held).getByText("已交换")).toBeTruthy()
+    const fresh = screen.getByRole("button", {
+      name: "查看制作人名片 202 正面",
+    })
+    expect(within(fresh).queryByLabelText("已交换过这张名片")).toBeNull()
+    expect(within(fresh).queryByText("已交换")).toBeNull()
+
+    // 交换按钮仍是占位禁用，只有禁用原因换成「已经拥有」。
+    const exchange = screen.getAllByRole("button", { name: "交换" })
+    expect(exchange).toHaveLength(2)
+    expect(exchange[0]).toBeDisabled()
+    expect(exchange[0]).toHaveAttribute("title", "你已经拥有这张名片")
+    expect(exchange[1]).toBeDisabled()
+    expect(exchange[1]).toHaveAttribute("title", "暂未开放")
+  })
+
+  it("keeps the owner's own tiles free of the visitor marker", async () => {
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      ...anonymousSession(),
+      status: "authenticated",
+      session: { account: { id: "acct-1" } },
+    })
+    apiMocks.sendProfile.mockResolvedValue(profile())
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [card({ id: 101, cardNumber: 101, collected: true })],
+        total: 1,
+        totalPage: 1,
+      })
+    )
+    renderProfile()
+
+    // 看自己的主页时「已交换」是浏览者视角的标记，不出现，按钮也照旧。
+    const share = await screen.findByRole("button", { name: "分享" })
+    expect(share).toBeDisabled()
+    expect(share).toHaveAttribute("title", "分享功能暂未开放")
+    expect(screen.queryByLabelText("已交换过这张名片")).toBeNull()
+  })
+
   it("gives the owner the edit link and share-only card actions", async () => {
     sessionMocks.useOptionalPlatformSession.mockReturnValue({
       ...anonymousSession(),

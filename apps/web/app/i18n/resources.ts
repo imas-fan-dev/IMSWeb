@@ -142,7 +142,7 @@ export const resources = {
             },
             namecards: {
               label: "名片管理",
-              description: "名片信息、展示分组与快速交换列表",
+              description: "名片与交换状态",
             },
             favorites: {
               label: "收藏夹",
@@ -727,8 +727,7 @@ export const resources = {
             },
             namecards: {
               label: "Namecard manager",
-              description:
-                "Manage card details, display groups and the quick exchange list",
+              description: "Card media and exchange status",
             },
             favorites: {
               label: "Favorites",

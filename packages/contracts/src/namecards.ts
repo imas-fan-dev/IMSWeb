@@ -143,6 +143,11 @@ export const namecardSchema = exactJsonResponse({
    * 页面行没读到的入口整份省略，读取侧按「只有正面」处理。
    */
   pageCount: z.number().int().positive().optional(),
+  /**
+   * 登录浏览者的名片册里是否已有这张卡（不看 `hidden_at`，与交换系统的
+   * `already-owned` 同口径）。未登录浏览、或读取侧没查时整个字段省略。
+   */
+  collected: z.boolean().optional(),
   ...namecardMetadataSchema,
   ...namecardPublicDetailSchema,
   status: z.string().optional(),

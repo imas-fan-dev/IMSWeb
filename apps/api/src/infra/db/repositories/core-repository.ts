@@ -3470,6 +3470,17 @@ export class SqlCoreRepository implements NamecardRepository {
         return Boolean(row);
     }
 
+    async listCollectedCardNumbers(input: {
+        collectorAccountId: string;
+        cardNumbers: readonly number[];
+    }): Promise<Set<number>> {
+        return this.collectionCardNumbers(
+            this.database,
+            input.collectorAccountId,
+            input.cardNumbers
+        );
+    }
+
     async getCardLayout(
         accountId: string
     ): Promise<NamecardCardLayoutRecord | null> {

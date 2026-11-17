@@ -38,7 +38,7 @@ export const profileWorkspaceSections = [
     label: "名片管理",
     labelKey: "platformAccount.app.sections.namecards.label",
     shortLabel: "名片",
-    description: "名片信息、展示分组与快速交换列表",
+    description: "名片素材与交换状态",
     descriptionKey: "platformAccount.app.sections.namecards.description",
     icon: CreditCardIcon,
   },

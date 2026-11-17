@@ -47,6 +47,9 @@
   --color-background: var(--background);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  /* 浅绿实心底：徽标/提示条这类叠在灰底上的小块用，配深绿字。 */
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
@@ -140,6 +143,8 @@
     --ring: oklch(0.62 0.16 351);
     --success: oklch(0.65 0.15 150);
     --success-foreground: oklch(0.25 0.08 150);
+    --success-soft: oklch(0.93 0.05 150);
+    --success-soft-foreground: oklch(0.32 0.09 150);
     --warning: oklch(0.8 0.15 82);
     --warning-foreground: oklch(0.34 0.08 65);
     --info: oklch(0.62 0.13 225);
@@ -246,6 +251,8 @@
     --ring: oklch(0.72 0.15 351);
     --success: oklch(0.72 0.14 150);
     --success-foreground: oklch(0.9 0.05 150);
+    --success-soft: oklch(0.32 0.05 150);
+    --success-soft-foreground: oklch(0.88 0.06 150);
     --warning: oklch(0.82 0.14 82);
     --warning-foreground: oklch(0.92 0.05 82);
     --info: oklch(0.73 0.12 225);

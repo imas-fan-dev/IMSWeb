@@ -5,6 +5,7 @@ import {
   CalendarIcon,
   ImagesIcon,
   MapPinIcon,
+  PackageCheckIcon,
   PencilLineIcon,
   ShareIcon,
   SparklesIcon,
@@ -102,6 +103,8 @@ function profileCardSections(
  *
  * 公开主页不出现属主视角的任何徽标（隐藏、快速交换、审核状态）；只有存在中间页
  * （`pageCount > 2`）时才在缩略图右上角标出页数，规则与后台名片审核界面相同。
+ * 左上角的「已交换」是**浏览者视角**的标记（登录浏览者名片册里已有这张卡），
+ * 不受上面那条约束。
  */
 function ProfileCardTile({
   card,
@@ -133,6 +136,16 @@ function ProfileCardTile({
             alt={`制作人名片 ${card.cardNumber} 正面`}
             className="max-h-full max-w-full border border-foreground/25 object-contain transition-transform duration-200 group-hover:scale-[1.02]"
           />
+          {card.collected && !isSelf ? (
+            <Badge
+              className="absolute top-2 left-2 z-10 gap-1 border-transparent bg-success-soft text-success-soft-foreground shadow-sm"
+              aria-label="已交换过这张名片"
+              title="已交换过这张名片"
+            >
+              <PackageCheckIcon aria-hidden="true" />
+              已交换
+            </Badge>
+          ) : null}
           {pageCount > 2 ? (
             <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
               <ImagesIcon aria-hidden="true" />
@@ -154,11 +167,13 @@ function ProfileCardTile({
           className="ml-auto shrink-0"
           disabled
           title={
-            isSelf
-              ? "分享功能暂未开放"
-              : card.exchangeMode === "none"
-                ? "这张名片不接受交换"
-                : "暂未开放"
+            card.collected && !isSelf
+              ? "你已经拥有这张名片"
+              : isSelf
+                ? "分享功能暂未开放"
+                : card.exchangeMode === "none"
+                  ? "这张名片不接受交换"
+                  : "暂未开放"
           }
         >
           {isSelf ? (

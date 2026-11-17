@@ -533,6 +533,14 @@ export interface NamecardRepository {
         hidden: boolean;
         at: string;
     }): Promise<boolean>;
+    /**
+     * 名片册里已经收着哪些卡（一次批量查，不看 `hidden_at`）。公开主页用它给
+     * 登录浏览者标出「已交换」，判定口径与交换系统的 `already-owned` 一致。
+     */
+    listCollectedCardNumbers(input: {
+        collectorAccountId: string;
+        cardNumbers: readonly number[];
+    }): Promise<Set<number>>;
     /** 属主清单布局的原始形态；没有保存过时返回 null，由读取侧归一出默认布局。 */
     getCardLayout(accountId: string): Promise<NamecardCardLayoutRecord | null>;
     /** 整份保存布局 + 快速清单 + 批量字段（同一事务）；校验失败抛 `NamecardCardLayoutError`。 */

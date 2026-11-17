@@ -61,6 +61,15 @@ export async function handleListProfileCards(
         (await services(c).fudaba?.listCardPagesBatchByNumbers?.(
             rows.map((card) => Number(card.card_number))
         )) ?? new Map();
+    const viewerId = c.get("platformUser")?.id ?? null;
+    // 「已经交换过」是浏览者视角：登录浏览者名片册里已有这张卡就打标。
+    const collectedNumbers =
+        viewerId && rows.length > 0
+            ? await repository.listCollectedCardNumbers({
+                  collectorAccountId: viewerId,
+                  cardNumbers: rows.map((card) => Number(card.card_number)),
+              })
+            : null;
     const list = rows.map((card) => {
         const pages = namecardPagesView(
             pagesByNumber.get(Number(card.card_number)),
@@ -71,11 +80,11 @@ export async function handleListProfileCards(
                 cardId: String(card.cardId ?? card.card_number),
             },
         ).live;
-        return toPublicNamecardResponse(
-            card,
-            c.get("platformUser")?.id ?? null,
-            pages,
-        );
+        const response = toPublicNamecardResponse(card, viewerId, pages);
+        // 未命中的卡不写 `false`：省略即「没有」。
+        return collectedNumbers?.has(Number(card.card_number))
+            ? { ...response, collected: true }
+            : response;
     });
     return c.json({
         list,
