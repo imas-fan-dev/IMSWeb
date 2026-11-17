@@ -36,12 +36,14 @@ import { CardGroupTitleInput } from "./card-group-title-input"
  * - **折叠的分组不接受落点**：收起时整块放置区不渲染，也就没有可命中的落点
  *   （比「落点自动展开」更好测，也不会让用户误以为卡片进了别处）；
  * - 组内一张卡都没有时给一块虚线提示区，否则空的放置区量不出尺寸、拖不进去。
- *   空判定用调用方传的 `tileCount`：编辑模式里 `children` 外面永远裹着一层
- *   `SortableContext`，`Children.count(children)` 恒为 1，数它等于永不渲染落点。
+ *   空判定用调用方传的 `tileCount`（当前渲染出来的瓦片数）与 `ghostCount`（拖动中的落点
+ *   ghost 占的格子数）：编辑模式里 `children` 外面永远裹着一层 `SortableContext`，
+ *   `Children.count(children)` 恒为 1，数它等于永不渲染落点。
  */
 export function CardGroupSection({
   group,
   tileCount,
+  ghostCount = 0,
   collapsed,
   onToggleCollapsed,
   children,
@@ -55,6 +57,11 @@ export function CardGroupSection({
    * 见文件头的说明。
    */
   tileCount: number
+  /**
+   * 落点 ghost 占的格子数（拖动中才有）：它和真实瓦片一样能撑起放置区，
+   * 所以有它的时候即使瓦片数是 0 也不该画空分组提示（那会平白多出一块）。
+   */
+  ghostCount?: number
   /** 默认分组忽略它：没有组头就没有折叠控件。 */
   collapsed: boolean
   onToggleCollapsed: () => void
@@ -100,7 +107,7 @@ export function CardGroupSection({
       "rounded-lg outline-2 outline-offset-4 outline-primary/60"
   )
   const emptyHint =
-    editing && tileCount === 0 ? (
+    editing && tileCount + ghostCount === 0 ? (
       <p className="col-span-full flex min-h-20 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground/80">
         把名片拖到这里
       </p>

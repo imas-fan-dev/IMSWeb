@@ -194,10 +194,17 @@ describe("CardManager editing mode", () => {
     await enterEditing(user)
     await user.click(screen.getByRole("button", { name: "全选" }))
 
-    // 上限只约束快速清单：已选 25 张不标红，只有超出上限的清单计数才标红。
-    expect(screen.getByText("已选 25/20")).toHaveClass("text-muted-foreground")
-    expect(screen.getByText("已选 25/20")).not.toHaveClass("text-destructive")
-    expect(screen.getByText("总计 21/20")).toHaveClass("text-destructive")
+    // 上限只约束快速清单：已选张数不标红，只有超出上限的清单计数才标红。
+    // （「全选」勾上全部 25 张可勾选的卡，没有任何数量上限。）
+    expect(screen.getByText("已选 25 张")).toHaveClass("text-muted-foreground")
+    expect(screen.getByText("已选 25 张")).not.toHaveClass("text-destructive")
+    // 计数带对象：`快速交换清单 X/20`，不再用裸的「总计」；读屏口径把上限写清。
+    const quick = screen.getByText("快速交换清单 21/20")
+    expect(quick).toHaveClass("text-destructive")
+    expect(quick).toHaveAttribute(
+      "aria-label",
+      "快速交换清单 21/20 张，上限 20"
+    )
   })
 
   it("shows the batch changes on the tiles before anything is saved", async () => {
@@ -235,7 +242,7 @@ describe("CardManager quick exchange list", () => {
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
     // 整批不加入：计数与草稿都没变，保存仍然没有内容可写。
-    expect(screen.getByText("总计 0/20")).toBeVisible()
+    expect(screen.getByText("快速交换清单 0/20")).toBeVisible()
     expect(quickBadgeCount()).toBe(0)
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled()
   })
@@ -253,7 +260,7 @@ describe("CardManager quick exchange list", () => {
     })
     await user.click(within(dialog).getByRole("button", { name: "确认加入" }))
 
-    expect(screen.getByText("总计 2/20")).toBeVisible()
+    expect(screen.getByText("快速交换清单 2/20")).toBeVisible()
     expect(quickBadgeCount()).toBe(2)
 
     await user.click(screen.getByRole("button", { name: "保存" }))
@@ -298,7 +305,7 @@ describe("CardManager quick exchange list", () => {
     await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
     await user.click(screen.getByRole("button", { name: "加入" }))
 
-    expect(screen.getByText("总计 2/1")).toHaveClass("text-destructive")
+    expect(screen.getByText("快速交换清单 2/1")).toHaveClass("text-destructive")
 
     await user.click(screen.getByRole("button", { name: "保存" }))
 

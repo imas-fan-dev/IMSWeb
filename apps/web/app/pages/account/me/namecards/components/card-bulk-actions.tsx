@@ -102,20 +102,20 @@ export function CardBulkActions({
             移出
           </Button>
         </div>
-        <div className="flex min-w-0 items-center gap-3 text-xs sm:ml-auto">
-          {/* 已选张数不受快速清单上限约束（上限只约束清单本身），所以这里不标红。 */}
-          <span className="text-muted-foreground">
-            {`已选 ${selectedCount}${limitSuffix}`}
-          </span>
-          <span
-            className={cn(
-              "text-muted-foreground",
-              limit !== null && quickCount > limit && "text-destructive"
-            )}
-          >
-            {`总计 ${quickCount}${limitSuffix}`}
-          </span>
-        </div>
+        {/* 已选张数在工具栏（「已选 N 张」）；这里只报快速交换清单，且把上限对象写清楚。 */}
+        <span
+          className={cn(
+            "text-muted-foreground sm:ml-auto",
+            limit !== null && quickCount > limit && "text-destructive"
+          )}
+          aria-label={
+            limit === null
+              ? `快速交换清单 ${quickCount} 张`
+              : `快速交换清单 ${quickCount}/${limit} 张，上限 ${limit}`
+          }
+        >
+          {`快速交换清单 ${quickCount}${limitSuffix}`}
+        </span>
       </div>
       {skippedGroupCardCount > 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">

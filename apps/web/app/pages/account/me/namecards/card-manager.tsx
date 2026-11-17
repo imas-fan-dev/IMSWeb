@@ -3,6 +3,7 @@ import {
   rectSortingStrategy,
   SortableContext,
   verticalListSortingStrategy,
+  type SortingStrategy,
 } from "@dnd-kit/sortable"
 import { NAMECARD_PROFILE_GROUP_LIMIT } from "@imsweb/contracts/namecards/runtime"
 import { FileImageIcon, PlusIcon } from "lucide-react"
@@ -57,6 +58,10 @@ import {
 import { cardTileGridClassName } from "./card-tile"
 import { CardBulkActions } from "./components/card-bulk-actions"
 import { CardDragLayer } from "./components/card-drag-layer"
+import {
+  CardDragGhostSlots,
+  CardDragGhostStack,
+} from "./components/card-drag-ghost"
 import { CardGroupSection } from "./components/card-group-section"
 import { CardGroupTitleInput } from "./components/card-group-title-input"
 import {
@@ -68,6 +73,15 @@ import { useCardManagerDraft } from "./hooks/use-card-manager-draft"
 import { useCardManagerDrag } from "./hooks/use-card-manager-drag"
 import { useCardManagerSave } from "./hooks/use-card-manager-save"
 import { useCollapsedCardGroups } from "./hooks/use-collapsed-card-groups"
+
+/**
+ * 卡片网格的「不位移」排序策略：多选拖动（批次 ≥ 2）时它就位——因为那一刻整批名片已经从
+ * 列表里移出去、落点位置由一个真的 ghost 占住了，位移的唯一来源必须是 ghost。
+ * 两套位移叠加的表现就是「瓦片前后各有一处空白」、列表错位甚至溢出（2026-11-17 用户实测）。
+ *
+ * 单张拖动仍用 `rectSortingStrategy`：那种情况下不插 ghost，让出的空位由 dnd-kit 负责。
+ */
+const NO_SHIFT_SORTING_STRATEGY: SortingStrategy = () => null
 
 /**
  * 属主名片管理器：工具栏 + 批量操作 + 分组 + 瓦片。
@@ -289,17 +303,50 @@ export function CardManager({
   )
 
   /**
-   * 分组放置区里的瓦片。拖动中的落点占位**只**来自 dnd-kit 的排序位移
-   * （`SortableContext` + `rectSortingStrategy`），所以这里只渲染真实瓦片：
-   * 往 sortable 列表里插 ghost 子项会让网格多出格子、与位移叠加后整体错位
-   * （2026-11-17 用户实测）。
+   * 多选拖动（批次 ≥ 2）时的落点 ghost：那一批名片已经整体移出列表
+   * （`drag.draggedCardIds`），所以在落点下标处插一个合集 ghost 占住位置。
+   * `preview.index` 的口径与 `moveCards` 一致（**整批移出之后**的列表下标，解析落点时
+   * 已经按同一份列表算过），所以 ghost 插在哪儿、松手就落在哪儿，不再需要夹取。
+   *
+   * 未展开时是一摞真实缩略图（占 1 格），停顿后展开成 N 个瓦片副本（占 N 格）。
    */
-  function renderGroupTiles(group: CardGroupView): ReactNode {
-    const tiles = group.cards.map(renderTile)
+  function renderDropGhost(
+    groupKey: string
+  ): { index: number; nodes: ReactNode; cells: number } | null {
+    const preview = drag.cardDropPreview
+    if (!preview || preview.groupKey !== groupKey) return null
+    const cards = drag.activeCards
+    if (!cards.length) return null
+    return {
+      index: preview.index,
+      // 插进 keyed 的瓦片数组里，所以自己也得有 key（一个分组里最多一个落点 ghost）。
+      nodes: preview.expanded ? (
+        <CardDragGhostSlots key="drop-ghost" cards={cards} />
+      ) : (
+        <CardDragGhostStack key="drop-ghost" cards={cards} />
+      ),
+      cells: preview.expanded ? cards.length : 1,
+    }
+  }
+
+  /**
+   * 分组放置区里的瓦片。
+   *
+   * 单张拖动沿用 dnd-kit 的排序位移（`rectSortingStrategy`），这里只渲染真实瓦片。
+   * 多选拖动时整批名片已经移出列表、落点位置由 ghost 占住（`renderDropGhost`），
+   * 因此换成**不位移**的策略：ghost 是那一刻唯一的位移来源，两套叠加必然错位
+   * （2026-11-17 用户实测「瓦片前后各有一处空白」、列表错位甚至溢出）。
+   */
+  function renderGroupTiles(
+    visibleCards: readonly FudabaOwnerCard[],
+    ghost: { index: number; nodes: ReactNode } | null
+  ): ReactNode {
+    const tiles: ReactNode[] = visibleCards.map(renderTile)
+    if (ghost) tiles.splice(ghost.index, 0, ghost.nodes)
     return layoutEditing ? (
       <SortableContext
-        items={group.cards.map((card) => card.id)}
-        strategy={rectSortingStrategy}
+        items={visibleCards.map((card) => card.id)}
+        strategy={ghost ? NO_SHIFT_SORTING_STRATEGY : rectSortingStrategy}
       >
         {tiles}
       </SortableContext>
@@ -328,12 +375,19 @@ export function CardManager({
             // 草稿渲染结构里默认分组永远第一，所以「新建分组」的输入区插在它下面（§7.2）。
             const key = cardGroupKey(group)
             const named = group.title !== null
+            // 多选拖动中整批名片已经离开每一张列表（`draggedCardIds`），落点由 ghost 占位。
+            const visibleCards = group.cards.filter(
+              (card) => !drag.draggedCardIds.has(card.id)
+            )
+            const ghost = renderDropGhost(key)
             return (
               <Fragment key={key}>
                 <CardGroupSection
                   group={group}
-                  // 计数就是渲染结构里的瓦片数（拖动中也不多不少）：空分组靠它 0 才知道画落点提示。
-                  tileCount={group.cards.length}
+                  // 计数就是这一刻真的渲染出来的瓦片数（拖动中批次已整体移出）。
+                  tileCount={visibleCards.length}
+                  // 落点 ghost 也和真实瓦片一样撑起放置区，所以有它时不该再出空分组提示。
+                  ghostCount={ghost?.cells ?? 0}
                   collapsed={collapsedKeys.has(key)}
                   onToggleCollapsed={() => toggleGroup(key)}
                   editing={layoutEditing}
@@ -347,7 +401,7 @@ export function CardManager({
                     named ? () => draft.removeCardGroup(key) : undefined
                   }
                 >
-                  {renderGroupTiles(group)}
+                  {renderGroupTiles(visibleCards, ghost)}
                 </CardGroupSection>
                 {layoutEditing &&
                 creatingGroup &&

@@ -109,6 +109,7 @@ export function CardTile({
   checked = false,
   hidden = !card.visible,
   exchangeMode = card.exchangeMode,
+  preview = false,
   onSelect,
 }: {
   card: FudabaOwnerCard
@@ -122,6 +123,12 @@ export function CardTile({
   hidden?: boolean
   /** 生效的交换模式（默认取卡片自己的值）。 */
   exchangeMode?: FudabaOwnerCard["exchangeMode"]
+  /**
+   * 落点 ghost 用的**只读副本**（拖动预览，§7.3）：不写 `view-transition-name`——同一张卡
+   * 在 DOM 里出现两个同名节点时浏览器会放弃那两个名字，分组↔经典切换的动画就断了；
+   * 也不可聚焦、不带控件语义（调用方在外层加 `aria-hidden` 与 `pointer-events-none`）。
+   */
+  preview?: boolean
   onSelect: () => void
 }) {
   const time = cardTimeLabel(card)
@@ -140,14 +147,20 @@ export function CardTile({
         marked && "border-primary bg-accent/40",
         lockedReason && "opacity-70"
       )}
-      style={{ viewTransitionName: cardViewTransitionName(card.id) }}
-      role={selectable ? "checkbox" : undefined}
-      aria-checked={selectable ? checked : undefined}
-      aria-current={!editing && selected ? "page" : undefined}
+      style={
+        preview
+          ? undefined
+          : { viewTransitionName: cardViewTransitionName(card.id) }
+      }
+      role={selectable && !preview ? "checkbox" : undefined}
+      aria-checked={selectable && !preview ? checked : undefined}
+      aria-current={!editing && !preview && selected ? "page" : undefined}
       // 只读瓦片不能用真 `disabled`：那样它不可聚焦、`title` 也播报不稳。改成
       // `aria-disabled` + sr-only 说明，并在点击处理里自己忽略。
       aria-disabled={lockedReason ? true : undefined}
       aria-describedby={lockedReason ? lockedReasonId : undefined}
+      // ghost 副本不该出现在 Tab 序列里（外层已经对读屏隐藏）。
+      tabIndex={preview ? -1 : undefined}
       onClick={() => {
         if (lockedReason) return
         onSelect()

@@ -214,6 +214,7 @@ export function useCardManagerDraft({
     })
   }, [])
 
+  /** 全选：所有可勾选的卡（`published`），没有数量上限。 */
   const selectAll = useCallback(
     () => setRawSelectedCardIds(new Set(selectableIds)),
     [selectableIds]
