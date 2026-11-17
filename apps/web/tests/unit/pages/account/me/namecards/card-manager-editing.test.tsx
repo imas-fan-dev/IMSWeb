@@ -86,10 +86,36 @@ function renderManager(
 
 async function enterEditing(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "编辑模式" }))
+  // 移动端（jsdom 没有 1024px 的桌面匹配）批量区默认折叠；这一批用例都要按批量按钮，
+  // 所以进来先展开。「默认折叠、可展开」本身另有专门用例覆盖。
+  const bulkToggle = screen.queryByRole("button", { name: "批量操作" })
+  if (bulkToggle?.getAttribute("aria-expanded") === "false") {
+    await user.click(bulkToggle)
+  }
 }
 
 function quickBadgeCount() {
   return screen.queryAllByTitle("在快速交换清单里").length
+}
+
+/** jsdom 的 `matchMedia` 只认查询串，这里按账号工作区的断点给出结果（≥1024px 才算桌面）。 */
+function stubMatchMedia(desktop: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(
+      (query: string) =>
+        ({
+          matches: query.includes("(min-width: 1024px)") ? desktop : false,
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(() => true),
+        }) as unknown as MediaQueryList
+    )
+  )
 }
 
 beforeEach(() => {
@@ -142,21 +168,24 @@ describe("CardManager editing mode", () => {
     expect(onSelect).toHaveBeenCalledWith("card-3")
   })
 
-  it("selects only the selectable cards with 全选 and clears them with 取消", async () => {
+  it("selects only the selectable cards with 全选 and clears them with 清空", async () => {
     const user = userEvent.setup()
     renderManager()
 
     await enterEditing(user)
+    // 没勾选时「清空」无事可做。
+    expect(screen.getByRole("button", { name: "清空" })).toBeDisabled()
     await user.click(screen.getByRole("button", { name: "全选" }))
 
     expect(screen.getByText("已选 2 张")).toBeVisible()
     expect(screen.getByRole("checkbox", { name: /名片 A/ })).toBeChecked()
     expect(screen.getByRole("checkbox", { name: /名片 B/ })).toBeChecked()
 
-    await user.click(screen.getByRole("button", { name: "取消" }))
+    await user.click(screen.getByRole("button", { name: "清空" }))
 
     expect(screen.getByText("已选 0 张")).toBeVisible()
     expect(screen.getByRole("checkbox", { name: /名片 A/ })).not.toBeChecked()
+    expect(screen.getByRole("button", { name: "清空" })).toBeDisabled()
   })
 
   it("disables 全选 when no card can be selected", async () => {
@@ -171,7 +200,7 @@ describe("CardManager editing mode", () => {
     expect(screen.getByRole("button", { name: "全选" })).toBeDisabled()
   })
 
-  it("blocks creating a card while the editing session is open", async () => {
+  it("hides 新建名片 while the editing session is open", async () => {
     const user = userEvent.setup()
     const { onCreate } = renderManager()
 
@@ -179,11 +208,101 @@ describe("CardManager editing mode", () => {
 
     await enterEditing(user)
 
-    // 会话里新建的卡不进这次草稿，默认分组里的落点会整体错位，所以先禁掉。
-    const create = screen.getByRole("button", { name: "新建名片" })
-    expect(create).toBeDisabled()
-    expect(create).toHaveAttribute("title", "保存或退出编辑后再新建")
+    // 会话里新建的卡不进这次草稿，默认分组里的落点会整体错位，所以**不渲染**入口（不是禁用）。
+    expect(screen.queryByRole("button", { name: "新建名片" })).toBeNull()
     expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it("keeps 退出编辑 destructive and still confirms with unsaved changes", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await enterEditing(user)
+
+    expect(screen.getByRole("button", { name: "退出编辑" })).toHaveClass(
+      "text-destructive"
+    )
+
+    await user.click(screen.getByRole("checkbox", { name: /名片 A/ }))
+    await user.click(screen.getByRole("button", { name: "加入" }))
+    await user.click(screen.getByRole("button", { name: "退出编辑" }))
+
+    // 换样式不换语义：有脏改动还是先确认（既有的确认弹窗）。
+    expect(
+      await screen.findByRole("alertdialog", { name: "放弃未保存的改动？" })
+    ).toBeVisible()
+  })
+
+  it("collapses the bulk area by default on mobile and remembers the expand within the session", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    // 进编辑模式前没有批量区。
+    expect(screen.queryByRole("button", { name: "批量操作" })).toBeNull()
+
+    await user.click(screen.getByRole("button", { name: "编辑模式" }))
+
+    // 移动端默认折叠：按钮在、`aria-expanded=false`、批量按钮不在无障碍树里。
+    const toggle = screen.getByRole("button", { name: "批量操作" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("button", { name: "隐藏" })).toBeNull()
+    // 内容留在 DOM 里做过渡，但收起时不可聚焦（`inert`）也不进无障碍树。
+    const body = screen.getByTestId("card-bulk-actions-body")
+    expect(body).toHaveAttribute("inert")
+    expect(body).toHaveAttribute("aria-hidden", "true")
+    expect(body).toHaveClass("grid-rows-[0fr]")
+    // 展开/收起有 200ms 过渡，reduced motion 下直接切换。
+    expect(body.className).toContain("transition-[grid-template-rows,opacity]")
+    expect(body.className).toContain("duration-200")
+    expect(body.className).toContain("ease-emphasized")
+    expect(body.className).toContain("motion-reduce:transition-none")
+    // 移动端的纵向留白收紧一档。
+    expect(screen.getByTestId("card-bulk-actions")).toHaveClass("py-1.5")
+
+    await user.click(toggle)
+
+    expect(screen.getByRole("button", { name: "批量操作" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    )
+    expect(screen.getByRole("button", { name: "隐藏" })).toBeVisible()
+    expect(screen.getByTestId("card-bulk-actions-body")).toHaveClass(
+      "grid-rows-[1fr]"
+    )
+    expect(screen.getByTestId("card-bulk-actions-body")).not.toHaveAttribute(
+      "inert"
+    )
+    expect(
+      document.getElementById(
+        screen.getByRole("button", { name: "批量操作" }).getAttribute(
+          "aria-controls"
+        ) ?? ""
+      )
+    ).not.toBeNull()
+
+    // 退出再进编辑模式：展开状态不持久化，回到默认折叠。
+    await user.click(screen.getByRole("button", { name: "退出编辑" }))
+    await user.click(screen.getByRole("button", { name: "编辑模式" }))
+
+    expect(screen.getByRole("button", { name: "批量操作" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    )
+    expect(screen.queryByRole("button", { name: "隐藏" })).toBeNull()
+  })
+
+  it("keeps the bulk area always expanded on desktop", async () => {
+    const user = userEvent.setup()
+    stubMatchMedia(true)
+    renderManager()
+
+    await user.click(screen.getByRole("button", { name: "编辑模式" }))
+
+    // 桌面没有折叠按钮，批量按钮一直在。
+    expect(screen.queryByRole("button", { name: "批量操作" })).toBeNull()
+    expect(screen.getByRole("button", { name: "隐藏" })).toBeVisible()
+    // 桌面布局不变：还是原来的 `p-3` 那一支。
+    expect(screen.getByTestId("card-bulk-actions")).toHaveClass("p-3")
   })
 
   it("keeps the selected count neutral and marks only the quick list red", async () => {
@@ -205,12 +324,14 @@ describe("CardManager editing mode", () => {
     // （「全选」勾上全部 25 张可勾选的卡，没有任何数量上限。）
     expect(screen.getByText("已选 25 张")).toHaveClass("text-muted-foreground")
     expect(screen.getByText("已选 25 张")).not.toHaveClass("text-destructive")
-    // 计数带对象：`快速交换清单 X/20`，不再用裸的「总计」；读屏口径把上限写清。
-    const quick = screen.getByText("快速交换清单 21/20")
+    // 计数行报「快速交换上限 X/20」（不再带「张」，字号与相邻标签一致）；
+    // 读屏口径仍然把上限讲清楚。
+    const quick = screen.getByText("快速交换上限 21/20")
     expect(quick).toHaveClass("text-destructive")
+    expect(quick).toHaveClass("text-xs")
     expect(quick).toHaveAttribute(
       "aria-label",
-      "快速交换清单 21/20 张，上限 20"
+      "快速交换上限 21/20 张，上限 20"
     )
   })
 
@@ -249,7 +370,7 @@ describe("CardManager quick exchange list", () => {
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
     // 整批不加入：计数与草稿都没变，保存仍然没有内容可写。
-    expect(screen.getByText("快速交换清单 0/20")).toBeVisible()
+    expect(screen.getByText("快速交换上限 0/20")).toBeVisible()
     expect(quickBadgeCount()).toBe(0)
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled()
   })
@@ -267,7 +388,7 @@ describe("CardManager quick exchange list", () => {
     })
     await user.click(within(dialog).getByRole("button", { name: "确认加入" }))
 
-    expect(screen.getByText("快速交换清单 2/20")).toBeVisible()
+    expect(screen.getByText("快速交换上限 2/20")).toBeVisible()
     expect(quickBadgeCount()).toBe(2)
 
     await user.click(screen.getByRole("button", { name: "保存" }))
@@ -312,7 +433,7 @@ describe("CardManager quick exchange list", () => {
     await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
     await user.click(screen.getByRole("button", { name: "加入" }))
 
-    expect(screen.getByText("快速交换清单 2/1")).toHaveClass("text-destructive")
+    expect(screen.getByText("快速交换上限 2/1")).toHaveClass("text-destructive")
 
     await user.click(screen.getByRole("button", { name: "保存" }))
 

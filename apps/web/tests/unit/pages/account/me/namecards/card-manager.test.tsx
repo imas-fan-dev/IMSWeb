@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ComponentProps } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,17 +7,43 @@ import { makeFudabaOwnerCard } from "@/mocks/data/fudaba"
 import { makeNamecardCardLayout } from "@/mocks/data/namecards"
 import { CardManager } from "~/pages/account/me/namecards/card-manager"
 
-function card(cardNumber: number, producerName: string) {
+/** jsdom 的 `matchMedia` 只认查询串，这里按账号工作区的断点给出结果（≥1024px 才算桌面）。 */
+function stubMatchMedia(desktop: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(
+      (query: string) =>
+        ({
+          matches: query.includes("(min-width: 1024px)") ? desktop : false,
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(() => true),
+        }) as unknown as MediaQueryList
+    )
+  )
+}
+
+function card(cardNumber: number, producerName: string, createdAt: string) {
   return makeFudabaOwnerCard({
     id: `card-${cardNumber}`,
     cardNumber,
     producerName,
+    // 经典模式按名片自己的创建时间降序（与分组顺序刻意不同，才分得清两条路）。
+    createdAt,
     // 快速清单只收 `published + auto`（服务端读侧同口径），所以夹具用自动交换。
     exchangeMode: "auto",
   })
 }
 
-const CARDS = [card(1, "名片 A"), card(2, "名片 B"), card(3, "名片 C")]
+const CARDS = [
+  card(1, "名片 A", "2026-01-01T00:00:00+08:00"),
+  card(2, "名片 B", "2026-01-03T00:00:00+08:00"),
+  card(3, "名片 C", "2026-01-02T00:00:00+08:00"),
+]
 
 /** 布局：1 在默认分组、2 在「常用」；3 是布局里没出现的新卡。 */
 const LAYOUT = makeNamecardCardLayout({
@@ -114,7 +140,7 @@ describe("CardManager grouping", () => {
 })
 
 describe("CardManager view modes", () => {
-  it("switches to the classic list without group headers, keeping the order", async () => {
+  it("switches to the classic list without group headers, ordered by createdAt desc", async () => {
     const user = userEvent.setup()
     renderManager()
 
@@ -129,12 +155,89 @@ describe("CardManager view modes", () => {
     expect(
       screen.getByRole("navigation", { name: "我的名片清单" })
     ).toBeVisible()
-    expect(tileNames()).toEqual(["名片 C", "名片 A", "名片 B"])
+    // 经典 = 按创建时间降序（B 01-03 > C 01-02 > A 01-01），与分组顺序无关。
+    expect(tileNames()).toEqual(["名片 B", "名片 C", "名片 A"])
 
     await user.click(screen.getByRole("button", { name: "分组" }))
 
+    // 切回分组模式：分组顺序与组内顺序原样还在（经典模式不写任何用户排序）。
     expect(screen.getByRole("heading", { name: "常用" })).toBeVisible()
     expect(tileNames()).toEqual(["名片 C", "名片 A", "名片 B"])
+  })
+
+  it("hides the mode toggle while the editing session is open", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    expect(screen.getByRole("button", { name: "经典" })).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "编辑模式" }))
+
+    // 编辑只发生在分组视图里：toggle 是**隐藏**，不是禁用（编辑模式下没有它）。
+    expect(screen.queryByRole("button", { name: "经典" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "分组" })).toBeNull()
+    // 分组视图回来了：编辑模式里组头是标题输入框。
+    expect(screen.getByDisplayValue("常用")).toBeVisible()
+  })
+
+  it("switches back to the grouped view when editing starts from the classic view", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await user.click(screen.getByRole("button", { name: "经典" }))
+    expect(screen.queryByRole("heading", { name: "常用" })).toBeNull()
+
+    await user.click(screen.getByRole("button", { name: "编辑模式" }))
+
+    // 一次交互完成：进编辑就等于回到分组视图（组头、勾选框都回来了）。
+    expect(screen.getByDisplayValue("常用")).toBeVisible()
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3)
+    expect(screen.getByText("已选 0 张")).toBeVisible()
+    // 切换只是视图状态，不能顺手把会话标脏。
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled()
+  })
+
+  it("puts the mode toggle in the title row on mobile and in the controls on desktop", () => {
+    const { unmount } = render(<CardManager {...managerProps()} />)
+
+    // jsdom 没有 `matchMedia` 的桌面匹配：默认走移动端那一支。
+    const mobileTitleRow = screen.getByTestId("card-manager-title-row")
+    expect(
+      within(mobileTitleRow).getByRole("button", { name: "经典" })
+    ).toBeVisible()
+    expect(
+      within(screen.getByTestId("card-manager-controls")).queryByRole("button", {
+        name: "经典",
+      })
+    ).toBeNull()
+    unmount()
+
+    stubMatchMedia(true)
+    renderManager()
+
+    const desktopControls = screen.getByTestId("card-manager-controls")
+    expect(
+      within(desktopControls).getByRole("button", { name: "经典" })
+    ).toBeVisible()
+    expect(
+      within(screen.getByTestId("card-manager-title-row")).queryByRole(
+        "button",
+        { name: "经典" }
+      )
+    ).toBeNull()
+  })
+
+  it("sticks the toolbar and bulk area but not the title row", () => {
+    const { unmount } = render(<CardManager {...managerProps()} />)
+
+    // 标题行照常滚走；工具栏 + 批量区自己吸顶（网页端偏移是站点页头的高度）。
+    expect(screen.getByTestId("card-manager-title-row").className).not.toContain(
+      "sticky"
+    )
+    const controls = screen.getByTestId("card-manager-controls")
+    expect(controls.className).toContain("sticky")
+    expect(controls.className).toContain("top-16")
+    unmount()
   })
 })
 

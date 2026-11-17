@@ -4,6 +4,7 @@ import { makeFudabaOwnerCard } from "@/mocks/data/fudaba"
 import { makeNamecardCardLayout } from "@/mocks/data/namecards"
 import type { FudabaOwnerCard } from "~/lib/api"
 import {
+  addPendingCardGroup,
   applyLayout,
   buildCardGroups,
   buildCardLayoutRequest,
@@ -20,7 +21,6 @@ import {
   cardSettingsToPatches,
   cardViewTransitionName,
   collectCardSettings,
-  createCardGroup,
   createCardLayoutDraft,
   DEFAULT_CARD_GROUP_KEY,
   dropEmptyGroups,
@@ -37,6 +37,8 @@ import {
   resolveCardDropFromPointer,
   sameCardLayoutDraft,
   selectableCardIds,
+  settleCardGroupTitle,
+  sortCardsByCreatedAtDesc,
   type CardDropPointerGroup,
   type CardDropPointerTile,
   type CardDropRect,
@@ -216,6 +218,54 @@ describe("flattenCardGroups", () => {
     )
 
     expect(numbers(flattenCardGroups(groups))).toEqual([4, 1, 2, 3])
+  })
+})
+
+describe("sortCardsByCreatedAtDesc", () => {
+  it("sorts by the card's own createdAt, newest first", () => {
+    const cards = [
+      card(1, { createdAt: "2026-01-05T00:00:00+08:00" }),
+      card(2, { createdAt: "2026-03-01T00:00:00+08:00" }),
+      card(3, { createdAt: "2025-12-31T00:00:00+08:00" }),
+    ]
+
+    expect(numbers(sortCardsByCreatedAtDesc(cards))).toEqual([2, 1, 3])
+  })
+
+  it("ignores the incoming order except as the tie-break", () => {
+    const cards = [
+      card(1, { createdAt: "2026-02-01T00:00:00+08:00" }),
+      card(2, { createdAt: "2026-02-01T00:00:00+08:00" }),
+    ]
+
+    // 同一时刻：保持传入顺序（也就是分组顺序展平后的下标），同一输入永远同一输出。
+    expect(numbers(sortCardsByCreatedAtDesc(cards))).toEqual([1, 2])
+  })
+
+  it("falls back deterministically to the incoming order when createdAt is missing", () => {
+    const missing = (cardNumber: number) =>
+      card(cardNumber, { createdAt: undefined as unknown as string })
+    const cards = [
+      missing(1),
+      card(2, { createdAt: "2026-01-01T00:00:00+08:00" }),
+      missing(3),
+    ]
+
+    // 有创建时间的按时间降序在前，缺失的排到最后、按传入顺序。
+    expect(numbers(sortCardsByCreatedAtDesc(cards))).toEqual([2, 1, 3])
+    // 再排一次结果一样（不是「不稳定排序」）。
+    expect(
+      numbers(sortCardsByCreatedAtDesc(sortCardsByCreatedAtDesc(cards)))
+    ).toEqual([2, 1, 3])
+  })
+
+  it("treats an unparsable createdAt like a missing one", () => {
+    const cards = [
+      card(1, { createdAt: "not-a-date" }),
+      card(2, { createdAt: "2026-01-01T00:00:00+08:00" }),
+    ]
+
+    expect(numbers(sortCardsByCreatedAtDesc(cards))).toEqual([2, 1])
   })
 })
 
@@ -543,6 +593,29 @@ describe("buildCardLayoutRequest", () => {
       cardSettings: [],
     })
   })
+
+  it("keeps an un-named pending group out of the request and returns its cards to the default group", () => {
+    const cards = [card(1, { exchangeMode: "auto" }), card(2), card(3)]
+
+    expect(
+      buildCardLayoutRequest({
+        cards,
+        layout,
+        quickCardNumbers: [1],
+        cardSettings: {},
+        layoutDraft: draft(
+          [1],
+          [group("local:1", "", [2, 3], null), group("g-1", "常用", [])]
+        ),
+      })
+    ).toEqual({
+      // 标题为空的分组（服务端要求 1–40 字）不进请求体：卡片退回默认分组末尾。
+      groups: [],
+      defaultCardNumbers: [1, 2, 3],
+      quickCardNumbers: [1],
+      cardSettings: [],
+    })
+  })
 })
 
 describe("createCardLayoutDraft", () => {
@@ -591,45 +664,112 @@ describe("createCardLayoutDraft", () => {
   })
 })
 
-describe("createCardGroup", () => {
-  it("inserts below the default group with a local key and id null", () => {
+describe("addPendingCardGroup", () => {
+  it("inserts an unnamed group below the default group with a local key and id null", () => {
     const groups = [group("g-1", "常用", [2])]
 
-    const next = createCardGroup(groups, "  新分组  ")
+    const created = addPendingCardGroup(groups, DEFAULT_CARD_GROUP_KEY)
 
-    expect(next).toHaveLength(2)
-    expect(next[0]).toEqual({
+    expect(created).not.toBeNull()
+    expect(created!.key).toBe("local:1")
+    expect(created!.groups).toHaveLength(2)
+    expect(created!.groups[0]).toEqual({
       key: "local:1",
       id: null,
-      title: "新分组",
+      // 组头就是那个空的标题输入框：标题还没填，不算一个建好的分组。
+      title: "",
       cardNumbers: [],
     })
-    expect(next[1]).toBe(groups[0])
+    expect(created!.groups[1]).toBe(groups[0])
+  })
+
+  it("inserts directly below the group that asked for it", () => {
+    const groups = [
+      group("g-1", "常用", [2]),
+      group("g-2", "备用", [3]),
+      group("g-3", "归置", [4]),
+    ]
+
+    const created = addPendingCardGroup(groups, "g-2")!
+
+    expect(created.groups.map((item) => item.key)).toEqual([
+      "g-1",
+      "g-2",
+      created.key,
+      "g-3",
+    ])
+    // 其它分组原样复用（没有无谓的重建）。
+    expect(created.groups[0]).toBe(groups[0])
+    expect(created.groups[3]).toBe(groups[2])
+  })
+
+  it("falls back to the top of the named groups for an unknown anchor", () => {
+    const groups = [group("g-1", "常用", [2])]
+
+    const created = addPendingCardGroup(groups, "g-gone")!
+
+    expect(created.groups.map((item) => item.key)).toEqual([
+      created.key,
+      "g-1",
+    ])
   })
 
   it("numbers local keys past the ones already used", () => {
-    const next = createCardGroup(
+    const created = addPendingCardGroup(
       [group("local:1", "一", [1]), group("g-1", "常用", [2])],
-      "二"
+      "g-1"
     )
 
-    expect(next[0]?.key).toBe("local:2")
+    expect(created!.key).toBe("local:2")
   })
 
-  it("leaves the array alone for an empty, over-long or over-limit title", () => {
-    const groups = [group("g-1", "常用", [2])]
-
-    expect(createCardGroup(groups, "   ")).toBe(groups)
-    expect(
-      createCardGroup(groups, "x".repeat(CARD_GROUP_TITLE_MAX_LENGTH + 1))
-    ).toBe(groups)
+  it("refuses once the group limit is reached (the caller's button is disabled too)", () => {
     // 上限来自契约（`NAMECARD_PROFILE_GROUP_LIMIT`），别写死数字。
     const atLimit = Array.from({ length: 20 }, (_, index) =>
       group(`g-${index}`, `组 ${index}`, [])
     )
     expect(canCreateCardGroup(atLimit)).toBe(false)
     expect(canCreateCardGroup(atLimit.slice(1))).toBe(true)
-    expect(createCardGroup(atLimit, "第 21 个")).toBe(atLimit)
+    expect(addPendingCardGroup(atLimit)).toBeNull()
+  })
+})
+
+describe("settleCardGroupTitle", () => {
+  it("names the pending group in place (keeps its key and order)", () => {
+    const base = {
+      groups: [group("g-1", "常用", [2]), group("local:1", "", [3])],
+      defaultCardNumbers: [1],
+    }
+
+    const next = settleCardGroupTitle(base, "local:1", "  新分组  ")
+
+    expect(next.groups.map((item) => item.title)).toEqual(["常用", "新分组"])
+    expect(next.groups[1]?.key).toBe("local:1")
+    expect(next.groups[1]?.cardNumbers).toEqual([3])
+    expect(next.defaultCardNumbers).toEqual([1])
+  })
+
+  it("drops the group on an empty title and returns its cards to the default group", () => {
+    const base = {
+      groups: [group("g-1", "常用", [2]), group("local:1", "", [3, 4])],
+      defaultCardNumbers: [1],
+    }
+
+    const next = settleCardGroupTitle(base, "local:1", "   ")
+
+    expect(next.groups.map((item) => item.key)).toEqual(["g-1"])
+    // 退回默认分组**末尾**，顺序不变（与删除分组同一条路）。
+    expect(next.defaultCardNumbers).toEqual([1, 3, 4])
+  })
+
+  it("leaves the draft alone when the group is already gone", () => {
+    const base = {
+      groups: [group("g-1", "常用", [2])],
+      defaultCardNumbers: [1],
+    }
+
+    expect(settleCardGroupTitle(base, "local:9", "名字")).toBe(base)
+    expect(settleCardGroupTitle(base, "local:9", "")).toBe(base)
   })
 })
 

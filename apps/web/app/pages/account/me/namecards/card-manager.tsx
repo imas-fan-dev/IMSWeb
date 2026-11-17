@@ -37,6 +37,8 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import type { FudabaOwnerCard, NamecardCardLayout } from "~/lib/api"
+import { APP_STICKY_HEADER_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
+import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
 import { cn } from "~/lib/utils"
 import {
   applyLayout,
@@ -53,6 +55,7 @@ import {
   flattenCardGroups,
   isCardSelectable,
   quickCardIdSet,
+  sortCardsByCreatedAtDesc,
   type CardGroupView,
   type CardManagerCardPatches,
   type DraftCardGroup,
@@ -65,8 +68,8 @@ import {
   CardDragGhostStack,
 } from "./components/card-drag-ghost"
 import { CardGroupSection } from "./components/card-group-section"
-import { CardGroupTitleInput } from "./components/card-group-title-input"
 import {
+  CardManagerModeToggle,
   CardManagerToolbar,
   type CardManagerViewMode,
 } from "./components/card-manager-toolbar"
@@ -75,6 +78,7 @@ import { useCardGridFlip } from "./hooks/use-card-grid-flip"
 import { useCardManagerDraft } from "./hooks/use-card-manager-draft"
 import { useCardManagerDrag } from "./hooks/use-card-manager-drag"
 import { useCardManagerSave } from "./hooks/use-card-manager-save"
+import { useCardMarquee } from "./hooks/use-card-marquee"
 import { useCollapsedCardGroups } from "./hooks/use-collapsed-card-groups"
 
 /**
@@ -126,8 +130,8 @@ function announceLongPressHint() {
  *
  * 只读模式的分组与顺序以服务端归一后的布局为准（§4.1）；编辑模式改的是**布局草稿**
  * （`useCardManagerDraft` 里的 `layoutDraft`），拖拽与建组都先落草稿，点保存才整份提交。
- * 分组模式下每个分组有组头与折叠；经典模式只是不渲染组头、把同一份顺序展平，两种状态的
- * 切换走 View Transition（不支持时立即切换，见 `applyLayout`）。
+ * 分组模式下每个分组有组头与折叠；经典模式**不渲染组头**，瓦片按名片创建时间降序
+ * （`sortCardsByCreatedAtDesc`，与分组顺序无关，也不写进布局）。
  *
  * 拖拽只在**分组模式**里开（§7.3）：经典模式没有分组落点，展平列表里的落点含义不明确，
  * 所以那一侧只保留勾选与批量操作。拖动期间不起 View Transition（设计 §10.1），落位后由
@@ -170,10 +174,28 @@ export function CardManager({
   const [mode, setMode] = useState<CardManagerViewMode>("grouped")
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [confirmQuickJoin, setConfirmQuickJoin] = useState(false)
-  /** 「+ 新建分组」按下之后，默认分组下方出现标题输入区（§7.2）。 */
-  const [creatingGroup, setCreatingGroup] = useState(false)
+  /**
+   * 待命名分组：某个「新建分组」入口按下后，草稿里**立刻**插出的那个空标题分组的 key
+   * （它就是那个区域的身份）。同一时刻只留一个——开始新的就把上一个未命名的丢掉；`null`
+   * 表示当前没有待命名分组。
+   */
+  const [pendingGroupKey, setPendingGroupKey] = useState<string | null>(null)
+  /**
+   * 移动端批量区是不是展开着（默认折叠）。不持久化：每次进编辑模式都回到折叠
+   * （`startEditing` 里重置），也不进 `localStorage`。
+   */
+  const [bulkExpanded, setBulkExpanded] = useState(false)
+  /** 桌面（`min-width: 1024px`，与账号工作区同一处断点）：标题行/控件区的分叉。 */
+  const desktop = useDesktopAccountWorkspace()
   /** 瓦片清单容器：批量插入的 FLIP（`useCardGridFlip`）要在它里面量瓦片位置。 */
   const cardGridRef = useRef<HTMLElement | null>(null)
+  /** 管理器根节点：判断「焦点/指针是不是还在这一块里面」。 */
+  const sectionRef = useRef<HTMLElement | null>(null)
+  /**
+   * 这一拍有没有指针按在管理器里（点卡片、拖卡片、点放置区都会先按下去再失焦）。
+   * 待命名分组的空标题失焦要靠它区分「还在操作」与「真的离开了」。
+   */
+  const pointerInsideRef = useRef(false)
   /** 保存成功后焦点要交回的「编辑模式」按钮（设计 §11）。 */
   const editButtonRef = useRef<HTMLButtonElement | null>(null)
   /** 只有真的保存落地才交回焦点：退出编辑、放弃改动不算。 */
@@ -202,6 +224,8 @@ export function CardManager({
       if (nextLayout) {
         pruneCollapsedKeys(nextLayout.groups.map((group) => group.id))
       }
+      // 待命名分组随会话一起收尾：它要么已经命名、要么被放弃，key 不能漏到下一次会话。
+      setPendingGroupKey(null)
       resetDraft(nextLayout)
     },
     [pruneCollapsedKeys, resetDraft]
@@ -249,6 +273,19 @@ export function CardManager({
   )
   const groups: readonly CardGroupView[] = draftGroups ?? readGroups
   const flatCards = useMemo(() => flattenCardGroups(groups), [groups])
+  /**
+   * 经典模式的瓦片顺序：按名片创建时间降序（2026-11-17 用户口径更正）。它是一条派生顺序，
+   * 与分组顺序无关、也不写进布局；缺创建时间时回退是确定的（见 `sortCardsByCreatedAtDesc`）。
+   */
+  const classicCards = useMemo(
+    () => sortCardsByCreatedAtDesc(flatCards),
+    [flatCards]
+  )
+  /** 可勾选的卡（`published`）：框选只把这一批收进选择集。 */
+  const selectableCardIdSet = useMemo(
+    () => new Set(cards.filter(isCardSelectable).map((card) => card.id)),
+    [cards]
+  )
   // 角标跟草稿走：加入/移出与改交换模式立刻反映到瓦片上，不必等保存。
   const quickCardIds = useMemo(
     () => quickCardIdSet(cards, draft.quickCardNumbers),
@@ -262,12 +299,18 @@ export function CardManager({
     layout === null ? "读不到名片布局，刷新页面后再试。" : null
   const startEditing = useCallback((): boolean => {
     if (readOnly || layout === null) return false
-    // 每次进编辑模式都从「没有在建组」开始：退出/切换模式时会丢掉这个输入区，
+    // 每次进编辑模式都从「没有待命名分组、批量区折叠」开始：退出/切换模式时会丢掉这个区域，
     // 状态也就跟着会话一起重置，不必再用 effect 去追状态。
-    setCreatingGroup(false)
+    setPendingGroupKey(null)
+    setBulkExpanded(false)
     // 上一会话留下的 `local:N` 折叠态会串到这一会话新建的分组上，进来先清掉。
     pruneCollapsedKeys(layout.groups.map((group) => group.id))
-    beginEditing()
+    // 经典模式没有分组界面（建组、拖拽都在分组视图里），所以点「编辑模式」先自动切回分组：
+    // 一次交互完成。切换只是视图状态，不碰草稿，也就不会把会话标脏。
+    applyLayout(() => {
+      setMode((current) => (current === "classic" ? "grouped" : current))
+      beginEditing()
+    })
     return true
   }, [beginEditing, layout, pruneCollapsedKeys, readOnly])
 
@@ -293,7 +336,7 @@ export function CardManager({
     [selectedCardIds, startEditing, toggleSelected]
   )
 
-  /** 拖拽、建组、折叠只发生在分组模式；经典模式是同一顺序的展平视图。 */
+  /** 拖拽、建组、折叠只发生在分组模式；经典模式是**创建时间降序**的平铺视图。 */
   const layoutEditing = editing && mode === "grouped"
   const canAddGroup = canCreateCardGroup(draft.layoutDraft?.groups ?? [])
 
@@ -318,9 +361,56 @@ export function CardManager({
     active: drag.draggedCardIds.size > 0,
   })
 
+  /**
+   * 鼠标框选（§8）：只在编辑模式、只对鼠标/笔生效，起点必须是列表空白处。结果是一条整份
+   * 的选择集（替换 / Shift 追加已经在 hook 里算好），所以工具栏计数、批量按钮与保存链路
+   * 都按平时那条路走。
+   */
+  const marquee = useCardMarquee({
+    enabled: editing,
+    isSelectableCardId: (cardId) => selectableCardIdSet.has(cardId),
+    selectedCardIds,
+    onSelectionChange: draft.setSelectedCards,
+  })
+
+  /**
+   * 一步新建（§7.2）：点下入口**立刻**在锚点分组下方插出一个真实的分组区域（组头是聚焦的
+   * 标题输入框、下面是空放置区，已可接收拖入的卡片）。上一个还没命名的按同一条规则丢掉。
+   */
+  function startPendingGroup(afterKey: string) {
+    setPendingGroupKey(draft.startPendingCardGroup(pendingGroupKey, afterKey))
+  }
+
+  /**
+   * 待命名分组的标题落地（回车/失焦/`Esc`）：非空即命名；空标题丢掉这一组，组内卡片退回
+   * 默认分组（纯草稿，不丢数据）。
+   */
+  function settlePendingGroup(title: string) {
+    if (pendingGroupKey) {
+      draft.commitPendingCardGroupTitle(pendingGroupKey, title)
+    }
+    setPendingGroupKey(null)
+  }
+
+  /**
+   * 待命名分组的组头**空标题失焦**：只有焦点真的离开这块管理器、而且这一拍没有指针落在里面
+   * 时才丢弃这一组。点一张卡片准备把它拖进来、按在放置区上都会先让输入框失焦——那一刻丢掉
+   * 分组，用户就再也拖不进来了（同一个浏览器里点按钮是否让按钮拿到焦点还不一样）。
+   */
+  function handlePendingTitleBlur(relatedTarget: EventTarget | null) {
+    const pressedInside = pointerInsideRef.current
+    pointerInsideRef.current = false
+    if (pressedInside) return
+    const insideSection =
+      relatedTarget instanceof Node &&
+      sectionRef.current?.contains(relatedTarget)
+    if (insideSection) return
+    settlePendingGroup("")
+  }
+
   function changeMode(next: CardManagerViewMode) {
-    // 经典模式没有分组界面，没提交的建组输入区跟着收起（草稿本身留着）。
-    setCreatingGroup(false)
+    // 防御性清理：待命名分组只存在于编辑会话（编辑模式里没有这个 toggle），切模式时不该留着它的 key。
+    setPendingGroupKey(null)
     // 用函数式更新读取「当前」模式：View Transition 会把提交推迟到回调里，
     // 同一帧内连点两下时闭包里的 `mode` 还是旧值，闭包守卫会误判。
     applyLayout(() => setMode((current) => (current === next ? current : next)))
@@ -459,12 +549,20 @@ export function CardManager({
     )
   }
 
-  // 分组模式保留组头与折叠；经典模式只换容器，瓦片顺序（`flattenCardGroups`）不变。
+  // 分组模式保留组头与折叠；经典模式只换容器，瓦片顺序按创建时间降序（`classicCards`）。
   // 两种模式共用一个具名容器：e2e 与读屏都靠「我的名片清单」找到整个列表。
   const groupedGroups = draftGroups ?? readGroups
+  /** 到上限时每个「新建分组」入口都要把原因讲出来，不能静默失效。 */
+  const createGroupDisabledReason = canAddGroup
+    ? null
+    : `最多 ${NAMECARD_PROFILE_GROUP_LIMIT} 个分组`
+  // 待命名分组不挂拖动把手（它随时可能被整组丢掉），所以也不进分组排序的 items。
   const groupSortableIds = layoutEditing
     ? groupedGroups
-        .filter((group) => group.title !== null)
+        .filter(
+          (group) =>
+            group.title !== null && cardGroupKey(group) !== pendingGroupKey
+        )
         .map((group) => cardGroupSortableId(cardGroupKey(group)))
     : []
 
@@ -474,15 +572,18 @@ export function CardManager({
         ref={cardGridRef}
         className="mt-4 flex flex-col gap-6"
         aria-label="我的名片清单"
+        onPointerDown={marquee.onPointerDown}
       >
         <SortableContext
           items={groupSortableIds}
           strategy={verticalListSortingStrategy}
         >
           {groupedGroups.map((group) => {
-            // 草稿渲染结构里默认分组永远第一，所以「新建分组」的输入区插在它下面（§7.2）。
             const key = cardGroupKey(group)
             const named = group.title !== null
+            // 这一组就是「点了新建分组、标题还没填」的那个：组头是空输入框（自动聚焦），
+            // 下面的放置区已经是合法落点。
+            const pending = pendingGroupKey === key
             // 多选拖动中整批名片已经离开每一张列表（`draggedCardIds`），落点由 ghost 占位。
             const visibleCards = group.cards.filter(
               (card) => !drag.draggedCardIds.has(card.id)
@@ -499,32 +600,35 @@ export function CardManager({
                   collapsed={collapsedKeys.has(key)}
                   onToggleCollapsed={() => toggleGroup(key)}
                   editing={layoutEditing}
+                  pendingTitle={pending}
+                  onDiscardPendingTitle={
+                    pending ? () => settlePendingGroup("") : undefined
+                  }
+                  onPendingTitleBlur={
+                    pending ? handlePendingTitleBlur : undefined
+                  }
                   onRename={
                     named
-                      ? (title) => draft.renameCardGroup(key, title)
+                      ? (title) => {
+                          if (pending) settlePendingGroup(title)
+                          else draft.renameCardGroup(key, title)
+                        }
                       : undefined
                   }
                   onRemove={
                     // 删组不是破坏性操作：组内名片退回默认分组，且只是草稿，没保存就还在。
-                    named ? () => draft.removeCardGroup(key) : undefined
+                    // 待命名分组不给删除入口（它还没定名字，回车/失焦/Esc 就是「放弃」）。
+                    named && !pending
+                      ? () => draft.removeCardGroup(key)
+                      : undefined
                   }
+                  onCreateGroup={
+                    pending ? undefined : () => startPendingGroup(key)
+                  }
+                  createGroupDisabledReason={createGroupDisabledReason}
                 >
                   {renderGroupTiles(visibleCards, ghost)}
                 </CardGroupSection>
-                {layoutEditing &&
-                creatingGroup &&
-                key === DEFAULT_CARD_GROUP_KEY ? (
-                  <CardGroupTitleInput
-                    autoFocus
-                    label="新分组名称"
-                    placeholder="输入分组名称"
-                    onSubmit={(title) => {
-                      draft.createCardGroup(title)
-                      setCreatingGroup(false)
-                    }}
-                    onCancel={() => setCreatingGroup(false)}
-                  />
-                ) : null}
               </Fragment>
             )
           })}
@@ -532,10 +636,12 @@ export function CardManager({
       </nav>
     ) : (
       <nav
+        ref={cardGridRef}
         className={cn("mt-4", cardTileGridClassName)}
         aria-label="我的名片清单"
+        onPointerDown={marquee.onPointerDown}
       >
-        {flatCards.map(renderTile)}
+        {classicCards.map(renderTile)}
       </nav>
     )
 
@@ -554,7 +660,21 @@ export function CardManager({
   )
 
   return (
-    <section aria-labelledby="owned-card-list-title">
+    <section
+      ref={sectionRef}
+      aria-labelledby="owned-card-list-title"
+      // 指针落在管理器里（点卡片、拖卡片、点放置区）时先记一笔：待命名分组的空标题失焦要
+      // 靠它区分「还在继续操作」与「真的离开了这一块」。
+      onPointerDownCapture={() => {
+        pointerInsideRef.current = true
+      }}
+      onPointerUpCapture={() => {
+        pointerInsideRef.current = false
+      }}
+      onPointerCancelCapture={() => {
+        pointerInsideRef.current = false
+      }}
+    >
       {/*
         保存结果的常驻播报区（§11）：`toast` 只能被看得见的人看见，读屏要靠这里。拖拽移动的
         播报由 dnd-kit 自己的 live region 负责，它随编辑模式一起卸载，撑不起保存结果。
@@ -573,7 +693,11 @@ export function CardManager({
       >
         {save.status}
       </p>
-      <div className="flex min-w-0 items-center justify-between gap-3">
+      {/* 标题行：**不吸顶**。移动端把「分组/经典」toggle 放在这一行（桌面在控件区左侧）。 */}
+      <div
+        data-testid="card-manager-title-row"
+        className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2"
+      >
         <div className="min-w-0">
           <h2 id="owned-card-list-title" className="text-base font-medium">
             我的名片
@@ -582,75 +706,120 @@ export function CardManager({
             {cards.length} 张名片
           </p>
         </div>
-        {cards.length ? (
-          <CardManagerToolbar
-            mode={mode}
-            onModeChange={changeMode}
-            readOnly={readOnly}
-            onCreate={onCreate}
-            editing={draft.editing}
-            onStartEditing={startEditing}
-            onExitEditing={exitEditing}
-            selectedCount={draft.selectedCards.length}
-            selectableCount={draft.selectableCount}
-            onSelectAll={draft.selectAll}
-            onClearSelection={draft.clearSelection}
-            onSave={save.save}
-            saving={save.saving}
-            canSave={draft.hasChanges && !save.saving}
-            editDisabledReason={editDisabledReason}
-            editButtonRef={editButtonRef}
-            shareHandle={shareHandle}
-            quickCount={draft.quickCardNumbers.length}
-          />
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            disabled={readOnly}
-            onClick={onCreate}
+        {!desktop && cards.length && !draft.editing ? (
+          <CardManagerModeToggle mode={mode} onModeChange={changeMode} />
+        ) : null}
+      </div>
+
+      {cards.length ? (
+        /*
+          工具栏 + 批量区整块吸顶（标题行不吸顶）：往下滚时动作按钮与选择集始终在手边。
+          偏移沿用账号页既有约定——网页端是吸顶的站点页头（`h-16`），App 端是它自己的
+          标题栏内边距（`--app-header-inset`）。`z-30` 压在页头（`z-40`）之下。
+        */
+        <div
+          data-testid="card-manager-controls"
+          className={cn(
+            "sticky z-30 mt-3 bg-background/95 py-2 backdrop-blur",
+            IS_APP_TARGET ? APP_STICKY_HEADER_OFFSET : "top-16"
+          )}
+        >
+          <div
+            className={cn(
+              "flex min-w-0 flex-wrap items-center gap-2",
+              desktop && !draft.editing ? "justify-between" : "justify-end"
+            )}
           >
+            {desktop && !draft.editing ? (
+              <CardManagerModeToggle mode={mode} onModeChange={changeMode} />
+            ) : null}
+            <CardManagerToolbar
+              readOnly={readOnly}
+              onCreate={onCreate}
+              editing={draft.editing}
+              onStartEditing={startEditing}
+              onExitEditing={exitEditing}
+              selectedCount={draft.selectedCards.length}
+              selectableCount={draft.selectableCount}
+              onSelectAll={draft.selectAll}
+              onClearSelection={draft.clearSelection}
+              onSave={save.save}
+              saving={save.saving}
+              canSave={draft.hasChanges && !save.saving}
+              editDisabledReason={editDisabledReason}
+              editButtonRef={editButtonRef}
+              shareHandle={shareHandle}
+              quickCount={draft.quickCardNumbers.length}
+            />
+          </div>
+
+          {draft.editing ? (
+            <CardBulkActions
+              selectedCount={draft.selectedCards.length}
+              quickCount={draft.quickCardNumbers.length}
+              limit={draft.limit}
+              skippedGroupCardCount={draft.selectedGroupCardCount}
+              collapsible={!desktop}
+              collapsed={!bulkExpanded}
+              onToggleCollapsed={() => setBulkExpanded((current) => !current)}
+              onSetVisibility={(visible) =>
+                draft.applyCardSettings(draft.selectedCardIds, { visible })
+              }
+              onSetExchangeMode={(exchangeMode) =>
+                draft.applyCardSettings(draft.selectedCardIds, { exchangeMode })
+              }
+              onQuickAdd={addSelectedToQuickList}
+              onQuickRemove={draft.removeSelectionFromQuickList}
+            />
+          ) : null}
+        </div>
+      ) : (
+        <div
+          data-testid="card-manager-controls"
+          className="mt-3 flex justify-end"
+        >
+          <Button type="button" size="sm" disabled={readOnly} onClick={onCreate}>
             <PlusIcon data-icon="inline-start" aria-hidden="true" />
             新建名片
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {draft.editing ? (
-        <CardBulkActions
-          selectedCount={draft.selectedCards.length}
-          quickCount={draft.quickCardNumbers.length}
-          limit={draft.limit}
-          skippedGroupCardCount={draft.selectedGroupCardCount}
-          onSetVisibility={(visible) =>
-            draft.applyCardSettings(draft.selectedCardIds, { visible })
-          }
-          onSetExchangeMode={(exchangeMode) =>
-            draft.applyCardSettings(draft.selectedCardIds, { exchangeMode })
-          }
-          onQuickAdd={addSelectedToQuickList}
-          onQuickRemove={draft.removeSelectionFromQuickList}
+      {/*
+        鼠标框选（§8）的矩形：固定定位（视口坐标，与瓦片矩形同一坐标系），
+        `pointer-events-none` 不抢指针，`aria-hidden` 对读屏没有意义。
+      */}
+      {marquee.rect ? (
+        <div
+          data-testid="card-marquee"
+          aria-hidden="true"
+          className="pointer-events-none fixed z-40 rounded-sm border border-primary/60 bg-primary/10"
+          style={{
+            left: marquee.rect.left,
+            top: marquee.rect.top,
+            width: marquee.rect.width,
+            height: marquee.rect.height,
+          }}
         />
       ) : null}
 
-      {layoutEditing ? (
-        creatingGroup ? null : (
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-4 w-full border-dashed"
-            disabled={!canAddGroup}
-            title={
-              canAddGroup
-                ? undefined
-                : `最多 ${NAMECARD_PROFILE_GROUP_LIMIT} 个分组`
-            }
-            onClick={() => setCreatingGroup(true)}
-          >
-            <PlusIcon data-icon="inline-start" aria-hidden="true" />
-            新建分组
-          </Button>
-        )
+      {/*
+        控件区与列表之间那个全宽虚线的「新建分组」照旧保留：它按**原先的行为**插在默认分组
+        之后（待命名的分组区域落在默认分组下方）。与每个分组底部的入口共用同一条规则——
+        同一时刻只有一个待命名分组，所以它自己也按老样子在待命名时收起。
+      */}
+      {layoutEditing && pendingGroupKey === null ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 w-full border-dashed"
+          disabled={!canAddGroup}
+          title={createGroupDisabledReason ?? undefined}
+          onClick={() => startPendingGroup(DEFAULT_CARD_GROUP_KEY)}
+        >
+          <PlusIcon data-icon="inline-start" aria-hidden="true" />
+          新建分组
+        </Button>
       ) : null}
 
       {cards.length ? (

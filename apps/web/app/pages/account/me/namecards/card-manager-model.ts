@@ -137,13 +137,58 @@ export function buildCardGroups(
 }
 
 /**
- * 分组模式与经典模式共用的渲染顺序：默认分组在前，然后按分组顺序。
- * 经典模式只是不渲染组头，顺序与这里完全一致。
+ * 按分组顺序展平（默认分组在前，然后按分组顺序）：分组模式与经典模式共用的**基础**列表，
+ * 也是缺创建时间时的确定性回退顺序（见 `sortCardsByCreatedAtDesc`）。
+ *
+ * **经典模式不是这个顺序**（2026-11-17 用户口径更正）：它按名片自己的创建时间降序排，
+ * 与分组、组内顺序都无关。
  */
 export function flattenCardGroups(
   groups: readonly CardGroupView[]
 ): FudabaOwnerCard[] {
   return groups.flatMap((group) => group.cards)
+}
+
+/**
+ * 名片的创建时间（契约里的 `createdAt`，**不是**瓦片显示的 `madeOn` 制作时间）；
+ * 缺失或解析不了时返回 `null`。
+ */
+function cardCreatedAtMs(
+  card: Pick<FudabaOwnerCard, "createdAt">
+): number | null {
+  const value = card.createdAt
+  if (!value) return null
+  const ms = new Date(value).valueOf()
+  return Number.isNaN(ms) ? null : ms
+}
+
+/**
+ * 经典模式的展示顺序：按名片**创建时间降序**（最新在前）。
+ *
+ * 它是一条**派生**顺序——经典模式不渲染组头、也不写入任何用户排序（布局 JSON 里没有它的
+ * 位置），分组与组内顺序在切回分组模式后原样保留。
+ *
+ * 回退是**确定**的：创建时间缺失/无效的卡排在最后、相互之间按传入顺序（也就是分组顺序展平
+ * 之后的原下标）排；时间完全相同的也按原下标排。同一组输入永远得到同一个输出顺序。
+ */
+export function sortCardsByCreatedAtDesc(
+  cards: readonly FudabaOwnerCard[]
+): FudabaOwnerCard[] {
+  return cards
+    .map((card, index) => ({ card, index, createdAt: cardCreatedAtMs(card) }))
+    .sort((left, right) => {
+      if (left.createdAt === null || right.createdAt === null) {
+        if (left.createdAt === null && right.createdAt === null) {
+          return left.index - right.index
+        }
+        return left.createdAt === null ? 1 : -1
+      }
+      if (left.createdAt !== right.createdAt) {
+        return right.createdAt - left.createdAt
+      }
+      return left.index - right.index
+    })
+    .map((entry) => entry.card)
 }
 
 /** 分组标题的字数上限（去首尾空白后），与服务端 `namecardCardLayoutGroupSchema` 同一口径。 */
@@ -247,31 +292,62 @@ export function canCreateCardGroup(
 }
 
 /**
- * 新建分组：插到**命名分组首位**（也就是默认分组正下方），`id: null` 等保存时由服务端分配。
+ * 待命名分组（§7.2「一步新建」）：点【新建分组】那一刻就往草稿里插一个**真实存在**的分组，
+ * 标题为空、`id: null`（沿用 `local:N` key），于是它的区域（组头输入框 + 空放置区）**立刻**
+ * 渲染出来、也立刻是合法落点；标题在组头里回车/失焦才落地（见 `settleCardGroupTitle`）。
  *
- * 标题去首尾空白；空标题、超过 40 字、或已达分组上限时原样返回**同一个数组**（等于没建）。
+ * 插到 `afterKey` 那个分组**正下方**；`afterKey` 省略、是默认分组（`DEFAULT_CARD_GROUP_KEY`）
+ * 或已经不存在时插到命名分组首位（按分组顺序看那正是默认分组下方）。
+ *
+ * 已达分组上限时返回 `null`（调用方的按钮那时本来就是禁用的）。
  */
-export function createCardGroup(
+export function addPendingCardGroup(
   groups: CardManagerGroup[],
-  title: string
-): CardManagerGroup[] {
-  const trimmed = title.trim()
-  if (
-    !trimmed ||
-    trimmed.length > CARD_GROUP_TITLE_MAX_LENGTH ||
-    !canCreateCardGroup(groups)
-  ) {
-    return groups
+  afterKey?: string
+): { groups: CardManagerGroup[]; key: string } | null {
+  if (!canCreateCardGroup(groups)) return null
+  const created: CardManagerGroup = {
+    key: nextLocalCardGroupKey(groups),
+    id: null,
+    title: "",
+    cardNumbers: [],
   }
+  return {
+    groups: insertCardGroupAfter(groups, created, afterKey),
+    key: created.key,
+  }
+}
+
+/** 把新分组插到 `afterKey` 正下方；锚点不在（默认分组/已删/未给）时插到命名分组首位。 */
+function insertCardGroupAfter(
+  groups: CardManagerGroup[],
+  created: CardManagerGroup,
+  afterKey?: string
+): CardManagerGroup[] {
+  const afterIndex = afterKey
+    ? groups.findIndex((group) => group.key === afterKey)
+    : -1
+  if (afterIndex < 0) return [created, ...groups]
   return [
-    {
-      key: nextLocalCardGroupKey(groups),
-      id: null,
-      title: trimmed,
-      cardNumbers: [],
-    },
-    ...groups,
+    ...groups.slice(0, afterIndex + 1),
+    created,
+    ...groups.slice(afterIndex + 1),
   ]
+}
+
+/**
+ * 待命名分组的标题落地（回车 / 失焦 / `Esc`）：非空标题就是给它命名；**空标题等于丢弃这一组**
+ * ——组内名片退回默认分组末尾（与删除分组同一条路，纯草稿、不丢数据）。
+ */
+export function settleCardGroupTitle(
+  draft: CardManagerLayoutDraft,
+  key: string,
+  title: string
+): CardManagerLayoutDraft {
+  if (!draft.groups.some((group) => group.key === key)) return draft
+  const trimmed = title.trim()
+  if (!trimmed) return removeCardGroup(draft, key)
+  return { ...draft, groups: renameCardGroup(draft.groups, key, trimmed) }
 }
 
 /** 本地键取「已有的 `local:N` 里没被用过的下一个」，拖动排序不会改变它。 */
@@ -563,6 +639,21 @@ export function dropEmptyGroups(
   groups: readonly CardManagerGroup[]
 ): CardManagerGroup[] {
   return groups.filter((group) => group.cardNumbers.length > 0)
+}
+
+/**
+ * 保存前把**还没命名的分组**（标题为空）收掉：服务端要求标题 1–40 字，空标题的分组不进请求体；
+ * 组内名片退回默认分组末尾——与会话里那一组被丢弃（`settleCardGroupTitle(key, "")`）逐字一致。
+ */
+export function settleUnnamedCardGroups(
+  draft: CardManagerLayoutDraft
+): CardManagerLayoutDraft {
+  let next = draft
+  for (const group of draft.groups) {
+    if (group.title.trim()) continue
+    next = removeCardGroup(next, group.key)
+  }
+  return next
 }
 
 /** 两份布局草稿保存后的结果是否一致（空分组不参与，它们保存时会被丢掉）。 */
@@ -957,9 +1048,12 @@ export function buildCardLayoutRequest({
   /** 编辑会话里的布局草稿；为空时用已加载的布局原样回传。 */
   layoutDraft?: CardManagerLayoutDraft | null
 }): NamecardCardLayoutRequest {
+  // 会话里可能还挂着一个「点了新建分组但没填名字」的分组：它不进请求体，卡片退回默认分组
+  // 末尾（与服务端「标题 1–40 字」的校验同口径，也和那一组被丢弃时逐字一致）。
+  const draft = layoutDraft ? settleUnnamedCardGroups(layoutDraft) : null
   return {
-    groups: layoutDraft
-      ? dropEmptyGroups(layoutDraft.groups).map((group) => ({
+    groups: draft
+      ? dropEmptyGroups(draft.groups).map((group) => ({
           id: group.id,
           title: group.title.trim(),
           cardNumbers: [...group.cardNumbers],
@@ -970,7 +1064,7 @@ export function buildCardLayoutRequest({
           cardNumbers: [...group.cardNumbers],
         })),
     defaultCardNumbers: [
-      ...(layoutDraft?.defaultCardNumbers ?? layout?.defaultCardNumbers ?? []),
+      ...(draft?.defaultCardNumbers ?? layout?.defaultCardNumbers ?? []),
     ],
     quickCardNumbers: effectiveQuickCardNumbers(
       quickCardNumbers,

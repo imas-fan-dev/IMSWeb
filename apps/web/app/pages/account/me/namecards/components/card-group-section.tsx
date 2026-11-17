@@ -5,6 +5,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   GripVerticalIcon,
+  PlusIcon,
   Trash2Icon,
 } from "lucide-react"
 import type { ReactNode } from "react"
@@ -53,6 +54,11 @@ export function CardGroupSection({
   editing = false,
   onRename,
   onRemove,
+  onCreateGroup,
+  createGroupDisabledReason,
+  pendingTitle = false,
+  onDiscardPendingTitle,
+  onPendingTitleBlur,
 }: {
   group: CardGroupView
   /**
@@ -76,6 +82,26 @@ export function CardGroupSection({
   onRename?: (title: string) => void
   /** 删除分组（组内卡片退回默认分组）。 */
   onRemove?: () => void
+  /**
+   * 编辑模式：该分组**底部**那个全宽虚线的「新建分组」入口（含默认分组）。点它会在本组
+   * 下方插出一个待命名的分组区域并聚焦标题输入框（§7.2）。
+   */
+  onCreateGroup?: () => void
+  /** 不能新建分组时给出的原因（达到上限）；有值时按钮禁用并把原因挂在 `title` 上。 */
+  createGroupDisabledReason?: string | null
+  /**
+   * **待命名分组**（§7.2「一步新建」）：区域已经真的存在，但标题还没填。组头就是那个**空**的
+   * 标题输入框（placeholder「输入分组名称」、自动聚焦），提交前不做任何事；提交空标题或 `Esc`
+   * 由调用方丢弃这一组。
+   */
+  pendingTitle?: boolean
+  /** 待命名分组的空标题提交（回车）/ `Esc`：调用方丢弃这一组（卡片退回默认分组）。 */
+  onDiscardPendingTitle?: () => void
+  /**
+   * 待命名分组**空标题失焦**：把「焦点去了哪儿」交给调用方，由它判断是不是真的离开了这块区域
+   * （点卡片/拖卡片都会先失焦，那时不该把这一组丢掉）。
+   */
+  onPendingTitleBlur?: (relatedTarget: EventTarget | null) => void
 }) {
   const key = cardGroupKey(group)
   const cardsId = `card-group-cards-${key}`
@@ -88,8 +114,9 @@ export function CardGroupSection({
     id: dropId,
     disabled: !editing,
   })
-  // 默认分组永远第一、不可拖动，所以它只当放置区，不参与分组排序。
-  const canSortGroup = editing && heading !== null
+  // 默认分组永远第一、不可拖动，所以它只当放置区，不参与分组排序；待命名分组还没定下名字，
+  // 也不给拖动把手（它随时可能被整组丢掉）。
+  const canSortGroup = editing && heading !== null && !pendingTitle
   const {
     attributes,
     listeners,
@@ -115,6 +142,25 @@ export function CardGroupSection({
         把名片拖到这里
       </p>
     ) : null
+  /**
+   * 组底的「新建分组」（§7.2）：全宽虚线，点它在这一组下方插出待命名的分组区域。
+   * 每个分组（含默认分组）各有一个，靠 `aria-label` 带上组名才分得清。
+   */
+  const createGroupButton =
+    editing && onCreateGroup ? (
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-3 w-full border-dashed"
+        disabled={Boolean(createGroupDisabledReason)}
+        title={createGroupDisabledReason ?? undefined}
+        aria-label={`在「${label}」下方新建分组`}
+        onClick={onCreateGroup}
+      >
+        <PlusIcon data-icon="inline-start" aria-hidden="true" />
+        新建分组
+      </Button>
+    ) : null
 
   if (heading === null) {
     return (
@@ -128,6 +174,7 @@ export function CardGroupSection({
           {emptyHint}
           {children}
         </div>
+        {createGroupButton}
       </section>
     )
   }
@@ -169,9 +216,13 @@ export function CardGroupSection({
           {editing && onRename ? (
             <CardGroupTitleInput
               key={key}
-              label="分组名称"
-              value={label}
+              label={pendingTitle ? "新分组名称" : "分组名称"}
+              placeholder={pendingTitle ? "输入分组名称" : undefined}
+              value={pendingTitle ? "" : label}
+              autoFocus={pendingTitle}
               onSubmit={onRename}
+              onCancel={pendingTitle ? onDiscardPendingTitle : undefined}
+              onEmptyBlur={pendingTitle ? onPendingTitleBlur : undefined}
             />
           ) : (
             <h3 id={headingId} className="truncate text-sm font-medium">
@@ -220,6 +271,7 @@ export function CardGroupSection({
           {children}
         </div>
       )}
+      {createGroupButton}
     </section>
   )
 }

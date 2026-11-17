@@ -102,6 +102,34 @@ function renderManager(
 
 async function enterEditing(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "编辑模式" }))
+  // 移动端（jsdom 没有 1024px 的桌面匹配）批量区默认折叠；这一批用例要按批量按钮，
+  // 进来先展开。「默认折叠、可展开」本身在 `card-manager-editing.test.tsx` 里覆盖。
+  const bulkToggle = screen.queryByRole("button", { name: "批量操作" })
+  if (bulkToggle?.getAttribute("aria-expanded") === "false") {
+    await user.click(bulkToggle)
+  }
+}
+
+/** 某个分组**底部**那个「新建分组」入口（每个分组各一个，靠组名分得清）。 */
+function createGroupButton(label: string) {
+  return within(groupSection(label)).getByRole("button", {
+    name: `在「${label}」下方新建分组`,
+  })
+}
+
+/**
+ * 待命名分组的区域：点下入口那一刻它就是一个真的 `<section>`（组头是那个空的标题输入框），
+ * 所以按它的无障碍名称查得到。
+ */
+function pendingGroupSection() {
+  return screen.getByRole("region", { name: "未命名分组" })
+}
+
+/** 待命名分组的组头输入框（可访问名与普通组头的「分组名称」区分开）。 */
+function pendingTitleInput() {
+  return within(pendingGroupSection()).getByRole("textbox", {
+    name: "新分组名称",
+  }) as HTMLInputElement
 }
 
 /** 编辑模式下的分组顺序：组头就是一个标题输入框。 */
@@ -431,28 +459,228 @@ afterEach(() => {
 })
 
 describe("CardManager group editing", () => {
-  it("creates a group below the default group and leaves it out of the draft until it holds a card", async () => {
+  it("materializes the group area as soon as 新建分组 is pressed, with the header input focused", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(createGroupButton("默认分组"))
+
+    // 点下去那一刻就是完整的分组区域：section 真的在、组头是**空的**输入框（已聚焦）、
+    // 下面就是空放置区提示。
+    const section = pendingGroupSection()
+    const input = pendingTitleInput()
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue("")
+    expect(input).toHaveAttribute("placeholder", "输入分组名称")
+    expect(within(section).getByText("把名片拖到这里")).toBeVisible()
+
+    // 它插在默认分组正下方、也在「常用」之前。
+    expect(
+      groupSection("默认分组").compareDocumentPosition(section) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      section.compareDocumentPosition(groupSection("常用")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    // 空分组保存时会被丢掉，所以此刻还不算改动。
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled()
+
+    await user.type(input, "新分组{Enter}")
+
+    // 名字落在它的组头里：同一个区域原地变成命名分组，顺序不变。
+    expect(groupTitles()).toEqual(["新分组", "常用", "备用", "归置"])
+    expect(screen.queryByRole("region", { name: "未命名分组" })).toBeNull()
+  })
+
+  it("inserts the new group area below the group whose button was pressed, focused and ready to name", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(createGroupButton("常用"))
+
+    // 区域就在「常用」下面，组头输入框立刻拿到焦点（用户直接打字即可）。
+    const section = pendingGroupSection()
+    expect(pendingTitleInput()).toHaveFocus()
+    expect(
+      groupSection("常用").compareDocumentPosition(section) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      section.compareDocumentPosition(groupSection("备用")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    await user.type(pendingTitleInput(), "常用副组{Enter}")
+
+    expect(groupTitles()).toEqual(["常用", "常用副组", "备用", "归置"])
+  })
+
+  it("keeps only one pending group: pressing another button drops the un-named one", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(createGroupButton("默认分组"))
+    expect(pendingGroupSection()).toBeVisible()
+
+    await user.click(createGroupButton("备用"))
+
+    // 仍然只有一个待命名区域（上一个没输入标题的整个丢掉），而且搬到了「备用」下面。
+    expect(
+      screen.getAllByRole("region", { name: "未命名分组" })
+    ).toHaveLength(1)
+    expect(screen.getAllByPlaceholderText("输入分组名称")).toHaveLength(1)
+    expect(
+      groupSection("备用").compareDocumentPosition(pendingGroupSection()) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    await user.type(pendingTitleInput(), "备用副组{Enter}")
+
+    expect(groupTitles()).toEqual(["常用", "备用", "备用副组", "归置"])
+  })
+
+  it("keeps the original full-width 新建分组 control and lands its group below the default group", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await enterEditing(user)
+
+    // 原来那个控件照旧在：位置还是控件区与列表之间（列表容器之前）。
+    const original = screen.getByRole("button", { name: "新建分组" })
+    expect(original).toBeVisible()
+    expect(
+      original.compareDocumentPosition(
+        screen.getByRole("navigation", { name: "我的名片清单" })
+      ) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    await user.click(original)
+
+    // 原先的行为：待命名分组落在默认分组下面（区域已经存在，不是一行输入占位）。
+    expect(pendingTitleInput()).toHaveFocus()
+    expect(
+      groupSection("默认分组").compareDocumentPosition(pendingGroupSection()) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    // 待命名期间它自己收起（老样子）——只有分组底部的入口还在。
+    expect(screen.queryByRole("button", { name: "新建分组" })).toBeNull()
+
+    await user.type(pendingTitleInput(), "新分组{Enter}")
+
+    expect(groupTitles()).toEqual(["新分组", "常用", "备用", "归置"])
+  })
+
+  it("shares the one-pending rule between the full-width control and the per-group buttons", async () => {
     const user = userEvent.setup()
     renderManager()
 
     await enterEditing(user)
     await user.click(screen.getByRole("button", { name: "新建分组" }))
-    await user.type(
-      screen.getByPlaceholderText("输入分组名称"),
-      "新分组{Enter}"
-    )
+    // 再点一个分组底部的入口：上一个还没输入标题，整个丢掉（只剩一个待命名区域）。
+    await user.click(createGroupButton("归置"))
 
-    // 新组排在默认分组正下方（组头就是那个标题输入框）。
-    expect(groupTitles()).toEqual(["新分组", "常用", "备用", "归置"])
-    const defaultGroup = screen.getByRole("region", { name: "默认分组" })
     expect(
-      defaultGroup.compareDocumentPosition(screen.getByDisplayValue("新分组")) &
+      screen.getAllByRole("region", { name: "未命名分组" })
+    ).toHaveLength(1)
+    expect(
+      groupSection("归置").compareDocumentPosition(pendingGroupSection()) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(screen.queryByPlaceholderText("输入分组名称")).toBeNull()
+  })
 
-    // 空分组保存时会被丢掉，所以此刻还不算改动。
+  it("returns the cards dropped into the un-named group to the default group when the title stays empty", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+
+    await enterEditing(user)
+    // 待命名分组插在默认分组正下方：假几何里它是第 2 个 section，放置区在 y = 440…760。
+    await user.click(createGroupButton("默认分组"))
+
+    // 勾两张卡（批次 ≥ 2 走按指针几何算落点的那条路），拖进这个还没命名的区域。
+    // 点卡片会让组头输入框失焦，但指针落在管理器内部：这一组不该在这一刻被丢掉。
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 D/ }))
+    expect(pendingGroupSection()).toBeVisible()
+
+    await grabWithPointer(
+      gridOf("常用").querySelector(
+        '[data-testid="sortable-card-tile"]'
+      ) as HTMLElement,
+      { x: 100, y: 500 }
+    )
+    firePointer(document, "pointerup", 100, 500)
+    await flush()
+
+    // 待命名区域也是合法落点：两张卡真的进去了。
+    expect(
+      gridOf("未命名分组").querySelectorAll(
+        '[data-testid="sortable-card-tile"]'
+      )
+    ).toHaveLength(2)
+
+    // 标题留空 + 回车：这一组整个丢掉，卡片退回默认分组末尾（纯草稿，不丢数据）。
+    await user.click(pendingTitleInput())
+    await user.keyboard("{Enter}")
+
+    expect(screen.queryByRole("region", { name: "未命名分组" })).toBeNull()
+    expect(groupTitles()).toEqual(["常用", "备用", "归置"])
+    expect(tileNames()).toEqual(["名片 A", "名片 B", "名片 D", "名片 C"])
+  })
+
+  it("drops the pending group when the focus really leaves the manager", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(createGroupButton("默认分组"))
+    const input = pendingTitleInput()
+    expect(input).toHaveFocus()
+
+    // 纯失焦（焦点离开整块管理器、也没有新目标）：空标题 → 待命名分组整个丢掉。
+    await act(async () => {
+      input.blur()
+    })
+
+    expect(screen.queryByRole("region", { name: "未命名分组" })).toBeNull()
+    expect(groupTitles()).toEqual(["常用", "备用", "归置"])
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled()
+  })
+
+  it("disables every 新建分组 entry with a reason once the group limit is reached", async () => {
+    const user = userEvent.setup()
+    // 20 个分组各有一张卡才会计入草稿（空分组在草稿结构里也在，但只读结构会丢掉，
+    // 所以让每组建好时就带着一张卡最省事）。
+    const cards = Array.from({ length: 21 }, (_, index) =>
+      card(index + 1, `名片 ${index + 1}`)
+    )
+    renderManager({
+      cards,
+      layout: makeNamecardCardLayout({
+        defaultCardNumbers: [21],
+        groups: Array.from({ length: 20 }, (_, index) => ({
+          id: `g-${index}`,
+          title: `组 ${index}`,
+          cardNumbers: [index + 1],
+        })),
+        limit: 20,
+      }),
+    })
+
+    await enterEditing(user)
+
+    const button = createGroupButton("组 0")
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute("title", "最多 20 个分组")
+    // 原来的全宽控件也一起吃这条上限。
+    const original = screen.getByRole("button", { name: "新建分组" })
+    expect(original).toBeDisabled()
+    expect(original).toHaveAttribute("title", "最多 20 个分组")
   })
 
   it("does not create a group for an empty or blank title", async () => {
@@ -460,12 +688,34 @@ describe("CardManager group editing", () => {
     renderManager()
 
     await enterEditing(user)
-    await user.click(screen.getByRole("button", { name: "新建分组" }))
-    await user.type(screen.getByPlaceholderText("输入分组名称"), "   {Enter}")
+    await user.click(createGroupButton("默认分组"))
+    expect(pendingGroupSection()).toBeVisible()
 
+    await user.type(pendingTitleInput(), "   {Enter}")
+
+    // 待命名区域整个丢掉，也没留下任何输入区。
+    expect(screen.queryByRole("region", { name: "未命名分组" })).toBeNull()
     expect(groupTitles()).toEqual(["常用", "备用", "归置"])
     expect(screen.queryByPlaceholderText("输入分组名称")).toBeNull()
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled()
+  })
+
+  it("discards the pending group on Escape without leaving the editing session", async () => {
+    const user = userEvent.setup()
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(createGroupButton("默认分组"))
+    expect(pendingGroupSection()).toBeVisible()
+
+    await user.keyboard("{Escape}")
+
+    // `Esc` 属于那个组头输入框：待命名区域整个丢掉，编辑会话还在（也没跳出确认框）。
+    expect(screen.queryByRole("region", { name: "未命名分组" })).toBeNull()
+    expect(groupTitles()).toEqual(["常用", "备用", "归置"])
+    expect(screen.getByRole("button", { name: "保存" })).toBeVisible()
+    expect(screen.queryByRole("button", { name: "编辑模式" })).toBeNull()
+    expect(screen.queryByRole("alertdialog")).toBeNull()
   })
 
   it("does not fold a new group just because a previous session left the same local key", async () => {
@@ -479,11 +729,8 @@ describe("CardManager group editing", () => {
     renderManager()
 
     await enterEditing(user)
-    await user.click(screen.getByRole("button", { name: "新建分组" }))
-    await user.type(
-      screen.getByPlaceholderText("输入分组名称"),
-      "新分组{Enter}"
-    )
+    await user.click(createGroupButton("默认分组"))
+    await user.type(pendingTitleInput(), "新分组{Enter}")
 
     expect(screen.getByRole("button", { name: "折叠新分组" })).toBeVisible()
     expect(screen.queryByRole("button", { name: "展开新分组" })).toBeNull()

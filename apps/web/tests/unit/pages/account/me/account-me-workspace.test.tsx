@@ -455,6 +455,8 @@ describe("AccountMeWorkspace", () => {
     )
 
     await user.click(await screen.findByRole("button", { name: "编辑模式" }))
+    // 移动端批量区默认折叠（用户口径）：先展开，才按得到批量按钮。
+    await user.click(screen.getByRole("button", { name: "批量操作" }))
     await user.click(screen.getByRole("checkbox", { name: /周末交换名片/ }))
     await user.click(screen.getByRole("button", { name: "隐藏" }))
 

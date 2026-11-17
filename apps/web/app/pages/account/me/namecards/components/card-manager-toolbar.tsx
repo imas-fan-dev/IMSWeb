@@ -17,17 +17,49 @@ import {
 import { SHARE_EMPTY_HINT } from "../card-share-model"
 import { CardShareDialog } from "./card-share-dialog"
 
-/** 分组模式渲染组头与折叠；经典模式只按同一顺序展平，不渲染组头。 */
+/**
+ * 分组模式渲染组头与折叠；经典模式不渲染组头，瓦片按**创建时间降序**排
+ * （`sortCardsByCreatedAtDesc`；不是分组顺序展平）。
+ */
 export type CardManagerViewMode = "grouped" | "classic"
 
 /**
- * 管理器的操作区：展示方式、新建名片，以及编辑模式下的选择集操作与显式保存。
- *
- * 编辑模式是草稿会话（§12）：切换由调用方负责脏标记确认，这里只发意图。
+ * 「分组 / 经典」切换。位置**由调用方决定**：移动端在标题行（我的名片 + N 张名片 那一行），
+ * 桌面在控件区最左侧（动作按钮靠右）。**编辑模式下不渲染**（不是禁用）——编辑只发生在分组
+ * 视图里，经典模式点「编辑模式」会先自动切回分组（见 `CardManager.startEditing`）。
  */
-export function CardManagerToolbar({
+export function CardManagerModeToggle({
   mode,
   onModeChange,
+}: {
+  mode: CardManagerViewMode
+  onModeChange: (mode: CardManagerViewMode) => void
+}) {
+  return (
+    <ToggleGroup
+      value={[mode]}
+      variant="outline"
+      spacing={0}
+      aria-label="名片展示方式"
+      onValueChange={(values) => {
+        const next = values[0]
+        if (next === "grouped" || next === "classic") onModeChange(next)
+      }}
+    >
+      <ToggleGroupItem value="grouped">分组</ToggleGroupItem>
+      <ToggleGroupItem value="classic">经典</ToggleGroupItem>
+    </ToggleGroup>
+  )
+}
+
+/**
+ * 管理器的动作区：新建名片，以及编辑模式下的选择集操作与显式保存。
+ *
+ * 编辑模式是草稿会话（§12）：切换由调用方负责脏标记确认，这里只发意图。
+ * 编辑模式里**不渲染**「新建名片」（会话里新建的卡不进这次草稿，默认分组里的落点会整体错位，
+ * 所以不是禁用而是不给入口）。
+ */
+export function CardManagerToolbar({
   readOnly,
   onCreate,
   editing,
@@ -45,8 +77,6 @@ export function CardManagerToolbar({
   shareHandle,
   quickCount,
 }: {
-  mode: CardManagerViewMode
-  onModeChange: (mode: CardManagerViewMode) => void
   readOnly: boolean
   onCreate: () => void
   editing: boolean
@@ -76,20 +106,7 @@ export function CardManagerToolbar({
   const [shareHintOpen, setShareHintOpen] = useState(false)
   const shareable = quickCount > 0
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-      <ToggleGroup
-        value={[mode]}
-        variant="outline"
-        spacing={0}
-        aria-label="名片展示方式"
-        onValueChange={(values) => {
-          const next = values[0]
-          if (next === "grouped" || next === "classic") onModeChange(next)
-        }}
-      >
-        <ToggleGroupItem value="grouped">分组</ToggleGroupItem>
-        <ToggleGroupItem value="classic">经典</ToggleGroupItem>
-      </ToggleGroup>
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       {editing ? (
         <>
           <span className="text-sm text-muted-foreground">
@@ -111,12 +128,12 @@ export function CardManagerToolbar({
             disabled={selectedCount === 0}
             onClick={onClearSelection}
           >
-            取消
+            清空
           </Button>
           <Button
             type="button"
             size="sm"
-            variant="outline"
+            variant="destructive"
             disabled={saving}
             onClick={onExitEditing}
           >
@@ -193,20 +210,17 @@ export function CardManagerToolbar({
               </Tooltip>
             </TooltipProvider>
           )}
+          <Button
+            type="button"
+            size="sm"
+            disabled={readOnly}
+            onClick={onCreate}
+          >
+            <PlusIcon data-icon="inline-start" aria-hidden="true" />
+            新建名片
+          </Button>
         </>
       )}
-      <Button
-        type="button"
-        size="sm"
-        // 编辑模式里新建的卡会落到默认分组最前，但不进这次会话的草稿（草稿是进会话时
-        // materialize 的），默认组里所有落点下标就整体差 1，所以这段会话里禁掉。
-        disabled={readOnly || editing}
-        title={editing ? "保存或退出编辑后再新建" : undefined}
-        onClick={onCreate}
-      >
-        <PlusIcon data-icon="inline-start" aria-hidden="true" />
-        新建名片
-      </Button>
       <CardShareDialog
         handle={shareHandle}
         open={shareOpen}

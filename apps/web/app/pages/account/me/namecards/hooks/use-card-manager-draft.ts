@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import type { FudabaOwnerCard, NamecardCardLayout } from "~/lib/api"
 import {
+  addPendingCardGroup as addPendingCardGroupInDraft,
   buildCardLayoutRequest,
-  createCardGroup as createCardGroupInDraft,
   createCardLayoutDraft,
   effectiveExchangeMode,
   effectiveQuickCardNumbers,
@@ -14,6 +14,7 @@ import {
   reorderCardGroups as reorderCardGroupsInDraft,
   sameCardLayoutDraft,
   selectableCardIds,
+  settleCardGroupTitle as settleCardGroupTitleInDraft,
   type CardManagerCardSetting,
   type CardManagerCardSettings,
   type CardManagerLayoutDraft,
@@ -159,13 +160,32 @@ export function useCardManagerDraft({
     []
   )
 
-  /** 新建分组（§7.2）：空标题、超长标题、超过上限时 `createCardGroup` 原样返回。 */
-  const createCardGroup = useCallback(
-    (title: string) => {
-      updateLayoutDraft((draft) => ({
-        ...draft,
-        groups: createCardGroupInDraft(draft.groups, title),
-      }))
+  /**
+   * 一步新建（§7.2）：**立刻**在 `afterKey` 下方插一个标题为空的待命名分组（真实分组，沿用
+   * `local:N` key），返回它的 key；调用方拿它标记「谁是待命名的那个」。上一个还没命名的先按
+   * 同一条规则丢掉（空标题不建组），所以同一时刻只会有一个。
+   *
+   * 两次变更都在同一份快照上算，避免「先丢后建」读到一个已经把旧待命名分组写回去的草稿。
+   */
+  const startPendingCardGroup = useCallback(
+    (previousKey: string | null, afterKey: string): string | null => {
+      const current = layoutDraft
+      if (!current) return null
+      const base = previousKey
+        ? removeCardGroupInDraft(current, previousKey)
+        : current
+      const created = addPendingCardGroupInDraft(base.groups, afterKey)
+      if (!created) return null
+      setLayoutDraft({ ...base, groups: created.groups })
+      return created.key
+    },
+    [layoutDraft]
+  )
+
+  /** 待命名分组的标题落地：非空即命名；空标题 / `Esc` 丢弃这一组（卡片退回默认分组）。 */
+  const commitPendingCardGroupTitle = useCallback(
+    (key: string, title: string) => {
+      updateLayoutDraft((draft) => settleCardGroupTitleInDraft(draft, key, title))
     },
     [updateLayoutDraft]
   )
@@ -221,6 +241,15 @@ export function useCardManagerDraft({
   )
 
   const clearSelection = useCallback(() => setRawSelectedCardIds(new Set()), [])
+
+  /**
+   * 整份替换选择集（鼠标框选，§8）：与 `toggleSelected` 一样只写**原始** id 集合，
+   * 失效的 id 由「生效选择集」那层派生过滤掉。
+   */
+  const setSelectedCards = useCallback(
+    (cardIds: Iterable<string>) => setRawSelectedCardIds(new Set(cardIds)),
+    []
+  )
 
   /**
    * 批量写可见性 / 交换模式。团体名片整体跳过：服务端把它们的这两个字段固定成
@@ -302,12 +331,14 @@ export function useCardManagerDraft({
     selectedGroupCardCount,
     quickJoinNeedsAutoCount,
     toggleSelected,
+    setSelectedCards,
     selectAll,
     clearSelection,
     applyCardSettings,
     addSelectionToQuickList,
     removeSelectionFromQuickList,
-    createCardGroup,
+    startPendingCardGroup,
+    commitPendingCardGroupTitle,
     renameCardGroup,
     removeCardGroup,
     reorderCardGroups,
