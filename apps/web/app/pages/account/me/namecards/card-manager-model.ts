@@ -3,6 +3,7 @@ import { NAMECARD_PROFILE_GROUP_LIMIT } from "@imsweb/contracts/namecards/runtim
 import { flushSync } from "react-dom"
 
 import type { FudabaOwnerCard, NamecardCardLayout } from "~/lib/api"
+import { cardFlipOffsetFromComputedStyle } from "./card-grid-animation"
 
 /**
  * 默认分组没有服务端 id，也不显示标题；折叠状态与 DOM id 需要一个稳定键，
@@ -459,6 +460,31 @@ function rectDistanceToPoint(
 }
 
 /**
+ * 渲染中的矩形 → **布局**矩形：减掉元素自己此刻的位移。
+ *
+ * 拖动中瓦片常常正在跑 FLIP 的 180ms 过渡（落点 ghost 插入/展开把它们顶开），
+ * `getBoundingClientRect()` 量到的是**半路上**的渲染位置；按它算落点，指针一动不动、落点也会
+ * 跟着动画抖，ghost 于是插在「马上就要消失」的位置上（用户 2026-11-17 反馈「合集拖拽展开
+ * 过程中偶发错位」）。减掉位移之后量到的是它**将要去的地方**——也就是 ghost 插好之后的真实
+ * 排版，动画与滚动都不再干扰落点。
+ *
+ * 只减平移：那一刻瓦片上只可能有我们写的 `translate`（dnd-kit 的排序位移被
+ * `NO_SHIFT_SORTING_STRATEGY` 关掉了），缩放/旋转不参与落点。
+ */
+export function layoutRectFromRenderedRect(
+  rect: CardDropRect,
+  computedTransform: string | null | undefined
+): CardDropRect {
+  const offset = cardFlipOffsetFromComputedStyle(computedTransform)
+  return {
+    left: rect.left - offset.dx,
+    top: rect.top - offset.dy,
+    right: rect.right - offset.dx,
+    bottom: rect.bottom - offset.dy,
+  }
+}
+
+/**
  * 指针几何直接算落点：**不看 dnd-kit 的 `over`**。
  *
  * `over` 依赖 dnd-kit 缓存的 droppable rects（哪怕 `strategy: Always`，也只在拖拽开始与
@@ -473,7 +499,8 @@ function rectDistanceToPoint(
  * - 空组是 0；指针在整组之上是 0、之下就是整组张数。
  *
  * 调用方传进来的 `tiles` 是**已经摘掉本批**的实时列表（多选拖动中整批已经不在 DOM 里），
- * 所以下标与 `CardMoveTarget.index` 同口径：ghost 插在哪儿、松手就落在哪儿。
+ * 所以下标与 `CardMoveTarget.index` 同口径：ghost 插在哪儿、松手就落在哪儿。矩形得是
+ * **布局**矩形（`layoutRectFromRenderedRect`），不然过渡中途量到的是半路位置。
  */
 export function resolveCardDropFromPointer({
   pointer,

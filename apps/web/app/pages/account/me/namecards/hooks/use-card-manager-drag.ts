@@ -25,6 +25,7 @@ import {
   DEFAULT_CARD_GROUP_KEY,
   DEFAULT_CARD_GROUP_LABEL,
   isCardGroupSortableId,
+  layoutRectFromRenderedRect,
   resolveCardDropFromPointer,
   type CardDropPointerGroup,
   type CardDropRect,
@@ -46,6 +47,17 @@ const CARD_DROP_GHOST_DWELL_MS = 1000
  * 并重新开始 1s 计时（用户 2026-11-17 定：原来的 12px 太容易误触）。
  */
 const GHOST_COLLAPSE_DISTANCE_PX = 16
+
+/**
+ * 落点候选的死区：指针离「上次采纳候选时的位置」不到这么远时，即使几何上算出来的候选变了也
+ * 不换 ghost。行端点那点抖动（上一行的末尾与下一行的开头只差几像素）因此不会让落点在两行之间
+ * 反复横跳——ghost 是那一刻唯一的位移来源，它一换布局就变、指针又可能算回原候选，没有死区
+ * 就是 60Hz 来回切（用户 2026-11-17 反馈）。
+ *
+ * 与 `GHOST_COLLAPSE_DISTANCE_PX`（16）同量级：横向/纵向跨过一格都远大于它，所以正常拖动
+ * 感觉不到延迟。
+ */
+const DROP_TARGET_HYSTERESIS_PX = 12
 
 /**
  * 卡片的落点已经不走 dnd-kit 的 `over` 了（改成按指针几何实测 DOM，见 `applyPointerTarget`），
@@ -81,6 +93,9 @@ function dropRectOf(node: Element): CardDropRect {
 /**
  * 这一刻的落点几何：每个分组放置区一个矩形 + 区内**真的渲染出来**的瓦片矩形。
  * 折叠的分组不渲染放置区，因此天然不在候选里（也就落不进去）。
+ *
+ * 瓦片量的是**布局**矩形（`layoutRectFromRenderedRect`）：拖动中它们常常正在跑 FLIP 的过渡，
+ * 量渲染中的位置会让落点跟着动画一起抖。放置区自己没有任何动画，直接量。
  */
 function readDropPointerGroups(): CardDropPointerGroup[] {
   const groups: CardDropPointerGroup[] = []
@@ -96,7 +111,10 @@ function readDropPointerGroups(): CardDropPointerGroup[] {
         ...area.querySelectorAll<HTMLElement>(CARD_TILE_SELECTOR),
       ].map((tile) => ({
         cardId: tile.dataset.cardId ?? "",
-        rect: dropRectOf(tile),
+        rect: layoutRectFromRenderedRect(
+          dropRectOf(tile),
+          window.getComputedStyle(tile).transform
+        ),
       })),
     })
   }
@@ -251,9 +269,21 @@ export function useCardManagerDrag({
   /** 最近一次落定的落点候选；用它判断「候选变了没有」。 */
   const settledTargetRef = useRef<CardDropTarget | null>(null)
   /**
+   * 采纳当前候选时的指针位置：死区（`DROP_TARGET_HYSTERESIS_PX`）就是从它算起的。
+   * `settledTargetRef` 与它必须一起更新——两者是同一件事（「这个候选取自哪儿」）。
+   */
+  const targetAnchorRef = useRef<{ x: number; y: number } | null>(null)
+  /**
    * 指针拖拽（批次 ≥ 2）最后算出来的落点：松手时按它落位（状态可能还差一帧，所以留快照）。
    */
   const pointerTargetRef = useRef<CardDropTarget | null>(null)
+  /**
+   * 最后一次 `pointermove` 的视口坐标。滚动（含 dnd-kit 的自动滚动）只改布局、不改指针，
+   * 而 `scroll` 事件里拿不到指针坐标——重解析落点只能拿这个位置当落点。
+   */
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
+  /** 合并一个滚动批次：这一帧已经排过重解析就不再排（`scroll` 会成串到来）。 */
+  const scrollReparseRafRef = useRef<number | null>(null)
   /** 这一趟是不是键盘拖拽：键盘没有「指针停顿」，ghost 直接按展开态渲染。 */
   const keyboardDragRef = useRef(false)
   /** 播报文案在事件处理器里写好，`aria-live` 的回调再取出来（回调执行晚于一帧）。 */
@@ -392,53 +422,93 @@ export function useCardManagerDrag({
    * →收起展开的 ghost 并重新计时。播报文案也在这里写好（dnd-kit 的 `onDragOver` 对这条
    * 路不再负责，见 `handleDragOver`）。
    *
+   * 候选本身要过一道**死区**（`DROP_TARGET_HYSTERESIS_PX`）：指针离采纳当前候选时的位置不到
+   * 12px 时，哪怕几何算出来的候选变了也不换——否则压在行端点上的指针一抖就换候选、一换布局
+   * 又算回原候选，ghost 会在两行之间 60Hz 来回横跳。
+   *
    * 每个指针事件都量一遍、不做额外的节流：浏览器把 `pointermove` 对齐到帧（约 60–120 次/秒），
    * 所以它天然就是「最多一帧一次」；再叠一层 rAF 节流只会把同一帧里**后面**的指针事件丢掉，
    * 让落点落后指针一帧（量 rect 的成本与 dnd-kit 自己每次移动都跑的碰撞检测同一量级）。
+   *
+   * 滚动（`scroll`）走同一个入口，但带 `layoutShifted`：指针没动、几何变了，死区按定义会把
+   * 这次修正挡掉，所以那条路绕开它（候选真的不同才采纳，见下面的死区判定）。
    */
   const applyPointerTarget = useCallback(
-    (pointer: { x: number; y: number }) => {
+    (
+      pointer: { x: number; y: number },
+      { layoutShifted = false }: { layoutShifted?: boolean } = {}
+    ) => {
       const current = sessionRef.current
       // 只有「多选 + 指针」这条路要几何落点：单张沿用 dnd-kit 的排序位移，键盘没有指针。
       if (!current || current.kind !== "card") return
       if (current.cardIds.length <= 1 || keyboardDragRef.current) return
 
+      // 下标必须按**整批已摘掉**的列表算（与 `CardMoveTarget.index`、`moveCards` 同口径）：
+      // 激活那一次 `pointermove` 早于 React 把整批移出列表——dnd-kit 在 `document` 上先处理、
+      // 建好这趟会话，我们的监听器在 `window` 上后处理，此刻 DOM 里整批瓦片还在。不在这里
+      // 摘掉，下标就会多算排在落点之前的本批张数，ghost 与真正的落位差一格（正常帧里它们
+      // 已经不在 DOM 中，这层过滤是恒等的）。
+      const batch = new Set(current.cardIds)
       const target = resolveCardDropFromPointer({
         pointer,
-        groups: readDropPointerGroups(),
+        groups: readDropPointerGroups().map((group) => ({
+          ...group,
+          tiles: group.tiles.filter((tile) => !batch.has(tile.cardId)),
+        })),
       })
-      pointerTargetRef.current = target
-      messagesRef.current.over = target
-        ? `落点『${groupTitle(target.groupKey)}』`
-        : ""
 
       if (!target) {
         settledTargetRef.current = null
+        targetAnchorRef.current = null
+        messagesRef.current.over = ""
         clearDwellTimer()
         updatePreview(null)
         return
       }
+
       const settled = settledTargetRef.current
-      if (
-        !settled ||
-        settled.groupKey !== target.groupKey ||
-        settled.index !== target.index
-      ) {
-        settledTargetRef.current = target
-        updatePreview({ ...target, expanded: false })
+      const anchor = targetAnchorRef.current
+      const sameTarget =
+        settled?.groupKey === target.groupKey && settled?.index === target.index
+      // 换分组是粗粒度、有明确意图的动作，不进死区。
+      const groupChanged = settled?.groupKey !== target.groupKey
+      // 滚动路径（`layoutShifted`）：指针没动、几何却变了，锚点就在指针脚下——死区按定义会
+      // 把这次修正挡掉，所以绕开它。采纳之后锚点跟着更新成当前指针（见下面），后续指针自己
+      // 的抖动照旧过死区，不会来回横跳。
+      const movedPastDeadZone =
+        layoutShifted ||
+        !anchor ||
+        Math.hypot(pointer.x - anchor.x, pointer.y - anchor.y) >
+          DROP_TARGET_HYSTERESIS_PX
+
+      // 死区：候选换了，但指针还在原地打转（行端点那种一两像素的抖动）→ 什么都不做，
+      // ghost、播报与计时都保持原样。
+      if (!sameTarget && !groupChanged && !movedPastDeadZone) return
+
+      if (sameTarget) {
+        // 候选没变：指针真的走开了才算「在找新落点」，收起展开的 ghost 并重新计时；
+        // 没走开就完全无副作用（指针原地抖动不该打断 1s 的停顿计时）。
+        const dwellAnchor = dwellAnchorRef.current
+        if (
+          !dwellAnchor ||
+          Math.hypot(pointer.x - dwellAnchor.x, pointer.y - dwellAnchor.y) <=
+            GHOST_COLLAPSE_DISTANCE_PX
+        ) {
+          return
+        }
+        const preview = previewRef.current
+        if (preview?.expanded) updatePreview({ ...preview, expanded: false })
         armDwell(pointer, current.cardIds.length)
         return
       }
-      const anchor = dwellAnchorRef.current
-      if (!anchor) return
-      if (
-        Math.hypot(pointer.x - anchor.x, pointer.y - anchor.y) <=
-        GHOST_COLLAPSE_DISTANCE_PX
-      ) {
-        return
-      }
-      const preview = previewRef.current
-      if (preview?.expanded) updatePreview({ ...preview, expanded: false })
+
+      // 采纳新候选：ghost、播报、`pointerTargetRef`（松手时按它落位）与死区锚点**一起**换，
+      // 三者同源才算「ghost 插在哪儿、松手就落在哪儿」。
+      settledTargetRef.current = target
+      targetAnchorRef.current = pointer
+      pointerTargetRef.current = target
+      messagesRef.current.over = `落点『${groupTitle(target.groupKey)}』`
+      updatePreview({ ...target, expanded: false })
       armDwell(pointer, current.cardIds.length)
     },
     [armDwell, clearDwellTimer, groupTitle, updatePreview]
@@ -456,14 +526,40 @@ export function useCardManagerDrag({
    * 挂在 `enabled`（编辑模式的分组视图）而不是 `onDragStart`：dnd-kit 要等指针移动超过激活
    * 距离才回调 `onDragStart`，那一刻这一趟的第一个 `pointermove` 已经在派发中了（`document`
    * 阶段），晚挂就丢掉它——正是「落点要跟着指针」最需要的第一个位置。
+   *
+   * `scroll` 与之同挂：滚动改的是**布局**、不是指针，指针不动时原实现没有任何东西重算落点，
+   * ghost 于是停在旧几何的位置上（用户 2026-11-17「拖拽展开过程中滚动会偶发错位」）。这里用
+   * 最后一次指针坐标按新几何重算一遍，`capture: true` 覆盖内部滚动容器（滚动事件不冒泡到
+   * `window`），dnd-kit 的自动滚动也是真的 `scroll`，同一条路覆盖。
    */
   useEffect(() => {
     if (!enabled) return
     const onPointerMove = (event: PointerEvent) => {
+      lastPointerRef.current = { x: event.clientX, y: event.clientY }
       applyPointerTarget({ x: event.clientX, y: event.clientY })
     }
+    // 一个滚动批次里 `scroll` 会成串到来：一帧只重解析一次（rAF 合并），指针那条路仍然逐事件。
+    const onScroll = () => {
+      if (scrollReparseRafRef.current !== null) return
+      scrollReparseRafRef.current = window.requestAnimationFrame(() => {
+        scrollReparseRafRef.current = null
+        const pointer = lastPointerRef.current
+        if (pointer) applyPointerTarget(pointer, { layoutShifted: true })
+      })
+    }
     window.addEventListener("pointermove", onPointerMove, { passive: true })
-    return () => window.removeEventListener("pointermove", onPointerMove)
+    window.addEventListener("scroll", onScroll, {
+      capture: true,
+      passive: true,
+    })
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("scroll", onScroll, { capture: true })
+      if (scrollReparseRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollReparseRafRef.current)
+        scrollReparseRafRef.current = null
+      }
+    }
   }, [applyPointerTarget, enabled])
 
   /** 丢掉这一趟拖拽留下的 ghost 状态（计时器、参照点、落点、展开态）。 */
@@ -471,6 +567,7 @@ export function useCardManagerDrag({
     clearDwellTimer()
     dwellAnchorRef.current = null
     settledTargetRef.current = null
+    targetAnchorRef.current = null
     pointerTargetRef.current = null
     keyboardDragRef.current = false
     updatePreview(null)

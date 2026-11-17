@@ -102,6 +102,43 @@ export function cardFlipOffsetFromStyle(
   return { dx: Number(match[1]), dy: Number(match[2]) }
 }
 
+/**
+ * 计算样式里的 `transform` → 平移量。
+ *
+ * 浏览器把 `transform` 的计算值序列化成单个矩阵：`matrix(a, b, c, d, tx, ty)`，3D 是
+ * `matrix3d(…)`（平移在 `m41`/`m42`，也就是第 13、14 个数）；jsdom 没有布局，会把作者写的
+ * 函数原样返回（`translate(…)`），两种形态都得认。读**计算**样式而不是内联样式，是因为过渡
+ * 途中内联值已经摘掉，而计算值是**插值中**的那一个——量自然位置与写回倒放偏移都要用它
+ * （见 `hooks/use-card-grid-flip.ts`）。
+ *
+ * 认不出的值（`none`、空串、别的函数）当 0：调用方拿到的永远是「减多少 / 加多少」，
+ * 不需要再判空。
+ */
+export function cardFlipOffsetFromComputedStyle(
+  value: string | null | undefined
+): CardFlipOffset {
+  const match = /^(matrix3d|matrix|translate3d|translate)\(([^)]*)\)/.exec(
+    value ?? ""
+  )
+  const parts = (match?.[2] ?? "")
+    .split(",")
+    .map((part) => Number.parseFloat(part))
+  const at = (index: number) => {
+    const part = parts[index]
+    return typeof part === "number" && Number.isFinite(part) ? part : 0
+  }
+  switch (match?.[1]) {
+    case "matrix":
+      // matrix(a, b, c, d, tx, ty)
+      return { dx: at(4), dy: at(5) }
+    case "matrix3d":
+      return { dx: at(12), dy: at(13) }
+    default:
+      // translate(x, y) / translate3d(x, y, z)（jsdom 会把作者写的值原样返回）
+      return { dx: at(0), dy: at(1) }
+  }
+}
+
 /** 承接位移的内联 `transition`（从「倒着放」回到自然位置）。 */
 export function cardFlipTransition(): string {
   return `transform ${CARD_FLIP_DURATION_MS}ms ${CARD_FLIP_EASING}`

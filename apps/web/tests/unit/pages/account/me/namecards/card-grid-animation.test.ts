@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   CARD_FLIP_EASING,
   CARD_FLIP_INVERT_TRANSITION,
+  cardFlipOffsetFromComputedStyle,
   cardFlipOffsetFromStyle,
   cardFlipTransition,
   cardFlipTransform,
@@ -86,6 +87,49 @@ describe("cardFlipTransform", () => {
     expect(cardFlipOffsetFromStyle("translate(12px, 30px) scaleX(1)")).toBeNull()
     expect(cardFlipOffsetFromStyle("")).toBeNull()
     expect(cardFlipOffsetFromStyle(null)).toBeNull()
+  })
+})
+
+describe("cardFlipOffsetFromComputedStyle", () => {
+  it("reads the translation out of the browser's matrix forms", () => {
+    // 浏览器把计算值序列化成一个矩阵：平移是最后的 tx/ty（matrix）、第 13、14 个数（matrix3d）。
+    expect(cardFlipOffsetFromComputedStyle("matrix(1, 0, 0, 1, 12, -30)")).toEqual({
+      dx: 12,
+      dy: -30,
+    })
+    expect(
+      cardFlipOffsetFromComputedStyle(
+        "matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 12, -30, 0, 1)"
+      )
+    ).toEqual({ dx: 12, dy: -30 })
+  })
+
+  it("reads the author-written forms jsdom hands back", () => {
+    // jsdom 没有布局，计算样式就是作者写的那串（还可能跟着 dnd-kit 的缩放）。
+    expect(cardFlipOffsetFromComputedStyle("translate(0px, -150px)")).toEqual({
+      dx: 0,
+      dy: -150,
+    })
+    expect(
+      cardFlipOffsetFromComputedStyle(
+        "translate3d(10px, -150px, 0) scaleX(1) scaleY(1)"
+      )
+    ).toEqual({ dx: 10, dy: -150 })
+  })
+
+  it("treats anything it cannot read as no movement", () => {
+    expect(cardFlipOffsetFromComputedStyle("none")).toEqual({ dx: 0, dy: 0 })
+    expect(cardFlipOffsetFromComputedStyle("")).toEqual({ dx: 0, dy: 0 })
+    expect(cardFlipOffsetFromComputedStyle(null)).toEqual({ dx: 0, dy: 0 })
+    expect(cardFlipOffsetFromComputedStyle("rotate(30deg)")).toEqual({
+      dx: 0,
+      dy: 0,
+    })
+    // 参数读不出数字时也不能把 NaN 传出去（它会污染整条坐标计算）。
+    expect(cardFlipOffsetFromComputedStyle("matrix(1, 0, 0, 1, x, y)")).toEqual({
+      dx: 0,
+      dy: 0,
+    })
   })
 })
 

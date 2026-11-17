@@ -28,6 +28,7 @@ import {
   flattenCardGroups,
   isCardManagerDraftDirty,
   isCardQuickEligible,
+  layoutRectFromRenderedRect,
   moveCards,
   quickCardIdSet,
   removeCardGroup,
@@ -759,6 +760,26 @@ describe("moveCards", () => {
   })
 })
 
+describe("layoutRectFromRenderedRect", () => {
+  const rendered: CardDropRect = { left: 10, top: 20, right: 110, bottom: 80 }
+
+  it("keeps the rect when the tile carries no displacement", () => {
+    // `none`（没动画）、恒等矩阵、以及量不到计算样式时都不能把坐标改坏。
+    expect(layoutRectFromRenderedRect(rendered, "none")).toEqual(rendered)
+    expect(
+      layoutRectFromRenderedRect(rendered, "matrix(1, 0, 0, 1, 0, 0)")
+    ).toEqual(rendered)
+    expect(layoutRectFromRenderedRect(rendered, null)).toEqual(rendered)
+  })
+
+  it("measures where a displaced tile is going, not where it is painted", () => {
+    // 过渡中途：这一帧渲染在 (10, 20)，而它身上还挂着 -705/-311 的位移（要去的地方在左上）。
+    expect(
+      layoutRectFromRenderedRect(rendered, "matrix(1, 0, 0, 1, -705, 311)")
+    ).toEqual({ left: 715, top: -291, right: 815, bottom: -231 })
+  })
+})
+
 describe("resolveCardDropFromPointer", () => {
   // 一行 3 列：瓦片 100×60、间距 10 → 列宽 110、行高 70。两个分组上下排开。
   const TILE_WIDTH = 100
@@ -907,6 +928,18 @@ describe("resolveCardDropFromPointer", () => {
     expect(moveCards(draft([3, 4], []), [1, 2], target!).defaultCardNumbers).toEqual(
       [3, 1, 2, 4]
     )
+  })
+
+  it("returns a definite index on the seam between two rows", () => {
+    // 两行之间那条缝（第一行 100–160、第二行 170–350）。指针压在这条缝上时结果必须是确定值：
+    // 一会儿算「第一行末尾」一会儿算「第二行开头」，正是 ghost 来回横跳的来源。抖动本身由
+    // 调用方的死区挡（`use-card-manager-drag` 的 `DROP_TARGET_HYSTERESIS_PX`），这里只保证
+    // 同一个位置永远给同一个答案。
+    for (const y of [158, 160, 164, 168, 172]) {
+      expect(
+        resolveCardDropFromPointer({ pointer: { x: 10, y }, groups: [groupA] })
+      ).toEqual({ groupKey: "g-a", index: 3 })
+    }
   })
 })
 

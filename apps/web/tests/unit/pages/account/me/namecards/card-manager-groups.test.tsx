@@ -118,7 +118,14 @@ function groupSection(title: string): HTMLElement {
  * dnd-kit 在拖拽期间拿**拖拽层**（`position: fixed` 的那个节点）当「正在拖的节点」来量，
  * 所以 `getDragged` 要告诉它此刻拖的是谁——否则拖拽层量出来是 0，键盘方向键就没有参照。
  */
-function stubSortableGeometry(getDragged: () => Element | null) {
+function stubSortableGeometry(
+  getDragged: () => Element | null,
+  /**
+   * 模拟滚动：`getBoundingClientRect` 是**视口**坐标，滚动就是所有 rect 一起位移。
+   * 每次量的时候现取（`() => dy`），这样用例可以在拖拽中间改它再派发 `scroll`。
+   */
+  scrollOffsetY: () => number = () => 0
+) {
   const GROUP_HEIGHT = 400
   const sections = () => [
     ...document.querySelectorAll('[data-testid="card-group"]'),
@@ -155,7 +162,12 @@ function stubSortableGeometry(getDragged: () => Element | null) {
     .mockImplementation(function (this: Element) {
       const isDragOverlay = (this as HTMLElement).style?.position === "fixed"
       const dragged = isDragOverlay ? getDragged() : this
-      return dragged ? rectOf(dragged) : makeRect(0, 0, 0, 0)
+      if (!dragged) return makeRect(0, 0, 0, 0)
+      const rect = rectOf(dragged)
+      const dy = scrollOffsetY()
+      return dy === 0
+        ? rect
+        : makeRect(rect.left, rect.top + dy, rect.width, rect.height)
     })
 }
 
@@ -223,6 +235,19 @@ function pointerLike(type: string, clientX: number, clientY: number): Event {
 
 async function flush() {
   await act(async () => {})
+}
+
+/**
+ * 模拟一次窗口滚动：rect 整体位移由 `stubSortableGeometry` 的 `scrollOffsetY` 负责，这里只
+ * 派发 `scroll` 并等 rAF 合并的那一帧跑完（重解析在 rAF 里，断言必须等它）。
+ */
+async function scrollWindow() {
+  await act(async () => {
+    window.dispatchEvent(new Event("scroll"))
+    const { promise, resolve } = Promise.withResolvers<void>()
+    window.requestAnimationFrame(() => resolve())
+    await promise
+  })
 }
 
 /**
@@ -624,6 +649,160 @@ describe("CardManager dragging", () => {
     expectNoInlineTileMotion()
   })
 
+  it("computes the landing index against the list without the batch on the activation frame", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    // 四张卡都在默认分组：批次 {A, B} 就排在落点前面，激活那一帧的下标最容易多算。
+    renderManager({
+      cards: CARDS,
+      layout: makeNamecardCardLayout({
+        defaultCardNumbers: [1, 2, 3, 4],
+        limit: 20,
+      }),
+    })
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 A/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    // 抓手在名片 A 上；指针停在名片 C 的下半（ghost 该插在 C 之后、D 之前）。激活那一次
+    // `pointermove` 里 React 还没把整批移出列表（见 `applyPointerTarget` 的说明），几何得自己
+    // 摘掉本批：不摘就会多算 A、B、C 三张，ghost 落到列表末尾。
+    await grabWithPointer(
+      screen
+        .getByText("名片 A")
+        .closest('[data-testid="sortable-card-tile"]') as HTMLElement,
+      { x: 60, y: 340 }
+    )
+
+    const ghost = stackGhost()
+    expect(ghost).toBeDefined()
+    // 摘掉 A、B 之后列表是 [C, D]：插在 C 与 D 之间（下标 1）。
+    expect(ghostIndex(ghost as HTMLElement)).toBe(1)
+
+    // 松手：落位与 ghost 预览的位置逐字一致（C、A、B、D）。
+    document.dispatchEvent(pointerLike("pointerup", 60, 340))
+    await flush()
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "已把 2 张名片移动到『默认分组』"
+      )
+    )
+    expect(tileNames()).toEqual(["名片 C", "名片 A", "名片 B", "名片 D"])
+    expectNoInlineTileMotion()
+  })
+
+  it("keeps the landing spot while the pointer jitters inside the dead zone", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 D/ }))
+    // 指针停在名片 A 中心线上方 5px：落点是默认分组的第 0 张。
+    await grabWithPointer(
+      gridOf("常用").querySelector(
+        '[data-testid="sortable-card-tile"]'
+      ) as HTMLElement,
+      { x: 60, y: 115 }
+    )
+    expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
+
+    // 往下 3px：几何上候选已经翻到「名片 A 之后」（越过了它中心往下 6px 的判定线），但指针
+    // 还没离开死区（12px）→ ghost 一动不动，播报也不重发。
+    document.dispatchEvent(pointerLike("pointermove", 60, 118))
+    await flush()
+    expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
+    expect(announcedGroup()).toBe("默认分组")
+
+    // 就这么松手：落位是 ghost 预览的位置（下标 0），不是那一刻算出来的原始候选。
+    document.dispatchEvent(pointerLike("pointerup", 60, 118))
+    await flush()
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "已把 2 张名片移动到『默认分组』"
+      )
+    )
+    expect(tileNames()).toEqual(["名片 B", "名片 D", "名片 A", "名片 C"])
+    expectNoInlineTileMotion()
+  })
+
+  it("does not swap the ghost back and forth when the pointer sits on a row endpoint", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 D/ }))
+    await grabWithPointer(
+      gridOf("常用").querySelector(
+        '[data-testid="sortable-card-tile"]'
+      ) as HTMLElement,
+      { x: 60, y: 115 }
+    )
+
+    // 压着「名片 A 中心」这条判定线两侧各 3px 来回走：每一步几何上都翻一次候选（0 ↔ 1），
+    // ghost 却一次都不该跟着动——这正是用户 2026-11-17 反馈的「上下两行反复横跳」。
+    for (const y of [118, 115, 118, 115, 118]) {
+      document.dispatchEvent(pointerLike("pointermove", 60, y))
+      await flush()
+      expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
+    }
+
+    // 真走开一格（25px）才换：指针到名片 A 中心下方 → ghost 插到它后面。
+    document.dispatchEvent(pointerLike("pointermove", 60, 140))
+    await flush()
+    expect(ghostIndex(stackGhost() as HTMLElement)).toBe(1)
+
+    // 收尾：取消这趟拖拽。留着一个「拖拽中」的 dnd-kit 会话，下一条用例的点击会被它挂在
+    // document 上的捕获监听吞掉（组件测试里每趟拖拽都要有结局）。
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(ghostNodes()).toHaveLength(0))
+  })
+
+  it("measures where a tile is going, not where the FLIP is painting it", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 D/ }))
+    const grabbable = gridOf("常用").querySelector(
+      '[data-testid="sortable-card-tile"]'
+    ) as HTMLElement
+    const tileA = screen
+      .getByText("名片 A")
+      .closest('[data-testid="sortable-card-tile"]') as HTMLElement
+
+    grabbable.dispatchEvent(pointerLike("pointerdown", 100, 100))
+    await flush()
+    // 过渡途中：名片 A 身上挂着 -150 的位移（FLIP 把它顶下去之后正在往回走）。假几何给的是
+    // 它**渲染**中的位置（60–160），所以它真正的布局位置是 210–310。这一步必须紧挨着
+    // `pointermove`：React 的提交在事件之后，不会把它盖掉。
+    tileA.style.transform = "translate(0px, -150px)"
+    document.dispatchEvent(pointerLike("pointermove", 60, 130))
+    await flush()
+    await flush()
+
+    // 落点按**布局**位置算：指针 (60, 130) 在名片 A 将要去的地方（210–310）上方 → 插在它前面
+    // （下标 0）。按渲染位置算的话指针就压在它身上 → 会算成插在它后面（下标 1）。
+    const ghost = stackGhost()
+    expect(ghost).toBeDefined()
+    expect(ghostIndex(ghost as HTMLElement)).toBe(0)
+
+    document.dispatchEvent(pointerLike("pointerup", 60, 130))
+    await flush()
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "已把 2 张名片移动到『默认分组』"
+      )
+    )
+    // 落位就是它预览的位置：整批插在名片 A 之前。
+    expect(tileNames()).toEqual(["名片 B", "名片 D", "名片 A", "名片 C"])
+  })
+
   it("moves the collection ghost to the group under the pointer, not to dnd-kit's cached droppable", async () => {
     const user = userEvent.setup()
     stubSortableGeometry(() => null)
@@ -817,5 +996,89 @@ describe("CardManager dragging", () => {
 
     await user.click(screen.getByRole("button", { name: "展开常用" }))
     expect(section.querySelector('[id^="card-group-cards-"]')).not.toBeNull()
+  })
+
+  it("re-resolves the landing spot on scroll, from the last pointer position and the new layout", async () => {
+    const user = userEvent.setup()
+    // 滚动只改布局、不改指针：`getBoundingClientRect` 是视口坐标，所有 rect 一起位移。
+    let scrollOffsetY = 0
+    stubSortableGeometry(() => null, () => scrollOffsetY)
+    renderManager({
+      cards: CARDS,
+      layout: makeNamecardCardLayout({
+        defaultCardNumbers: [1, 2, 3, 4],
+        limit: 20,
+      }),
+    })
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 A/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    // 抓手在名片 A 上，指针停在它中心线上方 5px：落点是默认分组的第 0 张。
+    await grabWithPointer(
+      screen
+        .getByText("名片 A")
+        .closest('[data-testid="sortable-card-tile"]') as HTMLElement,
+      { x: 60, y: 115 }
+    )
+    expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
+
+    // 指针一动不动，滚 105px：瓦片整体上移，名片 A 整个跑到了指针上方——落点该跟着新几何走。
+    // 死区（12px）按定义会挡掉这次修正（锚点就在指针脚下），`scroll` 这条路必须绕开它。
+    scrollOffsetY = -105
+    await scrollWindow()
+
+    const ghost = stackGhost()
+    expect(ghost).toBeDefined()
+    // 新几何：只有名片 A 的中心在指针上方（B 与指针同一行、还在它右边）→ 落点第 1 张。
+    expect(ghostIndex(ghost as HTMLElement)).toBe(1)
+    expect(announcedGroup()).toBe("默认分组")
+
+    // 松手：落位就是滚动后 ghost 预览的位置（名片 C 之后）——不是滚动前的那个下标。
+    document.dispatchEvent(pointerLike("pointerup", 60, 115))
+    await flush()
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "已把 2 张名片移动到『默认分组』"
+      )
+    )
+    expect(tileNames()).toEqual(["名片 C", "名片 A", "名片 B", "名片 D"])
+    expectNoInlineTileMotion()
+  })
+
+  it("keeps the landing spot when the layout shifts but no scroll moves the pointer off its anchor", async () => {
+    const user = userEvent.setup()
+    let scrollOffsetY = 0
+    stubSortableGeometry(() => null, () => scrollOffsetY)
+    renderManager({
+      cards: CARDS,
+      layout: makeNamecardCardLayout({
+        defaultCardNumbers: [1, 2, 3, 4],
+        limit: 20,
+      }),
+    })
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 A/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    await grabWithPointer(
+      screen
+        .getByText("名片 A")
+        .closest('[data-testid="sortable-card-tile"]') as HTMLElement,
+      { x: 60, y: 115 }
+    )
+    expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
+
+    // 几何自己变了，但**没有** `scroll`：指针那条路照旧过死区。指针没动、锚点就在它脚下，
+    // 所以即使同坐标的 `pointermove` 按新几何会算出别的候选，落点也不许自己改（滞回不被滥用）。
+    scrollOffsetY = -105
+    document.dispatchEvent(pointerLike("pointermove", 60, 115))
+    await flush()
+    expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
+    expect(announcedGroup()).toBe("默认分组")
+
+    // 收尾：取消这趟拖拽（留着一个「拖拽中」的会话会吞掉下一条用例的点击）。
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(ghostNodes()).toHaveLength(0))
   })
 })

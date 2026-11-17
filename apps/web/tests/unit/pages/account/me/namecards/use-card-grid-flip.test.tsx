@@ -102,6 +102,21 @@ function tile(cardId: string): HTMLElement {
   return found
 }
 
+/**
+ * 过渡中途的位移：jsdom 量不出布局，`getComputedStyle().transform` 只会把内联值原样返回，
+ * 所以「走到一半的插值」只能这样喂进去（浏览器里它就是那一刻渲染用的值）。
+ */
+function stubComputedTranslate(byCardId: Record<string, string>) {
+  vi.spyOn(window, "getComputedStyle").mockImplementation(
+    ((element: Element) => {
+      const cardId = (element as HTMLElement).dataset?.cardId
+      return {
+        transform: (cardId ? byCardId[cardId] : undefined) ?? "none",
+      } as CSSStyleDeclaration
+    }) as typeof window.getComputedStyle
+  )
+}
+
 describe("useCardGridFlip", () => {
   it("inverts the shift of the tiles pushed aside and then animates them back", async () => {
     stubGeometry()
@@ -185,7 +200,7 @@ describe("useCardGridFlip", () => {
     expect(tile("a").style.transition).toBe("transform 200ms ease")
   })
 
-  it("recovers the true natural position while a tile is mid-transition", () => {
+  it("recovers the true natural position while a tile is mid-transition", async () => {
     stubGeometry()
     layout({ a: { top: 150 } })
     const { rerender } = render(<Harness items={["a"]} active={true} />)
@@ -195,15 +210,54 @@ describe("useCardGridFlip", () => {
     rerender(<Harness items={["a"]} active={true} />)
     expect(tile("a").style.transform).toBe("translate(0px, -150px)")
 
-    // 过渡途中：rAF 已经摘掉内联 transform、只留 180ms 的过渡；这一刻瓦片渲染在
-    // 「倒放」位置（视口 150），真实自然位置是 300。偏移只能从我们自己的账本里拿——
-    // 反解 DOM 会得到 null，把半路位置 150 当成自然位置，于是又写出一份假位移。
-    tile("a").style.removeProperty("transform")
-    layout({ a: { top: 150 } })
+    // 下一帧 rAF 放回倒放态：内联 transform 摘掉、只留 180ms 的过渡，过渡此刻走到 -75。
+    // 这一刻瓦片渲染在 225（自然 300 加插值 -75），布局其实一动没动——量到的「半路位置」
+    // 只有计算样式里那份插值能还原回自然位置（反解内联样式会得到 0）。
+    await waitFor(() => expect(tile("a").style.transform).toBe(""))
+    stubComputedTranslate({ a: "matrix(1, 0, 0, 1, 0, -75)" })
+    layout({ a: { top: 225 } })
     rerender(<Harness items={["a"]} active={true} />)
 
-    // 量到的是真实自然位置 300 == 上一帧记下的 300 → 偏移为 0，不写任何位移。
+    // 自然位置 225 - (-75) = 300 == 上一帧记下的 300：布局没变，不写任何位移。
     expect(tile("a").style.transform).toBe("")
+  })
+
+  it("pins a mid-transition tile to where it is painted when the layout moves again", async () => {
+    stubGeometry()
+    layout({ a: { top: 0 } })
+    const { rerender } = render(<Harness items={["a"]} active={true} />)
+
+    // 第二帧：落点 ghost 插到前面 → 倒放 -150（渲染位置仍是 0），随后过渡开始往回走。
+    layout({ a: { top: 150 } })
+    rerender(<Harness items={["a"]} active={true} />)
+    expect(tile("a").style.transform).toBe("translate(0px, -150px)")
+    await waitFor(() => expect(tile("a").style.transform).toBe(""))
+
+    // 过渡走到一半（插值 -75，渲染在 75）时布局又变了：自然位置回到 0。
+    stubComputedTranslate({ a: "matrix(1, 0, 0, 1, 0, -75)" })
+    layout({ a: { top: -75 } })
+    rerender(<Harness items={["a"]} active={true} />)
+
+    // 倒放的位置是它**此刻渲染的地方**（75 = 布局 0 + 位移 75），不是上一个自然位置（150）：
+    // 只按自然位置倒放会让它从 75 弹回 150，动画也从那儿才开始。
+    expect(tile("a").style.transform).toBe("translate(0px, 75px)")
+  })
+
+  it("leaves a tile where it is when a layout change is undone within one frame", () => {
+    stubGeometry()
+    layout({ a: { top: 0 } })
+    const { rerender } = render(<Harness items={["a"]} active={true} />)
+
+    // ghost 插到前面：布局下移一格，瓦片被倒放回原来的位置（渲染仍在 0，还没开始过渡）。
+    layout({ a: { top: 150 } })
+    rerender(<Harness items={["a"]} active={true} />)
+    expect(tile("a").style.transform).toBe("translate(0px, -150px)")
+
+    // 同一帧里 ghost 又挪走（指针一帧里越过两次边界）：布局回到 0，而瓦片此刻渲染在
+    // 0（布局 0 + 已经写下的 -150）。位移该收成 0——它一直就在那儿，不该再挪一格。
+    layout({ a: { top: -150 } })
+    rerender(<Harness items={["a"]} active={true} />)
+    expect(tile("a").style.transform).toBe("translate(0px, 0px)")
   })
 
   it("skips zero-size tiles without writing offsets or joining the baseline", () => {
