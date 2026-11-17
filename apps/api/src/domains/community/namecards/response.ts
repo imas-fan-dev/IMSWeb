@@ -243,7 +243,11 @@ export function toPublicNamecardResponse(
         claimStatus: responseClaimStatus(row.claim_status),
         supplementPending: row.supplement_pending === true,
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
-        ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
+        // 页数只在真的读到页面行时给出（同 `pages` 的出现条件），
+        // 与后台 `toAdminNamecardResponse` 的「正 + 中间 + 反」是同一个数。
+        ...(pages && pages.length > 0
+            ? { pages: [...pages], pageCount: pages.length }
+            : {}),
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };

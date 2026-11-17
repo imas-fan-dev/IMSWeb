@@ -18,7 +18,7 @@ import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
-import type { NewFudabaCardInput } from '@/ports/repositories/fudaba';
+import type { FudabaCardPageWrite, NewFudabaCardInput } from '@/ports/repositories/fudaba';
 import { executeSql, queryAll } from '@/infra/db/sql/query';
 import {
     NAMECARD_EXCHANGE_CARD_LIMIT,
@@ -234,8 +234,10 @@ async function fixture() {
         id: string,
         owner: string,
         mode: 'auto' | 'manual' | 'none' = 'auto',
+        // 多页卡：正面 + 若干中间页 + 背面，页数就是数组长度。
+        pages: FudabaCardPageWrite[] = [cardPageWrite('front')],
     ): Promise<number> {
-        await fudaba.createCard(card(id, owner, mode));
+        await fudaba.createCard({ ...card(id, owner, mode), pages });
         const [row] = await queryAll<{ card_number: number }>(
             database,
             'SELECT card_number FROM fudaba_cards WHERE id=?',
@@ -1515,6 +1517,36 @@ describe('namecard exchange repository', () => {
             [second, first],
         );
         assert.deepEqual(body.groups, [{ title: '精选', cardNumbers: [first] }]);
+    });
+
+    postgresTest('the public profile reports the page count of multi-page cards', async () => {
+        const { app, publish } = await fixture();
+        // 页数 = 正面 + 中间页 + 背面；徽标只在超过两张时出现（判断在前端）。
+        const single = await publish('owner-profile-single', 'owner', 'auto', [
+            cardPageWrite('front'),
+        ]);
+        const double = await publish('owner-profile-double', 'owner', 'auto', [
+            cardPageWrite('front'),
+            cardPageWrite('back'),
+        ]);
+        const triple = await publish('owner-profile-triple', 'owner', 'auto', [
+            cardPageWrite('front'),
+            // 中间页的 page id 有格式约束，见迁移里的 `fudaba_card_pages_page_id_check`。
+            cardPageWrite('page-abcdef12'),
+            cardPageWrite('back'),
+        ]);
+        const response = await testRequest(app, '/api/users/owner/cards');
+        assert.equal(response.status, 200, await response.clone().text());
+        const body = (await response.json()) as {
+            list: Array<{ cardNumber: number; pageCount?: number }>;
+        };
+        const counts = new Map(
+            body.list.map((row) => [row.cardNumber, row.pageCount]),
+        );
+        assert.deepEqual(
+            [single, double, triple].map((number) => counts.get(number)),
+            [1, 2, 3],
+        );
     });
 
     postgresTest('a batch change rides along a queued revision instead of being reverted', async () => {

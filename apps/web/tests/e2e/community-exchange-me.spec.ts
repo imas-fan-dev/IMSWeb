@@ -699,7 +699,7 @@ test.describe("account personal workspace", () => {
 
     if (isMobile)
       await page.getByRole("link", { name: "返回我的", exact: true }).click()
-    await page.getByRole("link", { name: /^交换名片/ }).click()
+    await page.getByRole("link", { name: /^名片管理/ }).click()
     await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
     await expect(
       page.getByLabel("我的名片清单").getByText("浏览器制作人", { exact: true })

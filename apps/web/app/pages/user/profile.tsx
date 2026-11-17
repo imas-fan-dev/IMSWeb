@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router"
 import {
   ArrowLeftRightIcon,
-  ShareIcon,
+  CalendarIcon,
+  ImagesIcon,
   MapPinIcon,
   PencilLineIcon,
+  ShareIcon,
   SparklesIcon,
   UserRoundXIcon,
 } from "lucide-react"
@@ -28,6 +30,7 @@ import {
 } from "~/lib/api"
 import { toast } from "sonner"
 import { PlatformAccountList } from "~/components/profile/platform-account-list"
+import { cardTimeLabel } from "~/lib/namecards/dates"
 import type { Namecard as NamecardRecord, NamecardPage } from "~/lib/api"
 
 export function meta() {
@@ -53,6 +56,121 @@ async function loadAllCards(accountId: string) {
     list.push(...next.list)
   }
   return { ...first, list } satisfies NamecardPage
+}
+
+const CARD_GRID_CLASS = "grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] items-start gap-4"
+
+interface ProfileCardSection {
+  /** 默认分组没有标题（属主配置的组都带标题），渲染时不画组头。 */
+  title: string | null
+  cards: NamecardRecord[]
+}
+
+/**
+ * 按属主布局把公开名片切成若干屏：`groups` 的顺序就是渲染顺序，组里没有公开卡片的组丢掉，
+ * 布局里还没提到的卡（含属主从没整理过的）归入默认分组并排在最前——与后端
+ * `flattenCardLayout` 的顺序一致。
+ */
+function profileCardSections(
+  cards: readonly NamecardRecord[],
+  groups: NonNullable<NamecardPage["groups"]> = []
+): ProfileCardSection[] {
+  const byNumber = new Map(cards.map((card) => [card.cardNumber, card]))
+  const placed = new Set<number>()
+  const sections: ProfileCardSection[] = []
+  for (const group of groups) {
+    const groupCards: NamecardRecord[] = []
+    for (const cardNumber of group.cardNumbers) {
+      const card = byNumber.get(cardNumber)
+      // 分组里出现不属于这个人（或已经排过）的编号时跳过，同一张卡不会铺两遍。
+      if (!card || placed.has(cardNumber)) continue
+      placed.add(cardNumber)
+      groupCards.push(card)
+    }
+    if (groupCards.length > 0) {
+      sections.push({ title: group.title, cards: groupCards })
+    }
+  }
+  const defaultCards = cards.filter((card) => !placed.has(card.cardNumber))
+  return defaultCards.length > 0
+    ? [{ title: null, cards: defaultCards }, ...sections]
+    : sections
+}
+
+/**
+ * 主页瓦片：1:1 缩略图容器 + 制作日期，样式与「名片管理」的瓦片一致。
+ *
+ * 公开主页不出现属主视角的任何徽标（隐藏、快速交换、审核状态）；只有存在中间页
+ * （`pageCount > 2`）时才在缩略图右上角标出页数，规则与后台名片审核界面相同。
+ */
+function ProfileCardTile({
+  card,
+  isSelf,
+  onOpen,
+}: {
+  card: NamecardRecord
+  isSelf: boolean
+  onOpen: (card: NamecardRecord, trigger: HTMLButtonElement) => void
+}) {
+  const cover = namecardPages(card)[0]?.thumb ?? ""
+  // 日期规则与名片管理一致：`madeOn` 填到哪就显示到哪，没填回退创建时间。
+  const date = cardTimeLabel({
+    madeOn: card.madeOn,
+    createdAt: card.created_at ?? "",
+  })
+  const pageCount = card.pageCount ?? 1
+  return (
+    <li className="group flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow focus-within:shadow-md hover:shadow-md">
+      <button
+        type="button"
+        className="block w-full cursor-zoom-in p-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+        aria-label={`查看制作人名片 ${card.cardNumber} 正面`}
+        onClick={(event) => onOpen(card, event.currentTarget)}
+      >
+        <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md bg-border">
+          <CardImage
+            src={cover}
+            alt={`制作人名片 ${card.cardNumber} 正面`}
+            className="max-h-full max-w-full border border-foreground/25 object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+          />
+          {pageCount > 2 ? (
+            <Badge className="absolute top-2 right-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
+              <ImagesIcon aria-hidden="true" />
+              {pageCount}
+            </Badge>
+          ) : null}
+        </span>
+      </button>
+      <div className="flex items-center gap-2 border-t px-3 py-2">
+        {date ? (
+          <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            <CalendarIcon className="size-3 shrink-0" aria-hidden="true" />
+            <span className="truncate">{date}</span>
+          </span>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          className="ml-auto shrink-0"
+          disabled
+          title={
+            isSelf
+              ? "分享功能暂未开放"
+              : card.exchangeMode === "none"
+                ? "这张名片不接受交换"
+                : "暂未开放"
+          }
+        >
+          {isSelf ? (
+            <ShareIcon aria-hidden="true" />
+          ) : (
+            <ArrowLeftRightIcon aria-hidden="true" />
+          )}
+          {isSelf ? "分享" : "交换"}
+        </Button>
+      </div>
+    </li>
+  )
 }
 
 /**
@@ -100,6 +218,11 @@ export default function UserProfilePage() {
   }, [accountId])
 
   const owned = useMemo(() => cards?.list ?? [], [cards])
+  // 分组顺序取自第一页响应（全量卡片都在 `list` 里，分组不会跨页）。
+  const sections = useMemo(
+    () => profileCardSections(owned, cards?.groups ?? []),
+    [owned, cards]
+  )
   // 路由参数可能是 uid 或 slug，只有接口回来的 accountId 才可靠。
   const isSelf =
     platform.status === "authenticated" &&
@@ -251,58 +374,46 @@ export default function UserProfilePage() {
             这位制作人还没有公开的名片。
           </div>
         ) : (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] items-start gap-4">
-            {owned.map((card) => {
-              const cover = namecardPages(card)[0]?.thumb ?? ""
-              return (
-                <li
+          <div className="space-y-6">
+            {sections.map((section, index) => {
+              const tiles = section.cards.map((card) => (
+                <ProfileCardTile
                   key={card.id}
-                  className="group flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow focus-within:shadow-md hover:shadow-md"
+                  card={card}
+                  isSelf={isSelf}
+                  onOpen={(next, trigger) => {
+                    returnFocusRef.current = trigger
+                    setOpenCard(next)
+                  }}
+                />
+              ))
+              if (section.title === null) {
+                return (
+                  <ul key={`default-${index}`} className={CARD_GRID_CLASS}>
+                    {tiles}
+                  </ul>
+                )
+              }
+              const headingId = `profile-card-group-${index}`
+              return (
+                <section
+                  key={`group-${index}`}
+                  aria-labelledby={headingId}
+                  className="min-w-0 space-y-3"
                 >
-                  <button
-                    type="button"
-                    className="block w-full cursor-zoom-in overflow-hidden bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                    aria-label={`查看制作人名片 ${card.cardNumber} 正面`}
-                    onClick={(event) => {
-                      returnFocusRef.current = event.currentTarget
-                      setOpenCard(card)
-                    }}
-                  >
-                    <CardImage
-                      src={cover}
-                      alt={`制作人名片 ${card.cardNumber} 正面`}
-                      className="block h-auto w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
-                    />
-                  </button>
-                  <div className="flex items-center gap-2 border-t px-3 py-2">
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">
-                      名片 #{card.cardNumber}
+                  <div className="flex min-w-0 items-center gap-2 border-b pb-2">
+                    <h3 id={headingId} className="truncate text-sm font-medium">
+                      {section.title}
+                    </h3>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {section.cards.length} 张
                     </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="ml-auto"
-                      disabled
-                      title={
-                        isSelf
-                          ? "分享功能暂未开放"
-                          : card.exchangeMode === "none"
-                            ? "这张名片不接受交换"
-                            : "暂未开放"
-                      }
-                    >
-                      {isSelf ? (
-                        <ShareIcon aria-hidden="true" />
-                      ) : (
-                        <ArrowLeftRightIcon aria-hidden="true" />
-                      )}
-                      {isSelf ? "分享" : "交换"}
-                    </Button>
                   </div>
-                </li>
+                  <ul className={CARD_GRID_CLASS}>{tiles}</ul>
+                </section>
               )
             })}
-          </ul>
+          </div>
         )}
       </section>
 

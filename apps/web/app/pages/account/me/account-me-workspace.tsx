@@ -270,12 +270,18 @@ function ProfileWorkspace({
 
   function syncCardQuery(cardId: string | null) {
     if (embedded) return
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current)
-      if (cardId) next.set("card", cardId)
-      else next.delete("card")
-      return next
-    })
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        if (cardId) next.set("card", cardId)
+        else next.delete("card")
+        return next
+      },
+      // 同路径只改 search：这是「当前页面的选择状态」，不是一次导航。少了它，
+      // react-router 挂在 root-layout 上的 <ScrollRestoration> 会按新页面处理
+      // （它用 window.scrollTo(0, 0)），打开/切换/关闭名片编辑窗口就把页面拉回顶部。
+      { preventScrollReset: true }
+    )
   }
 
   function closeCard() {
@@ -647,10 +653,10 @@ function ProfileWorkspace({
                 id="profile-workspace-namecards-title"
                 className="text-xl font-semibold"
               >
-                交换名片
+                名片管理
               </h2>
               <p className="mt-2 text-sm/6 text-muted-foreground">
-                管理双面名片素材、担当角色和公开交换状态。
+                管理名片信息、展示分组和快速交换列表。
               </p>
             </div>
             <div className="mt-6">

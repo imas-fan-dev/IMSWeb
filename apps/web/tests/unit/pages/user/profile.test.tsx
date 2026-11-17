@@ -144,6 +144,8 @@ function card(overrides: Partial<Namecard> = {}): Namecard {
     ],
     canEdit: false,
     hasOwner: true,
+    // 正反两面：不到三页，主页不出现页数标记。
+    pageCount: 2,
     seriesCode: null,
     favoriteCharacters: [],
     claimStatus: "unclaimed",
@@ -326,6 +328,103 @@ describe("UserProfilePage", () => {
     )
     expect(apiMocks.getProfileCards).toHaveBeenNthCalledWith(1, "acct-1", 1, 48)
     expect(apiMocks.getProfileCards).toHaveBeenNthCalledWith(2, "acct-1", 2, 48)
+  })
+
+  it("renders only the groups that still have public cards, and no heading for the default one", async () => {
+    apiMocks.sendProfile.mockResolvedValue(profile())
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [
+          card({ id: 101, cardNumber: 101, madeOn: "2025" }),
+          card({ id: 202, cardNumber: 202, madeOn: "2024-03" }),
+        ],
+        total: 2,
+        totalPage: 1,
+        groups: [
+          { title: "精选", cardNumbers: [202] },
+          // 空组与指向不存在名片的组都不渲染。
+          { title: "空组", cardNumbers: [] },
+          { title: "缺卡组", cardNumbers: [999] },
+        ],
+      })
+    )
+    renderProfile()
+
+    const heading = await screen.findByRole("heading", { name: "精选" })
+    expect(within(heading.closest("section")!).getByText("1 张")).toBeTruthy()
+    expect(
+      within(heading.closest("section")!).getByRole("button", {
+        name: "查看制作人名片 202 正面",
+      })
+    ).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "空组" })).toBeNull()
+    expect(screen.queryByRole("heading", { name: "缺卡组" })).toBeNull()
+    // 默认分组没有组头：整页只有「精选」一个分组标题。
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(1)
+
+    // 布局里没有的卡进默认分组，排在各分组之前。
+    expect(
+      screen
+        .getAllByRole("button", { name: /查看制作人名片/ })
+        .map((tile) => tile.getAttribute("aria-label"))
+    ).toEqual([
+      "查看制作人名片 101 正面",
+      "查看制作人名片 202 正面",
+    ])
+  })
+
+  it("writes the production date on the tile, falling back to the creation time", async () => {
+    apiMocks.sendProfile.mockResolvedValue(profile())
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [
+          card({ id: 101, cardNumber: 101, madeOn: "2025" }),
+          card({ id: 202, cardNumber: 202, madeOn: "2024-03" }),
+          card({ id: 303, cardNumber: 303, madeOn: null }),
+        ],
+        total: 3,
+        totalPage: 1,
+      })
+    )
+    renderProfile()
+
+    // `madeOn` 填到哪显示到哪；没填回退创建时间（Asia/Shanghai）。
+    const tiles = await screen.findAllByRole("button", {
+      name: /查看制作人名片/,
+    })
+    expect(within(tiles[0]!.closest("li")!).getByText("2025")).toBeTruthy()
+    expect(within(tiles[1]!.closest("li")!).getByText("2024-03")).toBeTruthy()
+    expect(
+      within(tiles[2]!.closest("li")!).getByText("2026-08-06")
+    ).toBeTruthy()
+    // 编号只留给无障碍名称，瓦片上不再有「名片 #编号」。
+    expect(screen.queryByText(/名片 #\d+/)).toBeNull()
+  })
+
+  it("marks only cards with middle pages with the page badge", async () => {
+    apiMocks.sendProfile.mockResolvedValue(profile())
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [
+          card({ id: 101, cardNumber: 101, pageCount: 3 }),
+          card({ id: 202, cardNumber: 202, pageCount: 2 }),
+        ],
+        total: 2,
+        totalPage: 1,
+      })
+    )
+    renderProfile()
+
+    // 超过两张（有中间页）才标页数，位置在缩略图右上角。
+    const three = await screen.findByRole("button", {
+      name: "查看制作人名片 101 正面",
+    })
+    expect(within(three).getByText("3")).toBeTruthy()
+    // 两页（正反）不标。
+    const two = screen.getByRole("button", {
+      name: "查看制作人名片 202 正面",
+    })
+    expect(within(two).queryByText("2")).toBeNull()
   })
 
   it("gives the owner the edit link and share-only card actions", async () => {

@@ -208,7 +208,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
 
   for (const [section, label] of [
     ["profile", "个人资料"],
-    ["namecards", "交换名片"],
+    ["namecards", "名片管理"],
     ["favorites", "收藏夹"],
     ["offices", "事务所与位置"],
     ["claims", "消息"],
@@ -304,7 +304,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       }
       await expect(root).toHaveCSS("color-scheme", theme)
       for (const [section, label] of [
-        ["namecards", /^交换名片/],
+        ["namecards", /^名片管理/],
         ["claims", /^消息/],
       ] as const) {
         await page

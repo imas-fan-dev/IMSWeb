@@ -141,8 +141,8 @@ export const resources = {
               description: "头像、名称与简介",
             },
             namecards: {
-              label: "交换名片",
-              description: "名片与交换状态",
+              label: "名片管理",
+              description: "名片信息、展示分组与快速交换列表",
             },
             favorites: {
               label: "收藏夹",
@@ -726,8 +726,9 @@ export const resources = {
               description: "Avatar, display name, and bio",
             },
             namecards: {
-              label: "Exchange cards",
-              description: "Card media and exchange status",
+              label: "Namecard manager",
+              description:
+                "Manage card details, display groups and the quick exchange list",
             },
             favorites: {
               label: "Favorites",

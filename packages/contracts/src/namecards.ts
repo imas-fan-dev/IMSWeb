@@ -138,6 +138,11 @@ export const namecardSchema = exactJsonResponse({
   id: cardIdSchema,
   /** 统一布局的页面：正面在前、背面在后，中间页按顺序排在中间。 */
   pages: z.array(cardPageSchema).optional(),
+  /**
+   * 正面 + 中间页 + 背面（即 `pages` 的长度），与后台同一套算法。
+   * 页面行没读到的入口整份省略，读取侧按「只有正面」处理。
+   */
+  pageCount: z.number().int().positive().optional(),
   ...namecardMetadataSchema,
   ...namecardPublicDetailSchema,
   status: z.string().optional(),

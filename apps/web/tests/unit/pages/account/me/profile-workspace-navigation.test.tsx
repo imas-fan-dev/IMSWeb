@@ -56,7 +56,7 @@ describe("ProfileWorkspaceNavigation", () => {
       "href",
       "/account/me/profile"
     )
-    expect(screen.getByRole("link", { name: "交换名片" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "名片管理" })).toHaveAttribute(
       "href",
       "/account/me/namecards"
     )
