@@ -408,6 +408,126 @@ function insertCards(
   return [...list.slice(0, at), ...moving, ...list.slice(at)]
 }
 
+/** 落点几何用的矩形：只取 `getBoundingClientRect` 的四个边（视口坐标）。 */
+export type CardDropRect = {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+/** 落点几何里的一张瓦片：卡 id（单测与调试时指认是哪一张）与它此刻的矩形（计算只用矩形）。 */
+export type CardDropPointerTile = {
+  cardId: string
+  rect: CardDropRect
+}
+
+/** 落点几何里的一个分组：放置区矩形 + 区内**此刻真的渲染出来**的瓦片。 */
+export type CardDropPointerGroup = {
+  key: string
+  rect: CardDropRect
+  tiles: readonly CardDropPointerTile[]
+}
+
+/** 行主序判定里「同一行」的容差：瓦片中心整整高出这么多才算上一行，否则按横向位置比。 */
+const CARD_DROP_ROW_TOLERANCE_PX = 6
+
+function rectCenterOf(rect: CardDropRect): { x: number; y: number } {
+  return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 }
+}
+
+function rectContainsPoint(
+  rect: CardDropRect,
+  point: { x: number; y: number }
+): boolean {
+  return (
+    point.x >= rect.left &&
+    point.x <= rect.right &&
+    point.y >= rect.top &&
+    point.y <= rect.bottom
+  )
+}
+
+/** 点到矩形的最短距离（在矩形内为 0）。 */
+function rectDistanceToPoint(
+  rect: CardDropRect,
+  point: { x: number; y: number }
+): number {
+  const dx = Math.max(rect.left - point.x, 0, point.x - rect.right)
+  const dy = Math.max(rect.top - point.y, 0, point.y - rect.bottom)
+  return Math.hypot(dx, dy)
+}
+
+/**
+ * 指针几何直接算落点：**不看 dnd-kit 的 `over`**。
+ *
+ * `over` 依赖 dnd-kit 缓存的 droppable rects（哪怕 `strategy: Always`，也只在拖拽开始与
+ * droppable 增删时重量），而落点 ghost 一插进网格就真的改变了布局——于是它总比指针晚一拍，
+ * 多选拖动（ghost 是那一刻唯一的位移来源）的落点因此不如单张准（2026-11-17 用户反馈）。
+ *
+ * 这里改成本次指针位置直接对着**当前 DOM 实测的矩形**比：
+ * - 先取指针**所在**的分组（分组放置区命中优先），都不命中时取最近的一个
+ *   （与 `closestCenter` 一样不会返回 null：指针拖到列表外面也总有个落点）；
+ * - 组内用行主序数「排在指针前面的瓦片」：中心整整高出 `CARD_DROP_ROW_TOLERANCE_PX` 的算
+ *   上一行；与指针同一行（垂直方向还有重叠）的按中心横向位置比；
+ * - 空组是 0；指针在整组之上是 0、之下就是整组张数。
+ *
+ * 调用方传进来的 `tiles` 是**已经摘掉本批**的实时列表（多选拖动中整批已经不在 DOM 里），
+ * 所以下标与 `CardMoveTarget.index` 同口径：ghost 插在哪儿、松手就落在哪儿。
+ */
+export function resolveCardDropFromPointer({
+  pointer,
+  groups,
+}: {
+  pointer: { x: number; y: number }
+  groups: readonly CardDropPointerGroup[]
+}): { groupKey: string; index: number } | null {
+  const hit = groups.find((group) => rectContainsPoint(group.rect, pointer))
+  const group = hit ?? nearestCardDropGroup(groups, pointer)
+  if (!group) return null
+  return {
+    groupKey: group.key,
+    index: cardDropIndexAtPointer(group.tiles, pointer),
+  }
+}
+
+/** 都不命中时取最近的分组：指针拖到列表外面（工具栏、页脚）也总有一个落点。 */
+function nearestCardDropGroup(
+  groups: readonly CardDropPointerGroup[],
+  pointer: { x: number; y: number }
+): CardDropPointerGroup | null {
+  let nearest: { group: CardDropPointerGroup; distance: number } | null = null
+  for (const group of groups) {
+    const distance = rectDistanceToPoint(group.rect, pointer)
+    if (!nearest || distance < nearest.distance) {
+      nearest = { group, distance }
+    }
+  }
+  return nearest?.group ?? null
+}
+
+/** 组内插入下标 = 「排在指针前面」的瓦片数（行主序）。 */
+function cardDropIndexAtPointer(
+  tiles: readonly CardDropPointerTile[],
+  pointer: { x: number; y: number }
+): number {
+  let index = 0
+  for (const tile of tiles) {
+    const center = rectCenterOf(tile.rect)
+    // 上一行的瓦片：整整一行都在指针上方，横向位置无关紧要。
+    if (center.y < pointer.y - CARD_DROP_ROW_TOLERANCE_PX) {
+      index += 1
+      continue
+    }
+    // 同一行：瓦片在垂直方向上还与指针重叠时，中心落在指针左边的算前面。
+    const halfHeight = (tile.rect.bottom - tile.rect.top) / 2
+    if (Math.abs(center.y - pointer.y) <= halfHeight && center.x < pointer.x) {
+      index += 1
+    }
+  }
+  return index
+}
+
 /**
  * 保存前的空分组丢弃：新建后一张卡都没放进去的分组等于没建，服务端的 `saveCardLayout`
  * 也是同一口径（它还会再过滤一次），这里先丢掉是为了让脏标记与保存结果一致。
@@ -562,6 +682,20 @@ export function cardGroupViewTransitionName(group: CardGroupIdentity): string {
 }
 
 /**
+ * 减少动态效果的首选项查询。View Transition（`applyLayout`）与拖拽期的动画
+ * （`useCardGridFlip`、落点 ghost）共用同一套判据，避免「这里动、那里不动」。
+ */
+export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)"
+
+/** jsdom 没有 `matchMedia`（仓库测试环境即如此），读不到时按「不减少」处理。 */
+export function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.(REDUCED_MOTION_QUERY).matches === true
+  )
+}
+
+/**
  * 一次布局变化（切换模式 / 折叠展开 / 保存布局）外面包一层 View Transition：
  * 浏览器支持且未开启 reduced motion 时用 `flushSync` 让 React 在同一帧提交，
  * 否则直接变更。jsdom 没有 `document.startViewTransition`，走同步分支，不抛错。
@@ -569,10 +703,7 @@ export function cardGroupViewTransitionName(group: CardGroupIdentity): string {
 export function applyLayout(mutate: () => void): void {
   const startViewTransition =
     typeof document === "undefined" ? undefined : document.startViewTransition
-  const reduceMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
-  if (typeof startViewTransition !== "function" || reduceMotion) {
+  if (typeof startViewTransition !== "function" || prefersReducedMotion()) {
     mutate()
     return
   }

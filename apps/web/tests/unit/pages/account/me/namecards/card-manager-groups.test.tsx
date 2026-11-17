@@ -7,6 +7,10 @@ import { makeFudabaOwnerCard } from "@/mocks/data/fudaba"
 import { makeNamecardCardLayout } from "@/mocks/data/namecards"
 import type { FudabaOwnerCard } from "~/lib/api"
 import { CardManager } from "~/pages/account/me/namecards/card-manager"
+import {
+  cardFlipOffsetFromStyle,
+  isCardFlipTransition,
+} from "~/pages/account/me/namecards/card-grid-animation"
 import { collapsedGroupsStorageKey } from "~/pages/account/me/namecards/hooks/use-collapsed-card-groups"
 
 const apiMocks = vi.hoisted(() => ({
@@ -222,11 +226,38 @@ async function flush() {
 }
 
 /**
+ * 推进「停顿展开」的计时（假定时器下）：真等 1s 会让组件测试慢得没法看，
+ * 而 `waitFor` 的默认超时（1s）也等不到它。
+ */
+async function advanceDwell(ms: number) {
+  await act(async () => {
+    vi.advanceTimersByTime(ms)
+  })
+}
+
+/**
+ * 拖拽结束/取消后，瓦片上不该还挂着**我们写的** FLIP 位移/过渡。
+ * （落位那一刻 dnd-kit 会把自己的收尾过渡 `transform 200ms ease` 挂回同一个元素，
+ * 那是它的动画，不能算我们的残渣，也不该被抹掉。）
+ */
+function expectNoInlineTileMotion() {
+  const tiles = document.querySelectorAll<HTMLElement>(
+    '[data-testid="sortable-card-tile"]'
+  )
+  expect(tiles.length).toBeGreaterThan(0)
+  for (const tile of tiles) {
+    expect(cardFlipOffsetFromStyle(tile.style.transform)).toBeNull()
+    expect(isCardFlipTransition(tile.style.transition)).toBe(false)
+  }
+}
+
+/**
  * 用指针抓起一个瓦片：按下之后移动超过 6px 才算开始拖（`POINTER_ACTIVATION_DISTANCE_PX`）。
  *
- * jsdom 里拖拽层量出来是 0 尺寸，落点矩形就落在**原点**上（实测：换指针坐标，落点不变），
- * 于是落点永远是「离原点最近的那个 droppable」——通常是默认分组的第一张瓦片。要挑别的落点
- * 得靠改渲染结构（批次移出后再看第一张是谁），见「lands a same-group multi-select reorder…」。
+ * 多选拖动的落点按**指针几何**算（`resolveCardDropFromPointer`），比的是 `stubSortableGeometry`
+ * 铺出来的假 rects，所以 `to` 的坐标真的决定落点：每个分组各占 400px 高、放置区是组内
+ * `y = 组顶 + 40` 起、320×320；瓦片在 `y = 组顶 + 60 + 110i` 处，240×100。指针落在某张瓦片的
+ * 左半边（中心左边）就插在它前面、右半边（或整行更靠下）就插在它后面。
  */
 async function grabWithPointer(
   element: HTMLElement,
@@ -282,6 +313,7 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -526,6 +558,7 @@ describe("CardManager dragging", () => {
     expect(
       gridOf("归置").querySelectorAll('[data-testid="sortable-card-tile"]')
     ).toHaveLength(1)
+    expectNoInlineTileMotion()
   })
 
   it("lands a same-group multi-select reorder where the ghost previewed it", async () => {
@@ -543,27 +576,39 @@ describe("CardManager dragging", () => {
     await enterEditing(user)
     await user.click(screen.getByRole("checkbox", { name: /名片 A/ }))
     await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
-    // 抓手在名片 A 上（批次 {A, B} 一起走）。jsdom 里拖拽层量出来是 0 尺寸，落点矩形就是
-    // 原点 → 落点永远是离原点最近的那张瓦片：批次摘掉之后列表只剩 [C, D]，所以是名片 C。
-    await grabWithPointer(
-      screen
-        .getByText("名片 A")
-        .closest('[data-testid="sortable-card-tile"]') as HTMLElement,
-      { x: 120, y: 115 }
-    )
+    // 从这里开始只推进假定时器：停顿展开必须是 1s 才发生，真等一次测试就慢 1s。
+    // 落点下标在假定时器那一段量出来，松手之后（真定时器）再和最终顺序对一次。
+    let landing: number | undefined
+    vi.useFakeTimers()
+    try {
+      // 抓手在名片 A 上（批次 {A, B} 一起走），指针停在名片 A 上、没越过它的中心线。
+      // 批次摘掉之后列表只剩 [C, D]，所以落点是第 0 张。
+      await grabWithPointer(
+        screen
+          .getByText("名片 A")
+          .closest('[data-testid="sortable-card-tile"]') as HTMLElement,
+        { x: 120, y: 115 }
+      )
 
-    // 落点下标按「整批移出之后」的列表算：名片 C 在这份列表（[C, D]）里是第 0 张。
-    // 用完整列表算会得 2，ghost 与落位就都跑到末尾去了。
-    expect(announcedGroup()).toBe("默认分组")
-    const ghost = stackGhost()
-    expect(ghost).toBeDefined()
-    const landing = ghostIndex(ghost as HTMLElement)
-    expect(landing).toBe(0)
+      // 落点下标按「整批移出之后」的列表算：名片 C 在这份列表（[C, D]）里是第 0 张。
+      // 指针还停在 A 原来的位置上，所以落点就是第 0 张。
+      expect(announcedGroup()).toBe("默认分组")
+      const ghost = stackGhost()
+      expect(ghost).toBeDefined()
+      landing = ghostIndex(ghost as HTMLElement)
+      expect(landing).toBe(0)
 
-    // 停顿展开后仍停在原地：ghost、ghost、C、D。
-    await waitFor(() => expect(expandedGhosts()).toHaveLength(2))
-    expect(ghostIndex(expandedGhosts()[0] as HTMLElement)).toBe(0)
-    expect(ghostIndex(expandedGhosts()[1] as HTMLElement)).toBe(1)
+      // 差 1ms 还是那一摞；再推 1ms 才展开成两张（ghost、ghost、C、D），且仍停在原地。
+      await advanceDwell(1000 - 1)
+      expect(expandedGhosts()).toHaveLength(0)
+      expect(stackGhost()).toBeDefined()
+      await advanceDwell(1)
+      expect(expandedGhosts()).toHaveLength(2)
+      expect(ghostIndex(expandedGhosts()[0] as HTMLElement)).toBe(0)
+      expect(ghostIndex(expandedGhosts()[1] as HTMLElement)).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
 
     // 松手：整批就落在 ghost 占住的那个位置（ghost 插在哪儿、松手就落在哪儿）。
     document.dispatchEvent(pointerLike("pointerup", 120, 115))
@@ -575,6 +620,51 @@ describe("CardManager dragging", () => {
     )
     expect(tileNames()).toEqual(["名片 A", "名片 B", "名片 C", "名片 D"])
     expect(tileNames().indexOf("名片 A")).toBe(landing)
+    // 位移动画（FLIP）留下的内联 transform/transition 也得清干净。
+    expectNoInlineTileMotion()
+  })
+
+  it("moves the collection ghost to the group under the pointer, not to dnd-kit's cached droppable", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    await user.click(screen.getByRole("checkbox", { name: /名片 D/ }))
+    // 抓手在「常用」的名片 B 上，指针停在默认分组里：落点在默认分组。
+    await grabWithPointer(
+      gridOf("常用").querySelector(
+        '[data-testid="sortable-card-tile"]'
+      ) as HTMLElement,
+      { x: 120, y: 115 }
+    )
+    expect(announcedGroup()).toBe("默认分组")
+    expect(gridOf("默认分组").contains(stackGhost() as HTMLElement)).toBe(true)
+
+    // 指针移到「备用」的放置区里（第三组，假几何里 y 840–1160；名片 C 在 860–960）。
+    // jsdom 里拖拽层量出来是 0 尺寸，dnd-kit 的 `over` 只会跟着累计位移跑，靠它落点会原地不动；
+    // 落点几何按指针实测 DOM，所以 ghost 必须立刻跟过去。
+    document.dispatchEvent(pointerLike("pointermove", 60, 900))
+    await flush()
+
+    const ghost = stackGhost()
+    expect(ghost).toBeDefined()
+    expect(gridOf("备用").contains(ghost as HTMLElement)).toBe(true)
+    // 指针在名片 C 中心的左边 → 插在它前面。
+    expect(ghostIndex(ghost as HTMLElement)).toBe(0)
+
+    // 松手：整批落在 ghost 预览的位置（备用 = 名片 B、名片 D，插在名片 C 之前）。
+    document.dispatchEvent(pointerLike("pointerup", 60, 900))
+    await flush()
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "已把 2 张名片移动到『备用』"
+      )
+    )
+    expect(tileNames()).toEqual(["名片 A", "名片 B", "名片 D", "名片 C"])
+    expect(ghostNodes()).toHaveLength(0)
+    expectNoInlineTileMotion()
   })
 
   it("expands the collection ghost into one thumbnail per card after the pause, collapses it on the next move and drops it where it stood", async () => {
@@ -585,37 +675,46 @@ describe("CardManager dragging", () => {
     await enterEditing(user)
     await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
     await user.click(screen.getByRole("checkbox", { name: /名片 D/ }))
-    await grabWithPointer(
-      gridOf("常用").querySelector(
-        '[data-testid="sortable-card-tile"]'
-      ) as HTMLElement,
-      { x: 120, y: 115 }
-    )
-    expect(stackGhost()?.getAttribute("data-ghost-count")).toBe("2")
+    // 1s 的停顿只用假定时器推进，不真等。
+    vi.useFakeTimers()
+    try {
+      await grabWithPointer(
+        gridOf("常用").querySelector(
+          '[data-testid="sortable-card-tile"]'
+        ) as HTMLElement,
+        { x: 120, y: 115 }
+      )
+      expect(stackGhost()?.getAttribute("data-ghost-count")).toBe("2")
 
-    // 停顿 180ms：合集在当前位置展开成每张卡一个真实缩略图 ghost（插入后的排版预览）。
-    await waitFor(() => expect(expandedGhosts()).toHaveLength(2))
-    const [firstSlot, secondSlot] = expandedGhosts()
-    expect(firstSlot?.getAttribute("data-ghost-count")).toBe("2")
-    expect(ghostIndex(firstSlot as HTMLElement)).toBe(0)
-    expect(ghostIndex(secondSlot as HTMLElement)).toBe(1)
-    expect(within(firstSlot as HTMLElement).getByText("名片 B")).toBeVisible()
-    expect(within(secondSlot as HTMLElement).getByText("名片 D")).toBeVisible()
+      // 停顿 1s：合集在当前位置展开成每张卡一个真实缩略图 ghost（插入后的排版预览）。
+      await advanceDwell(1000)
+      const [firstSlot, secondSlot] = expandedGhosts()
+      expect(firstSlot).toBeDefined()
+      expect(secondSlot).toBeDefined()
+      expect(firstSlot?.getAttribute("data-ghost-count")).toBe("2")
+      expect(ghostIndex(firstSlot as HTMLElement)).toBe(0)
+      expect(ghostIndex(secondSlot as HTMLElement)).toBe(1)
+      expect(within(firstSlot as HTMLElement).getByText("名片 B")).toBeVisible()
+      expect(within(secondSlot as HTMLElement).getByText("名片 D")).toBeVisible()
 
-    // 再动一下（>16px）就当作在找新落点：立刻收起回合集 ghost。这里落点没变（仍在名片 A 上），
-    // 所以收起只能是「移动超过阈值」这条规则在起作用。
-    document.dispatchEvent(pointerLike("pointermove", 160, 180))
-    await flush()
-    expect(ghostNodes()).toHaveLength(1)
-    expect(expandedGhosts()).toHaveLength(0)
-    expect(stackGhost()).toBeDefined()
+      // 再动一下（>16px）就当作在找新落点：立刻收起回合集 ghost。这里落点没变（指针仍在
+      // 名片 A 那一行、在它中心左边），所以收起只能是「移动超过阈值」这条规则在起作用。
+      document.dispatchEvent(pointerLike("pointermove", 60, 100))
+      await flush()
+      expect(ghostNodes()).toHaveLength(1)
+      expect(expandedGhosts()).toHaveLength(0)
+      expect(stackGhost()).toBeDefined()
 
-    // 停住之后又会展开（计时被重新挂上），并且仍停在同一个落点上。
-    await waitFor(() => expect(expandedGhosts()).toHaveLength(2))
-    expect(ghostIndex(expandedGhosts()[0] as HTMLElement)).toBe(0)
+      // 停住之后又会展开（计时被重新挂上），并且仍停在同一个落点上。
+      await advanceDwell(1000)
+      expect(expandedGhosts()).toHaveLength(2)
+      expect(ghostIndex(expandedGhosts()[0] as HTMLElement)).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
 
     // 松手：落位与刚才预览的位置逐字一致（默认分组 = ghost、ghost、名片 A）。
-    document.dispatchEvent(pointerLike("pointerup", 160, 180))
+    document.dispatchEvent(pointerLike("pointerup", 60, 100))
     await flush()
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
@@ -629,6 +728,7 @@ describe("CardManager dragging", () => {
       "名片 C",
     ])
     expect(ghostNodes()).toHaveLength(0)
+    expectNoInlineTileMotion()
   })
 
   it("renders the expanded ghosts straight away for a keyboard drag", async () => {
@@ -646,7 +746,7 @@ describe("CardManager dragging", () => {
       ) as HTMLElement
     )
 
-    // 键盘拖动没有「指针停顿」这回事：落点一确定就是展开态，不用等 180ms。
+    // 键盘拖动没有「指针停顿」这回事：落点一确定就是展开态，不用等 1s。
     expect(expandedGhosts()).toHaveLength(2)
     expect(ghostNodes()).toHaveLength(2)
     expect(

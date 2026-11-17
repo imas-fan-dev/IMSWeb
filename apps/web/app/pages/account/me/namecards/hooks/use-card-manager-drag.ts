@@ -9,7 +9,6 @@ import {
   type ClientRect,
   type CollisionDetection,
   type DragEndEvent,
-  type DragMoveEvent,
   type DragOverEvent,
   type DragStartEvent,
   type DndContextProps,
@@ -26,6 +25,9 @@ import {
   DEFAULT_CARD_GROUP_KEY,
   DEFAULT_CARD_GROUP_LABEL,
   isCardGroupSortableId,
+  resolveCardDropFromPointer,
+  type CardDropPointerGroup,
+  type CardDropRect,
   type CardMoveTarget,
   type DraftCardGroup,
 } from "../card-manager-model"
@@ -33,34 +35,72 @@ import {
 /** 指针移动多远才算「真的在拖」（与 tier-list 的 6px 一致）：再小就当点击/勾选。 */
 const POINTER_ACTIVATION_DISTANCE_PX = 6
 
-/** 落点候选稳定这么久之后，合集 ghost 展开成 N 个缩略图 ghost（设计原值，§7.3）。 */
-const CARD_DROP_GHOST_DWELL_MS = 180
+/**
+ * 落点候选稳定这么久之后，合集 ghost 展开成 N 个缩略图 ghost（用户 2026-11-17 定：
+ * 原来的 180ms 太短，还没来得及看清落点就展开了；2.5s 实测又等太久，改成 1s）。
+ */
+const CARD_DROP_GHOST_DWELL_MS = 1000
 
 /**
  * 展开之后再移动超过这么多像素，就当作「用户在找新的落点」：立刻收起回合集 ghost
- * 并重新开始 180ms 计时（用户 2026-11-17 定：原来的 12px 太容易误触）。
+ * 并重新开始 1s 计时（用户 2026-11-17 定：原来的 12px 太容易误触）。
  */
 const GHOST_COLLAPSE_DISTANCE_PX = 16
 
-/** 拖动中每 100ms 重测一次落点 rect（`frequency` 给数字才真的会定时重测，见下）。 */
-const MEASURING_REFRESH_MS = 100
-
 /**
- * 落点 rect 必须常驻重测：拖动中的落点 ghost 会改变布局（网格里真的多出格子），而 dnd-kit
- * 默认在拖拽开始那一刻把 droppable 的 rect 缓存住（`WhileDragging`）。缓存与真实 DOM 失配时
- * `over` 会指到错位的容器上，ghost 与真正的落位就对不上了（2026-11-17 实测）。
+ * 卡片的落点已经不走 dnd-kit 的 `over` 了（改成按指针几何实测 DOM，见 `applyPointerTarget`），
+ * 所以不再需要「拖动中每 100ms 按位移重测」的 `frequency`。
  *
- * `strategy: Always` 只管「拖拽之外也量」——它只改掉 `isDisabled()`；光有它还不够：
- * `frequency` 默认 `'optimized'`，拖动中**不会**按位移重测，只在 droppable 增删时量一次。
- * 而 ghost 展开只挪瓦片位置、不增删 droppable，瓦片 rect 于是还是拖拽开始那一刻的值，
- * `over` 可能差一格。所以频率要给一个**数字**：dnd-kit 才会按它定时重测
- * （`useDroppableMeasuring` 里 `typeof frequency === 'number'` 才挂那个计时器）。
+ * 留下 `strategy: Always` 是给还在用 `over` 的两条路：**键盘拖拽**的落点与**分组排序**。
+ * 它们都要求 droppable 增删之后 rects 重新量一遍（多选拖动一开始整批移出列表就是一次增删），
+ * 否则缓存 rects 与真实 DOM 差一格、`over` 指到错位的容器上（2026-11-17 实测）。
  */
 const MEASURING: MeasuringConfiguration = {
-  droppable: {
-    strategy: MeasuringStrategy.Always,
-    frequency: MEASURING_REFRESH_MS,
-  },
+  droppable: { strategy: MeasuringStrategy.Always },
+}
+
+/** 分组放置区的 DOM 契约：`CardGroupSection` 在放置区上挂 `data-card-group-key={key}`。 */
+const CARD_GROUP_AREA_SELECTOR = "[data-card-group-key]"
+
+/**
+ * 瓦片身份的 DOM 契约：`SortableCardTile` 的 `data-card-id`。落点 ghost 与它展开的格子都没有
+ * 这个属性，所以它们天然不算一格——落点下标因此自动是「本批移出之后」的口径。
+ */
+const CARD_TILE_SELECTOR = "[data-card-id]"
+
+function dropRectOf(node: Element): CardDropRect {
+  const rect = node.getBoundingClientRect()
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+  }
+}
+
+/**
+ * 这一刻的落点几何：每个分组放置区一个矩形 + 区内**真的渲染出来**的瓦片矩形。
+ * 折叠的分组不渲染放置区，因此天然不在候选里（也就落不进去）。
+ */
+function readDropPointerGroups(): CardDropPointerGroup[] {
+  const groups: CardDropPointerGroup[] = []
+  for (const area of document.querySelectorAll<HTMLElement>(
+    CARD_GROUP_AREA_SELECTOR
+  )) {
+    const key = area.dataset.cardGroupKey
+    if (!key) continue
+    groups.push({
+      key,
+      rect: dropRectOf(area),
+      tiles: [
+        ...area.querySelectorAll<HTMLElement>(CARD_TILE_SELECTOR),
+      ].map((tile) => ({
+        cardId: tile.dataset.cardId ?? "",
+        rect: dropRectOf(tile),
+      })),
+    })
+  }
+  return groups
 }
 
 /**
@@ -160,9 +200,11 @@ type DragSession = {
  * 预览的**唯一**位移来源是落点 ghost（`cardDropPreview`）：
  * 1. 拖动一开始，本次拖拽涉及的**全部**名片（多选就是整个选择集）立刻从列表里移出去；
  * 2. 落点位置插一个「合集 ghost」占住一张名片的位置（这一摞的真实缩略图 + 旋转，
- *    超过 3 张时右下角报总张数），落点稳定 180ms 后展开成 N 个缩略图 ghost，真实预览
+ *    超过 3 张时右下角报总张数），落点稳定 `CARD_DROP_GHOST_DWELL_MS`（1s）后展开成
+ *    N 个缩略图 ghost，真实预览
  *    插入后的排版；指针再动超过 `GHOST_COLLAPSE_DISTANCE_PX`（16px）或落点候选变了就
- *    收起回合集 ghost；
+ *    收起回合集 ghost；**落点按指针几何实测 DOM 算，不看 dnd-kit 的 `over`**
+ *    （见 `applyPointerTarget`）；
  * 3. 卡片列表的 `SortableContext` 因此必须用**恒等** strategy（`card-manager.tsx` 的
  *    `NO_SHIFT_SORTING_STRATEGY`）：ghost 已经真的占了一格，再叠加 sortable 位移就会错位
  *    （2026-11-17 用户实测：「瓦片前后各有一处空白」、列表错位甚至溢出）。
@@ -176,6 +218,7 @@ type DragSession = {
 export function useCardManagerDrag({
   cards,
   groups,
+  enabled,
   selectedCardIds,
   onMoveCards,
   onReorderCardGroups,
@@ -183,6 +226,12 @@ export function useCardManagerDrag({
   cards: readonly FudabaOwnerCard[]
   /** 编辑模式渲染用的草稿分组结构（含默认分组）。 */
   groups: readonly DraftCardGroup[]
+  /**
+   * 卡片能不能被拖起来（编辑模式的分组视图）。指针追踪只在它打开时挂着：拖拽的落点要靠
+   * `pointermove` 的真实视口坐标，而 dnd-kit 要等指针移动超过激活距离才回调 `onDragStart`
+   * ——晚挂一步就会丢掉「激活那一次」的指针（见下面 `pointermove` 的那个 effect）。
+   */
+  enabled: boolean
   selectedCardIds: ReadonlySet<string>
   onMoveCards: (cardNumbers: readonly number[], target: CardMoveTarget) => void
   onReorderCardGroups: (fromKey: string, toKey: string) => void
@@ -201,8 +250,10 @@ export function useCardManagerDrag({
   const dwellAnchorRef = useRef<{ x: number; y: number } | null>(null)
   /** 最近一次落定的落点候选；用它判断「候选变了没有」。 */
   const settledTargetRef = useRef<CardDropTarget | null>(null)
-  /** 由 `onDragMove` 记下的累计位移：候选变化时要把计时重新挂到当前指针位置上。 */
-  const dragDeltaRef = useRef({ x: 0, y: 0 })
+  /**
+   * 指针拖拽（批次 ≥ 2）最后算出来的落点：松手时按它落位（状态可能还差一帧，所以留快照）。
+   */
+  const pointerTargetRef = useRef<CardDropTarget | null>(null)
   /** 这一趟是不是键盘拖拽：键盘没有「指针停顿」，ghost 直接按展开态渲染。 */
   const keyboardDragRef = useRef(false)
   /** 播报文案在事件处理器里写好，`aria-live` 的回调再取出来（回调执行晚于一帧）。 */
@@ -307,7 +358,7 @@ export function useCardManagerDrag({
   }, [])
 
   // 卸载（拖动中退出编辑模式、切到经典模式等）也要拆掉计时器：它只在 dragEnd/Cancel
-  // 与新的一次 start 时被清，组件没了以后 180ms 一到还是会对着已卸载的组件 `setState`。
+  // 与新的一次 start 时被清，组件没了以后 1s 一到还是会对着已卸载的组件 `setState`。
   useEffect(() => clearDwellTimer, [clearDwellTimer])
 
   /**
@@ -329,12 +380,98 @@ export function useCardManagerDrag({
     [clearDwellTimer, updatePreview]
   )
 
+  /**
+   * 指针拖拽（批次 ≥ 2）的落点：**按指针几何实测 DOM 算**，不看 dnd-kit 的 `over`。
+   *
+   * 为什么不用 `over`：它比的是 dnd-kit 缓存的 droppable rects（`strategy: Always` 也只在
+   * 拖拽开始与 droppable 增删时重量），而落点 ghost 一插进网格就真的改变了布局——`over`
+   * 于是最多晚一拍，多选拖动的落点看着就不如单张准（2026-11-17 用户反馈）。这里改成每次
+   * 指针移动都对着**当前 DOM** 实测一遍矩形：指针在哪一组的哪一行哪一列，落点就是哪儿。
+   *
+   * 落点候选变→立刻换 ghost 并重新计时；候选没变但指针又走了 > `GHOST_COLLAPSE_DISTANCE_PX`
+   * →收起展开的 ghost 并重新计时。播报文案也在这里写好（dnd-kit 的 `onDragOver` 对这条
+   * 路不再负责，见 `handleDragOver`）。
+   *
+   * 每个指针事件都量一遍、不做额外的节流：浏览器把 `pointermove` 对齐到帧（约 60–120 次/秒），
+   * 所以它天然就是「最多一帧一次」；再叠一层 rAF 节流只会把同一帧里**后面**的指针事件丢掉，
+   * 让落点落后指针一帧（量 rect 的成本与 dnd-kit 自己每次移动都跑的碰撞检测同一量级）。
+   */
+  const applyPointerTarget = useCallback(
+    (pointer: { x: number; y: number }) => {
+      const current = sessionRef.current
+      // 只有「多选 + 指针」这条路要几何落点：单张沿用 dnd-kit 的排序位移，键盘没有指针。
+      if (!current || current.kind !== "card") return
+      if (current.cardIds.length <= 1 || keyboardDragRef.current) return
+
+      const target = resolveCardDropFromPointer({
+        pointer,
+        groups: readDropPointerGroups(),
+      })
+      pointerTargetRef.current = target
+      messagesRef.current.over = target
+        ? `落点『${groupTitle(target.groupKey)}』`
+        : ""
+
+      if (!target) {
+        settledTargetRef.current = null
+        clearDwellTimer()
+        updatePreview(null)
+        return
+      }
+      const settled = settledTargetRef.current
+      if (
+        !settled ||
+        settled.groupKey !== target.groupKey ||
+        settled.index !== target.index
+      ) {
+        settledTargetRef.current = target
+        updatePreview({ ...target, expanded: false })
+        armDwell(pointer, current.cardIds.length)
+        return
+      }
+      const anchor = dwellAnchorRef.current
+      if (!anchor) return
+      if (
+        Math.hypot(pointer.x - anchor.x, pointer.y - anchor.y) <=
+        GHOST_COLLAPSE_DISTANCE_PX
+      ) {
+        return
+      }
+      const preview = previewRef.current
+      if (preview?.expanded) updatePreview({ ...preview, expanded: false })
+      armDwell(pointer, current.cardIds.length)
+    },
+    [armDwell, clearDwellTimer, groupTitle, updatePreview]
+  )
+
+  /**
+   * 指针拖拽的落点从 **`window` 的 `pointermove`** 拿：那才是真实的视口指针坐标。
+   *
+   * 两个理由不走 dnd-kit 的 `onDragMove`/`onDragOver`：
+   * 1. 它们的 `delta` 是**补偿过滚动**的位移（`scrollAdjustedTranslate`）：页面自动滚动时
+   *    和真实指针越差越多（滚了多少就偏多少），而落点几何要的恰恰是屏幕上的位置；
+   * 2. 回调跑在传感器自己的批次里、比这个监听器还早一步（同一个 `pointermove` 里 dnd-kit 先在
+   *    `document` 上处理，我们的监听器在 `window` 上），在那儿读指针永远差一个事件。
+   *
+   * 挂在 `enabled`（编辑模式的分组视图）而不是 `onDragStart`：dnd-kit 要等指针移动超过激活
+   * 距离才回调 `onDragStart`，那一刻这一趟的第一个 `pointermove` 已经在派发中了（`document`
+   * 阶段），晚挂就丢掉它——正是「落点要跟着指针」最需要的第一个位置。
+   */
+  useEffect(() => {
+    if (!enabled) return
+    const onPointerMove = (event: PointerEvent) => {
+      applyPointerTarget({ x: event.clientX, y: event.clientY })
+    }
+    window.addEventListener("pointermove", onPointerMove, { passive: true })
+    return () => window.removeEventListener("pointermove", onPointerMove)
+  }, [applyPointerTarget, enabled])
+
   /** 丢掉这一趟拖拽留下的 ghost 状态（计时器、参照点、落点、展开态）。 */
   const resetDropPreview = useCallback(() => {
     clearDwellTimer()
     dwellAnchorRef.current = null
     settledTargetRef.current = null
-    dragDeltaRef.current = { x: 0, y: 0 }
+    pointerTargetRef.current = null
     keyboardDragRef.current = false
     updatePreview(null)
   }, [clearDwellTimer, updatePreview])
@@ -385,11 +522,17 @@ export function useCardManagerDrag({
         return
       }
 
+      // 多选指针拖拽的落点、播报与停顿时序全部由 `applyPointerTarget`（`pointermove` 那条路）
+      // 负责：`over` 依赖 dnd-kit 缓存的 rects，比真实指针晚（见那里的说明），再让它插一手
+      // 就会把按指针算好的 ghost 与播报顶掉。
+      if (!keyboardDragRef.current && current.cardIds.length > 1) return
+
+      // 到这里只有两种：键盘拖拽（含多选）与单张拖动。它们都按 `over` 解析落点：
+      // 键盘没有指针；单张的原瓦片留在列表里、让位交给 dnd-kit 的排序位移（上一轮已认可的观感）。
       const target = resolveCardTarget(overId)
       messagesRef.current.over = target
         ? `落点『${groupTitle(target.groupKey)}』`
         : ""
-      // 单张拖动沿用 dnd-kit 的排序位移（上一轮已认可的观感），不插 ghost。
       if (!target || current.cardIds.length <= 1) {
         settledTargetRef.current = null
         clearDwellTimer()
@@ -401,40 +544,10 @@ export function useCardManagerDrag({
         return
       }
       settledTargetRef.current = target
-      updatePreview({
-        ...target,
-        expanded: keyboardDragRef.current,
-      })
-      if (!keyboardDragRef.current) {
-        armDwell(dragDeltaRef.current, current.cardIds.length)
-      }
+      // 键盘拖拽没有「指针停顿」：落点一确定就是展开态。
+      updatePreview({ ...target, expanded: true })
     },
-    [armDwell, clearDwellTimer, groupTitle, resolveCardTarget, updatePreview]
-  )
-
-  /**
-   * 指针一动（超过 `GHOST_COLLAPSE_DISTANCE_PX`）就当用户在找新落点：收起合集 ghost，
-   * 并把 180ms 的计时重新挂到当前位置上。键盘拖拽没有停顿概念，整段跳过。
-   */
-  const handleDragMove = useCallback(
-    (event: DragMoveEvent) => {
-      dragDeltaRef.current = event.delta
-      const current = sessionRef.current
-      if (!current || current.kind !== "card") return
-      if (keyboardDragRef.current || current.cardIds.length <= 1) return
-      const anchor = dwellAnchorRef.current
-      if (!anchor) return
-      if (
-        Math.hypot(event.delta.x - anchor.x, event.delta.y - anchor.y) <=
-        GHOST_COLLAPSE_DISTANCE_PX
-      ) {
-        return
-      }
-      const preview = previewRef.current
-      if (preview?.expanded) updatePreview({ ...preview, expanded: false })
-      armDwell(event.delta, current.cardIds.length)
-    },
-    [armDwell, updatePreview]
+    [clearDwellTimer, groupTitle, resolveCardTarget, updatePreview]
   )
 
   const handleDragEnd = useCallback(
@@ -449,7 +562,11 @@ export function useCardManagerDrag({
           messagesRef.current.end = `已把分组『${groupTitle(fromKey)}』移动到『${groupTitle(toKey)}』`
         }
       } else if (current?.kind === "card") {
-        const target = resolveCardTarget(overId)
+        // 多选指针拖拽落位读**最后算出来的指针落点**（与 ghost 完全同源）；键盘与单张读 `over`。
+        const target =
+          !keyboardDragRef.current && current.cardIds.length > 1
+            ? pointerTargetRef.current
+            : resolveCardTarget(overId)
         const cardNumbers = current.cardIds
           .map((cardId) => cardsById.get(cardId)?.cardNumber)
           .filter(
@@ -519,7 +636,6 @@ export function useCardManagerDrag({
       | "accessibility"
       | "measuring"
       | "onDragStart"
-      | "onDragMove"
       | "onDragOver"
       | "onDragEnd"
       | "onDragCancel"
@@ -528,7 +644,7 @@ export function useCardManagerDrag({
     () => ({
       sensors,
       collisionDetection,
-      // 落点 ghost 会改布局，rect 必须常驻重测（见 `MEASURING`）。
+      // 还在用 `over` 的两条路（键盘拖拽、分组排序）要在 droppable 增删后重量 rects，见 `MEASURING`。
       measuring: MEASURING,
       accessibility: {
         announcements,
@@ -538,7 +654,8 @@ export function useCardManagerDrag({
         },
       },
       onDragStart: handleDragStart,
-      onDragMove: handleDragMove,
+      // 指针拖拽的落点不走 `onDragOver`（键盘拖拽与分组排序的落点才走它）：`onDragOver` 的回调
+      // 比 `window` 的 `pointermove` 早一步，`delta` 又被滚动补偿过（见 `applyPointerTarget`）。
       onDragOver: handleDragOver,
       onDragEnd: handleDragEnd,
       onDragCancel: handleDragCancel,
@@ -550,7 +667,6 @@ export function useCardManagerDrag({
       collisionDetection,
       handleDragCancel,
       handleDragEnd,
-      handleDragMove,
       handleDragOver,
       handleDragStart,
       sensors,

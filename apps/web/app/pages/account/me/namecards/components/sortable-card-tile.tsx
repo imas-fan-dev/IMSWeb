@@ -37,6 +37,9 @@ export function SortableCardTile({
         setActivatorNodeRef(node)
       }}
       data-testid="sortable-card-tile"
+      // FLIP（`useCardGridFlip`）按卡 id 认「同一张瓦片」：批量拖动时整批会离开列表再回来，
+      // 不能靠下标认人。
+      data-card-id={tile.card.id}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         "min-w-0",

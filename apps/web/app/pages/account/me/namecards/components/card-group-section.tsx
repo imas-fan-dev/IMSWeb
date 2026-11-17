@@ -33,6 +33,9 @@ import { CardGroupTitleInput } from "./card-group-title-input"
  * 编辑模式（§7.2/§7.3）：
  * - 组头多一个拖动把手（只拖分组本身，不拖卡片）与重命名输入框、删除按钮；
  * - 放置区注册成 dnd-kit 的 droppable，卡片拖到空处即落到该分组末尾；
+ * - 放置区还挂 `data-card-group-key={key}`：落点判定按指针几何实测 DOM（`useCardManagerDrag`
+ *   的 `readDropPointerGroups`），靠它把放置区与分组键对起来（折叠时整块不渲染，因此
+ *   折叠的分组天然没有落点）；
  * - **折叠的分组不接受落点**：收起时整块放置区不渲染，也就没有可命中的落点
  *   （比「落点自动展开」更好测，也不会让用户误以为卡片进了别处）；
  * - 组内一张卡都没有时给一块虚线提示区，否则空的放置区量不出尺寸、拖不进去。
@@ -116,7 +119,12 @@ export function CardGroupSection({
   if (heading === null) {
     return (
       <section aria-label={label} data-testid="card-group" className="min-w-0">
-        <div id={cardsId} ref={setDropRef} className={dropAreaClassName}>
+        <div
+          id={cardsId}
+          ref={setDropRef}
+          data-card-group-key={key}
+          className={dropAreaClassName}
+        >
           {emptyHint}
           {children}
         </div>
@@ -205,6 +213,7 @@ export function CardGroupSection({
         <div
           id={cardsId}
           ref={setDropRef}
+          data-card-group-key={key}
           className={cn("mt-3", dropAreaClassName)}
         >
           {emptyHint}

@@ -12,6 +12,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -69,6 +70,7 @@ import {
   type CardManagerViewMode,
 } from "./components/card-manager-toolbar"
 import { SortableCardTile } from "./components/sortable-card-tile"
+import { useCardGridFlip } from "./hooks/use-card-grid-flip"
 import { useCardManagerDraft } from "./hooks/use-card-manager-draft"
 import { useCardManagerDrag } from "./hooks/use-card-manager-drag"
 import { useCardManagerSave } from "./hooks/use-card-manager-save"
@@ -134,6 +136,8 @@ export function CardManager({
   const [confirmQuickJoin, setConfirmQuickJoin] = useState(false)
   /** 「+ 新建分组」按下之后，默认分组下方出现标题输入区（§7.2）。 */
   const [creatingGroup, setCreatingGroup] = useState(false)
+  /** 瓦片清单容器：批量插入的 FLIP（`useCardGridFlip`）要在它里面量瓦片位置。 */
+  const cardGridRef = useRef<HTMLElement | null>(null)
 
   const draft = useCardManagerDraft({ cards, layout })
   const { collapsedKeys, toggleCollapsed, pruneCollapsedKeys } =
@@ -216,9 +220,22 @@ export function CardManager({
   const drag = useCardManagerDrag({
     cards,
     groups: draftGroups ?? [],
+    // 指针追踪只在「编辑模式的分组视图」里挂着（拖着卡片才需要落点几何）。
+    enabled: layoutEditing,
     selectedCardIds: draft.selectedCardIds,
     onMoveCards: draft.moveCards,
     onReorderCardGroups: draft.reorderCardGroups,
+  })
+
+  /**
+   * 批量插入时的瓦片位移（手写 FLIP）。多选拖动那一刻没有 dnd-kit 的排序位移
+   * （`NO_SHIFT_SORTING_STRATEGY`），被顶开的瓦片得自己动起来：会话边界就是
+   * 「整批真的在拖」（`draggedCardIds`）。
+   */
+  useCardGridFlip({
+    rootRef: cardGridRef,
+    enabled: layoutEditing,
+    active: drag.draggedCardIds.size > 0,
   })
 
   function changeMode(next: CardManagerViewMode) {
@@ -366,7 +383,11 @@ export function CardManager({
 
   const cardList =
     mode === "grouped" ? (
-      <nav className="mt-4 flex flex-col gap-6" aria-label="我的名片清单">
+      <nav
+        ref={cardGridRef}
+        className="mt-4 flex flex-col gap-6"
+        aria-label="我的名片清单"
+      >
         <SortableContext
           items={groupSortableIds}
           strategy={verticalListSortingStrategy}

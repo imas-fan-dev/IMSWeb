@@ -33,8 +33,12 @@ import {
   removeCardGroup,
   renameCardGroup,
   reorderCardGroups,
+  resolveCardDropFromPointer,
   sameCardLayoutDraft,
   selectableCardIds,
+  type CardDropPointerGroup,
+  type CardDropPointerTile,
+  type CardDropRect,
   type CardManagerGroup,
   type CardManagerLayoutDraft,
 } from "~/pages/account/me/namecards/card-manager-model"
@@ -751,6 +755,157 @@ describe("moveCards", () => {
 
     expect(moveCards(current, [], { groupKey: DEFAULT_CARD_GROUP_KEY })).toBe(
       current
+    )
+  })
+})
+
+describe("resolveCardDropFromPointer", () => {
+  // 一行 3 列：瓦片 100×60、间距 10 → 列宽 110、行高 70。两个分组上下排开。
+  const TILE_WIDTH = 100
+  const TILE_HEIGHT = 60
+  const COLUMN_WIDTH = 110
+  const ROW_HEIGHT = 70
+  const AREA_A = { left: 0, top: 80, right: 340, bottom: 270 }
+  const AREA_B = { left: 0, top: 300, right: 340, bottom: 390 }
+  const ORIGIN_A = { x: 0, y: 100 }
+  const ORIGIN_B = { x: 0, y: 300 }
+
+  function rectAt(
+    origin: { x: number; y: number },
+    index: number
+  ): CardDropRect {
+    const left = origin.x + (index % 3) * COLUMN_WIDTH
+    const top = origin.y + Math.floor(index / 3) * ROW_HEIGHT
+    return {
+      left,
+      top,
+      right: left + TILE_WIDTH,
+      bottom: top + TILE_HEIGHT,
+    }
+  }
+
+  function tileAt(
+    origin: { x: number; y: number },
+    index: number,
+    cardId: string
+  ): CardDropPointerTile {
+    return { cardId, rect: rectAt(origin, index) }
+  }
+
+  /** 分组 A 放四张（两行），分组 B 放两张（一行）。 */
+  const groupA: CardDropPointerGroup = {
+    key: "g-a",
+    rect: AREA_A,
+    tiles: [
+      tileAt(ORIGIN_A, 0, "card-1"),
+      tileAt(ORIGIN_A, 1, "card-2"),
+      tileAt(ORIGIN_A, 2, "card-3"),
+      tileAt(ORIGIN_A, 3, "card-4"),
+    ],
+  }
+  const groupB: CardDropPointerGroup = {
+    key: "g-b",
+    rect: AREA_B,
+    tiles: [tileAt(ORIGIN_B, 0, "card-5"), tileAt(ORIGIN_B, 1, "card-6")],
+  }
+
+  it("takes the group the pointer is inside, first match wins", () => {
+    expect(
+      resolveCardDropFromPointer({
+        // 分组 A 第一行的右端（名片 3 中心的右边、同一行）。
+        pointer: { x: 260, y: 130 },
+        groups: [groupA, groupB],
+      })
+    ).toEqual({ groupKey: "g-a", index: 2 })
+  })
+
+  it("falls back to the nearest group when the pointer is outside every one", () => {
+    expect(
+      resolveCardDropFromPointer({
+        // 两个分组的右外侧、但纵向落在 B 那一行上：B 更近，且指针在 B 的整行之下。
+        pointer: { x: 400, y: 380 },
+        groups: [groupA, groupB],
+      })
+    ).toEqual({ groupKey: "g-b", index: 2 })
+    expect(
+      resolveCardDropFromPointer({
+        // 列表上方（工具栏一带）：最近的是 A，落在第一行之前。
+        pointer: { x: 160, y: 20 },
+        groups: [groupA, groupB],
+      })
+    ).toEqual({ groupKey: "g-a", index: 0 })
+    expect(
+      resolveCardDropFromPointer({ pointer: { x: 0, y: 0 }, groups: [] })
+    ).toBeNull()
+  })
+
+  it("counts tiles in row-major order: row above, then the same row by center", () => {
+    // 第一行最右（名片 3 右边）：插在第一行之后、第二行之前。
+    expect(
+      resolveCardDropFromPointer({
+        pointer: { x: 330, y: 130 },
+        groups: [groupA],
+      })
+    ).toEqual({ groupKey: "g-a", index: 3 })
+    // 第二行最左（名片 4 左边）：同样插在两行之间。
+    expect(
+      resolveCardDropFromPointer({
+        pointer: { x: 10, y: 200 },
+        groups: [groupA],
+      })
+    ).toEqual({ groupKey: "g-a", index: 3 })
+    // 第一行左端（名片 1 中心的左边）：整批都在它后面。
+    expect(
+      resolveCardDropFromPointer({
+        pointer: { x: 20, y: 130 },
+        groups: [groupA],
+      })
+    ).toEqual({ groupKey: "g-a", index: 0 })
+  })
+
+  it("gives 0 above the tiles and the whole list below them", () => {
+    // 放置区里、瓦片之上（分组头的留白）：落在最前。
+    expect(
+      resolveCardDropFromPointer({
+        pointer: { x: 200, y: 90 },
+        groups: [groupA],
+      })
+    ).toEqual({ groupKey: "g-a", index: 0 })
+    // 放置区里、瓦片之下：落在最后。
+    expect(
+      resolveCardDropFromPointer({
+        pointer: { x: 200, y: 260 },
+        groups: [groupA],
+      })
+    ).toEqual({ groupKey: "g-a", index: 4 })
+  })
+
+  it("gives 0 for an empty group", () => {
+    expect(
+      resolveCardDropFromPointer({
+        pointer: { x: 160, y: 130 },
+        groups: [{ key: "g-empty", rect: AREA_A, tiles: [] }],
+      })
+    ).toEqual({ groupKey: "g-empty", index: 0 })
+  })
+
+  it("returns the index of the list without the batch, exactly where the ghost sits", () => {
+    // 多选拖动：这一批（名片 1、2）已经从列表里移出去，实时列表只剩 [名片 3, 名片 4]，
+    // 它们此刻排在网格的第 0、1 格。
+    const remaining = [
+      tileAt(ORIGIN_A, 0, "card-3"),
+      tileAt(ORIGIN_A, 1, "card-4"),
+    ]
+    const target = resolveCardDropFromPointer({
+      pointer: { x: 100, y: 130 },
+      groups: [{ key: "g-a", rect: AREA_A, tiles: remaining }],
+    })
+
+    // 指针落在名片 3 中心的右边、名片 4 中心的左边 → 这批要插在两者之间。
+    expect(target).toEqual({ groupKey: "g-a", index: 1 })
+    // 与落位同源：按这个下标把整批插回列表，就是 ghost 预览的顺序。
+    expect(moveCards(draft([3, 4], []), [1, 2], target!).defaultCardNumbers).toEqual(
+      [3, 1, 2, 4]
     )
   })
 })
