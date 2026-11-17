@@ -27,6 +27,7 @@ import type {
 import { CardEditor, CardEditorHeading } from "./card-editor"
 import type { CardManagerCardPatches } from "./card-manager-model"
 import { CardManager } from "./card-manager"
+import { shareHandleFor } from "./card-share-model"
 
 export function CardWorkspace({
   cards,
@@ -133,6 +134,7 @@ export function CardWorkspace({
         accountId={accountId}
         selectedCardId={selectedCardId}
         readOnly={readOnly}
+        shareHandle={shareHandleFor(profile)}
         onSelect={(id) => {
           onSelect(id)
         }}

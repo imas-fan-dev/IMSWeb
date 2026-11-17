@@ -1,8 +1,21 @@
-import { LoaderCircleIcon, PencilIcon, PlusIcon } from "lucide-react"
-import { useId } from "react"
+import {
+  LoaderCircleIcon,
+  PencilIcon,
+  PlusIcon,
+  Share2Icon,
+} from "lucide-react"
+import { useId, useState } from "react"
 
 import { Button } from "~/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip"
+import { SHARE_EMPTY_HINT } from "../card-share-model"
+import { CardShareDialog } from "./card-share-dialog"
 
 /** 分组模式渲染组头与折叠；经典模式只按同一顺序展平，不渲染组头。 */
 export type CardManagerViewMode = "grouped" | "classic"
@@ -28,6 +41,8 @@ export function CardManagerToolbar({
   saving,
   canSave,
   editDisabledReason,
+  shareHandle,
+  quickCount,
 }: {
   mode: CardManagerViewMode
   onModeChange: (mode: CardManagerViewMode) => void
@@ -47,9 +62,16 @@ export function CardManagerToolbar({
   canSave: boolean
   /** 编辑模式不可用时（例如布局读失败）给出原因，禁用按钮并讲清楚。 */
   editDisabledReason?: string | null
+  /** 分享链接里的 handle（公开主页地址或数字编号）。 */
+  shareHandle: string
+  /** 生效的快速清单张数；为 0 时分享按钮只出引导 tooltip。 */
+  quickCount: number
 }) {
   const editReasonId = useId()
   const editBlocked = Boolean(editDisabledReason)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareHintOpen, setShareHintOpen] = useState(false)
+  const shareable = quickCount > 0
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
       <ToggleGroup
@@ -127,6 +149,46 @@ export function CardManagerToolbar({
               {editDisabledReason}
             </span>
           ) : null}
+          {/*
+            分享入口**只在读模式出现**：编辑模式那一支里没有它（不是禁用）——会话里的布局与
+            快速清单还是草稿，此刻扫出去的清单会与用户马上要保存的结果不一致。
+            快速清单为空时没有可分享的清单，按钮只出引导 tooltip（hover/focus/click 都能出），
+            点了也不开面板。
+          */}
+          {shareable ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setShareOpen(true)}
+            >
+              <Share2Icon data-icon="inline-start" aria-hidden="true" />
+              分享名片
+            </Button>
+          ) : (
+            <TooltipProvider>
+              <Tooltip open={shareHintOpen} onOpenChange={setShareHintOpen}>
+                <TooltipTrigger
+                  // 点一下也算「想看引导」：有些浏览器（如 macOS Safari）点击按钮不会聚焦，
+                  // 只靠 focus 触发的话点了没反应。`closeOnClick={false}` 让这次点击不会
+                  // 立刻把 tooltip 关掉。
+                  closeOnClick={false}
+                  render={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShareHintOpen(true)}
+                    />
+                  }
+                >
+                  <Share2Icon data-icon="inline-start" aria-hidden="true" />
+                  分享名片
+                </TooltipTrigger>
+                <TooltipContent>{SHARE_EMPTY_HINT}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </>
       )}
       <Button
@@ -141,6 +203,11 @@ export function CardManagerToolbar({
         <PlusIcon data-icon="inline-start" aria-hidden="true" />
         新建名片
       </Button>
+      <CardShareDialog
+        handle={shareHandle}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
     </div>
   )
 }

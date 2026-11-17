@@ -34,6 +34,7 @@ function managerProps(
     accountId: "platform-1",
     selectedCardId: null,
     readOnly: false,
+    shareHandle: "tester",
     onSelect: vi.fn(),
     onCreate: vi.fn(),
     onLayoutSaved: vi.fn(),

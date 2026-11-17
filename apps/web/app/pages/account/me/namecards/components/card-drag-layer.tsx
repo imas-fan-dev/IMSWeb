@@ -11,21 +11,6 @@ const STACK_VISIBLE_LIMIT = 3
 const STACK_ROTATIONS = [-4, 2, -1]
 
 /**
- * 拖动中的落点占位块：尺寸与真实瓦片一致（1:1），虚线边框，落在预估落点上。
- *
- * 多选拖拽时按落位顺序并排出现多个（上限见 `useCardManagerDrag`），落位后由真实瓦片接管。
- */
-export function CardDragGhost() {
-  return (
-    <span
-      aria-hidden="true"
-      data-testid="card-drag-ghost"
-      className="aspect-square min-w-0 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5"
-    />
-  )
-}
-
-/**
  * `DragOverlay` 的内容：单张就是一张瓦片；多选时叠成一摞（最多 3 张可见 + `+N`）。
  *
  * 它只是视觉副本——真实落位由落点决定，所以整块对读屏隐藏（拖拽播报走 `aria-live`）、

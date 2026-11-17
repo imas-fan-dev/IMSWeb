@@ -70,6 +70,7 @@ function managerProps(
     accountId: "platform-1",
     selectedCardId: null,
     readOnly: false,
+    shareHandle: "tester",
     onSelect: vi.fn(),
     onCreate: vi.fn(),
     onLayoutSaved: vi.fn(),
@@ -342,6 +343,49 @@ describe("CardManager dragging", () => {
         cardSettings: [],
       })
     )
+  })
+
+  it("keeps the sortable list to the real tiles while a card drag is in flight", async () => {
+    const user = userEvent.setup()
+    /** 分组放置区（`id="card-group-cards-…"`）：直接数它下面的可拖瓦片。 */
+    const gridOf = (title: string) =>
+      screen
+        .getByRole("region", { name: title })
+        .querySelector('[id^="card-group-cards-"]') as HTMLElement
+    stubSortableGeometry(() => groupSection("归置"))
+    renderManager()
+
+    await enterEditing(user)
+    await grabWithKeyboard(user, gridOf("常用").children[0] as HTMLElement)
+
+    // 拖动进行中、落点已解析——旧的 ghost 预置正是在这一刻把虚线占位块插进
+    // `SortableContext` 的 children，网格因此真的多出一格。
+    expect(screen.getByRole("status")).toHaveTextContent("落点『默认分组』")
+    expect(
+      document.querySelectorAll('[data-testid="card-drag-ghost"]')
+    ).toHaveLength(0)
+    // 每个分组里**只有**自己的瓦片：占位完全交给 dnd-kit 的排序位移。
+    for (const title of ["默认分组", "常用", "备用", "归置"]) {
+      expect(
+        gridOf(title).querySelectorAll('[data-testid="sortable-card-tile"]')
+      ).toHaveLength(1)
+    }
+
+    await user.keyboard(" ")
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "已把 1 张名片移动到『默认分组』"
+      )
+    )
+    // 落位写进草稿：落点是默认分组的第 0 张（名片 A），名片 B 插到它前面。
+    expect(
+      gridOf("默认分组").querySelectorAll('[data-testid="sortable-card-tile"]')
+    ).toHaveLength(2)
+    expect(
+      gridOf("常用").querySelectorAll('[data-testid="sortable-card-tile"]')
+    ).toHaveLength(0)
+    expect(tileNames()).toEqual(["名片 B", "名片 A", "名片 C", "名片 D"])
   })
 
   it("keeps the drop out of a collapsed group", async () => {

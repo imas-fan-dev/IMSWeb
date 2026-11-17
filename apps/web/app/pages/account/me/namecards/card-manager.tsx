@@ -56,7 +56,7 @@ import {
 } from "./card-manager-model"
 import { cardTileGridClassName } from "./card-tile"
 import { CardBulkActions } from "./components/card-bulk-actions"
-import { CardDragGhost, CardDragLayer } from "./components/card-drag-layer"
+import { CardDragLayer } from "./components/card-drag-layer"
 import { CardGroupSection } from "./components/card-group-section"
 import { CardGroupTitleInput } from "./components/card-group-title-input"
 import {
@@ -87,6 +87,7 @@ export function CardManager({
   accountId,
   selectedCardId,
   readOnly,
+  shareHandle,
   onSelect,
   onCreate,
   onLayoutSaved,
@@ -99,6 +100,8 @@ export function CardManager({
   accountId: string | null
   selectedCardId: string | null
   readOnly: boolean
+  /** 分享链接里的 handle（公开主页地址或数字编号）。 */
+  shareHandle: string
   onSelect: (cardId: string) => void
   onCreate: () => void
   /**
@@ -197,7 +200,6 @@ export function CardManager({
   const canAddGroup = canCreateCardGroup(draft.layoutDraft?.groups ?? [])
 
   const drag = useCardManagerDrag({
-    enabled: layoutEditing,
     cards,
     groups: draftGroups ?? [],
     selectedCardIds: draft.selectedCardIds,
@@ -286,31 +288,23 @@ export function CardManager({
     />
   )
 
-  /** 分组放置区里的瓦片；拖动中在预估落点插上虚线的 ghost 占位块（§7.3）。 */
+  /**
+   * 分组放置区里的瓦片。拖动中的落点占位**只**来自 dnd-kit 的排序位移
+   * （`SortableContext` + `rectSortingStrategy`），所以这里只渲染真实瓦片：
+   * 往 sortable 列表里插 ghost 子项会让网格多出格子、与位移叠加后整体错位
+   * （2026-11-17 用户实测）。
+   */
   function renderGroupTiles(group: CardGroupView): ReactNode {
     const tiles = group.cards.map(renderTile)
-    const ghost =
-      drag.ghost && drag.ghost.groupKey === cardGroupKey(group)
-        ? drag.ghost
-        : null
-    const placed = ghost
-      ? [
-          ...tiles.slice(0, Math.min(ghost.index, tiles.length)),
-          ...Array.from({ length: ghost.count }, (_, index) => (
-            <CardDragGhost key={`card-drag-ghost-${index}`} />
-          )),
-          ...tiles.slice(Math.min(ghost.index, tiles.length)),
-        ]
-      : tiles
     return layoutEditing ? (
       <SortableContext
         items={group.cards.map((card) => card.id)}
         strategy={rectSortingStrategy}
       >
-        {placed}
+        {tiles}
       </SortableContext>
     ) : (
-      placed
+      tiles
     )
   }
 
@@ -338,7 +332,7 @@ export function CardManager({
               <Fragment key={key}>
                 <CardGroupSection
                   group={group}
-                  // 计数来自渲染结构（不含拖动中的 ghost）：空分组靠它 0 才知道画落点提示。
+                  // 计数就是渲染结构里的瓦片数（拖动中也不多不少）：空分组靠它 0 才知道画落点提示。
                   tileCount={group.cards.length}
                   collapsed={collapsedKeys.has(key)}
                   onToggleCollapsed={() => toggleGroup(key)}
@@ -425,6 +419,8 @@ export function CardManager({
             saving={save.saving}
             canSave={draft.hasChanges && !save.saving}
             editDisabledReason={editDisabledReason}
+            shareHandle={shareHandle}
+            quickCount={draft.quickCardNumbers.length}
           />
         ) : (
           <Button

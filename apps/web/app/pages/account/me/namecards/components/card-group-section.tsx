@@ -51,14 +51,14 @@ export function CardGroupSection({
 }: {
   group: CardGroupView
   /**
-   * 该组当前有几张瓦片（不含拖拽中的 ghost 占位块）。空分组要它有 0 才知道
-   * 该把虚线落点提示画出来——见文件头的说明。
+   * 该组当前有几张瓦片。空分组要它有 0 才知道该把虚线落点提示画出来——
+   * 见文件头的说明。
    */
   tileCount: number
   /** 默认分组忽略它：没有组头就没有折叠控件。 */
   collapsed: boolean
   onToggleCollapsed: () => void
-  /** 放置区里的瓦片（含拖动中的 ghost）；折叠时整块不渲染。 */
+  /** 放置区里的瓦片；折叠时整块不渲染。 */
   children: ReactNode
   /** 编辑模式：渲染拖动把手、重命名输入框与删除按钮，并把放置区注册成落点。 */
   editing?: boolean

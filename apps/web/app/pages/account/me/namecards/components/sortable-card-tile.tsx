@@ -41,7 +41,7 @@ export function SortableCardTile({
       className={cn(
         "min-w-0",
         draggable && "cursor-grab touch-none active:cursor-grabbing",
-        // 拖动中的原瓦片留在原位（落点由 ghost 表示），压暗以免和 DragOverlay 上的副本抢眼。
+        // 拖动中的原瓦片留在原位（落点由 dnd-kit 的排序位移让出），压暗以免和 DragOverlay 上的副本抢眼。
         isDragging && "opacity-40"
       )}
       {...(draggable ? attributes : {})}
