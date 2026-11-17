@@ -10,12 +10,17 @@ import { CardManager } from "~/pages/account/me/namecards/card-manager"
 
 const apiMocks = vi.hoisted(() => ({
   putCardLayout: vi.fn(),
+  toast: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }))
 
 vi.mock("sonner", () => ({
-  toast: { success: apiMocks.toastSuccess, error: apiMocks.toastError },
+  // 管理器还会用可调用的 `toast(...)`（长按提示），不只有 `toast.success/error`。
+  toast: Object.assign(apiMocks.toast, {
+    success: apiMocks.toastSuccess,
+    error: apiMocks.toastError,
+  }),
 }))
 
 vi.mock("~/lib/api", async (importOriginal) => {
@@ -89,7 +94,9 @@ function quickBadgeCount() {
 
 beforeEach(() => {
   window.localStorage.clear()
+  window.sessionStorage.clear()
   apiMocks.putCardLayout.mockReset()
+  apiMocks.toast.mockReset()
   apiMocks.toastSuccess.mockReset()
   apiMocks.toastError.mockReset()
 })
@@ -337,6 +344,56 @@ describe("CardManager saving", () => {
     await waitFor(() => expect(apiMocks.toastError).toHaveBeenCalled())
     expect(screen.getByRole("button", { name: "保存" })).toBeEnabled()
     expect(screen.getByText("已选 1 张")).toBeVisible()
+  })
+
+  it("announces the save result and hands the focus back to the toolbar", async () => {
+    const user = userEvent.setup()
+    apiMocks.putCardLayout.mockResolvedValue(SAVED_LAYOUT)
+    renderManager()
+
+    // 播报区常驻（内容随状态变化）才播得稳：进编辑模式时它已经在 DOM 里且是空的。
+    const status = screen.getByTestId("card-manager-save-status")
+    expect(status).toHaveAttribute("role", "status")
+    expect(status).toBeEmptyDOMElement()
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 B/ }))
+    await user.click(screen.getByRole("button", { name: "加入" }))
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "先改成自动确认？",
+    })
+    await user.click(within(dialog).getByRole("button", { name: "确认加入" }))
+    await user.click(screen.getByRole("button", { name: "保存" }))
+
+    // 结果 + 这次提交了多少张 / 多少处：`toast` 之外还要有一份读屏能读到的东西（§11）。
+    await waitFor(() =>
+      expect(status).toHaveTextContent(
+        "名片布局已保存：快速交换清单 1 张，批量字段改动 1 处。"
+      )
+    )
+
+    // 保存后退出编辑模式，焦点回工具栏的「编辑模式」按钮（§11）。
+    const editButton = screen.getByRole("button", { name: "编辑模式" })
+    await waitFor(() => expect(editButton).toHaveFocus())
+  })
+
+  it("announces a failed save with the changes that were kept back", async () => {
+    const user = userEvent.setup()
+    apiMocks.putCardLayout.mockRejectedValue(new Error("offline"))
+    renderManager()
+
+    await enterEditing(user)
+    await user.click(screen.getByRole("checkbox", { name: /名片 A/ }))
+    await user.click(screen.getByRole("button", { name: "隐藏" }))
+    await user.click(screen.getByRole("button", { name: "保存" }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId("card-manager-save-status")).toHaveTextContent(
+        "名片布局保存失败：本次快速交换清单 0 张、批量字段改动 1 处未保存，请重试。"
+      )
+    )
+    // 失败时草稿原样保留，焦点不搬走（还得让用户接着改）。
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled()
   })
 
   it("skips group cards in the visibility and exchange mode batches", async () => {

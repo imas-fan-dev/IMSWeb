@@ -15,12 +15,17 @@ import { collapsedGroupsStorageKey } from "~/pages/account/me/namecards/hooks/us
 
 const apiMocks = vi.hoisted(() => ({
   putCardLayout: vi.fn(),
+  toast: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }))
 
 vi.mock("sonner", () => ({
-  toast: { success: apiMocks.toastSuccess, error: apiMocks.toastError },
+  // 管理器自己会用可调用的 `toast(...)`（长按提示），不只是 `toast.success/error`。
+  toast: Object.assign(apiMocks.toast, {
+    success: apiMocks.toastSuccess,
+    error: apiMocks.toastError,
+  }),
 }))
 
 vi.mock("~/lib/api", async (importOriginal) => {
@@ -28,12 +33,17 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return { ...actual, putCardLayout: apiMocks.putCardLayout }
 })
 
-function card(cardNumber: number, producerName: string): FudabaOwnerCard {
+function card(
+  cardNumber: number,
+  producerName: string,
+  overrides: Partial<FudabaOwnerCard> = {}
+): FudabaOwnerCard {
   return makeFudabaOwnerCard({
     id: `card-${cardNumber}`,
     cardNumber,
     producerName,
     exchangeMode: "auto",
+    ...overrides,
   })
 }
 
@@ -214,11 +224,26 @@ function gridOf(title: string) {
     .querySelector('[id^="card-group-cards-"]') as HTMLElement
 }
 
+type PointerEventName = "pointerdown" | "pointermove" | "pointerup"
+
+/** 一次指针动作在真实浏览器里**同时**产生指针事件与鼠标事件（`mousedown` 等）。 */
+const MOUSE_COUNTERPART: Record<PointerEventName, string> = {
+  pointerdown: "mousedown",
+  pointermove: "mousemove",
+  pointerup: "mouseup",
+}
+
 /**
- * jsdom 里没有真指针，dnd-kit 的 `PointerSensor` 要的是 `pointerdown`/`pointermove`。
- * 用 `MouseEvent` 加挂指针字段就够了（传感器只读 `isPrimary`/`button`/`clientX`/`clientY`）。
+ * jsdom 里没有真指针，而瓦片拖拽走 dnd-kit 的**鼠标**传感器（`MouseSensor` 听
+ * `mousedown`/`mousemove`/`mouseup`），落点几何又读 `window` 的 `pointermove`（真实浏览器里
+ * 鼠标动作两条路都有）。所以这里一次派发两条，忠实还原真实事件序列。
  */
-function pointerLike(type: string, clientX: number, clientY: number): Event {
+function pointerLike(
+  type: PointerEventName,
+  clientX: number,
+  clientY: number,
+  pointerType = "mouse"
+): Event {
   const event = new MouseEvent(type, {
     bubbles: true,
     cancelable: true,
@@ -226,11 +251,61 @@ function pointerLike(type: string, clientX: number, clientY: number): Event {
     clientY,
     button: 0,
   })
-  const extra = { isPrimary: true, pointerId: 1, pointerType: "mouse" }
+  const extra = { isPrimary: true, pointerId: 1, pointerType }
   for (const [key, value] of Object.entries(extra)) {
     Object.defineProperty(event, key, { value })
   }
   return event
+}
+
+/**
+ * 触摸事件：jsdom 没有 `TouchEvent`，dnd-kit 于是按 `clientX`/`clientY` 取坐标
+ * （`isTouchEvent` 认的是 `instanceof TouchEvent`，这里为假），所以坐标字段与 `touches`
+ * 都得挂上——激活判断读 `touches.length`，移动读坐标。
+ */
+function touchLike(
+  type: "touchstart" | "touchmove" | "touchend",
+  clientX: number,
+  clientY: number
+): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  const touch = { clientX, clientY, identifier: 1 }
+  const extra = {
+    clientX,
+    clientY,
+    touches: type === "touchend" ? [] : [touch],
+    changedTouches: [touch],
+    targetTouches: [],
+  }
+  for (const [key, value] of Object.entries(extra)) {
+    Object.defineProperty(event, key, { value })
+  }
+  return event
+}
+
+function mouseLike(
+  type: PointerEventName,
+  clientX: number,
+  clientY: number
+): MouseEvent {
+  return new MouseEvent(MOUSE_COUNTERPART[type], {
+    bubbles: true,
+    cancelable: true,
+    clientX,
+    clientY,
+    button: 0,
+  })
+}
+
+/** 在同一个节点上派发「指针 + 鼠标」两条路线（见 `pointerLike`）。 */
+function firePointer(
+  target: EventTarget,
+  type: PointerEventName,
+  clientX: number,
+  clientY: number
+) {
+  target.dispatchEvent(pointerLike(type, clientX, clientY))
+  target.dispatchEvent(mouseLike(type, clientX, clientY))
 }
 
 async function flush() {
@@ -288,9 +363,9 @@ async function grabWithPointer(
   element: HTMLElement,
   to: { x: number; y: number }
 ) {
-  element.dispatchEvent(pointerLike("pointerdown", 100, 100))
+  firePointer(element, "pointerdown", 100, 100)
   await flush()
-  document.dispatchEvent(pointerLike("pointermove", to.x, to.y))
+  firePointer(document, "pointermove", to.x, to.y)
   await flush()
   await flush()
 }
@@ -321,23 +396,36 @@ function ghostIndex(node: HTMLElement) {
   return grid ? [...grid.children].indexOf(node) : -1
 }
 
+/**
+ * 拖拽的读屏播报区：dnd-kit 自己的 `role="status"`。管理器另有一条**常驻**的保存结果播报区
+ * （`data-testid="card-manager-save-status"`），两者靠这个属性分开——保存结果不该混进落点断言。
+ */
+function dragStatusRegion(): HTMLElement {
+  const regions = screen
+    .getAllByRole("status")
+    .filter((node) => !node.hasAttribute("data-testid"))
+  expect(regions).toHaveLength(1)
+  return regions[0] as HTMLElement
+}
+
 /** 读屏播报里的落点分组名。 */
 function announcedGroup() {
-  const match = screen
-    .getByRole("status")
-    .textContent?.match(/落点『(.+)』/)
+  const match = dragStatusRegion().textContent?.match(/落点『(.+)』/)
   return match?.[1] ?? null
 }
 
 beforeEach(() => {
   window.localStorage.clear()
+  window.sessionStorage.clear()
   apiMocks.putCardLayout.mockReset()
+  apiMocks.toast.mockReset()
   apiMocks.toastSuccess.mockReset()
   apiMocks.toastError.mockReset()
 })
 
 afterEach(() => {
   window.localStorage.clear()
+  window.sessionStorage.clear()
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
@@ -461,7 +549,7 @@ describe("CardManager dragging", () => {
     await user.keyboard(" ")
 
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把分组『归置』移动到『备用』"
       )
     )
@@ -498,7 +586,7 @@ describe("CardManager dragging", () => {
     )
 
     // 单张拖动（批次 = 1）沿用上一轮的观感：原瓦片留在原位，让位交给 dnd-kit 的排序位移。
-    expect(screen.getByRole("status")).toHaveTextContent("落点『默认分组』")
+    expect(dragStatusRegion()).toHaveTextContent("落点『默认分组』")
     expect(ghostNodes()).toHaveLength(0)
     for (const title of ["默认分组", "常用", "备用", "归置"]) {
       expect(
@@ -509,7 +597,7 @@ describe("CardManager dragging", () => {
     await user.keyboard(" ")
 
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 1 张名片移动到『默认分组』"
       )
     )
@@ -636,10 +724,10 @@ describe("CardManager dragging", () => {
     }
 
     // 松手：整批就落在 ghost 占住的那个位置（ghost 插在哪儿、松手就落在哪儿）。
-    document.dispatchEvent(pointerLike("pointerup", 120, 115))
+    firePointer(document, "pointerup", 120, 115)
     await flush()
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『默认分组』"
       )
     )
@@ -680,10 +768,10 @@ describe("CardManager dragging", () => {
     expect(ghostIndex(ghost as HTMLElement)).toBe(1)
 
     // 松手：落位与 ghost 预览的位置逐字一致（C、A、B、D）。
-    document.dispatchEvent(pointerLike("pointerup", 60, 340))
+    firePointer(document, "pointerup", 60, 340)
     await flush()
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『默认分组』"
       )
     )
@@ -710,16 +798,16 @@ describe("CardManager dragging", () => {
 
     // 往下 3px：几何上候选已经翻到「名片 A 之后」（越过了它中心往下 6px 的判定线），但指针
     // 还没离开死区（12px）→ ghost 一动不动，播报也不重发。
-    document.dispatchEvent(pointerLike("pointermove", 60, 118))
+    firePointer(document, "pointermove", 60, 118)
     await flush()
     expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
     expect(announcedGroup()).toBe("默认分组")
 
     // 就这么松手：落位是 ghost 预览的位置（下标 0），不是那一刻算出来的原始候选。
-    document.dispatchEvent(pointerLike("pointerup", 60, 118))
+    firePointer(document, "pointerup", 60, 118)
     await flush()
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『默认分组』"
       )
     )
@@ -745,13 +833,13 @@ describe("CardManager dragging", () => {
     // 压着「名片 A 中心」这条判定线两侧各 3px 来回走：每一步几何上都翻一次候选（0 ↔ 1），
     // ghost 却一次都不该跟着动——这正是用户 2026-11-17 反馈的「上下两行反复横跳」。
     for (const y of [118, 115, 118, 115, 118]) {
-      document.dispatchEvent(pointerLike("pointermove", 60, y))
+      firePointer(document, "pointermove", 60, y)
       await flush()
       expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
     }
 
     // 真走开一格（25px）才换：指针到名片 A 中心下方 → ghost 插到它后面。
-    document.dispatchEvent(pointerLike("pointermove", 60, 140))
+    firePointer(document, "pointermove", 60, 140)
     await flush()
     expect(ghostIndex(stackGhost() as HTMLElement)).toBe(1)
 
@@ -776,13 +864,13 @@ describe("CardManager dragging", () => {
       .getByText("名片 A")
       .closest('[data-testid="sortable-card-tile"]') as HTMLElement
 
-    grabbable.dispatchEvent(pointerLike("pointerdown", 100, 100))
+    firePointer(grabbable, "pointerdown", 100, 100)
     await flush()
     // 过渡途中：名片 A 身上挂着 -150 的位移（FLIP 把它顶下去之后正在往回走）。假几何给的是
     // 它**渲染**中的位置（60–160），所以它真正的布局位置是 210–310。这一步必须紧挨着
     // `pointermove`：React 的提交在事件之后，不会把它盖掉。
     tileA.style.transform = "translate(0px, -150px)"
-    document.dispatchEvent(pointerLike("pointermove", 60, 130))
+    firePointer(document, "pointermove", 60, 130)
     await flush()
     await flush()
 
@@ -792,10 +880,10 @@ describe("CardManager dragging", () => {
     expect(ghost).toBeDefined()
     expect(ghostIndex(ghost as HTMLElement)).toBe(0)
 
-    document.dispatchEvent(pointerLike("pointerup", 60, 130))
+    firePointer(document, "pointerup", 60, 130)
     await flush()
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『默认分组』"
       )
     )
@@ -824,7 +912,7 @@ describe("CardManager dragging", () => {
     // 指针移到「备用」的放置区里（第三组，假几何里 y 840–1160；名片 C 在 860–960）。
     // jsdom 里拖拽层量出来是 0 尺寸，dnd-kit 的 `over` 只会跟着累计位移跑，靠它落点会原地不动；
     // 落点几何按指针实测 DOM，所以 ghost 必须立刻跟过去。
-    document.dispatchEvent(pointerLike("pointermove", 60, 900))
+    firePointer(document, "pointermove", 60, 900)
     await flush()
 
     const ghost = stackGhost()
@@ -834,10 +922,10 @@ describe("CardManager dragging", () => {
     expect(ghostIndex(ghost as HTMLElement)).toBe(0)
 
     // 松手：整批落在 ghost 预览的位置（备用 = 名片 B、名片 D，插在名片 C 之前）。
-    document.dispatchEvent(pointerLike("pointerup", 60, 900))
+    firePointer(document, "pointerup", 60, 900)
     await flush()
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『备用』"
       )
     )
@@ -878,7 +966,7 @@ describe("CardManager dragging", () => {
 
       // 再动一下（>16px）就当作在找新落点：立刻收起回合集 ghost。这里落点没变（指针仍在
       // 名片 A 那一行、在它中心左边），所以收起只能是「移动超过阈值」这条规则在起作用。
-      document.dispatchEvent(pointerLike("pointermove", 60, 100))
+      firePointer(document, "pointermove", 60, 100)
       await flush()
       expect(ghostNodes()).toHaveLength(1)
       expect(expandedGhosts()).toHaveLength(0)
@@ -893,10 +981,10 @@ describe("CardManager dragging", () => {
     }
 
     // 松手：落位与刚才预览的位置逐字一致（默认分组 = ghost、ghost、名片 A）。
-    document.dispatchEvent(pointerLike("pointerup", 60, 100))
+    firePointer(document, "pointerup", 60, 100)
     await flush()
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『默认分组』"
       )
     )
@@ -938,7 +1026,7 @@ describe("CardManager dragging", () => {
     await user.keyboard(" ")
 
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『默认分组』"
       )
     )
@@ -1035,10 +1123,10 @@ describe("CardManager dragging", () => {
     expect(announcedGroup()).toBe("默认分组")
 
     // 松手：落位就是滚动后 ghost 预览的位置（名片 C 之后）——不是滚动前的那个下标。
-    document.dispatchEvent(pointerLike("pointerup", 60, 115))
+    firePointer(document, "pointerup", 60, 115)
     await flush()
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(dragStatusRegion()).toHaveTextContent(
         "已把 2 张名片移动到『默认分组』"
       )
     )
@@ -1072,7 +1160,7 @@ describe("CardManager dragging", () => {
     // 几何自己变了，但**没有** `scroll`：指针那条路照旧过死区。指针没动、锚点就在它脚下，
     // 所以即使同坐标的 `pointermove` 按新几何会算出别的候选，落点也不许自己改（滞回不被滥用）。
     scrollOffsetY = -105
-    document.dispatchEvent(pointerLike("pointermove", 60, 115))
+    firePointer(document, "pointermove", 60, 115)
     await flush()
     expect(ghostIndex(stackGhost() as HTMLElement)).toBe(0)
     expect(announcedGroup()).toBe("默认分组")
@@ -1080,5 +1168,205 @@ describe("CardManager dragging", () => {
     // 收尾：取消这趟拖拽（留着一个「拖拽中」的会话会吞掉下一条用例的点击）。
     await user.keyboard("{Escape}")
     await waitFor(() => expect(ghostNodes()).toHaveLength(0))
+  })
+})
+
+/** 拖动中的浮层：它一出现就说明这一趟拖拽真的开始了。 */
+function dragLayer() {
+  return document.querySelector('[data-testid="card-drag-layer"]')
+}
+
+/** 某个分组里第一张瓦片的外层节点（长按/触摸事件的落点）。 */
+function firstTile(title: string) {
+  return gridOf(title).querySelector(
+    '[data-testid="sortable-card-tile"]'
+  ) as HTMLElement
+}
+
+/** 瓦片本体（外层节点里的那个按钮）：真实手指落在这上面。 */
+function tileButton(tile: HTMLElement) {
+  return tile.querySelector("button") as HTMLElement
+}
+
+/** 管理器进没进编辑模式：工具栏那一支换成了编辑中的按钮。 */
+function editingMode() {
+  return screen.queryByRole("button", { name: "退出编辑" }) !== null
+}
+
+/** 触屏长按要推进假定时器：到点（450ms）才算触发。 */
+async function holdLongPress(target: HTMLElement, pointerType = "touch") {
+  target.dispatchEvent(pointerLike("pointerdown", 100, 100, pointerType))
+  await advanceDwell(450)
+}
+
+describe("CardManager touch", () => {
+  it("enters editing on a touch long press, selects the pressed tile and hints once", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+    const pressed = tileButton(firstTile("常用"))
+
+    vi.useFakeTimers()
+    try {
+      await holdLongPress(pressed)
+      await flush()
+      expect(apiMocks.toast).toHaveBeenCalledWith("长按拖动可调整顺序")
+
+      // 浏览器随后给这次长按补一个 click：它不能落成一次勾选（默认勾选已经做过，再点就是取消）。
+      tileButton(firstTile("常用")).dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })
+      )
+      await flush()
+    } finally {
+      vi.useRealTimers()
+    }
+
+    // 进了编辑模式，并且默认勾选**触发这次长按的那张瓦片**（用户 2026-11-17 追加）。
+    expect(screen.getByRole("button", { name: "退出编辑" })).toBeVisible()
+    expect(screen.getByRole("checkbox", { name: /名片 B/ })).toBeChecked()
+    expect(screen.getByText("已选 1 张")).toBeVisible()
+
+    // 提示一个会话只出一次：退出编辑再长按一次，不再弹。
+    await user.click(screen.getByRole("button", { name: "退出编辑" }))
+    vi.useFakeTimers()
+    try {
+      await holdLongPress(tileButton(firstTile("常用")))
+      await flush()
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(apiMocks.toast).toHaveBeenCalledTimes(1)
+  })
+
+  it("enters editing without selecting a tile that cannot be selected", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    // 名片 C 还是草稿：可以进编辑模式，但它不可勾选（R3），所以长按它不勾任何东西。
+    renderManager({
+      cards: [
+        card(1, "名片 A"),
+        card(2, "名片 B"),
+        card(3, "名片 C", { publicationStatus: "draft" }),
+      ],
+      layout: makeNamecardCardLayout({
+        defaultCardNumbers: [1, 2, 3],
+        limit: 20,
+      }),
+    })
+
+    vi.useFakeTimers()
+    try {
+      // 长按落在草稿卡（名片 C）上：它本来就不可勾选，所以只进编辑模式。
+      const draftTile = screen
+        .getByText("名片 C")
+        .closest('[data-testid="sortable-card-tile"]') as HTMLElement
+      await holdLongPress(tileButton(draftTile))
+      await flush()
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(screen.getByRole("button", { name: "退出编辑" })).toBeVisible()
+    expect(screen.getByText("已选 0 张")).toBeVisible()
+    expect(screen.getByRole("checkbox", { name: /名片 A/ })).not.toBeChecked()
+
+    // 收尾：退出这次会话（草稿没改，直接退）。
+    await user.click(screen.getByRole("button", { name: "退出编辑" }))
+  })
+
+  it("does not enter editing for a mouse hold, a move past the tolerance or an early lift", async () => {
+    stubSortableGeometry(() => null)
+    renderManager()
+    const tile = firstTile("常用")
+
+    vi.useFakeTimers()
+    try {
+      // 桌面端有工具栏按钮：鼠标按住 450ms 不进编辑。
+      await holdLongPress(tileButton(tile), "mouse")
+      await flush()
+      expect(editingMode()).toBe(false)
+
+      // 手指移动超过 8px：那是滚动/拖动，不是长按。
+      tileButton(tile).dispatchEvent(pointerLike("pointerdown", 100, 100, "touch"))
+      tileButton(tile).dispatchEvent(pointerLike("pointermove", 112, 100, "touch"))
+      await advanceDwell(450)
+      await flush()
+      expect(editingMode()).toBe(false)
+
+      // 没满 450ms 就抬手：这是一次轻点。
+      tileButton(tile).dispatchEvent(pointerLike("pointerdown", 100, 100, "touch"))
+      await advanceDwell(400)
+      tileButton(tile).dispatchEvent(pointerLike("pointerup", 100, 100, "touch"))
+      await advanceDwell(200)
+      await flush()
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(editingMode()).toBe(false)
+    expect(apiMocks.toast).not.toHaveBeenCalled()
+  })
+
+  it("starts a touch drag only after the 250ms hold", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+
+    await enterEditing(user)
+    const tile = firstTile("常用")
+
+    vi.useFakeTimers()
+    try {
+      tile.dispatchEvent(touchLike("touchstart", 100, 100))
+      await flush()
+      // 250ms 之前：手指在容差内动一下也不算「拖起来了」。
+      tile.dispatchEvent(touchLike("touchmove", 104, 100))
+      await flush()
+      expect(dragLayer()).toBeNull()
+      expect(dragStatusRegion()).not.toHaveTextContent("已抓起")
+
+      // 按住满 250ms 才激活（不需要移动）：拖动浮层出现，落点播报也跟着指针走。
+      await advanceDwell(250)
+      await flush()
+      expect(dragLayer()).not.toBeNull()
+
+      // 激活之后手指移动就把瓦片带走。
+      tile.dispatchEvent(touchLike("touchmove", 160, 140))
+      await flush()
+      expect(dragLayer()).not.toBeNull()
+
+      // 抬手：这一趟干净地结束。
+      tile.dispatchEvent(touchLike("touchend", 160, 140))
+      await flush()
+      expect(dragLayer()).toBeNull()
+
+      // dnd-kit 是在拖拽结束时用 `setTimeout(…, 50)` 摘掉它挂在 `document` 上的捕获监听
+      // （激活后它会吞掉 click，以免拖动被当成点击）的，所以要**趁假定时器还在**把它推完：
+      // 留在那儿的话，下一条用例的点击会被这个陈旧会话吞掉（本文件其它用例都踩过这个坑）。
+      await advanceDwell(60)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps a touch lift before the delay as a selection, not a drag", async () => {
+    const user = userEvent.setup()
+    stubSortableGeometry(() => null)
+    renderManager()
+
+    await enterEditing(user)
+    const tile = firstTile("常用")
+
+    // 按住不到 250ms 就抬手：这不是拖动（不需要假定时器，抬手会把待激活的计时清掉）。
+    tile.dispatchEvent(touchLike("touchstart", 100, 100))
+    await flush()
+    tile.dispatchEvent(touchLike("touchend", 100, 100))
+    await flush()
+    expect(dragLayer()).toBeNull()
+
+    // 浏览器随后给这次轻点补一整套事件（jsdom 不会自己合成）：按下 → 抬手 → click。
+    // 新的一次按下会作废上一趟长按留下的「吞一次 click」窗口，所以这一下必须照常勾上。
+    await user.click(tileButton(tile))
+    expect(screen.getByRole("checkbox", { name: /名片 B/ })).toBeChecked()
   })
 })

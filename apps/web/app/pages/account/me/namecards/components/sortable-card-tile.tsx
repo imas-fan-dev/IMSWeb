@@ -1,9 +1,13 @@
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import type { ComponentProps } from "react"
+import { useRef, type ComponentProps } from "react"
 
+import { useLongPress } from "~/lib/use-long-press"
 import { cn } from "~/lib/utils"
 import { CardTile } from "../card-tile"
+
+/** 长按钩子要求一个回调；没有入口时给个恒定的空实现（回调存 ref，不会每帧重挂监听）。 */
+function noop() {}
 
 /**
  * 可拖拽的瓦片：外面套一层 dnd-kit 节点，瓦片本体（`CardTile`）保持原样。
@@ -13,13 +17,22 @@ import { CardTile } from "../card-tile"
  *   语义盖掉，读屏与既有测试都会跟着变。
  * - `setActivatorNodeRef` 挂在外层节点上：键盘激活只在焦点落在这个节点时生效，焦点在
  *   瓦片里的复选框上时，空格就是勾选、不会被劫持成拖拽（`KeyboardSensor` 的 activator 判断）。
- * - `touch-none` 只在可拖拽时加：dnd-kit 的指针传感器需要它，但它在非编辑模式下会白白
- *   吃掉页面的触摸滚动（移动端长按进编辑是后续切片的事）。
+ * - `touch-none` 只在可拖拽时加（编辑模式）：dnd-kit 的 `TouchSensor` 要它才不会被页面滚动抢走；
+ *   非编辑模式下页面必须照常滚动，那里的长按手势由 `useLongPress` 负责（§7.1）。
+ * - 长按只在**非编辑模式**生效：编辑模式里长按瓦片 = 开始拖拽（`TouchSensor` 的 250ms 延迟），
+ *   两个手势不叠加（§11）。`enabled` 还要求调用方真的给了回调——不给回调（只读、布局读失败）
+ *   时连监听都不挂，长按不会被白白吞掉。
  */
 export function SortableCardTile({
   draggable,
+  onLongPress,
   ...tile
-}: ComponentProps<typeof CardTile> & { draggable: boolean }) {
+}: ComponentProps<typeof CardTile> & {
+  draggable: boolean
+  /** 非编辑模式下长按瓦片（触屏/笔）；不给就是没有这个入口。 */
+  onLongPress?: () => void
+}) {
+  const tileRef = useRef<HTMLDivElement | null>(null)
   const {
     attributes,
     listeners,
@@ -30,9 +43,16 @@ export function SortableCardTile({
     isDragging,
   } = useSortable({ id: tile.card.id, disabled: !draggable })
 
+  useLongPress({
+    targetRef: tileRef,
+    enabled: !tile.editing && onLongPress !== undefined,
+    onLongPress: onLongPress ?? noop,
+  })
+
   return (
     <div
       ref={(node) => {
+        tileRef.current = node
         setNodeRef(node)
         setActivatorNodeRef(node)
       }}

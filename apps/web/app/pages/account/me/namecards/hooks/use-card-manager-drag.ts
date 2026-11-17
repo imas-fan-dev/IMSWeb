@@ -2,7 +2,8 @@ import {
   closestCenter,
   KeyboardSensor,
   MeasuringStrategy,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type Announcements,
@@ -35,6 +36,16 @@ import {
 
 /** 指针移动多远才算「真的在拖」（与 tier-list 的 6px 一致）：再小就当点击/勾选。 */
 const POINTER_ACTIVATION_DISTANCE_PX = 6
+
+/**
+ * 触屏拖拽的按住时长（设计 §11）：手指按住 250ms 才算「要拖」，短于此的抬手是勾选。
+ * 与「长按进编辑」的 450ms（`lib/use-long-press.ts`）是两件事：那一个是编辑模式**之外**
+ * 的入口，这一个只在编辑模式里工作，两者不叠加。
+ */
+const TOUCH_ACTIVATION_DELAY_MS = 250
+
+/** 等待这 250ms 期间手指允许的抖动：超过它就不是「按住」了（设计 §11）。 */
+const TOUCH_ACTIVATION_TOLERANCE_PX = 8
 
 /**
  * 落点候选稳定这么久之后，合集 ghost 展开成 N 个缩略图 ghost（用户 2026-11-17 定：
@@ -515,17 +526,19 @@ export function useCardManagerDrag({
   )
 
   /**
-   * 指针拖拽的落点从 **`window` 的 `pointermove`** 拿：那才是真实的视口指针坐标。
+   * 指针拖拽的落点从 **`window` 的指针/鼠标移动事件**拿：那才是真实的视口指针坐标
+   * （`clientX`/`clientY`，滚动了多少都不参与）。
    *
    * 两个理由不走 dnd-kit 的 `onDragMove`/`onDragOver`：
    * 1. 它们的 `delta` 是**补偿过滚动**的位移（`scrollAdjustedTranslate`）：页面自动滚动时
    *    和真实指针越差越多（滚了多少就偏多少），而落点几何要的恰恰是屏幕上的位置；
-   * 2. 回调跑在传感器自己的批次里、比这个监听器还早一步（同一个 `pointermove` 里 dnd-kit 先在
+   * 2. 回调跑在传感器自己的批次里、比这个监听器还早一步（同一个移动事件里 dnd-kit 先在
    *    `document` 上处理，我们的监听器在 `window` 上），在那儿读指针永远差一个事件。
    *
    * 挂在 `enabled`（编辑模式的分组视图）而不是 `onDragStart`：dnd-kit 要等指针移动超过激活
-   * 距离才回调 `onDragStart`，那一刻这一趟的第一个 `pointermove` 已经在派发中了（`document`
-   * 阶段），晚挂就丢掉它——正是「落点要跟着指针」最需要的第一个位置。
+   * 距离才回调 `onDragStart`，而**激活那一次移动的位置正是落点最需要的第一个位置**——晚挂就
+   * 丢了它。两个传感器各走一条事件（桌面 `mousemove`、触屏 `pointermove`），所以两条都听，
+   * 见下面 `onPointerMove` 的说明。
    *
    * `scroll` 与之同挂：滚动改的是**布局**、不是指针，指针不动时原实现没有任何东西重算落点，
    * ghost 于是停在旧几何的位置上（用户 2026-11-17「拖拽展开过程中滚动会偶发错位」）。这里用
@@ -534,7 +547,13 @@ export function useCardManagerDrag({
    */
   useEffect(() => {
     if (!enabled) return
-    const onPointerMove = (event: PointerEvent) => {
+    // 鼠标与触屏都给 `clientX/clientY`，两条事件收进同一个处理器：
+    // - 桌面（`MouseSensor`）激活那一次是 `mousemove`——同一个物理移动里 `pointermove` 先到，
+    //   那一刻会话还没建好（dnd-kit 在 `document` 上先处理 `mousedown` 之后才建会话），只收
+    //   `pointermove` 就会把「开始拖的那一个位置」丢掉，落点 ghost 要等下一次移动才出现；
+    // - 触屏（`TouchSensor`）听的是 `touchmove`，浏览器同时发 `pointermove`，走同一条。
+    // 两次调用同坐标时是幂等的（候选不变、指针没离开死区就直接返回）。
+    const onPointerMove = (event: MouseEvent) => {
       lastPointerRef.current = { x: event.clientX, y: event.clientY }
       applyPointerTarget({ x: event.clientX, y: event.clientY })
     }
@@ -548,12 +567,14 @@ export function useCardManagerDrag({
       })
     }
     window.addEventListener("pointermove", onPointerMove, { passive: true })
+    window.addEventListener("mousemove", onPointerMove, { passive: true })
     window.addEventListener("scroll", onScroll, {
       capture: true,
       passive: true,
     })
     return () => {
       window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("mousemove", onPointerMove)
       window.removeEventListener("scroll", onScroll, { capture: true })
       if (scrollReparseRafRef.current !== null) {
         window.cancelAnimationFrame(scrollReparseRafRef.current)
@@ -691,9 +712,21 @@ export function useCardManagerDrag({
     endSession()
   }, [endSession])
 
+  /**
+   * 桌面用 `MouseSensor`、触屏用 `TouchSensor`（设计 §11），**不用** `PointerSensor`：它也吃
+   * touch，会和 `TouchSensor` 的 250ms 延迟抢激活——同一根手指刚移动 6px 就被它抢先开始拖，
+   * 触屏拖拽于是退化成「一碰就走」。传感器按事件类型分（`mousedown` vs `touchstart`），
+   * 不按 `pointerType` 分，所以只能这样拆。桌面手感一字未改：还是 6px 距离激活。
+   */
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: POINTER_ACTIVATION_DISTANCE_PX },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: TOUCH_ACTIVATION_DELAY_MS,
+        tolerance: TOUCH_ACTIVATION_TOLERANCE_PX,
+      },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: (event, args) =>

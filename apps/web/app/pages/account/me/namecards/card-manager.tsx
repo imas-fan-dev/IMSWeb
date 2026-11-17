@@ -16,6 +16,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -85,6 +86,41 @@ import { useCollapsedCardGroups } from "./hooks/use-collapsed-card-groups"
  */
 const NO_SHIFT_SORTING_STRATEGY: SortingStrategy = () => null
 
+/** 长按提示在本会话里提示过没有；按 `sessionStorage` 记（刷新还在、关掉标签页就忘）。 */
+const LONG_PRESS_HINT_STORAGE_KEY = "imsweb:namecard-long-press-hint:v1"
+
+/** 存储不可用（隐私模式/SSR）时的兜底：同一次页面加载里仍然只提示一次。 */
+let longPressHintShownInMemory = false
+
+/**
+ * 进入编辑模式的第一次长按提示一次「长按拖动可调整顺序」（设计 §11：两个长按手势不叠加，
+ * 进编辑后要让用户知道下一次长按是拖动）。
+ *
+ * 只用 `sessionStorage`，**不用** `localStorage`：这是「这次会话还没见过」的提示，不是永久设置。
+ * 存储不可用（隐私模式）时退回模块级标记——同一次页面加载里仍然只提示一次。
+ */
+function longPressHintAlreadyShown() {
+  try {
+    return window.sessionStorage.getItem(LONG_PRESS_HINT_STORAGE_KEY) !== null
+  } catch {
+    return longPressHintShownInMemory
+  }
+}
+
+function markLongPressHintShown() {
+  try {
+    window.sessionStorage.setItem(LONG_PRESS_HINT_STORAGE_KEY, "1")
+  } catch {
+    longPressHintShownInMemory = true
+  }
+}
+
+function announceLongPressHint() {
+  if (longPressHintAlreadyShown()) return
+  markLongPressHintShown()
+  toast("长按拖动可调整顺序")
+}
+
 /**
  * 属主名片管理器：工具栏 + 批量操作 + 分组 + 瓦片。
  *
@@ -138,13 +174,24 @@ export function CardManager({
   const [creatingGroup, setCreatingGroup] = useState(false)
   /** 瓦片清单容器：批量插入的 FLIP（`useCardGridFlip`）要在它里面量瓦片位置。 */
   const cardGridRef = useRef<HTMLElement | null>(null)
+  /** 保存成功后焦点要交回的「编辑模式」按钮（设计 §11）。 */
+  const editButtonRef = useRef<HTMLButtonElement | null>(null)
+  /** 只有真的保存落地才交回焦点：退出编辑、放弃改动不算。 */
+  const focusEditButtonAfterSaveRef = useRef(false)
 
   const draft = useCardManagerDraft({ cards, layout })
   const { collapsedKeys, toggleCollapsed, pruneCollapsedKeys } =
     useCollapsedCardGroups(accountId)
   // 解构出稳定的引用：`draft` 每次渲染都是新对象，直接读成员会让 useCallback
   // 每帧都换新（依赖告警也来自这里）。
-  const { editing, hasChanges, resetDraft, startEditing: beginEditing } = draft
+  const {
+    editing,
+    hasChanges,
+    resetDraft,
+    startEditing: beginEditing,
+    selectedCardIds,
+    toggleSelected,
+  } = draft
 
   /**
    * 退出 / 重置编辑会话：折叠态收窄到**服务端已保存的分组**。新建分组用的 `local:N`
@@ -174,8 +221,17 @@ export function CardManager({
       )
       endEditingSession(saved)
       onLayoutSaved(saved, patches)
+      focusEditButtonAfterSaveRef.current = true
     },
   })
+
+  // 保存落地后焦点回工具栏的「编辑模式」按钮（§11）：必须等这一次提交渲染完——编辑中那一支
+  // 渲染的是保存/退出，退出后才轮到「编辑模式」按钮出现在 DOM 里。
+  useEffect(() => {
+    if (editing || !focusEditButtonAfterSaveRef.current) return
+    focusEditButtonAfterSaveRef.current = false
+    editButtonRef.current?.focus()
+  }, [editing])
 
   useEffect(() => {
     onDirtyChange?.(draft.hasChanges)
@@ -201,17 +257,41 @@ export function CardManager({
 
   // 布局读不到时不许进编辑模式：保存会把 `groups: []` / `defaultCardNumbers: []` 整份
   // 覆盖到服务端，清空用户已有的分组与顺序，而且 `limit` 未知、超限阻断也失效。
+  // 只读账号同理（工具栏按钮已被禁用，这里再守一道，长按入口也走同一个函数）。
   const editDisabledReason =
     layout === null ? "读不到名片布局，刷新页面后再试。" : null
-  const startEditing = useCallback(() => {
-    if (layout === null) return
+  const startEditing = useCallback((): boolean => {
+    if (readOnly || layout === null) return false
     // 每次进编辑模式都从「没有在建组」开始：退出/切换模式时会丢掉这个输入区，
     // 状态也就跟着会话一起重置，不必再用 effect 去追状态。
     setCreatingGroup(false)
     // 上一会话留下的 `local:N` 折叠态会串到这一会话新建的分组上，进来先清掉。
     pruneCollapsedKeys(layout.groups.map((group) => group.id))
     beginEditing()
-  }, [beginEditing, layout, pruneCollapsedKeys])
+    return true
+  }, [beginEditing, layout, pruneCollapsedKeys, readOnly])
+
+  /**
+   * 移动端长按瓦片进编辑（§7.1），并**默认勾选触发这一次长按的那张瓦片**（用户 2026-11-17
+   * 追加）。进不去时（只读、布局读失败）什么都不做也不提示——那会让用户以为手势生效了却看不到
+   * 任何变化。
+   *
+   * 勾选这张卡的口径与勾选框一致（R3：只有整卡 `published` 可勾选/可拖拽）：不可勾选的卡只进
+   * 编辑模式、不硬勾。它只是**默认值**，用户随后照样能取消或改选。
+   *
+   * 「哪张瓦片」由长按回调自己带着（每张瓦片各挂一个回调，等价于用事件目标的
+   * `closest('[data-card-id]')` 反查），不做坐标反查——坐标在滚动/缩放后并不可靠。
+   */
+  const startEditingByLongPress = useCallback(
+    (card: FudabaOwnerCard) => {
+      if (!startEditing()) return
+      if (isCardSelectable(card) && !selectedCardIds.has(card.id)) {
+        toggleSelected(card.id)
+      }
+      announceLongPressHint()
+    },
+    [selectedCardIds, startEditing, toggleSelected]
+  )
 
   /** 拖拽、建组、折叠只发生在分组模式；经典模式是同一顺序的展平视图。 */
   const layoutEditing = editing && mode === "grouped"
@@ -305,6 +385,13 @@ export function CardManager({
       key={card.id}
       // 可拖拽资格与可勾选一致（§8）：整卡 `published`、在编辑模式的分组视图里。
       draggable={layoutEditing && isCardSelectable(card)}
+      // 长按进编辑只在还进得去的时候挂（只读账号、布局读失败时连监听都不装，免得长按
+      // 被白白吞掉）；编辑模式里由瓦片自己关掉（`SortableCardTile`）。
+      onLongPress={
+        readOnly || layout === null
+          ? undefined
+          : () => startEditingByLongPress(card)
+      }
       card={card}
       inQuickExchange={quickCardIds.has(card.id)}
       hidden={!effectiveCardVisible(card, draft.cardSettings)}
@@ -468,6 +555,24 @@ export function CardManager({
 
   return (
     <section aria-labelledby="owned-card-list-title">
+      {/*
+        保存结果的常驻播报区（§11）：`toast` 只能被看得见的人看见，读屏要靠这里。拖拽移动的
+        播报由 dnd-kit 自己的 live region 负责，它随编辑模式一起卸载，撑不起保存结果。
+        区域常驻（内容随状态变化）才会被稳定播报，所以不按 `save.status` 收放。
+
+        `role="status"` 自带 `aria-live="polite"` + `aria-atomic`，所以**不写**这两个属性：
+        base-ui 的 `markOthers` 会把带 `aria-live` 的元素**连同它的整条祖先链**排除在
+        `aria-hidden` 之外，写上去会让弹窗打开时被隐藏的元素从「一个共同的祖先」变成
+        「逐个兄弟节点」——真实读屏看到的结果一样，但会让别处「祖先被隐藏、子元素仍按名字
+        匹配」的用例读到空名字（`account-me-workspace.test.tsx` 就是这么挂的）。
+      */}
+      <p
+        role="status"
+        data-testid="card-manager-save-status"
+        className="sr-only"
+      >
+        {save.status}
+      </p>
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 id="owned-card-list-title" className="text-base font-medium">
@@ -494,6 +599,7 @@ export function CardManager({
             saving={save.saving}
             canSave={draft.hasChanges && !save.saving}
             editDisabledReason={editDisabledReason}
+            editButtonRef={editButtonRef}
             shareHandle={shareHandle}
             quickCount={draft.quickCardNumbers.length}
           />

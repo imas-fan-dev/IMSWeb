@@ -4,7 +4,7 @@ import {
   PlusIcon,
   Share2Icon,
 } from "lucide-react"
-import { useId, useState } from "react"
+import { useId, useState, type Ref } from "react"
 
 import { Button } from "~/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
@@ -41,6 +41,7 @@ export function CardManagerToolbar({
   saving,
   canSave,
   editDisabledReason,
+  editButtonRef,
   shareHandle,
   quickCount,
 }: {
@@ -62,6 +63,8 @@ export function CardManagerToolbar({
   canSave: boolean
   /** 编辑模式不可用时（例如布局读失败）给出原因，禁用按钮并讲清楚。 */
   editDisabledReason?: string | null
+  /** 保存成功后焦点要回到这个按钮（设计 §11）。 */
+  editButtonRef?: Ref<HTMLButtonElement>
   /** 分享链接里的 handle（公开主页地址或数字编号）。 */
   shareHandle: string
   /** 生效的快速清单张数；为 0 时分享按钮只出引导 tooltip。 */
@@ -133,6 +136,7 @@ export function CardManagerToolbar({
       ) : (
         <>
           <Button
+            ref={editButtonRef}
             type="button"
             size="sm"
             variant="outline"
