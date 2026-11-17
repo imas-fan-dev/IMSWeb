@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "5822b2423e566dd8cad18e3cf11abfadef7f716437e2faed258bd5e35d4ca2c5",
+    "semanticDigest": "1296c3705ac7f8d5162cb0edb10f9b8462e8b0e836cc3c13a29819fafc1c2d1d",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 290,
-    "carriers": 368,
+    "mountedMethodPaths": 293,
+    "carriers": 371,
     "reject": 83,
-    "acceptAndProject": 184,
+    "acceptAndProject": 185,
     "passthrough": 17,
-    "nonObjectApplicable": 84
+    "nonObjectApplicable": 86
   },
   "counts": {
-    "mountedRegistrations": 404,
-    "mountedMethodPaths": 304,
+    "mountedRegistrations": 407,
+    "mountedMethodPaths": 307,
     "noInputRoutes": 100,
-    "requestCarriers": 401,
+    "requestCarriers": 404,
     "policies": {
       "reject": 90,
-      "accept-and-project": 210,
+      "accept-and-project": 211,
       "passthrough": 17,
-      "non-object-applicable": 84
+      "non-object-applicable": 86
     },
     "responses": {
-      "total": 846,
-      "json": 786,
-      "nonJson": 60
+      "total": 854,
+      "json": 788,
+      "nonJson": 66
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 290,
-      "requestCarriers": 368,
+      "mountedMethodPaths": 293,
+      "requestCarriers": 371,
       "policies": {
         "reject": 83,
-        "accept-and-project": 184,
+        "accept-and-project": 185,
         "passthrough": 17,
-        "non-object-applicable": 84
+        "non-object-applicable": 86
       }
     },
     "explicitQueryAdditions": [
@@ -196,7 +196,7 @@
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 64,
+      "/api/community": 65,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -220,6 +220,8 @@
       "/eventchronicle/activities": 2,
       "/eventchronicle/admin": 6,
       "/eventchronicle/upload": 1,
+      "/exchange/:handle": 1,
+      "/exchange/card": 1,
       "/icon/*": 2,
       "/icon/agencies": 2,
       "/icon/wiki-groups": 2,
@@ -4350,12 +4352,12 @@
         {
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-card-share.ts",
           "kind": "json",
-          "expression": "{ error : \"\\u8FD9\\u5F20\\u540D\\u7247\\u5F53\\u524D\\u4E0D\\u5F00\\u653E\\u4EA4\\u6362\" } satisfies NamecardErrorResponse"
+          "expression": "{ error : result . error } satisfies NamecardErrorResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-card-share.ts",
           "kind": "json",
-          "expression": "{ state , card : await resolveExchangeCardMedia ( c , toPublicNamecardResponse ( card , viewerId ) ) , owner : { accountId : card . owner_account_id , uid : owner ?. uid ?? 0 , pageSlug : owner ?. page_slug ?? null , displayName : owner ?. display_name ?? \"\\u4E00\\u4F4D\\u5236\\u4F5C\\u4EBA\" , } , targetMissingCount , } satisfies NamecardCardShareResponse"
+          "expression": "result . model satisfies NamecardCardShareResponse"
         }
       ]
     },
@@ -4763,6 +4765,42 @@
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
           "kind": "non-json",
           "expression": "\"Not Found\""
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/cards/:cardNumber/share-link",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "handlerSymbol": "handleGetCardShareLink",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardExchangeCardParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/card-share-link.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u627E\\u4E0D\\u5230\\u8FD9\\u5F20\\u540D\\u7247\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/card-share-link.ts",
+          "kind": "json",
+          "expression": "{ slug } satisfies NamecardCardShareLinkResponse"
         }
       ]
     },
@@ -5418,12 +5456,12 @@
         {
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
           "kind": "json",
-          "expression": "{ error : \"\\u627E\\u4E0D\\u5230\\u8FD9\\u4F4D\\u5236\\u4F5C\\u4EBA\" } satisfies NamecardErrorResponse"
+          "expression": "{ error : result . error } satisfies NamecardErrorResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
           "kind": "json",
-          "expression": "{ handle , accountId : target . profile . account_id , uid : target . profile . uid , displayName : target . profile . display_name , cards : await Promise . all ( cards . map ( async ( card ) => resolveExchangeCardMedia ( c , toPublicNamecardResponse ( card , viewerId ) ) ) ) , targetMissingCount , } satisfies NamecardQuickExchangeResponse"
+          "expression": "result . model satisfies NamecardQuickExchangeResponse"
         }
       ]
     },
@@ -7026,6 +7064,84 @@
           "file": "apps/api/src/domains/content/chronicle/handlers/list-used-chronicle-media.ts",
           "kind": "json",
           "expression": "result satisfies UsedChronicleMediaListResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/:handle",
+      "registration": {
+        "file": "apps/api/src/app.ts"
+      },
+      "handlerSymbol": "handleExchangeSharePage",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+          "kind": "non-json",
+          "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+          "kind": "non-json",
+          "expression": "injectShareMeta ( shell , meta )"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/card/:slug",
+      "registration": {
+        "file": "apps/api/src/app.ts"
+      },
+      "handlerSymbol": "handleExchangeSharePage",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+          "kind": "non-json",
+          "expression": "<no body>"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+          "kind": "non-json",
+          "expression": "\"Not Found\""
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+          "kind": "non-json",
+          "expression": "injectShareMeta ( shell , meta )"
         }
       ]
     },
@@ -17727,6 +17843,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/me/cards/:cardNumber/share-link",
+      "handlerSymbol": "handleGetCardShareLink",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardExchangeCardParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/me/collection",
       "handlerSymbol": "handleListCollection",
       "kind": "query",
@@ -18455,6 +18588,36 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/:handle",
+      "handlerSymbol": "handleExchangeSharePage",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/card/:slug",
+      "handlerSymbol": "handleExchangeSharePage",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
     },
     {
       "method": "GET",
@@ -24387,7 +24550,7 @@
       "handlerSymbol": "handleGetCardShare",
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-card-share.ts",
       "kind": "json",
-      "expression": "{ error : \"\\u8FD9\\u5F20\\u540D\\u7247\\u5F53\\u524D\\u4E0D\\u5F00\\u653E\\u4EA4\\u6362\" } satisfies NamecardErrorResponse"
+      "expression": "{ error : result . error } satisfies NamecardErrorResponse"
     },
     {
       "method": "GET",
@@ -24395,7 +24558,7 @@
       "handlerSymbol": "handleGetCardShare",
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-card-share.ts",
       "kind": "json",
-      "expression": "{ state , card : await resolveExchangeCardMedia ( c , toPublicNamecardResponse ( card , viewerId ) ) , owner : { accountId : card . owner_account_id , uid : owner ?. uid ?? 0 , pageSlug : owner ?. page_slug ?? null , displayName : owner ?. display_name ?? \"\\u4E00\\u4F4D\\u5236\\u4F5C\\u4EBA\" , } , targetMissingCount , } satisfies NamecardCardShareResponse"
+      "expression": "result . model satisfies NamecardCardShareResponse"
     },
     {
       "method": "GET",
@@ -24564,6 +24727,22 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/serve-owner-card-media.ts",
       "kind": "non-json",
       "expression": "\"Not Found\""
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/cards/:cardNumber/share-link",
+      "handlerSymbol": "handleGetCardShareLink",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/card-share-link.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u627E\\u4E0D\\u5230\\u8FD9\\u5F20\\u540D\\u7247\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/cards/:cardNumber/share-link",
+      "handlerSymbol": "handleGetCardShareLink",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/card-share-link.ts",
+      "kind": "json",
+      "expression": "{ slug } satisfies NamecardCardShareLinkResponse"
     },
     {
       "method": "GET",
@@ -24867,7 +25046,7 @@
       "handlerSymbol": "handleGetQuickExchange",
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
       "kind": "json",
-      "expression": "{ error : \"\\u627E\\u4E0D\\u5230\\u8FD9\\u4F4D\\u5236\\u4F5C\\u4EBA\" } satisfies NamecardErrorResponse"
+      "expression": "{ error : result . error } satisfies NamecardErrorResponse"
     },
     {
       "method": "GET",
@@ -24875,7 +25054,7 @@
       "handlerSymbol": "handleGetQuickExchange",
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
       "kind": "json",
-      "expression": "{ handle , accountId : target . profile . account_id , uid : target . profile . uid , displayName : target . profile . display_name , cards : await Promise . all ( cards . map ( async ( card ) => resolveExchangeCardMedia ( c , toPublicNamecardResponse ( card , viewerId ) ) ) ) , targetMissingCount , } satisfies NamecardQuickExchangeResponse"
+      "expression": "result . model satisfies NamecardQuickExchangeResponse"
     },
     {
       "method": "GET",
@@ -25412,6 +25591,54 @@
       "file": "apps/api/src/domains/content/chronicle/handlers/list-used-chronicle-media.ts",
       "kind": "json",
       "expression": "result satisfies UsedChronicleMediaListResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/:handle",
+      "handlerSymbol": "handleExchangeSharePage",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+      "kind": "non-json",
+      "expression": "<no body>"
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/:handle",
+      "handlerSymbol": "handleExchangeSharePage",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/:handle",
+      "handlerSymbol": "handleExchangeSharePage",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+      "kind": "non-json",
+      "expression": "injectShareMeta ( shell , meta )"
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/card/:slug",
+      "handlerSymbol": "handleExchangeSharePage",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+      "kind": "non-json",
+      "expression": "<no body>"
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/card/:slug",
+      "handlerSymbol": "handleExchangeSharePage",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+      "kind": "non-json",
+      "expression": "\"Not Found\""
+    },
+    {
+      "method": "GET",
+      "path": "/exchange/card/:slug",
+      "handlerSymbol": "handleExchangeSharePage",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+      "kind": "non-json",
+      "expression": "injectShareMeta ( shell , meta )"
     },
     {
       "method": "GET",

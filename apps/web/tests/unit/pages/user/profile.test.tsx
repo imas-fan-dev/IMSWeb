@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type {
@@ -15,9 +16,11 @@ const apiMocks = vi.hoisted(() => ({
   getPublicProfile: vi.fn(),
   getProfileCards: vi.fn(),
   getNamecardReactions: vi.fn(),
+  getCardShareLink: vi.fn(),
   sendProfile: vi.fn(),
   sendCards: vi.fn(),
   sendReactions: vi.fn(),
+  sendShareLink: vi.fn(),
 }))
 
 const sessionMocks = vi.hoisted(() => ({
@@ -31,6 +34,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getPublicProfile: apiMocks.getPublicProfile,
     getProfileCards: apiMocks.getProfileCards,
     getNamecardReactions: apiMocks.getNamecardReactions,
+    getCardShareLink: apiMocks.getCardShareLink,
   }
 })
 
@@ -196,6 +200,8 @@ beforeEach(() => {
   apiMocks.getProfileCards.mockImplementation(() => ({
     send: apiMocks.sendCards,
   }))
+  apiMocks.getCardShareLink.mockReturnValue({ send: apiMocks.sendShareLink })
+  apiMocks.sendShareLink.mockResolvedValue({ slug: "abcdefghijkl" })
 })
 
 describe("UserProfilePage", () => {
@@ -478,11 +484,45 @@ describe("UserProfilePage", () => {
     )
     renderProfile()
 
-    // 看自己的主页时「已交换」是浏览者视角的标记，不出现，按钮也照旧。
+    // 看自己的主页时「已交换」是浏览者视角的标记，不出现；【分享】可用（单卡分享入口）。
     const share = await screen.findByRole("button", { name: "分享" })
-    expect(share).toBeDisabled()
-    expect(share).toHaveAttribute("title", "分享功能暂未开放")
+    expect(share).not.toBeDisabled()
+    expect(share.getAttribute("title")).toBeNull()
     expect(screen.queryByLabelText("已交换过这张名片")).toBeNull()
+    expect(screen.queryByRole("button", { name: "交换" })).toBeNull()
+  })
+
+  it("opens the single card share panel with the slug from the owner endpoint", async () => {
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      ...anonymousSession(),
+      status: "authenticated",
+      session: { account: { id: "acct-1" } },
+    })
+    // jsdom 没有 canvas 实现：给一个只记账的 2D 上下文，二维码绘制照常跑完。
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "",
+      fillRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D)
+    apiMocks.sendProfile.mockResolvedValue(profile())
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [card({ id: 101, cardNumber: 101 })],
+        total: 1,
+        totalPage: 1,
+      })
+    )
+    renderProfile()
+
+    await userEvent.click(await screen.findByRole("button", { name: "分享" }))
+
+    // 懒加载：只在点了【分享】之后才问属主侧要 slug。
+    expect(apiMocks.getCardShareLink).toHaveBeenCalledWith(101)
+    expect(
+      await screen.findByText(
+        `${window.location.origin}/exchange/card/abcdefghijkl`
+      )
+    ).toBeVisible()
+    expect(screen.getByText("分享这张名片")).toBeTruthy()
   })
 
   it("gives the owner the edit link and share-only card actions", async () => {
@@ -508,8 +548,8 @@ describe("UserProfilePage", () => {
     ).toHaveAttribute("href", "/account/me")
 
     const share = screen.getByRole("button", { name: "分享" })
-    expect(share).toBeDisabled()
-    expect(share).toHaveAttribute("title", "分享功能暂未开放")
+    expect(share).not.toBeDisabled()
+    expect(share.getAttribute("title")).toBeNull()
     expect(screen.queryByRole("button", { name: "交换" })).toBeNull()
   })
 

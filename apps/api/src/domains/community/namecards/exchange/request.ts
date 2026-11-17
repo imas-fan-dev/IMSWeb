@@ -25,6 +25,8 @@ type WithParamsBody<P, B> = Context<
 >;
 
 export type NamecardShareContext = WithParams<NamecardExchangeSlugParams>;
+/** 属主侧单卡分享链接：路径上只有名片编号，不需要请求体。 */
+export type NamecardCardShareLinkContext = WithParams<NamecardExchangeCardParams>;
 export type NamecardShareCommitContext = WithParamsBody<
     NamecardExchangeSlugParams,
     NamecardExchangeCommitRequest

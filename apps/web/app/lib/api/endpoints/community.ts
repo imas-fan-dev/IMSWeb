@@ -1,8 +1,15 @@
 import type { PlatformAccountLink } from "@imsweb/contracts/namecards"
-import { apiPath, namecardPath } from "@imsweb/contracts/paths"
 import {
+  apiPath,
+  exchangeCardSharePath,
+  exchangeQuickPath,
+  namecardPath,
+} from "@imsweb/contracts/paths"
+import {
+  namecardCardShareSchema,
   namecardErrorResponseSchema,
   namecardListErrorResponseSchema,
+  namecardQuickExchangeSchema,
   randomOwnerlessCardErrorSchema,
   randomOwnerlessCardSchema,
   publicNamecardResponseSchema,
@@ -130,6 +137,39 @@ export function getNamecardPage(page = 1, size = 12) {
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
       params: { page, size },
       select: normalizeNamecardPage,
+    })
+  )
+}
+
+/**
+ * 单卡分享页：卡片下架 / 未认领 / slug 不存在都回 404，页面按「这张名片当前不开放交换」处理。
+ * 逐卡 `collected` 由接口按浏览者补齐（登录才带上）。
+ */
+export function getCardSharePage(slug: string) {
+  return apiClient.Get(
+    exchangeCardSharePath(slug),
+    parsed(namecardCardShareSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      select: (payload) => ({
+        ...payload,
+        card: normalizeNamecard(payload.card),
+      }),
+    })
+  )
+}
+
+/** 快速交换清单分享页：`handle` 可以是 uid、主页地址或账号 ID，找不到时 404。 */
+export function getQuickExchangePage(handle: string) {
+  return apiClient.Get(
+    exchangeQuickPath(handle),
+    parsed(namecardQuickExchangeSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      select: (payload) => ({
+        ...payload,
+        cards: payload.cards.map(normalizeNamecard),
+      }),
     })
   )
 }

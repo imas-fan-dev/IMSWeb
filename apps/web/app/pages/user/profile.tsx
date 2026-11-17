@@ -23,6 +23,8 @@ import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import { NamecardDetailDialog } from "~/pages/community/components/namecard-detail-dialog"
+import { CardShareDialog } from "~/pages/account/me/namecards/components/card-share-dialog"
+import { useCardShareDialog } from "~/pages/exchange/use-card-share-dialog"
 import {
   addNamecardReaction,
   getNamecardReactions,
@@ -109,10 +111,15 @@ function profileCardSections(
 function ProfileCardTile({
   card,
   isSelf,
+  shareBusy,
+  onShare,
   onOpen,
 }: {
   card: NamecardRecord
   isSelf: boolean
+  /** 这张卡的分享链接正在取（禁用按钮，避免连点）。 */
+  shareBusy: boolean
+  onShare: (cardNumber: number) => void
   onOpen: (card: NamecardRecord, trigger: HTMLButtonElement) => void
 }) {
   const cover = namecardPages(card)[0]?.thumb ?? ""
@@ -165,16 +172,17 @@ function ProfileCardTile({
           type="button"
           size="sm"
           className="ml-auto shrink-0"
-          disabled
+          disabled={isSelf ? shareBusy : true}
           title={
-            card.collected && !isSelf
-              ? "你已经拥有这张名片"
-              : isSelf
-                ? "分享功能暂未开放"
+            isSelf
+              ? undefined
+              : card.collected
+                ? "你已经拥有这张名片"
                 : card.exchangeMode === "none"
                   ? "这张名片不接受交换"
                   : "暂未开放"
           }
+          onClick={isSelf ? () => onShare(card.cardNumber) : undefined}
         >
           {isSelf ? (
             <ShareIcon aria-hidden="true" />
@@ -203,6 +211,7 @@ export default function UserProfilePage() {
   const [openCard, setOpenCard] = useState<NamecardRecord | null>(null)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const [busyReaction, setBusyReaction] = useState(false)
+  const share = useCardShareDialog()
   const previewReturnRef = useRef<HTMLButtonElement | null>(null)
   const [reactions, setReactions] = useState<
     Record<number, Record<string, number>>
@@ -396,6 +405,8 @@ export default function UserProfilePage() {
                   key={card.id}
                   card={card}
                   isSelf={isSelf}
+                  shareBusy={share.busyCardNumber === card.cardNumber}
+                  onShare={(cardNumber) => void share.requestShare(cardNumber)}
                   onOpen={(next, trigger) => {
                     returnFocusRef.current = trigger
                     setOpenCard(next)
@@ -466,6 +477,14 @@ export default function UserProfilePage() {
           returnFocusRef.current?.focus()
         }}
       />
+      {/* 属主视角的单卡分享：点瓦片上的【分享】懒加载 slug 后才挂载。 */}
+      {share.target ? (
+        <CardShareDialog
+          target={share.target}
+          open={share.open}
+          onOpenChange={share.onOpenChange}
+        />
+      ) : null}
     </PageShell>
   )
 }

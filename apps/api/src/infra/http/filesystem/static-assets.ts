@@ -35,6 +35,17 @@ interface StaticRepresentation {
     encoding?: "br" | "gzip";
 }
 
+/** 站点空壳在构建产物里的固定路径。 */
+const SHELL_ASSET_PATH = "/__spa-fallback.html";
+
+/**
+ * 取空壳用的请求：故意不带任何请求头 —— 带上 `Accept-Encoding` 会让静态层
+ * 返回 `.br` / `.gz` 变体的字节，而调用方要的是能直接改写的 HTML 文本。
+ */
+function shellRequest(): Request {
+    return new Request(`http://static-assets.invalid${SHELL_ASSET_PATH}`);
+}
+
 function acceptedEncodings(value: string | null): Array<"br" | "gzip"> {
     if (!value) return [];
     const qualities = new Map<string, number>();
@@ -203,6 +214,10 @@ export class NodeStaticAssets implements StaticAssets {
         return { filePath, stat };
     }
 
+    async fetchShell(): Promise<Response> {
+        return this.fetch(shellRequest());
+    }
+
     async fetch(request: Request): Promise<Response> {
         if (request.method !== "GET" && request.method !== "HEAD") {
             return new Response("Not Found", { status: 404 });
@@ -354,6 +369,11 @@ export class FrontendStaticAssets implements StaticAssets {
         private readonly assets: StaticAssets,
         private readonly frontendFiles: ReadonlySet<string>,
     ) {}
+
+    async fetchShell(): Promise<Response> {
+        // 空壳是构建产物里的固定文件，不走路由策略（策略只把 `.html` 发给登记过的路由）。
+        return this.assets.fetch(shellRequest());
+    }
 
     async fetch(request: Request): Promise<Response> {
         const url = requestUrl(request);

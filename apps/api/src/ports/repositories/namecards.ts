@@ -578,6 +578,14 @@ export interface NamecardRepository {
     listExchangeCandidates(accountId: string): Promise<NamecardPublicRecord[]>;
     /** 固定不变的分享短链；卡片没有短链时补一条。 */
     ensureExchangeLink(cardId: string): Promise<string>;
+    /**
+     * 属主侧单卡分享链接：先确认这张卡属于该账号，再取（或补）固定短链。
+     * 卡片不存在或不属于该账号时回 `null`，由路由翻成 404。
+     */
+    ensureExchangeSlugForOwnerCard(input: {
+        ownerAccountId: string;
+        cardNumber: number;
+    }): Promise<string | null>;
     findCardByExchangeSlug(slug: string): Promise<NamecardPublicRecord | null>;
     /** 快速交换页：按 uid、主页路径或账号 ID 找到对方与他的可交换名片。 */
     findExchangeTarget(handle: string): Promise<{

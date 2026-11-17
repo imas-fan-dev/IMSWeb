@@ -1,0 +1,84 @@
+import { describe, expect, it } from "vitest"
+
+import {
+  CARD_SHARE_UNAVAILABLE_MESSAGE,
+  QUICK_SHARE_MISSING_MESSAGE,
+  SHARE_EXCHANGE_SOON,
+  cardShareStatus,
+  quickShareStatus,
+} from "~/pages/exchange/share-status"
+
+describe("card share status", () => {
+  it("points the owner at the card manager for their own card", () => {
+    expect(
+      cardShareStatus({ state: "own-card", loggedIn: true, collected: false })
+    ).toEqual({
+      message: "这是你自己的名片",
+      action: { kind: "manage", label: "去名片管理" },
+    })
+  })
+
+  it("keeps the not-accepting card free of any entry", () => {
+    expect(
+      cardShareStatus({
+        state: "not-accepting",
+        loggedIn: true,
+        collected: false,
+      })
+    ).toEqual({ message: "这张名片不接受交换", action: null })
+  })
+
+  it.each([true, false])(
+    "asks anonymous visitors to log in before they can exchange (collected=%s)",
+    (collected) => {
+      expect(
+        cardShareStatus({ state: "available", loggedIn: false, collected })
+      ).toEqual({
+        message: "登录后才能交换",
+        action: { kind: "login", label: "去登录" },
+      })
+    }
+  )
+
+  it("tells the visitor they already hold the card", () => {
+    expect(
+      cardShareStatus({ state: "available", loggedIn: true, collected: true })
+    ).toEqual({ message: "你已经拥有这张名片", action: null })
+  })
+
+  it("falls back to the upcoming-exchange copy for everything else", () => {
+    expect(
+      cardShareStatus({ state: "available", loggedIn: true, collected: false })
+    ).toEqual({ message: SHARE_EXCHANGE_SOON, action: null })
+  })
+
+  it("exposes the fixed button copy and both error copies", () => {
+    expect(SHARE_EXCHANGE_SOON).toBe("交换功能即将开放")
+    expect(CARD_SHARE_UNAVAILABLE_MESSAGE).toBe("这张名片当前不开放交换")
+    expect(QUICK_SHARE_MISSING_MESSAGE).toBe("找不到这位制作人")
+  })
+})
+
+describe("quick share status", () => {
+  it("only swaps the copy when every card is already owned", () => {
+    expect(
+      quickShareStatus({ loggedIn: true, allCollected: true }).message
+    ).toBe("你已经拥有这些名片")
+  })
+
+  it("keeps the upcoming copy when only some cards are owned", () => {
+    expect(quickShareStatus({ loggedIn: true, allCollected: false })).toEqual({
+      message: SHARE_EXCHANGE_SOON,
+      action: null,
+    })
+  })
+
+  it("asks anonymous visitors to log in", () => {
+    expect(
+      quickShareStatus({ loggedIn: false, allCollected: false })
+    ).toEqual({
+      message: "登录后才能交换",
+      action: { kind: "login", label: "去登录" },
+    })
+  })
+})

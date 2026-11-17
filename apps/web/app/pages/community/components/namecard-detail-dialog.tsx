@@ -42,6 +42,8 @@ import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
 import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
 import { NamecardFeedbackDialog } from "~/pages/community/exchange/components/namecard-feedback-dialog"
+import { CardShareDialog } from "~/pages/account/me/namecards/components/card-share-dialog"
+import { useCardShareDialog } from "~/pages/exchange/use-card-share-dialog"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
@@ -382,6 +384,7 @@ export function NamecardDetailDialog({
   const platformCanReport =
     platform.status === "authenticated" || platform.status === "restricted"
   const entries = activeNamecardReactions(reactions.reactions)
+  const share = useCardShareDialog()
   const [series, setSeries] = useState<ReadonlyMap<string, FudabaSeries>>(
     new Map()
   )
@@ -679,12 +682,16 @@ export function NamecardDetailDialog({
             </Button>
           ) : null}
           {unclaimed ? null : card?.canEdit ? (
-            // 拥有者看自己的名片时，这里给的是分享入口（暂不可用）。
+            // 拥有者看自己的名片时，这里给的是单卡分享入口（懒加载 slug 后开面板）。
             <Button
               type="button"
               className={FOOTER_BUTTON}
-              disabled
-              title="暂未开放"
+              disabled={
+                !card || share.busyCardNumber === card.cardNumber
+              }
+              onClick={() => {
+                if (card) void share.requestShare(card.cardNumber)
+              }}
             >
               <ShareIcon aria-hidden="true" />
               分享
@@ -710,6 +717,13 @@ export function NamecardDetailDialog({
             />
           ) : null}
         </DialogFooter>
+        {share.target ? (
+          <CardShareDialog
+            target={share.target}
+            open={share.open}
+            onOpenChange={share.onOpenChange}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )

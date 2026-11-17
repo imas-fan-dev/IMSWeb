@@ -1,10 +1,15 @@
 import { screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import type { Namecard } from "~/lib/api"
 import { NamecardDetailDialog } from "~/pages/community/components/namecard-detail-dialog"
 import { makeNamecard } from "@/mocks/data/namecards"
 import { renderPage } from "@/tests/unit/support/harness"
+
+const apiMocks = vi.hoisted(() => ({
+  getCardShareLink: vi.fn(),
+}))
 
 vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
@@ -14,6 +19,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getFudabaSeries: () => ({
       send: () => Promise.resolve({ items: [] }),
     }),
+    getCardShareLink: apiMocks.getCardShareLink,
   }
 })
 
@@ -72,5 +78,35 @@ describe("NamecardDetailDialog", () => {
     const exchange = await screen.findByRole("button", { name: "交换" })
     expect(exchange).toBeDisabled()
     expect(exchange).toHaveAttribute("title", "你已经拥有这张名片")
+  })
+
+  it("offers the owner a single card share panel loaded on demand", async () => {
+    const user = userEvent.setup()
+    // jsdom 没有 canvas 实现：给一个只记账的 2D 上下文，二维码绘制照常跑完。
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "",
+      fillRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D)
+    apiMocks.getCardShareLink.mockReturnValue({
+      send: () => Promise.resolve({ slug: "abcdefghijkl" }),
+    })
+    renderDialog({ canEdit: true })
+
+    await user.click(await screen.findByRole("button", { name: "分享" }))
+
+    expect(apiMocks.getCardShareLink).toHaveBeenCalledWith(42)
+    expect(
+      await screen.findByText(
+        `${window.location.origin}/exchange/card/abcdefghijkl`
+      )
+    ).toBeVisible()
+  })
+
+  it("keeps the share entry out of a card the visitor only reads", async () => {
+    renderDialog()
+
+    await screen.findByRole("button", { name: "交换" })
+    expect(screen.queryByRole("button", { name: "分享" })).toBeNull()
+    expect(apiMocks.getCardShareLink).not.toHaveBeenCalled()
   })
 })

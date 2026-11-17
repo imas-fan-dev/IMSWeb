@@ -546,6 +546,23 @@
       }
     },
     {
+      "id": "NAMECARD-EXCHANGE-SHARE-PAGE-01",
+      "sourceFile": "apps/api/src/domains/community/namecards/exchange/handlers/share-page-html.ts",
+      "symbol": "handleExchangeSharePage",
+      "responseKind": "html",
+      "reason": "Dynamic share links cannot be prerendered, so the API answers them with the SPA shell plus the per-card OGP tags injected into its head.",
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 keeps the plain-text answer when the built SPA shell is missing."
+      },
+      "test": {
+        "file": "apps/api/tests/server/namecard-exchange.test.ts",
+        "symbol": "the site share page injects per-card OGP tags into the SPA shell"
+      }
+    },
+    {
       "id": "NAMECARD-ADMIN-MEDIA-01",
       "sourceFile": "apps/api/src/domains/community/namecards/moderation/handlers/serve-admin-namecard-media.ts",
       "symbol": "handleServeAdminNamecardMedia",

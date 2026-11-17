@@ -26,6 +26,7 @@ import type {
     RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
     NamecardCardLayout as NamecardCardLayoutContract,
     NamecardCardShare as NamecardCardShareContract,
+    NamecardCardShareLink as NamecardCardShareLinkContract,
     NamecardCollectionPage as NamecardCollectionPageContract,
     NamecardCollectionVisibilityResponse as NamecardCollectionVisibilityContract,
     NamecardExchangeDecision as NamecardExchangeDecisionContract,
@@ -78,6 +79,8 @@ export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
 /** 属主清单布局的读写共用一份返回体。 */
 export type NamecardCardLayoutResponse = NamecardCardLayoutContract;
+/** 属主侧单卡分享链接：只回短链路径段，URL 由前端按当前 origin 拼。 */
+export type NamecardCardShareLinkResponse = NamecardCardShareLinkContract;
 /** 名片册的可见性切换只回一个确认标记。 */
 export type NamecardCollectionVisibilityResponse =
     NamecardCollectionVisibilityContract;

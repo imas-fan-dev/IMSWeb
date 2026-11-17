@@ -756,6 +756,11 @@ export const namecardQuickExchangeSchema = exactJsonResponse({
   targetMissingCount: z.number().int().nonnegative(),
 })
 
+/** 属主侧单卡分享链接：只回分享短链的路径段，URL 由前端按当前 origin 拼。 */
+export const namecardCardShareLinkSchema = exactJsonResponse({
+  slug: z.string().regex(/^[a-z0-9]{12}$/),
+})
+
 /**
  * 选卡界面的一侧投影：`cards` 是**全部**可展示的候选（含 `manual` / `none`），
  * 只有 `selected` 表示该卡真的在快速交换清单里（清单只收 `published + auto`）。
@@ -969,6 +974,7 @@ export type NamecardExchangeSkipped = z.infer<
 >
 export type NamecardCardShare = z.infer<typeof namecardCardShareSchema>
 export type NamecardQuickExchange = z.infer<typeof namecardQuickExchangeSchema>
+export type NamecardCardShareLink = z.infer<typeof namecardCardShareLinkSchema>
 export type NamecardQuickSettings = z.infer<typeof namecardQuickSettingsSchema>
 export type NamecardCardLayout = z.infer<typeof namecardCardLayoutSchema>
 export type NamecardCardLayoutRequest = z.infer<

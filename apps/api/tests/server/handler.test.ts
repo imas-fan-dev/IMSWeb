@@ -171,6 +171,7 @@ import { test } from 'vitest';
             'handleDeclineExchange',
             'handleGetCardLayout',
             'handleGetCardShare',
+            'handleGetCardShareLink',
             'handleGetQuickExchange',
             'handleGetQuickSettings',
             'handleListCollection',
@@ -519,7 +520,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 172);
+            assert.equal(Object.values(actual).flat().length, 173);
         });
 
 
@@ -851,6 +852,7 @@ import { test } from 'vitest';
             async replaceQuickExchangeCards() {},
             async listExchangeCandidates() { return []; },
             async ensureExchangeLink(cardId) { return cardId; },
+            async ensureExchangeSlugForOwnerCard() { return null; },
             async findCardByExchangeSlug() { return null; },
             async findExchangeTarget() { return null; },
             async createScanSession() {},

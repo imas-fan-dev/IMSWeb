@@ -27,21 +27,17 @@ import {
   qrMatrix,
   QR_CANVAS_SIZE,
   selectText,
-  shareImageFileName,
-  shareLinkFor,
+  type NamecardShareTarget,
 } from "../card-share-model"
-
-const SHARE_TITLE = "分享名片"
-const SHARE_DESCRIPTION = "扫码或把链接发给对方，就能打开你的快速交换名片。"
 
 /**
  * 面板内容：二维码（canvas）+ 链接文本 + 复制/下载。桌面与移动两种弹层共用它，
  * 断点切换时它跟着重新挂载，二维码在新 canvas 上重画一次。
  */
-function ShareCardBody({ handle }: { handle: string }) {
+function ShareCardBody({ target }: { target: NamecardShareTarget }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const linkRef = useRef<HTMLParagraphElement>(null)
-  const link = useMemo(() => shareLinkFor(handle), [handle])
+  const link = target.link
   const matrix = useMemo(() => qrMatrix(link), [link])
 
   useEffect(() => {
@@ -64,7 +60,7 @@ function ShareCardBody({ handle }: { handle: string }) {
     const canvas = canvasRef.current
     if (!canvas) return
     try {
-      downloadBlob(await canvasPngBlob(canvas), shareImageFileName(handle))
+      downloadBlob(await canvasPngBlob(canvas), target.fileName)
     } catch {
       toast.error("导出图片失败")
     }
@@ -108,14 +104,16 @@ function ShareCardBody({ handle }: { handle: string }) {
 /**
  * 分享面板（设计 §9）：桌面用 `Dialog layout="pinned"`，窄屏用底部 `Sheet`，
  * 断点沿用账号工作区的口径（`useDesktopAccountWorkspace`，与页面本身的桌面/移动分叉同一处）。
+ *
+ * 面板只认 `NamecardShareTarget`：快速交换清单（`quickShareTarget`）与单张名片
+ * （`cardShareTarget`）的链接、标题与说明都由调用方传入，二维码/复制/下载逻辑共用。
  */
 export function CardShareDialog({
-  handle,
+  target,
   open,
   onOpenChange,
 }: {
-  /** 分享链接里的 handle（公开主页地址或数字编号）。 */
-  handle: string
+  target: NamecardShareTarget
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -126,11 +124,11 @@ export function CardShareDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent layout="pinned">
           <DialogHeader>
-            <DialogTitle>{SHARE_TITLE}</DialogTitle>
-            <DialogDescription>{SHARE_DESCRIPTION}</DialogDescription>
+            <DialogTitle>{target.title}</DialogTitle>
+            <DialogDescription>{target.description}</DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <ShareCardBody handle={handle} />
+            <ShareCardBody target={target} />
           </DialogBody>
         </DialogContent>
       </Dialog>
@@ -141,11 +139,11 @@ export function CardShareDialog({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom">
         <SheetHeader>
-          <SheetTitle>{SHARE_TITLE}</SheetTitle>
-          <SheetDescription>{SHARE_DESCRIPTION}</SheetDescription>
+          <SheetTitle>{target.title}</SheetTitle>
+          <SheetDescription>{target.description}</SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-4">
-          <ShareCardBody handle={handle} />
+          <ShareCardBody target={target} />
         </div>
       </SheetContent>
     </Sheet>

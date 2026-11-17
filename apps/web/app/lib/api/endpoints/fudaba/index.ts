@@ -9,6 +9,7 @@ import {
   createNamecardFeedbackRequestSchema,
   namecardCardLayoutRequestSchema,
   namecardCardLayoutSchema,
+  namecardCardShareLinkSchema,
   namecardFeedbackMutationSchema,
   type NamecardCardLayoutRequest,
   type NamecardFeedbackReason,
@@ -688,6 +689,25 @@ export function putCardLayout(input: NamecardCardLayoutRequest) {
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/**
+ * 属主某张名片的分享短链（懒加载：只在点「分享」时调一次）。
+ *
+ * 只读语义但会为该卡补一行短链（幂等），所以走平台身份、不带 CSRF；
+ * 卡片不存在或不属于自己时 404。
+ */
+export function getCardShareLink(cardNumber: number | string) {
+  return platformApiClient.Get(
+    exchangePath(
+      `/me/cards/${encodeURIComponent(String(cardNumber))}/share-link`
+    ),
+    parsed(namecardCardShareLinkSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
     })
   )
 }

@@ -14,6 +14,7 @@ import { describe } from 'vitest';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { PlatformAccessTokenInput, PlatformTokenService } from '@/ports/security';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import type { StaticAssets } from '@/ports/http';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
@@ -23,7 +24,10 @@ import { executeSql, queryAll } from '@/infra/db/sql/query';
 import {
     NAMECARD_EXCHANGE_CARD_LIMIT,
     NAMECARD_SCAN_TOKEN_TTL_MS,
+    namecardCardShareLinkSchema,
+    namecardCardShareSchema,
     namecardPageSchema,
+    namecardQuickExchangeSchema,
 } from '@imsweb/contracts/namecards';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { cardPageWrite } from '../fixtures/owner-route-fixture';
@@ -32,6 +36,12 @@ import { createPostgresTestDatabase, postgresTest } from '../postgres-test-datab
 import { createTestApp, testRequest } from './test-app';
 
 const AT = '2026-11-06T00:00:00.000Z';
+/** 站点空壳的最小可注入形态：默认 title / description 都在，注入必须把它们换掉。 */
+const SHELL_HTML =
+    '<!DOCTYPE html><html lang="zh-CN"><head><meta charSet="utf-8"/>' +
+    '<title>IMSWeb | 偶像大师交流站</title><meta name="description" content="默认简介"/></head>' +
+    '<body id="root"></body></html>';
+
 /** Profile rows keep millisecond timestamps, card rows keep ISO strings. */
 const AT_MS = Date.parse(AT);
 /** 交换行与扫码会话的主键都是 UUID，测试也照实给。 */
@@ -71,6 +81,7 @@ const UUID = {
     heldKey: '1d1d1d1d-1d1d-4d1d-8d1d-1d1d1d1d1d1d',
     shelfSoftDeleted: '1e1e1e1e-1e1e-4e1e-8e1e-1e1e1e1e1e1e',
     profileCollected: '2a2a2a2a-2a2a-4a2a-8a2a-2a2a2a2a2a2a',
+    shareCollected: '2b2b2b2b-2b2b-4b2b-8b2b-2b2b2b2b2b2b',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
@@ -200,6 +211,17 @@ async function fixture() {
                 platformTokens,
                 namecards,
                 fudaba,
+                // 分享页的 OGP 注入要读站点空壳；这里给一份最小可注入的 HTML。
+                staticAssets: {
+                    async fetch() {
+                        return new Response('asset not found', { status: 404 });
+                    },
+                    async fetchShell() {
+                        return new Response(SHELL_HTML, {
+                            headers: { 'Content-Type': 'text/html; charset=UTF-8' },
+                        });
+                    },
+                } satisfies StaticAssets,
                 // 媒体路由要真出图：夹具只实现读侧，`createReadUrl` 返回私有直链。
                 storage: {
                     async get() {
@@ -1327,6 +1349,178 @@ describe('namecard exchange repository', () => {
         };
         assert.equal(body.state, 'available');
         assert.match(body.card.pages?.[0]?.thumbUrl ?? '', /^\/api\/community\/exchange\/cards\//);
+    });
+
+    /* ---- 分享页读取：逐卡 collected / 属主 slug / 站点 OGP（任务 11-18 §3.1–§3.4） ---- */
+
+    postgresTest('the quick page lists the target cards instead of failing on the mode filter', async () => {
+        const { app, publish, namecards } = await fixture();
+        const auto = await publish('owner-quick-live', 'owner', 'auto');
+        const manual = await publish('owner-quick-manual', 'owner', 'manual');
+        const none = await publish('owner-quick-none', 'owner', 'none');
+
+        // 曾经这里少了表别名：`card.exchange_mode` 让整条 SQL 报
+        // 「missing FROM-clause entry」→ 每个 handle 都 500。
+        // 候选名单收 `manual + auto`、只排除 `none`（doc §3 第 1 点）。
+        const target = await namecards.findExchangeTarget('owner');
+        assert.ok(target, '账号 id 应该能解析到主页');
+        assert.deepEqual(
+            target.cards
+                .map((card) => Number(card.card_number))
+                .sort((left, right) => left - right),
+            [auto, manual].sort((left, right) => left - right),
+        );
+
+        await namecards.replaceQuickExchangeCards({
+            accountId: 'owner',
+            cardNumbers: [auto, manual],
+        });
+        // 路由在候选之上再按清单过滤一次：页面只出 `published + auto`。
+        const response = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/quick/owner'),
+            200,
+            namecardQuickExchangeSchema,
+        );
+        assert.equal(response.handle, 'owner');
+        assert.deepEqual(
+            response.cards.map((card) => card.cardNumber),
+            [auto],
+        );
+        assert.ok(!response.cards.some((card) => card.cardNumber === none));
+    });
+
+    postgresTest('the share page marks the cards the viewer already holds', async () => {
+        const { app, publish, commit, authHeaders, namecards } = await fixture();
+        const held = await publish('owner-share-held', 'owner', 'auto');
+        const fresh = await publish('owner-share-fresh', 'owner', 'auto');
+        // 浏览者通过一次交换拿到其中一张，另一张没拿。
+        await commit({
+            id: UUID.shareCollected,
+            clientExchangeId: 'client-share-collected-1',
+            source: 'quick',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [held],
+        });
+        await namecards.replaceQuickExchangeCards({
+            accountId: 'owner',
+            cardNumbers: [held, fresh],
+        });
+
+        // 单卡分享页：已收到的卡标 `collected: true`。
+        const heldSlug = await namecards.ensureExchangeLink('owner-share-held');
+        const heldShare = await assertContractJson(
+            await testRequest(app, `/api/community/exchange/card/${heldSlug}`, {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardCardShareSchema,
+        );
+        assert.equal(heldShare.card.collected, true);
+
+        // 没收到的那张整份省略该字段，而不是写 `false`。
+        const freshSlug = await namecards.ensureExchangeLink('owner-share-fresh');
+        const freshShare = await assertContractJson(
+            await testRequest(app, `/api/community/exchange/card/${freshSlug}`, {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardCardShareSchema,
+        );
+        assert.equal('collected' in freshShare.card, false);
+
+        // 快速页一次批量查完清单：部分已拥有时只标那一张。
+        const quick = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/quick/owner', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardQuickExchangeSchema,
+        );
+        const rows = new Map(quick.cards.map((card) => [card.cardNumber, card]));
+        assert.equal(rows.get(held)?.collected, true);
+        assert.equal('collected' in (rows.get(fresh) ?? {}), false);
+
+        // 未登录浏览不查名片册：字段一律不出现。
+        const anonymous = await assertContractJson(
+            await testRequest(app, `/api/community/exchange/card/${heldSlug}`),
+            200,
+            namecardCardShareSchema,
+        );
+        assert.equal('collected' in anonymous.card, false);
+    });
+
+    postgresTest('the owner gets one stable share slug per card', async () => {
+        const { app, publish, authHeaders } = await fixture();
+        const number = await publish('owner-share-link', 'owner', 'auto');
+        const request = (account: 'collector' | 'owner' | null) =>
+            testRequest(app, `/api/community/exchange/me/cards/${number}/share-link`, {
+                headers: account ? authHeaders(account) : {},
+            });
+
+        const first = await assertContractJson(
+            await request('owner'),
+            200,
+            namecardCardShareLinkSchema,
+        );
+        assert.match(first.slug, /^[a-z0-9]{12}$/);
+        // 幂等：重复调用返回同一个 slug。
+        const second = await assertContractJson(
+            await request('owner'),
+            200,
+            namecardCardShareLinkSchema,
+        );
+        assert.equal(second.slug, first.slug);
+        // 拿到的 slug 就是分享页读的那把。
+        const share = await testRequest(app, `/api/community/exchange/card/${first.slug}`);
+        assert.equal(share.status, 200, await share.clone().text());
+
+        // 别人的卡与不存在的卡一样：404，不区分原因。
+        const foreign = await request('collector');
+        assert.equal(foreign.status, 404);
+        assert.deepEqual(await foreign.json(), { error: '找不到这张名片' });
+        const ghost = await testRequest(
+            app,
+            '/api/community/exchange/me/cards/999999999999/share-link',
+            { headers: authHeaders('owner') },
+        );
+        assert.equal(ghost.status, 404);
+        // 未登录拿不到属主视角。
+        assert.equal((await request(null)).status, 401);
+    });
+
+    postgresTest('the site share page injects per-card OGP tags into the SPA shell', async () => {
+        const { app, publish, namecards } = await fixture();
+        await publish('owner-ogp', 'owner', 'auto');
+        const slug = await namecards.ensureExchangeLink('owner-ogp');
+
+        const response = await testRequest(app, `/exchange/card/${slug}`);
+        assert.equal(response.status, 200, await response.clone().text());
+        assert.match(response.headers.get('content-type') ?? '', /^text\/html; charset=UTF-8$/);
+        assert.equal(response.headers.get('cache-control'), 'public, max-age=300');
+        const html = await response.text();
+        // 站点默认 title 被换成逐卡 title，且只留一套标签。
+        assert.equal((html.match(/<title/g) ?? []).length, 1);
+        assert.ok(html.includes('<title>Producer owner的名片 · IMS</title>'), html.slice(0, 400));
+        assert.ok(!html.includes('偶像大师交流站'));
+        assert.ok(
+            html.includes(
+                `<meta property="og:url" content="http://ims.test/exchange/card/${slug}">`,
+            ),
+        );
+        // 正面缩略图是相对地址，注入时必须补成站外抓得到的绝对地址。
+        assert.match(
+            html,
+            /<meta property="og:image" content="http:\/\/ims\.test\/api\/community\/exchange\/cards\/[^"]+">/,
+        );
+        assert.ok(html.includes('<meta property="og:image:width" content="400">'));
+
+        // 找不到的 slug 仍然出页面（200），只是换成通用标签、没有图。
+        const missing = await testRequest(app, '/exchange/card/zzzzzzzzzzzz');
+        assert.equal(missing.status, 200, await missing.clone().text());
+        const missingHtml = await missing.text();
+        assert.ok(missingHtml.includes('<title>IMSWeb | 偶像大师交流站</title>'));
+        assert.ok(!missingHtml.includes('og:image'));
     });
 
     /* ---- 属主清单布局（doc §5；任务 design-owner-card-manager） ---- */

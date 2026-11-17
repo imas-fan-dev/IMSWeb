@@ -1,13 +1,16 @@
 import qrcode from "qrcode-generator"
 
 import { resolveShareableOrigin, type PlatformProfile } from "~/lib/api"
+import { cardSharePath, quickSharePath } from "~/lib/namecards/share-links"
 
 /**
  * 分享名片的纯逻辑：链接、二维码矩阵、canvas 绘制、导出与剪贴板。组件只做接线，
  * 所以这些东西都能脱离 DOM 单测（绘制只依赖传入的 canvas）。
  *
- * **链接本期是占位**（`<站点>/exchange/<handle>`，设计 §15.11）：站内还没有对应落地页，
- * 扫码的人只会看到占位页。交换页落地后只改 `shareLinkFor`，面板与工具栏不用动。
+ * 两种分享：快速交换清单（`<站点>/exchange/<handle>`，名片管理工具栏）与单张名片
+ * （`<站点>/exchange/card/<slug>`，个人主页瓦片与名片详情窗，slug 来自属主侧
+ * `share-link` 接口）。面板只认 `NamecardShareTarget`，两种链接共用同一套二维码、
+ * 复制与下载逻辑。
  */
 
 /** 导出用的 canvas 边长（像素）；显示尺寸由组件用 class 收窄。 */
@@ -30,19 +33,73 @@ export function shareHandleFor(
 }
 
 /**
- * 分享链接（占位）。`handle` 本来只含主页地址允许的字符或纯数字，仍然转义一次，
+ * 分享链接（快速交换清单）。`handle` 本来只含主页地址允许的字符或纯数字，仍然转义一次，
  * 免得异常数据把链接拼坏。
  */
 export function shareLinkFor(
   handle: string,
   origin = resolveShareableOrigin()
 ): string {
-  return `${origin.replace(/\/+$/u, "")}/exchange/${encodeURIComponent(handle)}`
+  return `${origin.replace(/\/+$/u, "")}${quickSharePath(handle)}`
+}
+
+/** 单张名片的分享链接；`slug` 是属主侧 `share-link` 接口回的 12 位短链。 */
+export function cardShareLinkFor(
+  slug: string,
+  origin = resolveShareableOrigin()
+): string {
+  return `${origin.replace(/\/+$/u, "")}${cardSharePath(slug)}`
 }
 
 /** 下载文件名：`imsweb-exchange-<handle>.png`。 */
 export function shareImageFileName(handle: string): string {
   return `imsweb-exchange-${handle}.png`
+}
+
+/** 单卡分享图的下载文件名：`imsweb-namecard-<slug>.png`。 */
+export function cardShareImageFileName(slug: string): string {
+  return `imsweb-namecard-${slug}.png`
+}
+
+/** 分享面板要展示与导出的全部内容：链接、文件名、标题与说明。 */
+export interface NamecardShareTarget {
+  /** 要分享的完整链接（二维码与「复制链接」都用它）。 */
+  link: string
+  /** 下载二维码图片时的文件名。 */
+  fileName: string
+  title: string
+  description: string
+}
+
+const QUICK_SHARE_TITLE = "分享名片"
+const QUICK_SHARE_DESCRIPTION = "扫码或把链接发给对方，就能打开你的快速交换名片。"
+const CARD_SHARE_TITLE = "分享这张名片"
+const CARD_SHARE_DESCRIPTION = "扫码或把链接发给对方，就能打开这张名片的分享页。"
+
+/** 快速交换清单的分享目标（名片管理工具栏）。 */
+export function quickShareTarget(
+  handle: string,
+  origin = resolveShareableOrigin()
+): NamecardShareTarget {
+  return {
+    link: shareLinkFor(handle, origin),
+    fileName: shareImageFileName(handle),
+    title: QUICK_SHARE_TITLE,
+    description: QUICK_SHARE_DESCRIPTION,
+  }
+}
+
+/** 单张名片的分享目标（个人主页瓦片、名片详情窗）。 */
+export function cardShareTarget(
+  slug: string,
+  origin = resolveShareableOrigin()
+): NamecardShareTarget {
+  return {
+    link: cardShareLinkFor(slug, origin),
+    fileName: cardShareImageFileName(slug),
+    title: CARD_SHARE_TITLE,
+    description: CARD_SHARE_DESCRIPTION,
+  }
 }
 
 /**

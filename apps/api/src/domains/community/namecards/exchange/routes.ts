@@ -16,6 +16,7 @@ import {
     handleGetCardLayout,
     handlePutCardLayout,
 } from '@/domains/community/namecards/exchange/handlers/card-layout';
+import { handleGetCardShareLink } from '@/domains/community/namecards/exchange/handlers/card-share-link';
 import { handleCommitCardShare } from '@/domains/community/namecards/exchange/handlers/commit-card-share';
 import { handleCommitQuickExchange } from '@/domains/community/namecards/exchange/handlers/commit-quick-exchange';
 import { handleGetCardShare } from '@/domains/community/namecards/exchange/handlers/get-card-share';
@@ -113,6 +114,14 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
             invalidMessage: '名片布局无效',
         }),
         handlePutCardLayout,
+    );
+
+    // 属主侧单卡分享链接：只读，幂等（同一张卡永远同一个 slug）。
+    routes.get(
+        '/exchange/me/cards/:cardNumber/share-link',
+        platformAuth,
+        cardParam,
+        handleGetCardShareLink,
     );
 
     // 名片册与交换记录。

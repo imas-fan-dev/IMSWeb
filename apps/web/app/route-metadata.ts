@@ -223,6 +223,21 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     SHARED_TARGETS,
     "spa"
   ),
+  // 分享页：动态路径拿不到预渲染，逐卡 OGP 由 API 的 HTML 出口注入（design §3.4）。
+  route(
+    "exchange/card/:slug",
+    "pages/exchange/card-share-page.tsx",
+    "public",
+    SHARED_TARGETS,
+    "spa"
+  ),
+  route(
+    "exchange/:handle",
+    "pages/exchange/quick-share-page.tsx",
+    "public",
+    SHARED_TARGETS,
+    "spa"
+  ),
   route(
     "community/cards",
     "pages/community/community-cards-page.tsx",

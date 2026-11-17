@@ -14,7 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip"
-import { SHARE_EMPTY_HINT } from "../card-share-model"
+import { quickShareTarget, SHARE_EMPTY_HINT } from "../card-share-model"
 import { CardShareDialog } from "./card-share-dialog"
 
 /**
@@ -222,7 +222,7 @@ export function CardManagerToolbar({
         </>
       )}
       <CardShareDialog
-        handle={shareHandle}
+        target={quickShareTarget(shareHandle)}
         open={shareOpen}
         onOpenChange={setShareOpen}
       />

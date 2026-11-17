@@ -3797,6 +3797,21 @@ export class SqlCoreRepository implements NamecardRepository {
         return cards[0] ?? null;
     }
 
+    /** 属主侧单卡分享链接：先认卡片归属，再复用同一份短链规则。 */
+    async ensureExchangeSlugForOwnerCard(input: {
+        ownerAccountId: string;
+        cardNumber: number;
+    }): Promise<string | null> {
+        const row = await queryOne<{ id: string }>(
+            this.database,
+            `SELECT id FROM fudaba_cards
+              WHERE owner_account_id=? AND card_number=? AND deleted_at IS NULL`,
+            [input.ownerAccountId, input.cardNumber]
+        );
+        if (!row) return null;
+        return this.ensureExchangeLink(row.id);
+    }
+
     private async loadExchangeCardsByIds(
         database: SqlDatabase,
         cardIds: readonly string[]
@@ -3827,7 +3842,7 @@ export class SqlCoreRepository implements NamecardRepository {
         if (!profile) return null;
         const rows = await queryAll<NamecardCardRow>(
             this.database,
-            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards card
               WHERE owner_account_id=?
                 AND deleted_at IS NULL
                 AND publication_status='published'

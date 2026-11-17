@@ -2,10 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   canvasPngBlob,
+  cardShareImageFileName,
+  cardShareLinkFor,
+  cardShareTarget,
   copyText,
   downloadBlob,
   drawQrCode,
   qrMatrix,
+  quickShareTarget,
   QR_CANVAS_SIZE,
   selectText,
   shareHandleFor,
@@ -14,6 +18,7 @@ import {
 } from "~/pages/account/me/namecards/card-share-model"
 
 const HANDLE = "haruka"
+const SLUG = "abcdefghijkl"
 
 function stubClipboard(value: unknown) {
   Object.defineProperty(navigator, "clipboard", {
@@ -34,7 +39,7 @@ describe("shareHandleFor", () => {
 })
 
 describe("shareLinkFor", () => {
-  it("builds the placeholder /exchange/<handle> link from the shareable origin", () => {
+  it("builds the /exchange/<handle> link from the shareable origin", () => {
     expect(shareLinkFor(HANDLE, "https://idol-master.top/")).toBe(
       `https://idol-master.top/exchange/${HANDLE}`
     )
@@ -53,9 +58,41 @@ describe("shareLinkFor", () => {
   })
 })
 
+describe("cardShareLinkFor", () => {
+  it("builds the /exchange/card/<slug> link from the shareable origin", () => {
+    expect(cardShareLinkFor(SLUG, "https://idol-master.top/")).toBe(
+      `https://idol-master.top/exchange/card/${SLUG}`
+    )
+    expect(cardShareLinkFor(SLUG)).toBe(
+      `${window.location.origin}/exchange/card/${SLUG}`
+    )
+  })
+})
+
 describe("shareImageFileName", () => {
   it("names the download after the handle", () => {
     expect(shareImageFileName(HANDLE)).toBe(`imsweb-exchange-${HANDLE}.png`)
+    expect(cardShareImageFileName(SLUG)).toBe(`imsweb-namecard-${SLUG}.png`)
+  })
+})
+
+describe("share targets", () => {
+  it("keeps the quick list link and copy for the manager toolbar", () => {
+    expect(quickShareTarget(HANDLE, "https://idol-master.top")).toEqual({
+      link: `https://idol-master.top/exchange/${HANDLE}`,
+      fileName: `imsweb-exchange-${HANDLE}.png`,
+      title: "分享名片",
+      description: "扫码或把链接发给对方，就能打开你的快速交换名片。",
+    })
+  })
+
+  it("switches the link, file name and copy for a single card", () => {
+    expect(cardShareTarget(SLUG, "https://idol-master.top")).toEqual({
+      link: `https://idol-master.top/exchange/card/${SLUG}`,
+      fileName: `imsweb-namecard-${SLUG}.png`,
+      title: "分享这张名片",
+      description: "扫码或把链接发给对方，就能打开这张名片的分享页。",
+    })
   })
 })
 
