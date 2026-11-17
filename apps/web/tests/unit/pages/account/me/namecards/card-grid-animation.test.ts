@@ -13,6 +13,7 @@ import {
   GHOST_ENTER_STAGGER_LIMIT,
   GHOST_ENTER_STAGGER_MS,
   isCardFlipTransition,
+  isNegligibleCardFlipOffset,
   type CardFlipRect,
 } from "~/pages/account/me/namecards/card-grid-animation"
 
@@ -81,12 +82,69 @@ describe("cardFlipTransform", () => {
     })
   })
 
+  it("rounds each component so the value never comes out in exponential notation", () => {
+    // 量测噪声与过渡半路的浮点尾巴会让分量变成 4.0547e-07 这种极小值，而 CSSOM 把它们序列化
+    // 成指数写法（`9.04e-05`）——收尾时反解认不出来，位移就永久残留在瓦片上。取整后写出去的
+    // 永远是整数像素（FLIP 的起点差半个像素看不出来，终点本来就是 `transform: none`）。
+    expect(cardFlipTransform({ dx: 4.0547e-7, dy: -311 })).toBe(
+      "translate(0px, -311px)"
+    )
+    // 写出来的分量永远是整数像素（旧版会写出 `4.0547e-07px` 这类指数零件）。
+    expect(cardFlipTransform({ dx: 4.0547e-7, dy: -311 })).toMatch(
+      /^translate\(-?\d+px, -?\d+px\)$/
+    )
+    expect(cardFlipTransform({ dx: 235.4, dy: -150.6 })).toBe(
+      "translate(235px, -151px)"
+    )
+    // `-0` 得写成 `0`：`translate(-0px, 0px)` 谁也不认识。
+    expect(cardFlipTransform({ dx: -0.4, dy: -0 })).toBe("translate(0px, 0px)")
+  })
+
   it("does not claim dnd-kit's own transforms or an empty value", () => {
     // dnd-kit 写的是 `translate3d(x, y, 0) scale…`；两者混起来清理就会互相抹掉。
     expect(cardFlipOffsetFromStyle("translate3d(12px, 30px, 0)")).toBeNull()
     expect(cardFlipOffsetFromStyle("translate(12px, 30px) scaleX(1)")).toBeNull()
+    expect(cardFlipOffsetFromStyle("matrix(1, 0, 0, 1, 12, 30)")).toBeNull()
     expect(cardFlipOffsetFromStyle("")).toBeNull()
     expect(cardFlipOffsetFromStyle(null)).toBeNull()
+  })
+
+  it("reads back the exponential notation the CSSOM produces for tiny components", () => {
+    // 现场残留就是这两类写法（`translate(235px, 9.04e-05px)`）；普通小数与指数都得认，
+    // 否则收尾时判不出「这串是我们写的」、账本被丢掉、位移留在 DOM 上。
+    expect(cardFlipOffsetFromStyle("translate(235px, 9.04e-05px)")).toEqual({
+      dx: 235,
+      dy: 9.04e-5,
+    })
+    expect(cardFlipOffsetFromStyle("translate(4.0547e-07px, -311px)")).toEqual({
+      dx: 4.0547e-7,
+      dy: -311,
+    })
+    expect(cardFlipOffsetFromStyle("translate(1.5E+2px, -311px)")).toEqual({
+      dx: 150,
+      dy: -311,
+    })
+  })
+})
+
+describe("isNegligibleCardFlipOffset", () => {
+  it("flags the sub-pixel noise that must not be written", () => {
+    // 用户现场同网格里那 4 张瓦片上的残渣就是这一类（视觉上等于没动）。
+    expect(isNegligibleCardFlipOffset({ dx: -7.97e-5, dy: 4.46e-5 })).toBe(true)
+    expect(isNegligibleCardFlipOffset({ dx: 0, dy: 0 })).toBe(true)
+    expect(isNegligibleCardFlipOffset({ dx: 0.49, dy: -0.49 })).toBe(true)
+  })
+
+  it("keeps anything that survives the pixel rounding", () => {
+    // 取整到整像素，边界就是半个像素：|分量| >= 0.5 会写成非零像素，必须照写。
+    expect(isNegligibleCardFlipOffset({ dx: 0.5, dy: 0 })).toBe(false)
+    expect(isNegligibleCardFlipOffset({ dx: 0, dy: -311 })).toBe(false)
+    expect(isNegligibleCardFlipOffset({ dx: 311, dy: -150 })).toBe(false)
+  })
+
+  it("takes an explicit epsilon", () => {
+    expect(isNegligibleCardFlipOffset({ dx: 2, dy: 2 }, 3)).toBe(true)
+    expect(isNegligibleCardFlipOffset({ dx: 2, dy: -4 }, 3)).toBe(false)
   })
 })
 
@@ -115,6 +173,13 @@ describe("cardFlipOffsetFromComputedStyle", () => {
         "translate3d(10px, -150px, 0) scaleX(1) scaleY(1)"
       )
     ).toEqual({ dx: 10, dy: -150 })
+    // 旧版写下的指数形态也会经 `getComputedStyle` 回到量测里（那时内联那串还没被序列化回原文）。
+    expect(
+      cardFlipOffsetFromComputedStyle("translate(4.0547e-07px, -311px)")
+    ).toEqual({
+      dx: 4.0547e-7,
+      dy: -311,
+    })
   })
 
   it("treats anything it cannot read as no movement", () => {

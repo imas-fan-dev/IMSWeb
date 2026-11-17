@@ -200,6 +200,62 @@ describe("useCardGridFlip", () => {
     expect(tile("a").style.transition).toBe("transform 200ms ease")
   })
 
+  it("drops its own bookkeeping without wiping a transform dnd-kit took over", async () => {
+    stubGeometry()
+    layout({ a: { top: 0 }, b: { top: 150 } })
+    const { rerender } = render(<Harness items={["a", "b"]} active={true} />)
+    layout({ a: { top: 150 }, b: { top: 300 } })
+    rerender(<Harness items={["a", "b"]} active={true} />)
+    expect(tile("a").style.transform).toBe("translate(0px, -150px)")
+
+    // 落位比我们的回调更早：dnd-kit 把自己的收尾位移写回 a（b 还停在我们写的那串上）。
+    tile("a").style.transform = "translate3d(0px, -150px, 0)"
+    tile("a").style.transition = "transform 200ms ease"
+
+    // b 被还回去就说明回调跑过了：它只还自己写的那串，a 原样不动（那不是我们的残留）。
+    await waitFor(() => expect(tile("b").style.transform).toBe(""))
+    expect(tile("a").style.transform).toBe("translate3d(0px, -150px, 0)")
+    expect(tile("a").style.transition).toBe("transform 200ms ease")
+  })
+
+  it("restores an offset the DOM reports in exponential notation on the next frame", async () => {
+    stubGeometry()
+    layout({ a: { left: 235, top: 0 }, b: { top: 150 } })
+    const { rerender } = render(<Harness items={["a", "b"]} active={true} />)
+
+    // 一帧里瓦片被顶开一列：写下 235 的倒放位移（a 与 b 各一笔）。
+    layout({ a: { left: 0, top: 0 }, b: { top: 300 } })
+    rerender(<Harness items={["a", "b"]} active={true} />)
+    expect(tile("a").style.transform).toBe("translate(235px, 0px)")
+
+    // 极小分量在 CSSOM 里会序列化成指数写法（现场就是 `translate(235px, 9.04e-05px)`）：
+    // 逐字比不上，但它就是我们写下的同一笔位移——旧版在这里判不出来就丢掉账本、位移永久
+    // 残留在瓦片上（2026-11-17 的直接成因）。
+    tile("a").style.transform = "translate(235px, 9.04e-05px)"
+
+    await waitFor(() => expect(tile("a").style.transform).toBe(""))
+    expect(isCardFlipTransition(tile("a").style.transition)).toBe(true)
+    expect(tile("b").style.transform).toBe("")
+  })
+
+  it("cleans up an exponential-notation offset when the drag ends", () => {
+    stubGeometry()
+    layout({ a: { left: 235, top: 0 } })
+    const { rerender } = render(<Harness items={["a"]} active={true} />)
+    layout({ a: { left: 0, top: 0 } })
+    rerender(<Harness items={["a"]} active={true} />)
+    expect(tile("a").style.transform).toBe("translate(235px, 0px)")
+
+    // 同上：写法不同，但那是我们写下的同一笔位移——松手时收尾必须把它还回去，而不是因为
+    // 「反解不出来」就把账本一丢了事。
+    tile("a").style.transform = "translate(235px, 9.04e-05px)"
+
+    rerender(<Harness items={["a"]} active={false} />)
+
+    expect(tile("a").style.transform).toBe("")
+    expect(tile("a").style.transition).toBe("")
+  })
+
   it("recovers the true natural position while a tile is mid-transition", async () => {
     stubGeometry()
     layout({ a: { top: 150 } })
@@ -243,7 +299,7 @@ describe("useCardGridFlip", () => {
     expect(tile("a").style.transform).toBe("translate(0px, 75px)")
   })
 
-  it("leaves a tile where it is when a layout change is undone within one frame", () => {
+  it("leaves a tile where it is when a layout change is undone within one frame", async () => {
     stubGeometry()
     layout({ a: { top: 0 } })
     const { rerender } = render(<Harness items={["a"]} active={true} />)
@@ -254,10 +310,35 @@ describe("useCardGridFlip", () => {
     expect(tile("a").style.transform).toBe("translate(0px, -150px)")
 
     // 同一帧里 ghost 又挪走（指针一帧里越过两次边界）：布局回到 0，而瓦片此刻渲染在
-    // 0（布局 0 + 已经写下的 -150）。位移该收成 0——它一直就在那儿，不该再挪一格。
+    // 0（布局 0 + 已经写下的 -150）。要倒放的量因此收成 0——它一直就在那儿，不该再挪一格。
     layout({ a: { top: -150 } })
     rerender(<Harness items={["a"]} active={true} />)
-    expect(tile("a").style.transform).toBe("translate(0px, 0px)")
+
+    // 这一笔是**近零位移**：不写 `translate(0px, 0px)` 这种垃圾（旧版会在瓦片上留一串
+    // 反解认不出的值，那正是位移永久残留的源头），而是把上一帧那一笔**瞬时**还回去。
+    expect(tile("a").style.transform).toBe("")
+    // 瞬时：这一步不能带过渡，否则会先把它画在倒放的位置、再滑回来（一次平白无故的回弹）。
+    expect(tile("a").style.transition).toBe("none")
+    // 收尾仍走下一帧的回调：过渡换成我们的那条，账本清空。
+    await waitFor(() =>
+      expect(isCardFlipTransition(tile("a").style.transition)).toBe(true)
+    )
+  })
+
+  it("does not write anything for a near-zero offset", () => {
+    stubGeometry()
+    layout({ a: { top: 0 } })
+    const { rerender } = render(<Harness items={["a"]} active={true} />)
+
+    // 布局几乎没动，只剩浮点噪声：要倒放的量是 2e-5，远小于半个像素（取整后就是 0px）。
+    // 计算样式里那份 -150.00003 是过渡半路的插值（只有它量得出来）。
+    stubComputedTranslate({ a: "matrix(1, 0, 0, 1, 0, -150.00003)" })
+    layout({ a: { top: -300.00008 } })
+    rerender(<Harness items={["a"]} active={true} />)
+
+    // 一个字都不写：没有内联 transform，也没有过渡（旧版会写下 `translate(0px, 0.00002px)`）。
+    expect(tile("a").style.transform).toBe("")
+    expect(tile("a").style.transition).toBe("")
   })
 
   it("skips zero-size tiles without writing offsets or joining the baseline", () => {

@@ -86,18 +86,53 @@ export function exceedsCardFlipOffsetLimit(
   return false
 }
 
-/** 内联 `transform` 的值：只写平移（缩放/旋转属于别的层）。 */
+/**
+ * 内联 `transform` 的值：只写平移（缩放/旋转属于别的层），分量**取整到整像素**。
+ *
+ * 取整不是审美问题：量测噪声与过渡半路的浮点误差会让分量变成 `4.05e-07` 这类极小值，而
+ * CSSOM 把它们序列化成**指数写法**（`9.04e-05`）——旧版照原样拼字符串写下去，收尾时
+ * `cardFlipOffsetFromStyle` 的普通小数正则认不出这串，于是「判不出来 → 当别人的值 → 账本
+ * 丢掉」，位移永久残留在瓦片上（2026-11-17 用户反馈的 `translate(235px, 9.04e-05px)`）。
+ * FLIP 的位移起点差半个像素看不出来（终点本来就是 `transform: none`），取整最稳。
+ */
 export function cardFlipTransform(offset: CardFlipOffset): string {
-  return `translate(${offset.dx}px, ${offset.dy}px)`
+  // `|| 0` 顺手规范掉 `-0`（`translate(-0px, …)` 谁也不认识）。
+  const dx = Math.round(offset.dx) || 0
+  const dy = Math.round(offset.dy) || 0
+  return `translate(${dx}px, ${dy}px)`
 }
 
-/** 读回我们自己写下去的位移；不是这个格式（例如 dnd-kit 的 `translate3d`）时返回 `null`。 */
+/**
+ * 位移小到不值得写：`|dx|` 与 `|dy|` 都小于 `epsilon`（默认半个像素）。
+ *
+ * 这类项来自量测噪声与过渡半路的插值误差（`getBoundingClientRect` 的小数、矩阵反解的浮点
+ * 尾巴），写下去只会在瓦片上留一串谁也认不出的近零内联样式——用户现场同一网格里另外 4 张
+ * 瓦片挂着 `translate(-7.97e-05px, 4.46e-05px)` 就是这样来的——而视觉上等于没动。
+ *
+ * 默认半个像素与 `cardFlipTransform` 的取整对齐：小于半个像素的位移写出来就是
+ * `translate(0px, 0px)`，那等于没写。
+ */
+export function isNegligibleCardFlipOffset(
+  offset: CardFlipOffset,
+  epsilon = 0.5
+): boolean {
+  return Math.abs(offset.dx) < epsilon && Math.abs(offset.dy) < epsilon
+}
+
+/**
+ * 读回我们自己写下去的位移；不是这个格式（例如 dnd-kit 的 `translate3d`）时返回 `null`。
+ *
+ * 分量同时认**普通小数与指数写法**：CSSOM 会把极小值序列化成 `9.04e-05`、`4.0547e-07`
+ * （现场残留就是这两类），只认普通小数的话这些值会被判成「别人的」，收尾时不敢还原。
+ * 边界不变：只认单个 `translate(xpx, ypx)`，`translate3d`/`matrix` 一律 `null`。
+ */
 export function cardFlipOffsetFromStyle(
   value: string | null | undefined
 ): CardFlipOffset | null {
-  const match = /^translate\((-?\d+(?:\.\d+)?)px, (-?\d+(?:\.\d+)?)px\)$/.exec(
-    value ?? ""
-  )
+  const match =
+    /^translate\((-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)px, (-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)px\)$/i.exec(
+      value ?? ""
+    )
   if (!match) return null
   return { dx: Number(match[1]), dy: Number(match[2]) }
 }
