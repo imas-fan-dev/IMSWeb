@@ -16,8 +16,10 @@ import type {
     NamecardUnitRecord,
 } from "@/ports/repositories";
 import { requirePublicObjectUrl } from "@/utils/storage/public-object-url";
-import { cardPageObjectKeys } from '@/domains/community/fudaba/cards/card-media-resolver';
-import type { CardPageView } from '@/domains/community/fudaba/cards/artwork-view';
+import {
+    namecardPagesView,
+    type CardPageView,
+} from '@/domains/community/fudaba/cards/artwork-view';
 
 export async function fudabaPublicOfficeView(
     storage: ObjectStorage | undefined,
@@ -67,17 +69,28 @@ export async function fudabaPublicCardView(
         });
     }
     // 页序就是版面：首页是正面，末页是背面，中间是其余页；单面卡只有正面。
-    const pageKeys = cardPageObjectKeys(card.id, 'live', card.pages);
-    const frontKey = pageKeys[0];
-    if (!frontKey) {
+    // 地址与名片墙同一套：页面行 → 交换媒体路由（`/cards/:id/media/:pageId`），
+    // 由路由在服务端签名。legacy 卡的对象在受保护作用域，绝对公开地址解析不到，
+    // 用严格校验会让整页 503。
+    const views =
+        pages && pages.length > 0
+            ? pages
+            : namecardPagesView(
+                  { live: card.pages, pending: [] },
+                  {
+                      scope: 'public',
+                      publicRoute: 'exchange',
+                      cardNumber: 0,
+                      cardId: card.id,
+                  }
+              ).live;
+    const front = views[0];
+    if (!front) {
         throw Object.assign(new Error("公开名片缺少页面"), { status: 503 });
     }
-    const [frontImageUrl, backImageUrl] = await Promise.all([
-        requirePublicObjectUrl(storage, frontKey),
-        pageKeys.length > 1
-            ? requirePublicObjectUrl(storage, pageKeys[pageKeys.length - 1]!)
-            : Promise.resolve(null),
-    ]);
+    const back = views.length > 1 ? views[views.length - 1]! : null;
+    const frontImageUrl = front.previewUrl;
+    const backImageUrl = back ? back.previewUrl : null;
     return {
         id: card.id,
         producerName: card.producer_name,
