@@ -186,7 +186,7 @@ describe("PlatformAccountMenu", () => {
     expect(sessionMocks.reload).toHaveBeenCalledOnce()
   })
 
-  it("links a signed-in account to account security", async () => {
+  it("keeps account security out of the signed-in menu", async () => {
     sessionMocks.usePlatformSession.mockReturnValue(
       sessionState("authenticated")
     )
@@ -200,9 +200,7 @@ describe("PlatformAccountMenu", () => {
       "href",
       "/account/me"
     )
-    const entry = screen.getByRole("link", { name: "帐号安全" })
-    expect(entry).toHaveAttribute("href", "/account/security")
-    expect(entry.querySelector("svg")).toHaveClass("lucide-shield-check")
+    expect(screen.queryByRole("link", { name: "帐号安全" })).toBeNull()
   })
 
   it("links a signed-in account to the namecard manager", async () => {

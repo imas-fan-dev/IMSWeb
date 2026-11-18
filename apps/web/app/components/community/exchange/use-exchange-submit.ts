@@ -25,9 +25,12 @@ const EXCHANGE_FAILED_MESSAGE = "交换失败，请重试"
 function skippedMessages(skipped: NamecardExchangeResult["skipped"]) {
   const messages = new Set<string>()
   for (const item of skipped) {
-    if (item.reason === "already-owned") messages.add("你已经有这张了")
-    else if (item.reason === "owned-by-target") messages.add("对方已经有这张了")
-    else if (item.side === "target")
+    // 批量交换（快速清单）本来就常混着已拥有的名片，这类不再额外弹提示：
+    // 选卡窗口的「对方已经有这张名片」角标与结果文案已经说明了状态。
+    if (item.reason === "already-owned" || item.reason === "owned-by-target") {
+      continue
+    }
+    if (item.side === "target")
       messages.add("对方的这张名片暂时不可交换")
     else messages.add("你的这张名片暂时不可交换")
   }

@@ -75,7 +75,7 @@ describe("useExchangeSubmit", () => {
     )
   })
 
-  it("announces a decline and names every skipped card", async () => {
+  it("announces a decline and only reports unavailable skips", async () => {
     const { result } = renderHook(() => useExchangeSubmit())
 
     await act(async () => {
@@ -94,8 +94,9 @@ describe("useExchangeSubmit", () => {
     })
 
     expect(toastMocks.toast.error).toHaveBeenCalledWith("对方拒绝了这次交换")
-    expect(toastMocks.toast).toHaveBeenCalledWith("你已经有这张了")
-    expect(toastMocks.toast).toHaveBeenCalledWith("对方已经有这张了")
+    // 已拥有的名片在批量交换里是常态：不再额外弹提示。
+    expect(toastMocks.toast).not.toHaveBeenCalledWith("你已经有这张了")
+    expect(toastMocks.toast).not.toHaveBeenCalledWith("对方已经有这张了")
     expect(toastMocks.toast).toHaveBeenCalledWith("对方的这张名片暂时不可交换")
   })
 
