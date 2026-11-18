@@ -1,7 +1,11 @@
 import {
   adminExchangePath,
+  exchangeCardRequestPath,
+  exchangeCardShareCommitPath,
   exchangeMyCardsLayoutPath,
+  exchangeMyQuickPath,
   exchangePath,
+  exchangeQuickCommitPath,
   mapsPath,
 } from "@imsweb/contracts/paths"
 export { createMapboxNearbySearch } from "./mapbox-place-search"
@@ -10,7 +14,10 @@ import {
   namecardCardLayoutRequestSchema,
   namecardCardLayoutSchema,
   namecardCardShareLinkSchema,
+  namecardExchangeCommitSchema,
+  namecardExchangeResultSchema,
   namecardFeedbackMutationSchema,
+  namecardQuickSettingsSchema,
   type NamecardCardLayoutRequest,
   type NamecardFeedbackReason,
 } from "@imsweb/contracts/namecards"
@@ -34,6 +41,7 @@ import {
   normalizeFudabaOwnerOfficeDetail,
   normalizeFudabaOwnerOfficeList,
   normalizeFudabaSeriesList,
+  normalizeNamecardQuickSettings,
 } from "../../media-urls"
 import { adminApiClient } from "../../admin-client"
 import { apiClient } from "../../client"
@@ -675,6 +683,37 @@ export function getCardLayout() {
 }
 
 /**
+ * 选卡窗口的候选：自己**全部** `published` 的名片（含 `manual` / `none`），
+ * `selected` 标记它是否在快速交换清单里。
+ *
+ * 带 `target` 或 `targetCard` 时接口叠加对方视角：逐卡 `targetOwns`（对方名片册里
+ * 已有）与顶层 `targetMissingCount`（我有、对方还没有的张数）。目标未知 —— App
+ * 出示二维码之前 —— 就不传，两个字段整份省略。`target` 认 uid / 主页 slug / 账号 ID；
+ * `targetCard` 是目标的公开卡号（名片墙只剩卡号可用）。两者互斥，服务端会拒绝同时传。
+ */
+export function getExchangeCandidates({
+  target,
+  targetCard,
+}: { target?: string; targetCard?: number } = {}) {
+  const query = new URLSearchParams()
+  if (target) query.set("target", target)
+  if (targetCard !== undefined) query.set("targetCard", String(targetCard))
+  const search = query.toString()
+  const path = search
+    ? `${exchangeMyQuickPath()}?${search}`
+    : exchangeMyQuickPath()
+  return platformApiClient.Get(
+    path,
+    parsed(namecardQuickSettingsSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+      select: normalizeNamecardQuickSettings,
+    })
+  )
+}
+
+/**
  * 整份保存属主清单：布局 + 快速清单 + 批量字段差异，一次原子写（§4.2）。
  *
  * 服务端返回归一后的布局（含它分配的 `group.id` 与 `limit`），调用方直接用它覆盖本地草稿，
@@ -691,6 +730,55 @@ export function putCardLayout(input: NamecardCardLayoutRequest) {
       meta: withPlatformCsrf(),
     })
   )
+}
+
+/** 一次交换的请求体：本轮幂等锚点 + 我交出的名片编号（0 张也合法）。 */
+export interface ExchangeCommitInput {
+  clientExchangeId: string
+  giveCardNumbers: readonly number[]
+}
+
+/**
+ * 三条交换写路径共用的请求：编号在轮次内复用（离线重放靠同一锚点幂等），
+ * 所以 `clientExchangeId` 由调用方保管，这里只负责按线上契约发出去。
+ *
+ * 目标为 `none` 的卡回 409「这张名片不接受交换」，由调用方直出后端文案。
+ */
+function postExchangeCommit(path: string, input: ExchangeCommitInput) {
+  const submission = namecardExchangeCommitSchema.parse({
+    clientExchangeId: input.clientExchangeId,
+    giveCardNumbers: [...input.giveCardNumbers],
+  })
+  return platformApiClient.Post(
+    path,
+    submission,
+    parsed(namecardExchangeResultSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/** 名片墙 / 主页的详情窗：直接向对方的一张名片发起交换。 */
+export function requestCardExchange(
+  cardNumber: number,
+  input: ExchangeCommitInput
+) {
+  return postExchangeCommit(exchangeCardRequestPath(cardNumber), input)
+}
+
+/** 单卡分享页 `/exchange/card/<slug>`：收下这张卡并把我的名片交出去。 */
+export function commitCardShare(slug: string, input: ExchangeCommitInput) {
+  return postExchangeCommit(exchangeCardShareCommitPath(slug), input)
+}
+
+/** 快速清单分享页 `/exchange/<handle>`：一次收下对方清单里的全部名片。 */
+export function commitQuickExchange(
+  handle: string,
+  input: ExchangeCommitInput
+) {
+  return postExchangeCommit(exchangeQuickCommitPath(handle), input)
 }
 
 /**

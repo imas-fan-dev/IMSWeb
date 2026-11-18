@@ -349,16 +349,24 @@ function EmptyDash() {
 const FOOTER_BUTTON =
   "min-h-9 gap-1 px-2 text-xs [&_svg]:size-4 sm:min-h-11 sm:px-2.5 sm:text-sm"
 
+/** 【交换】的目标：页面层拿得到哪个就传哪个；实际查「对方已有」用 `?target=` / `?targetCard=`。 */
+export type NamecardExchangeTarget =
+  | { accountId: string }
+  | { cardNumber: number }
+
 export function NamecardDetailDialog({
   card,
   canClaim,
   initialSide,
   reactions,
   busy,
+  exchangeTarget,
+  exchangeTargetCard,
   onOpenChange,
   onOpenPreview,
   onClaim,
   onSupplement,
+  onExchange,
   onReact,
   onReturnFocus,
   dismissible = true,
@@ -369,11 +377,17 @@ export function NamecardDetailDialog({
   initialSide?: NamecardSide | null
   reactions: NamecardReactionState
   busy: boolean
+  /** 卡主的平台账号（主页已知 `profile.accountId` 时传它）。 */
+  exchangeTarget?: string | null
+  /** 卡号：公开墙拿不到账号 ID，只能把这张卡交给选卡窗口反查卡主。 */
+  exchangeTargetCard?: number | null
   onOpenChange: (open: boolean) => void
   /** 传的是画廊里的页面下标：可能超过两面，光靠 front/back 表达不全。 */
   onOpenPreview: (index: number, trigger: HTMLButtonElement) => void
   onClaim: (card: Namecard) => void
   onSupplement: (card: Namecard) => void
+  /** 【交换】由挂载页面打开它的选卡窗口（一页一个实例，不在窗里另起）。 */
+  onExchange: (card: Namecard, target: NamecardExchangeTarget) => void
   onReact: (emoji: string) => Promise<boolean>
   onReturnFocus: () => void
   /** 认领/补充窗开着时置 false，点它不算「点了详情窗外面」。 */
@@ -427,6 +441,30 @@ export function NamecardDetailDialog({
   const supplementBlocked = card
     ? card.claimStatus !== "unclaimed" || card.supplementPending
     : true
+
+  // 【交换】目标：调用方知道自己拿得到什么（主页 = 账号 ID，名片墙 = 卡号）。
+  // 公开卡投影里 `claimerUid` 恒为 null，所以它只作为兜底，不再当必填门槛。
+  const resolvedExchangeTarget: NamecardExchangeTarget | null =
+    exchangeTargetCard !== undefined && exchangeTargetCard !== null
+      ? { cardNumber: exchangeTargetCard }
+      : exchangeTarget
+        ? { accountId: exchangeTarget }
+        : card?.claimerUid
+          ? { accountId: String(card.claimerUid) }
+          : null
+  const canExchange =
+    card !== null &&
+    platformCanReport &&
+    resolvedExchangeTarget !== null &&
+    !card.collected &&
+    card.exchangeMode !== "none"
+  const exchangeBlockedTitle = card?.collected
+    ? "你已经拥有这张名片"
+    : card?.exchangeMode === "none"
+      ? "这张名片不接受交换"
+      : !platformCanReport
+        ? "登录后才能交换"
+        : "暂时无法交换"
 
   return (
     <Dialog
@@ -700,8 +738,14 @@ export function NamecardDetailDialog({
             <Button
               type="button"
               className={FOOTER_BUTTON}
-              disabled
-              title={card?.collected ? "你已经拥有这张名片" : "暂未开放"}
+              aria-label="交换名片"
+              disabled={!canExchange}
+              title={canExchange ? undefined : exchangeBlockedTitle}
+              onClick={() => {
+                if (card && resolvedExchangeTarget) {
+                  onExchange(card, resolvedExchangeTarget)
+                }
+              }}
             >
               <ArrowLeftRightIcon aria-hidden="true" />
               交换

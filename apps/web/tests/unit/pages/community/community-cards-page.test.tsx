@@ -28,6 +28,7 @@ const apiMocks = vi.hoisted(() => ({
   getNamecardReactions: vi.fn(),
   getNamecardCharacterCatalog: vi.fn(),
   addNamecardReaction: vi.fn(),
+  requestCardExchange: vi.fn(),
   sendPage: vi.fn(),
   sendReactions: vi.fn(),
   sendCharacterCatalog: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getNamecardPage: apiMocks.getNamecardPage,
     getPublicCard: apiMocks.getPublicCard,
     getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
+    requestCardExchange: apiMocks.requestCardExchange,
     getFudabaSeries: () => ({
       send: () =>
         Promise.resolve({
@@ -60,6 +62,41 @@ vi.mock("~/lib/api", async (importOriginal) => {
     }),
   }
 })
+
+// 选卡窗口有自己的单测；名片墙只负责「传了哪个目标、确定后调了哪个端点」。
+vi.mock(
+  "~/components/community/exchange/exchange-card-picker-dialog",
+  () => ({
+    ExchangeCardPickerDialog: ({
+      open,
+      target,
+      targetCard,
+      onSubmit,
+      onOpenChange,
+    }: {
+      open: boolean
+      target?: string
+      targetCard?: number
+      onSubmit: (cardNumbers: number[]) => void
+      onOpenChange: (open: boolean) => void
+    }) =>
+      open ? (
+        <div role="dialog" aria-label="交换名片">
+          <span data-testid="picker-target">{target}</span>
+          <span data-testid="picker-target-card">{targetCard}</span>
+          <button
+            type="button"
+            onClick={() => {
+              onSubmit([42])
+              onOpenChange(false)
+            }}
+          >
+            确定
+          </button>
+        </div>
+      ) : null,
+  })
+)
 
 vi.mock("sonner", () => ({
   toast: toastMocks,
@@ -199,6 +236,14 @@ describe("CommunityCardsPage", () => {
     })
     apiMocks.addNamecardReaction.mockReturnValue({
       send: apiMocks.sendAddReaction,
+    })
+    apiMocks.requestCardExchange.mockResolvedValue({
+      exchangeId: "exchange-1",
+      status: "completed",
+      targetCardNumbers: [42],
+      initiatorCardNumbers: [42],
+      skipped: [],
+      targetMissingCount: 0,
     })
   })
 
@@ -1779,5 +1824,58 @@ describe("CommunityCardsPage", () => {
 
     expect(toastMocks.error).toHaveBeenCalledWith("请输入 1 到 7 之间的页码")
     expect(apiMocks.getNamecardPage).not.toHaveBeenCalled()
+  })
+
+  it("opens the picker from the detail dialog and requests the wall card", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      status: "authenticated",
+      session: {
+        success: true,
+        account: { id: "platform-1", status: "active" },
+        profile: {
+          displayName: "春香P",
+          avatarUrl: null,
+          homeCity: null,
+          bio: "",
+        },
+      },
+      error: null,
+      acceptSession: vi.fn(),
+      reload: vi.fn(),
+      logout: vi.fn(),
+    })
+    const result = pageResult([42])
+    Object.assign(result.list[0], {
+      hasOwner: true,
+      claimStatus: "claimed",
+      // 公开墙的投影里 `claimerUid` 恒为 null：交换入口只看登录与拥有标记。
+      claimerUid: null,
+    })
+    apiMocks.sendPage.mockResolvedValue(result)
+    renderPage()
+
+    await user.click(
+      await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
+    )
+    await user.click(await screen.findByRole("button", { name: "交换名片" }))
+
+    // 名片墙拿不到账号 ID：选卡窗口用卡号反查卡主（`?targetCard=`）。
+    const picker = await screen.findByRole("dialog", { name: "交换名片" })
+    expect(within(picker).getByTestId("picker-target-card")).toHaveTextContent(
+      "42"
+    )
+    expect(within(picker).getByTestId("picker-target")).toBeEmptyDOMElement()
+
+    await user.click(within(picker).getByRole("button", { name: "确定" }))
+
+    const [cardNumber, body] = apiMocks.requestCardExchange.mock.calls[0] as [
+      number,
+      { clientExchangeId: string; giveCardNumbers: number[] },
+    ]
+    expect(cardNumber).toBe(42)
+    expect(body.giveCardNumbers).toEqual([42])
+    expect(body.clientExchangeId.length).toBeGreaterThanOrEqual(8)
+    expect(body.clientExchangeId.length).toBeLessThanOrEqual(64)
   })
 })

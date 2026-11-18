@@ -2,12 +2,16 @@ import type { PlatformAccountLink } from "@imsweb/contracts/namecards"
 import {
   apiPath,
   exchangeCardSharePath,
+  exchangeDecisionPath,
+  exchangePath,
   exchangeQuickPath,
   namecardPath,
 } from "@imsweb/contracts/paths"
 import {
   namecardCardShareSchema,
   namecardErrorResponseSchema,
+  namecardExchangeDecisionSchema,
+  namecardExchangeDetailSchema,
   namecardListErrorResponseSchema,
   namecardQuickExchangeSchema,
   randomOwnerlessCardErrorSchema,
@@ -28,6 +32,8 @@ import {
 import { normalizeNamecard, normalizeNamecardPage } from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
+import { platformApiClient } from "../platform-client"
+import { withPlatformAuth, withPlatformCsrf } from "../types"
 
 import {
   namecardPageSchema,
@@ -172,6 +178,51 @@ export function getQuickExchangePage(handle: string) {
       }),
     })
   )
+}
+
+/**
+ * 通知窗口的交换详情：只有发起方或目标方能读，其它人一律 404。
+ *
+ * 两侧卡片是分享页同一份投影（`pages[].thumbUrl`），媒体地址在这里按同一口径
+ * 归一 —— 窗口直接拿 `pages[].thumbUrl` 画 1:1 缩略图。
+ */
+export function getExchangeDetail(exchangeId: string) {
+  return platformApiClient.Get(
+    exchangePath(`exchanges/${encodeURIComponent(exchangeId)}`),
+    parsed(namecardExchangeDetailSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      meta: withPlatformAuth(),
+      select: (payload) => ({
+        ...payload,
+        targetCards: payload.targetCards.map(normalizeNamecard),
+        initiatorCards: payload.initiatorCards.map(normalizeNamecard),
+      }),
+    })
+  )
+}
+
+/** 同意或婉拒一笔交换：成功回 `completed` / `declined`；过期或已处理是 409。 */
+function decideExchange(
+  exchangeId: string,
+  decision: "accept" | "decline"
+) {
+  return platformApiClient.Post(
+    exchangeDecisionPath(exchangeId, decision),
+    {},
+    parsed(namecardExchangeDecisionSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+export function acceptExchange(exchangeId: string) {
+  return decideExchange(exchangeId, "accept")
+}
+
+export function declineExchange(exchangeId: string) {
+  return decideExchange(exchangeId, "decline")
 }
 
 export function getNamecardReactions(cardId: number) {

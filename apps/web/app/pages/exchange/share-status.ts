@@ -4,7 +4,7 @@ import type { NamecardCardShare } from "~/lib/api"
  * 分享页的状态区文案（prd R1/R2 原文，不做演绎）。
  *
  * 页面组件只读这里返回的 `message` 与 `action`，所以四种状态 × 登录与否 × 已拥有的
- * 组合都能脱离 DOM 断言；【交换】按钮的文案固定 disabled（本期不开放交换）。
+ * 组合都能脱离 DOM 断言；【交换】按钮固定叫「交换」，可点与否由状态决定。
  */
 
 /** 单卡分享的接口状态；非法 / 不存在的 slug 由接口直接回 404。 */
@@ -22,8 +22,11 @@ export interface ShareStatus {
   action: ShareStatusAction | null
 }
 
-/** 【交换】按钮的文案：按钮永远渲染，本期固定 disabled。 */
-export const SHARE_EXCHANGE_SOON = "交换功能即将开放"
+/** 【交换】按钮的文案：可点与否由页面按状态决定。 */
+export const SHARE_EXCHANGE_LABEL = "交换"
+
+/** 可以交换时状态区的一行（按钮自己承担动作，这里不再写「即将开放」）。 */
+export const SHARE_EXCHANGE_READY_MESSAGE = "选择你要给出的名片即可交换"
 
 /** 分享按钮上方的文案：`向你分享了 X 张名片`（X = 这次分享里可预览的名片张数）。 */
 export function shareCountDescription(count: number): string {
@@ -63,7 +66,7 @@ export function cardShareStatus({
   if (collected) {
     return { message: "你已经拥有这张名片", action: null }
   }
-  return { message: SHARE_EXCHANGE_SOON, action: null }
+  return { message: SHARE_EXCHANGE_READY_MESSAGE, action: null }
 }
 
 /**
@@ -83,5 +86,5 @@ export function quickShareStatus({
   if (!loggedIn) {
     return { message: LOGIN_REQUIRED_MESSAGE, action: LOGIN_ACTION }
   }
-  return { message: SHARE_EXCHANGE_SOON, action: null }
+  return { message: SHARE_EXCHANGE_READY_MESSAGE, action: null }
 }

@@ -654,6 +654,7 @@ test.describe("namecard claim workflow", () => {
           id: "legacy-envelope-1",
           kind: "legacy-card-match",
           cardNumber: 42,
+          exchangeId: null,
           title: "这张旧名片是您的吗？",
           body: "名片墙上有一张无主名片 #42，制作人名称是「认领测试制作人」。",
           readAt: null,

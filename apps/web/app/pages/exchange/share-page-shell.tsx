@@ -8,7 +8,19 @@ import { Button, buttonVariants } from "~/components/ui/button"
 import { accountAuthPath } from "~/pages/account/account-auth-return"
 import { NAMECARD_MANAGE_HREF } from "~/lib/namecards/share-links"
 
-import { SHARE_EXCHANGE_SOON, type ShareStatus } from "./share-status"
+import { SHARE_EXCHANGE_LABEL, type ShareStatus } from "./share-status"
+
+/**
+ * 分享页底部【交换】按钮的行为：可点时由页面接上选卡窗口，
+ * 不可点时 `disabled` + `title` 说明原因（登录 / 已拥有 / 不受理）。
+ */
+export interface ShareExchangeAction {
+  disabled?: boolean
+  /** 不可点的原因（tooltip）；可点时省略。 */
+  title?: string | undefined
+  /** 打开选卡窗口；不可点时不传。 */
+  onClick?: (() => void) | undefined
+}
 
 /**
  * 分享页顶部站点标识：独立页面没有站点头栏，这里补一个能回主页的 LOGO（2026-11-18 用户要求）。
@@ -36,6 +48,7 @@ export function SharePageShell({
   description,
   preview,
   status,
+  exchange,
   currentPath,
 }: {
   /** 分享人（名片持有者）的名字 */
@@ -46,6 +59,8 @@ export function SharePageShell({
   description: string
   preview: ReactNode
   status: ShareStatus
+  /** 底部【交换】按钮：页面决定能不能点、点了开什么。 */
+  exchange: ShareExchangeAction
   /** 本页路径：登录链接把它当 `returnTo`，登录后回到这里。 */
   currentPath: string
 }) {
@@ -68,10 +83,18 @@ export function SharePageShell({
           </div>
           <div className="space-y-2">
             {/*
-              【交换】本期不开放：按钮永远渲染、永远 disabled，写接口（/commit、/request）前端不调用。
+              【交换】按钮永远渲染：登录且这张分享可交换时点开选卡窗口，
+              其余状态（匿名 / 已拥有 / 不受理）保持 disabled 并用 title 说明原因。
             */}
-            <Button type="button" size="lg" className="w-full" disabled>
-              {SHARE_EXCHANGE_SOON}
+            <Button
+              type="button"
+              size="lg"
+              className="w-full"
+              disabled={exchange.disabled || !exchange.onClick}
+              title={exchange.title}
+              onClick={exchange.onClick}
+            >
+              {SHARE_EXCHANGE_LABEL}
             </Button>
             {/*
               状态行里普通文字与链接共用同一套字号 / 行高 / 基线（`items-baseline` + `text-sm/5`）：

@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router"
 
+import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
+import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { namecardPages } from "~/components/shared/namecard-pages"
-import { getQuickExchangePage, type NamecardQuickExchange } from "~/lib/api"
+import {
+  commitQuickExchange,
+  getQuickExchangePage,
+  type NamecardQuickExchange,
+} from "~/lib/api"
 import { quickSharePath, shareOwnerProfileHref } from "~/lib/namecards/share-links"
 
 import { CardCarousel, type CardCarouselSlide } from "./card-carousel"
@@ -33,6 +39,9 @@ export default function QuickSharePage() {
   const [share, setShare] = useState<NamecardQuickExchange | null>(null)
   const [missing, setMissing] = useState(false)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const exchange = useExchangeSubmit({ onSettled: () => setReload((n) => n + 1) })
 
   useEffect(() => {
     let active = true
@@ -54,7 +63,7 @@ export default function QuickSharePage() {
     return () => {
       active = false
     }
-  }, [handle])
+  }, [handle, reload])
 
   // 换 handle 时先说「还在加载」：上一位制作人的清单（或 404）等这一趟回来再换掉。
   if (loadedFor !== handle) return <SharePageSkeleton />
@@ -78,22 +87,54 @@ export default function QuickSharePage() {
     }
   })
 
+  // 清单为空、全部已拥有、匿名都不给提交；其余状态打开选卡窗口。
+  const exchangeReady = loggedIn && cards.length > 0 && !allCollected
+  const exchangeBlockedReason = allCollected
+    ? "你已经拥有这些名片"
+    : !loggedIn
+      ? "登录后才能交换"
+      : "这位制作人还没有可交换的名片"
+
   return (
-    <SharePageShell
-      displayName={share.displayName}
-      profileHref={shareOwnerProfileHref({ pageSlug: handle, uid: share.uid })}
-      description={shareCountDescription(share.cards.length)}
-      preview={
-        slides.length > 0 ? (
-          <CardCarousel slides={slides} />
-        ) : (
-          <div className="flex aspect-square items-center justify-center rounded-xl border border-dashed px-6 text-center text-sm text-muted-foreground">
-            这位制作人还没有可交换的名片。
-          </div>
-        )
-      }
-      status={quickShareStatus({ loggedIn, allCollected })}
-      currentPath={quickSharePath(handle)}
-    />
+    <>
+      <SharePageShell
+        displayName={share.displayName}
+        profileHref={shareOwnerProfileHref({ pageSlug: handle, uid: share.uid })}
+        description={shareCountDescription(share.cards.length)}
+        preview={
+          slides.length > 0 ? (
+            <CardCarousel slides={slides} />
+          ) : (
+            <div className="flex aspect-square items-center justify-center rounded-xl border border-dashed px-6 text-center text-sm text-muted-foreground">
+              这位制作人还没有可交换的名片。
+            </div>
+          )
+        }
+        status={quickShareStatus({ loggedIn, allCollected })}
+        exchange={
+          exchangeReady
+            ? {
+                disabled: exchange.submitting,
+                onClick: () => setPickerOpen(true),
+              }
+            : { disabled: true, title: exchangeBlockedReason }
+        }
+        currentPath={quickSharePath(handle)}
+      />
+      <ExchangeCardPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        target={share.accountId}
+        targetMissingCount={share.targetMissingCount}
+        onSubmit={(cardNumbers) => {
+          void exchange.submit((clientExchangeId) =>
+            commitQuickExchange(handle, {
+              clientExchangeId,
+              giveCardNumbers: cardNumbers,
+            })
+          )
+        }}
+      />
+    </>
   )
 }

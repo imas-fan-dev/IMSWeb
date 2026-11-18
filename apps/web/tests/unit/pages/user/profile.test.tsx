@@ -17,6 +17,7 @@ const apiMocks = vi.hoisted(() => ({
   getProfileCards: vi.fn(),
   getNamecardReactions: vi.fn(),
   getCardShareLink: vi.fn(),
+  requestCardExchange: vi.fn(),
   sendProfile: vi.fn(),
   sendCards: vi.fn(),
   sendReactions: vi.fn(),
@@ -35,8 +36,44 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getProfileCards: apiMocks.getProfileCards,
     getNamecardReactions: apiMocks.getNamecardReactions,
     getCardShareLink: apiMocks.getCardShareLink,
+    requestCardExchange: apiMocks.requestCardExchange,
   }
 })
+
+// 选卡窗口有自己的单测；主页只负责「传了哪个目标、确定后调了哪个端点」。
+vi.mock(
+  "~/components/community/exchange/exchange-card-picker-dialog",
+  () => ({
+    ExchangeCardPickerDialog: ({
+      open,
+      target,
+      targetCard,
+      onSubmit,
+      onOpenChange,
+    }: {
+      open: boolean
+      target?: string
+      targetCard?: number
+      onSubmit: (cardNumbers: number[]) => void
+      onOpenChange: (open: boolean) => void
+    }) =>
+      open ? (
+        <div role="dialog" aria-label="交换名片">
+          <span data-testid="picker-target">{target}</span>
+          <span data-testid="picker-target-card">{targetCard}</span>
+          <button
+            type="button"
+            onClick={() => {
+              onSubmit([202])
+              onOpenChange(false)
+            }}
+          >
+            确定
+          </button>
+        </div>
+      ) : null,
+  })
+)
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
   useOptionalPlatformSession: sessionMocks.useOptionalPlatformSession,
@@ -202,6 +239,14 @@ beforeEach(() => {
   }))
   apiMocks.getCardShareLink.mockReturnValue({ send: apiMocks.sendShareLink })
   apiMocks.sendShareLink.mockResolvedValue({ slug: "abcdefghijkl" })
+  apiMocks.requestCardExchange.mockResolvedValue({
+    exchangeId: "exchange-1",
+    status: "completed",
+    targetCardNumbers: [202],
+    initiatorCardNumbers: [202],
+    skipped: [],
+    targetMissingCount: 0,
+  })
 })
 
 describe("UserProfilePage", () => {
@@ -459,13 +504,13 @@ describe("UserProfilePage", () => {
     expect(within(fresh).queryByLabelText("已交换过这张名片")).toBeNull()
     expect(within(fresh).queryByText("已交换")).toBeNull()
 
-    // 交换按钮仍是占位禁用，只有禁用原因换成「已经拥有」。
-    const exchange = screen.getAllByRole("button", { name: "交换" })
+    // 匿名浏览：交换入口仍是 disabled，只是原因不同（已拥有 / 未登录）。
+    const exchange = screen.getAllByRole("button", { name: "交换名片" })
     expect(exchange).toHaveLength(2)
     expect(exchange[0]).toBeDisabled()
     expect(exchange[0]).toHaveAttribute("title", "你已经拥有这张名片")
     expect(exchange[1]).toBeDisabled()
-    expect(exchange[1]).toHaveAttribute("title", "暂未开放")
+    expect(exchange[1]).toHaveAttribute("title", "登录后才能交换")
   })
 
   it("keeps the owner's own tiles free of the visitor marker", async () => {
@@ -553,6 +598,58 @@ describe("UserProfilePage", () => {
     expect(screen.queryByRole("button", { name: "交换" })).toBeNull()
   })
 
+  it("lets a signed-in visitor open the picker from a tile and commit the request", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      ...anonymousSession(),
+      status: "authenticated",
+      session: { account: { id: "acct-9" } },
+    })
+    apiMocks.sendProfile.mockResolvedValue(profile({ accountId: "acct-2" }))
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [
+          card({
+            id: 202,
+            cardNumber: 202,
+            // 公开卡投影里 `claimerUid` 恒为 null：登录即可用，目标取页面的账号 ID。
+            claimerUid: null,
+            claimStatus: "claimed",
+          }),
+        ],
+        total: 1,
+        totalPage: 1,
+      })
+    )
+    renderProfile("acct-2")
+
+    const exchange = await screen.findByRole("button", { name: "交换名片" })
+    expect(exchange).toBeEnabled()
+    expect(exchange).not.toHaveAttribute("title")
+
+    await user.click(exchange)
+
+    const picker = screen.getByRole("dialog", { name: "交换名片" })
+    expect(within(picker).getByTestId("picker-target")).toHaveTextContent(
+      "acct-2"
+    )
+    // 主页知道账号 ID：只传 `target`，不传卡号。
+    expect(
+      within(picker).getByTestId("picker-target-card")
+    ).toBeEmptyDOMElement()
+
+    await user.click(within(picker).getByRole("button", { name: "确定" }))
+
+    const [cardNumber, body] = apiMocks.requestCardExchange.mock.calls[0] as [
+      number,
+      { clientExchangeId: string; giveCardNumbers: number[] },
+    ]
+    expect(cardNumber).toBe(202)
+    expect(body.giveCardNumbers).toEqual([202])
+    expect(body.clientExchangeId.length).toBeGreaterThanOrEqual(8)
+    expect(body.clientExchangeId.length).toBeLessThanOrEqual(64)
+  })
+
   it("offers a visitor disabled exchange buttons and empty-field copy", async () => {
     apiMocks.sendProfile.mockResolvedValue(
       profile({ avatarUrl: null, homeCity: null, bio: "", accounts: [] })
@@ -575,12 +672,14 @@ describe("UserProfilePage", () => {
     expect(screen.queryByRole("link", { name: "编辑资料" })).toBeNull()
     expect(screen.queryByText("平台账号")).toBeNull()
 
-    const exchange = await screen.findAllByRole("button", { name: "交换" })
+    const exchange = await screen.findAllByRole("button", {
+      name: "交换名片",
+    })
     expect(exchange).toHaveLength(2)
     expect(exchange[0]).toBeDisabled()
     expect(exchange[0]).toHaveAttribute("title", "这张名片不接受交换")
     expect(exchange[1]).toBeDisabled()
-    expect(exchange[1]).toHaveAttribute("title", "暂未开放")
+    expect(exchange[1]).toHaveAttribute("title", "登录后才能交换")
   })
 
   it("shows the empty-card copy when only the card request fails", async () => {

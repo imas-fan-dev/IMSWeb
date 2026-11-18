@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   CARD_SHARE_UNAVAILABLE_MESSAGE,
   QUICK_SHARE_MISSING_MESSAGE,
-  SHARE_EXCHANGE_SOON,
+  SHARE_EXCHANGE_LABEL,
+  SHARE_EXCHANGE_READY_MESSAGE,
   cardShareStatus,
   quickShareStatus,
 } from "~/pages/exchange/share-status"
@@ -46,14 +47,15 @@ describe("card share status", () => {
     ).toEqual({ message: "你已经拥有这张名片", action: null })
   })
 
-  it("falls back to the upcoming-exchange copy for everything else", () => {
+  it("tells the visitor how to start the exchange", () => {
     expect(
       cardShareStatus({ state: "available", loggedIn: true, collected: false })
-    ).toEqual({ message: SHARE_EXCHANGE_SOON, action: null })
+    ).toEqual({ message: SHARE_EXCHANGE_READY_MESSAGE, action: null })
   })
 
   it("exposes the fixed button copy and both error copies", () => {
-    expect(SHARE_EXCHANGE_SOON).toBe("交换功能即将开放")
+    expect(SHARE_EXCHANGE_LABEL).toBe("交换")
+    expect(SHARE_EXCHANGE_READY_MESSAGE).toBe("选择你要给出的名片即可交换")
     expect(CARD_SHARE_UNAVAILABLE_MESSAGE).toBe("这张名片当前不开放交换")
     expect(QUICK_SHARE_MISSING_MESSAGE).toBe("找不到这位制作人")
   })
@@ -66,9 +68,9 @@ describe("quick share status", () => {
     ).toBe("你已经拥有这些名片")
   })
 
-  it("keeps the upcoming copy when only some cards are owned", () => {
+  it("keeps the ready copy when only some cards are owned", () => {
     expect(quickShareStatus({ loggedIn: true, allCollected: false })).toEqual({
-      message: SHARE_EXCHANGE_SOON,
+      message: SHARE_EXCHANGE_READY_MESSAGE,
       action: null,
     })
   })

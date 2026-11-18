@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import type { ComponentProps } from "react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { Namecard } from "~/lib/api"
 import { NamecardDetailDialog } from "~/pages/community/components/namecard-detail-dialog"
@@ -9,6 +10,10 @@ import { renderPage } from "@/tests/unit/support/harness"
 
 const apiMocks = vi.hoisted(() => ({
   getCardShareLink: vi.fn(),
+}))
+
+const sessionMocks = vi.hoisted(() => ({
+  useOptionalPlatformSession: vi.fn(),
 }))
 
 vi.mock("~/lib/api", async (importOriginal) => {
@@ -24,15 +29,19 @@ vi.mock("~/lib/api", async (importOriginal) => {
 })
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
-  useOptionalPlatformSession: () => ({
-    status: "anonymous",
-    session: null,
+  useOptionalPlatformSession: sessionMocks.useOptionalPlatformSession,
+}))
+
+function session(status: "anonymous" | "authenticated") {
+  return {
+    status,
+    session: status === "authenticated" ? { account: { id: "acct-1" } } : null,
     error: null,
     acceptSession: vi.fn(),
     reload: vi.fn(),
     logout: vi.fn(),
-  }),
-}))
+  }
+}
 
 /** 别家已发布的卡：底栏只出现「交换」，属主分支不参与。 */
 function visitorCard(overrides: Partial<Namecard> = {}): Namecard {
@@ -42,12 +51,17 @@ function visitorCard(overrides: Partial<Namecard> = {}): Namecard {
     cardId: "card-42",
     hasOwner: true,
     claimStatus: "claimed",
+    claimerUid: 4242,
     ...overrides,
   })
 }
 
-function renderDialog(overrides: Partial<Namecard> = {}) {
-  return renderPage(
+function renderDialog(
+  overrides: Partial<Namecard> = {},
+  props: Partial<ComponentProps<typeof NamecardDetailDialog>> = {}
+) {
+  const onExchange = vi.fn()
+  const result = renderPage(
     <NamecardDetailDialog
       card={visitorCard(overrides)}
       canClaim={false}
@@ -57,27 +71,98 @@ function renderDialog(overrides: Partial<Namecard> = {}) {
       onOpenPreview={vi.fn()}
       onClaim={vi.fn()}
       onSupplement={vi.fn()}
+      onExchange={onExchange}
       onReact={vi.fn().mockResolvedValue(true)}
       onReturnFocus={vi.fn()}
+      {...props}
     />
   )
+  return { ...result, onExchange }
 }
 
+beforeEach(() => {
+  sessionMocks.useOptionalPlatformSession.mockReturnValue(session("anonymous"))
+})
+
 describe("NamecardDetailDialog", () => {
-  it("offers the placeholder exchange entry while the visitor owns nothing", async () => {
+  it("keeps the exchange entry disabled until the visitor signs in", async () => {
     renderDialog()
 
-    const exchange = await screen.findByRole("button", { name: "交换" })
+    const exchange = await screen.findByRole("button", { name: "交换名片" })
     expect(exchange).toBeDisabled()
-    expect(exchange).toHaveAttribute("title", "暂未开放")
+    expect(exchange).toHaveAttribute("title", "登录后才能交换")
   })
 
   it("names the reason when the visitor already owns the card", async () => {
+    sessionMocks.useOptionalPlatformSession.mockReturnValue(
+      session("authenticated")
+    )
     renderDialog({ collected: true })
 
-    const exchange = await screen.findByRole("button", { name: "交换" })
+    const exchange = await screen.findByRole("button", { name: "交换名片" })
     expect(exchange).toBeDisabled()
     expect(exchange).toHaveAttribute("title", "你已经拥有这张名片")
+  })
+
+  it("opens the exchange picker for a signed-in visitor", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue(
+      session("authenticated")
+    )
+    const { onExchange } = renderDialog()
+
+    const exchange = await screen.findByRole("button", { name: "交换名片" })
+    expect(exchange).toBeEnabled()
+    expect(exchange).not.toHaveAttribute("title")
+
+    await user.click(exchange)
+
+    // 没有页面级目标时退回卡上的 `claimerUid`（老调用方的兜底）。
+    expect(onExchange).toHaveBeenCalledWith(
+      expect.objectContaining({ cardNumber: 42 }),
+      { accountId: "4242" }
+    )
+  })
+
+  it("hands the page's account target down to the picker", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue(
+      session("authenticated")
+    )
+    const { onExchange } = renderDialog(
+      { claimerUid: null },
+      { exchangeTarget: "acct-2" }
+    )
+
+    const exchange = await screen.findByRole("button", { name: "交换名片" })
+    expect(exchange).toBeEnabled()
+    await user.click(exchange)
+
+    // 主页知道卡主账号：即使公开投影的 `claimerUid` 是 null 也能交换。
+    expect(onExchange).toHaveBeenCalledWith(
+      expect.objectContaining({ cardNumber: 42 }),
+      { accountId: "acct-2" }
+    )
+  })
+
+  it("hands the wall's card number down to the picker", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue(
+      session("authenticated")
+    )
+    const { onExchange } = renderDialog(
+      { cardNumber: 786, claimerUid: null },
+      { exchangeTargetCard: 786 }
+    )
+
+    const exchange = await screen.findByRole("button", { name: "交换名片" })
+    expect(exchange).toBeEnabled()
+    await user.click(exchange)
+
+    expect(onExchange).toHaveBeenCalledWith(
+      expect.objectContaining({ cardNumber: 786 }),
+      { cardNumber: 786 }
+    )
   })
 
   it("offers the owner a single card share panel loaded on demand", async () => {
@@ -105,7 +190,7 @@ describe("NamecardDetailDialog", () => {
   it("keeps the share entry out of a card the visitor only reads", async () => {
     renderDialog()
 
-    await screen.findByRole("button", { name: "交换" })
+    await screen.findByRole("button", { name: "交换名片" })
     expect(screen.queryByRole("button", { name: "分享" })).toBeNull()
     expect(apiMocks.getCardShareLink).not.toHaveBeenCalled()
   })

@@ -11,6 +11,8 @@ import { toast } from "sonner"
 
 import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
+import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
+import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
 import { WallInsightsPanel } from "./components/wall-insights-panel"
 import { NamecardSupplementDialog } from "~/components/community/namecard-supplement-dialog"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
@@ -61,6 +63,7 @@ import {
   getNamecardPage,
   getPublicCard,
   getNamecardReactions,
+  requestCardExchange,
 } from "~/lib/api"
 import type { Namecard, NamecardPage } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
@@ -245,6 +248,15 @@ export default function CommunityCardsPage() {
   )
   const { fallbackRef, remember, prepareRestore, restore } =
     useNamecardDetailReturn(searchParams.toString())
+  // 【交换】入口：页面层一个选卡窗口，详情窗只负责打开它（避免多层弹窗）。
+  const [exchangeRequest, setExchangeRequest] = useState<{
+    cardNumber: number
+    target?: string | undefined
+    targetCard?: number | undefined
+  } | null>(null)
+  const exchangeSubmit = useExchangeSubmit({
+    onSettled: () => setReload((n) => n + 1),
+  })
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
@@ -484,11 +496,13 @@ export default function CommunityCardsPage() {
         }}
         finalFocus={() => previewReturnTarget}
       />
+      {/* 公开墙只有卡号（投影里 `claimerUid` 恒为 null）：详情窗把卡号交给选卡窗口反查卡主。 */}
       <NamecardDetailDialog
         card={detail.card}
         canClaim={canClaim}
         initialSide={detailSide}
         busy={detail.card ? busyReactionCards.has(detail.card.id) : false}
+        exchangeTargetCard={detail.card?.cardNumber}
         reactions={
           detail.card
             ? (reactionsByCard[detail.card.id] ?? {
@@ -503,6 +517,15 @@ export default function CommunityCardsPage() {
         onOpenPreview={openPreview}
         onClaim={setClaimCard}
         onSupplement={setSupplementCard}
+        onExchange={(card, target) => {
+          // 选卡窗口盖在详情窗上会叠两层弹窗：先收起详情（含 ?card= 清参），再打开选卡。
+          closeDetail()
+          setExchangeRequest({
+            cardNumber: card.cardNumber,
+            target: "accountId" in target ? target.accountId : undefined,
+            targetCard: "cardNumber" in target ? target.cardNumber : undefined,
+          })
+        }}
         dismissible={claimCard === null && supplementCard === null}
         onReact={(emoji) =>
           detail.card
@@ -510,6 +533,25 @@ export default function CommunityCardsPage() {
             : Promise.resolve(false)
         }
         onReturnFocus={restore}
+      />
+      {/* 详情窗的【交换】落点：一页一个选卡窗口，成功后用 reload 重取列表与逐卡标记。 */}
+      <ExchangeCardPickerDialog
+        open={exchangeRequest !== null}
+        onOpenChange={(open) => {
+          if (!open) setExchangeRequest(null)
+        }}
+        target={exchangeRequest?.target}
+        targetCard={exchangeRequest?.targetCard}
+        onSubmit={(cardNumbers) => {
+          const request = exchangeRequest
+          if (!request) return
+          void exchangeSubmit.submit((clientExchangeId) =>
+            requestCardExchange(request.cardNumber, {
+              clientExchangeId,
+              giveCardNumbers: cardNumbers,
+            })
+          )
+        }}
       />
       <NamecardSupplementDialog
         key={`supplement:${supplementCard?.id ?? "none"}`}

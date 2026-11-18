@@ -67,7 +67,11 @@ import type {
   FudabaAdminCardClaim,
   FudabaRegisteredCardReview,
 } from "@imsweb/contracts/fudaba/card-claims"
-import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
+import type {
+  Namecard,
+  NamecardPage,
+  NamecardQuickSettings,
+} from "@imsweb/contracts/namecards"
 import type {
   PlatformProfileMutationResponse,
   PlatformProfileResponse,
@@ -456,6 +460,19 @@ export function normalizeNamecard(card: Namecard): Namecard {
 
 export function normalizeNamecardPage(page: NamecardPage): NamecardPage {
   return { ...page, list: page.list.map(namecard) }
+}
+
+/** 选卡窗口的候选与分享页同口径：逐卡归一页面地址，App 目标才点得开。 */
+export function normalizeNamecardQuickSettings(
+  settings: NamecardQuickSettings
+): NamecardQuickSettings {
+  return {
+    ...settings,
+    cards: settings.cards.map((card) => ({
+      ...card,
+      pages: cardPages(card.pages),
+    })),
+  }
 }
 
 /* -------------------------------------------------------------------------- */

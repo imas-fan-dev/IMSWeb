@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router"
 
+import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
+import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { namecardPages } from "~/components/shared/namecard-pages"
 import {
+  commitCardShare,
   getCardSharePage,
   type NamecardCardShare,
 } from "~/lib/api"
@@ -37,6 +40,9 @@ export default function CardSharePage() {
   const [share, setShare] = useState<NamecardCardShare | null>(null)
   const [missing, setMissing] = useState(false)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const exchange = useExchangeSubmit({ onSettled: () => setReload((n) => n + 1) })
 
   useEffect(() => {
     let active = true
@@ -58,7 +64,7 @@ export default function CardSharePage() {
     return () => {
       active = false
     }
-  }, [slug])
+  }, [slug, reload])
 
   // 换 slug 时先说「还在加载」：上一张卡的数据（或 404）等这一趟回来再换掉。
   if (loadedFor !== slug) return <SharePageSkeleton />
@@ -77,14 +83,49 @@ export default function CardSharePage() {
     badge: collected ? "已拥有" : null,
   }))
 
+  // 只有「这张还能交换 + 已登录 + 还没拥有」才可点；其余保持 disabled，用 title 说明原因。
+  const exchangeReady = share.state === "available" && loggedIn && !collected
+  const exchangeBlockedReason =
+    share.state === "own-card"
+      ? "这是你自己的名片"
+      : share.state === "not-accepting"
+        ? "这张名片不接受交换"
+        : !loggedIn
+          ? "登录后才能交换"
+          : "你已经拥有这张名片"
+
   return (
-    <SharePageShell
-      displayName={share.owner.displayName}
-      profileHref={shareOwnerProfileHref(share.owner)}
-      description={shareCountDescription(1)}
-      preview={<CardCarousel slides={slides} />}
-      status={cardShareStatus({ state: share.state, loggedIn, collected })}
-      currentPath={cardSharePath(slug)}
-    />
+    <>
+      <SharePageShell
+        displayName={share.owner.displayName}
+        profileHref={shareOwnerProfileHref(share.owner)}
+        description={shareCountDescription(1)}
+        preview={<CardCarousel slides={slides} />}
+        status={cardShareStatus({ state: share.state, loggedIn, collected })}
+        exchange={
+          exchangeReady
+            ? {
+                disabled: exchange.submitting,
+                onClick: () => setPickerOpen(true),
+              }
+            : { disabled: true, title: exchangeBlockedReason }
+        }
+        currentPath={cardSharePath(slug)}
+      />
+      <ExchangeCardPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        target={share.owner.accountId}
+        targetMissingCount={share.targetMissingCount}
+        onSubmit={(cardNumbers) => {
+          void exchange.submit((clientExchangeId) =>
+            commitCardShare(slug, {
+              clientExchangeId,
+              giveCardNumbers: cardNumbers,
+            })
+          )
+        }}
+      />
+    </>
   )
 }

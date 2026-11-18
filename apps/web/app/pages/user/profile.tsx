@@ -14,6 +14,8 @@ import {
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
+import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
+import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
 import { CardImage } from "~/components/shared/card-image"
 import { namecardPages } from "~/components/shared/namecard-pages"
 import { NamecardPreview } from "~/components/shared/namecard-preview"
@@ -30,6 +32,7 @@ import {
   getNamecardReactions,
   getProfileCards,
   getPublicProfile,
+  requestCardExchange,
 } from "~/lib/api"
 import { toast } from "sonner"
 import { PlatformAccountList } from "~/components/profile/platform-account-list"
@@ -101,6 +104,26 @@ function profileCardSections(
 }
 
 /**
+ * 瓦片上【交换】按钮不能点的原因；`null` 表示可以点开选卡窗口。
+ *
+ * 未登录先引导登录；已拥有 / `none`（仅展示）沿用父任务 §4.3 的两种文案；
+ * 公开卡投影里没有认领账号（没有 owner）时退回「暂时无法交换」。
+ *
+ * 不再要求 `claimerUid`：属主卡走新属主流，公开投影里这个字段恒为 null，
+ * 目标改用页面已知的 `profile.accountId`。
+ */
+function profileCardExchangeBlockedReason(
+  card: NamecardRecord,
+  { loggedIn }: { loggedIn: boolean }
+): string | null {
+  if (card.collected) return "你已经拥有这张名片"
+  if (card.exchangeMode === "none") return "这张名片不接受交换"
+  if (!loggedIn) return "登录后才能交换"
+  if (!card.hasOwner) return "暂时无法交换"
+  return null
+}
+
+/**
  * 主页瓦片：1:1 缩略图容器 + 制作日期，样式与「名片管理」的瓦片一致。
  *
  * 公开主页不出现属主视角的任何徽标（隐藏、快速交换、审核状态）；只有存在中间页
@@ -112,14 +135,19 @@ function ProfileCardTile({
   card,
   isSelf,
   shareBusy,
+  exchangeBlockedReason,
   onShare,
+  onExchange,
   onOpen,
 }: {
   card: NamecardRecord
   isSelf: boolean
   /** 这张卡的分享链接正在取（禁用按钮，避免连点）。 */
   shareBusy: boolean
+  /** `null` = 可以点开选卡窗口；否则是 disabled 的原因。 */
+  exchangeBlockedReason: string | null
   onShare: (cardNumber: number) => void
+  onExchange: (cardNumber: number) => void
   onOpen: (card: NamecardRecord, trigger: HTMLButtonElement) => void
 }) {
   const cover = namecardPages(card)[0]?.thumb ?? ""
@@ -172,17 +200,14 @@ function ProfileCardTile({
           type="button"
           size="sm"
           className="ml-auto shrink-0"
-          disabled={isSelf ? shareBusy : true}
-          title={
+          aria-label={isSelf ? undefined : "交换名片"}
+          disabled={isSelf ? shareBusy : exchangeBlockedReason !== null}
+          title={isSelf ? undefined : (exchangeBlockedReason ?? undefined)}
+          onClick={
             isSelf
-              ? undefined
-              : card.collected
-                ? "你已经拥有这张名片"
-                : card.exchangeMode === "none"
-                  ? "这张名片不接受交换"
-                  : "暂未开放"
+              ? () => onShare(card.cardNumber)
+              : () => onExchange(card.cardNumber)
           }
-          onClick={isSelf ? () => onShare(card.cardNumber) : undefined}
         >
           {isSelf ? (
             <ShareIcon aria-hidden="true" />
@@ -212,6 +237,16 @@ export default function UserProfilePage() {
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const [busyReaction, setBusyReaction] = useState(false)
   const share = useCardShareDialog()
+  // 交换入口：名片墙 / 主页共用「一页一个选卡窗口」，瓦片与详情窗都只是打开它。
+  const [reload, setReload] = useState(0)
+  const [exchangeRequest, setExchangeRequest] = useState<{
+    cardNumber: number
+    target?: string | undefined
+    targetCard?: number | undefined
+  } | null>(null)
+  const exchange = useExchangeSubmit({
+    onSettled: () => setReload((n) => n + 1),
+  })
   const previewReturnRef = useRef<HTMLButtonElement | null>(null)
   const [reactions, setReactions] = useState<
     Record<number, Record<string, number>>
@@ -239,7 +274,7 @@ export default function UserProfilePage() {
     return () => {
       active = false
     }
-  }, [accountId])
+  }, [accountId, reload])
 
   const owned = useMemo(() => cards?.list ?? [], [cards])
   // 分组顺序取自第一页响应（全量卡片都在 `list` 里，分组不会跨页）。
@@ -252,6 +287,8 @@ export default function UserProfilePage() {
     platform.status === "authenticated" &&
     profile !== null &&
     platform.session?.account.id === profile.accountId
+  const exchangeLoggedIn =
+    platform.status === "authenticated" || platform.status === "restricted"
 
   async function reactTo(cardId: number, emoji: string) {
     if (busyReaction) return false
@@ -406,7 +443,16 @@ export default function UserProfilePage() {
                   card={card}
                   isSelf={isSelf}
                   shareBusy={share.busyCardNumber === card.cardNumber}
+                  exchangeBlockedReason={profileCardExchangeBlockedReason(card, {
+                    loggedIn: exchangeLoggedIn,
+                  })}
                   onShare={(cardNumber) => void share.requestShare(cardNumber)}
+                  onExchange={(cardNumber) =>
+                    setExchangeRequest({
+                      cardNumber,
+                      target: profile?.accountId,
+                    })
+                  }
                   onOpen={(next, trigger) => {
                     returnFocusRef.current = trigger
                     setOpenCard(next)
@@ -461,6 +507,7 @@ export default function UserProfilePage() {
           loading: Boolean(openCard && !reactions[openCard.id]),
         }}
         busy={busyReaction}
+        exchangeTarget={profile?.accountId}
         onOpenChange={(open) => {
           if (!open) setOpenCard(null)
         }}
@@ -470,11 +517,39 @@ export default function UserProfilePage() {
         }}
         onClaim={() => undefined}
         onSupplement={() => undefined}
+        onExchange={(card, target) => {
+          // 选卡窗口盖在详情窗上会叠两层弹窗：先收起详情，再打开选卡。
+          setOpenCard(null)
+          setExchangeRequest({
+            cardNumber: card.cardNumber,
+            target: "accountId" in target ? target.accountId : undefined,
+            targetCard: "cardNumber" in target ? target.cardNumber : undefined,
+          })
+        }}
         onReact={(emoji) =>
           openCard ? reactTo(openCard.id, emoji) : Promise.resolve(false)
         }
         onReturnFocus={() => {
           returnFocusRef.current?.focus()
+        }}
+      />
+      {/* 瓦片与详情窗共用的选卡窗口：一页一个实例，目标 = 这位制作人的账号。 */}
+      <ExchangeCardPickerDialog
+        open={exchangeRequest !== null}
+        onOpenChange={(open) => {
+          if (!open) setExchangeRequest(null)
+        }}
+        target={exchangeRequest?.target}
+        targetCard={exchangeRequest?.targetCard}
+        onSubmit={(cardNumbers) => {
+          const request = exchangeRequest
+          if (!request) return
+          void exchange.submit((clientExchangeId) =>
+            requestCardExchange(request.cardNumber, {
+              clientExchangeId,
+              giveCardNumbers: cardNumbers,
+            })
+          )
         }}
       />
       {/* 属主视角的单卡分享：点瓦片上的【分享】懒加载 slug 后才挂载。 */}
