@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Skeleton } from "~/components/ui/skeleton"
+import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { PageShell } from "~/components/shared/page-shell"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { accountAuthPath } from "~/pages/account/account-auth-return"
@@ -9,7 +10,26 @@ import { NAMECARD_MANAGE_HREF } from "~/lib/namecards/share-links"
 
 import { SHARE_EXCHANGE_SOON, type ShareStatus } from "./share-status"
 
-/** 分享页的公共外壳：桌面左右两栏（左预览、右信息），窄屏上下堆叠。 */
+/**
+ * 分享页顶部站点标识：独立页面没有站点头栏，这里补一个能回主页的 LOGO（2026-11-18 用户要求）。
+ * 图片是装饰性的，可访问名交给链接自己。
+ */
+function SharePageBrand() {
+  return (
+    <NavigationLink
+      to="/"
+      aria-label="回到 IMSWeb 首页"
+      className="rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <BrandWordmark className="h-10 sm:h-12" alt="" />
+    </NavigationLink>
+  )
+}
+
+/**
+ * 分享页的公共外壳（2026-11-18 用户调整）：上下一栏、水平居中、在视口里垂直居中；
+ * 用 `min-h-dvh` 而不是定高，内容比视口高时整页正常滚动、不会把顶部裁掉。
+ */
 export function SharePageShell({
   displayName,
   profileHref,
@@ -18,11 +38,11 @@ export function SharePageShell({
   status,
   currentPath,
 }: {
-  /** 分享人（名片持有者）的名字。 */
+  /** 分享人（名片持有者）的名字 */
   displayName: string
-  /** 分享人的公开主页（`/user/<pageSlug||uid>`）。 */
+  /** 分享人的公开主页（`/user/<pageSlug||uid>`） */
   profileHref: string
-  /** 一句话说明这份分享，如「分享了这张名片」。 */
+  /** 一句话说明这份分享，如「向你分享了 1 张名片」 */
   description: string
   preview: ReactNode
   status: ShareStatus
@@ -30,10 +50,14 @@ export function SharePageShell({
   currentPath: string
 }) {
   return (
-    <PageShell width="read" className="py-8 sm:py-10">
-      <section className="mx-auto flex w-full max-w-sm flex-col gap-5">
-        <div className="min-w-0">{preview}</div>
-        <aside className="space-y-4">
+    <PageShell
+      width="read"
+      className="flex min-h-dvh flex-col justify-center py-10 sm:py-14"
+    >
+      <section className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 sm:max-w-md">
+        <SharePageBrand />
+        <div className="w-full min-w-0">{preview}</div>
+        <aside className="w-full space-y-4">
           <div className="space-y-1 text-center">
             <h1 className="text-lg font-semibold">
               <NavigationLink to={profileHref} className="hover:underline">
@@ -50,8 +74,8 @@ export function SharePageShell({
               {SHARE_EXCHANGE_SOON}
             </Button>
             {/*
-              状态行里普通文字与链接共用同一套字号 / 行高 / 基线（`items-baseline` + `text-sm leading-5`）：
-              连接不再是 `buttonVariants` 的按钮外观，避免两者高度与基线对不齐。
+              状态行里普通文字与链接共用同一套字号 / 行高 / 基线（`items-baseline` + `text-sm/5`）：
+              链接不再是 `buttonVariants` 的按钮外观，避免两者高度与基线对不齐。
             */}
             <p className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 text-sm/5">
               <span className="text-muted-foreground">{status.message}</span>
@@ -78,27 +102,37 @@ export function SharePageShell({
 /** 整页错误态：单卡「这张名片当前不开放交换」/ 快速清单「找不到这位制作人」。 */
 export function SharePageError({ message }: { message: string }) {
   return (
-    <PageShell width="wide" className="py-10">
-      <section className="mx-auto flex max-w-lg flex-col items-center gap-4 rounded-2xl border bg-card px-6 py-12 text-center">
-        <h1 className="text-xl font-semibold">{message}</h1>
-        <NavigationLink
-          to="/community/cards"
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          去名片墙看看
-        </NavigationLink>
+    <PageShell
+      width="read"
+      className="flex min-h-dvh flex-col justify-center py-10"
+    >
+      <section className="mx-auto flex w-full max-w-sm flex-col items-center gap-5">
+        <SharePageBrand />
+        <div className="flex w-full flex-col items-center gap-4 rounded-2xl border bg-card px-6 py-12 text-center">
+          <h1 className="text-xl font-semibold">{message}</h1>
+          <NavigationLink
+            to="/community/cards"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            去名片墙看看
+          </NavigationLink>
+        </div>
       </section>
     </PageShell>
   )
 }
 
-/** 取数期间的外壳骨架：布局与真页面一致，避免数据回来时跳一下。 */
+/** 取数期间的外壳骨架：布局与真页面一致（LOGO + 1:1 预览 + 信息块），避免数据回来时跳一下。 */
 export function SharePageSkeleton() {
   return (
-    <PageShell width="wide" className="py-6 sm:py-8">
-      <section className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <PageShell
+      width="read"
+      className="flex min-h-dvh flex-col justify-center py-10 sm:py-14"
+    >
+      <section className="mx-auto flex w-full max-w-sm flex-col items-center gap-5 sm:max-w-md">
+        <Skeleton className="h-10 w-36 sm:h-12 sm:w-44" />
         <Skeleton className="aspect-square w-full rounded-xl" />
-        <div className="space-y-3">
+        <div className="flex w-full flex-col items-center gap-3">
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-9 w-full" />

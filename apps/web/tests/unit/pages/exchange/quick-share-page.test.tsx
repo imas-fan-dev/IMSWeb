@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { NamecardQuickExchange } from "~/lib/api"
@@ -109,10 +109,14 @@ describe("QuickSharePage", () => {
     renderShare()
 
     expect(await screen.findByText("你已经拥有这些名片")).toBeTruthy()
-    // 轨道挂载当前页 ±1：两张卡都在，各自带自己的角标；切到第二张也一样。
-    expect(screen.getAllByText("已拥有")).toHaveLength(2)
+    // 轨道首尾有克隆格，所以按「当前这一格」断言角标，而不是全页数个数。
+    const activeBadges = () =>
+      within(document.querySelector('[data-active="true"]') as HTMLElement)
+        .queryAllByText("已拥有")
+        .length
+    expect(activeBadges()).toBe(1)
     fireEvent.click(screen.getByRole("button", { name: "下一张" }))
-    expect(screen.getAllByText("已拥有")).toHaveLength(2)
+    expect(activeBadges()).toBe(1)
     expect(screen.getByText("2/2")).toBeTruthy()
     expect(screen.queryByRole("link", { name: "去登录" })).toBeNull()
   })

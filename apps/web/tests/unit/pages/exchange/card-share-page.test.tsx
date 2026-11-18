@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { NamecardCardShare } from "~/lib/api"
@@ -109,8 +109,12 @@ describe("CardSharePage", () => {
     renderShare()
 
     expect(await screen.findByText("你已经拥有这张名片")).toBeTruthy()
-    // 轨道挂载当前页 ±1，这张卡正/背面各一页：两页都带「已拥有」。
-    expect(screen.getAllByText("已拥有")).toHaveLength(2)
+    // 轨道首尾有克隆格，所以按「当前这一格」断言角标，而不是全页数个数。
+    expect(
+      within(document.querySelector('[data-active="true"]') as HTMLElement)
+        .queryAllByText("已拥有")
+        .length
+    ).toBe(1)
     expect(screen.queryByRole("link", { name: "去登录" })).toBeNull()
   })
 
