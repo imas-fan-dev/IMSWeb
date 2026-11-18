@@ -127,18 +127,6 @@ async function installManagerMocks(
   await dispatcher.mock(
     {
       method: "GET",
-      path: "/api/community/exchange/me/favorites",
-      times: { min: 0, max: 12 },
-    },
-    (route) =>
-      route.fulfill({
-        json: { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-        headers: corsHeaders,
-      })
-  )
-  await dispatcher.mock(
-    {
-      method: "GET",
       path: "/api/community/exchange/characters",
       times: { min: 0, max: 2 },
     },

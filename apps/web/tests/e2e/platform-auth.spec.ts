@@ -55,17 +55,6 @@ async function mockOwnerWorkspace() {
     "GET"
   )
   await api.mockRoute(
-    "/api/community/exchange/me/favorites",
-    (route) =>
-      route.fulfill({
-        json: {
-          items: [],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      }),
-    "GET"
-  )
-  await api.mockRoute(
     "/api/community/exchange/me/offices",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET"

@@ -181,10 +181,6 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
     ["/api/community/exchange/me/series", { items: [] }],
     ["/api/community/exchange/me/offices", { items: [] }],
     [
-      "/api/community/exchange/me/favorites",
-      { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-    ],
-    [
       "/api/wiki/catalog",
       { status: "success", agencies: [], searchEntries: [], selection: null },
     ],

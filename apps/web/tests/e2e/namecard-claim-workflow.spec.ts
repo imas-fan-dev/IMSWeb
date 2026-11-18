@@ -1,4 +1,3 @@
-import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { api, expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
@@ -713,17 +712,6 @@ test.describe("namecard claim workflow", () => {
         },
         "POST",
         { min: 0, max: 12 }
-      )
-      await api.mockRoute(
-        "**/api/community/exchange/me/favorites?**",
-        async (route) => {
-          const response = {
-            items: [],
-            pageInfo: { hasNextPage: false, nextCursor: null },
-          } satisfies FudabaCardPage
-          await route.fulfill({ status: 200, json: response })
-        },
-        "GET"
       )
       await api.mockRoute(
         "**/api/cards**",

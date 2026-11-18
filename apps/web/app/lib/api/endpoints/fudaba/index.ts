@@ -590,18 +590,6 @@ export type FudabaCardInteractionKind = z.infer<
   typeof fudabaCardInteractionKindSchema
 >
 
-export function getFudabaFavoriteCardPage(input: FudabaCardPageRequest = {}) {
-  return platformApiClient.Get(
-    withQuery(exchangePath("/me/favorites"), cardPageParams(input)),
-    parsed(fudabaCardPageSchema, {
-      errorSchema: fudabaErrorResponseSchema,
-      businessErrorSchema: fudabaErrorResponseSchema,
-      meta: withPlatformAuth(),
-      select: normalizeFudabaCardPage,
-    })
-  )
-}
-
 export function setFudabaCardInteraction(
   cardId: string,
   kind: FudabaCardInteractionKind,

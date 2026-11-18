@@ -453,20 +453,6 @@ test.describe("app navigation", () => {
       },
       (route) => route.fulfill({ json: makeCharacterCatalog() })
     )
-    api.mock(
-      {
-        method: "GET",
-        path: "/api/community/exchange/me/favorites",
-        times: { min: 0, max: 4 },
-      },
-      (route) =>
-        route.fulfill({
-          json: {
-            items: [],
-            pageInfo: { hasNextPage: false, nextCursor: null },
-          },
-        })
-    )
   }
 
   async function setAccountSessionHint(page: Page) {

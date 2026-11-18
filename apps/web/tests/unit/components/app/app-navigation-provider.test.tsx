@@ -731,6 +731,6 @@ describe("App navigation coordination", () => {
     await user.click(screen.getByRole("button", { name: "社区" }))
     await user.click(screen.getByRole("button", { name: "我的" }))
     expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
-    expect(screen.getByTestId("location")).not.toHaveTextContent("favorites")
+    expect(screen.getByTestId("location")).not.toHaveTextContent("collection")
   })
 })

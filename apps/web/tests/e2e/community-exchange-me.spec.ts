@@ -1,8 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import type {
-  FudabaCardPage,
-  FudabaOwnerOffice,
-} from "@imsweb/contracts/fudaba"
+import type { FudabaOwnerOffice } from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
@@ -341,18 +338,6 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
       await route.fulfill({ json: makeCharacterCatalog() })
     },
     "GET"
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/me/favorites?**",
-    async (route) => {
-      const response = {
-        items: [],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      } satisfies FudabaCardPage
-      await route.fulfill({ status: 200, json: response })
-    },
-    "GET",
-    { min: 1, max: workspaceReads }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards",

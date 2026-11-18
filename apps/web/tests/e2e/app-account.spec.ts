@@ -163,23 +163,6 @@ async function installAccountMocks(
   await api.mock(
     {
       method: "GET",
-      path: "/api/community/exchange/me/favorites",
-      times: { min: 0, max: 12 },
-    },
-    async (route) => {
-      await fulfillJson(
-        route,
-        {
-          ...emptyItems,
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-        corsHeaders
-      )
-    }
-  )
-  await api.mock(
-    {
-      method: "GET",
       path: "/api/wiki/catalog",
       times: { min: 0, max: 12 },
     },
