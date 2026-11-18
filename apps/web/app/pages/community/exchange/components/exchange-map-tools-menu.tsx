@@ -2,7 +2,6 @@ import { Menu } from "@base-ui/react/menu"
 import {
   Building2Icon,
   CheckIcon,
-  ContactRoundIcon,
   InfoIcon,
   MoreHorizontalIcon,
   MapPinPlusIcon,
@@ -33,7 +32,6 @@ interface ExchangeMapToolsMenuProps {
   side?: "top" | "bottom"
   onOpenFilter: () => void
   onOpenOffices: () => void
-  onOpenCards: () => void
   onOpenAttribution?: (trigger: HTMLElement) => void
 }
 
@@ -57,7 +55,6 @@ export function ExchangeMapToolsMenu({
   side = "top",
   onOpenFilter,
   onOpenOffices,
-  onOpenCards,
   onOpenAttribution,
 }: ExchangeMapToolsMenuProps) {
   const ownTrigger = useRef<HTMLButtonElement>(null)
@@ -184,14 +181,6 @@ export function ExchangeMapToolsMenu({
             >
               <Building2Icon aria-hidden="true" />
               事务所
-            </Menu.Item>
-            <Menu.Item
-              className={itemClass}
-              aria-label="打开名片名录"
-              onClick={() => openTool(onOpenCards)}
-            >
-              <ContactRoundIcon aria-hidden="true" />
-              名片
             </Menu.Item>
             <div aria-hidden="true" className="mx-3 my-2 border-t" />
             {actions ? (

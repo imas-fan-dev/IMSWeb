@@ -44,7 +44,6 @@ function Harness({
         modalOpen={modalOpen}
         onOpenFilter={() => undefined}
         onOpenOffices={() => undefined}
-        onOpenCards={() => undefined}
         onRefresh={() => undefined}
       />
     </div>

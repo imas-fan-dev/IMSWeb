@@ -10,7 +10,6 @@ import { useExchangePlaceSearch } from "~/pages/community/exchange/hooks/use-exc
 const mocks = vi.hoisted(() => ({
   series: vi.fn(),
   offices: vi.fn(),
-  cards: vi.fn(),
   officeRequest: vi.fn(),
   cardRequest: vi.fn(),
 }))
@@ -22,10 +21,7 @@ vi.mock("~/lib/api", async (original) => ({
     mocks.officeRequest(params)
     return { send: mocks.offices }
   },
-  getFudabaCardPage: (params: unknown) => {
-    mocks.cardRequest(params)
-    return { send: mocks.cards }
-  },
+  getFudabaCardPage: mocks.cardRequest,
 }))
 vi.mock(
   "~/pages/community/exchange/components/community-exchange-map-section",
@@ -52,7 +48,6 @@ vi.mock(
           />
           <button onClick={searchTools.onOpenFilter}>筛选</button>
           <button onClick={searchTools.onOpenOffices}>事务所</button>
-          <button onClick={searchTools.onOpenCards}>名片</button>
           <button
             onClick={() => onSearchAttributionChange(["© Search contributors"])}
           >
@@ -74,10 +69,6 @@ describe("CommunityExchangePage App search tools", () => {
     vi.clearAllMocks()
     mocks.series.mockResolvedValue({ items: [] })
     mocks.offices.mockResolvedValue({
-      items: [],
-      pageInfo: { hasNextPage: false, nextCursor: null },
-    })
-    mocks.cards.mockResolvedValue({
       items: [],
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
@@ -143,7 +134,7 @@ describe("CommunityExchangePage App search tools", () => {
     )
   })
 
-  it("refreshes only directories through the shared search tools and omits a tab-root back control", async () => {
+  it("refreshes only office discovery through the shared search tools and omits a tab-root back control", async () => {
     const user = userEvent.setup()
     renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
     const refresh = await screen.findByRole("button", { name: "刷新名录" })
@@ -152,18 +143,13 @@ describe("CommunityExchangePage App search tools", () => {
     await user.click(refresh)
     await waitFor(() => expect(mocks.series).toHaveBeenCalledTimes(2))
     expect(mocks.offices).toHaveBeenCalledTimes(2)
-    expect(mocks.cards).toHaveBeenCalledTimes(2)
     expect(mocks.officeRequest).toHaveBeenLastCalledWith({
       city: undefined,
       series: undefined,
       open: undefined,
       limit: 12,
     })
-    expect(mocks.cardRequest).toHaveBeenLastCalledWith({
-      series: undefined,
-      available: true,
-      limit: 8,
-    })
+    expect(mocks.cardRequest).not.toHaveBeenCalled()
     expect(
       screen.queryByRole("region", { name: "地图工具" })
     ).not.toBeInTheDocument()

@@ -32,7 +32,6 @@ function Harness() {
         onOpenAttribution={() => setModalOpen(true)}
         onOpenFilter={() => setModalOpen(true)}
         onOpenOffices={() => undefined}
-        onOpenCards={() => undefined}
         onRefresh={() => undefined}
       />
       <button onClick={() => setModalOpen(false)}>关闭来源测试面板</button>

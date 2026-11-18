@@ -98,7 +98,6 @@ const publicRoutes: Array<{
       { path: "/api/wiki/catalog", times: 1 },
       { path: "/api/community/exchange/series", times: 1 },
       { path: "/api/community/exchange/offices", times: 1 },
-      { path: "/api/community/exchange/cards", times: 1 },
       { path: "/api/community/exchange/map/config", times: 1 },
       {
         path: "/api/community/exchange/map/offices",

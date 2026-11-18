@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 import {
-  fudabaCardPageSchema,
-  fudabaCardQuerySchema,
   fudabaErrorResponseSchema,
   fudabaMapConfigSchema,
   fudabaMapOfficeListSchema,
@@ -101,15 +99,6 @@ function installMapMocks(
     path: "/api/community/exchange/offices",
     query: fudabaOfficeQuerySchema,
     responses: { 200: fudabaOfficePageSchema },
-    times: { min: 1, max: 4 },
-    handle: () => ({ status: 200, json: emptyPage }),
-  })
-  api.expect({
-    name: "attribution exchange cards",
-    method: "GET",
-    path: "/api/community/exchange/cards",
-    query: fudabaCardQuerySchema,
-    responses: { 200: fudabaCardPageSchema },
     times: { min: 1, max: 4 },
     handle: () => ({ status: 200, json: emptyPage }),
   })
@@ -689,25 +678,24 @@ test.describe("community exchange map attribution", () => {
       await expect(more).toHaveAccessibleDescription("已应用筛选")
       await expect(page.getByRole("menuitem")).toHaveCount(0)
       await page.screenshot({ path: testInfo.outputPath("compact-tools.png") })
-      for (const [entry, title, tab] of [
-        ["打开筛选，已应用筛选", "筛选地图", null],
-        ["打开事务所名录", "公开交换名录", "事务所"],
-        ["打开名片名录", "公开交换名录", "名片"],
+      for (const [entry, title, kind] of [
+        ["打开筛选，已应用筛选", "筛选地图", "filter"],
+        ["打开事务所名录", "公开交换名录", "offices"],
       ] as const) {
         await more.click()
         const menu = page.getByRole("menu", { name: "更多地图工具内容" })
         await expect(menu).toBeInViewport()
         await page.screenshot({
-          path: testInfo.outputPath(`menu-${tab ?? "filter"}.png`),
+          path: testInfo.outputPath(`menu-${kind}.png`),
         })
         await menu.getByRole("menuitem", { name: entry }).click()
         const dialog = page.getByRole("dialog", { name: title })
         await expect(dialog).toBeVisible()
-        if (tab)
+        if (kind === "offices") {
           await expect(
-            dialog.getByRole("tab", { name: tab, exact: true })
-          ).toHaveAttribute("aria-selected", "true")
-        else {
+            dialog.getByRole("heading", { name: "公开事务所" })
+          ).toBeVisible()
+        } else {
           await expect(
             dialog.getByRole("checkbox", { name: "仅看开放事务所" })
           ).toBeChecked()

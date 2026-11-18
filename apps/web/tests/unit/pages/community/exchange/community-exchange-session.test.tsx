@@ -10,7 +10,6 @@ const apiMocks = vi.hoisted(() => ({
   getFudabaCardPage: vi.fn(),
   sendSeries: vi.fn(),
   sendOffices: vi.fn(),
-  sendCards: vi.fn(),
 }))
 
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
@@ -47,13 +46,8 @@ describe("CommunityExchangePage App filter memory", () => {
     window.sessionStorage.clear()
     apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOfficePage.mockReturnValue({ send: apiMocks.sendOffices })
-    apiMocks.getFudabaCardPage.mockReturnValue({ send: apiMocks.sendCards })
     apiMocks.sendSeries.mockResolvedValue({ items: [] })
     apiMocks.sendOffices.mockResolvedValue({
-      items: [],
-      pageInfo: { hasNextPage: false, nextCursor: null },
-    })
-    apiMocks.sendCards.mockResolvedValue({
       items: [],
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
@@ -75,7 +69,6 @@ describe("CommunityExchangePage App filter memory", () => {
     firstRoute.unmount()
 
     apiMocks.getFudabaOfficePage.mockClear()
-    apiMocks.getFudabaCardPage.mockClear()
     const restoredRoute = renderRoute("/community/exchange")
 
     await waitFor(() => {
@@ -85,11 +78,7 @@ describe("CommunityExchangePage App filter memory", () => {
         open: true,
         limit: 12,
       })
-      expect(apiMocks.getFudabaCardPage).toHaveBeenLastCalledWith({
-        series: ["765"],
-        available: true,
-        limit: 8,
-      })
+      expect(apiMocks.getFudabaCardPage).not.toHaveBeenCalled()
     })
     restoredRoute.unmount()
 

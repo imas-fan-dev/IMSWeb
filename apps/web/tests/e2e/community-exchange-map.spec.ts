@@ -87,33 +87,6 @@ const mapOffices = [
   },
 ]
 
-const card = {
-  id: "card-1",
-  producerName: "春香P",
-  seriesCodes: ["765"],
-  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
-  frontImageUrl: "/brand/series/wall/765pro.webp",
-  backImageUrl: "/brand/series/wall/cinderella-girls.webp",
-  accent: "#f34e6c",
-  bio: "上海地区制作人",
-  tradeNote: "现场交换同系列名片",
-  exchangeMode: "manual",
-  madeOn: null,
-  groupName: null,
-  producerReading: null,
-  isOriginal: false,
-  madeWithAi: false,
-  visible: true,
-  credits: [],
-  createdAt: "2026-08-02T08:00:00.000Z",
-  interactions: {
-    likes: 12,
-    favorites: 4,
-    viewerLiked: false,
-    viewerFavorited: false,
-  },
-}
-
 test.beforeEach(async ({ page, api }, testInfo) => {
   test.skip(
     testInfo.project.name === "firefox-desktop" &&
@@ -130,15 +103,6 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     (route) => route.abort("blockedbyclient")
   )
   await installBrowserIconMock(api)
-  await api.mockRoute(
-    "/api/community/exchange/cards/card-1/reactions",
-    (route) =>
-      route.fulfill({
-        json: { success: true, cardId: "card-1", reactions: [] },
-      }),
-    "GET",
-    { min: 0, max: 1 }
-  )
   await api.mockRoute(
     "**/api/community/exchange/offices/shanghai-weekend",
     async (route) => {
@@ -163,19 +127,6 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       await route.fulfill({
         json: {
           items: [directoryOffice],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      })
-    },
-    "GET",
-    { min: 1, max: 4 }
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    async (route) => {
-      await route.fulfill({
-        json: {
-          items: [card],
           pageInfo: { hasNextPage: false, nextCursor: null },
         },
       })
@@ -536,7 +487,7 @@ test.describe("community exchange map", () => {
   )
 
   test(
-    "fills the public workspace with a responsive map and keeps both directories reachable",
+    "fills the public workspace with a responsive map and keeps the office directory reachable",
     {
       tag: "@mobile",
     },
@@ -984,8 +935,7 @@ test.describe("community exchange map", () => {
       await expect(
         directory.getByRole("link", { name: "上海周末交换事务所" })
       ).toBeVisible()
-      await page.getByRole("tab", { name: "名片" }).click()
-      await expect(page.getByText("春香P", { exact: true })).toBeVisible()
+      await expect(directory.getByRole("tablist")).toHaveCount(0)
 
       const accessibility = await new AxeBuilder({ page }).analyze()
       expect(accessibility.violations).toEqual([])
@@ -1004,7 +954,7 @@ test.describe("community exchange map", () => {
   )
 
   test(
-    "falls back to the directory without hiding cards when config fails",
+    "keeps the office directory available when map config fails",
     {
       tag: "@firefox",
     },
@@ -1101,16 +1051,7 @@ test.describe("community exchange map", () => {
           })
         }
       }
-      await fallbackDirectory.getByRole("tab", { name: "名片" }).click()
-      await expect(
-        fallbackDirectory.getByText("春香P", { exact: true })
-      ).toBeVisible()
-      await fallbackDirectory
-        .getByRole("button", { name: "查看春香P的名片正面" })
-        .click()
-      await expect(page.getByRole("dialog")).toBeVisible()
-      await page.keyboard.press("Escape")
-      await fallbackDirectory.getByRole("tab", { name: "事务所" }).click()
+      await expect(fallbackDirectory.getByRole("tablist")).toHaveCount(0)
       await fallbackDirectory
         .getByRole("link", { name: "上海周末交换事务所" })
         .click()

@@ -1,6 +1,4 @@
 import {
-  fudabaCardPageSchema,
-  fudabaCardQuerySchema,
   fudabaMapConfigSchema,
   fudabaMapOfficeListSchema,
   fudabaMapQuerySchema,
@@ -71,15 +69,6 @@ function installMapMocks(api: ApiDispatcher) {
     path: "/api/community/exchange/offices",
     query: fudabaOfficeQuerySchema,
     responses: { 200: fudabaOfficePageSchema },
-    times: { min: 1, max: 4 },
-    handle: () => ({ status: 200, json: emptyPage }),
-  })
-  api.expect({
-    name: "App map card directory",
-    method: "GET",
-    path: "/api/community/exchange/cards",
-    query: fudabaCardQuerySchema,
-    responses: { 200: fudabaCardPageSchema },
     times: { min: 1, max: 4 },
     handle: () => ({ status: 200, json: emptyPage }),
   })
@@ -1063,7 +1052,7 @@ test.describe("app map", () => {
       ).toBeVisible()
       await expect(
         menu.getByRole("menuitem", { name: "打开名片名录" })
-      ).toBeVisible()
+      ).toHaveCount(0)
 
       // The attribution entry lives in the same folding panel and opens the one
       // shared dialog. The panel collapses on the same click, so focus returns

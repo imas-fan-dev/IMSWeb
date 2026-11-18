@@ -17,10 +17,10 @@ export function mapFailureDescription(error: Error): string {
   if (error instanceof MapDisplayError) {
     return error.kind === "reload-required"
       ? error.message
-      : `${error.message}公开事务所和名片仍可在名录中查看。`
+      : `${error.message}公开事务所仍可在名录中查看。`
   }
   const normalized = error.message.trim().toLowerCase()
   if (normalized === "not found" || normalized === "map disabled")
-    return "区域地图尚未启用，公开事务所和名片仍可在名录中查看。"
-  return "地图服务暂时无法连接，公开事务所和名片仍可在名录中查看。"
+    return "区域地图尚未启用，公开事务所仍可在名录中查看。"
+  return "地图服务暂时无法连接，公开事务所仍可在名录中查看。"
 }

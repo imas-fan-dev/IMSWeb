@@ -54,7 +54,6 @@ function Harness({
       onOcclusion={() => undefined}
       onOpenFilter={mocks.filter}
       onOpenOffices={() => undefined}
-      onOpenCards={() => undefined}
       onRefresh={mocks.refresh}
       refreshing={refreshing}
       feedbackMessage={feedbackMessage}
@@ -271,8 +270,8 @@ describe("ExchangeSearchCard", () => {
       within(menu).getByRole("menuitem", { name: "打开事务所名录" })
     ).toBeVisible()
     expect(
-      within(menu).getByRole("menuitem", { name: "打开名片名录" })
-    ).toBeVisible()
+      within(menu).queryByRole("menuitem", { name: "打开名片名录" })
+    ).not.toBeInTheDocument()
     await user.keyboard("{Escape}")
     await waitFor(() =>
       expect(screen.queryByRole("menu")).not.toBeInTheDocument()

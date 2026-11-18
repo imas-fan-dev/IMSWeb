@@ -65,15 +65,6 @@ test("merges range offices with their count while retaining the portrait search 
     1
   )
   await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    (route) =>
-      route.fulfill({
-        json: { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-      }),
-    "GET",
-    1
-  )
-  await api.mockRoute(
     "/api/community/exchange/map/config",
     (route) =>
       route.fulfill({
