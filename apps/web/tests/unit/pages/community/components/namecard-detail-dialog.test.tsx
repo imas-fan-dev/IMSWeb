@@ -216,4 +216,36 @@ describe("NamecardDetailDialog", () => {
     expect(screen.getByLabelText("名片公开参数")).toBeInTheDocument()
     expect(screen.getByText("制作人名称")).toBeInTheDocument()
   })
+
+  it("replaces the exchange entry with the collection hide toggle", async () => {
+    const user = userEvent.setup()
+    const onToggleHidden = vi.fn()
+    renderDialog({}, { collection: { hidden: false, busy: false, onToggleHidden } })
+
+    const hide = await screen.findByRole("button", { name: "隐藏" })
+    expect(hide).toBeEnabled()
+    expect(screen.queryByRole("button", { name: "交换名片" })).toBeNull()
+
+    await user.click(hide)
+    expect(onToggleHidden).toHaveBeenCalledTimes(1)
+  })
+
+  it("reads as 取消隐藏 and blocks repeats while the write is in flight", async () => {
+    renderDialog(
+      {},
+      { collection: { hidden: true, busy: true, onToggleHidden: vi.fn() } }
+    )
+
+    expect(await screen.findByRole("button", { name: "取消隐藏" })).toBeDisabled()
+    expect(screen.queryByRole("button", { name: "隐藏" })).toBeNull()
+  })
+
+  it("offers neither exchange nor hide on my own collected card", async () => {
+    renderDialog({ canEdit: true }, { collection: null })
+
+    expect(await screen.findByRole("button", { name: "分享" })).toBeEnabled()
+    expect(screen.queryByRole("button", { name: "交换名片" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "隐藏" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "取消隐藏" })).toBeNull()
+  })
 })

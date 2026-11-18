@@ -73,6 +73,8 @@ export function CharacterMultiSelect({
   selectedIds,
   disabled,
   onChange,
+  description,
+  matchControls,
 }: {
   id: string
   catalog: NamecardCharacterCatalog | null
@@ -80,6 +82,18 @@ export function CharacterMultiSelect({
   selectedIds: number[]
   disabled: boolean
   onChange: (characterIds: number[]) => void
+  /** 换个说法解释这块控件；名片册的筛选与编辑器要求不同。 */
+  description?: React.ReactNode
+  /**
+   * 名片册的匹配口径【同时包含】/【不含其他】；编辑器不传，界面不变。
+   * 勾选状态由调用方持有，这里只负责画与上报。
+   */
+  matchControls?: {
+    all: boolean
+    excludeOther: boolean
+    disabled?: boolean
+    onChange: (next: { all: boolean; excludeOther: boolean }) => void
+  }
 }) {
   const [agencyCode, setAgencyCode] = useState(ALL_VALUE)
   const [category, setCategory] = useState(ALL_VALUE)
@@ -270,8 +284,12 @@ export function CharacterMultiSelect({
         </span>
       </FieldLabel>
       <FieldDescription>
-        可跨企划选择，最多 {NAMECARD_FAVORITE_CHARACTER_LIMIT}{" "}
-        人；搜索支持角色名、别名与组合名。
+        {description ?? (
+          <>
+            可跨企划选择，最多 {NAMECARD_FAVORITE_CHARACTER_LIMIT}{" "}
+            人；搜索支持角色名、别名与组合名。
+          </>
+        )}
       </FieldDescription>
 
       <div
@@ -474,6 +492,49 @@ export function CharacterMultiSelect({
           <p className="text-sm text-muted-foreground">尚未选择担当角色。</p>
         )}
       </div>
+
+      {matchControls ? (
+        <div className="mt-2 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <label className="flex min-h-9 items-center gap-2 text-sm">
+              <Checkbox
+                checked={matchControls.all}
+                disabled={matchControls.disabled ?? disabled}
+                aria-label="同时包含"
+                onCheckedChange={(value) =>
+                  matchControls.onChange({
+                    all: value === true,
+                    excludeOther: matchControls.excludeOther,
+                  })
+                }
+              />
+              同时包含
+            </label>
+            <span className="text-xs text-muted-foreground">
+              名片必须包含全部已选角色
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <label className="flex min-h-9 items-center gap-2 text-sm">
+              <Checkbox
+                checked={matchControls.excludeOther}
+                disabled={matchControls.disabled ?? disabled}
+                aria-label="不含其他"
+                onCheckedChange={(value) =>
+                  matchControls.onChange({
+                    all: matchControls.all,
+                    excludeOther: value === true,
+                  })
+                }
+              />
+              不含其他
+            </label>
+            <span className="text-xs text-muted-foreground">
+              名片最多只包含已选角色
+            </span>
+          </div>
+        </div>
+      ) : null}
     </Field>
   )
 }

@@ -731,7 +731,7 @@ function ProfileWorkspace({
             aria-labelledby="profile-workspace-collection-title"
             hidden={activeSection !== "collection"}
           >
-            <NamecardCollection />
+            <NamecardCollection active={activeSection === "collection"} />
           </section>
 
           <div

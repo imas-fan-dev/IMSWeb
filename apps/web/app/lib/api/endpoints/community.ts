@@ -3,11 +3,15 @@ import {
   apiPath,
   exchangeCardSharePath,
   exchangeDecisionPath,
+  exchangeMyCollectionEntryPath,
+  exchangeMyCollectionPath,
   exchangePath,
   exchangeQuickPath,
   namecardPath,
 } from "@imsweb/contracts/paths"
 import {
+  namecardCollectionPageSchema,
+  namecardCollectionVisibilityResponseSchema,
   namecardCardShareSchema,
   namecardErrorResponseSchema,
   namecardExchangeDecisionSchema,
@@ -23,13 +27,25 @@ import {
   namecardReactionRequestSchema,
   reactionMutationSchema,
 } from "@imsweb/contracts/namecards"
+import type {
+  NamecardCollectionDirection,
+  NamecardCollectionSort,
+} from "@imsweb/contracts/namecards"
 import { NAMECARD_REACTION_EMOJIS } from "@imsweb/contracts/fudaba/runtime"
 
+import {
+  NAMECARD_COLLECTION_DEFAULT_DIRECTION,
+  NAMECARD_COLLECTION_PAGE_SIZE,
+} from "../../namecards/collection-query"
 import {
   NO_CLIENT_CACHE,
   PUBLIC_CACHE_INVALIDATION_SOURCE,
 } from "../cache-policy"
-import { normalizeNamecard, normalizeNamecardPage } from "../media-urls"
+import {
+  normalizeNamecard,
+  normalizeNamecardCollectionPage,
+  normalizeNamecardPage,
+} from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
 import { platformApiClient } from "../platform-client"
@@ -143,6 +159,84 @@ export function getNamecardPage(page = 1, size = 12) {
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
       params: { page, size },
       select: normalizeNamecardPage,
+    })
+  )
+}
+
+/** 名片册列表的查询：页面把筛选状态原样交进来，缺省值在这里补齐。 */
+export interface NamecardCollectionListQuery {
+  page?: number
+  size?: number
+  sort?: NamecardCollectionSort
+  dir?: NamecardCollectionDirection
+  /** 制作人名称；团体名片按团体名称检索。 */
+  q?: string
+  series?: readonly string[]
+  group?: string
+  character?: readonly number[]
+  /** `all` = 【同时包含】。 */
+  match?: "any" | "all"
+  excludeOther?: boolean
+  excludeCross?: boolean
+  includeOwn?: boolean
+  includeHidden?: boolean
+}
+
+function namecardCollectionSearch(query: NamecardCollectionListQuery) {
+  const sort = query.sort ?? "exchange"
+  const params = new URLSearchParams({
+    page: String(query.page ?? 1),
+    size: String(query.size ?? NAMECARD_COLLECTION_PAGE_SIZE),
+    sort,
+    dir: query.dir ?? NAMECARD_COLLECTION_DEFAULT_DIRECTION[sort],
+  })
+  const q = query.q?.trim()
+  if (q) params.set("q", q)
+  for (const code of query.series ?? []) params.append("series", code)
+  const group = query.group?.trim()
+  if (group) params.set("group", group)
+  for (const id of query.character ?? []) {
+    params.append("character", String(id))
+  }
+  params.set("match", query.match ?? "any")
+  if (query.excludeOther) params.set("excludeOther", "true")
+  if (query.excludeCross) params.set("excludeCross", "true")
+  if (query.includeOwn) params.set("includeOwn", "true")
+  if (query.includeHidden) params.set("includeHidden", "true")
+  return params.toString()
+}
+
+/**
+ * 名片册（PRD §7.1）：分页 + 排序 + 搜索 + 高级筛选 + 两个开关。
+ *
+ * `series` / `character` 是重复键；alova 的 `params` 会把数组拼成 `a,b`，
+ * 所以这里自己拼查询串。
+ */
+export function getNamecardCollectionPage(
+  query: NamecardCollectionListQuery = {}
+) {
+  return platformApiClient.Get(
+    `${exchangeMyCollectionPath()}?${namecardCollectionSearch(query)}`,
+    parsed(namecardCollectionPageSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      meta: withPlatformAuth(),
+      select: normalizeNamecardCollectionPage,
+    })
+  )
+}
+
+/** 手动隐藏 / 恢复名片册里的一条；隐藏后原卡改动仍然同步。 */
+export function setNamecardCollectionHidden(
+  cardNumber: number,
+  hidden: boolean
+) {
+  return platformApiClient.Put(
+    exchangeMyCollectionEntryPath(cardNumber),
+    { hidden },
+    parsed(namecardCollectionVisibilityResponseSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      meta: withPlatformCsrf(),
     })
   )
 }

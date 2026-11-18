@@ -1,5 +1,7 @@
 import {
   ArrowLeftRightIcon,
+  EyeIcon,
+  EyeOffIcon,
   ShareIcon,
   PlusIcon,
   ShieldCheckIcon,
@@ -377,6 +379,7 @@ export function NamecardDetailDialog({
   onReturnFocus,
   dismissible = true,
   readOnly = false,
+  collection,
 }: {
   card: Namecard | null
   canClaim?: boolean
@@ -405,6 +408,18 @@ export function NamecardDetailDialog({
    * 通知里的交换详情拿它叠在交换窗上展示完整名片。
    */
   readOnly?: boolean
+  /**
+   * 名片册的交接：把【交换】换成【隐藏/取消隐藏】。传 `null` 表示这条是自己的名片
+   * （PRD §5），两个按钮都不出现；不传则是墙 / 主页的常规详情窗。
+   */
+  collection?:
+    | {
+        hidden: boolean
+        /** 写请求在飞时禁用，避免连点。 */
+        busy: boolean
+        onToggleHidden: () => void
+      }
+    | null
 }) {
   const navigate = useNavigation()
   const platform = useOptionalPlatformSession()
@@ -757,6 +772,21 @@ export function NamecardDetailDialog({
                 >
                   <ShareIcon aria-hidden="true" />
                   分享
+                </Button>
+              ) : collection === null ? null : collection ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(FOOTER_BUTTON, "bg-background")}
+                  disabled={collection.busy}
+                  onClick={collection.onToggleHidden}
+                >
+                  {collection.hidden ? (
+                    <EyeIcon aria-hidden="true" />
+                  ) : (
+                    <EyeOffIcon aria-hidden="true" />
+                  )}
+                  {collection.hidden ? "取消隐藏" : "隐藏"}
                 </Button>
               ) : (
                 <Button
