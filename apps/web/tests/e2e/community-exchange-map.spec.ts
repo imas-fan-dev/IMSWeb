@@ -108,9 +108,7 @@ const card = {
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 12,
-    favorites: 4,
     viewerLiked: false,
-    viewerFavorited: false,
   },
 }
 

@@ -27,9 +27,7 @@ const baseCard: FudabaPlacedCard = {
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 0,
-    favorites: 0,
     viewerLiked: false,
-    viewerFavorited: false,
   },
   viewerOwned: true,
   placement: {

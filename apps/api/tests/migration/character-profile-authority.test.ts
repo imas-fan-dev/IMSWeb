@@ -75,6 +75,8 @@ test.skipIf(!postgresIntegrationEnabled())(
                 '20261112140000_namecard_retire_card_key_columns',
                 '20261116120000_namecard_profile_layouts',
                 '20261118100000_namecard_notification_exchange',
+                '20261118120000_namecard_exchange_expired_notification',
+                '20261118140000_namecard_drop_fudaba_card_favorites',
 
             ]);
             const current = (

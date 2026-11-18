@@ -344,6 +344,8 @@ Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲�
 
 ## 9. 退役清单
 
+**已全部退役。**
+
 - `fudaba_card_favorites` 表、`setCardInteraction` 的 favorite 分支、卡片投影里的 `favorites` 计数、
   `/me/favorites` 端点、`account/me/favorites` 页面、墙与详情窗的收藏按钮。
 - `fudaba_exchange_requests` 表，以及 `fudaba_office_cards` 删除守卫里对它的 `in_use` 判断。
@@ -360,8 +362,7 @@ Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲�
 5. ⏳ 前端：四条入口、名片册页、快速列表管理、二维码绘制与下载。
 6. ⏳ OGP 模板注入（依赖 `__spa-fallback.html` 模板化）。
 7. ⏳ 离线队列与重放（客户端 IndexedDB）。
-8. 部分完成：旧交换表已退役；**收藏按决定保留到前端阶段**，届时再清 `fudaba_card_favorites`、
-   `/me/favorites`、投影里的 `favorites` 计数与按钮。
+8. ✅ 旧交换表已退役；收藏能力已清（`fudaba_card_favorites`、`/me/favorites`、投影里的 `favorites` 计数与按钮）。
 
 ## 11. 测试计划
 

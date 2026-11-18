@@ -96,9 +96,7 @@ const card = {
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 2,
-    favorites: 1,
     viewerLiked: false,
-    viewerFavorited: false,
   },
 }
 
@@ -234,7 +232,6 @@ describe("CommunityExchangePage", () => {
     await user.click(screen.getByRole("tab", { name: "名片" }))
     expect(await screen.findByText("交换会用名片")).toBeVisible()
     expect(screen.getByLabelText("2 次点赞")).toBeVisible()
-    expect(screen.getByLabelText("1 次收藏")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "关闭" }))
     await waitFor(() => {
       expect(

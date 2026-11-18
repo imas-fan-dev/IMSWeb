@@ -21,7 +21,6 @@ import {
 import { handleGetFudabaMapConfig } from '@/domains/community/fudaba/directory/handlers/get-map-config';
 import { handleGetNamecardCharacterCatalog } from '@/domains/community/fudaba/directory/handlers/get-namecard-character-catalog';
 import { handleGetFudabaPublicOffice } from '@/domains/community/fudaba/directory/handlers/get-public-office';
-import { handleListFudabaFavoriteCards } from '@/domains/community/fudaba/directory/handlers/list-favorite-cards';
 import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory/handlers/list-map-offices';
 import { handleListFudabaPublicCards } from '@/domains/community/fudaba/directory/handlers/list-public-cards';
 import { handleServeExchangeCardMedia } from '@/domains/community/fudaba/directory/handlers/serve-public-card-media';
@@ -117,7 +116,6 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         handleListFudabaMapOffices
     );
     routes.get('/me/series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOwnerSeries);
-    routes.get('/me/favorites', platformAuth, querySchemaValidator(fudabaCardQuerySchema), handleListFudabaFavoriteCards);
     return routes;
 }
 

@@ -65,9 +65,7 @@ import { CSRF_HEADER_NAME } from "~/lib/api/request"
 const card = makeFudabaCard({
   interactions: {
     likes: 2,
-    favorites: 1,
     viewerLiked: false,
-    viewerFavorited: true,
   },
 })
 
@@ -181,8 +179,8 @@ describe("Fudaba Web API contracts", () => {
           items: [card],
           pageInfo: { hasNextPage: true, nextCursor: "next-page" },
         })
-      ).items[0]?.interactions.viewerFavorited
-    ).toBe(true)
+      ).items[0]?.interactions.viewerLiked
+    ).toBe(false)
   })
 
   it("accepts placement metadata only within the public wall bounds", () => {

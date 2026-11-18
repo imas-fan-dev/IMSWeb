@@ -267,16 +267,10 @@ const PUBLIC_CARD_COLUMNS = `card.id, card.producer_name,
     card.made_with_ai, card.visible, card.created_at,
     (SELECT COUNT(*) FROM fudaba_card_likes card_like
      WHERE card_like.card_id=card.id) AS like_count,
-    (SELECT COUNT(*) FROM fudaba_card_favorites card_favorite
-     WHERE card_favorite.card_id=card.id) AS favorite_count,
     EXISTS (
         SELECT 1 FROM fudaba_card_likes viewer_like
         WHERE viewer_like.card_id=card.id AND viewer_like.account_id=?
-    ) AS viewer_liked,
-    EXISTS (
-        SELECT 1 FROM fudaba_card_favorites viewer_favorite
-        WHERE viewer_favorite.card_id=card.id AND viewer_favorite.account_id=?
-    ) AS viewer_favorited`;
+    ) AS viewer_liked`;
 const CARD_PLACEMENT_COLUMNS = `office_id, card_id, pinned_at, position_x,
     position_y, rotation, z_index, revision, updated_at`;
 const PUBLIC_OFFICE_ELIGIBILITY = `office.status='active'
@@ -526,9 +520,7 @@ type FudabaPublicCardRow = Omit<
     | "visible"
     | "created_at"
     | "like_count"
-    | "favorite_count"
     | "viewer_liked"
-    | "viewer_favorited"
 > & {
     accent: string | null;
     bio: string | null;
@@ -537,9 +529,7 @@ type FudabaPublicCardRow = Omit<
     visible: boolean | number | string;
     created_at: TimestampValue;
     like_count: number | string;
-    favorite_count: number | string;
     viewer_liked: boolean | number | string;
-    viewer_favorited: boolean | number | string;
 };
 
 type FudabaPublicPlacedCardRow = FudabaPublicCardRow & {
@@ -958,9 +948,7 @@ function publicCardRecord(row: FudabaPublicCardRow): FudabaPublicCardRecord {
         visible: booleanValue(row.visible),
         created_at: timestampValue(row.created_at),
         like_count: Number(row.like_count),
-        favorite_count: Number(row.favorite_count),
         viewer_liked: booleanValue(row.viewer_liked),
-        viewer_favorited: booleanValue(row.viewer_favorited),
     };
 }
 
@@ -1872,7 +1860,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON card_series.card_id=card.id
              WHERE placement.office_id=? AND ${PUBLIC_CARD_ELIGIBILITY}
              ORDER BY placement.z_index ASC, placement.pinned_at ASC, card.id ASC`,
-            [viewerAccountId, viewerAccountId, viewerAccountId, row.id],
+            [viewerAccountId, viewerAccountId, row.id],
         );
         return {
             ...office,
@@ -2064,10 +2052,7 @@ export class SqlFudabaRepository implements FudabaRepository {
         input: ListFudabaPublicCardsInput,
     ): Promise<FudabaPublicCardRecord[]> {
         const conditions = [PUBLIC_CARD_ELIGIBILITY];
-        const parameters: unknown[] = [
-            input.viewerAccountId,
-            input.viewerAccountId,
-        ];
+        const parameters: unknown[] = [input.viewerAccountId];
         if (input.seriesCodes?.length) {
             const placeholders = input.seriesCodes.map(() => "?").join(", ");
             conditions.push(
@@ -2097,13 +2082,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                   AND office_filter_owner.deleted_at IS NULL
             )`);
             parameters.push(input.officeSlug);
-        }
-        if (input.favoritedByAccountId !== undefined) {
-            conditions.push(`EXISTS (
-                SELECT 1 FROM fudaba_card_favorites collected
-                WHERE collected.card_id=card.id AND collected.account_id=?
-            )`);
-            parameters.push(input.favoritedByAccountId);
         }
         if (input.after) {
             conditions.push(`(
@@ -2273,26 +2251,17 @@ export class SqlFudabaRepository implements FudabaRepository {
     ): Promise<FudabaCardInteractionStateRecord | null> {
         const row = await queryOne<{
             like_count: number | string;
-            favorite_count: number | string;
             viewer_liked: boolean | number;
-            viewer_favorited: boolean | number;
         }>(
             this.database,
             `SELECT
                 (SELECT COUNT(*) FROM fudaba_card_likes card_like
                  WHERE card_like.card_id=card.id) AS like_count,
-                (SELECT COUNT(*) FROM fudaba_card_favorites card_favorite
-                 WHERE card_favorite.card_id=card.id) AS favorite_count,
                 EXISTS (
                     SELECT 1 FROM fudaba_card_likes viewer_like
                     WHERE viewer_like.card_id=card.id
                       AND viewer_like.account_id=?
-                ) AS viewer_liked,
-                EXISTS (
-                    SELECT 1 FROM fudaba_card_favorites viewer_favorite
-                    WHERE viewer_favorite.card_id=card.id
-                      AND viewer_favorite.account_id=?
-                ) AS viewer_favorited
+                ) AS viewer_liked
              FROM fudaba_cards card
              JOIN platform_accounts card_owner
                ON card_owner.id=card.owner_account_id
@@ -2303,14 +2272,12 @@ export class SqlFudabaRepository implements FudabaRepository {
                       AND ${cardSeriesEligibility("entry_series")}) card_series
                ON card_series.card_id=card.id
              WHERE card.id=? AND ${PUBLIC_CARD_ELIGIBILITY}`,
-            [viewerAccountId, viewerAccountId, cardId],
+            [viewerAccountId, cardId],
         );
         return row
             ? {
                   like_count: Number(row.like_count),
-                  favorite_count: Number(row.favorite_count),
                   viewer_liked: booleanValue(row.viewer_liked),
-                  viewer_favorited: booleanValue(row.viewer_favorited),
               }
             : null;
     }
@@ -6320,21 +6287,17 @@ export class SqlFudabaRepository implements FudabaRepository {
     }
 
     setCardInteraction(input: {
-        kind: "like" | "favorite";
+        kind: "like";
         cardId: string;
         accountId: string;
         active: boolean;
         createdAt: string;
     }): Promise<boolean> {
-        const table =
-            input.kind === "like"
-                ? "fudaba_card_likes"
-                : "fudaba_card_favorites";
         return this.serializeWrite(async () => {
             const result = input.active
                 ? await executeSql(
                       this.database,
-                      `INSERT INTO ${table} (card_id, account_id, created_at)
+                      `INSERT INTO fudaba_card_likes (card_id, account_id, created_at)
                      SELECT card.id, account.id, ?
                      FROM fudaba_cards card
                      JOIN platform_accounts account ON account.id=?
@@ -6344,7 +6307,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                   )
                 : await executeSql(
                       this.database,
-                      `DELETE FROM ${table} WHERE card_id=? AND account_id=?`,
+                      `DELETE FROM fudaba_card_likes WHERE card_id=? AND account_id=?`,
                       [input.cardId, input.accountId],
                   );
             return result.meta.changes === 1;

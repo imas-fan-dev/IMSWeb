@@ -104,9 +104,7 @@ export async function fudabaPublicCardView(
         ...(pages && pages.length > 0 ? { pages } : {}),
         interactions: {
             likes: card.like_count,
-            favorites: card.favorite_count,
             viewerLiked: card.viewer_liked,
-            viewerFavorited: card.viewer_favorited,
         },
     };
 }

@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "49b81541fb9bb6d7c67c10e12c9bfd6f56b642cb1948adf83ca6f03943e4d129",
+    "semanticDigest": "5865abc975b7b8864f1dfa9fa305300db02550e90cda1d8a8e0d74361ad45ad5",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 295,
-    "carriers": 373,
-    "reject": 84,
+    "mountedMethodPaths": 292,
+    "carriers": 370,
+    "reject": 83,
     "acceptAndProject": 186,
     "passthrough": 17,
-    "nonObjectApplicable": 86
+    "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 408,
-    "mountedMethodPaths": 309,
+    "mountedRegistrations": 405,
+    "mountedMethodPaths": 306,
     "noInputRoutes": 99,
-    "requestCarriers": 406,
+    "requestCarriers": 403,
     "policies": {
-      "reject": 91,
+      "reject": 90,
       "accept-and-project": 212,
       "passthrough": 17,
-      "non-object-applicable": 86
+      "non-object-applicable": 84
     },
     "responses": {
-      "total": 860,
-      "json": 794,
+      "total": 859,
+      "json": 793,
       "nonJson": 66
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 295,
-      "requestCarriers": 373,
+      "mountedMethodPaths": 292,
+      "requestCarriers": 370,
       "policies": {
-        "reject": 84,
+        "reject": 83,
         "accept-and-project": 186,
         "passthrough": 17,
-        "non-object-applicable": 86
+        "non-object-applicable": 84
       }
     },
     "explicitQueryAdditions": [
@@ -196,7 +196,7 @@
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 66,
+      "/api/community": 63,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -1204,31 +1204,6 @@
           },
           "policy": "accept-and-project",
           "syntaxPolicy": "accept-and-project"
-        }
-      ],
-      "responses": []
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/cards/:cardId/favorite",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-      },
-      "handlerSymbol": "<unresolved-handler>",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-          },
-          "schemaSymbol": "fudabaCardIdParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-          },
-          "policy": "non-object-applicable",
-          "syntaxPolicy": "reject"
         }
       ],
       "responses": []
@@ -4927,37 +4902,6 @@
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/list-exchanges.ts",
           "kind": "json",
           "expression": "{ list : rows . map ( ( row ) => { const outgoing = row . initiator_account_id === accountId ; const entry : NamecardExchangeHistoryEntry = { id : row . id , source : row . source , status : row . status , direction : outgoing ? \"outgoing\" : \"incoming\" , counterpart : counterparts . get ( outgoing ? row . target_account_id : row . initiator_account_id ) ! , targetCardNumbers : row . target_card_numbers , initiatorCardNumbers : row . initiator_card_numbers , createdAt : new Date ( row . created_at ) . toISOString ( ) , resolvedAt : row . resolved_at ? new Date ( row . resolved_at ) . toISOString ( ) : null , } ; return entry ; } ) , total , totalPage : Math . max ( 1 , Math . ceil ( total / size ) ) , } satisfies NamecardExchangeHistoryPageResponse"
-        }
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/favorites",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
-      },
-      "handlerSymbol": "handleListFudabaFavoriteCards",
-      "carriers": [
-        {
-          "kind": "query",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
-          },
-          "schemaSymbol": "fudabaCardQuerySchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
-          },
-          "policy": "reject",
-          "syntaxPolicy": "reject"
-        }
-      ],
-      "responses": [
-        {
-          "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-favorite-cards.ts",
-          "kind": "json",
-          "expression": "{ items , pageInfo : { hasNextPage , nextCursor : hasNextPage && last ? encodeFudabaCardCursor ( query . filters , { createdAt : last . created_at , id : last . id } ) : null } }"
         }
       ]
     },
@@ -15285,31 +15229,6 @@
     },
     {
       "method": "PUT",
-      "path": "/api/community/exchange/cards/:cardId/favorite",
-      "registration": {
-        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-      },
-      "handlerSymbol": "<unresolved-handler>",
-      "carriers": [
-        {
-          "kind": "param",
-          "source": "validated",
-          "location": {
-            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-          },
-          "schemaSymbol": "fudabaCardIdParamsSchema",
-          "schemaModule": "@imsweb/contracts/fudaba",
-          "schemaLocation": {
-            "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-          },
-          "policy": "non-object-applicable",
-          "syntaxPolicy": "reject"
-        }
-      ],
-      "responses": []
-    },
-    {
-      "method": "PUT",
       "path": "/api/community/exchange/cards/:cardId/like",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
@@ -16577,23 +16496,6 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/community/exchange/cards/:cardId/favorite",
-      "handlerSymbol": "<unresolved-handler>",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-      },
-      "schemaSymbol": "fudabaCardIdParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-      },
-      "policy": "non-object-applicable",
-      "syntaxPolicy": "reject"
     },
     {
       "method": "DELETE",
@@ -17967,23 +17869,6 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/favorites",
-      "handlerSymbol": "handleListFudabaFavoriteCards",
-      "kind": "query",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
-      },
-      "schemaSymbol": "fudabaCardQuerySchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
-      },
-      "policy": "reject",
-      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",
@@ -22593,23 +22478,6 @@
     },
     {
       "method": "PUT",
-      "path": "/api/community/exchange/cards/:cardId/favorite",
-      "handlerSymbol": "<unresolved-handler>",
-      "kind": "param",
-      "source": "validated",
-      "location": {
-        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-      },
-      "schemaSymbol": "fudabaCardIdParamsSchema",
-      "schemaModule": "@imsweb/contracts/fudaba",
-      "schemaLocation": {
-        "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
-      },
-      "policy": "non-object-applicable",
-      "syntaxPolicy": "reject"
-    },
-    {
-      "method": "PUT",
       "path": "/api/community/exchange/cards/:cardId/like",
       "handlerSymbol": "<unresolved-handler>",
       "kind": "param",
@@ -24876,14 +24744,6 @@
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/list-exchanges.ts",
       "kind": "json",
       "expression": "{ list : rows . map ( ( row ) => { const outgoing = row . initiator_account_id === accountId ; const entry : NamecardExchangeHistoryEntry = { id : row . id , source : row . source , status : row . status , direction : outgoing ? \"outgoing\" : \"incoming\" , counterpart : counterparts . get ( outgoing ? row . target_account_id : row . initiator_account_id ) ! , targetCardNumbers : row . target_card_numbers , initiatorCardNumbers : row . initiator_card_numbers , createdAt : new Date ( row . created_at ) . toISOString ( ) , resolvedAt : row . resolved_at ? new Date ( row . resolved_at ) . toISOString ( ) : null , } ; return entry ; } ) , total , totalPage : Math . max ( 1 , Math . ceil ( total / size ) ) , } satisfies NamecardExchangeHistoryPageResponse"
-    },
-    {
-      "method": "GET",
-      "path": "/api/community/exchange/me/favorites",
-      "handlerSymbol": "handleListFudabaFavoriteCards",
-      "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-favorite-cards.ts",
-      "kind": "json",
-      "expression": "{ items , pageInfo : { hasNextPage , nextCursor : hasNextPage && last ? encodeFudabaCardCursor ( query . filters , { createdAt : last . created_at , id : last . id } ) : null } }"
     },
     {
       "method": "GET",

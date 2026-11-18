@@ -463,7 +463,7 @@ export function resolveApiContract(
     }
   if (
     (method === "PUT" || method === "DELETE") &&
-    /^\/api\/community\/exchange\/cards\/[^/]+\/(like|favorite)$/.test(path)
+    /^\/api\/community\/exchange\/cards\/[^/]+\/like$/.test(path)
   )
     return {
       body: z.object({}).strict(),
@@ -595,11 +595,6 @@ export function resolveApiContract(
         contentType: multipartFormDataContentTypeSchema,
       },
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
-    }
-  if (method === "GET" && path === `${exchange}/me/favorites`)
-    return {
-      query: fudabaCardQuerySchema,
-      responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
     }
   if (method === "POST" && path === `${exchange}/offices`)
     return {

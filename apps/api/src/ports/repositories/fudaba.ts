@@ -818,9 +818,7 @@ export interface FudabaPublicCardRecord {
     credits: FudabaCardCredit[];
     created_at: string;
     like_count: number;
-    favorite_count: number;
     viewer_liked: boolean;
-    viewer_favorited: boolean;
 }
 
 export interface FudabaCardReactionRecord {
@@ -836,9 +834,7 @@ export interface FudabaCardReactionInput {
 
 export interface FudabaCardInteractionStateRecord {
     like_count: number;
-    favorite_count: number;
     viewer_liked: boolean;
-    viewer_favorited: boolean;
 }
 
 export interface FudabaPublicPlacedCardRecord extends FudabaPublicCardRecord {
@@ -893,7 +889,6 @@ export interface ListFudabaPublicCardsInput {
     /** True keeps cards offered for exchange, false keeps the closed ones. */
     exchangeable?: boolean;
     officeSlug?: string;
-    favoritedByAccountId?: string;
     viewerAccountId: string | null;
     limit: number;
     after?: FudabaPublicCardCursor;
@@ -1204,7 +1199,7 @@ export interface FudabaRepository {
         createdAt: string;
     }): Promise<boolean>;
     setCardInteraction(input: {
-        kind: "like" | "favorite";
+        kind: "like";
         cardId: string;
         accountId: string;
         active: boolean;
