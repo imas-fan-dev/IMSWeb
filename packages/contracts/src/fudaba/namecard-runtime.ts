@@ -45,6 +45,15 @@ export const NAMECARD_ACCENT_FALLBACK = "#ff74b8"
 /** Designers / illustrators one card may credit. */
 export const NAMECARD_CREDIT_LIMIT = 8
 
+/**
+ * Longest accepted account id on a credit. The platform issues identifiers well
+ * below this; a longer value is a forged reference rather than an account.
+ */
+export const NAMECARD_CREDIT_ACCOUNT_ID_MAX_LENGTH = 64
+
+/** Longest accepted public profile URL on a credit. */
+export const NAMECARD_CREDIT_URL_MAX_LENGTH = 300
+
 /** Roles a single credit may hold; one person can both design and draw. */
 export const NAMECARD_CREDIT_ROLE_LIMIT = 3
 

@@ -5,8 +5,9 @@
 import { readContractJson as contractJson } from '../contracts/contract-json';
 import { bearerTokenHeaders, cookieCsrfHeaders, fixtureSha256Hex, fixtureSha256Hex as hash } from '../fixtures/auth-request';
 import { CANONICAL_FUDABA_AGENCIES, projectCanonicalFudabaAgencies } from '../fixtures/fudaba-agency-catalog';
+import { createFudabaRepositoryFixture, fudabaBearerHeaders, fudabaCookieHeaders, initializedPostgresSchema, makeFudabaCardInput, makeFudabaOfficeInput, makeFudabaPublicCardRecord, seedPlatformAccount, type FudabaRepositoryFixture } from '../fixtures/fudaba-card-fixture';
 import { ACCOUNT_ID, BACKOFFICE_TOKEN, bearerHeaders, cardFields, cardPageRow, cardPageWrite, cardUpload, cookieHeaders, CSRF_SECRET, csrfHash, JPEG_BYTES, mediaUpload, pageObjectKey, pageRowsFromWrites, PNG_BYTES, metadataBody, ownerCard, OwnerRouteFixture, postCard, profileBody, storedPageKey, uploadedFile } from '../fixtures/owner-route-fixture';
-import { insertBackofficeAccount, insertFudabaOfficePublicLocation, insertPlatformAccount } from '../fixtures/rows';
+import { insertBackofficeAccount, insertFudabaOfficePublicLocation } from '../fixtures/rows';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createMigrationCatalogBefore } from '../integration/migration-catalog';
 import { createPostgresTestHarness, type PostgresTestHarness } from '../integration/postgres-harness';
@@ -32,12 +33,12 @@ import { SqlNamecardNotificationRepository } from '@/infra/db/repositories/namec
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
 import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
-import type { ManagedSqlDatabase, SqlDatabase, SqlResult, SqlSchemaStrategy, SqlStatement } from '@/infra/db/sql/database';
+import type { ManagedSqlDatabase, SqlDatabase, SqlResult, SqlStatement } from '@/infra/db/sql/database';
 import type { CacheStore, RateLimiter } from '@/ports/cache';
 import type { ParsedUpload, UploadedFile, UploadParser } from '@/ports/http';
 import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
-import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaCardMetadataInput, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
+import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaCardMetadataInput, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { FUDABA_MAP_DELIVERY_OBJECT_KEY } from '@/utils/storage/business-object-keys';
 import { fudabaCardDeleteResponseSchema, fudabaCardInteractionResponseSchema, fudabaCardMutationResponseSchema, fudabaCardPageSchema, fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema, fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOfficeDetailSchema, fudabaOfficeMutationResponseSchema, fudabaOfficePageSchema, fudabaOwnerCardDetailSchema, fudabaOwnerCardListSchema, fudabaOwnerLocationDetailSchema, fudabaOwnerLocationMutationResponseSchema, fudabaOwnerLocationWithdrawalResponseSchema, fudabaOwnerOfficeListSchema, fudabaPlaceSearchResponseSchema, fudabaSeriesListSchema } from '@imsweb/contracts/fudaba';
@@ -451,7 +452,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     const TOKEN = 'interaction-access-token';
     const CSRF = 'interaction-csrf-secret';
     const CARD_ID = 'interaction-card';
-    const CREATED_AT = '2026-08-02T00:00:00.000Z';
 
     class PublicMediaStorage implements ObjectStorage {
         async createPublicReadUrl(key: string): Promise<string | null> {
@@ -499,36 +499,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 resetAt: Date.now() + 60_000
             };
         }
-    }
-
-    function publicCard(
-        overrides: Partial<FudabaPublicCardRecord> = {}
-    ): FudabaPublicCardRecord {
-        return {
-            id: CARD_ID,
-            producer_name: 'Producer A',
-            series_codes: ['765'],
-            favorite_characters: [],
-            pages: [cardPageRow('front', 1), cardPageRow('back', 2)],
-            middle_object_keys: [],
-            accent: '#4f64dd',
-            bio: 'Public bio',
-            trade_note: 'Trade note',
-            exchange_mode: 'manual',
-            made_on: null,
-            group_name: null,
-            producer_reading: null,
-            is_original: false,
-            made_with_ai: false,
-            visible: true,
-            credits: [],
-            created_at: CREATED_AT,
-            like_count: 2,
-            favorite_count: 1,
-            viewer_liked: false,
-            viewer_favorited: false,
-            ...overrides
-        };
     }
 
     interface FixtureOptions {
@@ -587,7 +557,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 if (input.favoritedByAccountId !== ACCOUNT_ID) return [];
                 return this.favorites.has(ACCOUNT_ID)
                     ? [
-                          publicCard({
+                          makeFudabaPublicCardRecord(CARD_ID, {
                               viewer_favorited: true,
                               favorite_count: 2
                           })
@@ -670,14 +640,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     }
 
     function bearerHeaders(): Record<string, string> {
-        return bearerTokenHeaders(TOKEN);
+        return fudabaBearerHeaders(TOKEN);
     }
 
     function cookieHeaders(includeCsrfHeader: boolean): Record<string, string> {
-        return cookieCsrfHeaders([
-            [PLATFORM_ACCESS_TOKEN_COOKIE, TOKEN],
-            [PLATFORM_CSRF_TOKEN_COOKIE, CSRF]
-        ], includeCsrfHeader ? CSRF : null);
+        return fudabaCookieHeaders(TOKEN, CSRF, includeCsrfHeader);
     }
 
     function interactionPath(kind: 'like' | 'favorite', cardId = CARD_ID): string {
@@ -857,72 +824,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     const UPDATED_AT = '2026-08-03T00:01:00.000Z';
     const ARCHIVED_AT = '2026-08-03T00:02:00.000Z';
 
-    const initializedPostgresSchema: SqlSchemaStrategy = {
-        initializeCore: async () => undefined,
-        initializePlatform: async () => undefined,
-        initializeFudaba: async () => undefined,
-        initializeStory: async () => undefined
-    };
-
-    interface Fixture {
-        database: ManagedSqlDatabase;
-        repository: SqlFudabaRepository;
-        dialect: 'postgresql';
-    }
-
-    async function createFixture(
-        dialect: Fixture['dialect']
-    ): Promise<Fixture> {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        onTestFinished(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-
-    async function seedAccount(
-        fixture: Fixture,
-        id: string,
-        status: PlatformAccountStatus = 'active'
-    ): Promise<void> {
-        await fixture.database.prepare(
-            `INSERT INTO platform_accounts
-            (id, status, token_version, created_at, updated_at, deleted_at)
-         VALUES (?, ?, 0, 1700000000000, 1700000000000, ?)`
-        ).bind(id, status, status === 'deleted' ? 1700000000000 : null).run();
-    }
+    type Fixture = FudabaRepositoryFixture;
 
     function office(
         id: string,
         ownerAccountId: string,
         overrides: Partial<NewFudabaOfficeInput> = {}
     ): NewFudabaOfficeInput {
-        return {
-            id,
-            ownerAccountId,
-            slug: id,
-            name: `Office ${id}`,
+        return makeFudabaOfficeInput(id, ownerAccountId, {
             intro: '',
-            city: 'Shanghai',
             address: 'Private address',
-            latitude: 31.2304,
-            longitude: 121.4737,
-            accent: '#ef5b6c',
-            coverObjectKey: null,
-            isOpen: true,
-            visitorCount: 0,
-            status: 'active',
-            revision: 0,
             createdAt: CREATED_AT,
             updatedAt: CREATED_AT,
-            archivedAt: null,
-            seriesCodes: ['765'],
             ...overrides
-        };
+        });
     }
 
     function card(
@@ -930,29 +845,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         ownerAccountId: string,
         overrides: Partial<NewFudabaCardInput> = {}
     ): NewFudabaCardInput {
-        return {
-            id,
-            ownerAccountId,
-            producerName: `Producer ${ownerAccountId}`,
-            seriesCodes: ['765'],
-            favoriteCharacterIds: [900_001],
-            pages: [cardPageWrite('front'), cardPageWrite('back')],
-            bio: '',
-            tradeNote: '',
-            exchangeMode: 'manual',
-            madeOn: null,
-            groupName: null,
-            producerReading: null,
-            isOriginal: false,
-            madeWithAi: false,
-            visible: true,
-            publicationStatus: 'published',
-            revision: 0,
+        return makeFudabaCardInput(id, ownerAccountId, {
             createdAt: CREATED_AT,
             updatedAt: CREATED_AT,
-            deletedAt: null,
             ...overrides
-        };
+        });
     }
 
     function placementInput(
@@ -978,7 +875,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     async function assertCardPlacementRepository(
         dialect: Fixture['dialect']
     ): Promise<void> {
-        const fixture = await createFixture(dialect);
+        const fixture = await createFudabaRepositoryFixture(dialect);
         const ownerId = `${dialect}-placement-owner`;
         const otherId = `${dialect}-placement-other`;
         const officeId = `${dialect}-placement-office`;
@@ -991,10 +888,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         const restrictedOfficeOwnerId = `${dialect}-restricted-office-owner`;
         const suspendedOfficeId = `${dialect}-suspended-owner-office`;
         const suspendedOfficeOwnerId = `${dialect}-suspended-office-owner`;
-        await seedAccount(fixture, ownerId);
-        await seedAccount(fixture, otherId);
-        await seedAccount(fixture, restrictedOfficeOwnerId, 'restricted');
-        await seedAccount(fixture, suspendedOfficeOwnerId, 'suspended');
+        await seedPlatformAccount(fixture, ownerId);
+        await seedPlatformAccount(fixture, otherId);
+        await seedPlatformAccount(fixture, restrictedOfficeOwnerId, 'restricted');
+        await seedPlatformAccount(fixture, suspendedOfficeOwnerId, 'suspended');
         await fixture.repository.createOffice(office(officeId, ownerId));
         await fixture.repository.createOffice(office(closedOfficeId, otherId, {
             isOpen: false
@@ -1430,14 +1327,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     }
 
     function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> {
-        return bearerTokenHeaders(TOKEN, extra);
+        return fudabaBearerHeaders(TOKEN, extra);
     }
 
     function cookieHeaders(includeHeader: boolean): Record<string, string> {
-        return cookieCsrfHeaders([
-            [PLATFORM_ACCESS_TOKEN_COOKIE, TOKEN],
-            [PLATFORM_CSRF_TOKEN_COOKIE, CSRF]
-        ], includeHeader ? CSRF : null);
+        return fudabaCookieHeaders(TOKEN, CSRF, includeHeader);
     }
 
     function placementBody(expectedRevision: number | null): Record<string, unknown> {
@@ -2075,28 +1969,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         ownerAccountId: string,
         publicationStatus: NewFudabaCardInput['publicationStatus'] = 'published'
     ): NewFudabaCardInput {
-        return {
-            id,
-            ownerAccountId,
-            producerName: `Producer ${ownerAccountId}`,
-            seriesCodes: ['765'],
-            favoriteCharacterIds: [900_001],
-            pages: [cardPageWrite('front'), cardPageWrite('back')],
-            bio: '',
-            tradeNote: '',
-            exchangeMode: 'manual',
-            madeOn: null,
-            groupName: null,
-            producerReading: null,
-            isOriginal: false,
-            madeWithAi: false,
-            visible: true,
-            publicationStatus,
-            revision: 0,
+        return makeFudabaCardInput(id, ownerAccountId, {
             createdAt: CREATED_AT,
             updatedAt: CREATED_AT,
-            deletedAt: null
-        };
+            publicationStatus
+        });
     }
 
     function ownerCard(id: string, ownerAccountId: string): CreateOwnedFudabaCardInput {
@@ -3114,9 +2991,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 fudaba.beginRegisteredCardReview(reviewCardId, 0),
                 sibling.beginRegisteredCardReview(reviewCardId, 0)
             ]);
+            // 第二步认领看到的是第一步留下的 `approving`，按「上次的残留」续做：
+            // 真正的唯一性由 `completeRegisteredCardReview` 的 revision 栅栏保证。
             assert.deepEqual(
                 registeredBegin.map((result) => result.status).sort(),
-                ['claimed', 'conflict']
+                ['claimed', 'resumed']
             );
             assert.deepEqual(await fudaba.updateCardMetadataForOwner({
                 cardId: reviewCardId,
@@ -3175,19 +3054,22 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             if (registeredRejected.status !== 'saved') return;
             assert.equal(registeredRejected.card.publication_status, 'rejected');
 
-            const rollbackCardId = 'registered-review-rollback';
+            const resumedCardId = 'registered-review-resumed';
             assert.equal(
-                (await fudaba.createCardForOwner(ownerCard(rollbackCardId, ownerC))).status,
+                (await fudaba.createCardForOwner(ownerCard(resumedCardId, ownerC))).status,
                 'saved'
             );
             assert.equal(
-                (await fudaba.beginRegisteredCardReview(rollbackCardId, 0)).status,
+                (await fudaba.beginRegisteredCardReview(resumedCardId, 0)).status,
                 'claimed'
             );
-            assert.equal(await fudaba.rollbackRegisteredCardReview(rollbackCardId, 1), true);
-            const rolledBackCard = await fudaba.findRegisteredCardForAdmin(rollbackCardId);
-            assert.equal(rolledBackCard?.publication_status, 'pending');
-            assert.equal(rolledBackCard?.revision, 2);
+            // 两次点击之间失败不再回收认领：行留在 `approving`、revision 只推进
+            // 一次，拿最新 revision 重试会得到 `resumed` 而不是冲突。
+            const resumedBegin = await fudaba.beginRegisteredCardReview(resumedCardId, 1);
+            assert.equal(resumedBegin.status, 'resumed');
+            const stuckCard = await fudaba.findRegisteredCardForAdmin(resumedCardId);
+            assert.equal(stuckCard?.publication_status, 'approving');
+            assert.equal(stuckCard?.revision, 1);
 
             const rollbackLegacyId = await insertLegacyCard(database, 'q');
             assert.equal((await fudaba.createCardClaimForOwner({
@@ -3254,46 +3136,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     const UPDATED_AT = '2026-08-02T00:01:00.000Z';
     const RESOLVED_AT = '2026-08-02T00:02:00.000Z';
 
-    const initializedPostgresSchema: SqlSchemaStrategy = {
-        initializeCore: async () => undefined,
-        initializePlatform: async () => undefined,
-        initializeFudaba: async () => undefined,
-        initializeStory: async () => undefined
-    };
-
-    interface Fixture {
-        database: ManagedSqlDatabase;
-        repository: SqlFudabaRepository;
-        dialect: 'postgresql';
-    }
+    type Fixture = FudabaRepositoryFixture;
 
     function office(
         id: string,
         ownerAccountId: string,
         overrides: Partial<NewFudabaOfficeInput> = {}
     ): NewFudabaOfficeInput {
-        return {
-            id,
-            ownerAccountId,
-            slug: id,
-            name: `Office ${id}`,
+        return makeFudabaOfficeInput(id, ownerAccountId, {
             intro: '',
-            city: 'Shanghai',
             address: '765 Producer Street',
-            latitude: 31.2304,
-            longitude: 121.4737,
-            accent: '#ef5b6c',
-            coverObjectKey: null,
-            isOpen: true,
-            visitorCount: 0,
-            status: 'active',
-            revision: 0,
             createdAt: CREATED_AT,
             updatedAt: CREATED_AT,
-            archivedAt: null,
-            seriesCodes: ['765'],
             ...overrides
-        };
+        });
     }
 
     function card(
@@ -3301,50 +3157,11 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         ownerAccountId: string,
         overrides: Partial<NewFudabaCardInput> = {}
     ): NewFudabaCardInput {
-        return {
-            id,
-            ownerAccountId,
-            producerName: `Producer ${ownerAccountId}`,
-            seriesCodes: ['765'],
-            favoriteCharacterIds: [900_001],
-            pages: [cardPageWrite('front'), cardPageWrite('back')],
-            bio: '',
-            tradeNote: '',
-            exchangeMode: 'manual',
-            madeOn: null,
-            groupName: null,
-            producerReading: null,
-            isOriginal: false,
-            madeWithAi: false,
-            visible: true,
-            publicationStatus: 'published',
-            revision: 0,
+        return makeFudabaCardInput(id, ownerAccountId, {
             createdAt: CREATED_AT,
             updatedAt: CREATED_AT,
-            deletedAt: null,
             ...overrides
-        };
-    }
-
-    async function createFixture(
-        dialect: 'postgresql' = 'postgresql'
-    ): Promise<Fixture> {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        onTestFinished(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-
-    async function seedPlatformAccount(
-        fixture: Fixture,
-        accountId: string
-    ): Promise<void> {
-        await insertPlatformAccount(fixture.database, accountId);
+        });
     }
 
     async function seedBackofficeActor(
@@ -3379,7 +3196,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
     describe('Fudaba domain repository', () => {
         postgresTest('office creation and series assignment are atomic', async () => {
-            const fixture = await createFixture();
+            const fixture = await createFudabaRepositoryFixture();
             await seedPlatformAccount(fixture, 'office-owner');
 
             await assert.rejects(fixture.repository.createOffice(office(
@@ -3418,7 +3235,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         async function assertOwnerAndArchiveBoundary(
             dialect: 'postgresql'
         ): Promise<void> {
-            const fixture = await createFixture(dialect);
+            const fixture = await createFudabaRepositoryFixture(dialect);
             for (const accountId of ['owner', 'intruder', 'requester']) {
                 await seedPlatformAccount(fixture, `${dialect}-${accountId}`);
             }
@@ -3479,7 +3296,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         }
 
         postgresTest('moderation constraints cannot be bypassed', async () => {
-            const fixture = await createFixture();
+            const fixture = await createFudabaRepositoryFixture();
             await seedPlatformAccount(fixture, 'card-owner');
             const actorId = await seedBackofficeActor(fixture, 'fudaba-moderator');
 
@@ -3537,7 +3354,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         async function assertModerationActorRetention(
             dialect: 'postgresql'
         ): Promise<void> {
-            const fixture = await createFixture(dialect);
+            const fixture = await createFudabaRepositoryFixture(dialect);
             const actorId = await seedBackofficeActor(
                 fixture,
                 `${dialect}-retained-moderator`
@@ -3591,68 +3408,20 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     const STALE_OPERATION_ID = "00000000-0000-4000-8000-000000000002";
     const FAILED_OPERATION_ID = "00000000-0000-4000-8000-000000000003";
 
-    const initializedPostgresSchema: SqlSchemaStrategy = {
-        initializeCore: async () => undefined,
-        initializePlatform: async () => undefined,
-        initializeFudaba: async () => undefined,
-        initializeStory: async () => undefined,
-    };
-
-    interface Fixture {
-        database: ManagedSqlDatabase;
-        repository: SqlFudabaRepository;
-        dialect: "postgresql";
-    }
-
-    async function createFixture(
-        dialect: Fixture["dialect"],
-    ): Promise<Fixture> {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema,
-        );
-        onTestFinished(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-
-    async function seedAccount(
-        fixture: Fixture,
-        id: string,
-        status: PlatformAccountStatus = "active",
-    ): Promise<void> {
-        await insertPlatformAccount(fixture.database, id, { status });
-    }
+    type Fixture = FudabaRepositoryFixture;
 
     function office(
         id: string,
         ownerAccountId: string,
         overrides: Partial<NewFudabaOfficeInput> = {},
     ): NewFudabaOfficeInput {
-        return {
-            id,
-            ownerAccountId,
-            slug: id,
-            name: `Office ${id}`,
+        return makeFudabaOfficeInput(id, ownerAccountId, {
             intro: "Private intro",
-            city: "Shanghai",
             address: "Private exact address",
-            latitude: 31.2304,
-            longitude: 121.4737,
-            accent: "#ef5b6c",
-            coverObjectKey: null,
-            isOpen: true,
-            visitorCount: 0,
-            status: "active",
-            revision: 0,
             createdAt: SUBMITTED_AT,
             updatedAt: SUBMITTED_AT,
-            archivedAt: null,
-            seriesCodes: ["765"],
             ...overrides,
-        };
+        });
     }
 
     async function seedReviewer(fixture: Fixture): Promise<number> {
@@ -3728,15 +3497,15 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     async function assertLocationRepository(
         dialect: Fixture["dialect"],
     ): Promise<void> {
-        const fixture = await createFixture(dialect);
+        const fixture = await createFudabaRepositoryFixture(dialect);
         const ownerId = `${dialect}-location-owner`;
         const otherId = `${dialect}-location-other`;
         const restrictedId = `${dialect}-location-restricted`;
         const suspendedId = `${dialect}-location-suspended`;
-        await seedAccount(fixture, ownerId);
-        await seedAccount(fixture, otherId);
-        await seedAccount(fixture, restrictedId, "restricted");
-        await seedAccount(fixture, suspendedId, "suspended");
+        await seedPlatformAccount(fixture, ownerId);
+        await seedPlatformAccount(fixture, otherId);
+        await seedPlatformAccount(fixture, restrictedId, "restricted");
+        await seedPlatformAccount(fixture, suspendedId, "suspended");
         const reviewerId = await seedReviewer(fixture);
 
         await fixture.repository.createOffice(office("location-main", ownerId));
@@ -4159,7 +3928,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 repository: new SqlFudabaRepository(harness.connection, initializedPostgresSchema),
                 dialect: 'postgresql'
             };
-            await seedAccount(fixture, 'historical-owner');
+            await seedPlatformAccount(fixture, 'historical-owner');
             const original = office('historical-location', 'historical-owner');
             await fixture.database.prepare(`INSERT INTO fudaba_offices
                 (id, owner_account_id, slug, name, intro, city, address, latitude, longitude,
@@ -4260,10 +4029,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         });
 
         postgresTest('canonical whole-office publication preserves decimals and ignores legacy location revisions', async () => {
-            const fixture = await createFixture('postgresql');
+            const fixture = await createFudabaRepositoryFixture('postgresql');
             const ownerId = 'precision-owner';
-            await seedAccount(fixture, ownerId);
-            await seedAccount(fixture, 'precision-other');
+            await seedPlatformAccount(fixture, ownerId);
+            await seedPlatformAccount(fixture, 'precision-other');
             const reviewerId = await seedReviewer(fixture);
             const point = { latitude: 31.230456789, longitude: 121.473712345, precision: 'exact' as const };
             const input = { ...office('precision-main', ownerId), latitude: point.latitude, longitude: point.longitude };
@@ -6215,18 +5984,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     const LATER_AT = '2026-08-03T03:00:00.000Z';
     const RECEIPT_RACE_LOCK = [18_003, 18] as const;
 
-    const initializedPostgresSchema: SqlSchemaStrategy = {
-        initializeCore: async () => undefined,
-        initializePlatform: async () => undefined,
-        initializeFudaba: async () => undefined,
-        initializeStory: async () => undefined
-    };
-
-    interface Fixture {
-        database: ManagedSqlDatabase;
-        repository: SqlFudabaRepository;
-        dialect: 'postgresql';
-    }
+    type Fixture = FudabaRepositoryFixture;
 
     class InterleavingStatement implements SqlStatement {
         constructor(
@@ -6305,57 +6063,18 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         }
     }
 
-    async function createFixture(
-        dialect: Fixture['dialect']
-    ): Promise<Fixture> {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        onTestFinished(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-
-    async function seedAccount(
-        fixture: Fixture,
-        id: string,
-        status: PlatformAccountStatus = 'active'
-    ): Promise<void> {
-        await fixture.database.prepare(
-            `INSERT INTO platform_accounts
-            (id, status, token_version, created_at, updated_at, deleted_at)
-         VALUES (?, ?, 0, 1700000000000, 1700000000000, ?)`
-        ).bind(id, status, status === 'deleted' ? 1700000000000 : null).run();
-    }
-
     function office(
         id: string,
         ownerAccountId: string,
         overrides: Partial<CreateOwnedFudabaOfficeInput> = {}
     ): CreateOwnedFudabaOfficeInput {
         return {
-            id,
-            ownerAccountId,
-            slug: id,
-            name: `Office ${id}`,
-            intro: 'Owner intro',
-            city: 'Shanghai',
-            address: '765 Producer Street',
-            latitude: 31.2304,
-            longitude: 121.4737,
-            accent: '#ef5b6c',
-            coverObjectKey: null,
-            isOpen: true,
-            visitorCount: 0,
-            status: 'active',
-            revision: 0,
-            createdAt: CREATED_AT,
-            updatedAt: CREATED_AT,
-            archivedAt: null,
-            seriesCodes: ['765'],
+            ...makeFudabaOfficeInput(id, ownerAccountId, {
+                intro: 'Owner intro',
+                address: '765 Producer Street',
+                createdAt: CREATED_AT,
+                updatedAt: CREATED_AT
+            }),
             idempotencyKeyHash: hash(`key:${id}`),
             requestHash: hash(`request:${id}`),
             receiptCreatedAt: 1_775_100_000_000,
@@ -6455,9 +6174,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         const ownerId = `${fixture.dialect}-office-owner`;
         const otherId = `${fixture.dialect}-office-other`;
         const restrictedId = `${fixture.dialect}-office-restricted`;
-        await seedAccount(fixture, ownerId);
-        await seedAccount(fixture, otherId);
-        await seedAccount(fixture, restrictedId, 'restricted');
+        await seedPlatformAccount(fixture, ownerId);
+        await seedPlatformAccount(fixture, otherId);
+        await seedPlatformAccount(fixture, restrictedId, 'restricted');
 
         assert.deepEqual(await fixture.repository.createOfficeForOwner(office(
             `${fixture.dialect}-restricted-office`,
@@ -6753,13 +6472,13 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
     describe('Fudaba office management repository', () => {
         postgresTest('real PostgreSQL owner offices enforce receipt and cross-replica CAS', async () => {
-            await assertOfficeManagement(await createFixture('postgresql'));
+            await assertOfficeManagement(await createFudabaRepositoryFixture('postgresql'));
         });
 
         async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<void> {
             const ownerId = `${fixture.dialect}-snapshot-owner`;
             const officeId = `${fixture.dialect}-snapshot-office`;
-            await seedAccount(fixture, ownerId);
+            await seedPlatformAccount(fixture, ownerId);
             const created = await fixture.repository.createOfficeForOwner(office(
                 officeId,
                 ownerId,
@@ -6818,15 +6537,15 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         }
 
         postgresTest('real PostgreSQL owner reads keep metadata and series in one snapshot', async () => {
-            await assertOwnerOfficeReadsUseOneSnapshot(await createFixture('postgresql'));
+            await assertOwnerOfficeReadsUseOneSnapshot(await createFudabaRepositoryFixture('postgresql'));
         });
 
         postgresTest('real PostgreSQL owner lock keeps office-create receipts atomic', async () => {
-            const fixture = await createFixture('postgresql');
+            const fixture = await createFudabaRepositoryFixture('postgresql');
             const ownerId = 'postgresql-receipt-race-owner';
             const officeId = 'postgresql-receipt-race-office';
             const createInput = office(officeId, ownerId);
-            await seedAccount(fixture, ownerId);
+            await seedPlatformAccount(fixture, ownerId);
             await fixture.database.executeScript(`
         CREATE FUNCTION public.fudaba_test_hold_office_create_receipt()
         RETURNS TRIGGER
@@ -7446,7 +7165,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     }
 
     function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> {
-        return bearerTokenHeaders(PLATFORM_TOKEN, extra);
+        return fudabaBearerHeaders(PLATFORM_TOKEN, extra);
     }
 
     async function createOffice(
@@ -8315,6 +8034,67 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             assert.deepEqual(fixture.storage.deletes, [storedPageKey(live, 'back')]);
         });
 
+        test('rotating only a middle page lands live without a review', async () => {
+            const fixture = new OwnerRouteFixture();
+            const live = ownerCard({
+                publication_status: 'published',
+                review_status: null,
+                pages: [
+                    cardPageRow('front', 1),
+                    cardPageRow('page-aaaaaaaa', 2),
+                    cardPageRow('page-bbbbbbbb', 3),
+                    cardPageRow('back', 4)
+                ]
+            });
+            fixture.cards.set('owner-card', live);
+            for (const page of live.pages) {
+                fixture.storage.seed(storedPageKey(live, page.page_id));
+            }
+            fixture.uploads.next = {
+                // 页序原样、没有新图、只给一张中间页的圈数：这就是「只转不换」。
+                fields: {
+                    order: JSON.stringify(['#0', '#1', '#2', '#3']),
+                    rotations: JSON.stringify({ middles: [1] }),
+                    expectedRevision: String(live.revision)
+                },
+                files: {}
+            };
+            const response = await fixture.app.request(
+                'http://ims.test/api/community/exchange/me/cards/owner-card/media',
+                { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+            );
+            const body = await response.json();
+            assert.equal(response.status, 200, JSON.stringify(body));
+
+            // 走旋转落库而不是「换整套图」：状态与待审标记都不动，所以不进复审。
+            assert.equal(fixture.mediaSetInputs.length, 0);
+            assert.equal(fixture.rotationInputs.length, 1);
+            assert.deepEqual(fixture.images.rotations, [90]);
+            const saved = fixture.cards.get('owner-card')!;
+            assert.equal(saved.publication_status, 'published');
+            assert.equal(saved.review_status, null);
+            assert.deepEqual(saved.pending_pages, []);
+
+            // 只有被转的那张中间页换了对象，其余三页仍是原来的键。
+            assert.notEqual(
+                storedPageKey(saved, 'page-aaaaaaaa'),
+                storedPageKey(live, 'page-aaaaaaaa')
+            );
+            assert.equal(
+                storedPageKey(saved, 'front'),
+                storedPageKey(live, 'front')
+            );
+            assert.equal(
+                storedPageKey(saved, 'page-bbbbbbbb'),
+                storedPageKey(live, 'page-bbbbbbbb')
+            );
+            assert.equal(
+                storedPageKey(saved, 'back'),
+                storedPageKey(live, 'back')
+            );
+            assert.equal(saved.revision, live.revision + 1);
+        });
+
         test('the ordered submit refuses slots the card does not have', async () => {
             const fixture = new OwnerRouteFixture();
             const live = fixture.cards.get('owner-card')!;
@@ -8618,13 +8398,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     const MEDIA_UPDATED_AT = '2026-08-02T03:02:00.000Z';
     const DELETED_AT = '2026-08-02T03:03:00.000Z';
     const PROFILE_CREATED_AT = 1_775_100_000_000;
-
-    const initializedPostgresSchema: SqlSchemaStrategy = {
-        initializeCore: async () => undefined,
-        initializePlatform: async () => undefined,
-        initializeFudaba: async () => undefined,
-        initializeStory: async () => undefined
-    };
 
     interface Fixture {
         database: ManagedSqlDatabase;
@@ -10321,110 +10094,34 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     const CARD_NEW_AT = "2026-08-02T03:00:00.000Z";
     const CARD_DELETED_AT = "2026-08-02T04:00:00.000Z";
 
-    const initializedPostgresSchema: SqlSchemaStrategy = {
-        initializeCore: async () => undefined,
-        initializePlatform: async () => undefined,
-        initializeFudaba: async () => undefined,
-        initializeStory: async () => undefined,
-    };
-
-    interface Fixture {
-        database: ManagedSqlDatabase;
-        repository: SqlFudabaRepository;
-        dialect: "postgresql";
-    }
-
-    async function createFixture(
-        dialect: Fixture["dialect"],
-    ): Promise<Fixture> {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema,
-        );
-        onTestFinished(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
+    type Fixture = FudabaRepositoryFixture;
 
     function office(
         id: string,
         overrides: Partial<NewFudabaOfficeInput> = {},
     ): NewFudabaOfficeInput {
-        return {
-            id,
-            ownerAccountId: "owner",
-            slug: id,
-            name: `Office ${id}`,
+        return makeFudabaOfficeInput(id, "owner", {
             intro: `Intro ${id}`,
-            city: "Shanghai",
             address: `Private address ${id}`,
-            latitude: 31.2304,
-            longitude: 121.4737,
-            accent: "#ef5b6c",
             coverObjectKey: `community/fudaba/offices/${id}/cover.webp`,
-            isOpen: true,
-            visitorCount: 0,
-            status: "active",
-            revision: 0,
             createdAt: OFFICE_CREATED_AT,
             updatedAt: OFFICE_CREATED_AT,
-            archivedAt: null,
-            seriesCodes: ["765"],
             ...overrides,
-        };
+        });
     }
 
     function card(
         id: string,
         overrides: Partial<NewFudabaCardInput> = {},
     ): NewFudabaCardInput {
-        return {
-            id,
-            ownerAccountId: "owner",
+        return makeFudabaCardInput(id, "owner", {
             producerName: `Producer ${id}`,
-            seriesCodes: ["765"],
-            favoriteCharacterIds: [900_001],
-            pages: [cardPageWrite('front'), cardPageWrite('back')],
             bio: `Bio ${id}`,
             tradeNote: `Trade ${id}`,
-            exchangeMode: "manual",
-            madeOn: null,
-            groupName: null,
-            producerReading: null,
-            isOriginal: false,
-            madeWithAi: false,
-            visible: true,
-            publicationStatus: "published",
-            revision: 0,
             createdAt: CARD_OLD_AT,
             updatedAt: CARD_OLD_AT,
-            deletedAt: null,
             ...overrides,
-        };
-    }
-
-    async function seedAccount(
-        fixture: Fixture,
-        accountId: string,
-        status: PlatformAccountStatus = "active",
-    ): Promise<void> {
-        const createdAt = 1_700_000_000_000;
-        await fixture.database
-            .prepare(
-                `INSERT INTO platform_accounts
-            (id, status, token_version, created_at, updated_at, deleted_at)
-         VALUES (?, ?, 0, ?, ?, ?)`,
-            )
-            .bind(
-                accountId,
-                status,
-                createdAt,
-                createdAt,
-                status === "deleted" ? createdAt : null,
-            )
-            .run();
+        });
     }
 
     async function placeCard(
@@ -10463,13 +10160,13 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     async function assertPublicReadModels(
         dialect: Fixture["dialect"],
     ): Promise<void> {
-        const fixture = await createFixture(dialect);
+        const fixture = await createFudabaRepositoryFixture(dialect);
         for (const accountId of ["owner", "viewer", "other-viewer"]) {
-            await seedAccount(fixture, accountId);
+            await seedPlatformAccount(fixture, accountId);
         }
-        await seedAccount(fixture, "restricted-owner", "restricted");
-        await seedAccount(fixture, "suspended-owner", "suspended");
-        await seedAccount(fixture, "deleted-owner", "deleted");
+        await seedPlatformAccount(fixture, "restricted-owner", "restricted");
+        await seedPlatformAccount(fixture, "suspended-owner", "suspended");
+        await seedPlatformAccount(fixture, "deleted-owner", "deleted");
 
         await fixture.database
             .prepare("UPDATE agencies SET wiki_enabled=? WHERE code=?")
@@ -11142,36 +10839,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         async deletePrefix(): Promise<void> {}
     }
 
-    function publicCard(
-        overrides: Partial<FudabaPublicCardRecord> = {},
-    ): FudabaPublicCardRecord {
-        return {
-            id: "card-a",
-            producer_name: "Producer A",
-            series_codes: ["765"],
-            favorite_characters: [],
-            pages: [cardPageRow("front", 1), cardPageRow("back", 2)],
-            middle_object_keys: [],
-            accent: "#4f64dd",
-            bio: "Public bio",
-            trade_note: "Trade note",
-            exchange_mode: "manual",
-            made_on: null,
-            group_name: null,
-            producer_reading: null,
-            is_original: false,
-            made_with_ai: false,
-            visible: true,
-            credits: [],
-            created_at: CREATED_AT,
-            like_count: 2,
-            favorite_count: 1,
-            viewer_liked: false,
-            viewer_favorited: false,
-            ...overrides,
-        };
-    }
-
     function publicOffice(): FudabaPublicOfficeRecord {
         return {
             id: "office-a",
@@ -11193,7 +10860,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         lastOfficeInput: ListFudabaPublicOfficesInput | null = null;
         lastCardInput: ListFudabaPublicCardsInput | null = null;
         officeVisible = true;
-        card = publicCard();
+        card = makeFudabaPublicCardRecord("card-a");
 
         readonly characters = {
             listNamecardCharacterAgencies: async () => [
@@ -11655,7 +11322,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
             // 页面行是公开媒体地址的唯一来源：没有页面行时只能失败关闭，
             // 不能退回旧的 key 列去拼一个地址。
-            fudaba.card = publicCard({ pages: [] });
+            fudaba.card = makeFudabaPublicCardRecord("card-a", { pages: [] });
             const unavailable = await testRequest(
                 app,
                 "/api/community/exchange/cards",

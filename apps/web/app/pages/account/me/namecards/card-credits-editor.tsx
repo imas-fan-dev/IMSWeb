@@ -10,6 +10,7 @@ import {
 
 import type { NamecardCredit } from "@imsweb/contracts/fudaba"
 
+import { CREATOR_ROLE_LABELS } from "~/components/community/namecard-credit-format"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
@@ -20,12 +21,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "~/components/ui/popover"
-
-const ROLE_LABELS: Record<(typeof NAMECARD_CREDIT_ROLES)[number], string> = {
-  design: "设计",
-  illustration: "插画",
-  other: "其他",
-}
 
 export function emptyCredit(): NamecardCredit {
   return { accountId: null, displayName: "", url: null, roles: ["design"] }
@@ -52,7 +47,7 @@ function RoleSelect({
 }) {
   const [open, setOpen] = useState(false)
   const label = roles.length
-    ? roles.map((role) => ROLE_LABELS[role]).join("、")
+    ? roles.map((role) => CREATOR_ROLE_LABELS[role]).join("、")
     : "选择角色"
   const atLimit = roles.length >= NAMECARD_CREDIT_ROLE_LIMIT
 
@@ -97,7 +92,7 @@ function RoleSelect({
                 disabled={disabled || (!checked && atLimit)}
                 onCheckedChange={() => toggle(role)}
               />
-              {ROLE_LABELS[role]}
+              {CREATOR_ROLE_LABELS[role]}
             </label>
           )
         })}

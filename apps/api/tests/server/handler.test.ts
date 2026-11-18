@@ -3,6 +3,7 @@
 // named fixtures from different files cannot clash.
 
 import { readContractJson as contractJson } from '../contracts/contract-json';
+import { pageObjectKey } from '../fixtures/owner-route-fixture';
 import { createHonoApp } from '@/app';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { AdminAccountRepository, AuditLogInput, AuditRepository, BackofficeAuthRepository, EventRepository, NamecardAdminUpdateInput, NamecardFeedbackAuditFilter, NamecardLockAuditFilter, NamecardRepository, NamecardSubmissionRecord, NewsRepository, ReactionRepository, StoryRepository } from '@/ports/repositories';
@@ -700,6 +701,7 @@ import { test } from 'vitest';
         storyReads: number;
         storageGet: number;
         storageWrites: number;
+        storageProtects: number;
     }
 
     function createCompatibilityFixture(
@@ -729,7 +731,8 @@ import { test } from 'vitest';
             newsFindMedia: [],
             storyReads: 0,
             storageGet: 0,
-            storageWrites: 0
+            storageWrites: 0,
+            storageProtects: 0
         };
         const events: EventRepository = {
             async insertEvent() { throw new Error('unexpected event insert'); },
@@ -941,6 +944,7 @@ import { test } from 'vitest';
             },
             async delete() { calls.storageWrites += 1; },
             async publish() { calls.storageWrites += 1; },
+            async protect() { calls.storageProtects += 1; },
             async exists() { return true; },
             async copy() { calls.storageWrites += 1; },
             async move() { calls.storageWrites += 1; },
@@ -1458,10 +1462,56 @@ import { test } from 'vitest';
                 assert.equal(response.status, 200);
                 assert.deepEqual(await responseJson(response), { success: true, revision: 4 });
                 assert.equal(fixture.calls.storageWrites, 2);
+                // 成功落地后副本就该留在公网：只有失败路径才回收保护态。
+                assert.equal(fixture.calls.storageProtects, 0);
                 assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
                     action: '审核图片通过',
                     target: 'card_id=19;revision=4'
                 }]);
+            });
+
+            test('protects the promoted copies again when the final CAS conflicts', async () => {
+                const version = '11111111-1111-4111-8111-111111111111';
+                const fixture = createCompatibilityFixture({
+                    async findCardMediaKey(_id, side, draft) {
+                        if (side !== 'front' && side !== 'back') return null;
+                        return pageObjectKey(
+                            'card-id',
+                            side,
+                            draft ? 'pending' : 'live',
+                            version
+                        );
+                    },
+                    async beginCardApproval() {
+                        return {
+                            status: 'claimed',
+                            card: {
+                                id: 19,
+                                status: 'approving',
+                                created_at: null,
+                                revision: 3
+                            }
+                        };
+                    },
+                    async completeCardApproval() {
+                        // 认领之后、落库之前卡片又被改过：判决没落地。
+                        return { status: 'conflict', revision: 4 };
+                    }
+                });
+                const response = await fixture.request('/api/admin/cards/approve/19', {
+                    method: 'POST',
+                    headers: {
+                        Authorization: 'Bearer op-token',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ expected_revision: 2 })
+                });
+
+                assert.equal(response.status, 409);
+                // 正/反面的线上键公开一次、待审副本提升时再公开一次；判决没落地，
+                // 提升出来的副本必须退回受保护态，否则未通过审核的图片会留在公网。
+                assert.equal(fixture.calls.storageWrites, 4);
+                assert.equal(fixture.calls.storageProtects, 2);
             });
         });
 

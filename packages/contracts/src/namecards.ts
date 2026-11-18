@@ -19,10 +19,11 @@ import {
   fudabaCardFieldsRequestSchema,
   namecardCreditSchema,
   namecardReactionEmojiSchema,
+  readonlyCardContentFields,
+  readonlyCardContentFieldsSchema,
   type NamecardCredit,
 } from "./fudaba/index.js"
 import {
-  NAMECARD_CREDIT_LIMIT,
   NAMECARD_MIDDLE_IMAGE_LIMIT,
   NAMECARD_SERIES_LIMIT,
 } from "./fudaba/namecard-runtime.js"
@@ -60,26 +61,14 @@ export const namecardMetadataSchema = {
  * optional text field is null when the producer left it empty.
  */
 export const namecardPublicDetailSchema = {
+  ...readonlyCardContentFields,
   /** Fudaba row id, used to deep-link the owner editor. */
   cardId: z.string().min(1),
   cardNumber: z.number().int().positive(),
   revision: z.number().int().nonnegative(),
-  producerName: z.string().nullable(),
-  /** Sorting aid only, rendered in parentheses after the producer name. */
-  producerReading: z.string().min(1).nullable(),
-  groupName: z.string().min(1).nullable(),
-  /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
-  isGroupCard: z.boolean().optional(),
-  /** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; empty parts are dropped. */
-  madeOn: z.string().min(1).nullable(),
-  isOriginal: z.boolean(),
-  madeWithAi: z.boolean(),
-  bio: z.string().min(1).nullable(),
-  tradeNote: z.string().min(1).nullable(),
-  exchangeMode: z.enum(["auto", "manual", "none"]),
+  /** 墙上详情按上限截断企划，评审 diff 则保留全部。 */
+  seriesCodes: z.array(z.string().min(1)).max(NAMECARD_SERIES_LIMIT),
   accent: z.string().min(1).nullable(),
-  seriesCodes: z.array(z.string().min(1)).max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
-  credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
   /** True when the signed-in viewer owns the row; drives the edit action. */
   canEdit: z.boolean(),
   /** False keeps the claim/complete actions visible on the detail dialog. */
@@ -90,21 +79,11 @@ export const namecardPublicDetailSchema = {
  * One side of the review diff: the published copy next to the submitted one.
  * Images are ordered front, back, then the middle pages.
  */
-export const namecardDiffSideSchema = z
-  .object({
-    producerName: z.string().nullable(),
-    producerReading: z.string().min(1).nullable(),
-    groupName: z.string().min(1).nullable(),
-    isGroupCard: z.boolean().optional(),
-    madeOn: z.string().min(1).nullable(),
-    bio: z.string().min(1).nullable(),
-    tradeNote: z.string().min(1).nullable(),
-    isOriginal: z.boolean(),
-    madeWithAi: z.boolean(),
+export const namecardDiffSideSchema = readonlyCardContentFieldsSchema
+  .extend({
     visible: z.boolean(),
-    exchangeMode: z.enum(["auto", "manual", "none"]),
-    seriesCodes: z.array(z.string().min(1)),
-    credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
+    /** 与墙上详情同源：提交侧本来就按上限收，响应侧一并对齐。 */
+    seriesCodes: z.array(z.string().min(1)).max(NAMECARD_SERIES_LIMIT),
     favoriteCharacters: z
       .array(namecardFavoriteCharacterSchema)
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
@@ -232,7 +211,7 @@ export const adminNamecardSchema = exactJsonResponse({
   revision: z.number().int().nonnegative(),
   producerName: z.string().nullable(),
   /** 制作人名读法：排序辅助，只有填写过的名片才带值。 */
-  producerReading: z.string().min(1).nullable(),
+  producerReading: z.string().min(1).max(80).nullable(),
   origin: z.string().min(1),
   /** 锁定理由；只有 `locked` 状态的名片会带值。 */
   lockReason: z.string().min(1).nullable(),
@@ -570,6 +549,7 @@ export const adminNamecardListQuerySchema = legacyStripRequestObject({
   query: z.unknown().optional(),
   status: z.unknown().optional(),
   origin: z.unknown().optional(),
+  owner: z.unknown().optional(),
 })
 export const expectedNamecardRevisionRequestSchema = legacyStripRequestObject({
   expected_revision: z.unknown(),
@@ -796,20 +776,20 @@ export const namecardExchangeDecisionSchema = exactJsonResponse({
 })
 
 /** 名片册留存的那份只读投影；原卡被删除后靠它继续展示。 */
-export const namecardCollectionSnapshotSchema = exactJsonResponse({
-  producerName: z.string().min(1).nullable(),
-  producerReading: z.string().min(1).nullable(),
-  groupName: z.string().min(1).nullable(),
-  madeOn: z.string().min(1).nullable(),
-  bio: z.string().nullable(),
-  tradeNote: z.string().nullable(),
-  isOriginal: z.boolean(),
-  madeWithAi: z.boolean(),
-  exchangeMode: z.enum(["auto", "manual", "none"]),
-  accent: z.string().min(1).nullable(),
-  seriesCodes: z.array(z.string().min(1)),
-  credits: z.array(namecardCreditSchema),
-})
+export const namecardCollectionSnapshotSchema =
+  readonlyCardContentFieldsSchema
+    .omit({ isGroupCard: true })
+    .extend({
+      producerName: z.string().min(1).nullable(),
+      /** 快照把空文本也记成 null，故没有最小长度。 */
+      bio: z.string().nullable(),
+      tradeNote: z.string().nullable(),
+      accent: z.string().min(1).nullable(),
+      seriesCodes: z.array(z.string().min(1)).max(NAMECARD_SERIES_LIMIT),
+      /** 快照不截断致谢名单。 */
+      credits: z.array(namecardCreditSchema),
+    })
+    .strict()
 
 /** 名片册里的一条：原卡还在就带最新投影，删掉了就只剩快照。 */
 export const namecardCollectionEntrySchema = exactJsonResponse({

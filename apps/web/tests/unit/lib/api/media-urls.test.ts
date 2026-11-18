@@ -21,7 +21,7 @@ import {
   makeFudabaRegisteredCardReview,
   makeFudabaSeriesList,
 } from "@/mocks/data/fudaba"
-import { makeNamecardPage } from "@/mocks/data/namecards"
+import { makeCardPage, makeNamecardPage } from "@/mocks/data/namecards"
 import {
   makePlatformProfileResponse,
   makePlatformSession,
@@ -130,16 +130,7 @@ function gridPage(
   order: number,
   url: string
 ): CardPage {
-  return {
-    pageId: `page-${order}`,
-    role,
-    order,
-    url,
-    previewUrl: url,
-    thumbUrl: url,
-    width: 900,
-    height: 500,
-  }
+  return makeCardPage({ role, order, url })
 }
 
 /** One grid card whose page rows carry the given URLs. */

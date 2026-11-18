@@ -141,6 +141,38 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("USER node", dockerfile)
         self.assertIn('CMD ["node", "apps/api/dist/server/main.js"]', dockerfile)
 
+    def test_api_image_copies_only_sources_that_exist_in_the_repository(self):
+        """A retired file left behind in a COPY instruction makes `docker build`
+        fail on the source checksum, so the image is never published."""
+        dockerfile = re.sub(
+            r"\\\n\s*",
+            " ",
+            API_DOCKERFILE_PATH.read_text(encoding="utf-8"),
+        )
+        # Earlier stages produce these; nothing under them is checked in.
+        generated = {"apps/api/dist", "apps/api/node_modules", "node_modules"}
+        checked = 0
+        for instruction in re.finditer(r"^COPY\s+(.*)$", dockerfile, re.MULTILINE):
+            sources = [
+                token
+                for token in instruction.group(1).split()
+                if not token.startswith("--")
+            ][:-1]
+            for source in sources:
+                if source.startswith("/"):
+                    if not source.startswith("/app/"):
+                        continue
+                    source = source[len("/app/") :]
+                if source == "." or source in generated:
+                    continue
+                checked += 1
+                self.assertTrue(
+                    (PROJECT_ROOT / source).exists(),
+                    f"apps/api/Dockerfile copies {source}, "
+                    "which is not in the repository",
+                )
+        self.assertGreater(checked, 0)
+
     def test_api_forwards_geocoder_configuration_without_enabling_a_default_provider(self):
         compose = COMPOSE_PATH.read_text(encoding="utf-8")
         api = compose.split("\n  api:\n", maxsplit=1)[1]

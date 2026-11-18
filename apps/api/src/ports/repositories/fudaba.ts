@@ -467,8 +467,8 @@ export interface WallInsightsRecord {
 export interface FudabaCardPayload {
     producerName?: string;
     isGroupCard?: boolean;
-    /** 审核通过后要执行的旋转圈数（顺时针 90° 的次数）；只支持正反面。 */
-    rotations?: { front?: number; back?: number };
+    /** 审核通过后要执行的旋转圈数（顺时针 90° 的次数）：正反面与按页序的中间页。 */
+    rotations?: { front?: number; back?: number; middles?: number[] };
     producerReading?: string | null;
     groupName?: string | null;
     madeOn?: string | null;
@@ -546,7 +546,11 @@ export type FudabaClaimCreateResult =
     | { status: "unavailable" };
 
 export type FudabaRegisteredCardReviewClaim =
-    | { status: "claimed"; card: FudabaRegisteredCardReviewRecord }
+    | {
+          /** `resumed`: 上次尝试留下的 `approving`/待审改版，用最新 revision 续做。 */
+          status: "claimed" | "resumed";
+          card: FudabaRegisteredCardReviewRecord;
+      }
     | {
           status: "conflict";
           revision: number;
@@ -606,6 +610,11 @@ interface CompleteFudabaClaimReviewBaseInput {
 export interface ClaimedCardMediaInput {
     frontObjectKey: string;
     backObjectKey: string | null;
+    /**
+     * 中间页的对象键，按页序排列。缺省表示这张卡没有中间页；审核同步页面行时
+     * 它们一起参与排序，缺了就会被当成已删除。
+     */
+    middleObjectKeys?: string[];
     /** `null` keeps the card's current accent. */
     accent: string | null;
     /** 审核时旋转出来的页面，用于同步统一布局的页面行。 */
@@ -1141,14 +1150,15 @@ export interface FudabaRepository {
     listAdminPendingClaims(
         limit: number,
     ): Promise<FudabaAdminCardClaimRecord[]>;
+    /**
+     * 两阶段审核的第一步。失败/并发留下的 `approving`（或待审改版）不算错误：
+     * 拿最新 revision 重试会得到 `resumed`，调用方按成功处理即可——失败不回滚，
+     * 行留在原处等重试。
+     */
     beginRegisteredCardReview(
         cardId: string,
         expectedRevision: number,
     ): Promise<FudabaRegisteredCardReviewClaim>;
-    rollbackRegisteredCardReview(
-        cardId: string,
-        approvingRevision: number,
-    ): Promise<boolean>;
     completeRegisteredCardReview(input: {
         cardId: string;
         approvingRevision: number;

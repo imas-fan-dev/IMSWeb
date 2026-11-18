@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures/test"
 
+import { makeCardPage } from "../../mocks/data/namecards"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
@@ -10,26 +11,8 @@ const BACK =
 
 function pages(front: string, back: string) {
   return [
-    {
-      pageId: "page-front",
-      role: "front" as const,
-      order: 1,
-      url: front,
-      previewUrl: front,
-      thumbUrl: front,
-      width: 900,
-      height: 500,
-    },
-    {
-      pageId: "page-back",
-      role: "back" as const,
-      order: 2,
-      url: back,
-      previewUrl: back,
-      thumbUrl: back,
-      width: 900,
-      height: 500,
-    },
+    makeCardPage({ pageId: "page-front", role: "front", order: 1, url: front }),
+    makeCardPage({ pageId: "page-back", role: "back", order: 2, url: back }),
   ]
 }
 

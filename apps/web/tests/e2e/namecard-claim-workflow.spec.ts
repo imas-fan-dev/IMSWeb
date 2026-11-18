@@ -2,6 +2,7 @@ import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { api, expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
+import { makeCardPage } from "../../mocks/data/namecards"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
@@ -13,26 +14,8 @@ const BACK_IMAGE =
 /** 墙与详情只认页面行：正/反/中间由页序推导。 */
 function namecardPages(front: string, back: string) {
   return [
-    {
-      pageId: "page-front",
-      role: "front" as const,
-      order: 1,
-      url: front,
-      previewUrl: front,
-      thumbUrl: front,
-      width: 900,
-      height: 500,
-    },
-    {
-      pageId: "page-back",
-      role: "back" as const,
-      order: 2,
-      url: back,
-      previewUrl: back,
-      thumbUrl: back,
-      width: 900,
-      height: 500,
-    },
+    makeCardPage({ pageId: "page-front", role: "front", order: 1, url: front }),
+    makeCardPage({ pageId: "page-back", role: "back", order: 2, url: back }),
   ]
 }
 
@@ -916,6 +899,55 @@ test.describe("namecard claim workflow", () => {
     await page.goto("/admin/cards")
     await expect(page.getByRole("tab", { name: "投稿审核" })).toBeVisible()
     await expect(page.getByText("注册制作人")).toBeVisible()
+
+    // 归属筛选落在制作人名称与审核状态之间，选中账号后写进请求与地址栏。
+    const [nameControl, ownerControl, statusControl] = await Promise.all([
+      page.getByPlaceholder("搜索制作人名称").boundingBox(),
+      page.getByPlaceholder("按昵称检索用户").boundingBox(),
+      page.getByRole("combobox").first().boundingBox(),
+    ])
+    expect(nameControl!.x).toBeLessThan(ownerControl!.x)
+    expect(ownerControl!.x).toBeLessThan(statusControl!.x)
+
+    await api.mockRoute(
+      "**/api/admin/platform/users**",
+      async (route) => {
+        await route.fulfill({
+          json: {
+            success: true,
+            users: [
+              {
+                id: "owner-e2e",
+                status: "active",
+                displayName: "归属用户",
+                uid: 7,
+                pageSlug: null,
+                email: null,
+                hasPassword: false,
+                activeSessionCount: 0,
+                lastLoginAt: null,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            ],
+            pageInfo: {
+              page: 1,
+              pageSize: 6,
+              total: 1,
+              totalPages: 1,
+              hasNextPage: false,
+            },
+          },
+        })
+      },
+      "GET"
+    )
+    await page.getByPlaceholder("按昵称检索用户").fill("归属")
+    await page.getByRole("button", { name: /归属用户/ }).click()
+    await page.waitForURL(/owner=owner-e2e/)
+    await page.getByRole("button", { name: "取消所属用户筛选" }).click()
+    await page.waitForURL((url) => !url.searchParams.has("owner"))
+
     await page.getByRole("button", { name: "通过", exact: true }).click()
     await page.getByRole("button", { name: "确认通过" }).click()
     await expect(page.getByText("注册制作人")).toHaveCount(0)

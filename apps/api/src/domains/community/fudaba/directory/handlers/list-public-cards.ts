@@ -2,7 +2,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { encodeFudabaCardCursor, parseFudabaCardQuery } from '@/domains/community/fudaba/directory/request';
 import { fudabaPublicCardView } from '@/domains/community/fudaba/directory/response';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import { fudabaRepository, services } from '@/middleware/hono-context';
 
 export async function handleListFudabaPublicCards(
@@ -25,14 +25,11 @@ export async function handleListFudabaPublicCards(
             page.map((card) => card.id)
         )) ?? new Map();
     const items = await Promise.all(page.map((card) => {
-        const rows = pagesByCard.get(card.id);
-        const pages = cardArtworkView({
+        const pages = namecardPagesView(pagesByCard.get(card.id), {
             scope: 'public',
             publicRoute: 'exchange',
             cardNumber: 0,
-            cardId: card.id,
-            live: rows?.live ?? [],
-            pending: []
+            cardId: card.id
         }).live;
         return fudabaPublicCardView(services(c).storage, card, pages);
     }));

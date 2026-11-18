@@ -14,6 +14,7 @@ import type { NamecardPage } from "~/lib/api"
 import { resetNamecardCharacterCatalogCache } from "~/lib/use-namecard-character-catalog"
 import CommunityCardsPage from "~/pages/community/community-cards-page"
 import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
+import { makeCardPage } from "@/mocks/data/namecards"
 
 const elementScrollToDescriptor = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
@@ -97,26 +98,18 @@ function pageResult(ids = [42]): NamecardPage {
       claimerName: null,
       claimerUid: null,
       pages: [
-        {
+        makeCardPage({
           pageId: "page-front",
           role: "front",
           order: 1,
           url: `/front-${id}.jpg`,
-          previewUrl: `/front-${id}.jpg`,
-          thumbUrl: `/front-${id}.jpg`,
-          width: 900,
-          height: 500,
-        },
-        {
+        }),
+        makeCardPage({
           pageId: "page-back",
           role: "back",
           order: 2,
           url: `/back-${id}.jpg`,
-          previewUrl: `/back-${id}.jpg`,
-          thumbUrl: `/back-${id}.jpg`,
-          width: 900,
-          height: 500,
-        },
+        }),
       ],
       created_at: "2026-08-06T06:30:00.000Z",
     })),
@@ -234,26 +227,18 @@ describe("CommunityCardsPage", () => {
           claimerName: null,
           claimerUid: null,
           pages: [
-            {
+            makeCardPage({
               pageId: "page-front",
               role: "front",
               order: 1,
               url: "/uploads/front.webp",
-              previewUrl: "/uploads/front.webp",
-              thumbUrl: "/uploads/front.webp",
-              width: 900,
-              height: 500,
-            },
-            {
+            }),
+            makeCardPage({
               pageId: "page-back",
               role: "back",
               order: 2,
               url: "/uploads/back.webp",
-              previewUrl: "/uploads/back.webp",
-              thumbUrl: "/uploads/back.webp",
-              width: 900,
-              height: 500,
-            },
+            }),
           ],
           revision: 1,
           cardId: "card-42",
@@ -318,26 +303,18 @@ describe("CommunityCardsPage", () => {
           claimerName: "认领制作人",
           claimerUid: 7,
           pages: [
-            {
+            makeCardPage({
               pageId: "page-front",
               role: "front",
               order: 1,
               url: "/uploads/front.webp",
-              previewUrl: "/uploads/front.webp",
-              thumbUrl: "/uploads/front.webp",
-              width: 900,
-              height: 500,
-            },
-            {
+            }),
+            makeCardPage({
               pageId: "page-back",
               role: "back",
               order: 2,
               url: "/uploads/back.webp",
-              previewUrl: "/uploads/back.webp",
-              thumbUrl: "/uploads/back.webp",
-              width: 900,
-              height: 500,
-            },
+            }),
           ],
           revision: 1,
           cardId: "card-43",
@@ -486,26 +463,18 @@ describe("CommunityCardsPage", () => {
           claimerName: null,
           claimerUid: null,
           pages: [
-            {
+            makeCardPage({
               pageId: "page-front",
               role: "front",
               order: 1,
               url: "/uploads/front.webp",
-              previewUrl: "/uploads/front.webp",
-              thumbUrl: "/uploads/front.webp",
-              width: 900,
-              height: 500,
-            },
-            {
+            }),
+            makeCardPage({
               pageId: "page-back",
               role: "back",
               order: 2,
               url: "/uploads/back.webp",
-              previewUrl: "/uploads/back.webp",
-              thumbUrl: "/uploads/back.webp",
-              width: 900,
-              height: 500,
-            },
+            }),
           ],
           revision: 1,
           cardId: "card-42",
@@ -601,26 +570,18 @@ describe("CommunityCardsPage", () => {
           claimerName: null,
           claimerUid: null,
           pages: [
-            {
+            makeCardPage({
               pageId: "page-front",
               role: "front",
               order: 1,
               url: "/uploads/front.webp",
-              previewUrl: "/uploads/front.webp",
-              thumbUrl: "/uploads/front.webp",
-              width: 900,
-              height: 500,
-            },
-            {
+            }),
+            makeCardPage({
               pageId: "page-back",
               role: "back",
               order: 2,
               url: "/uploads/back.webp",
-              previewUrl: "/uploads/back.webp",
-              thumbUrl: "/uploads/back.webp",
-              width: 900,
-              height: 500,
-            },
+            }),
           ],
           revision: 1,
           cardId: "card-42",
@@ -1234,26 +1195,18 @@ describe("CommunityCardsPage", () => {
           claimerName: null,
           claimerUid: null,
           pages: [
-            {
+            makeCardPage({
               pageId: "page-front",
               role: "front",
               order: 1,
               url: "/uploads/front.webp",
-              previewUrl: "/uploads/front.webp",
-              thumbUrl: "/uploads/front.webp",
-              width: 900,
-              height: 500,
-            },
-            {
+            }),
+            makeCardPage({
               pageId: "page-back",
               role: "back",
               order: 2,
               url: "/uploads/back.webp",
-              previewUrl: "/uploads/back.webp",
-              thumbUrl: "/uploads/back.webp",
-              width: 900,
-              height: 500,
-            },
+            }),
           ],
           revision: 1,
           cardId: "card-42",
@@ -1763,26 +1716,18 @@ describe("CommunityCardsPage", () => {
           claimerName: null,
           claimerUid: null,
           pages: [
-            {
+            makeCardPage({
               pageId: "page-front",
               role: "front",
               order: 1,
               url: "/uploads/front.webp",
-              previewUrl: "/uploads/front.webp",
-              thumbUrl: "/uploads/front.webp",
-              width: 900,
-              height: 500,
-            },
-            {
+            }),
+            makeCardPage({
               pageId: "page-back",
               role: "back",
               order: 2,
               url: "/uploads/back.webp",
-              previewUrl: "/uploads/back.webp",
-              thumbUrl: "/uploads/back.webp",
-              width: 900,
-              height: 500,
-            },
+            }),
           ],
           revision: 1,
           cardId: "card-42",

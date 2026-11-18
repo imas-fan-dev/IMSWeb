@@ -11,6 +11,8 @@ import {
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
 
+import { z } from "@imsweb/contracts/z"
+
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Button } from "~/components/ui/button"
@@ -31,6 +33,7 @@ import {
   type FudabaSeries,
   type PlatformProfile,
 } from "~/lib/api"
+import { rotateOne, rotationPayload } from "~/lib/namecards/rotation"
 import { CardDeleteDialog } from "./card-delete-dialog"
 import {
   artworkSidesMismatch,
@@ -127,35 +130,7 @@ export function CardEditor({
 
   /** 旋转只改本地预览，保存提交时才真正重写图片。 */
   function rotateMedia(position: number, direction: "left" | "right") {
-    setRotations((current) => ({
-      ...current,
-      [position]:
-        ((((current[position] ?? 0) + (direction === "right" ? 1 : 3)) % 4) +
-          4) %
-        4,
-    }))
-  }
-
-  /**
-   * 旋转和换图是同一次保存：只提交正面/背面的圈数，服务端在写入时转好，
-   * revision 只加一次。
-   */
-  function rotationPayload():
-    | { front?: number; back?: number; middles?: number[] }
-    | undefined {
-    const turns = (position: number) =>
-      (((rotations[position] ?? 0) % 4) + 4) % 4
-    const last = Math.max(slots.length - 1, 0)
-    // 中间页按页序提交；全为 0 时不带这个字段。
-    const middles = slots
-      .slice(1, Math.max(1, last))
-      .map((_slot, index) => turns(index + 1))
-    const payload = {
-      ...(turns(0) ? { front: turns(0) } : {}),
-      ...(last > 0 && turns(last) ? { back: turns(last) } : {}),
-      ...(middles.some((value) => value !== 0) ? { middles } : {}),
-    }
-    return Object.keys(payload).length ? payload : undefined
+    setRotations((current) => rotateOne(current, position, direction))
   }
 
   function mutationFailure(error: unknown, fallback: string) {
@@ -170,6 +145,11 @@ export function CardEditor({
     if (isFeatureClosed(error)) {
       onWriteClosed()
       setFeedback({ kind: "error", message: "名片编辑当前未开放。" })
+      return
+    }
+    // 请求被本地 schema 拦下（压根没发出去）：按字段说清楚，不说「请重试」。
+    if (error instanceof z.ZodError) {
+      setFeedback({ kind: "error", message: schemaFieldMessage(error) })
       return
     }
     setFeedback({ kind: "error", message: apiMessage(error, fallback) })
@@ -199,6 +179,39 @@ export function CardEditor({
     groupName: "团体名片请填写团体名称。",
     seriesCodes: "请至少选择一个所属企划。",
     media: "请至少添加一张名片图片。",
+  }
+
+  /**
+   * 本地 `fudabaCardUpdateRequestSchema.parse()` 拒绝时的文案：这次请求根本
+   * 没发出去，所以既不能说「请重试」，也不能漏出 zod 的原始英文。
+   */
+  const SCHEMA_FIELD_MESSAGES: Record<string, string> = {
+    producerName: "制作人名称不符合要求。",
+    groupName: "团体名称不符合要求。",
+    producerReading: "制作人名读法只能使用日文假名、英文字母、撇号与连字符。",
+    madeOn: "制作日期需要在 2002 至 2099 年之间。",
+    seriesCodes: "所属企划不符合要求（最多 64 个）。",
+    favoriteCharacterIds: "担当角色不符合要求（最多 200 位且不能重复）。",
+    bio: "个人简介超出长度限制，请精简。",
+    tradeNote: "交换备注超出长度限制，请精简。",
+    credits: "致谢名单不符合要求（最多 8 项，链接需以 http(s) 开头）。",
+    isGroupCard: "团体名片标记无效。",
+    exchangeMode: "交换模式无效。",
+    visible: "可见性设置无效。",
+    expectedRevision: "名片版本已过期，请刷新后重试。",
+  }
+
+  /** 本地 schema 拒绝：按字段给文案；认不出的字段退回它自己的报错。 */
+  function schemaFieldMessage(error: z.ZodError): string {
+    const seen = new Set<string>()
+    const messages: string[] = []
+    for (const issue of error.issues) {
+      const field = String(issue.path[0] ?? "")
+      if (seen.has(field)) continue
+      seen.add(field)
+      messages.push(SCHEMA_FIELD_MESSAGES[field] ?? issue.message)
+    }
+    return messages.join(" ")
   }
 
   /** 跳到第一个缺失的字段，闪两下黄光，并把焦点放进去。 */
@@ -241,7 +254,7 @@ export function CardEditor({
     setFeedback(null)
     try {
       if (creating) {
-        const pendingRotations = rotationPayload()
+        const pendingRotations = rotationPayload(slots.length, rotations)
         const files = slots.flatMap((slot) =>
           slot.kind === "new" ? [slot.file] : []
         )
@@ -269,7 +282,7 @@ export function CardEditor({
       }
       if (!card) return
       let latest = card
-      const pendingRotations = rotationPayload()
+      const pendingRotations = rotationPayload(slots.length, rotations)
       if (mediaDirty || pendingRotations) {
         const media = await replaceFudabaCardMedia(
           card.id,
@@ -410,6 +423,7 @@ export function CardEditor({
           <CardMediaGallery
             slots={slots}
             disabled={editDisabled || modes?.media === "view"}
+            rotationLocked={editDisabled || modes?.media === "view"}
             onChange={updateSlots}
             onError={(message) => setFeedback({ kind: "error", message })}
             rotations={rotations}

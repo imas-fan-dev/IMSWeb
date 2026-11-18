@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import { fudabaOwnerCardView } from '@/domains/community/fudaba/contracts/card';
 import { fudabaRepository } from '@/middleware/hono-context';
 
@@ -16,23 +16,13 @@ export async function handleListFudabaOwnerCards(
         )) ?? new Map();
     return c.json({
         items: cards.map((card) => {
-            const rows = pagesByCard.get(card.id);
-            const pages = cardArtworkView({
+            // 装配只有一处（`namecardPagesView`）：列表也要带上待审页。
+            const view = namecardPagesView(pagesByCard.get(card.id), {
                 scope: 'owner',
                 cardNumber: card.card_number,
-                cardId: card.id,
-                live: rows?.live ?? [],
-                pending: []
-            }).live;
-            const pendingPages =
-                cardArtworkView({
-                    scope: 'owner',
-                    cardNumber: card.card_number,
-                    cardId: card.id,
-                    live: [],
-                    pending: rows?.pending ?? []
-                }).pending ?? [];
-            return fudabaOwnerCardView(card, pages, pendingPages);
+                cardId: card.id
+            });
+            return fudabaOwnerCardView(card, view.live, view.pending ?? []);
         })
     });
 }

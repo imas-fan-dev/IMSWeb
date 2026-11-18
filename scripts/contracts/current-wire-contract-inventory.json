@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "46cd5678b538e9a7e7114375515386a0564bc272b6f4322042d7c0fc806fab68",
+    "semanticDigest": "38cf48a88184912f34cf681cb3e994227f1e25479721718a4d37aab18adaee24",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -27,8 +27,8 @@
       "non-object-applicable": 97
     },
     "responses": {
-      "total": 845,
-      "json": 786,
+      "total": 844,
+      "json": 785,
       "nonJson": 59
     },
     "unresolved": 0
@@ -2522,7 +2522,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-namecards.ts",
           "kind": "json",
-          "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus !== null && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) , live : rowsForCard ?. live ?? [ ] , pending : pending ? rowsForCard ?. pending ?? [ ] : [ ] } ) ; const pageViews = pending ? pages . pending ?? [ ] : pages . live ; return toAdminNamecardResponse ( row , pageViews . length > 0 ? pageViews : undefined ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
+          "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus !== null && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = namecardPagesView ( rowsForCard , { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) } ) ; const pageViews = pending ? pages . pending ?? [ ] : pages . live ; return toAdminNamecardResponse ( row , pageViews . length > 0 ? pageViews : undefined ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-namecards.ts",
@@ -2775,7 +2775,7 @@
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
           "kind": "json",
-          "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => { const rows = pagesByNumber . get ( item . cardNumber ) ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : item . cardNumber , cardId : String ( item . cardNumber ) , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ; return { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , pageCount : pages . length > 0 ? pages . length : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , ... pages . length > 0 ? { pages } : { } , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ; } ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+          "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => { const rows = pagesByNumber . get ( item . cardNumber ) ; const pages = namecardPagesView ( rows , { scope : \"admin\" , cardNumber : item . cardNumber , cardId : String ( item . cardNumber ) } ) . live ; return { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , pageCount : pages . length > 0 ? pages . length : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , ... pages . length > 0 ? { pages } : { } , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ; } ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
         },
         {
           "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
@@ -3126,7 +3126,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
           "kind": "json",
-          "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByNumber . get ( Number ( card . card_number ) ) ; return fudabaRegisteredCardReviewView ( card , cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( card . card_number ) , cardId : card . id , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ) ; } ) } satisfies FudabaRegisteredCardReviewListResponse"
+          "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByNumber . get ( Number ( card . card_number ) ) ; return fudabaRegisteredCardReviewView ( card , namecardPagesView ( rows , { scope : \"admin\" , cardNumber : Number ( card . card_number ) , cardId : card . id } ) . live ) ; } ) } satisfies FudabaRegisteredCardReviewListResponse"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
@@ -4957,7 +4957,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/list-owner-cards.ts",
           "kind": "json",
-          "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByCard . get ( card . id ) ; const pages = cardArtworkView ( { scope : \"owner\" , cardNumber : card . card_number , cardId : card . id , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ; const pendingPages = cardArtworkView ( { scope : \"owner\" , cardNumber : card . card_number , cardId : card . id , live : [ ] , pending : rows ?. pending ?? [ ] } ) . pending ?? [ ] ; return fudabaOwnerCardView ( card , pages , pendingPages ) ; } ) }"
+          "expression": "{ items : cards . map ( ( card ) => { const view = namecardPagesView ( pagesByCard . get ( card . id ) , { scope : \"owner\" , cardNumber : card . card_number , cardId : card . id } ) ; return fudabaOwnerCardView ( card , view . live , view . pending ?? [ ] ) ; } ) }"
         }
       ]
     },
@@ -5012,7 +5012,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/get-owner-card.ts",
           "kind": "json",
-          "expression": "{ card : fudabaOwnerCardView ( card , live , pending ) }"
+          "expression": "{ card : fudabaOwnerCardView ( card , view . live , view . pending ?? [ ] ) }"
         }
       ]
     },
@@ -15815,11 +15815,6 @@
         {
           "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
           "kind": "json",
-          "expression": "<no body>"
-        },
-        {
-          "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
-          "kind": "json",
           "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
         },
         {
@@ -24709,7 +24704,7 @@
       "handlerSymbol": "handleListAdminNamecards",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-namecards.ts",
       "kind": "json",
-      "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus !== null && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) , live : rowsForCard ?. live ?? [ ] , pending : pending ? rowsForCard ?. pending ?? [ ] : [ ] } ) ; const pageViews = pending ? pages . pending ?? [ ] : pages . live ; return toAdminNamecardResponse ( row , pageViews . length > 0 ? pageViews : undefined ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
+      "expression": "{ success : true , data : rows . map ( ( row ) => { const rowsForCard = pagesByNumber . get ( Number ( row . id ) ) ; const pending = row . reviewStatus !== null && ( rowsForCard ?. pending . length ?? 0 ) > 0 ; const pages = namecardPagesView ( rowsForCard , { scope : \"admin\" , cardNumber : Number ( row . id ) , cardId : String ( row . cardId ?? row . id ) } ) ; const pageViews = pending ? pages . pending ?? [ ] : pages . live ; return toAdminNamecardResponse ( row , pageViews . length > 0 ? pageViews : undefined ) ; } ) , pageInfo : { page , pageSize , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardListResponse"
     },
     {
       "method": "GET",
@@ -24805,7 +24800,7 @@
       "handlerSymbol": "handleListAdminNamecardFeedback",
       "file": "apps/api/src/domains/community/namecards/moderation/handlers/list-admin-feedback.ts",
       "kind": "json",
-      "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => { const rows = pagesByNumber . get ( item . cardNumber ) ; const pages = cardArtworkView ( { scope : \"admin\" , cardNumber : item . cardNumber , cardId : String ( item . cardNumber ) , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ; return { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , pageCount : pages . length > 0 ? pages . length : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , ... pages . length > 0 ? { pages } : { } , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ; } ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
+      "expression": "{ success : true , data : items . map < AdminNamecardFeedbackResponse > ( ( item ) => { const rows = pagesByNumber . get ( item . cardNumber ) ; const pages = namecardPagesView ( rows , { scope : \"admin\" , cardNumber : item . cardNumber , cardId : String ( item . cardNumber ) } ) . live ; return { id : item . id , cardNumber : item . cardNumber , producerName : item . producerName , pageCount : pages . length > 0 ? pages . length : namecardPageCount ( { hasBack : Boolean ( item . backObjectKey ) , middleCount : item . middlePageCount } ) , ... pages . length > 0 ? { pages } : { } , reporterName : item . reporterName , reason : item . reason , detail : item . detail , createdAt : item . createdAt } ; } ) , pageInfo : { page , pageSize : PAGE_SIZE , total , totalPages , hasNextPage : page < totalPages } } satisfies AdminNamecardFeedbackListResponse"
     },
     {
       "method": "GET",
@@ -24933,7 +24928,7 @@
       "handlerSymbol": "handleListFudabaRegisteredCardReviews",
       "file": "apps/api/src/domains/community/fudaba/moderation/handlers/admin-card-reviews.ts",
       "kind": "json",
-      "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByNumber . get ( Number ( card . card_number ) ) ; return fudabaRegisteredCardReviewView ( card , cardArtworkView ( { scope : \"admin\" , cardNumber : Number ( card . card_number ) , cardId : card . id , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ) ; } ) } satisfies FudabaRegisteredCardReviewListResponse"
+      "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByNumber . get ( Number ( card . card_number ) ) ; return fudabaRegisteredCardReviewView ( card , namecardPagesView ( rows , { scope : \"admin\" , cardNumber : Number ( card . card_number ) , cardId : card . id } ) . live ) ; } ) } satisfies FudabaRegisteredCardReviewListResponse"
     },
     {
       "method": "GET",
@@ -25669,7 +25664,7 @@
       "handlerSymbol": "handleListFudabaOwnerCards",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/list-owner-cards.ts",
       "kind": "json",
-      "expression": "{ items : cards . map ( ( card ) => { const rows = pagesByCard . get ( card . id ) ; const pages = cardArtworkView ( { scope : \"owner\" , cardNumber : card . card_number , cardId : card . id , live : rows ?. live ?? [ ] , pending : [ ] } ) . live ; const pendingPages = cardArtworkView ( { scope : \"owner\" , cardNumber : card . card_number , cardId : card . id , live : [ ] , pending : rows ?. pending ?? [ ] } ) . pending ?? [ ] ; return fudabaOwnerCardView ( card , pages , pendingPages ) ; } ) }"
+      "expression": "{ items : cards . map ( ( card ) => { const view = namecardPagesView ( pagesByCard . get ( card . id ) , { scope : \"owner\" , cardNumber : card . card_number , cardId : card . id } ) ; return fudabaOwnerCardView ( card , view . live , view . pending ?? [ ] ) ; } ) }"
     },
     {
       "method": "GET",
@@ -25693,7 +25688,7 @@
       "handlerSymbol": "handleGetFudabaOwnerCard",
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/get-owner-card.ts",
       "kind": "json",
-      "expression": "{ card : fudabaOwnerCardView ( card , live , pending ) }"
+      "expression": "{ card : fudabaOwnerCardView ( card , view . live , view . pending ?? [ ] ) }"
     },
     {
       "method": "GET",
@@ -30022,14 +30017,6 @@
       "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
       "kind": "json",
       "expression": "{ success : false , code : \"FUDABA_CARD_NOT_FOUND\" }"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/community/exchange/me/cards/:cardId",
-      "handlerSymbol": "handleUpdateFudabaCard",
-      "file": "apps/api/src/domains/community/fudaba/cards/handlers/update-card.ts",
-      "kind": "json",
-      "expression": "<no body>"
     },
     {
       "method": "PUT",

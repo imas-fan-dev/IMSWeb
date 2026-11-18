@@ -151,12 +151,8 @@ test.describe('route inventory compiler', () => {
         "passthrough": 17,
         "non-object-applicable": 97
       },
-      "responses": {
-        "total": 845,
-        "json": 786,
-        "nonJson": 59
-      },
-      "unresolved": 0
+      responses: { total: 844, json: 785, nonJson: 59 },
+      unresolved: 0,
     });
     assert.deepEqual(current.baseline, {
       mountedMethodPaths: 289, carriers: 367, reject: 82, acceptAndProject: 184,

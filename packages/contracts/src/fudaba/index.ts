@@ -12,9 +12,11 @@ import {
 
 import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 import {
+  NAMECARD_CREDIT_ACCOUNT_ID_MAX_LENGTH,
   NAMECARD_CREDIT_LIMIT,
   NAMECARD_CREDIT_ROLES,
   NAMECARD_CREDIT_ROLE_LIMIT,
+  NAMECARD_CREDIT_URL_MAX_LENGTH,
   NAMECARD_MIDDLE_IMAGE_LIMIT,
   NAMECARD_PRODUCTION_YEAR_MAX,
   NAMECARD_PRODUCTION_YEAR_MIN,
@@ -202,20 +204,55 @@ export const namecardProductionDateSchema = z
     return year >= NAMECARD_PRODUCTION_YEAR_MIN && year <= NAMECARD_PRODUCTION_YEAR_MAX;
   }, { message: "制作日期超出可接受范围" });
 
-/** A designer or illustrator credited for the artwork. */
+/**
+ * One credited person. Submission and read share the row; only the URL is split,
+ * because rows written before the strict (http/https) parser existed are still
+ * out there and must keep reading back.
+ */
+const namecardCreditRowFields = (url: z.ZodType<string | null>) => ({
+  /** Site member the credit points at, when it points at one. */
+  accountId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(NAMECARD_CREDIT_ACCOUNT_ID_MAX_LENGTH)
+    .nullable(),
+  /** 署名先修剪再判长度与内容；回读的值本来就已经修剪过。 */
+  displayName: ownerCardRequestTextSchema(80, true),
+  url,
+  roles: z
+    .array(namecardCreditRoleSchema)
+    .min(1)
+    .max(NAMECARD_CREDIT_ROLE_LIMIT)
+    .refine((roles) => new Set(roles).size === roles.length),
+});
+
+/**
+ * 回读侧（墙上详情、属主视图、评审 diff）：URL 沿用历史上的宽松形态——只要是
+ * 绝对地址就行。写路径一直只收 http(s)，但旧契约更宽，收紧会把已写进库的链接
+ * 变成读不出来的卡。
+ */
 export const namecardCreditSchema = z
-  .object({
-    /** Site member the credit points at, when it points at one. */
-    accountId: z.string().min(1).nullable(),
-    displayName: ownerCardTextSchema(80, true),
-    /** Public profile elsewhere; optional for members, optional in general. */
-    url: z.string().url().max(300).nullable(),
-    roles: z
-      .array(namecardCreditRoleSchema)
-      .min(1)
-      .max(NAMECARD_CREDIT_ROLE_LIMIT)
-      .refine((roles) => new Set(roles).size === roles.length),
-  })
+  .object(
+    namecardCreditRowFields(
+      z.string().url().max(NAMECARD_CREDIT_URL_MAX_LENGTH).nullable(),
+    ),
+  )
+  .strict();
+
+/** 提交侧：只有 http(s) 链接真的存得下来，所以只接受 http(s)。 */
+const namecardCreditRequestSchema = z
+  .object(
+    namecardCreditRowFields(
+      z
+        .string()
+        .trim()
+        .max(NAMECARD_CREDIT_URL_MAX_LENGTH)
+        .regex(/^https?:\/\/[^\s]+$/)
+        .refine((value) => !hasAsciiControl(value))
+        .nullable(),
+    ),
+  )
   .strict();
 
 export type NamecardCredit = z.infer<typeof namecardCreditSchema>;
@@ -253,33 +290,80 @@ export const cardPageSchema = z
 
 export type CardPage = z.infer<typeof cardPageSchema>
 
-export const fudabaCardSchema = exactJsonResponse({
-  id: z.string().min(1),
-  producerName: z.string().min(1),
+/**
+ * 卡片内容字段的公共块。名片本体、待审副本、所有者视图、提交请求、公开详情、
+ * 评审 diff 与名片册快照都声明同一批字段，这里按「所有者侧 / 只读侧」收敛成两
+ * 处，各 schema 用 `...` / `.extend()` 组合，再用 `.omit()` 与显式重声明表达子集
+ * 和约束差异。每个字段的约束都与收敛前逐字一致。
+ */
+
+/** 所有者侧内容字段：编辑器、待审副本与提交请求共用。 */
+export const cardContentFields = {
+  producerName: ownerCardTextSchema(80, true),
   seriesCodes: namecardSeriesCodesSchema,
-  favoriteCharacters: z
-    .array(fudabaCharacterSelectionSchema)
-    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
-  frontImageUrl: publicMediaUrlSchema,
-  /** Single-sided cards are allowed, so this can be absent. */
-  backImageUrl: publicMediaUrlSchema.nullable(),
-  /** Derived from the artwork, never submitted. */
-  accent: accentSchema,
-  bio: z.string(),
-  tradeNote: z.string(),
+  bio: ownerCardTextSchema(2000),
+  tradeNote: ownerCardTextSchema(1000),
   exchangeMode: namecardExchangeModeSchema,
   madeOn: namecardProductionDateSchema.nullable(),
   groupName: z.string().max(80).nullable(),
+  /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
+  isGroupCard: z.boolean(),
   producerReading: z.string().max(80).nullable(),
   isOriginal: z.boolean(),
   madeWithAi: z.boolean(),
   visible: z.boolean(),
   credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
-  createdAt: timestampSchema,
-  interactions: fudabaCardInteractionsSchema,
-  /** 统一布局的页面；旧字段保留一个版本。 */
-  pages: z.array(cardPageSchema).optional(),
-});
+};
+
+export const cardContentFieldsSchema = z.object(cardContentFields);
+
+/**
+ * 只读侧内容字段：公开墙详情与评审 diff 逐字相同，名片册快照复用其子集。
+ * 这一侧沿用「空串即 null」的历史形态，故与所有者侧不是同一批约束。
+ */
+export const readonlyCardContentFields = {
+  producerName: z.string().nullable(),
+  /** Sorting aid only, rendered in parentheses after the producer name. */
+  producerReading: z.string().min(1).max(80).nullable(),
+  groupName: z.string().min(1).nullable(),
+  /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
+  isGroupCard: z.boolean().optional(),
+  /** `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; empty parts are dropped. */
+  madeOn: z.string().min(1).nullable(),
+  bio: z.string().min(1).nullable(),
+  tradeNote: z.string().min(1).nullable(),
+  isOriginal: z.boolean(),
+  madeWithAi: z.boolean(),
+  exchangeMode: z.enum(["auto", "manual", "none"]),
+  credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
+};
+
+export const readonlyCardContentFieldsSchema = z.object(
+  readonlyCardContentFields,
+);
+
+export const fudabaCardSchema = cardContentFieldsSchema
+  .omit({ isGroupCard: true })
+  .extend({
+    id: z.string().min(1),
+    /** 墙上的名片与编辑器不同：内容字段由只读形态承担。 */
+    producerName: z.string().min(1),
+    favoriteCharacters: z
+      .array(fudabaCharacterSelectionSchema)
+      .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
+    frontImageUrl: publicMediaUrlSchema,
+    /** Single-sided cards are allowed, so this can be absent. */
+    backImageUrl: publicMediaUrlSchema.nullable(),
+    /** Derived from the artwork, never submitted. */
+    accent: accentSchema,
+    bio: z.string(),
+    tradeNote: z.string(),
+    createdAt: timestampSchema,
+    interactions: fudabaCardInteractionsSchema,
+    /** 统一布局的页面；旧字段保留一个版本。 */
+    pages: z.array(cardPageSchema).optional(),
+  })
+  .strict();
 
 export const fudabaCardPlacementSchema = z
   .object({
@@ -381,31 +465,17 @@ export const fudabaPlaceReverseResponseSchema = exactJsonResponse({
 });
 
 /** The copy a submitter is asking to replace the published card with. */
-export const fudabaPendingCardContentSchema = z
-  .object({
-    producerName: ownerCardTextSchema(80, true),
-    seriesCodes: namecardSeriesCodesSchema,
+export const fudabaPendingCardContentSchema = cardContentFieldsSchema
+  .extend({
     /** Character ids; the editor already holds the catalogue to name them. */
     favoriteCharacterIds: z.array(z.number().int().positive()),
     frontImageUrl: publicMediaUrlSchema,
     backImageUrl: publicMediaUrlSchema.nullable(),
-    bio: ownerCardTextSchema(2000),
-    tradeNote: ownerCardTextSchema(1000),
-    exchangeMode: namecardExchangeModeSchema,
-    madeOn: namecardProductionDateSchema.nullable(),
-    groupName: z.string().max(80).nullable(),
-    /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
-    isGroupCard: z.boolean(),
-    producerReading: z.string().max(80).nullable(),
-    isOriginal: z.boolean(),
-    madeWithAi: z.boolean(),
-    visible: z.boolean(),
-    credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
   })
   .strict();
 
-export const fudabaOwnerCardSchema = z
-  .object({
+export const fudabaOwnerCardSchema = cardContentFieldsSchema
+  .extend({
     id: ownerCardIdSchema,
     /** 线上页面。 */
     pages: z.array(cardPageSchema).optional(),
@@ -413,8 +483,6 @@ export const fudabaOwnerCardSchema = z
     pendingPages: z.array(cardPageSchema).optional(),
     /** Public number shown as 名片 #编号. */
     cardNumber: z.number().int().positive(),
-    producerName: ownerCardTextSchema(80, true),
-    seriesCodes: namecardSeriesCodesSchema,
     favoriteCharacters: z
       .array(fudabaCharacterSelectionSchema)
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
@@ -423,18 +491,6 @@ export const fudabaOwnerCardSchema = z
     backImageUrl: publicMediaUrlSchema.nullable(),
     /** Derived from the artwork; the editor only displays it. */
     accent: accentSchema,
-    bio: ownerCardTextSchema(2000),
-    tradeNote: ownerCardTextSchema(1000),
-    exchangeMode: namecardExchangeModeSchema,
-    madeOn: namecardProductionDateSchema.nullable(),
-    groupName: z.string().max(80).nullable(),
-    /** 团体名片：制作人名称由团体名称派生，交换模式固定为自动。 */
-    isGroupCard: z.boolean(),
-    producerReading: z.string().max(80).nullable(),
-    isOriginal: z.boolean(),
-    madeWithAi: z.boolean(),
-    visible: z.boolean(),
-    credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
     publicationStatus: z.enum([
       "draft",
       "pending",
@@ -619,31 +675,71 @@ export const fudabaCardMediaParamsSchema = strictRequestObject({
   cardId: z.unknown(),
   side: z.unknown(),
 });
+/**
+ * 跨字段规则：个人名片必须有制作人名称；团体名片没有制作人名称，改由团体名称
+ * 承担展示与检索。规则读两个字段，所以挂在对象上（报错路径为根），业务文案也
+ * 由这一层给出——调用方只负责把它翻回客户端读惯的措辞。
+ */
+function checkCardFieldPair(
+  value: {
+    producerName: string;
+    isGroupCard?: boolean | undefined;
+    groupName: string | null;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (value.isGroupCard) {
+    if (!value.groupName) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "团体名片需要填写团体名称",
+      });
+    }
+    return;
+  }
+  if (!value.producerName) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "producerName 长度或内容无效",
+    });
+  }
+}
+
 // JSON mutations reject unknown keys.
-export const fudabaCardFieldsRequestSchema = z.object({
-  /** 团体名片没有制作人名称，改由团体名称承担展示与检索。 */
-  producerName: ownerCardRequestTextSchema(80),
-  /** 一张名片属于某个团体而不是某位制作人。 */
-  isGroupCard: z.boolean().optional(),
-  seriesCodes: namecardSeriesCodesSchema,
-  favoriteCharacterIds: z
-    .array(z.number().int().positive())
-    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
-    .refine((ids) => new Set(ids).size === ids.length),
-  bio: ownerCardRequestTextSchema(2000),
-  tradeNote: ownerCardRequestTextSchema(1000),
-  exchangeMode: namecardExchangeModeSchema,
-  madeOn: namecardProductionDateSchema.nullable(),
-  groupName: z.string().max(80).nullable(),
-  producerReading: namecardProducerReadingSchema.nullable(),
-  isOriginal: z.boolean(),
-  madeWithAi: z.boolean(),
-  visible: z.boolean(),
-  credits: z.array(namecardCreditSchema).max(NAMECARD_CREDIT_LIMIT),
-}).strict();
-export const fudabaCardUpdateRequestSchema = fudabaCardFieldsRequestSchema.extend({
-  expectedRevision: fudabaRevisionSchema,
-}).strict();
+export const fudabaCardFieldsRequestSchema = cardContentFieldsSchema
+  .extend({
+    /** 团体名片没有制作人名称，改由团体名称承担展示与检索。 */
+    producerName: ownerCardRequestTextSchema(80),
+    /** 一张名片属于某个团体而不是某位制作人。 */
+    isGroupCard: z.boolean().optional(),
+    bio: ownerCardRequestTextSchema(2000),
+    tradeNote: ownerCardRequestTextSchema(1000),
+    /** 团体名称与制作人名称同样先修剪再判长度。 */
+    groupName: ownerCardRequestTextSchema(80).nullable(),
+    /** 提交侧的名称读法要求可排序，与只读返回的宽松形态不同。 */
+    producerReading: namecardProducerReadingSchema.nullable(),
+    /** 提交侧只接受真的存得下来的 credit（回读侧对旧数据更宽容）。 */
+    credits: z.array(namecardCreditRequestSchema).max(NAMECARD_CREDIT_LIMIT),
+    favoriteCharacterIds: z
+      .array(z.number().int().positive())
+      .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
+      .refine((ids) => new Set(ids).size === ids.length),
+  })
+  .strict();
+
+/**
+ * 提交侧（<form> 创建）字段规则：字段约束与 JSON 请求完全一致，另加跨字段规则。
+ * 创建只送 multipart 字符串，转换层把它们还原成这里的规范形态再交给 schema。
+ */
+export const fudabaCardFieldsSubmissionSchema =
+  fudabaCardFieldsRequestSchema.superRefine(checkCardFieldPair);
+
+export const fudabaCardUpdateRequestSchema = fudabaCardFieldsRequestSchema
+  .extend({
+    expectedRevision: fudabaRevisionSchema,
+  })
+  .strict()
+  .superRefine(checkCardFieldPair);
 export const fudabaRevisionRequestSchema = z.object({
   expectedRevision: fudabaRevisionSchema,
 }).strict();
@@ -798,6 +894,11 @@ export type FudabaCardPlacementDeleteResponse = z.infer<
 >;
 export type FudabaCardFieldsRequest = z.infer<typeof fudabaCardFieldsRequestSchema>;
 export type FudabaCardUpdateRequest = z.infer<typeof fudabaCardUpdateRequestSchema>;
+/**
+ * 卡片字段 schema 的一条报错。提交侧的强制转换层只读它的 `code` / `path` /
+ * `message` / `type`，把首个报错翻回客户端一直在读的中文文案。
+ */
+export type NamecardCardFieldIssue = z.ZodIssue;
 export type FudabaOfficeFieldsRequest = z.infer<typeof fudabaOfficeFieldsRequestSchema>;
 export type FudabaOfficeUpdateRequest = z.infer<typeof fudabaOfficeUpdateRequestSchema>;
 export type FudabaOwnerLocationSaveRequest = z.infer<typeof fudabaOwnerLocationSaveRequestSchema>;

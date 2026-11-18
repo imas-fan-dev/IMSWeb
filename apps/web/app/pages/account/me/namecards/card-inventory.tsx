@@ -1,5 +1,8 @@
 import { FileImageIcon, PlusIcon } from "lucide-react"
 
+import {
+  NAMECARD_REVIEW_LABELS,
+} from "~/components/community/namecard-status-labels"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import {
@@ -46,13 +49,7 @@ export function PublicationBadge({ card }: { card: FudabaOwnerCard }) {
         review === "pending" && "bg-pending/20 text-pending-foreground"
       )}
     >
-      {review === "pending"
-        ? "复审中"
-        : review === "rejected"
-          ? "复审驳回"
-          : review === "locked"
-            ? "复审违规"
-            : publicationLabels[status]}
+      {review ? NAMECARD_REVIEW_LABELS[review] : publicationLabels[status]}
     </Badge>
   )
 }

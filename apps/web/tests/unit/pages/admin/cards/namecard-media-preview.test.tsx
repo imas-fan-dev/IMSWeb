@@ -2,6 +2,7 @@ import { fireEvent, screen } from "@testing-library/react"
 import { describe, expect, test } from "vitest"
 
 import { NamecardMediaPreview } from "~/pages/admin/cards/namecard-media-preview"
+import { makeCardPage } from "@/mocks/data/namecards"
 import { renderPage } from "@/tests/unit/support/harness"
 
 function setNaturalSize(element: HTMLElement, width: number, height: number) {
@@ -16,16 +17,7 @@ function setNaturalSize(element: HTMLElement, width: number, height: number) {
 }
 
 function page(role: "front" | "middle" | "back", order: number, url: string) {
-  return {
-    pageId: `page-${order}`,
-    role,
-    order,
-    url,
-    previewUrl: url,
-    thumbUrl: url,
-    width: 900,
-    height: 500,
-  }
+  return makeCardPage({ role, order, url })
 }
 
 function renderPreview() {

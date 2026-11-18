@@ -1,5 +1,8 @@
 import { emptyCredit } from "./card-credits-editor"
 import {
+  NAMECARD_OWNER_STATUS_LABELS,
+} from "~/components/community/namecard-status-labels"
+import {
   isApiError,
   type FudabaCardFields,
   type FudabaOwnerCard,
@@ -14,16 +17,7 @@ export type EditorFeedback = {
 export const publicationLabels: Record<
   FudabaOwnerCard["publicationStatus"],
   string
-> = {
-  draft: "草稿",
-  pending: "审核中",
-  approving: "发布处理中",
-  published: "已公开",
-  hidden: "已隐藏",
-  rejected: "已驳回",
-  withdrawn: "已撤回",
-  locked: "已锁定",
-}
+> = NAMECARD_OWNER_STATUS_LABELS
 
 /**
  * A published card keeps serving its approved copy while the submitted revision

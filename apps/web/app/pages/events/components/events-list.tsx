@@ -56,6 +56,7 @@ export function EventRow({ event }: { event: EventListItem }) {
   // plain string, so this render boundary only rejects unsafe URL schemes.
   const imageUrl = safeImageUrl(event.image_url)
   const href = contactUrl(event.contact)
+  const publisher = event.name?.trim()
 
   return (
     <NavigationLink
@@ -89,12 +90,17 @@ export function EventRow({ event }: { event: EventListItem }) {
             {event.kind === "event" ? "具体活动" : "社区动态"}
           </span>
           <div className="mt-1 min-w-0 text-sm/5 text-muted-foreground">
-            <div className="flex h-5 min-w-0 items-center gap-1.5">
-              <UserRoundIcon aria-hidden="true" className="size-3.5 shrink-0" />
-              <span className="truncate" title={event.name || "发布者未署名"}>
-                {event.name || "发布者未署名"}
-              </span>
-            </div>
+            {publisher ? (
+              <div className="flex h-5 min-w-0 items-center gap-1.5">
+                <UserRoundIcon
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0"
+                />
+                <span className="truncate" title={publisher}>
+                  {publisher}
+                </span>
+              </div>
+            ) : null}
             <div className="flex h-5 min-w-0 items-center gap-1.5 whitespace-nowrap">
               <CalendarDaysIcon
                 aria-hidden="true"

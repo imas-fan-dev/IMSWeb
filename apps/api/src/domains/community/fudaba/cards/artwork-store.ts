@@ -128,8 +128,11 @@ export async function readSizedCardPage(
 }
 
 function cacheKeyFor(key: string, width: number): string | null {
-    // cards/<cardId>/<queue>/<pageId>.<version>.webp
-    const match = /^community\/fudaba\/cards\/([^/]+)\/([^/]+)\/(front|back|page-[0-9a-f-]{8,})\.([0-9a-f-]{8,})\.webp$/.exec(
+    // cards/<cardId>/<live|pending>/<pageId>.<version>.webp
+    // 队列段与 `parseCardPageObjectKey` 的权威正则一致：只有 live|pending
+    // （表约束 `fudaba_card_pages_queue_check` 也只允许这两个值），更宽的写法
+    // 会让非队列段的地址也拿到缓存副本。
+    const match = /^community\/fudaba\/cards\/([^/]+)\/(live|pending)\/(front|back|page-[0-9a-f-]{8,})\.([0-9a-f-]{8,})\.webp$/.exec(
         key
     );
     if (!match) return null;

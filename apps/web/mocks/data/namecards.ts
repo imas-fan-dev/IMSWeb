@@ -1,3 +1,4 @@
+import type { CardPage } from "@imsweb/contracts/fudaba"
 import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
 
 /**
@@ -18,21 +19,32 @@ export function makeNamecardFavoriteCharacter(
   }
 }
 
-/** One artwork page: the grid renders the whole set in page order. */
-function cardPage(
-  role: "front" | "middle" | "back",
-  order: number,
-  url: string
-): NonNullable<Namecard["pages"]>[number] {
+/**
+ * One artwork page: the grid renders the whole set in page order, and the wall,
+ * gallery and admin previews all read the same eight keys. They are declared
+ * once here rather than re-written per fixture.
+ *
+ * `role`, `order` and `url` are what a caller varies; `previewUrl`/`thumbUrl`
+ * follow the original URL unless a smaller derivative is asked for. 900×500 is
+ * the size the API stores, so a page of another size passes `width`/`height`.
+ */
+export function makeCardPage(
+  overrides: Partial<CardPage> & {
+    role: CardPage["role"]
+    order: number
+  }
+): CardPage {
+  const { order } = overrides
+  const url = overrides.url ?? "/uploads/namecard/original/page.webp"
   return {
     pageId: `page-${order}`,
-    role,
-    order,
     url,
     previewUrl: url,
     thumbUrl: url,
     width: 900,
     height: 500,
+    // `role`/`order` 是必填入参，由这里统一展开，避免同一键写两遍。
+    ...overrides,
   }
 }
 
@@ -56,8 +68,16 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     seriesCodes: ["765"],
     credits: [],
     pages: [
-      cardPage("front", 1, "/uploads/namecard/original/abc.webp"),
-      cardPage("back", 2, "/uploads/namecard/original/def.webp"),
+      makeCardPage({
+        role: "front",
+        order: 1,
+        url: "/uploads/namecard/original/abc.webp",
+      }),
+      makeCardPage({
+        role: "back",
+        order: 2,
+        url: "/uploads/namecard/original/def.webp",
+      }),
     ],
     canEdit: false,
     hasOwner: false,
@@ -84,16 +104,16 @@ export function makeNamecardPage(
         id: 2,
         seriesCode: null,
         pages: [
-          cardPage(
-            "front",
-            1,
-            "https://objects.example.com/namecards/2-front.webp"
-          ),
-          cardPage(
-            "back",
-            2,
-            "https://objects.example.com/namecards/2-back.webp"
-          ),
+          makeCardPage({
+            role: "front",
+            order: 1,
+            url: "https://objects.example.com/namecards/2-front.webp",
+          }),
+          makeCardPage({
+            role: "back",
+            order: 2,
+            url: "https://objects.example.com/namecards/2-back.webp",
+          }),
         ],
         created_at: null,
       }),

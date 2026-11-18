@@ -13,6 +13,7 @@ import {
   CardMediaPreview,
   publicMediaSlotsFromCard,
 } from "~/pages/account/me/namecards/card-media-gallery"
+import { rotateOne, rotationPayload } from "~/lib/namecards/rotation"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -63,14 +64,8 @@ export function NamecardSupplementDialog({
     () => (card ? publicMediaSlotsFromCard({ pages: card.pages }) : []),
     [card]
   )
-  const turns = (position: number) => (((rotations[position] ?? 0) % 4) + 4) % 4
-  const lastPosition = Math.max(mediaSlots.length - 1, 0)
-  const rotationPatch = {
-    ...(turns(0) ? { front: turns(0) } : {}),
-    ...(lastPosition > 0 && turns(lastPosition)
-      ? { back: turns(lastPosition) }
-      : {}),
-  }
+  // 中间页也要一起提交，否则墙上的中间页旋转不会生效。
+  const rotationPatch = rotationPayload(mediaSlots.length, rotations)
 
   useEffect(() => {
     if (!open || platform.status !== "authenticated" || catalog) return
@@ -106,7 +101,7 @@ export function NamecardSupplementDialog({
   const busy = Boolean(card?.supplementPending)
   const canSubmit =
     Boolean(card && draft && live && authenticated && catalog) &&
-    (changed || Object.keys(rotationPatch).length > 0) &&
+    (changed || Boolean(rotationPatch)) &&
     !busy &&
     !submitting
 
@@ -116,9 +111,7 @@ export function NamecardSupplementDialog({
     try {
       await createFudabaCardSupplement(card.cardId, {
         ...wallCardPayload("supplement", draft, live),
-        ...(Object.keys(rotationPatch).length
-          ? { rotations: rotationPatch }
-          : {}),
+        ...(rotationPatch ? { rotations: rotationPatch } : {}),
       }).send()
       onSubmitted()
       onOpenChange(false)
@@ -144,17 +137,12 @@ export function NamecardSupplementDialog({
           {card ? (
             <CardMediaPreview
               slots={mediaSlots}
+              disabled={submitting}
               rotations={rotations}
               onRotate={(position, direction) =>
-                setRotations((current) => ({
-                  ...current,
-                  [position]:
-                    ((((current[position] ?? 0) +
-                      (direction === "right" ? 1 : 3)) %
-                      4) +
-                      4) %
-                    4,
-                }))
+                setRotations((current) =>
+                  rotateOne(current, position, direction)
+                )
               }
             />
           ) : null}

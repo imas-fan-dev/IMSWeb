@@ -1,57 +1,62 @@
 import { Badge } from "~/components/ui/badge"
+import {
+  NAMECARD_ADMIN_STATUS_LABELS,
+  NAMECARD_REVIEW_LABELS,
+} from "./namecard-status-labels"
 
+// 配色留在本地，文案取自 `namecard-status-labels`。
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   published: {
-    label: "已通过",
+    label: NAMECARD_ADMIN_STATUS_LABELS.published,
     className: "border-success/40 bg-success/10 text-success",
   },
   // The admin list still speaks the legacy vocabulary, where a published card
   // is reported as `approved`; both values mean the same thing here.
   approved: {
-    label: "已通过",
+    label: NAMECARD_ADMIN_STATUS_LABELS.approved,
     className: "border-success/40 bg-success/10 text-success",
   },
   pending: {
-    label: "待审核",
+    label: NAMECARD_ADMIN_STATUS_LABELS.pending,
     className: "border-warning/40 bg-warning/10 text-warning",
   },
   approving: {
-    label: "待审核",
+    label: NAMECARD_ADMIN_STATUS_LABELS.approving,
     className: "border-warning/40 bg-warning/10 text-warning",
   },
   rejected: {
-    label: "已驳回",
+    label: NAMECARD_ADMIN_STATUS_LABELS.rejected,
     className: "border-destructive/40 bg-destructive/10 text-destructive",
   },
   withdrawn: {
-    label: "已撤回",
+    label: NAMECARD_ADMIN_STATUS_LABELS.withdrawn,
     className: "border-border bg-muted text-muted-foreground",
   },
   draft: {
-    label: "未提交",
+    label: NAMECARD_ADMIN_STATUS_LABELS.draft,
     className: "border-border bg-muted text-muted-foreground",
   },
   locked: {
-    label: "已锁定",
+    label: NAMECARD_ADMIN_STATUS_LABELS.locked,
     className: "border-destructive/40 bg-destructive/10 text-destructive",
   },
   hidden: {
-    label: "已隐藏",
+    label: NAMECARD_ADMIN_STATUS_LABELS.hidden,
     className: "border-border bg-muted text-muted-foreground",
   },
 }
 
 const REVIEW_STYLES: Record<string, { label: string; className: string }> = {
   pending: {
-    label: "复审中",
+    label: NAMECARD_REVIEW_LABELS.pending,
     className: "border-warning/40 bg-warning/10 text-warning",
   },
   rejected: {
-    label: "复审驳回",
+    label: NAMECARD_REVIEW_LABELS.rejected,
     className: "border-destructive/40 bg-destructive/10 text-destructive",
   },
   locked: {
-    label: "复审违规",
+    label: NAMECARD_REVIEW_LABELS.locked,
     className: "border-destructive/40 bg-destructive/10 text-destructive",
   },
 }

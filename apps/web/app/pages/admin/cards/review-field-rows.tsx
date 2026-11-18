@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 
 import { getPublicFudabaSeries } from "~/lib/api"
 import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
+import { textRow } from "./review-row-diff"
 
 interface SeriesOption {
   code: string
@@ -48,12 +49,56 @@ export function useReviewLabels() {
   }
 }
 
+/** 空企划不写成空串：对照行要表示「本来就没有内容」而不是一片空白。 */
+export function seriesListOrNull(
+  labels: ReturnType<typeof useReviewLabels>,
+  codes: readonly string[]
+): string | null {
+  return codes.length ? labels.seriesList(codes) : null
+}
+
+/** 空角色表同上。 */
+export function characterListOrNull(
+  labels: ReturnType<typeof useReviewLabels>,
+  ids: readonly number[]
+): string | null {
+  return ids.length ? labels.characterList(ids) : null
+}
+
 export interface ReviewRow {
   label: string
   /** 现在线上的值；`null` 表示这个字段本来就没有内容。 */
   live: string | null
   /** 这次提交后的值；与 `live` 相同表示没有改动。 */
   pending: string | null
+}
+
+/**
+ * 提交里带的旋转要摆给审核员看：哪一面转了几圈，否则通过后卡片朝向会莫名变化。
+ * 认领与补充的旋转都只有正、背两面（见 `cardMediaRotationsSchema`），
+ * 没提交旋转、或每一面都是 0 圈时不占行。
+ */
+export function rotationRows(
+  rotations:
+    | Readonly<{ front?: number; back?: number; middles?: readonly number[] }>
+    | undefined
+): ReviewRow[] {
+  if (!rotations) return []
+  const turnLabels: string[] = []
+  const turnsOf = (turns: number | undefined) => turns ?? 0
+  const front = turnsOf(rotations.front)
+  if (front) turnLabels.push(`正面 ${front * 90}°`)
+  // 中间页按页序排列，与提交时的 middles 下标一致（第 1 个是第 1 张中间页）。
+  for (const [index, turns] of (rotations.middles ?? []).entries()) {
+    if (turns) turnLabels.push(`中间页 ${index + 1} ${turns * 90}°`)
+  }
+  const back = turnsOf(rotations.back)
+  if (back) turnLabels.push(`背面 ${back * 90}°`)
+  const rows: ReviewRow[] = []
+  if (turnLabels.length > 0) {
+    rows.push(textRow("图片旋转", null, turnLabels.join("、")))
+  }
+  return rows
 }
 
 function blank(value: string | null): boolean {

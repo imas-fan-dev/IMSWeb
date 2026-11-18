@@ -1,6 +1,6 @@
 import type { AppEnvironment } from '@/app';
 import type { Context } from 'hono';
-import { cardArtworkView } from '@/domains/community/fudaba/cards/artwork-view';
+import { namecardPagesView } from '@/domains/community/fudaba/cards/artwork-view';
 import type { AdminNamecardDiffResponse } from '@/domains/community/namecards/response';
 import { services } from '@/middleware/hono-context';
 
@@ -17,24 +17,14 @@ export async function withAdminNamecardPages(
         (await services(c).fudaba?.listCardPagesBatchByNumbers?.([id])) ??
         new Map();
     const rows = pagesByNumber.get(id);
-    const live = cardArtworkView({
+    // 装配只有一处（`namecardPagesView`）；`pending` 已含「无待审 → null」。
+    const view = namecardPagesView(rows, {
         scope: 'admin',
         cardNumber: id,
-        cardId: String(id),
-        live: rows?.live ?? [],
-        pending: []
-    }).live;
-    const pendingRows = rows?.pending ?? [];
-    const pending =
-        pendingRows.length > 0
-            ? cardArtworkView({
-                  scope: 'admin',
-                  cardNumber: id,
-                  cardId: String(id),
-                  live: [],
-                  pending: pendingRows
-              }).pending ?? []
-            : null;
+        cardId: String(id)
+    });
+    const live = view.live;
+    const pending = view.pending;
     return {
         ...response,
         live: {

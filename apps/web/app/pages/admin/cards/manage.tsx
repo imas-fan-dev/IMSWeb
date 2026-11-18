@@ -1,53 +1,36 @@
 import {
   CheckIcon,
-  ContactRoundIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
-  SearchIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
 
-import {
-  AdminEmptyState,
-  AdminPageHeader,
-  AdminPanel,
-} from "~/components/admin/admin-ui"
-import { AdminPagination } from "~/components/admin/admin-pagination"
-import { NamecardStatusBadge } from "~/components/community/namecard-status-badge"
-import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
-import { Badge } from "~/components/ui/badge"
+import { AdminPageHeader } from "~/components/admin/admin-ui"
 import { Button } from "~/components/ui/button"
-import { Checkbox } from "~/components/ui/checkbox"
-import { Input } from "~/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
-import { Skeleton } from "~/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import {
   approveAdminNamecard,
   deleteAdminNamecard,
   flagAdminNamecard,
-  getAdminNamecards,
-  isApiError,
   rejectAdminNamecard,
   type AdminNamecard,
-  type AdminNamecardList,
+  type AdminNamecardListFilters,
 } from "~/lib/api"
 import { useDebouncedValue } from "~/lib/use-debounced-value"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
+import { ActionConfirmDialog } from "./action-confirm-dialog"
 import { NamecardFeedbackQueue } from "./namecard-feedback-queue"
 import { NamecardManageDialog } from "./namecard-manage-dialog"
-import { NAMECARD_STATUS_FILTERS } from "./namecard-status-options"
+import { NamecardQueuePanel } from "./namecard-queue-panel"
+import {
+  NamecardAdminFilters,
+  type NamecardOwnerSelection,
+} from "./namecard-admin-filters"
 import { ReviewRowAction } from "./review-row-action"
-import { NamecardMediaPreview } from "./namecard-media-preview"
+import { useNamecardQueue } from "./use-namecard-queue"
 import {
   REJECT_REASON_PRESETS,
   VIOLATION_REASON_PRESETS,
@@ -57,47 +40,8 @@ export function meta() {
   return [{ title: "名片管理 | IMSWeb" }]
 }
 
-interface NamecardListFilters {
-  query: string
-  status: string
-  origins: string[]
-}
-
-async function loadCards(page: number, filters: NamecardListFilters) {
-  return getAdminNamecards(page, filters).send()
-}
-
-function isStaleSubmission(error: unknown) {
-  return isApiError(error) && (error.status === 409 || error.status === 410)
-}
-
-function CardsSkeleton() {
-  return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
-      {[0, 1, 2, 3].map((index) => (
-        <Skeleton key={index} className="h-64 rounded-xl" />
-      ))}
-    </div>
-  )
-}
-
 export default function AdminNamecardManagePage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const requestedPage = Number(searchParams.get("page") ?? "1")
-  const page =
-    Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
-  const [cards, setCards] = useState<AdminNamecard[]>([])
-  const [pageInfo, setPageInfo] = useState<AdminNamecardList["pageInfo"]>({
-    page: 1,
-    pageSize: 10,
-    total: 0,
-    totalPages: 0,
-    hasNextPage: false,
-  })
-  const [loading, setLoading] = useState(true)
-  const [reloadToken, setReloadToken] = useState(0)
-  const [error, setError] = useState(false)
-  const listFocusRef = useRef<HTMLDivElement>(null)
   const queryParam = searchParams.get("query") ?? ""
   const statusParam = searchParams.get("status") ?? ""
   const originParam = searchParams.get("origin") ?? ""
@@ -105,12 +49,38 @@ export default function AdminNamecardManagePage() {
     () => (originParam ? originParam.split(",").filter(Boolean) : []),
     [originParam]
   )
+  // 归属筛选把昵称一起放进 URL：刷新后筛选条仍显示选中的是谁。
+  const ownerParam = searchParams.get("owner") ?? ""
+  const ownerNameParam = searchParams.get("owner_name") ?? ""
+  const owner = useMemo<NamecardOwnerSelection | null>(
+    () =>
+      ownerParam
+        ? { id: ownerParam, displayName: ownerNameParam || ownerParam }
+        : null,
+    [ownerNameParam, ownerParam]
+  )
   const [draftQuery, setDraftQuery] = useState(queryParam)
   const debouncedQuery = useDebouncedValue(draftQuery, 300)
-  const filters = useMemo<NamecardListFilters>(
-    () => ({ query: queryParam, status: statusParam, origins }),
-    [origins, queryParam, statusParam]
+  const filters = useMemo<AdminNamecardListFilters>(
+    () => ({
+      query: queryParam,
+      status: statusParam,
+      origins,
+      ownerAccountId: ownerParam,
+    }),
+    [origins, ownerParam, queryParam, statusParam]
   )
+  const queue = useNamecardQueue(filters)
+  const {
+    cards,
+    page,
+    loading,
+    reloadToken,
+    refresh,
+    changePage,
+    getFallbackFocus,
+    refreshOnStaleError,
+  } = queue
   const [openCard, setOpenCard] = useState<number | null>(null)
   const [rejectReason, setRejectReason] = useState("")
   const [rejectFlagged, setRejectFlagged] = useState(false)
@@ -154,62 +124,18 @@ export default function AdminNamecardManagePage() {
     setSearchParams(next)
   }
 
-  const applyPage = useCallback((next: AdminNamecardList) => {
-    setCards(next.data)
-    setPageInfo(next.pageInfo)
-  }, [])
-
-  const refresh = useCallback(async () => {
-    setReloadToken((token) => token + 1)
-    setLoading(true)
-    setError(false)
-    try {
-      applyPage(await loadCards(page, filters))
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
+  function setOwnerFilter(next: NamecardOwnerSelection | null) {
+    const params = new URLSearchParams(searchParams)
+    if (next) {
+      params.set("owner", next.id)
+      params.set("owner_name", next.displayName)
+    } else {
+      params.delete("owner")
+      params.delete("owner_name")
     }
-  }, [applyPage, filters, page])
-
-  useEffect(() => {
-    let active = true
-    void loadCards(page, filters)
-      .then((next) => {
-        if (active) applyPage(next)
-      })
-      .catch(() => {
-        if (active) setError(true)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [applyPage, filters, page])
-
-  function changePage(nextPage: number) {
-    setLoading(true)
-    setError(false)
-    const next = new URLSearchParams(searchParams)
-    next.set("page", String(Math.max(1, nextPage)))
-    setSearchParams(next)
+    params.delete("page")
+    setSearchParams(params)
   }
-
-  const getFallbackFocus = useCallback(
-    (card: AdminNamecard) => {
-      const index = cards.findIndex((item) => item.id === card.id)
-      const neighbour = cards[index + 1] ?? cards[index - 1]
-      if (neighbour) {
-        return document.querySelector<HTMLElement>(
-          `[data-namecard-id="${neighbour.id}"] button`
-        )
-      }
-      return listFocusRef.current
-    },
-    [cards]
-  )
 
   const approveConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {
@@ -217,8 +143,7 @@ export default function AdminNamecardManagePage() {
         await approveAdminNamecard(card.id, card.revision).send()
         await refresh()
       } catch (cause) {
-        if (isStaleSubmission(cause)) await refresh()
-        throw cause
+        await refreshOnStaleError(cause)
       }
     },
     getTitle: () => "通过审核",
@@ -227,6 +152,12 @@ export default function AdminNamecardManagePage() {
     successMessage: (card) => `名片 #${card.id} 已通过审核`,
     getFallbackFocus,
   })
+
+  // 取消/关闭驳回弹窗时把勾选与理由一起清掉：下次打开是干净的草稿。
+  const clearRejectDraft = useCallback(() => {
+    setRejectReason("")
+    setRejectFlagged(false)
+  }, [])
 
   const rejectConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {
@@ -250,8 +181,7 @@ export default function AdminNamecardManagePage() {
         await refresh()
         if (cards.length === 1 && page > 1) changePage(page - 1)
       } catch (cause) {
-        if (isStaleSubmission(cause)) await refresh()
-        throw cause
+        await refreshOnStaleError(cause)
       }
     },
     getTitle: (card) =>
@@ -311,6 +241,7 @@ export default function AdminNamecardManagePage() {
     ),
     successMessage: (card) => `名片 #${card.id} 已驳回`,
     getFallbackFocus,
+    onClose: clearRejectDraft,
   })
 
   const deleteConfirm = useConfirmAction<AdminNamecard>({
@@ -320,8 +251,7 @@ export default function AdminNamecardManagePage() {
         await refresh()
         if (cards.length === 1 && page > 1) changePage(page - 1)
       } catch (cause) {
-        if (isStaleSubmission(cause)) await refresh()
-        throw cause
+        await refreshOnStaleError(cause)
       }
     },
     getTitle: (card) => `删除名片 #${card.id}？`,
@@ -377,192 +307,75 @@ export default function AdminNamecardManagePage() {
         </TabsContent>
 
         <TabsContent value="advanced" className="flex flex-col gap-7 pt-5">
-          <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
-            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-              制作人名称
-              <div className="relative">
-                <SearchIcon
-                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  value={draftQuery}
-                  placeholder="搜索制作人名称"
-                  className="w-56 pl-8"
-                  onChange={(event) => setDraftQuery(event.currentTarget.value)}
-                />
-              </div>
-            </label>
-            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-              审核状态
-              <Select
-                value={statusParam || "all"}
-                items={NAMECARD_STATUS_FILTERS}
-                onValueChange={(value) =>
-                  setStatusFilter(value === "all" ? "" : String(value))
-                }
-              >
-                <SelectTrigger className="w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="pending">待审核</SelectItem>
-                  <SelectItem value="published">已通过</SelectItem>
-                  <SelectItem value="rejected">已驳回</SelectItem>
-                  <SelectItem value="locked">已锁定</SelectItem>
-                  <SelectItem value="hidden">已隐藏</SelectItem>
-                </SelectContent>
-              </Select>
-            </label>
-            <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-              <span>投稿来源</span>
-              <div className="flex h-9 items-center gap-4">
-                <label className="flex items-center gap-1.5 text-sm text-foreground">
-                  <Checkbox
-                    checked={origins.includes("legacy")}
-                    onCheckedChange={(checked) =>
-                      toggleOrigin("legacy", checked === true)
+          <NamecardAdminFilters
+            query={draftQuery}
+            onQueryChange={setDraftQuery}
+            status={statusParam}
+            onStatusChange={setStatusFilter}
+            origins={origins}
+            onOriginToggle={toggleOrigin}
+            owner={owner}
+            onOwnerChange={setOwnerFilter}
+          />
+
+          <NamecardQueuePanel
+            queue={queue}
+            openCardLabel={(card) => `修改名片 #${card.id}`}
+            onOpenCard={(card) => setOpenCard(card.id)}
+            renderRowActions={(card) => (
+              <>
+                {card.status === "pending" ? (
+                  <ReviewRowAction
+                    label="通过"
+                    icon={<CheckIcon />}
+                    pending={
+                      approveConfirm.submitting &&
+                      approveConfirm.target?.id === card.id
+                    }
+                    disabled={submitting}
+                    onRequest={(trigger) =>
+                      approveConfirm.requestAction(card, trigger)
                     }
                   />
-                  游客投稿
-                </label>
-                <label className="flex items-center gap-1.5 text-sm text-foreground">
-                  <Checkbox
-                    checked={origins.includes("exchange")}
-                    onCheckedChange={(checked) =>
-                      toggleOrigin("exchange", checked === true)
+                ) : null}
+                {card.status === "pending" ? (
+                  <ReviewRowAction
+                    label="驳回"
+                    icon={<XIcon />}
+                    variant="outline"
+                    pending={
+                      rejectConfirm.submitting &&
+                      rejectConfirm.target?.id === card.id
+                    }
+                    disabled={submitting}
+                    onRequest={(trigger) =>
+                      rejectConfirm.requestAction(card, trigger)
                     }
                   />
-                  注册用户投稿
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <AdminPanel
-            title="名片队列"
-            description={`每条投稿包含正面和背面两张图片 · 共 ${pageInfo.total} 条记录`}
-            icon={ContactRoundIcon}
-          >
-            <div ref={listFocusRef} tabIndex={-1} aria-label="名片队列内容">
-              {loading ? (
-                <CardsSkeleton />
-              ) : error ? (
-                <AdminEmptyState
-                  icon={ContactRoundIcon}
-                  title="无法读取名片队列"
-                  description="请确认管理会话有效，然后刷新页面重试。"
-                />
-              ) : cards.length ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
-                  {cards.map((card) => {
-                    return (
-                      <article
-                        key={card.id}
-                        data-namecard-id={card.id}
-                        className="relative overflow-hidden rounded-xl border"
-                      >
-                        {card.reviewStatus === "pending" ? (
-                          <Badge className="absolute top-2 left-2 z-10 border-warning-foreground/40 bg-warning text-warning-foreground shadow-sm">
-                            新版本
-                          </Badge>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="relative block w-full cursor-zoom-in text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                          aria-label={`修改名片 #${card.id}`}
-                          onClick={() => setOpenCard(card.id)}
-                        >
-                          <NamecardMediaPreview
-                            pages={card.pages}
-                            altBase={`名片 #${card.id}`}
-                            pageCount={card.pageCount}
-                          />
-                        </button>
-                        <div className="flex flex-wrap items-center gap-3 p-4">
-                          <div className="mr-auto">
-                            <p className="font-medium">
-                              {card.producerName ?? `名片 #${card.id}`}
-                            </p>
-                            <NamecardStatusBadge
-                              status={card.status}
-                              reviewStatus={card.reviewStatus}
-                            />
-                          </div>
-                          {card.status === "pending" ? (
-                            <ReviewRowAction
-                              label="通过"
-                              icon={<CheckIcon />}
-                              pending={
-                                approveConfirm.submitting &&
-                                approveConfirm.target?.id === card.id
-                              }
-                              disabled={submitting}
-                              onRequest={(trigger) =>
-                                approveConfirm.requestAction(card, trigger)
-                              }
-                            />
-                          ) : null}
-                          {card.status === "pending" ? (
-                            <ReviewRowAction
-                              label="驳回"
-                              icon={<XIcon />}
-                              variant="outline"
-                              pending={
-                                rejectConfirm.submitting &&
-                                rejectConfirm.target?.id === card.id
-                              }
-                              disabled={submitting}
-                              onRequest={(trigger) =>
-                                rejectConfirm.requestAction(card, trigger)
-                              }
-                            />
-                          ) : null}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            disabled={submitting}
-                            aria-label={`删除名片 #${card.id}`}
-                            onClick={(event) =>
-                              deleteConfirm.requestAction(
-                                card,
-                                event.currentTarget
-                              )
-                            }
-                          >
-                            {deleteConfirm.submitting &&
-                            deleteConfirm.target?.id === card.id ? (
-                              <LoaderCircleIcon
-                                data-icon="inline-start"
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <Trash2Icon data-icon="inline-start" />
-                            )}
-                            删除
-                          </Button>
-                        </div>
-                      </article>
-                    )
-                  })}
-                </div>
-              ) : (
-                <AdminEmptyState
-                  icon={CheckIcon}
-                  title="当前页没有名片"
-                  description="新的名片投稿会显示在这里。"
-                />
-              )}
-            </div>
-          </AdminPanel>
-
-          <AdminPagination
-            page={page}
-            totalPages={pageInfo.totalPages}
-            disabled={loading}
-            onChange={changePage}
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={submitting}
+                  aria-label={`删除名片 #${card.id}`}
+                  onClick={(event) =>
+                    deleteConfirm.requestAction(card, event.currentTarget)
+                  }
+                >
+                  {deleteConfirm.submitting &&
+                  deleteConfirm.target?.id === card.id ? (
+                    <LoaderCircleIcon
+                      data-icon="inline-start"
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <Trash2Icon data-icon="inline-start" />
+                  )}
+                  删除
+                </Button>
+              </>
+            )}
           />
         </TabsContent>
       </Tabs>
@@ -575,34 +388,20 @@ export default function AdminNamecardManagePage() {
         />
       ) : null}
 
-      <ConfirmActionDialog
-        open={approveConfirm.open}
-        onOpenChange={approveConfirm.onOpenChange}
-        title={approveConfirm.title}
-        description={approveConfirm.description}
-        submitting={approveConfirm.submitting}
+      <ActionConfirmDialog
+        action={approveConfirm}
         confirmLabel="确认通过"
         variant="default"
-        onConfirm={() => void approveConfirm.confirmAction()}
       />
-      <ConfirmActionDialog
-        open={rejectConfirm.open}
-        onOpenChange={rejectConfirm.onOpenChange}
-        title={rejectConfirm.title}
-        description={rejectConfirm.description}
-        submitting={rejectConfirm.submitting}
+      <ActionConfirmDialog
+        action={rejectConfirm}
         confirmLabel={rejectFlagged ? "确认标记违规" : "确认驳回"}
         variant="default"
-        onConfirm={() => void rejectConfirm.confirmAction()}
       />
-      <ConfirmActionDialog
-        open={deleteConfirm.open}
-        onOpenChange={deleteConfirm.onOpenChange}
-        title={deleteConfirm.title}
-        description={deleteConfirm.description}
-        submitting={deleteConfirm.submitting}
+      <ActionConfirmDialog
+        action={deleteConfirm}
         confirmLabel="确认删除"
-        onConfirm={() => void deleteConfirm.confirmAction()}
+        variant="destructive"
       />
     </div>
   )

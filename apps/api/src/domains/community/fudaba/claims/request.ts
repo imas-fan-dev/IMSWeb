@@ -1,5 +1,6 @@
 import {
     NAMECARD_FAVORITE_CHARACTER_LIMIT,
+    NAMECARD_MIDDLE_IMAGE_LIMIT,
     NAMECARD_SERIES_LIMIT
 } from '@imsweb/contracts/fudaba/runtime';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
@@ -12,8 +13,8 @@ export interface CardClaimPayloadInput {
     madeOn?: string | null;
     producerName?: string;
     producerReading?: string | null;
-    /** 审核通过后再执行的旋转；目前只有正反面。 */
-    rotations?: { front?: number; back?: number };
+    /** 审核通过后再执行的旋转：正反面，以及按页序排列的中间页。 */
+    rotations?: { front?: number; back?: number; middles?: number[] };
     seriesCodes?: string[];
 }
 
@@ -148,7 +149,7 @@ function claimPayload(
     }
     if ('rotations' in payload) {
         const rotations = object(payload.rotations);
-        allowedKeys(rotations, ['front', 'back']);
+        allowedKeys(rotations, ['front', 'back', 'middles']);
         const turns = (value: unknown): number | undefined => {
             if (value === undefined) return undefined;
             if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 3) {
@@ -156,9 +157,27 @@ function claimPayload(
             }
             return value;
         };
+        /** 中间页是数组元素，不允许缺项，所以这里不接受 undefined。 */
+        const middleTurns = (value: unknown): number => {
+            const turn = turns(value);
+            if (turn === undefined) throw badRequest('中间页旋转格式无效');
+            return turn;
+        };
+        // 中间页按页序排列，与卡片 1..n-2 的槽位一一对应。
+        const held = rotations.middles;
+        if (
+            held !== undefined &&
+            (!Array.isArray(held) || held.length > NAMECARD_MIDDLE_IMAGE_LIMIT)
+        ) {
+            throw badRequest('中间页旋转格式无效');
+        }
+        const middles: number[] | undefined = Array.isArray(held)
+            ? held.map((value: unknown) => middleTurns(value))
+            : undefined;
         parsed.rotations = {
             front: turns(rotations.front),
-            back: turns(rotations.back)
+            back: turns(rotations.back),
+            ...(middles === undefined ? {} : { middles })
         };
     }
     if ('seriesCodes' in payload) parsed.seriesCodes = seriesCodes(payload.seriesCodes);
