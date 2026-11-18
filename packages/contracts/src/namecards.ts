@@ -885,11 +885,25 @@ export const namecardCollectionSnapshotSchema =
     .omit({ isGroupCard: true })
     .extend({
       producerName: z.string().min(1).nullable(),
+      /**
+       * PRD §3.4 的排序元数据：原卡删除后仍按同一规则排序。
+       * 旧快照写在两列之前，缺省 / 坏值都退回「特殊符号垫底」。
+       */
+      sortNameKey: z.string().catch(""),
+      sortNameBucket: z.number().int().min(0).max(3).catch(3),
       /** 快照把空文本也记成 null，故没有最小长度。 */
       bio: z.string().nullable(),
       tradeNote: z.string().nullable(),
       accent: z.string().min(1).nullable(),
       seriesCodes: z.array(z.string().min(1)).max(NAMECARD_SERIES_LIMIT),
+      /**
+       * 担当角色的目录 id（顺序就是名片上的担当顺序）。原卡删除后筛选与「按企划」
+       * 排序仍要按同一批角色工作，因此快照也带上；旧快照没有这一项，按空处理。
+       */
+      favoriteCharacterIds: z
+        .array(z.number().int().positive())
+        .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
+        .catch([]),
       /** 快照不截断致谢名单。 */
       credits: z.array(namecardCreditSchema),
     })
@@ -905,6 +919,11 @@ export const namecardCollectionEntrySchema = exactJsonResponse({
    * 后已收集者照旧拿到投影与图；只有 `card === null` 才必须渲染 `snapshot`。
    */
   available: z.boolean(),
+  /**
+   * 这一条是「我自己的名片」（【显示我的名片】带出）而不是收到的：没有交换时间
+   * （`obtainedAt` 回退名片创建时间）、没有隐藏入口（PRD §5 / §6）。
+   */
+  own: z.boolean(),
   card: namecardSchema.nullable(),
   snapshot: namecardCollectionSnapshotSchema,
 })
@@ -923,9 +942,78 @@ export type NamecardCollectionVisibilityResponse = z.infer<
   typeof namecardCollectionVisibilityResponseSchema
 >
 
-export const namecardCollectionQuerySchema = legacyStripRequestObject({
-  page: z.unknown().optional(),
-  size: z.unknown().optional(),
+/**
+ * 名片册排序键（PRD §3）。`exchange` 用交换时间；`name` 用名片上的排序元数据；
+ * `series` 用企划数与第一个担当角色；`date` 用 `madeOn` 的精度与日期。
+ */
+export const namecardCollectionSortSchema = z.enum([
+  "exchange",
+  "name",
+  "series",
+  "date",
+])
+
+export const namecardCollectionDirectionSchema = z.enum(["asc", "desc"])
+
+export type NamecardCollectionSort = z.infer<typeof namecardCollectionSortSchema>
+export type NamecardCollectionDirection = z.infer<
+  typeof namecardCollectionDirectionSchema
+>
+
+/** 查询串里的布尔开关：接受 `true` / `false` / `1` / `0`，缺省为 false。 */
+const queryBoolean = z
+  .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
+  .optional()
+  .transform((value) => value === "true" || value === "1")
+
+/** 单值文本参数；同一键出现多次会被 zod 拒绝（数组进不了 `z.string()`）。 */
+const queryText = (maximum: number) => z.string().trim().max(maximum).optional()
+
+/** 可重复的文本参数：`?series=765&series=cg`；单值时 hono 给字符串。 */
+function repeatableQueryTextList(maxItems: number, maxLength: number) {
+  return z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((value) =>
+      value === undefined ? [] : Array.isArray(value) ? value : [value]
+    )
+    .pipe(z.array(z.string().trim().min(1).max(maxLength)).max(maxItems))
+}
+
+/** 复用 `fudabaCardQuerySchema` 的 series 写法：重复出现即多值。 */
+export const namecardPageQueryShape = {
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(24),
+}
+
+/** 名片册列表（PRD §7.1）：分页 + 排序 + 搜索 + 高级筛选 + 两个开关。 */
+export const namecardCollectionQuerySchema = strictRequestObject({
+  ...namecardPageQueryShape,
+  sort: namecardCollectionSortSchema.default("exchange"),
+  /** 缺省值取决于 `sort`：交换时间与制作日期倒序，其余正序（读取侧补默认值）。 */
+  dir: namecardCollectionDirectionSchema.optional(),
+  q: queryText(64),
+  series: repeatableQueryTextList(16, 40),
+  group: queryText(64),
+  /** 担当角色目录 id；重复出现即多选。 */
+  character: repeatableQueryTextList(64, 18)
+    .pipe(z.array(z.string().regex(/^[1-9]\d{0,17}$/)))
+    .transform((values) => [...new Set(values.map(Number))]),
+  /** `all` = 【同时包含】：名片必须包含全部筛选项。 */
+  match: z.enum(["any", "all"]).default("any"),
+  /** 【不含其他】：名片的担当角色必须全部落在筛选项里。 */
+  excludeOther: queryBoolean,
+  /** 【不含越境】：排除企划数为复数的名片。 */
+  excludeCross: queryBoolean,
+  /** 【显示我的名片】：并入自己 `published` 的名片（交换时间回退创建时间）。 */
+  includeOwn: queryBoolean,
+  /** 【显示隐藏名片】：并入被手动隐藏（`hidden_at`）的条目。 */
+  includeHidden: queryBoolean,
+})
+
+/** 交换记录只有页码（`namecardCollectionQuerySchema` 的其余参数与它无关）。 */
+export const namecardExchangeHistoryQuerySchema = strictRequestObject({
+  ...namecardPageQueryShape,
 })
 
 /** 隐藏或恢复名片册里的一条；隐藏后原卡改动仍然同步。 */
@@ -1039,6 +1127,9 @@ export type NamecardCollectionEntry = z.infer<
   typeof namecardCollectionEntrySchema
 >
 export type NamecardCollectionPage = z.infer<typeof namecardCollectionPageSchema>
+export type NamecardExchangeHistoryQuery = z.infer<
+  typeof namecardExchangeHistoryQuerySchema
+>
 export type NamecardExchangeHistoryEntry = z.infer<
   typeof namecardExchangeHistoryEntrySchema
 >

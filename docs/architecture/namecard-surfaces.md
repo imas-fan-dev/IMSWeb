@@ -12,7 +12,7 @@
 
 | 来源 | 内容 | 现状 |
 | --- | --- | --- |
-| `fudaba_cards` | 名片主体：复审暂存 `pending_payload`、制作人名称/读音、团体、**团体标记 `is_group_card`**、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表**；旧图片 key 列已在 P4 删除 |
+| `fudaba_cards` | 名片主体：复审暂存 `pending_payload`、制作人名称/读音、排序元数据 `sort_name_key`/`sort_name_bucket`、团体、**团体标记 `is_group_card`**、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表**；旧图片 key 列已在 P4 删除 |
 | `fudaba_card_pages` | 每张卡的 live/pending 页面：`queue`、`page_id`、`display_order`、`object_version`、`object_queue`、`width`、`height` | **媒体唯一来源** |
 | `fudaba_card_media` | 中间页旧表 | **P4 已删除**（`20261112120000_namecard_media_retire.sql`） |
 | `fudaba_card_series` / `fudaba_card_favorite_characters` / `fudaba_card_credits` | 企划、担当角色、制作人员 | 在用 |
@@ -25,6 +25,10 @@
 
 - `revision` 是整卡的乐观锁；属主保存、审核通过、管理窗修改都带 `expectedRevision`。
 - 认领/补充各有自己的 `revision`，与名片 revision 无关。
+- **排序元数据**：`sort_name_key` / `sort_name_bucket` 由 `src/utils/sorting/namecard-sort-key.ts`
+  按 PRD §3.1 的阶梯生成（0=英文、1=假名罗马音、2=中文拼音、3=特殊符号），所有改动
+  `producer_name` / `producer_reading` 的写入路径都要重算；既有行由
+  `migration:namecard-sort-keys` 回填，交换快照携带同一对键。
 - 公开读取只看 `publication_status='published'` 且 `deleted_at IS NULL`。
 - **页面行是媒体唯一来源**：`fudaba_card_pages(card_id, queue, page_id, display_order,
   object_version, object_queue, width, height)` 保存每张卡的 live/pending 页序，`page_id` 为稳定槽位

@@ -158,7 +158,7 @@ stateDiagram-v2
 | `exchange_id` | uuid | 来自哪次交换 |
 | `obtained_at` | timestamptz | |
 | `hidden_at` | timestamptz NULL | 持有者手动选择「默认不展示」的时间 |
-| `snapshot` | jsonb | 交换时的渲染快照，卡片不存在时兜底 |
+| `snapshot` | jsonb | 交换时的渲染快照，卡片不存在时兜底；含排序键（`sortNameKey` / `sortNameBucket`）与担当角色 id（`favoriteCharacterIds`），删除卡也要能排序与筛选 |
 
 唯一键 `(collector_account_id, card_number)`。索引 `(collector_account_id, obtained_at DESC)`。
 `hidden_at` 只影响列表展示，不影响「已拥有」的判定。
@@ -252,24 +252,47 @@ CREATE TABLE public.namecard_profile_layouts (
 
 ## 5. 名片册读取
 
+列表是**服务端**参数化的（PRD §7.1，契约见 `namecardCollectionQuerySchema`）：
+
 ```sql
-SELECT entry.*, card.publication_status
+-- 收到的条目
+SELECT entry.*, card.*  -- 实时列别名 live_*
 FROM namecard_collection_entries entry
-LEFT JOIN fudaba_cards card ON card.id = entry.card_id
+LEFT JOIN fudaba_cards card
+       ON card.id = entry.card_id AND card.deleted_at IS NULL
 WHERE entry.collector_account_id = ?
-  AND entry.hidden_at IS NULL
+  AND entry.hidden_at IS NULL           -- 除非 includeHidden
   AND (card.id IS NULL OR card.publication_status <> 'locked')
-ORDER BY entry.obtained_at DESC
+UNION ALL
+-- 自己的名片（includeOwn）：`obtained_at := created_at`、`hidden_at := NULL`、`own := true`
+SELECT card.*, ... FROM fudaba_cards card
+WHERE card.owner_account_id = ? AND card.deleted_at IS NULL
+  AND card.publication_status = 'published'
+  AND NOT EXISTS (SELECT 1 FROM namecard_collection_entries held
+                   WHERE held.collector_account_id = card.owner_account_id
+                     AND held.card_number = card.card_number)
 ```
 
-- `locked` 被过滤；解锁后条目自动重新出现。
+- `includeHidden` 决定是否排除 `hidden_at`；`locked` 仍被过滤，解锁后条目自动重新出现。
+- `includeOwn` 只并 `published`（整卡 `hidden` 不并）；自己的名片没有交换时间，按名片创建时间参与排序。
+  同名卡已经在册时只保留条目那一份，`total` 不重复计。
 - `hidden`（持有者删卡）保留展示，界面标记为已隐藏，**并照旧拿到最新投影与图**。
 - 原卡**可读**（行在、未被 `deleted_at` 判删、状态为 `published` 或 `hidden`）时给实时投影；其余情形——
   行被物理删除、被后台判决删除（`deleted_at`）、或状态不入册（`pending` / `approving`，例如解锁后回到待审）——
-  才用 `snapshot` 渲染。
-- 内容实时读取，对方更新名片后名片册随之更新。
+  才用 `snapshot` 渲染。筛选与排序需要的字段（企划、担当角色、团体、`madeOn`、排序键）在删除卡上同样从快照回退。
+- 排序（在合并后的集合上统一执行，`dir` 缺省：`exchange` / `date` 倒序，其余正序）：
+  - `exchange`：`obtained_at`；
+  - `name`：`sort_name_bucket`（0 英文 / 1 假名罗马音 / 2 拼音 / 3 特殊符号）→ `sort_name_key` → `obtained_at`；
+    特殊符号永远垫底，倒序只翻转比较键；
+  - `series`：企划数 → 第一个担当角色的 `(category, display_order)` → `obtained_at`；
+  - `date`：`madeOn` 精度（有月日 → 只有年份 → 没有，固定顺序）→ 日期值（没有 `madeOn` 时用创建时间）→ `obtained_at`。
+- 筛选：`q` 对制作人名称做不区分大小写的包含匹配（名称为空时改用团体名称）；`series` 命中任意一个即保留；
+  `group` 按 `groupName` 精确匹配（忽略大小写）；`character` + `match=all` 是【同时包含】；
+  `excludeOther` 要求担当角色 ⊆ 筛选项；`excludeCross` 排除企划数为复数的名片。
+- 分页 `total` 是筛选后的条数（含并入的自己的名片，已去重）；`totalPage = ceil(total / size)`。
 - 响应里的 `available` 只表示「原卡是否仍对外可见（`published`）」：`hidden` 时为 false 但 `card` 仍在；
   前端据 `!available && card` 标记「对方已删除」，只有 `card === null` 才必须渲染 `snapshot`。
+  `own` 标记该条来自【显示我的名片】，前端据此不显示隐藏按钮。
 - 媒体准入：公开读取只认 `published`；原卡 `hidden` 之后，**名片册里已经有这张卡的人**仍能读它的页面对象
   （媒体路由加可选会话 + 一条 `EXISTS namecard_collection_entries` 判断；`hidden_at` 只是展示开关，不影响准入），
   匿名与没有这张卡的人一律 404。该分支的**最终**响应头由 `/api/community/exchange/*` 的前缀中间件统一设为

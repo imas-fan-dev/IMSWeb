@@ -3,15 +3,15 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "5865abc975b7b8864f1dfa9fa305300db02550e90cda1d8a8e0d74361ad45ad5",
+    "semanticDigest": "cc50f44ee62332b1734b7c0d5806717f67526cde4d43f3b7e1a6771bff30848a",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
     "mountedMethodPaths": 292,
     "carriers": 370,
-    "reject": 83,
-    "acceptAndProject": 186,
+    "reject": 85,
+    "acceptAndProject": 184,
     "passthrough": 17,
     "nonObjectApplicable": 84
   },
@@ -21,8 +21,8 @@
     "noInputRoutes": 99,
     "requestCarriers": 403,
     "policies": {
-      "reject": 90,
-      "accept-and-project": 212,
+      "reject": 92,
+      "accept-and-project": 210,
       "passthrough": 17,
       "non-object-applicable": 84
     },
@@ -38,8 +38,8 @@
       "mountedMethodPaths": 292,
       "requestCarriers": 370,
       "policies": {
-        "reject": 83,
-        "accept-and-project": 186,
+        "reject": 85,
+        "accept-and-project": 184,
         "passthrough": 17,
         "non-object-applicable": 84
       }
@@ -4862,8 +4862,8 @@
           "schemaLocation": {
             "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
           },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
+          "policy": "reject",
+          "syntaxPolicy": "reject"
         }
       ],
       "responses": [
@@ -4888,13 +4888,13 @@
           "location": {
             "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
           },
-          "schemaSymbol": "namecardCollectionQuerySchema",
+          "schemaSymbol": "namecardExchangeHistoryQuerySchema",
           "schemaModule": "@imsweb/contracts/namecards",
           "schemaLocation": {
             "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
           },
-          "policy": "accept-and-project",
-          "syntaxPolicy": "accept-and-project"
+          "policy": "reject",
+          "syntaxPolicy": "reject"
         }
       ],
       "responses": [
@@ -17850,8 +17850,8 @@
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
       },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",
@@ -17862,13 +17862,13 @@
       "location": {
         "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
       },
-      "schemaSymbol": "namecardCollectionQuerySchema",
+      "schemaSymbol": "namecardExchangeHistoryQuerySchema",
       "schemaModule": "@imsweb/contracts/namecards",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
       },
-      "policy": "accept-and-project",
-      "syntaxPolicy": "accept-and-project"
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",

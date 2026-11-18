@@ -6,6 +6,7 @@ import {
     namecardExchangeCardParamsSchema,
     namecardExchangeCommitSchema,
     namecardExchangeHandleParamsSchema,
+    namecardExchangeHistoryQuerySchema,
     namecardExchangeIdParamsSchema,
     namecardExchangeSlugParamsSchema,
     namecardQuickCandidatesQuerySchema,
@@ -83,6 +84,9 @@ const commitBody = jsonSchemaValidator(namecardExchangeCommitSchema, {
     invalidMessage: '交换参数无效',
 });
 const collectionQuery = querySchemaValidator(namecardCollectionQuerySchema, {
+    invalidMessage: '名片册参数无效',
+});
+const exchangeHistoryQuery = querySchemaValidator(namecardExchangeHistoryQuerySchema, {
     invalidMessage: '分页参数无效',
 });
 const quickCandidatesQuery = querySchemaValidator(namecardQuickCandidatesQuerySchema, {
@@ -140,7 +144,7 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
         }),
         handleSetCollectionVisibility,
     );
-    routes.get('/exchange/me/exchanges', platformAuth, collectionQuery, handleListExchanges);
+    routes.get('/exchange/me/exchanges', platformAuth, exchangeHistoryQuery, handleListExchanges);
 
     // 扫码：出示方生成一次性二维码，扫码方在有效期内提交。
     routes.post(

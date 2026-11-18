@@ -67,7 +67,9 @@ import type {
     NamecardSubmissionRecord,
     NamecardSubmissionWithHashesRecord,
     NamecardCollectionEntryRecord,
+    NamecardCollectionQueryRecord,
     NamecardCollectionSnapshotRecord,
+    NamecardCollectionSortRecord,
     NamecardExchangeCommitInput,
     NamecardExchangeCommitResult,
     NamecardExchangeDecisionRecord,
@@ -88,6 +90,7 @@ import {
     cardPageObjectKey,
     parseCardPageObjectKey
 } from '@/utils/storage/business-object-keys';
+import { namecardSortKey } from '@/utils/sorting/namecard-sort-key';
 import {
     NAMECARD_COMPAT_ORIGIN,
     NAMECARD_PUBLIC_ORIGIN
@@ -98,6 +101,175 @@ type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters
 /** 名片册条目能带实时投影的原卡状态；其余（`null`/`approving`/…）只能渲染 `snapshot`（doc §5）。 */
 function shelfCardStatus(value: string | null): 'published' | 'hidden' | null {
     return value === 'published' || value === 'hidden' ? value : null;
+}
+
+/** 快照里的可选文本：缺省与坏值都读成 null。 */
+function snapshotText(value: unknown): string | null {
+    return typeof value === 'string' ? value : null;
+}
+
+/** 排序分桶只有 0..3 四个合法值；旧快照缺省 / 坏值一律「特殊符号垫底」。 */
+function snapshotBucket(value: unknown): 0 | 1 | 2 | 3 {
+    return value === 0 || value === 1 || value === 2 || value === 3 ? value : 3;
+}
+
+/**
+ * 读侧的快照归一：旧快照写在排序元数据与担当角色之前，缺省的键按
+ * 「特殊符号垫底」与空列表补，避免读出 undefined 让排序 / 筛选漂移。
+ */
+function collectionSnapshotRecord(value: unknown): NamecardCollectionSnapshotRecord {
+    const record = (
+        value && typeof value === 'object' ? value : {}
+    ) as Record<string, unknown>;
+    const exchangeMode = record.exchangeMode;
+    return {
+        producerName: snapshotText(record.producerName),
+        producerReading: snapshotText(record.producerReading),
+        sortNameKey: snapshotText(record.sortNameKey) ?? '',
+        sortNameBucket: snapshotBucket(record.sortNameBucket),
+        groupName: snapshotText(record.groupName),
+        madeOn: snapshotText(record.madeOn),
+        bio: snapshotText(record.bio),
+        tradeNote: snapshotText(record.tradeNote),
+        isOriginal: record.isOriginal === true,
+        madeWithAi: record.madeWithAi === true,
+        exchangeMode:
+            exchangeMode === 'auto' || exchangeMode === 'manual'
+                ? exchangeMode
+                : 'none',
+        accent: snapshotText(record.accent),
+        seriesCodes: Array.isArray(record.seriesCodes)
+            ? record.seriesCodes.filter(
+                  (code): code is string => typeof code === 'string'
+              )
+            : [],
+        favoriteCharacterIds: Array.isArray(record.favoriteCharacterIds)
+            ? record.favoriteCharacterIds.filter(
+                  (id): id is number =>
+                      typeof id === 'number' && Number.isSafeInteger(id) && id > 0
+              )
+            : [],
+        credits: Array.isArray(record.credits)
+            ? (record.credits as NamecardCollectionSnapshotRecord['credits'])
+            : []
+    };
+}
+
+/**
+ * 名片册列表合并后的原始行：收到的条目与「我自己的名片」投影到同一组列，
+ * 实时卡片列只在原卡行还在时给值，其余从 `snapshot` 回退。
+ */
+interface NamecardCollectionQueryRow {
+    card_number: number | string;
+    obtained_at: string | Date;
+    hidden_at: string | Date | null;
+    snapshot: unknown;
+    own: boolean;
+    live_id: string | null;
+    live_status: string | null;
+    live_producer_name: string | null;
+    live_group_name: string | null;
+    live_made_on: string | null;
+    live_created_at: string | Date | null;
+    live_sort_name_key: string | null;
+    live_sort_name_bucket: number | string | null;
+}
+
+/** 排序 / 筛选用的归一视图：实时列与快照列在这里已经合成一份。 */
+interface NamecardCollectionViewRow {
+    row: NamecardCollectionQueryRow;
+    own: boolean;
+    cardNumber: number;
+    obtainedAtMs: number;
+    snapshot: NamecardCollectionSnapshotRecord;
+    seriesCodes: string[];
+    characterIds: number[];
+    /** 每个担当角色的目录排序值；「按企划」取 (category, order) 最小的一项。 */
+    characterKeys: { category: string; order: number }[];
+    producerName: string | null;
+    groupName: string | null;
+    madeOn: string | null;
+    /** 0=有月日、1=只有年份、2=没有。精度层级固定，不随升降序翻转（PRD §3.3）。 */
+    madeOnRank: number;
+    /** 日期排序的比较值：`madeOn` 或创建时间回退。 */
+    dateSortValue: string;
+    sortNameKey: string;
+    sortNameBucket: 0 | 1 | 2 | 3;
+}
+
+function compareText(a: string, b: string): number {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function compareNumber(a: number, b: number): number {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** 「按企划」的第一个担当角色：分类最小、同分类里目录排序值最小。 */
+function firstCharacterKey(
+    view: NamecardCollectionViewRow
+): { category: string; order: number } | null {
+    let best: { category: string; order: number } | null = null;
+    for (const candidate of view.characterKeys) {
+        if (
+            !best ||
+            candidate.category < best.category ||
+            (candidate.category === best.category && candidate.order < best.order)
+        ) {
+            best = candidate;
+        }
+    }
+    return best;
+}
+
+/**
+ * 名片册排序（PRD §3）：
+ * - `name` 只用「是否特殊符号」分层（符号永远垫底），其余按同一个拉丁键比较——
+ *   英文名、假名罗马音与中文拼音直接混排；分桶值只用来标记符号。
+ * - `date` 的「没有日期」层级固定垫底；只有比较键跟着 `dir` 翻转。
+ * 所有排序最后都以交换时间、名片编号兜底，保证分页稳定。
+ */
+function compareCollectionRows(
+    a: NamecardCollectionViewRow,
+    b: NamecardCollectionViewRow,
+    sort: NamecardCollectionSortRecord,
+    direction: 'asc' | 'desc'
+): number {
+    const factor = direction === 'desc' ? -1 : 1;
+    const tail =
+        compareNumber(a.obtainedAtMs, b.obtainedAtMs) * factor ||
+        compareNumber(a.cardNumber, b.cardNumber) * factor;
+    if (sort === 'name') {
+        const aSymbolic = a.sortNameBucket === 3 ? 1 : 0;
+        const bSymbolic = b.sortNameBucket === 3 ? 1 : 0;
+        return (
+            compareNumber(aSymbolic, bSymbolic) ||
+            compareText(a.sortNameKey, b.sortNameKey) * factor ||
+            tail
+        );
+    }
+    if (sort === 'series') {
+        const count =
+            compareNumber(a.seriesCodes.length, b.seriesCodes.length) * factor;
+        if (count !== 0) return count;
+        const left = firstCharacterKey(a);
+        const right = firstCharacterKey(b);
+        if (left || right) {
+            if (!left) return factor;
+            if (!right) return -factor;
+            const characters =
+                compareText(left.category, right.category) * factor ||
+                compareNumber(left.order, right.order) * factor;
+            if (characters !== 0) return characters;
+        }
+        return tail;
+    }
+    if (sort === 'date') {
+        const precision = compareNumber(a.madeOnRank, b.madeOnRank);
+        if (precision !== 0) return precision;
+        return compareText(a.dateSortValue, b.dateSortValue) * factor || tail;
+    }
+    return tail;
 }
 
 /** 布局 JSONB 的防御性解析：坏数据按空布局处理，不让一行脏数据把整页打挂。 */
@@ -716,6 +888,7 @@ export class SqlCoreRepository implements NamecardRepository {
         const submissionKind = input.submissionKind ?? 'guest';
         const characterIds = input.characterIds ?? [];
         const idPrefix = submissionKind === 'legacy' ? 'legacy' : 'guest';
+        const sort = namecardSortKey(input.producerName ?? null, null);
         return this.database.transaction(async (database) => {
             const characters = await this.validateNamecardSelection(
                 database,
@@ -730,11 +903,13 @@ export class SqlCoreRepository implements NamecardRepository {
                  )
                  INSERT INTO fudaba_cards
                     (id, card_number, origin, producer_name,
+                     sort_name_key, sort_name_bucket,
                      accent, bio, trade_note,
                      exchange_mode, publication_status, revision,
                      created_at, updated_at)
                  SELECT ? || '-' || allocated.card_number::text, allocated.card_number,
-                        ?, ?, COALESCE(?, '#4f64dd'), ?, NULL,
+                        ?, ?, ?, ?,
+                        COALESCE(?, '#4f64dd'), ?, NULL,
                         'none', 'pending', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                  FROM allocated
                  RETURNING id, card_number`,
@@ -742,6 +917,8 @@ export class SqlCoreRepository implements NamecardRepository {
                     idPrefix,
                     idPrefix,
                     input.producerName ?? null,
+                    sort.key,
+                    sort.bucket,
                     input.accent ?? null,
                     input.bio ?? null
                 ]
@@ -1473,10 +1650,17 @@ export class SqlCoreRepository implements NamecardRepository {
         // Text columns that the author may clear need a flag instead of
         // COALESCE: a submitted revision is authoritative even when it is empty.
         const hasPayload = payload !== null
+        const nextProducerName =
+            payload?.producer_name ?? row.producer_name ?? null;
+        const nextProducerReading = hasPayload
+            ? payload?.producer_reading ?? null
+            : row.producer_reading ?? null;
+        const sort = namecardSortKey(nextProducerName, nextProducerReading);
         await executeSql(database,
             `UPDATE fudaba_cards
              SET producer_name=?,
                  producer_reading=CASE WHEN ? THEN ? ELSE producer_reading END,
+                 sort_name_key=?, sort_name_bucket=?,
                  bio=CASE WHEN ? THEN ? ELSE bio END,
                  trade_note=CASE WHEN ? THEN ? ELSE trade_note END,
                  made_on=COALESCE(?, made_on), group_name=COALESCE(?, group_name),
@@ -1491,9 +1675,11 @@ export class SqlCoreRepository implements NamecardRepository {
                  revision=revision+1, updated_at=CURRENT_TIMESTAMP
              WHERE id=?`,
             [
-                payload?.producer_name ?? row.producer_name ?? null,
+                nextProducerName,
                 hasPayload,
                 payload?.producer_reading ?? null,
+                sort.key,
+                sort.bucket,
                 hasPayload,
                 payload?.bio ?? null,
                 hasPayload,
@@ -2234,9 +2420,14 @@ export class SqlCoreRepository implements NamecardRepository {
                           favorite_character_ids: [...input.content.favoriteCharacterIds]
                       };
 
+            const sort = namecardSortKey(
+                input.content.producerName,
+                input.content.producerReading
+            );
             const updatedRow = await queryOne<NamecardCardRow>(database,
                 `UPDATE fudaba_cards SET
-                     producer_name=?, producer_reading=?, group_name=?, is_group_card=?, made_on=?,
+                     producer_name=?, producer_reading=?, sort_name_key=?, sort_name_bucket=?,
+                     group_name=?, is_group_card=?, made_on=?,
                      bio=?, trade_note=?, is_original=?, made_with_ai=?,
                      visible=?, exchange_mode=?,
                      publication_status=?, lock_reason=?,
@@ -2249,6 +2440,8 @@ export class SqlCoreRepository implements NamecardRepository {
                 [
                     input.content.producerName,
                     input.content.producerReading,
+                    sort.key,
+                    sort.bucket,
                     input.content.groupName,
                     input.content.isGroupCard ?? current.is_group_card,
                     input.content.madeOn,
@@ -2993,13 +3186,112 @@ export class SqlCoreRepository implements NamecardRepository {
         )) as NamecardPublicRecord[];
     }
 
+    /**
+     * 【显示我的名片】的条目投影：`published` 即可（不看名片墙的 origin 门槛），
+     * 因为这里展示的是持有者自己的东西，PRD §6 只要求整卡没有下线。
+     */
+    private async loadOwnCollectionCards(
+        database: SqlDatabase,
+        accountId: string,
+        cardNumbers: readonly number[]
+    ): Promise<NamecardPublicRecord[]> {
+        const unique = [...new Set(cardNumbers)];
+        if (unique.length === 0) return [];
+        const placeholders = unique.map(() => '?').join(',');
+        const rows = await queryAll<NamecardCardRow>(
+            database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number IN (${placeholders})
+               AND owner_account_id=?
+               AND deleted_at IS NULL
+               AND publication_status='published'`,
+            [...unique, accountId]
+        );
+        return (await this.attachNamecardFavorites(
+            database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
+    }
+
+    /**
+     * 「按企划」排序要的担当角色目录值：链接顺序照名片上的顺序，
+     * 排序时取 (category, display_order) 最小的一项（PRD §3.2 / Q7）。
+     */
+    private async listCollectionFavoriteOrders(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, { id: number; category: string; order: number }[]>> {
+        const grouped = new Map<
+            string,
+            { id: number; category: string; order: number }[]
+        >();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (cardIds.length === 0) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const rows = await queryAll<{
+            card_id: string;
+            character_id: number | string;
+            category: string;
+            character_order: number | string;
+        }>(
+            database,
+            `SELECT selected.card_id, selected.character_id, character.category,
+                    character.display_order AS character_order
+               FROM fudaba_card_favorite_characters selected
+               JOIN namecard_characters character
+                 ON character.id=selected.character_id
+              WHERE selected.card_id IN (${placeholders})
+              ORDER BY selected.card_id, selected.display_order`,
+            [...cardIds]
+        );
+        for (const row of rows) {
+            grouped.get(String(row.card_id))?.push({
+                id: Number(row.character_id),
+                category: row.category,
+                order: Number(row.character_order)
+            });
+        }
+        return grouped;
+    }
+
+    /** 快照里的担当角色只剩 id：目录值现查一次，供删除卡参与企划排序。 */
+    private async listCharacterOrders(
+        database: SqlDatabase,
+        characterIds: readonly number[]
+    ): Promise<Map<number, { category: string; order: number }>> {
+        const unique = [...new Set(characterIds)];
+        if (unique.length === 0) return new Map();
+        const placeholders = unique.map(() => '?').join(',');
+        const rows = await queryAll<{
+            id: number | string;
+            category: string;
+            display_order: number | string;
+        }>(
+            database,
+            `SELECT id, category, display_order FROM namecard_characters
+              WHERE id IN (${placeholders})`,
+            [...unique]
+        );
+        return new Map(
+            rows.map((row) => [
+                Number(row.id),
+                { category: row.category, order: Number(row.display_order) }
+            ])
+        );
+    }
+
     /** 名片册留存的那份只读投影。 */
     private collectionSnapshot(
         card: NamecardPublicRecord
     ): NamecardCollectionSnapshotRecord {
+        // 原卡被删除后只剩这份投影，排序依据必须一起带走（PRD §3.4）。
+        const sort = namecardSortKey(card.producer_name, card.producer_reading);
         return {
             producerName: card.producer_name ?? null,
             producerReading: card.producer_reading ?? null,
+            sortNameKey: sort.key,
+            sortNameBucket: sort.bucket,
             groupName: card.group_name ?? null,
             madeOn: card.made_on ?? null,
             bio: card.bio ?? null,
@@ -3012,6 +3304,14 @@ export class SqlCoreRepository implements NamecardRepository {
                     : 'none',
             accent: card.accent ?? null,
             seriesCodes: [...(card.series_codes ?? [])],
+            // 原卡删除后「担当角色」筛选与「按企划」排序只剩这份投影（PRD §4 / §3.2）。
+            favoriteCharacterIds: [
+                ...new Set(
+                    (card.favorite_characters ?? []).map(
+                        (character) => character.character_id
+                    )
+                )
+            ],
             credits: [...(card.credits ?? [])]
         };
     }
@@ -3609,60 +3909,250 @@ export class SqlCoreRepository implements NamecardRepository {
         };
     }
 
-    async listCollection(input: {
-        accountId: string;
-        limit: number;
-        offset: number;
-    }): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }> {
-        // 条目没有删除操作：`hidden_at` 是「默认不展示」，整卡 `locked` 同样不展示；
-        // 原卡被持有者下线（`hidden`）仍按最新内容展示，只有卡片行真的没了才落回 `snapshot`（doc §5）。
-        const total = await queryOne<{ total: number | string }>(
+    /**
+     * 名片册列表（PRD §7.1）：收到的条目 + 可选的「我自己的名片」先投影到同一形状，
+     * 再在合并后的集合上统一筛选、排序、分页。
+     *
+     * 条目没有删除操作：`hidden_at` 是「默认不展示」（除非 `includeHidden`），整卡 `locked`
+     * 同样不展示；原卡被持有者下线（`hidden`）仍按最新内容展示，只有卡片行真的没了才落回
+     * `snapshot`（doc §5）。删除卡的筛选与排序一律从快照里的同名字段回退。
+     */
+    async listCollection(
+        input: NamecardCollectionQueryRecord
+    ): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }> {
+        const collectedSql = `SELECT entry.card_number, entry.obtained_at, entry.hidden_at,
+                entry.snapshot, false AS own,
+                card.id AS live_id, card.publication_status AS live_status,
+                card.producer_name AS live_producer_name,
+                card.group_name AS live_group_name,
+                card.made_on AS live_made_on,
+                card.created_at AS live_created_at,
+                card.sort_name_key AS live_sort_name_key,
+                card.sort_name_bucket AS live_sort_name_bucket
+           FROM public.namecard_collection_entries entry
+           LEFT JOIN fudaba_cards card
+                  ON card.id = entry.card_id AND card.deleted_at IS NULL
+          WHERE entry.collector_account_id=?
+            ${input.includeHidden ? '' : 'AND entry.hidden_at IS NULL'}
+            AND (card.id IS NULL OR card.publication_status <> 'locked')`;
+        // 自己的名片没有交换时间（PRD §6）：`obtained_at := created_at`，快照 = 当前内容。
+        // 已经收在自己册里的同名卡不再重复计一条。
+        const ownedSql = `SELECT card.card_number, card.created_at AS obtained_at,
+                NULL::timestamptz AS hidden_at, NULL::jsonb AS snapshot, true AS own,
+                card.id AS live_id, card.publication_status AS live_status,
+                card.producer_name AS live_producer_name,
+                card.group_name AS live_group_name,
+                card.made_on AS live_made_on,
+                card.created_at AS live_created_at,
+                card.sort_name_key AS live_sort_name_key,
+                card.sort_name_bucket AS live_sort_name_bucket
+           FROM fudaba_cards card
+          WHERE card.owner_account_id=?
+            AND card.deleted_at IS NULL
+            AND card.publication_status='published'
+            AND NOT EXISTS (
+                SELECT 1 FROM public.namecard_collection_entries held
+                 WHERE held.collector_account_id=card.owner_account_id
+                   AND held.card_number=card.card_number)`;
+        const rows = await queryAll<NamecardCollectionQueryRow>(
             this.database,
-            `SELECT COUNT(*) AS total
-               FROM public.namecard_collection_entries entry
-               LEFT JOIN fudaba_cards card ON card.id = entry.card_id
-              WHERE entry.collector_account_id=?
-                AND entry.hidden_at IS NULL
-                AND (card.id IS NULL OR card.publication_status <> 'locked')`,
-            [input.accountId]
+            input.includeOwn
+                ? `${collectedSql} UNION ALL ${ownedSql}`
+                : collectedSql,
+            input.includeOwn
+                ? [input.accountId, input.accountId]
+                : [input.accountId]
         );
-        const entries = await queryAll<{
-            card_number: number | string;
-            obtained_at: string | Date;
-            hidden_at: string | Date | null;
-            card_status: string | null;
-            snapshot: unknown;
-        }>(
+
+        const liveIds = rows.flatMap((row) => (row.live_id ? [row.live_id] : []));
+        const [seriesByCard, favoriteOrders] = await Promise.all([
+            this.listNamecardSeries(this.database, liveIds),
+            this.listCollectionFavoriteOrders(this.database, liveIds)
+        ]);
+        const prepared = rows.map((row) => ({
+            row,
+            snapshot: collectionSnapshotRecord(row.snapshot)
+        }));
+        const snapshotCharacters = await this.listCharacterOrders(
             this.database,
-            `SELECT entry.card_number, entry.obtained_at, entry.hidden_at, entry.snapshot,
-                    CASE WHEN card.deleted_at IS NULL
-                         THEN card.publication_status END AS card_status
-               FROM public.namecard_collection_entries entry
-               LEFT JOIN fudaba_cards card ON card.id = entry.card_id
-              WHERE entry.collector_account_id=?
-                AND entry.hidden_at IS NULL
-                AND (card.id IS NULL OR card.publication_status <> 'locked')
-              ORDER BY entry.obtained_at DESC, entry.card_number DESC
-              LIMIT ? OFFSET ?`,
-            [input.accountId, input.limit, input.offset]
+            prepared.flatMap(({ row, snapshot }) =>
+                row.live_id ? [] : snapshot.favoriteCharacterIds
+            )
         );
-        const live = await this.loadShelfCards(
-            this.database,
-            entries.map((entry) => Number(entry.card_number))
+
+        const sort = input.sort ?? 'exchange';
+        const direction =
+            input.dir ?? (sort === 'exchange' || sort === 'date' ? 'desc' : 'asc');
+        const needle = input.q?.trim().toLowerCase() ?? '';
+        const groupNeedle = input.groupName?.trim().toLowerCase() ?? '';
+        const seriesFilter = new Set(input.seriesCodes ?? []);
+        const characterFilter = new Set(input.characterIds ?? []);
+
+        const views = prepared.map(
+            ({ row, snapshot }): NamecardCollectionViewRow => {
+                const live = row.live_id !== null;
+                const liveFavorites = live
+                    ? (favoriteOrders.get(row.live_id!) ?? [])
+                    : [];
+                const characterKeys = live
+                    ? liveFavorites.map(({ id, category, order }) => ({
+                          id,
+                          category,
+                          order
+                      }))
+                    : snapshot.favoriteCharacterIds.map((id) => {
+                          const catalog = snapshotCharacters.get(id);
+                          // 目录里已经没有这个角色时，筛选仍按 id 生效，排序按分类末尾。
+                          return {
+                              id,
+                              category: catalog?.category ?? '\uffff',
+                              order: catalog?.order ?? Number.MAX_SAFE_INTEGER
+                          };
+                      });
+                const madeOn =
+                    (live ? row.live_made_on : snapshot.madeOn)?.trim() || null;
+                const obtainedAtMs = new Date(row.obtained_at).getTime();
+                const createdMs =
+                    live && row.live_created_at
+                        ? new Date(row.live_created_at).getTime()
+                        : null;
+                const madeOnRank = madeOn === null ? 2 : madeOn.length >= 7 ? 0 : 1;
+                return {
+                    row,
+                    own: row.own === true,
+                    cardNumber: Number(row.card_number),
+                    obtainedAtMs,
+                    snapshot,
+                    seriesCodes: live
+                        ? (seriesByCard.get(row.live_id!) ?? [])
+                        : snapshot.seriesCodes,
+                    characterIds: characterKeys.map((key) => key.id),
+                    characterKeys,
+                    producerName: live
+                        ? row.live_producer_name
+                        : snapshot.producerName,
+                    groupName: live ? row.live_group_name : snapshot.groupName,
+                    madeOn,
+                    madeOnRank,
+                    dateSortValue:
+                        madeOnRank < 2
+                            ? (madeOn ?? '')
+                            : new Date(createdMs ?? obtainedAtMs).toISOString(),
+                    sortNameKey: live
+                        ? (row.live_sort_name_key ?? '')
+                        : snapshot.sortNameKey,
+                    sortNameBucket: live
+                        ? snapshotBucket(
+                              row.live_sort_name_bucket === null
+                                  ? null
+                                  : Number(row.live_sort_name_bucket)
+                          )
+                        : snapshot.sortNameBucket
+                };
+            }
         );
+
+        const filtered = views.filter((view) => {
+            // 【不含越境】：企划数是复数的整张排除（PRD §4）。
+            if (input.excludeCross && view.seriesCodes.length > 1) return false;
+            if (
+                seriesFilter.size > 0 &&
+                !view.seriesCodes.some((code) => seriesFilter.has(code))
+            ) {
+                return false;
+            }
+            if (
+                groupNeedle.length > 0 &&
+                view.groupName?.trim().toLowerCase() !== groupNeedle
+            ) {
+                return false;
+            }
+            if (characterFilter.size > 0) {
+                const held = new Set(view.characterIds);
+                if (input.match === 'all') {
+                    for (const characterId of characterFilter) {
+                        if (!held.has(characterId)) return false;
+                    }
+                } else if (
+                    !view.characterIds.some((characterId) =>
+                        characterFilter.has(characterId)
+                    )
+                ) {
+                    return false;
+                }
+                // 【不含其他】：担当角色必须全部落在筛选项里（PRD §4）。
+                if (
+                    input.excludeOther &&
+                    view.characterIds.some(
+                        (characterId) => !characterFilter.has(characterId)
+                    )
+                ) {
+                    return false;
+                }
+            }
+            if (needle.length > 0) {
+                // 制作人名称为空时改用团体名称（团体名片的检索口径，PRD §7.1）。
+                const producer = view.producerName?.trim() ?? '';
+                const haystack = (producer || view.groupName?.trim() || '')
+                    .toLowerCase();
+                if (!haystack.includes(needle)) return false;
+            }
+            return true;
+        });
+
+        filtered.sort((left, right) =>
+            compareCollectionRows(left, right, sort, direction)
+        );
+
+        const page = filtered.slice(input.offset, input.offset + input.limit);
+        const pageNumbers = page.map((view) => view.cardNumber);
         const liveByNumber = new Map(
-            live.map((card) => [card.card_number ?? card.id, card])
+            (
+                await this.loadShelfCards(this.database, pageNumbers)
+            ).map((card) => [card.card_number ?? card.id, card])
         );
+        const ownNumbers = page
+            .filter((view) => view.own)
+            .map((view) => view.cardNumber);
+        for (const card of await this.loadOwnCollectionCards(
+            this.database,
+            input.accountId,
+            ownNumbers
+        )) {
+            liveByNumber.set(card.card_number ?? card.id, card);
+        }
+
         return {
-            rows: entries.map((entry) => ({
-                card_number: Number(entry.card_number),
-                obtained_at: entry.obtained_at,
-                hidden_at: entry.hidden_at,
-                card: liveByNumber.get(Number(entry.card_number)) ?? null,
-                card_status: shelfCardStatus(entry.card_status),
-                snapshot: entry.snapshot as NamecardCollectionSnapshotRecord
-            })),
-            total: Number(total?.total ?? 0)
+            total: filtered.length,
+            rows: page.map((view) => {
+                const card = liveByNumber.get(view.cardNumber) ?? null;
+                return {
+                    card_number: view.cardNumber,
+                    obtained_at: view.row.obtained_at,
+                    hidden_at: view.row.hidden_at,
+                    own: view.own,
+                    card,
+                    card_status: view.own
+                        ? 'published'
+                        : shelfCardStatus(view.row.live_status),
+                    // 自己的名片没有交换那一刻的快照；投影直接取当前内容，
+                    // 读不到实时行时退回本页已知的元数据（不编造致谢等未读字段）。
+                    snapshot: view.own
+                        ? card
+                            ? this.collectionSnapshot(card)
+                            : {
+                                  ...view.snapshot,
+                                  producerName: view.producerName,
+                                  groupName: view.groupName,
+                                  madeOn: view.madeOn,
+                                  sortNameKey: view.sortNameKey,
+                                  sortNameBucket: view.sortNameBucket,
+                                  seriesCodes: view.seriesCodes,
+                                  favoriteCharacterIds: view.characterIds
+                              }
+                        : view.snapshot
+                };
+            })
         };
     }
 

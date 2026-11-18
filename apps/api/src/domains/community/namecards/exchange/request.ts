@@ -1,10 +1,12 @@
 import type { AppEnvironment } from '@/app';
 import type {
     NamecardCollectionEntryParams,
+    NamecardCollectionQuery,
     NamecardCollectionVisibilityRequest,
     NamecardExchangeCardParams,
     NamecardExchangeCommitRequest,
     NamecardExchangeHandleParams,
+    NamecardExchangeHistoryQuery,
     NamecardExchangeIdParams,
     NamecardExchangeSlugParams,
     NamecardQuickCandidatesQuery,
@@ -49,13 +51,10 @@ export type NamecardScanCommitContext = WithParamsBody<
     NamecardScanTokenParams,
     NamecardExchangeCommitRequest
 >;
-/** 名片册与交换记录共用一套页码参数。 */
-export interface NamecardCollectionQuery {
-    page?: number;
-    size?: number;
-}
-
+/** 名片册的查询参数由契约校验（分页 / 排序 / 搜索 / 筛选 / 两个开关）。 */
 export type NamecardCollectionQueryContext = WithQuery<NamecardCollectionQuery>;
+export type NamecardExchangeHistoryQueryContext =
+    WithQuery<NamecardExchangeHistoryQuery>;
 export type NamecardCollectionEntryContext = WithParamsBody<
     NamecardCollectionEntryParams,
     NamecardCollectionVisibilityRequest

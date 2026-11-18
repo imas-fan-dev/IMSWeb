@@ -26,6 +26,7 @@ import {
     NAMECARD_SCAN_TOKEN_TTL_MS,
     namecardCardShareLinkSchema,
     namecardCardShareSchema,
+    namecardCollectionPageSchema,
     namecardExchangeDetailSchema,
     namecardPageSchema,
     namecardQuickExchangeSchema,
@@ -105,6 +106,7 @@ const UUID = {
     noneReject: '6a6a6a6a-6a6a-4a6a-8a6a-6a6a6a6a6a6a',
     overwriteFirst: '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b',
     overwriteSecond: '6c6c6c6c-6c6c-4c6c-8c6c-6c6c6c6c6c6c',
+    albumRoute: '7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
@@ -2704,5 +2706,89 @@ describe('namecard exchange lifecycle', () => {
         );
         assert.equal(settled.status, 'completed');
         assert.equal(settled.expiresAt, null);
+    });
+});
+
+describe('namecard album queries over the route', () => {
+    postgresTest('the route merges own cards and keeps the paging contract', async () => {
+        const { app, authHeaders, publish, commit } = await fixture();
+        const collected = await publish('album-route-collected', 'owner', 'auto');
+        const own = await publish('album-route-own', 'collector', 'auto');
+        await commit({
+            id: UUID.albumRoute,
+            clientExchangeId: 'client-album-route',
+            source: 'card-share',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [collected],
+        });
+
+        // 只差一名片页：按制作人名正序时 `Producer collector` 先于 `Producer owner`。
+        const page = await assertContractJson(
+            await testRequest(
+                app,
+                '/api/community/exchange/me/collection?includeOwn=true&sort=name&dir=asc&page=1&size=1',
+                { headers: authHeaders('collector') },
+            ),
+            200,
+            namecardCollectionPageSchema,
+        );
+        assert.equal(page.total, 2);
+        assert.equal(page.totalPage, 2);
+        assert.equal(page.list.length, 1);
+        assert.equal(page.list[0]?.cardNumber, own);
+        assert.equal(page.list[0]?.own, true);
+        // 自己的名片没有交换时间：回退名片创建时间（夹具的 `AT`）。
+        assert.equal(page.list[0]?.obtainedAt, AT);
+
+        // 第二页只有收到的那张，并且不带 `own`。
+        const second = await assertContractJson(
+            await testRequest(
+                app,
+                '/api/community/exchange/me/collection?includeOwn=true&sort=name&dir=asc&page=2&size=1',
+                { headers: authHeaders('collector') },
+            ),
+            200,
+            namecardCollectionPageSchema,
+        );
+        assert.equal(second.list[0]?.cardNumber, collected);
+        assert.equal(second.list[0]?.own, false);
+    });
+
+    postgresTest('the album route rejects malformed filters and the history route stays page-only', async () => {
+        const { app, authHeaders } = await fixture();
+        for (const query of [
+            'size=0',
+            'size=101',
+            'page=0',
+            'page=abc',
+            'sort=bad',
+            'dir=sideways',
+            'character=0',
+            'character=abc',
+            'match=some',
+            'includeOwn=maybe',
+        ]) {
+            const response = await testRequest(
+                app,
+                `/api/community/exchange/me/collection?${query}`,
+                { headers: authHeaders('collector') },
+            );
+            assert.equal(response.status, 400, `${query} should be rejected`);
+        }
+
+        // 交换记录只有页码：名片册的筛选参数不该悄悄被它接受。
+        const history = await testRequest(
+            app,
+            '/api/community/exchange/me/exchanges?page=1&size=10',
+            { headers: authHeaders('collector') },
+        );
+        assert.equal(history.status, 200, await history.clone().text());
+        const rejected = await testRequest(
+            app,
+            '/api/community/exchange/me/exchanges?sort=name',
+            { headers: authHeaders('collector') },
+        );
+        assert.equal(rejected.status, 400);
     });
 });

@@ -390,6 +390,9 @@ export interface NamecardExchangeRecord {
 export interface NamecardCollectionSnapshotRecord {
     producerName: string | null;
     producerReading: string | null;
+    /** PRD §3.4 的排序键，与名片行上的 `sort_name_key` 同一规则。 */
+    sortNameKey: string;
+    sortNameBucket: 0 | 1 | 2 | 3;
     groupName: string | null;
     madeOn: string | null;
     bio: string | null;
@@ -399,6 +402,8 @@ export interface NamecardCollectionSnapshotRecord {
     exchangeMode: 'auto' | 'manual' | 'none';
     accent: string | null;
     seriesCodes: string[];
+    /** 担当角色目录 id（顺序即名片上的担当顺序）；原卡删除后筛选与「按企划」排序靠它。 */
+    favoriteCharacterIds: number[];
     credits: FudabaCardCredit[];
 }
 
@@ -406,6 +411,8 @@ export interface NamecardCollectionEntryRecord {
     card_number: number;
     obtained_at: string | Date;
     hidden_at: string | Date | null;
+    /** 「我自己的名片」带出的条目：没有交换时间（回退创建时间）与隐藏入口。 */
+    own: boolean;
     /**
      * 原卡行还在且未被 `locked` 时带实时投影：`published` **与 `hidden`（持有者删卡）都给**，
      * 因为「我收到的那张」不该因为对方下线而消失。`null` 表示只能渲染 `snapshot`——
@@ -416,6 +423,36 @@ export interface NamecardCollectionEntryRecord {
     /** 原卡当前是否仍对外可见（`published`）；`hidden` 时为 false 但 `card` 仍在。`null` = 行已不在。 */
     card_status: 'published' | 'hidden' | null;
     snapshot: NamecardCollectionSnapshotRecord;
+}
+
+/** 名片册排序键（PRD §3）。 */
+export type NamecardCollectionSortRecord = 'exchange' | 'name' | 'series' | 'date';
+
+/** 名片册列表的查询（PRD §7.1）：分页、排序、搜索与高级筛选。 */
+export interface NamecardCollectionQueryRecord {
+    accountId: string;
+    limit: number;
+    offset: number;
+    /** 【显示隐藏名片】：不排除 `hidden_at` 非空的条目。 */
+    includeHidden?: boolean;
+    /** 【显示我的名片】：并入自己 `published` 的名片（交换时间回退创建时间）。 */
+    includeOwn?: boolean;
+    sort?: NamecardCollectionSortRecord;
+    dir?: 'asc' | 'desc';
+    /** 制作人名搜索；为空时改用团体名称（PRD §7.1）。 */
+    q?: string;
+    /** 企划筛选；命中其中任意一个即保留。 */
+    seriesCodes?: readonly string[];
+    /** 所属团体（`groupName`）精确匹配（忽略大小写）。 */
+    groupName?: string;
+    /** 担当角色筛选；`match` 决定「或」还是「同时包含」。 */
+    characterIds?: readonly number[];
+    /** `all` = 【同时包含】。 */
+    match?: 'any' | 'all';
+    /** 【不含其他】：担当角色必须全部落在筛选项里。 */
+    excludeOther?: boolean;
+    /** 【不含越境】：排除企划数为复数的名片。 */
+    excludeCross?: boolean;
 }
 
 /** 属主清单布局的原始形态：分组 + 默认分组顺序。 */
@@ -557,11 +594,9 @@ export interface NamecardRepository {
         exchangeId: string;
         accountId: string;
     }): Promise<NamecardExchangeDetailRecord | null>;
-    listCollection(input: {
-        accountId: string;
-        limit: number;
-        offset: number;
-    }): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }>;
+    listCollection(
+        input: NamecardCollectionQueryRecord,
+    ): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }>;
     /** 隐藏或恢复名片册里的一条；false 表示这一条不存在。 */
     setCollectionHidden(input: {
         accountId: string;
