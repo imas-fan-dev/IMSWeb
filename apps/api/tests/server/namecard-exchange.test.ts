@@ -26,16 +26,24 @@ import {
     NAMECARD_SCAN_TOKEN_TTL_MS,
     namecardCardShareLinkSchema,
     namecardCardShareSchema,
+    namecardExchangeDetailSchema,
     namecardPageSchema,
     namecardQuickExchangeSchema,
+    namecardQuickSettingsSchema,
 } from '@imsweb/contracts/namecards';
+import { namecardNotificationListResponseSchema } from '@imsweb/contracts/fudaba/card-claims';
+import { NAMECARD_EXCHANGE_PENDING_TTL_MS } from '@/domains/community/namecards/exchange/lifecycle';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { cardPageWrite } from '../fixtures/owner-route-fixture';
 import { assertContractJson } from '../contracts/contract-json';
 import { createPostgresTestDatabase, postgresTest } from '../postgres-test-database';
 import { createTestApp, testRequest } from './test-app';
 
-const AT = '2026-11-06T00:00:00.000Z';
+/**
+ * 「现在」用真实时钟：待确认交换的有效期按 `now()` 算（7 天），固定成过去某天会让
+ * 所有 pending 断言一次性过期。需要「8 天前」的用例直接改库里的 `created_at`。
+ */
+const AT = new Date().toISOString();
 /** 站点空壳的最小可注入形态：默认 title / description 都在，注入必须把它们换掉。 */
 const SHELL_HTML =
     '<!DOCTYPE html><html lang="zh-CN"><head><meta charSet="utf-8"/>' +
@@ -82,12 +90,26 @@ const UUID = {
     shelfSoftDeleted: '1e1e1e1e-1e1e-4e1e-8e1e-1e1e1e1e1e1e',
     profileCollected: '2a2a2a2a-2a2a-4a2a-8a2a-2a2a2a2a2a2a',
     shareCollected: '2b2b2b2b-2b2b-4b2b-8b2b-2b2b2b2b2b2b',
+    pickerOwned: '3a3a3a3a-3a3a-4a3a-8a3a-3a3a3a3a3a3a',
+    expire: '4a4a4a4a-4a4a-4a4a-8a4a-4a4a4a4a4a4a',
+    expireRetry: '4b4b4b4b-4b4b-4b4b-8b4b-4b4b4b4b4b4b',
+    dedupeFirst: '4c4c4c4c-4c4c-4c4c-8c4c-4c4c4c4c4c4c',
+    dedupeSecond: '4d4d4d4d-4d4d-4d4d-8d4d-4d4d4d4d4d4d',
+    dedupeThird: '4e4e4e4e-4e4e-4e4e-8e4e-4e4e4e4e4e4e',
+    staleDecide: '5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a',
+    settledDecide: '5b5b5b5b-5b5b-4b5b-8b5b-5b5b5b5b5b5b',
+    detail: '5c5c5c5c-5c5c-4c5c-8c5c-5c5c5c5c5c5c',
+    detailSettled: '5d5d5d5d-5d5d-4d5d-8d5d-5d5d5d5d5d5d',
+    notifyRequested: '5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e',
+    notifyDeclined: '5f5f5f5f-5f5f-4f5f-8f5f-5f5f5f5f5f5f',
+    noneReject: '6a6a6a6a-6a6a-4a6a-8a6a-6a6a6a6a6a6a',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
 const ACCESS_SESSIONS = [
     { accountId: 'collector', token: 'exchange-access-collector', sessionId: 'exchange-session-collector' },
     { accountId: 'owner', token: 'exchange-access-owner', sessionId: 'exchange-session-owner' },
+    { accountId: 'stranger', token: 'exchange-access-stranger', sessionId: 'exchange-session-stranger' },
 ] as const;
 
 function card(
@@ -154,6 +176,23 @@ async function fixture() {
             deletedAt: null,
             profile: {
                 displayName: 'Owner',
+                avatarObjectKey: null,
+                avatarExternalUrl: null,
+                homeCity: null,
+                bio: '',
+                updatedAt: AT_MS,
+            },
+        }),
+        // 详情端点的第三方视角：既不是发起方也不是目标方，必须 404。
+        platform.createAccountWithProfile({
+            id: 'stranger',
+            status: 'active',
+            tokenVersion: 0,
+            createdAt: AT_MS,
+            updatedAt: AT_MS,
+            deletedAt: null,
+            profile: {
+                displayName: 'Stranger',
                 avatarObjectKey: null,
                 avatarExternalUrl: null,
                 homeCity: null,
@@ -311,7 +350,7 @@ async function fixture() {
     async function setExchangeMode(id: string, mode: string): Promise<void> {
         await executeSql(database, 'UPDATE fudaba_cards SET exchange_mode=? WHERE id=?', [mode, id]);
     }
-    const authHeaders = (accountId: 'collector' | 'owner') => {
+    const authHeaders = (accountId: 'collector' | 'owner' | 'stranger') => {
         const session = ACCESS_SESSIONS.find((row) => row.accountId === accountId);
         assert.ok(session, `no access session for ${accountId}`);
         return { authorization: `Bearer ${session.token}` };
@@ -451,7 +490,7 @@ describe('namecard exchange repository', () => {
                 decision: 'decline',
                 at: AT,
             }),
-            { status: 'expired' },
+            { status: 'expired', stale: false },
         );
     });
 
@@ -1450,6 +1489,199 @@ describe('namecard exchange repository', () => {
         assert.equal('collected' in anonymous.card, false);
     });
 
+    /* ---- 选卡候选的目标视角（任务 11-18 design §2；只有传 `target` 才出现） ---- */
+
+    postgresTest('the candidate list marks the cards the target already owns', async () => {
+        const { app, publish, commit, authHeaders, namecards } = await fixture();
+        const mineHeld = await publish('collector-picker-held', 'collector', 'auto');
+        const mineFresh = await publish('collector-picker-fresh', 'collector', 'auto');
+        const ownerCard = await publish('owner-picker', 'owner', 'auto');
+        // 目标先通过一次交换收下我其中一张：只有那张该带 `targetOwns`。
+        await commit({
+            id: UUID.pickerOwned,
+            clientExchangeId: 'client-picker-owned-1',
+            source: 'quick',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerCard],
+            giveCardNumbers: [mineHeld],
+        });
+
+        const body = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/me/quick?target=owner', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardQuickSettingsSchema,
+        );
+        // 候选仍然只有「我自己」的卡：对方的卡不在这里出现。
+        const rows = new Map(body.cards.map((card) => [card.cardNumber, card]));
+        assert.deepEqual(
+            [...rows.keys()].sort((left, right) => left - right),
+            [mineHeld, mineFresh].sort((left, right) => left - right),
+        );
+        assert.equal(rows.get(mineHeld)?.targetOwns, true);
+        // 对方没收的那张整份省略字段，而不是写 `false`。
+        assert.equal('targetOwns' in (rows.get(mineFresh) ?? {}), false);
+        // 缺口数与分享页同源：我有、可交换、对方还没收下的张数。
+        assert.equal(body.targetMissingCount, 1);
+        assert.equal(
+            body.targetMissingCount,
+            await namecards.countMissingCollectionCards({
+                cardOwnerId: 'collector',
+                otherAccountId: 'owner',
+            }),
+        );
+    });
+
+    postgresTest('the candidate list omits the target view when no target is asked for', async () => {
+        const { app, publish, authHeaders } = await fixture();
+        await publish('collector-plain', 'collector', 'auto');
+
+        const body = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/me/quick', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardQuickSettingsSchema,
+        );
+        // 两个字段连键都不该有，而不是 `false` / `0`。
+        assert.equal('targetMissingCount' in body, false);
+        assert.ok(body.cards.length > 0);
+        for (const card of body.cards) {
+            assert.equal('targetOwns' in card, false);
+        }
+    });
+
+    postgresTest('an unknown target is a 404 and the viewer himself is no target at all', async () => {
+        const { app, publish, authHeaders } = await fixture();
+        await publish('collector-self', 'collector', 'auto');
+
+        const ghost = await testRequest(app, '/api/community/exchange/me/quick?target=ghost', {
+            headers: authHeaders('collector'),
+        });
+        assert.equal(ghost.status, 404);
+        // 与快速交换页同文案。
+        assert.deepEqual(await ghost.json(), { error: '找不到这位制作人' });
+
+        // 目标就是自己 = 没传目标：两个字段都省略，状态码仍是 200。
+        const self = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/me/quick?target=collector', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardQuickSettingsSchema,
+        );
+        assert.equal('targetMissingCount' in self, false);
+        assert.ok(self.cards.length > 0);
+        for (const card of self.cards) {
+            assert.equal('targetOwns' in card, false);
+        }
+    });
+
+    postgresTest('the candidate list reads the target account from a public card number', async () => {
+        const { app, publish, commit, authHeaders } = await fixture();
+        const mineHeld = await publish('collector-targetcard-held', 'collector', 'auto');
+        await publish('collector-targetcard-fresh', 'collector', 'auto');
+        const ownerCard = await publish('owner-targetcard', 'owner', 'auto');
+        // 目标先收下我其中一张：`targetOwns` / `targetMissingCount` 才有信息量。
+        await commit({
+            id: UUID.pickerOwned,
+            clientExchangeId: 'client-targetcard-owned-1',
+            source: 'quick',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerCard],
+            giveCardNumbers: [mineHeld],
+        });
+
+        const byHandle = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/me/quick?target=owner', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardQuickSettingsSchema,
+        );
+        // 名片墙 / 主页只有卡号（公开投影的 `claimerUid` 恒为 null），卡号必须给出
+        // 与 `?target=` 逐字相同的一份响应。
+        const byCard = await assertContractJson(
+            await testRequest(app, `/api/community/exchange/me/quick?targetCard=${ownerCard}`, {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardQuickSettingsSchema,
+        );
+        assert.deepEqual(byCard, byHandle);
+
+        const rows = new Map(byCard.cards.map((card) => [card.cardNumber, card]));
+        assert.equal(rows.get(mineHeld)?.targetOwns, true);
+        assert.equal(byCard.targetMissingCount, 1);
+    });
+
+    postgresTest('an unknown or unclaimed target card is a 404', async () => {
+        const { app, database, publish, authHeaders } = await fixture();
+        await publish('collector-targetcard-guard', 'collector', 'auto');
+        const unclaimed = await publish('owner-targetcard-unclaimed', 'owner', 'auto');
+        // 未认领（无属主）的卡：没有可交换的账号，跟卡号不存在同一种结果。
+        await executeSql(
+            database,
+            `UPDATE fudaba_cards
+                SET owner_account_id=NULL, trade_note=NULL, exchange_mode='none'
+              WHERE id=?`,
+            ['owner-targetcard-unclaimed'],
+        );
+
+        for (const number of [unclaimed, 999_999]) {
+            const response = await testRequest(
+                app,
+                `/api/community/exchange/me/quick?targetCard=${number}`,
+                { headers: authHeaders('collector') },
+            );
+            assert.equal(response.status, 404);
+            assert.deepEqual(await response.json(), { error: '找不到这位制作人' });
+        }
+    });
+
+    postgresTest('the candidate list refuses two target sources at once', async () => {
+        const { app, publish, authHeaders } = await fixture();
+        const ownerCard = await publish('owner-targetcard-conflict', 'owner', 'auto');
+
+        const conflict = await testRequest(
+            app,
+            `/api/community/exchange/me/quick?target=owner&targetCard=${ownerCard}`,
+            { headers: authHeaders('collector') },
+        );
+        assert.equal(conflict.status, 400);
+        assert.deepEqual(await conflict.json(), { error: '目标用户标识无效' });
+
+        // 非数字的卡号在查询参数校验就拦下，不会走到 `findApprovedCard`。
+        const malformed = await testRequest(
+            app,
+            '/api/community/exchange/me/quick?targetCard=card-1',
+            { headers: authHeaders('collector') },
+        );
+        assert.equal(malformed.status, 400);
+        assert.deepEqual(await malformed.json(), { error: '目标用户标识无效' });
+    });
+
+    postgresTest('the candidate read keeps its session guard and refuses a blank target', async () => {
+        const { app, publish, authHeaders } = await fixture();
+        await publish('collector-guard', 'collector', 'auto');
+
+        // `platformAuth` 没变：没有会话就是 401，跟带不带 `target` 无关。
+        assert.equal((await testRequest(app, '/api/community/exchange/me/quick')).status, 401);
+        assert.equal(
+            (await testRequest(app, '/api/community/exchange/me/quick?target=owner')).status,
+            401,
+        );
+        // 只有空白的目标标志在查询参数校验就被拦下。
+        const blank = await testRequest(app, '/api/community/exchange/me/quick?target=%20', {
+            headers: authHeaders('collector'),
+        });
+        assert.equal(blank.status, 400);
+        assert.deepEqual(await blank.json(), { error: '目标用户标识无效' });
+    });
+
     postgresTest('the owner gets one stable share slug per card', async () => {
         const { app, publish, authHeaders } = await fixture();
         const number = await publish('owner-share-link', 'owner', 'auto');
@@ -1879,5 +2111,465 @@ describe('namecard exchange repository', () => {
         const tooMany = await put(numbers(NAMECARD_EXCHANGE_CARD_LIMIT + 1));
         assert.equal(tooMany.status, 400);
         assert.deepEqual(await tooMany.json(), { error: '清单参数无效' });
+    });
+});
+
+/* ---- 交换生命周期收口：过期 / 去重 / none / 通知 / 详情（任务 11-18 design §13） ---- */
+
+describe('namecard exchange lifecycle', () => {
+    postgresTest('a request older than a week reads as expired and settles as expired', async () => {
+        const { database, namecards, publish, commit } = await fixture();
+        const ownerNumber = await publish('owner-expire', 'owner', 'manual');
+        const first = await commit({
+            id: UUID.expire,
+            clientExchangeId: 'client-expire-0001',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerNumber],
+        });
+        assert.equal(first.exchange.status, 'pending');
+
+        // 过期只跟 `created_at` 有关：直接把行改成 8 天前，不 mock 时钟。
+        await executeSql(
+            database,
+            `UPDATE public.namecard_exchanges
+                SET created_at = now() - interval '8 days'
+              WHERE id=?`,
+            [UUID.expire],
+        );
+
+        // 读取侧只投影、不写库。
+        const listed = await namecards.listExchanges({
+            accountId: 'owner',
+            limit: 10,
+            offset: 0,
+        });
+        assert.equal(listed.total, 1);
+        assert.equal(listed.rows[0]?.status, 'expired');
+        const [raw] = await queryAll<{ status: string; resolved_at: unknown }>(
+            database,
+            'SELECT status, resolved_at FROM public.namecard_exchanges WHERE id=?',
+            [UUID.expire],
+        );
+        assert.equal(raw?.status, 'pending');
+        assert.equal(raw?.resolved_at, null);
+
+        // 过期 pending 不挡新请求：同一批卡再发起就是一行新的 pending。
+        const again = await commit({
+            id: UUID.expireRetry,
+            clientExchangeId: 'client-expire-0002',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerNumber],
+        });
+        assert.equal(again.idempotent, false);
+        assert.notEqual(again.exchange.id, UUID.expire);
+        assert.equal(again.exchange.status, 'pending');
+
+        // 两封 requested 通知都带自己的 exchange id（R9 的前置）。
+        const requested = await queryAll<{ kind: string; exchange_id: string | null }>(
+            database,
+            `SELECT kind, exchange_id FROM public.namecard_notifications
+              WHERE recipient_account_id=?
+              ORDER BY created_at, id`,
+            ['owner'],
+        );
+        assert.deepEqual(
+            requested.map((row) => row.kind),
+            ['card-exchange-requested', 'card-exchange-requested'],
+        );
+        assert.deepEqual(
+            requested.map((row) => row.exchange_id).sort(),
+            [UUID.expire, UUID.expireRetry].sort(),
+        );
+
+        // 裁决命中的是过期 pending：顺手落成终态，并告诉调用方这是「过期」而不是「处理过了」。
+        assert.deepEqual(
+            await namecards.decideExchange({
+                exchangeId: UUID.expire,
+                accountId: 'owner',
+                decision: 'accept',
+                at: AT,
+            }),
+            { status: 'expired', stale: true },
+        );
+        const [settled] = await queryAll<{ status: string; resolved_at: unknown }>(
+            database,
+            'SELECT status, resolved_at FROM public.namecard_exchanges WHERE id=?',
+            [UUID.expire],
+        );
+        assert.equal(settled?.status, 'expired');
+        assert.ok(settled?.resolved_at, '过期必须同时写 resolved_at，满足 resolved_at IS NULL ⇔ pending');
+
+        // 过期不发通知：收件箱里还是只有那两封 pending 请求。
+        assert.equal(
+            (
+                await queryAll<{ id: string }>(
+                    database,
+                    `SELECT id FROM public.namecard_notifications
+                      WHERE recipient_account_id=? AND kind LIKE 'card-exchange-%'`,
+                    ['owner'],
+                )
+            ).length,
+            2,
+        );
+
+        // 已经落成终态后再裁决：不是过期，而是「已经处理过了」。
+        assert.deepEqual(
+            await namecards.decideExchange({
+                exchangeId: UUID.expire,
+                accountId: 'owner',
+                decision: 'accept',
+                at: AT,
+            }),
+            { status: 'expired', stale: false },
+        );
+    });
+
+    postgresTest('the decide endpoint distinguishes an expired request from a settled one', async () => {
+        const { database, app, authHeaders, publish, commit } = await fixture();
+        const staleNumber = await publish('owner-decide-stale', 'owner', 'manual');
+        const settledNumber = await publish('owner-decide-settled', 'owner', 'manual');
+        await commit({
+            id: UUID.staleDecide,
+            clientExchangeId: 'client-decide-stale',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [staleNumber],
+        });
+        await commit({
+            id: UUID.settledDecide,
+            clientExchangeId: 'client-decide-settled',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [settledNumber],
+        });
+        await executeSql(
+            database,
+            `UPDATE public.namecard_exchanges
+                SET created_at = now() - interval '8 days'
+              WHERE id=?`,
+            [UUID.staleDecide],
+        );
+
+        const decide = (id: string, decision: 'accept' | 'decline') =>
+            testRequest(app, `/api/community/exchange/exchanges/${id}/${decision}`, {
+                method: 'POST',
+                headers: { ...authHeaders('owner'), 'content-type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+
+        const stale = await decide(UUID.staleDecide, 'accept');
+        assert.equal(stale.status, 409);
+        assert.deepEqual(await stale.json(), {
+            error: '这条交换请求已过期，对方需要重新发起',
+        });
+
+        const accepted = await decide(UUID.settledDecide, 'accept');
+        assert.equal(accepted.status, 200, await accepted.clone().text());
+        assert.deepEqual(await accepted.json(), { success: true, status: 'completed' });
+        const repeated = await decide(UUID.settledDecide, 'decline');
+        assert.equal(repeated.status, 409);
+        assert.deepEqual(await repeated.json(), {
+            error: '这条交换请求已经处理过了',
+        });
+    });
+
+    postgresTest('a repeated request keeps one pending row and one notification', async () => {
+        const { database, namecards, publish, commit } = await fixture();
+        const firstNumber = await publish('owner-dedupe-a', 'owner', 'manual');
+        const secondNumber = await publish('owner-dedupe-b', 'owner', 'manual');
+
+        const first = await commit({
+            id: UUID.dedupeFirst,
+            clientExchangeId: 'client-dedupe-0001',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [firstNumber],
+        });
+        const repeat = await commit({
+            id: UUID.dedupeSecond,
+            clientExchangeId: 'client-dedupe-0002',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [firstNumber],
+        });
+        assert.equal(first.idempotent, false);
+        assert.equal(repeat.idempotent, true);
+        assert.equal(repeat.exchange.id, UUID.dedupeFirst);
+        assert.equal(
+            (await namecards.listExchanges({ accountId: 'owner', limit: 10, offset: 0 })).total,
+            1,
+        );
+        const sent = await queryAll<{ exchange_id: string | null }>(
+            database,
+            `SELECT exchange_id FROM public.namecard_notifications
+              WHERE recipient_account_id=? AND kind='card-exchange-requested'`,
+            ['owner'],
+        );
+        assert.deepEqual(
+            sent.map((row) => row.exchange_id),
+            [UUID.dedupeFirst],
+        );
+
+        // 换一批目标卡是合法的新请求，不能被去重吞掉。
+        const different = await commit({
+            id: UUID.dedupeThird,
+            clientExchangeId: 'client-dedupe-0003',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [firstNumber, secondNumber],
+        });
+        assert.equal(different.idempotent, false);
+        assert.notEqual(different.exchange.id, UUID.dedupeFirst);
+        assert.deepEqual(
+            [...different.exchange.target_card_numbers].sort((left, right) => left - right),
+            [firstNumber, secondNumber].sort((left, right) => left - right),
+        );
+        assert.equal(
+            (await namecards.listExchanges({ accountId: 'owner', limit: 10, offset: 0 })).total,
+            2,
+        );
+    });
+
+    postgresTest('every exchange notification carries its exchange id into the inbox', async () => {
+        const { database, app, authHeaders, namecards, publish, commit } = await fixture();
+        const acceptedNumber = await publish('owner-notify-accepted', 'owner', 'manual');
+        const declinedNumber = await publish('owner-notify-declined', 'owner', 'manual');
+        await commit({
+            id: UUID.notifyRequested,
+            clientExchangeId: 'client-notify-0001',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [acceptedNumber],
+        });
+        await commit({
+            id: UUID.notifyDeclined,
+            clientExchangeId: 'client-notify-0002',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [declinedNumber],
+        });
+        await namecards.decideExchange({
+            exchangeId: UUID.notifyRequested,
+            accountId: 'owner',
+            decision: 'accept',
+            at: AT,
+        });
+        await namecards.decideExchange({
+            exchangeId: UUID.notifyDeclined,
+            accountId: 'owner',
+            decision: 'decline',
+            at: AT,
+        });
+
+        const rows = await queryAll<{ kind: string; exchange_id: string | null }>(
+            database,
+            'SELECT kind, exchange_id FROM public.namecard_notifications',
+        );
+        assert.equal(rows.find((row) => row.kind === 'card-exchange-accepted')?.exchange_id, UUID.notifyRequested);
+        assert.equal(rows.find((row) => row.kind === 'card-exchange-declined')?.exchange_id, UUID.notifyDeclined);
+        assert.deepEqual(
+            rows
+                .filter((row) => row.kind === 'card-exchange-requested')
+                .map((row) => row.exchange_id)
+                .sort(),
+            [UUID.notifyRequested, UUID.notifyDeclined].sort(),
+        );
+
+        // 列表接口原样带出 `exchangeId`（契约必填可空）。
+        const inbox = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/me/notifications', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardNotificationListResponseSchema,
+        );
+        assert.equal(inbox.items.length, 2);
+        const byKind = new Map(inbox.items.map((item) => [item.kind, item.exchangeId]));
+        assert.equal(byKind.get('card-exchange-accepted'), UUID.notifyRequested);
+        assert.equal(byKind.get('card-exchange-declined'), UUID.notifyDeclined);
+    });
+
+    postgresTest('a none card refuses a direct request and a share commit', async () => {
+        const { namecards, app, authHeaders, publish } = await fixture();
+        const cardNumber = await publish('owner-none-reject', 'owner', 'none');
+        const body = JSON.stringify({
+            clientExchangeId: 'client-none-reject-1',
+            giveCardNumbers: [],
+        });
+
+        const request = await testRequest(
+            app,
+            `/api/community/exchange/cards/${cardNumber}/request`,
+            {
+                method: 'POST',
+                headers: { ...authHeaders('collector'), 'content-type': 'application/json' },
+                body,
+            },
+        );
+        assert.equal(request.status, 409, await request.clone().text());
+        assert.deepEqual(await request.json(), { error: '这张名片不接受交换' });
+
+        const slug = await namecards.ensureExchangeLink('owner-none-reject');
+        const share = await testRequest(app, `/api/community/exchange/card/${slug}/commit`, {
+            method: 'POST',
+            headers: { ...authHeaders('collector'), 'content-type': 'application/json' },
+            body,
+        });
+        assert.equal(share.status, 409, await share.clone().text());
+        assert.deepEqual(await share.json(), { error: '这张名片不接受交换' });
+
+        // 被拒绝得干脆，也不该留下一次空交换。
+        assert.equal(
+            (await namecards.listExchanges({ accountId: 'collector', limit: 10, offset: 0 })).total,
+            0,
+        );
+    });
+
+    postgresTest('both sides can read the exchange detail and nobody else can', async () => {
+        const { app, authHeaders, namecards, publish, commit } = await fixture();
+        const ownerNumber = await publish('owner-detail', 'owner', 'manual');
+        const giveNumber = await publish('collector-detail', 'collector', 'auto');
+        await commit({
+            id: UUID.detail,
+            clientExchangeId: 'client-detail-0001',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [ownerNumber],
+            giveCardNumbers: [giveNumber],
+        });
+
+        const read = (accountId: 'collector' | 'owner' | 'stranger') =>
+            testRequest(app, `/api/community/exchange/exchanges/${UUID.detail}`, {
+                headers: authHeaders(accountId),
+            });
+
+        const asOwner = await assertContractJson(
+            await read('owner'),
+            200,
+            namecardExchangeDetailSchema,
+        );
+        assert.equal(asOwner.status, 'pending');
+        assert.equal(asOwner.source, 'card-request');
+        assert.equal(asOwner.initiator.accountId, 'collector');
+        assert.equal(asOwner.initiator.displayName, 'Collector');
+        assert.equal(asOwner.target.accountId, 'owner');
+        assert.equal(asOwner.target.displayName, 'Owner');
+        assert.deepEqual(
+            asOwner.targetCards.map((card) => card.cardNumber),
+            [ownerNumber],
+        );
+        assert.deepEqual(
+            asOwner.initiatorCards.map((card) => card.cardNumber),
+            [giveNumber],
+        );
+        // 卡片与分享页同一份投影：缩略图必须是交换作用域的路由地址。
+        const pages = asOwner.targetCards[0]?.pages ?? [];
+        assert.ok(pages.length > 0, '详情没有页面地址');
+        for (const page of pages) {
+            assert.match(page.thumbUrl, /^\/api\/community\/exchange\/cards\//);
+        }
+        // `expiresAt` = createdAt + 7 天；pending 才有值。
+        assert.equal(
+            Date.parse(asOwner.expiresAt ?? '') - Date.parse(asOwner.createdAt),
+            NAMECARD_EXCHANGE_PENDING_TTL_MS,
+        );
+
+        // 发起方也读得到同一笔（两侧卡片不因视角互换）。
+        const asInitiator = await assertContractJson(
+            await read('collector'),
+            200,
+            namecardExchangeDetailSchema,
+        );
+        assert.deepEqual(
+            asInitiator.targetCards.map((card) => card.cardNumber),
+            [ownerNumber],
+        );
+
+        // 第三方与不存在的 id 一律 404；未登录 401。
+        assert.equal((await read('stranger')).status, 404);
+        assert.equal(
+            (
+                await testRequest(
+                    app,
+                    '/api/community/exchange/exchanges/9f9f9f9f-9f9f-4f9f-8f9f-9f9f9f9f9f9f',
+                    { headers: authHeaders('owner') },
+                )
+            ).status,
+            404,
+        );
+        assert.equal(
+            (await testRequest(app, `/api/community/exchange/exchanges/${UUID.detail}`)).status,
+            401,
+        );
+    });
+
+    postgresTest('the detail reports an expired request and drops the stamp once settled', async () => {
+        const { database, app, authHeaders, namecards, publish, commit } = await fixture();
+        const expiredNumber = await publish('owner-detail-expired', 'owner', 'manual');
+        const settledNumber = await publish('owner-detail-settled', 'owner', 'manual');
+        await commit({
+            id: UUID.detail,
+            clientExchangeId: 'client-detail-expired',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [expiredNumber],
+        });
+        await commit({
+            id: UUID.detailSettled,
+            clientExchangeId: 'client-detail-settled',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [settledNumber],
+        });
+        await executeSql(
+            database,
+            `UPDATE public.namecard_exchanges
+                SET created_at = now() - interval '8 days'
+              WHERE id=?`,
+            [UUID.detail],
+        );
+        await namecards.decideExchange({
+            exchangeId: UUID.detailSettled,
+            accountId: 'owner',
+            decision: 'accept',
+            at: AT,
+        });
+
+        const expired = await assertContractJson(
+            await testRequest(app, `/api/community/exchange/exchanges/${UUID.detail}`, {
+                headers: authHeaders('owner'),
+            }),
+            200,
+            namecardExchangeDetailSchema,
+        );
+        assert.equal(expired.status, 'expired');
+        assert.equal(
+            Date.parse(expired.expiresAt ?? '') - Date.parse(expired.createdAt),
+            NAMECARD_EXCHANGE_PENDING_TTL_MS,
+        );
+
+        const settled = await assertContractJson(
+            await testRequest(app, `/api/community/exchange/exchanges/${UUID.detailSettled}`, {
+                headers: authHeaders('owner'),
+            }),
+            200,
+            namecardExchangeDetailSchema,
+        );
+        assert.equal(settled.status, 'completed');
+        assert.equal(settled.expiresAt, null);
     });
 });

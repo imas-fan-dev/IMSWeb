@@ -8,6 +8,7 @@ import {
     namecardExchangeHandleParamsSchema,
     namecardExchangeIdParamsSchema,
     namecardExchangeSlugParamsSchema,
+    namecardQuickCandidatesQuerySchema,
     namecardQuickSelectionSchema,
     namecardScanSessionRequestSchema,
     namecardScanTokenParamsSchema,
@@ -20,6 +21,7 @@ import { handleGetCardShareLink } from '@/domains/community/namecards/exchange/h
 import { handleCommitCardShare } from '@/domains/community/namecards/exchange/handlers/commit-card-share';
 import { handleCommitQuickExchange } from '@/domains/community/namecards/exchange/handlers/commit-quick-exchange';
 import { handleGetCardShare } from '@/domains/community/namecards/exchange/handlers/get-card-share';
+import { handleGetExchange } from '@/domains/community/namecards/exchange/handlers/get-exchange';
 import { handleGetQuickExchange } from '@/domains/community/namecards/exchange/handlers/get-quick-exchange';
 import {
     handleGetQuickSettings,
@@ -83,6 +85,9 @@ const commitBody = jsonSchemaValidator(namecardExchangeCommitSchema, {
 const collectionQuery = querySchemaValidator(namecardCollectionQuerySchema, {
     invalidMessage: '分页参数无效',
 });
+const quickCandidatesQuery = querySchemaValidator(namecardQuickCandidatesQuerySchema, {
+    invalidMessage: '目标用户标识无效',
+});
 
 export function namecardExchangeRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
@@ -96,8 +101,8 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
     routes.get('/exchange/quick/:handle', optionalPlatformAuth, handleParam, handleGetQuickExchange);
     routes.post('/exchange/quick/:handle/commit', ...write, handleParam, commitBody, handleCommitQuickExchange);
 
-    // 自己的快速交换清单。
-    routes.get('/exchange/me/quick', platformAuth, handleGetQuickSettings);
+    // 自己的快速交换清单；带 `target` 时再叠一层目标视角（见 handler）。
+    routes.get('/exchange/me/quick', platformAuth, quickCandidatesQuery, handleGetQuickSettings);
     routes.put(
         '/exchange/me/quick',
         ...write,
@@ -154,7 +159,8 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
         handleCommitScanSession,
     );
 
-    // 手动交换的裁决。
+    // 手动交换的裁决与详情：详情只给参与双方，其它人 404。
+    routes.get('/exchange/exchanges/:id', platformAuth, exchangeIdParam, handleGetExchange);
     routes.post('/exchange/exchanges/:id/accept', ...write, exchangeIdParam, handleAcceptExchange);
     routes.post('/exchange/exchanges/:id/decline', ...write, exchangeIdParam, handleDeclineExchange);
 

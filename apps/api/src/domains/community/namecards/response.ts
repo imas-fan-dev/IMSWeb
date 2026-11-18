@@ -30,6 +30,7 @@ import type {
     NamecardCollectionPage as NamecardCollectionPageContract,
     NamecardCollectionVisibilityResponse as NamecardCollectionVisibilityContract,
     NamecardExchangeDecision as NamecardExchangeDecisionContract,
+    NamecardExchangeDetail as NamecardExchangeDetailContract,
     NamecardExchangeHistoryPage as NamecardExchangeHistoryPageContract,
     NamecardExchangeResult as NamecardExchangeResultContract,
     NamecardQuickExchange as NamecardQuickExchangeContract,
@@ -76,6 +77,8 @@ export type NamecardCollectionPageResponse = NamecardCollectionPageContract;
 export type NamecardExchangeHistoryPageResponse =
     NamecardExchangeHistoryPageContract;
 export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
+/** 通知窗口的交换详情。 */
+export type NamecardExchangeDetailResponse = NamecardExchangeDetailContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
 /** 属主清单布局的读写共用一份返回体。 */
 export type NamecardCardLayoutResponse = NamecardCardLayoutContract;

@@ -461,10 +461,38 @@ export interface NamecardExchangeCommitResult {
     targetMissingCount: number;
 }
 
+/**
+ * `expired` 的两种来源：`stale` 表示它确实是超过 7 天还没裁决的 pending（这次顺手落了库），
+ * 否则就是早就被处理过、或已被判定过期的状态。handler 据此给不同的 409 文案。
+ */
 export type NamecardExchangeDecisionRecord =
     | { status: 'completed' | 'declined' }
     | { status: 'not-found' }
-    | { status: 'expired' };
+    | { status: 'expired'; stale: boolean };
+
+/** 交换详情窗口的一方：账号与展示名。 */
+export interface NamecardExchangePartyRecord {
+    account_id: string;
+    display_name: string;
+}
+
+/**
+ * 单笔交换的详情：两侧卡片的实时公开投影 + 双方名字。
+ * 参与者校验在 SQL 里做，非参与者读不到。
+ */
+export interface NamecardExchangeDetailRecord {
+    id: string;
+    source: NamecardExchangeSourceRecord;
+    status: NamecardExchangeStatusRecord;
+    created_at: string | Date;
+    /** `created_at + TTL`；仅 `pending` / `expired` 给值。 */
+    expires_at: string | null;
+    initiator: NamecardExchangePartyRecord;
+    target: NamecardExchangePartyRecord;
+    target_cards: NamecardPublicRecord[];
+    initiator_cards: NamecardPublicRecord[];
+    skipped: NamecardExchangeSkipRecord[];
+}
 
 export interface NamecardScanSessionRecord {
     id: string;
@@ -521,6 +549,14 @@ export interface NamecardRepository {
         limit: number;
         offset: number;
     }): Promise<{ rows: NamecardExchangeRecord[]; total: number }>;
+    /**
+     * 通知窗口的详情：只有发起方或目标方能读，其它人（含不存在的 id）一律 null，
+     * 详情端点据此回 404。
+     */
+    findExchangeDetail(input: {
+        exchangeId: string;
+        accountId: string;
+    }): Promise<NamecardExchangeDetailRecord | null>;
     listCollection(input: {
         accountId: string;
         limit: number;
@@ -704,6 +740,7 @@ export interface NamecardRepository {
             id: string;
             kind: string;
             card_number: number | string | null;
+            exchange_id: string | null;
             title: string;
             body: string;
             read_at: Date | string | null;

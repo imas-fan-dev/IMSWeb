@@ -7,6 +7,7 @@ import type {
     NamecardExchangeHandleParams,
     NamecardExchangeIdParams,
     NamecardExchangeSlugParams,
+    NamecardQuickCandidatesQuery,
     NamecardQuickSelection,
     NamecardScanSessionRequest,
     NamecardScanTokenParams,
@@ -41,6 +42,8 @@ export type NamecardQuickCommitContext = WithParamsBody<
     NamecardExchangeCommitRequest
 >;
 export type NamecardQuickSelectionContext = WithBody<NamecardQuickSelection>;
+/** 候选读取带一个可选目标（uid / 主页 slug / 账号 ID）。 */
+export type NamecardQuickSettingsContext = WithQuery<NamecardQuickCandidatesQuery>;
 export type NamecardScanSessionContext = WithBody<NamecardScanSessionRequest>;
 export type NamecardScanCommitContext = WithParamsBody<
     NamecardScanTokenParams,
@@ -58,3 +61,5 @@ export type NamecardCollectionEntryContext = WithParamsBody<
     NamecardCollectionVisibilityRequest
 >;
 export type NamecardDecisionContext = WithParams<NamecardExchangeIdParams>;
+/** 交换详情窗口：路径上只有交换 id。 */
+export type NamecardExchangeDetailContext = WithParams<NamecardExchangeIdParams>;

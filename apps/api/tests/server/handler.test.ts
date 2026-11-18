@@ -843,6 +843,7 @@ import { test } from 'vitest';
             async commitExchange() { throw new Error('unexpected exchange commit'); },
             async decideExchange() { return { status: 'not-found' }; },
             async listExchanges() { return { rows: [], total: 0 }; },
+            async findExchangeDetail() { return null; },
             async listCollection() { return { rows: [], total: 0 }; },
             async setCollectionHidden() { return false; },
             async listCollectedCardNumbers() { return new Set<number>(); },

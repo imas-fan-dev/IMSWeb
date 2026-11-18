@@ -23,6 +23,7 @@ export interface NamecardNotificationRow {
     id: string;
     kind: string;
     card_number: number | string | null;
+    exchange_id: string | null;
     title: string;
     body: string;
     read_at: Date | string | null;
@@ -33,11 +34,14 @@ export interface NewNamecardNotificationInput {
     recipientAccountId: string;
     kind: NamecardNotificationKind;
     cardNumber: number | null;
+    /** 交换类通知带上对应的交换行；其它种类不传，落库为 NULL。 */
+    exchangeId?: string | null;
     title: string;
     body: string;
 }
 
-const NOTIFICATION_COLUMNS = 'id, kind, card_number, title, body, read_at, created_at';
+const NOTIFICATION_COLUMNS =
+    'id, kind, card_number, exchange_id, title, body, read_at, created_at';
 
 /** 事务内直接写入一条通知，并按上限裁剪（供审核处理器复用）。 */
 export async function insertNamecardNotification(
@@ -48,9 +52,17 @@ export async function insertNamecardNotification(
     await sqlStatement(
         database,
         `INSERT INTO public.namecard_notifications
-             (id, recipient_account_id, kind, card_number, title, body)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, input.recipientAccountId, input.kind, input.cardNumber, input.title, input.body]
+             (id, recipient_account_id, kind, card_number, exchange_id, title, body)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+            id,
+            input.recipientAccountId,
+            input.kind,
+            input.cardNumber,
+            input.exchangeId ?? null,
+            input.title,
+            input.body
+        ]
     ).run();
     await trimNamecardNotifications(database, input.recipientAccountId);
     return id;

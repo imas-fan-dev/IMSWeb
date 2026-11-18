@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { adminExchangePath } from '@imsweb/contracts/paths';
+import { NAMECARD_EXCHANGE_PENDING_TTL_MS } from '@imsweb/contracts/namecards/runtime';
 import type { FudabaCardPageWrite } from '@/ports/repositories/fudaba';
 import {
     NAMECARD_ACCENT_FALLBACK,
@@ -68,6 +69,7 @@ import type {
     NamecardExchangeCommitInput,
     NamecardExchangeCommitResult,
     NamecardExchangeDecisionRecord,
+    NamecardExchangeDetailRecord,
     NamecardExchangeRecord,
     NamecardExchangeSkipRecord,
     NamecardScanSessionRecord,
@@ -178,6 +180,17 @@ interface NamecardExchangeRow {
 }
 
 const EXCHANGE_COLUMNS = `id, client_exchange_id, source, status,
+    initiator_account_id, target_account_id,
+    target_card_numbers, initiator_card_numbers, skipped,
+    created_at, resolved_at`;
+
+/**
+ * 读取侧的交换投影：超过 TTL 仍 `pending` 的行一律呈现为 `expired`。
+ * 不写库也自洽（过期不是一次用户动作），裁决侧命中时才顺手落成 `expired`。
+ */
+const EXCHANGE_READ_COLUMNS = `id, client_exchange_id, source,
+    CASE WHEN status='pending' AND created_at < now() - interval '7 days'
+         THEN 'expired' ELSE status END AS status,
     initiator_account_id, target_account_id,
     target_card_numbers, initiator_card_numbers, skipped,
     created_at, resolved_at`;
@@ -3126,6 +3139,36 @@ export class SqlCoreRepository implements NamecardRepository {
                 ? 'pending'
                 : 'completed';
 
+            // 重复发起去重（doc §7）：同一发起方、同一目标方、同一批目标卡且仍在一周有效期内的
+            // pending，只留一笔；再点一次也拿回同一行，不再发第二封通知。换一批卡是合法的新请求，
+            // 过期 pending 也不挡路（读取侧它已经是 `expired`）。
+            if (input.source !== 'scan') {
+                const duplicate = await queryOne<NamecardExchangeRow>(
+                    database,
+                    `SELECT ${EXCHANGE_READ_COLUMNS} FROM public.namecard_exchanges
+                      WHERE initiator_account_id=? AND target_account_id=?
+                        AND status='pending' AND target_card_numbers=?::bigint[]
+                        AND created_at > now() - interval '7 days'
+                      LIMIT 1`,
+                    [
+                        input.initiatorAccountId,
+                        input.targetAccountId,
+                        postgresBigintArray(targets.map((card) => card.card_number ?? card.id))
+                    ]
+                );
+                if (duplicate) {
+                    return {
+                        exchange: exchangeRecordFromRow(duplicate),
+                        idempotent: true,
+                        targetMissingCount: await this.countMissingCollectionCardsWith(
+                            database,
+                            input.initiatorAccountId,
+                            input.targetAccountId
+                        )
+                    };
+                }
+            }
+
             const inserted = await queryOne<NamecardExchangeRow>(
                 database,
                 `INSERT INTO public.namecard_exchanges
@@ -3185,6 +3228,7 @@ export class SqlCoreRepository implements NamecardRepository {
                     recipientAccountId: input.targetAccountId,
                     kind: copy.kind,
                     cardNumber: targets[0]?.card_number ?? null,
+                    exchangeId: input.id,
                     title: copy.title,
                     body: copy.body
                 });
@@ -3296,9 +3340,11 @@ export class SqlCoreRepository implements NamecardRepository {
         at: string;
     }): Promise<NamecardExchangeDecisionRecord> {
         return this.database.transaction(async (database) => {
-            const row = await queryOne<NamecardExchangeRow>(
+            const row = await queryOne<NamecardExchangeRow & { stale: boolean }>(
                 database,
-                `SELECT ${EXCHANGE_COLUMNS} FROM public.namecard_exchanges
+                `SELECT ${EXCHANGE_COLUMNS},
+                        (created_at < now() - interval '7 days') AS stale
+                   FROM public.namecard_exchanges
                   WHERE id=? FOR UPDATE`,
                 [input.exchangeId]
             );
@@ -3307,7 +3353,19 @@ export class SqlCoreRepository implements NamecardRepository {
                 return { status: 'not-found' } as const;
             }
             if (row.status !== 'pending') {
-                return { status: 'expired' } as const;
+                return { status: 'expired', stale: false } as const;
+            }
+            // 通知正文承诺「一周内不处理将自动过期」：过期 pending 在这里落成终态，
+            // 满足 `resolved_at IS NULL ⇔ pending` 的 CHECK，然后按过期拒绝这次裁决。
+            if (row.stale) {
+                await executeSql(
+                    database,
+                    `UPDATE public.namecard_exchanges
+                        SET status='expired', resolved_at=?
+                      WHERE id=?`,
+                    [input.at, input.exchangeId]
+                );
+                return { status: 'expired', stale: true } as const;
             }
             const exchange = exchangeRecordFromRow(row);
             const status = input.decision === 'accept' ? 'completed' : 'declined';
@@ -3364,6 +3422,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 recipientAccountId: exchange.initiator_account_id,
                 kind: copy.kind,
                 cardNumber: numbers[0] ?? null,
+                exchangeId: exchange.id,
                 title: copy.title,
                 body: copy.body
             });
@@ -3384,7 +3443,7 @@ export class SqlCoreRepository implements NamecardRepository {
         );
         const rows = await queryAll<NamecardExchangeRow>(
             this.database,
-            `SELECT ${EXCHANGE_COLUMNS} FROM public.namecard_exchanges
+            `SELECT ${EXCHANGE_READ_COLUMNS} FROM public.namecard_exchanges
               WHERE initiator_account_id=? OR target_account_id=?
               ORDER BY created_at DESC, id DESC
               LIMIT ? OFFSET ?`,
@@ -3393,6 +3452,62 @@ export class SqlCoreRepository implements NamecardRepository {
         return {
             rows: rows.map(exchangeRecordFromRow),
             total: Number(total?.total ?? 0)
+        };
+    }
+
+    /** 通知窗口的详情：参与者校验写在 SQL 里，非参与者与不存在的 id 同样回 null。 */
+    async findExchangeDetail(input: {
+        exchangeId: string;
+        accountId: string;
+    }): Promise<NamecardExchangeDetailRecord | null> {
+        const row = await queryOne<NamecardExchangeRow>(
+            this.database,
+            `SELECT ${EXCHANGE_READ_COLUMNS} FROM public.namecard_exchanges
+              WHERE id=? AND (initiator_account_id=? OR target_account_id=?)`,
+            [input.exchangeId, input.accountId, input.accountId]
+        );
+        if (!row) return null;
+        const exchange = exchangeRecordFromRow(row);
+        const [targetCards, initiatorCards, profiles] = await Promise.all([
+            this.loadExchangeCards(this.database, exchange.target_card_numbers),
+            this.loadExchangeCards(this.database, exchange.initiator_card_numbers),
+            queryAll<{ account_id: string; display_name: string | null }>(
+                this.database,
+                `SELECT account_id, display_name FROM public.platform_profiles
+                  WHERE account_id IN (?, ?)`,
+                [exchange.initiator_account_id, exchange.target_account_id]
+            )
+        ]);
+        const names = new Map(
+            profiles.map((profile) => [
+                profile.account_id,
+                profile.display_name?.trim() || '一位制作人'
+            ])
+        );
+        const active = exchange.status === 'pending' || exchange.status === 'expired';
+        return {
+            id: exchange.id,
+            source: exchange.source,
+            status: exchange.status,
+            created_at: exchange.created_at,
+            expires_at: active
+                ? new Date(
+                      new Date(exchange.created_at).getTime() +
+                          NAMECARD_EXCHANGE_PENDING_TTL_MS
+                  ).toISOString()
+                : null,
+            initiator: {
+                account_id: exchange.initiator_account_id,
+                display_name:
+                    names.get(exchange.initiator_account_id) ?? '一位制作人'
+            },
+            target: {
+                account_id: exchange.target_account_id,
+                display_name: names.get(exchange.target_account_id) ?? '一位制作人'
+            },
+            target_cards: targetCards,
+            initiator_cards: initiatorCards,
+            skipped: exchange.skipped
         };
     }
 

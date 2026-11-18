@@ -1,5 +1,6 @@
 import {
   NAMECARD_EXCHANGE_CARD_LIMIT,
+  NAMECARD_EXCHANGE_PENDING_TTL_MS,
   NAMECARD_PROFILE_GROUP_LIMIT,
   NAMECARD_SCAN_TOKEN_TTL_MS,
 } from "./namecards-runtime.js"
@@ -693,7 +694,11 @@ export type RandomOwnerlessCardError = z.infer<
   typeof randomOwnerlessCardErrorSchema
 >
 
-export { NAMECARD_EXCHANGE_CARD_LIMIT, NAMECARD_SCAN_TOKEN_TTL_MS }
+export {
+  NAMECARD_EXCHANGE_CARD_LIMIT,
+  NAMECARD_EXCHANGE_PENDING_TTL_MS,
+  NAMECARD_SCAN_TOKEN_TTL_MS,
+}
 
 export const namecardExchangeSourceSchema = z.enum([
   "card-share",
@@ -771,11 +776,29 @@ export const namecardQuickCandidateSchema = exactJsonResponse({
   pages: z.array(cardPageSchema),
   exchangeMode: z.enum(["auto", "manual", "none"]),
   selected: z.boolean(),
+  /**
+   * 目标用户的名片册里是否已有这张卡（与 `collected` 同口径、同来源）。
+   * 只有带 `target` 查询参数、且命中的卡才出现；没传目标或未命中整份省略。
+   */
+  targetOwns: z.boolean().optional(),
 })
 
 export const namecardQuickSettingsSchema = exactJsonResponse({
   limit: z.number().int().positive(),
   cards: z.array(namecardQuickCandidateSchema),
+  /** 我有、可交换、目标用户还没有的张数；没传目标时整份省略。 */
+  targetMissingCount: z.number().int().nonnegative().optional(),
+})
+
+/**
+ * 选卡窗口的目标视角：`target` 认 uid、主页 slug 或账号 ID（与
+ * `namecardExchangeHandleParamsSchema` 同款校验）；`targetCard` 是目标的公开卡号
+ * （名片墙 / 主页的公开投影里没有可用的 `claimerUid`，只能从卡反查卡主）。
+ * 两者互斥，都不传就是没有目标。
+ */
+export const namecardQuickCandidatesQuerySchema = strictRequestObject({
+  target: z.string().trim().min(1).max(128).optional(),
+  targetCard: z.string().trim().regex(/^\d{1,18}$/).optional(),
 })
 
 export const namecardQuickSelectionSchema = strictRequestObject({
@@ -922,6 +945,29 @@ export const namecardExchangeHistoryEntrySchema = exactJsonResponse({
   resolvedAt: z.string().min(1).nullable(),
 })
 
+/** 交换详情窗口里的一方：账号与展示名（名字缺失时由读取侧补默认值）。 */
+export const namecardExchangePartySchema = exactJsonResponse({
+  accountId: z.string().min(1),
+  displayName: z.string().min(1),
+})
+
+/**
+ * 单笔交换的详情：通知窗口据此画出对方要的名片、我给出的名片与过期时间。
+ * `expiresAt` 只在 `pending` / `expired` 有意义，其它状态为 null。
+ */
+export const namecardExchangeDetailSchema = exactJsonResponse({
+  id: z.string().min(1),
+  status: namecardExchangeStatusSchema,
+  source: namecardExchangeSourceSchema,
+  createdAt: z.string().min(1),
+  expiresAt: z.string().min(1).nullable(),
+  initiator: namecardExchangePartySchema,
+  target: namecardExchangePartySchema,
+  targetCards: z.array(namecardSchema),
+  initiatorCards: z.array(namecardSchema),
+  skipped: z.array(namecardExchangeSkippedSchema),
+})
+
 export const namecardExchangeHistoryPageSchema = exactJsonResponse({
   list: z.array(namecardExchangeHistoryEntrySchema),
   total: z.number().int().nonnegative(),
@@ -976,6 +1022,9 @@ export type NamecardCardShare = z.infer<typeof namecardCardShareSchema>
 export type NamecardQuickExchange = z.infer<typeof namecardQuickExchangeSchema>
 export type NamecardCardShareLink = z.infer<typeof namecardCardShareLinkSchema>
 export type NamecardQuickSettings = z.infer<typeof namecardQuickSettingsSchema>
+export type NamecardQuickCandidatesQuery = z.infer<
+  typeof namecardQuickCandidatesQuerySchema
+>
 export type NamecardCardLayout = z.infer<typeof namecardCardLayoutSchema>
 export type NamecardCardLayoutRequest = z.infer<
   typeof namecardCardLayoutRequestSchema
@@ -995,6 +1044,9 @@ export type NamecardExchangeHistoryEntry = z.infer<
 >
 export type NamecardExchangeHistoryPage = z.infer<
   typeof namecardExchangeHistoryPageSchema
+>
+export type NamecardExchangeDetail = z.infer<
+  typeof namecardExchangeDetailSchema
 >
 export type NamecardScanSession = z.infer<typeof namecardScanSessionSchema>
 export type NamecardScanSessionRequest = z.infer<

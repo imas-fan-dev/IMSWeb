@@ -425,6 +425,8 @@ export const namecardNotificationSchema = z
     id: z.string().min(1),
     kind: namecardNotificationKindSchema,
     cardNumber: z.number().int().positive().nullable(),
+    /** 这条通知对应的交换记录；只有 `card-exchange-*` 三类带，其余为 null。 */
+    exchangeId: z.string().min(1).nullable(),
     title: z.string().min(1),
     body: z.string().max(4000),
     readAt: z.string().nullable(),
